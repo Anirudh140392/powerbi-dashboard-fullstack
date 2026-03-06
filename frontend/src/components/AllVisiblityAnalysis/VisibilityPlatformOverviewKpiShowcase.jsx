@@ -326,13 +326,6 @@ const KPI_KEYS = [
         color: "#16A34A", // green
         unit: "%",
     },
-    {
-        key: "display_sos",
-        label: "Display SOS",
-        color: "#8B5CF6", // purple
-        unit: "%",
-        comingSoon: true,
-    },
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -911,18 +904,16 @@ const BrandTable = ({ rows, loading }) => {
                     <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
                         <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             <tr>
-                                <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-                                <th className="px-3 py-2 text-right w-[20%]">Overall SOS</th>
-                                <th className="px-3 py-2 text-right w-[20%]">Sponsored SOS</th>
-                                <th className="px-3 py-2 text-right w-[20%]">Organic SOS</th>
-                                <th className="px-3 py-2 text-right w-[20%]">Display SOS</th>
+                                <th className="px-3 py-2 text-left w-[25%]">Brand</th>
+                                <th className="px-3 py-2 text-right w-[25%]">Overall SOS</th>
+                                <th className="px-3 py-2 text-right w-[25%]">Sponsored SOS</th>
+                                <th className="px-3 py-2 text-right w-[25%]">Organic SOS</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading ? Array.from({ length: pageSize }).map((_, idx) => (
                                 <tr key={`skeleton-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
@@ -933,11 +924,6 @@ const BrandTable = ({ rows, loading }) => {
                                     <td className="px-3 py-2 text-right text-slate-900 font-medium">{(row.overall_sos || 0).toFixed(1)}%</td>
                                     <td className="px-3 py-2 text-right text-slate-900">{(row.sponsored_sos || 0).toFixed(1)}%</td>
                                     <td className="px-3 py-2 text-right text-slate-900">{(row.organic_sos || 0).toFixed(1)}%</td>
-                                    <td className="px-3 py-2 text-right">
-                                        <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-100">
-                                            Coming Soon
-                                        </span>
-                                    </td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
@@ -969,12 +955,11 @@ const SkuTable = ({ rows, loading }) => {
                     <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
                         <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             <tr>
-                                <th className="px-3 py-2 text-left w-[20%]">SKU</th>
+                                <th className="px-3 py-2 text-left w-[25%]">SKU</th>
                                 <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-                                <th className="px-3 py-2 text-right w-[15%]">Overall SOS</th>
-                                <th className="px-3 py-2 text-right w-[15%]">Sponsored SOS</th>
-                                <th className="px-3 py-2 text-right w-[15%]">Organic SOS</th>
-                                <th className="px-3 py-2 text-right w-[15%]">Display SOS</th>
+                                <th className="px-3 py-2 text-right w-[18%]">Overall SOS</th>
+                                <th className="px-3 py-2 text-right w-[18%]">Sponsored SOS</th>
+                                <th className="px-3 py-2 text-right w-[19%]">Organic SOS</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
@@ -982,7 +967,6 @@ const SkuTable = ({ rows, loading }) => {
                                 <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
@@ -994,15 +978,10 @@ const SkuTable = ({ rows, loading }) => {
                                     <td className="px-3 py-2 text-right text-slate-900 font-medium">{(row.overall_sos || 0).toFixed(1)}%</td>
                                     <td className="px-3 py-2 text-right text-slate-900">{(row.sponsored_sos || 0).toFixed(1)}%</td>
                                     <td className="px-3 py-2 text-right text-slate-900">{(row.organic_sos || 0).toFixed(1)}%</td>
-                                    <td className="px-3 py-2 text-right">
-                                        <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-100">
-                                            Coming Soon
-                                        </span>
-                                    </td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
-                                <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-400">No SKUs found</td></tr>
+                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No SKUs found</td></tr>
                             )}
                         </tbody>
                     </table>

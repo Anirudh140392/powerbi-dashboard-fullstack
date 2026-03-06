@@ -556,14 +556,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
           setFilterOptions({
             categories: (response.data.categories || []).filter(c => c && c !== 'All'),
             brands: (response.data.brands || []).filter(b => b && b !== 'All'),
-            skus: (response.data.skus || []).filter(s => s && s !== 'All'),
+            skus: (response.data.skuCodes || response.data.skus || []).filter(s => s && s !== 'All'),
             loading: false,
             error: null
           });
           console.log('[FilterDialog] Loaded filter options:', {
             categories: response.data.categories?.length || 0,
             brands: response.data.brands?.length || 0,
-            skus: response.data.skus?.length || 0
+            skus: response.data.skuCodes?.length || response.data.skus?.length || 0
           });
         }
       } catch (error) {
@@ -805,7 +805,10 @@ const MetricChip = ({ label, color, active, onClick }) => {
   );
 };
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, kpiKeys = KPI_KEYS }) => {
+const TrendView = ({
+  mode, filters, city, onBackToTable, onSwitchToKpi, kpiKeys = KPI_KEYS,
+  platform, timeStart, timeEnd, dynamicKey, dimensionValue, dimensionType, listData
+}) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState(kpiKeys[0]?.key || "Osa");
 
@@ -814,57 +817,140 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, kpiKeys 
 
   const isBrandMode = mode === "brand";
 
+  const [trendData, setTrendData] = useState({ dates: [], timeSeries: {} });
+  const [loading, setLoading] = useState(false);
+
   /* ---------------- SELECTED IDS ---------------- */
+  // Take top 4 or 5 IDs from the table listData
   const selectedIds = useMemo(() => {
-    if (isBrandMode) {
-      let rows = DATA_MODEL.brandSummaryByCity[city] || [];
+    if (!listData || listData.length === 0) return [];
+    const limit = isBrandMode ? 4 : 5;
+    return listData.slice(0, limit).map(r => r.id);
+  }, [listData, isBrandMode]);
 
-      if (filters.categories.length)
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      if (filters.brands.length)
-        rows = rows.filter((r) => filters.brands.includes(r.name));
+  const selectedLabels = useMemo(() => selectedIds, [selectedIds]);
 
-      return rows.length ? rows.slice(0, 4).map((r) => r.id) : [];
-    }
+  // Track which lines are visible (user can toggle individual brands/skus)
+  const [visibleIds, setVisibleIds] = useState(new Set());
 
-    let rows = DATA_MODEL.skuSummaryByCity[city] || [];
+  // When selectedIds change, reset visibleIds to show all
+  useEffect(() => {
+    setVisibleIds(new Set(selectedIds));
+  }, [selectedIds.join(',')]);  // use join to avoid infinite loop
 
-    if (filters.categories.length)
-      rows = rows.filter((r) => filters.categories.includes(r.category));
-    if (filters.brands.length)
-      rows = rows.filter((r) => filters.brands.includes(r.brandName));
-    if (filters.skus.length)
-      rows = rows.filter((r) => filters.skus.includes(r.name));
+  const LINE_COLORS = ['#6366F1', '#F43F5E', '#14B8A6', '#F59E0B', '#8B5CF6', '#EC4899', '#10B981', '#3B82F6', '#EF4444', '#06B6D4'];
 
-    return rows.length ? rows.slice(0, 5).map((r) => r.id) : [];
-  }, [isBrandMode, filters, city]);
+  const toggleVisibility = (id) => {
+    setVisibleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        // Don't allow hiding all
+        if (next.size <= 1) return prev;
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
-  const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
-        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      ),
-    [selectedIds, isBrandMode]
-  );
+  /* ---------------- FETCH TRENDS ---------------- */
+  useEffect(() => {
+    if (selectedIds.length === 0) return;
+
+    const fetchTrends = async () => {
+      setLoading(true);
+      try {
+        const isCategoryFilterActive = filters.categories && filters.categories.length > 0;
+        const isBrandFilterActive = filters.brands && filters.brands.length > 0;
+
+        let activeDimensionValue = dimensionValue;
+        if (dimensionType === 'category' && isCategoryFilterActive) activeDimensionValue = undefined;
+        if (dimensionType === 'brand' && isBrandFilterActive) activeDimensionValue = undefined;
+
+        let res;
+        if (dynamicKey && dynamicKey.toLowerCase() === 'pricing') {
+          const params = {
+            mode,
+            targets: selectedIds.join(','),
+            platform: platform || 'All',
+            location: city === 'All India' ? 'All' : city,
+            category: isCategoryFilterActive ? filters.categories.join(',') : 'All',
+            brand: isBrandFilterActive ? filters.brands.join(',') : 'All',
+            sku: filters.skus && filters.skus.length > 0 ? filters.skus.join(',') : 'All',
+            period: '1M',
+            startDate: timeStart?.format('YYYY-MM-DD'),
+            endDate: timeEnd?.format('YYYY-MM-DD'),
+            dimension: dimensionType,
+            dimensionValue: activeDimensionValue
+          };
+          res = await axiosInstance.get('/pricing-analysis/competition-trends', { params });
+          console.log('[TrendView] API response:', res.data);
+          if (res.data && res.data.success !== false) {
+            setTrendData({
+              dates: res.data.dates || [],
+              timeSeries: res.data.timeSeriesByTarget || {}
+            });
+          }
+        } else {
+          // Watchtower fallback
+          const params = {
+            brands: isBrandMode ? selectedIds.join(',') : 'All',
+            skus: !isBrandMode ? selectedIds.join(',') : 'All',
+            location: city === 'All India' ? 'All' : city,
+            category: isCategoryFilterActive ? filters.categories.join(',') : (dimensionType === 'category' ? dimensionValue : 'All'),
+            period: '1M',
+            startDate: timeStart?.format('YYYY-MM-DD'),
+            endDate: timeEnd?.format('YYYY-MM-DD'),
+          };
+          res = await axiosInstance.get('/watchtower/competition-brand-trends', { params });
+          if (res.data && res.data.brands) {
+            const ts = {};
+            const datesSet = new Set();
+            Object.entries(res.data.brands || {}).forEach(([target, series]) => {
+              ts[target] = {};
+              series.forEach(pt => {
+                const d = pt.date_key || pt.date;
+                datesSet.add(d);
+                ts[target][d] = {
+                  Osa: pt.osa?.value ?? pt.osa ?? 0,
+                  Sos: pt.sos?.value ?? pt.sos ?? 0,
+                  Listing: pt.listing?.value ?? pt.listing ?? 0,
+                  Assortment: pt.assortment?.value ?? pt.assortment ?? 0
+                };
+              });
+            });
+            setTrendData({
+              dates: Array.from(datesSet).sort(),
+              timeSeries: ts
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[TrendView] Error fetching competition trends', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTrends();
+  }, [mode, selectedIds, platform, timeStart, timeEnd, city, filters, dimensionValue, dimensionType, dynamicKey]);
 
   /* ---------------- CHART DATA ---------------- */
   const chartData = useMemo(() => {
-    const days = DATA_MODEL.days;
-
-    return days.map((date, idx) => {
+    if (trendData.dates.length === 0) return [];
+    return trendData.dates.map(date => {
       const row = { date };
-
       selectedIds.forEach((id) => {
-        const series = isBrandMode
-          ? DATA_MODEL.brandTrendsByCity?.[city]?.[id]
-          : DATA_MODEL.skuTrendsByCity?.[city]?.[id];
-
-        if (series) row[id] = series[idx]?.[activeMetric] ?? null;
+        const series = trendData.timeSeries[id];
+        if (series && series[date] && series[date][activeMetric] !== undefined) {
+          row[id] = series[date][activeMetric];
+        } else {
+          row[id] = null;
+        }
       });
-
       return row;
     });
-  }, [selectedIds, city, isBrandMode, activeMetric]);
+  }, [trendData, selectedIds, activeMetric]);
 
   const formatValue = (v) => {
     if (metricMeta.unit) return `${v}${metricMeta.unit}`;
@@ -892,11 +978,36 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, kpiKeys 
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span>{isBrandMode ? "Brands:" : "SKUs:"}</span>
-            {selectedLabels.map((label) => (
-              <Badge key={label}>{label}</Badge>
-            ))}
-            <Separator orientation="vertical" className="mx-1 h-4" />
-            <span>{city}</span>
+            {selectedLabels.map((label, idx) => {
+              const isVisible = visibleIds.has(label);
+              const color = LINE_COLORS[idx % LINE_COLORS.length];
+              return (
+                <Badge
+                  key={label}
+                  variant={isVisible ? "default" : "outline"}
+                  onClick={() => toggleVisibility(label)}
+                  style={{
+                    cursor: 'pointer',
+                    backgroundColor: isVisible ? color + '18' : 'transparent',
+                    borderColor: color,
+                    color: isVisible ? '#1e293b' : '#94a3b8',
+                    textDecoration: isVisible ? 'none' : 'line-through',
+                    transition: 'all 0.2s'
+                  }}
+                  className="font-normal gap-1.5 select-none"
+                >
+                  <span style={{
+                    display: 'inline-block',
+                    width: 8, height: 8,
+                    borderRadius: '50%',
+                    backgroundColor: color,
+                    opacity: isVisible ? 1 : 0.3
+                  }} />
+                  {label}
+                </Badge>
+              );
+            })}
+            <span className="text-[10px] text-slate-400 ml-1">(click to toggle)</span>
           </div>
         </div>
 
@@ -923,19 +1034,21 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, kpiKeys 
                 tickFormatter={formatValue}
               />
               <Tooltip formatter={formatValue} />
-              <Legend />
 
-              {selectedIds.map((id) => (
-                <Line
-                  key={id}
-                  type="monotone"
-                  dataKey={id}
-                  name={isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]}
-                  dot={false}
-                  stroke={metricMeta.color}
-                  strokeWidth={2}
-                />
-              ))}
+              {selectedIds.map((id, idx) => {
+                if (!visibleIds.has(id)) return null;
+                return (
+                  <Line
+                    key={id}
+                    type="monotone"
+                    dataKey={id}
+                    name={id}
+                    dot={false}
+                    stroke={LINE_COLORS[idx % LINE_COLORS.length]}
+                    strokeWidth={2}
+                  />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -982,7 +1095,7 @@ const PRICING_KPI_KEYS = [
     label: "Price/Unit",
     color: "#14B8A6",
     prefix: "₹",
-    fmt: (v) => `₹${v.toFixed(0)}`,
+    fmt: (v) => `₹${v < 10 ? v.toFixed(2) : v.toFixed(0)}`,
   },
   {
     key: "RPI",
@@ -1191,17 +1304,27 @@ const ProgressBar = ({ value, color }) => (
   </div>
 );
 
-const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
+const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelectionChange }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
   const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
+  const toggleRow = (id) => {
+    if (selectedIds.includes(id)) {
+      onSelectionChange(selectedIds.filter(x => x !== id));
+    } else {
+      if (selectedIds.length >= 10) return;
+      onSelectionChange([...selectedIds, id]);
+    }
+  };
+
   return (
     <Card className="mt-3">
       <CardHeader className="border-b pb-2">
-        <CardTitle className="text-sm font-medium text-slate-800">
-          Brands (Top {rows.length || 0})
+        <CardTitle className="text-sm font-medium text-slate-800 flex justify-between">
+          <span>Brands (Top {rows.length || 0})</span>
+          {selectedIds.length > 0 && <span className="text-xs text-blue-600 font-normal">{selectedIds.length} selected for Trend</span>}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3">
@@ -1229,9 +1352,11 @@ const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
               {!loading && paginatedRows.map((row, idx) => (
                 <tr
                   key={row.id}
+                  onClick={() => toggleRow(row.id)}
+                  style={{ cursor: 'pointer' }}
                   className={cn(
-                    "hover:bg-slate-50",
-                    idx % 2 === 1 && "bg-slate-50/60"
+                    "hover:bg-blue-50/60 transition-colors",
+                    selectedIds.includes(row.id) ? "bg-blue-50 border-l-2 border-l-blue-500" : (idx % 2 === 1 && "bg-slate-50/60")
                   )}
                 >
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
@@ -1251,7 +1376,7 @@ const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={kpiKeys.length + 1}
                     className="px-3 py-6 text-center text-[12px] text-slate-400"
                   >
                     No brands matching current filters.
@@ -1277,17 +1402,27 @@ const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
   );
 };
 
-const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
+const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelectionChange }) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const totalPages = Math.ceil(rows.length / pageSize);
   const paginatedRows = rows.slice((page - 1) * pageSize, page * pageSize);
 
+  const toggleRow = (id) => {
+    if (selectedIds.includes(id)) {
+      onSelectionChange(selectedIds.filter(x => x !== id));
+    } else {
+      if (selectedIds.length >= 10) return;
+      onSelectionChange([...selectedIds, id]);
+    }
+  };
+
   return (
     <Card className="mt-3 border-slate-200 bg-white shadow-sm">
       <CardHeader className="border-b pb-2">
-        <CardTitle className="text-sm font-medium text-slate-800">
-          SKUs (Top {rows.length || 0})
+        <CardTitle className="text-sm font-medium text-slate-800 flex justify-between">
+          <span>SKUs (Top {rows.length || 0})</span>
+          {selectedIds.length > 0 && <span className="text-xs text-blue-600 font-normal">{selectedIds.length} selected for Trend</span>}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-3">
@@ -1317,9 +1452,11 @@ const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
               {!loading && paginatedRows.map((row, idx) => (
                 <tr
                   key={row.id}
+                  onClick={() => toggleRow(row.id)}
+                  style={{ cursor: 'pointer' }}
                   className={cn(
-                    "hover:bg-slate-50",
-                    idx % 2 === 1 && "bg-slate-50/60"
+                    "hover:bg-blue-50/60 transition-colors",
+                    selectedIds.includes(row.id) ? "bg-blue-50 border-l-2 border-l-blue-500" : (idx % 2 === 1 && "bg-slate-50/60")
                   )}
                 >
                   <td className="whitespace-nowrap px-3 py-2 text-left text-[13px] font-medium text-slate-800">
@@ -1342,7 +1479,7 @@ const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={kpiKeys.length + 2}
                     className="px-3 py-6 text-center text-[12px] text-slate-400"
                   >
                     No SKUs matching current filters.
@@ -1372,7 +1509,7 @@ const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
+export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } = {}) => {
   const {
     platform,
     timeStart,
@@ -1394,6 +1531,9 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
   });
   const [viewMode, setViewMode] = useState("table"); // "table" | "trend" | "kpi"
 
+  const [selectedBrandIds, setSelectedBrandIds] = useState([]);
+  const [selectedSkuIds, setSelectedSkuIds] = useState([]);
+
   // State for API competition data
   const [competitionData, setCompetitionData] = useState({ brands: [], skus: [] });
   const [loading, setLoading] = useState(true);
@@ -1403,21 +1543,53 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
     const fetchCompetitionData = async () => {
       setLoading(true);
       try {
-        const params = {
-          platform: platform || 'All',
-          location: city === 'All India' ? 'All' : city,
-          category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
-          brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
-          sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
-          period: '1M',
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD')
-        };
-        console.log('[KpiTrendShowcase] Fetching competition data with params:', params);
-        const response = await axiosInstance.get('/watchtower/competition', { params });
-        if (response.data) {
-          console.log('[KpiTrendShowcase] Received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
-          setCompetitionData(response.data);
+        const isCategoryFilterActive = filters.categories.length > 0;
+        const isCityFilterActive = city && city !== 'All India' && city !== 'All';
+        const isBrandFilterActive = filters.brands.length > 0;
+
+        // Prevent conflicting WHERE conditions (e.g. Category="Dental Floss" AND Category="Bodywash")
+        let effectiveDimValue = dimensionValue;
+        if ((dimensionType === 'category' || dimensionType === 'Category') && isCategoryFilterActive) effectiveDimValue = undefined;
+        if ((dimensionType === 'brand' || dimensionType === 'Brand') && isBrandFilterActive) effectiveDimValue = undefined;
+        if ((dimensionType === 'city' || dimensionType === 'City') && isCityFilterActive) effectiveDimValue = undefined;
+
+        if (dynamicKey === 'pricing') {
+          // For pricing: call the dedicated pricing competition endpoint
+          const params = {
+            platform: platform || 'All',
+            period: '1M',
+            startDate: timeStart?.format('YYYY-MM-DD'),
+            endDate: timeEnd?.format('YYYY-MM-DD'),
+            dimension: dimensionType || 'category',
+            dimensionValue: effectiveDimValue || undefined,
+            location: isCityFilterActive ? city : undefined,
+            category: isCategoryFilterActive ? filters.categories.join(',') : undefined,
+            brand: isBrandFilterActive ? filters.brands.join(',') : undefined,
+          };
+          console.log('[KpiTrendShowcase] Fetching PRICING competition data:', params);
+          const response = await axiosInstance.get('/pricing-analysis/competition', { params });
+          if (response.data) {
+            console.log('[KpiTrendShowcase] Pricing competition received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
+            setCompetitionData({ brands: response.data.brands || [], skus: response.data.skus || [] });
+          }
+        } else {
+          // For availability/other: call the watchtower competition endpoint
+          const params = {
+            platform: platform || 'All',
+            location: city === 'All India' ? 'All' : city,
+            category: isCategoryFilterActive ? filters.categories.join(',') : 'All',
+            brand: isBrandFilterActive ? filters.brands.join(',') : 'All',
+            sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
+            period: '1M',
+            startDate: timeStart?.format('YYYY-MM-DD'),
+            endDate: timeEnd?.format('YYYY-MM-DD')
+          };
+          console.log('[KpiTrendShowcase] Fetching watchtower competition data with params:', params);
+          const response = await axiosInstance.get('/watchtower/competition', { params });
+          if (response.data) {
+            console.log('[KpiTrendShowcase] Received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
+            setCompetitionData({ brands: response.data.brands || [], skus: response.data.skus || [] });
+          }
         }
       } catch (error) {
         console.error('[KpiTrendShowcase] Error fetching competition data:', error);
@@ -1426,14 +1598,20 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
       }
     };
     fetchCompetitionData();
-  }, [city, filters, platform, timeStart, timeEnd]);
+  }, [city, filters, platform, timeStart, timeEnd, dynamicKey, dimensionValue, dimensionType]);
 
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
 
   // Brand rows from API data (top 8 sorted by OSA)
   const brandRows = useMemo(() => {
-    const apiBrands = competitionData.brands || [];
+    let apiBrands = competitionData.brands || [];
+
+    // Apply local filters if the backend didn't handle them
+    if (filters.brands.length > 0) {
+      apiBrands = apiBrands.filter(b => filters.brands.includes(b.brand_name || b.name));
+    }
+
     return apiBrands.slice(0, 8).map((b, idx) => ({
       id: b.brand_name || `brand-${idx}`,
       name: b.brand_name || 'Unknown',
@@ -1446,13 +1624,35 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
       categoryShare: b.CategoryShare?.value ?? (b.categoryShare?.value ?? (b.categoryShare || 0)),
       categoryShareDelta: b.CategoryShare?.delta ?? (b.categoryShare?.delta || 0),
       marketShare: b.MarketShare?.value ?? (b.marketShare?.value ?? (b.marketShare || 0)),
-      marketShareDelta: b.MarketShare?.delta ?? (b.marketShare?.delta || 0)
+      marketShareDelta: b.MarketShare?.delta ?? (b.marketShare?.delta || 0),
+      // Pricing fields — the pricing API returns plain numbers; other APIs may return {value, delta} objects
+      Discount: typeof b.Discount === 'number' ? b.Discount : (b.Discount?.value ?? parseFloat(b.discount ?? b.Discount) ?? 0),
+      PricePerUnit: typeof b.PricePerUnit === 'number' ? b.PricePerUnit : (b.PricePerUnit?.value ?? parseFloat(b.pricePerUnit ?? b.PricePerUnit) ?? 0),
+      RPI: typeof b.RPI === 'number' ? b.RPI : (b.RPI?.value ?? parseFloat(b.rpi ?? b.RPI) ?? 0),
+      ASP: typeof b.ASP === 'number' ? b.ASP : (b.ASP?.value ?? parseFloat(b.asp ?? b.ASP) ?? 0),
     }));
-  }, [competitionData.brands]);
+  }, [competitionData.brands, filters.brands]);
+
+  // Derived Trend List For Brands (either selected by user or top 4 default fallback)
+  const brandTrendList = useMemo(() => {
+    if (selectedBrandIds.length > 0) {
+      return brandRows.filter(r => selectedBrandIds.includes(r.id));
+    }
+    return brandRows;
+  }, [selectedBrandIds, brandRows]);
 
   // SKU rows from API data (top 8 sorted by OSA)
   const skuRows = useMemo(() => {
-    const apiSkus = competitionData.skus || [];
+    let apiSkus = competitionData.skus || [];
+
+    // Apply local filters since the backend API does not natively filter skus
+    if (filters.brands.length > 0) {
+      apiSkus = apiSkus.filter(s => filters.brands.includes(s.brand_name || s.brandName));
+    }
+    if (filters.skus.length > 0) {
+      apiSkus = apiSkus.filter(s => filters.skus.includes(s.sku_name || s.name));
+    }
+
     return apiSkus.slice(0, 8).map((s, idx) => ({
       id: s.sku_name || `sku-${idx}`,
       name: s.sku_name || 'Unknown',
@@ -1466,9 +1666,22 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
       categoryShare: s.CategoryShare?.value ?? (s.categoryShare?.value ?? (s.categoryShare || 0)),
       categoryShareDelta: s.CategoryShare?.delta ?? (s.categoryShare?.delta || 0),
       marketShare: s.MarketShare?.value ?? (s.marketShare?.value ?? (s.marketShare || 0)),
-      marketShareDelta: s.MarketShare?.delta ?? (s.marketShare?.delta || 0)
+      marketShareDelta: s.MarketShare?.delta ?? (s.marketShare?.delta || 0),
+      // Pricing fields — the pricing API returns plain numbers; other APIs may return {value, delta} objects
+      Discount: typeof s.Discount === 'number' ? s.Discount : (s.Discount?.value ?? parseFloat(s.discount ?? s.Discount) ?? 0),
+      PricePerUnit: typeof s.PricePerUnit === 'number' ? s.PricePerUnit : (s.PricePerUnit?.value ?? parseFloat(s.pricePerUnit ?? s.PricePerUnit) ?? 0),
+      RPI: typeof s.RPI === 'number' ? s.RPI : (s.RPI?.value ?? parseFloat(s.rpi ?? s.RPI) ?? 0),
+      ASP: typeof s.ASP === 'number' ? s.ASP : (s.ASP?.value ?? parseFloat(s.asp ?? s.ASP) ?? 0),
     }));
-  }, [competitionData.skus]);
+  }, [competitionData.skus, filters.brands, filters.skus]);
+
+  // Derived Trend List For SKUs (either selected by user or top 5 default fallback)
+  const skuTrendList = useMemo(() => {
+    if (selectedSkuIds.length > 0) {
+      return skuRows.filter(r => selectedSkuIds.includes(r.id));
+    }
+    return skuRows;
+  }, [selectedSkuIds, skuRows]);
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -1589,7 +1802,7 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} kpiKeys={kpiKeys} loading={loading} />}
+          {viewMode === "table" && <BrandTable rows={brandRows} kpiKeys={kpiKeys} loading={loading} selectedIds={selectedBrandIds} onSelectionChange={setSelectedBrandIds} />}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -1598,6 +1811,13 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
               kpiKeys={kpiKeys}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              platform={platform}
+              timeStart={timeStart}
+              timeEnd={timeEnd}
+              dynamicKey={dynamicKey}
+              dimensionValue={dimensionValue}
+              dimensionType={dimensionType}
+              listData={brandTrendList}
             />
           )}
           {viewMode === "kpi" && (
@@ -1613,7 +1833,7 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} kpiKeys={kpiKeys} loading={loading} />}
+          {viewMode === "table" && <SkuTable rows={skuRows} kpiKeys={kpiKeys} loading={loading} selectedIds={selectedSkuIds} onSelectionChange={setSelectedSkuIds} />}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
@@ -1622,6 +1842,13 @@ export const KpiTrendShowcase = ({ dynamicKey } = {}) => {
               kpiKeys={kpiKeys}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              platform={platform}
+              timeStart={timeStart}
+              timeEnd={timeEnd}
+              dynamicKey={dynamicKey}
+              dimensionValue={dimensionValue}
+              dimensionType={dimensionType}
+              listData={skuTrendList}
             />
           )}
           {viewMode === "kpi" && (

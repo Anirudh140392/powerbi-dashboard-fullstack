@@ -431,5 +431,23 @@
     "comment": "",
     "codec_expression": "",
     "ttl_expression": ""
+  },
+  {
+    "name": "id",
+    "type": "Int32",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
+  },
+  {
+    "name": "CHANNEL",
+    "type": "String",
+    "default_type": "",
+    "default_expression": "",
+    "comment": "",
+    "codec_expression": "",
+    "ttl_expression": ""
   }
 ]

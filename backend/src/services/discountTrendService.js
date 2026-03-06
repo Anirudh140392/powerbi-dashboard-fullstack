@@ -53,9 +53,9 @@ async function getDiscountByCategory(filters = {}) {
         SELECT
             p.Category,
             p.Platform,
-            ROUND(AVG(CASE WHEN p.Discount IS NOT NULL AND toFloat64(p.Discount) >= 0 THEN toFloat64(p.Discount) ELSE NULL END), 1) AS avgDiscount,
-            ROUND(AVG(toFloat64OrZero(p.Selling_Price)), 1) AS avgEcp,
-            ROUND(AVG(toFloat64OrZero(p.Selling_Price)) / NULLIF(AVG(toFloat64OrZero(p.MRP)), 0), 2) AS avgRpi
+            ROUND(AVG(CASE WHEN p.Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(p.Discount)), 0) ELSE NULL END), 1) AS avgDiscount,
+            ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)), 1) AS avgEcp,
+            ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / NULLIF(AVG(ifNull(toFloat64OrZero(toString(p.MRP)), 0)), 0), 2) AS avgRpi
         FROM rb_pdp_olap p
         INNER JOIN (
             SELECT DISTINCT category
@@ -138,9 +138,9 @@ async function getDiscountByBrand(filters = {}) {
         const query = `
         SELECT
             Brand, Platform,
-            ROUND(AVG(CASE WHEN Discount IS NOT NULL AND toFloat64(Discount) >= 0 THEN toFloat64(Discount) ELSE NULL END), 1) AS avgDiscount,
-            ROUND(AVG(toFloat64OrZero(Selling_Price)), 1) AS avgEcp,
-            ROUND(AVG(toFloat64OrZero(Selling_Price)) / NULLIF(AVG(toFloat64OrZero(MRP)), 0), 2) AS avgRpi
+            ROUND(AVG(CASE WHEN Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(Discount)), 0) ELSE NULL END), 1) AS avgDiscount,
+            ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)), 1) AS avgEcp,
+            ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / NULLIF(AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)), 0), 2) AS avgRpi
         FROM rb_pdp_olap
         WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND Category = '${category}' AND Brand IS NOT NULL AND Platform IS NOT NULL
         GROUP BY Brand, Platform
