@@ -658,7 +658,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI" }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI", onFilterChange }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -699,7 +699,6 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     { id: "brands", label: "Brand", apiType: "brands" },
     { id: "kpis", label: "KPI", apiType: "kpis" },
     { id: "months", label: "Month", apiType: "months" },
-    { id: "metroFlags", label: "Metro Flag", apiType: "metroFlags" },
   ], []);
 
   // Fetch dynamic filter options from backend when modal opens
@@ -756,7 +755,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     // Reset pagination when filters change
     setCurrentPage(1);
     setCurrentColPage(1);
-  }, [pendingSectionValues]);
+    if (onFilterChange) {
+      onFilterChange({ ...pendingSectionValues });
+    }
+  }, [pendingSectionValues, onFilterChange]);
 
   // Reset filters
   const handleResetFilters = React.useCallback(() => {
@@ -765,7 +767,10 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     setShowFilterPanel(false);
     setCurrentPage(1);
     setCurrentColPage(1);
-  }, []);
+    if (onFilterChange) {
+      onFilterChange({});
+    }
+  }, [onFilterChange]);
 
   // Open modal: sync pending with currently applied
   const handleOpenFilterPanel = React.useCallback(() => {
@@ -1466,12 +1471,12 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel }) {
+export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel, onFilterChange }) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} />;
+  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} onFilterChange={onFilterChange} />;
 }
 

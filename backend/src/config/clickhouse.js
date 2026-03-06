@@ -54,7 +54,7 @@ export function setCurrentDbName(dbName) {
  * Get the current request's database name from AsyncLocalStorage
  * Falls back to the default CLICKHOUSE_DB from .env
  */
-function getCurrentDbName() {
+export function getCurrentDbName() {
     const store = dbStorage.getStore();
     return (store && store.dbName) || defaultDbName;
 }
@@ -97,14 +97,14 @@ export const queryClickHouse = async (query, params = {}) => {
     try {
         const client = getCurrentClient();
         const dbName = getCurrentDbName();
-        console.log('[ClickHouse] Executing query on DB:', dbName, '| Query:', query.substring(0, 200));
+        // console.log(`[ClickHouse] DB: ${dbName} | Query: ${query.substring(0, 100)}`);
         const result = await client.query({
             query,
             query_params: params,
             format: 'JSONEachRow',
         });
         const data = await result.json();
-        console.log('[ClickHouse] Query returned', data.length, 'rows');
+        // console.log(`[ClickHouse] DB: ${dbName} | Result: ${data.length} rows`);
         return data;
     } catch (err) {
         console.error('[ClickHouse] Query failed:', err.message);

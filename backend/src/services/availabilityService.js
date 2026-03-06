@@ -4,8 +4,26 @@
  */
 
 import dayjs from 'dayjs';
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
+
+/**
+ * Helper to get table column mappings based on the current tenant's database.
+ * This handles inconsistencies in column naming/casing across different ClickHouse DBs.
+ */
+const getColumnMapping = (dbName) => {
+    // Default mappings (based on colpal/gcpl)
+    const mapping = {
+        rca_sku_dim: {
+            category: (dbName === 'colpal' || dbName === 'gcpl') ? 'Category' : 'category'
+        },
+        rb_sku_platform: {
+            brand_name: (dbName === 'mars') ? 'brand' : 'brand_name',
+            brand_category: (dbName === 'mars') ? 'product_category' : (dbName === 'zydus' ? 'category' : 'brand_category')
+        }
+    };
+    return mapping;
+};
 
 // Helper to build WHERE clause from filters
 const buildWhereConditions = (filters, includeDate = true) => {
@@ -941,28 +959,25 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const whereClause = buildAvailabilityWhereClause(effectiveFilters, 't1');
+            const whereClause = buildAvailabilityWhereClause(effectiveFilters);
 
-            // Query SKU and Location-level data joined with rca_sku_dim to filter by active segments (status=1)
             const query = `
                 SELECT 
-                    t1.Product as name,
-                    t1.Web_Pid as sku,
-                    t1.Location as city,
-                    t1.Platform as platform,
-                    t1.Category as format,
-                    t1.DATE,
-                    SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
-                    SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno
-                FROM rb_pdp_olap t1
-                JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
-                    AND lower(t1.Location) = lower(t2.location) 
-                    AND lower(t1.Brand) = lower(t2.brand_name) 
-                    AND lower(t1.Category) = lower(t2.category)
+                    Product as name,
+                    Web_Pid as sku,
+                    Location as city,
+                    Platform as platform,
+                    Category as category_name,
+                    DATE,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
+                FROM rb_pdp_olap
                 WHERE ${whereClause}
-                  AND t2.status = 1
-                GROUP BY t1.Product, t1.Web_Pid, t1.Location, t1.Platform, t1.Category, t1.DATE
-                ORDER BY t1.Product, t1.Web_Pid, t1.Location, t1.DATE
+                  AND Product != '0'
+                  AND Product != ''
+                  AND length(trim(Product)) > 0
+                GROUP BY Product, Web_Pid, Location, Platform, Category, DATE
+                ORDER BY Product, Web_Pid, Location, DATE
             `;
 
             const results = await queryClickHouse(query);
@@ -1011,7 +1026,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                         name: row.name,
                         sku: row.sku,
                         platform: row.platform,
-                        format: row.format,
+                        category_name: row.category_name,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
                     };
@@ -1029,8 +1044,11 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     if (!skuMap[skuId].cities[cityStr]) {
                         skuMap[skuId].cities[cityStr] = {};
                     }
-                    const cityOsa = deno > 0 ? parseFloat(((neno / deno) * 100).toFixed(1)) : 0;
-                    skuMap[skuId].cities[cityStr][dateStr] = cityOsa;
+                    if (!skuMap[skuId].cities[cityStr][dateStr]) {
+                        skuMap[skuId].cities[cityStr][dateStr] = { neno: 0, deno: 0 };
+                    }
+                    skuMap[skuId].cities[cityStr][dateStr].neno += neno;
+                    skuMap[skuId].cities[cityStr][dateStr].deno += deno;
                 }
             });
 
@@ -1059,7 +1077,13 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
                 // Format nested cities
                 const sortedCities = Object.entries(item.cities).map(([cityName, cityDays]) => {
-                    const cityValues = sortedDates.map(d => cityDays[d] ?? 0);
+                    const cityValues = sortedDates.map(d => {
+                        const dayData = cityDays[d];
+                        if (dayData && dayData.deno > 0) {
+                            return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
+                        }
+                        return 0; // Or `undefined` if we want to show '-' on UI (but UI currently handles 0 or undefined). We'll stick to 0 for average calculation consistency.
+                    });
                     const cityTotal = cityValues.reduce((a, b) => a + b, 0);
                     const cityAvg31 = cityValues.length > 0 ? Math.round(cityTotal / cityValues.length) : 0;
 
@@ -1074,7 +1098,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     name: item.name,
                     sku: item.sku,
                     platform: item.platform,
-                    format: item.format,
+                    format: item.category_name,
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
@@ -1656,12 +1680,17 @@ const getAvailabilityKpiTrends = async (filters) => {
 
             const results = await queryClickHouse(query);
 
+            const dbName = getCurrentDbName();
+            const colMap = getColumnMapping(dbName);
+            const masterBrandNameCol = colMap.rb_sku_platform.brand_name;
+            const masterCategoryCol = colMap.rb_sku_platform.brand_category;
+
             // Get total active assortment from rb_sku_platform for Listing % calculation
             // Note: rb_sku_platform only has brand_name, brand_category, web_pid, status (no platform column)
             const masterAssortmentConds = [`status = 1`];
             // Platform filter is omitted as rb_sku_platform doesn't have a platform column
-            if (category && category !== 'All') masterAssortmentConds.push(`lower(brand_category) = '${escapeStr(category.toLowerCase())}'`);
-            if (brand && brand !== 'All') masterAssortmentConds.push(`lower(brand_name) = '${escapeStr(brand.toLowerCase())}'`);
+            if (category && category !== 'All') masterAssortmentConds.push(`lower(${masterCategoryCol}) = '${escapeStr(category.toLowerCase())}'`);
+            if (brand && brand !== 'All') masterAssortmentConds.push(`lower(${masterBrandNameCol}) = '${escapeStr(brand.toLowerCase())}'`);
 
             const masterQuery = `
                 SELECT count(DISTINCT web_pid) as total_master
