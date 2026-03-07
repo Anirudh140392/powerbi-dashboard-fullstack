@@ -9166,9 +9166,9 @@ const getProductCategories = async (filters = {}) => {
         if (pCond) conditions.push(pCond);
 
         const query = `
-            SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as category
+            SELECT DISTINCT Category as category
             FROM rb_pdp_olap
-            WHERE ${conditions.join(' AND ')} AND ${PRODUCT_CATEGORY_SQL} != 'Others'
+            WHERE ${conditions.join(' AND ')} AND Category != 'Others'
             ORDER BY category
         `;
         const results = await queryClickHouse(query);

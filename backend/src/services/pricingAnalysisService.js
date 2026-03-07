@@ -2,6 +2,7 @@ import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
+
 // Helper to escape string for SQL
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -544,7 +545,7 @@ async function getPricingInsights(filters = {}) {
             SELECT
                 p.Brand,
                 p.Product,
-                p.Category,
+                p.Category AS Category,
                 p.Comp_flag,
                 AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
                          AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
@@ -557,7 +558,7 @@ async function getPricingInsights(filters = {}) {
             FROM rb_pdp_olap p
             WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
-            GROUP BY p.Brand, p.Product, p.Category, p.Comp_flag
+            GROUP BY p.Brand, p.Product, Category, p.Comp_flag
             HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
             `;
 
@@ -621,134 +622,140 @@ async function getPricingInsights(filters = {}) {
  * Get Pricing Dimension Overview (Grouping by Category or Location)
  * @param {Object} filters - platform, location, brand, category, channel, startDate, endDate, dimension ('category' or 'location')
  */
-const getDimensionOverview = async (filters) => {
-    try {
-        const startDate = filters.startDate || dayjs().subtract(14, 'day').format('YYYY-MM-DD');
-        const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+const getDimensionOverview = async (filters = {}) => {
+    console.log('[PricingAnalysisService] getDimensionOverview called with filters:', filters);
+    const cacheKey = generateCacheKey('pricing_dimension_overview', filters);
 
-        const dimensionParam = filters.dimension || 'category';
-        // dimensionParam can be 'category', 'location', or 'city' (frontend sends 'city')
-        const groupByColumn = (dimensionParam === 'location' || dimensionParam === 'city') ? 'Location' : 'Category';
+    return await getCachedOrCompute(cacheKey, async () => {
+        try {
+            const startDate = filters.startDate || dayjs().subtract(14, 'day').format('YYYY-MM-DD');
+            const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
 
-        const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
-        const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
-        const compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
+            const dimensionParam = filters.dimension || 'category';
+            // dimensionParam can be 'category', 'location', or 'city' (frontend sends 'city')
+            const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
+            const groupByExpr = isLocation ? 'p.Location' : 'p.Category';
 
-        const platform = filters.platform || null;
-        const location = filters.location || null;
-        const brand = filters.brand || null;
-        const category = filters.category || null;
-        const channel = filters.channel || null;
+            const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
+            const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
+            const compareStartDate = dayjs(compareEndDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
 
-        let whereConditions = [
-            "p.Selling_Price IS NOT NULL",
-            "toFloat64OrZero(toString(p.Selling_Price)) > 0"
-        ];
+            const platform = filters.platform || null;
+            const location = filters.location || null;
+            const brand = filters.brand || null;
+            const category = filters.category || null;
+            const channel = filters.channel || null;
 
-        const dbName = getCurrentDbName();
-        const isMars = dbName === 'mars';
-        const channelCol = isMars ? 'p.channel' : 'p.Channel';
-        const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
+            let whereConditions = [
+                "p.Selling_Price IS NOT NULL",
+                "toFloat64OrZero(toString(p.Selling_Price)) > 0"
+            ];
 
-        const platforms = parseMultiSelectFilter(platform);
-        if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
+            const dbName = getCurrentDbName();
+            const isMars = dbName === 'mars';
+            const channelCol = isMars ? 'p.channel' : 'p.Channel';
+            const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
 
-        const locations = parseMultiSelectFilter(location);
-        if (locations) whereConditions.push(buildInClause('p.Location', locations));
+            const platforms = parseMultiSelectFilter(platform);
+            if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
 
-        const brands = parseMultiSelectFilter(brand);
-        if (brands) whereConditions.push(buildInClause('p.Brand', brands));
+            const locations = parseMultiSelectFilter(location);
+            if (locations) whereConditions.push(buildInClause('p.Location', locations));
 
-        const categories = parseMultiSelectFilter(category);
-        if (categories) whereConditions.push(buildInClause('p.Category', categories));
+            const brands = parseMultiSelectFilter(brand);
+            if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
-        const channels = parseMultiSelectFilter(channel);
-        if (channels) whereConditions.push(buildInClause(channelCol, channels));
+            const categories = parseMultiSelectFilter(category);
+            if (categories) whereConditions.push(buildInClause('p.Category', categories));
 
-        const whereClause = whereConditions.join(' AND ');
+            const channels = parseMultiSelectFilter(channel);
+            if (channels) whereConditions.push(buildInClause(channelCol, channels));
 
-        const query = `
-        SELECT
-            p.${groupByColumn} AS dimension_name,
-            -- Current Period
-            AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
-                THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100 ELSE NULL END) AS discount_curr,
-            
-            SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
-                THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * toFloat64OrZero(toString(p.Sales)) ELSE 0 END) / 
-            NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.Sales)) ELSE 0 END), 0) * 100 AS weighted_discount_curr,
-            
-            AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ${weightExpr} > 0 
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr} ELSE NULL END) AS price_per_unit_curr,
-            
-            AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP)) ELSE NULL END) AS rpi_curr,
-            
-            AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.Selling_Price)) ELSE NULL END) AS asp_curr,
+            const whereClause = whereConditions.join(' AND ');
 
-            -- Previous Period
-            AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
-                THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100 ELSE NULL END) AS discount_prev,
-            
-            SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
-                THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * toFloat64OrZero(toString(p.Sales)) ELSE 0 END) / 
-            NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.Sales)) ELSE 0 END), 0) * 100 AS weighted_discount_prev,
-            
-            AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${weightExpr} > 0 
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr} ELSE NULL END) AS price_per_unit_prev,
-            
-            AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP)) ELSE NULL END) AS rpi_prev,
-            
-            AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.Selling_Price)) ELSE NULL END) AS asp_prev
+            const query = `
+            SELECT
+                ${groupByExpr} AS dimension_name,
+                -- Current Period
+                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
+                    THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100 ELSE NULL END) AS discount_curr,
+                
+                SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
+                    THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * toFloat64OrZero(toString(p.Sales)) ELSE 0 END) / 
+                NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.Sales)) ELSE 0 END), 0) * 100 AS weighted_discount_curr,
+                
+                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ${weightExpr} > 0 
+                    THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr} ELSE NULL END) AS price_per_unit_curr,
+                
+                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
+                    THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP)) ELSE NULL END) AS rpi_curr,
+                
+                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.Selling_Price)) ELSE NULL END) AS asp_curr,
 
-        FROM rb_pdp_olap p
-        WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
-          AND p.${groupByColumn} IS NOT NULL
-          AND p.${groupByColumn} != ''
-          AND ${whereClause}
-        GROUP BY p.${groupByColumn}
-        ORDER BY p.${groupByColumn} ASC
-        SETTINGS max_execution_time = 30
-        `;
+                -- Previous Period
+                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
+                    THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100 ELSE NULL END) AS discount_prev,
+                
+                SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
+                    THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * toFloat64OrZero(toString(p.Sales)) ELSE 0 END) / 
+                NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.Sales)) ELSE 0 END), 0) * 100 AS weighted_discount_prev,
+                
+                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${weightExpr} > 0 
+                    THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr} ELSE NULL END) AS price_per_unit_prev,
+                
+                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
+                    THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP)) ELSE NULL END) AS rpi_prev,
+                
+                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.Selling_Price)) ELSE NULL END) AS asp_prev
 
-        console.log(`[PricingAnalysisService] Executing Dimension Overview query (group by ${groupByColumn})...`);
-        const results = await queryClickHouse(query);
+            FROM rb_pdp_olap p
+            WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
+              AND ${groupByExpr} IS NOT NULL
+              AND ${groupByExpr} != ''
+              ${whereClause ? `AND ${whereClause}` : ''}
+            GROUP BY dimension_name
+            ORDER BY dimension_name ASC
+            SETTINGS max_execution_time = 30
+            `;
 
-        const processedData = (results || []).map(r => {
-            const mapMetric = (currKey, prevKey) => {
-                const curr = parseFloat(r[currKey]) || 0;
-                const prev = parseFloat(r[prevKey]) || 0;
-                const change = curr - prev;
-                return {
-                    value: curr,
-                    prev: prev,
-                    change: change,
-                    dir: change > 0 ? 'up' : change < 0 ? 'down' : 'neutral'
+            console.log(`[PricingAnalysisService] Executing Dimension Overview query (group by ${dimensionParam})...`);
+            const results = await queryClickHouse(query);
+
+            const processedData = (results || []).map(r => {
+                const mapMetric = (currKey, prevKey) => {
+                    const curr = parseFloat(r[currKey]) || 0;
+                    const prev = parseFloat(r[prevKey]) || 0;
+                    const change = curr - prev;
+                    return {
+                        value: curr,
+                        prev: prev,
+                        change: change,
+                        dir: change > 0 ? 'up' : change < 0 ? 'down' : 'neutral'
+                    };
                 };
-            };
+
+                return {
+                    key: r.dimension_name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+                    name: r.dimension_name,
+                    data: {
+                        discount: mapMetric('discount_curr', 'discount_prev'),
+                        weightedDiscount: mapMetric('weighted_discount_curr', 'weighted_discount_prev'),
+                        pricePerUnit: mapMetric('price_per_unit_curr', 'price_per_unit_prev'),
+                        rpi: mapMetric('rpi_curr', 'rpi_prev'),
+                        asp: mapMetric('asp_curr', 'asp_prev')
+                    }
+                };
+            });
 
             return {
-                key: r.dimension_name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-                name: r.dimension_name,
-                data: {
-                    discount: mapMetric('discount_curr', 'discount_prev'),
-                    weightedDiscount: mapMetric('weighted_discount_curr', 'weighted_discount_prev'),
-                    pricePerUnit: mapMetric('price_per_unit_curr', 'price_per_unit_prev'),
-                    rpi: mapMetric('rpi_curr', 'rpi_prev'),
-                    asp: mapMetric('asp_curr', 'asp_prev')
-                }
+                success: true,
+                data: processedData
             };
-        });
-
-        return {
-            success: true,
-            data: processedData
-        };
-    } catch (error) {
-        console.error('[PricingAnalysisService] Error in getDimensionOverview:', error);
-        return { success: false, error: error.message };
-    }
+        } catch (error) {
+            console.error('[PricingAnalysisService] Error in getDimensionOverview:', error);
+            return { success: false, error: error.message };
+        }
+    }, CACHE_TTL.ONE_HOUR);
 }
 
 /**
@@ -766,7 +773,8 @@ const getDimensionTrends = async (filters) => {
         const startDate = filters.startDate || dayjs(endDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
 
         const dimensionParam = filters.dimension || 'category';
-        const groupByColumn = (dimensionParam === 'location' || dimensionParam === 'city') ? 'Location' : 'Category';
+        const isLocation = dimensionParam === "location" || dimensionParam === "city";
+        const groupByExpr = isLocation ? "p.Location" : "p.Category";
         const dimensionValue = filters.dimensionValue;
 
         const timeStep = (filters.timeStep || 'Daily').toLowerCase();
@@ -805,7 +813,7 @@ const getDimensionTrends = async (filters) => {
 
         // Filter by the specific dimension value (e.g., "Toothpaste" or "Mumbai")
         if (dimensionValue) {
-            whereConditions.push(`lower(p.${groupByColumn}) = lower('${escapeStr(dimensionValue)}')`);
+            whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
         }
 
         const whereClause = whereConditions.join(' AND ');
@@ -825,14 +833,14 @@ const getDimensionTrends = async (filters) => {
             AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp
         FROM rb_pdp_olap p
         WHERE ${whereClause}
-          AND p.${groupByColumn} IS NOT NULL
-          AND p.${groupByColumn} != ''
+          AND ${groupByExpr} IS NOT NULL
+          AND ${groupByExpr} != ''
         GROUP BY date
         ORDER BY date ASC
         SETTINGS max_execution_time = 30
         `;
 
-        console.log(`[PricingAnalysisService] Executing Dimension Trends query (${groupByColumn}=${dimensionValue}, step=${timeStep})...`);
+        console.log(`[PricingAnalysisService] Executing Dimension Trends query (${dimensionParam}=${dimensionValue}, step=${timeStep})...`);
         const results = await queryClickHouse(query);
 
         const timeSeries = (results || []).map(r => ({
@@ -880,7 +888,8 @@ const getPricingCompetitionTrends = async (filters) => {
         const category = filters.category || null;
         const dimensionParam = filters.dimension || 'category';
         const dimensionValue = filters.dimensionValue;
-        const groupByColumn = (dimensionParam === 'location' || dimensionParam === 'city') ? 'Location' : 'Category';
+        const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
+        const groupByExpr = isLocation ? 'p.Location' : 'p.Category';
 
         const platforms = parseMultiSelectFilter(platform);
         if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
@@ -888,11 +897,10 @@ const getPricingCompetitionTrends = async (filters) => {
         const locations = parseMultiSelectFilter(location);
         if (locations) whereConditions.push(buildInClause('p.Location', locations));
 
-        const categories = parseMultiSelectFilter(category);
         if (categories) whereConditions.push(buildInClause('p.Category', categories));
 
         if (dimensionValue) {
-            whereConditions.push(`lower(p.${groupByColumn}) = lower('${escapeStr(dimensionValue)}')`);
+            whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
         }
 
         // Target filtering
@@ -971,7 +979,8 @@ const getPricingCompetition = async (filters) => {
         const startDate = filters.startDate || dayjs(endDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
 
         const dimensionParam = filters.dimension || 'category';
-        const groupByColumn = (dimensionParam === 'location' || dimensionParam === 'city') ? 'Location' : 'Category';
+        const isLocation = dimensionParam === "location" || dimensionParam === "city";
+        const groupByExpr = isLocation ? "p.Location" : "p.Category";
         const dimensionValue = filters.dimensionValue;
 
         let whereConditions = [
@@ -1002,7 +1011,7 @@ const getPricingCompetition = async (filters) => {
 
         // Filter by the specific dimension value (e.g., "Toothpaste" or "Mumbai")
         if (dimensionValue) {
-            whereConditions.push(`lower(p.${groupByColumn}) = lower('${escapeStr(dimensionValue)}')`);
+            whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
         }
 
         const dbName = getCurrentDbName();
@@ -1027,7 +1036,7 @@ const getPricingCompetition = async (filters) => {
             AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp
         FROM rb_pdp_olap p
         WHERE ${whereClause}
-        GROUP BY p.Brand
+        GROUP BY brand_name
         ORDER BY discount DESC
         LIMIT 20
         SETTINGS max_execution_time = 30
@@ -1058,7 +1067,7 @@ const getPricingCompetition = async (filters) => {
         SETTINGS max_execution_time = 30
         `;
 
-        console.log(`[PricingAnalysisService] Fetching competition data (${groupByColumn}=${dimensionValue})...`);
+        console.log(`[PricingAnalysisService] Fetching competition data (${dimensionParam}=${dimensionValue})...`);
         const [brandResults, skuResults] = await Promise.all([
             queryClickHouse(brandQuery),
             queryClickHouse(skuQuery)
