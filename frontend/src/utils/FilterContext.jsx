@@ -11,7 +11,7 @@ export const initialContextLoaded = (ctx) => ctx.datesFetched && ctx.platformsFe
 
 // Static fallback data (used if API is unreachable)
 const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart"];
-const FALLBACK_CATEGORIES = ["Toothpaste", "Toothbrush", "Mouthwash", "Handwash", "Bodywash"];
+const FALLBACK_CATEGORIES = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
 const FALLBACK_LOCATIONS = [];
 const FALLBACK_BRANDS = ["Colgate", "Closeup", "Palmolive", "Halo"];
 const FALLBACK_CHANNELS = ["Ecom", "ModernTrade"];

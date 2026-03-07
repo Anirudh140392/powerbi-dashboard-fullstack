@@ -16,9 +16,9 @@ import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 export default function MainPerformanceMarketings() {
   const {
     timeStart, timeEnd, comparisonLabel,
-    zones, selectedZone, setZones, setSelectedZone,
-    pmPlatforms, pmSelectedPlatform, setPmPlatforms, setPmSelectedPlatform,
-    pmBrands, pmSelectedBrand, setPmBrands, setPmSelectedBrand
+    locations, selectedLocation, setLocations, setSelectedLocation,
+    platforms, platform, setPlatforms, setPlatform,
+    categories, selectedCategory, setCategories, setSelectedCategory
   } = useContext(FilterContext);
 
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
@@ -26,7 +26,7 @@ export default function MainPerformanceMarketings() {
 
   // Fetch PM-specific Platforms on mount
   useEffect(() => {
-    const fetchPmPlatforms = async () => {
+    const fetchPlatforms = async () => {
       try {
         console.log("🚀 [MainPerformanceMarketing] Fetching PM platforms...");
         const response = await axiosInstance.get("/performance-marketing/platforms");
@@ -34,80 +34,81 @@ export default function MainPerformanceMarketings() {
 
         if (response.data && response.data.length > 0) {
           const platformList = ["All", ...response.data];
-          setPmPlatforms(platformList);
-          if (!platformList.includes(pmSelectedPlatform)) {
-            setPmSelectedPlatform("All");
+          setPlatforms(platformList);
+          if (!platformList.includes(platform)) {
+            setPlatform("All");
           }
         } else {
-          setPmPlatforms(["All"]);
+          setPlatforms(["All"]);
         }
       } catch (error) {
         console.error("❌ [MainPerformanceMarketing] Error fetching PM platforms:", error);
-        setPmPlatforms(["All"]);
+        setPlatforms(["All"]);
       }
     };
-    fetchPmPlatforms();
-  }, [setPmPlatforms, setPmSelectedPlatform]);
+    fetchPlatforms();
+  }, [setPlatforms, setPlatform]);
 
   // Fetch PM-specific Brands when platform changes
   useEffect(() => {
-    const fetchPmBrands = async () => {
+    const fetchCategories = async () => {
       try {
-        console.log("🚀 [MainPerformanceMarketing] Fetching PM brands for platform:", pmSelectedPlatform);
+        console.log("🚀 [MainPerformanceMarketing] Fetching PM brands for platform:", platform);
         const response = await axiosInstance.get("/performance-marketing/brands", {
-          params: { platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform }
+          params: { platform: Array.isArray(platform) ? platform.join(',') : platform }
         });
         console.log("✅ [MainPerformanceMarketing] PM Brands:", response.data);
 
         if (response.data && response.data.length > 0) {
           const brandList = ["All", ...response.data];
-          setPmBrands(brandList);
-          if (!brandList.includes(pmSelectedBrand)) {
-            setPmSelectedBrand("All");
+          setCategories(brandList);
+          if (!brandList.includes(selectedCategory)) {
+            setSelectedCategory("All");
           }
         } else {
-          setPmBrands(["All"]);
-          setPmSelectedBrand("All");
+          setCategories(["All"]);
+          setSelectedCategory("All");
         }
       } catch (error) {
         console.error("❌ [MainPerformanceMarketing] Error fetching PM brands:", error);
-        setPmBrands(["All"]);
+        setCategories(["All"]);
       }
     };
-    fetchPmBrands();
-  }, [pmSelectedPlatform, setPmBrands, setPmSelectedBrand]);
+    fetchCategories();
+  }, [platform, setCategories, setSelectedCategory]);
 
   // Fetch Zones when brand changes (Performance Marketing page specific)
   useEffect(() => {
-    const fetchZones = async () => {
+    const fetchLocations = async () => {
       try {
-        console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", pmSelectedBrand);
+        const brandParam = Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory;
+        console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", brandParam);
         const response = await axiosInstance.get("/performance-marketing/zones", {
-          params: { brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand }
+          params: { brand: brandParam }
         });
         console.log("✅ [MainPerformanceMarketing] Zones API Response:", response.data);
 
         if (response.data && response.data.length > 0) {
           const zoneList = ["All", ...response.data];
-          setZones(zoneList);
+          setLocations(zoneList);
 
           // Reset selection if current zone is not in new list
-          if (!zoneList.includes(selectedZone)) {
-            setSelectedZone("All");
+          if (!zoneList.includes(selectedLocation)) {
+            setSelectedLocation("All");
           }
         } else {
           console.warn("⚠️ [MainPerformanceMarketing] No zones found, setting ['All'].");
-          setZones(["All"]);
-          setSelectedZone("All");
+          setLocations(["All"]);
+          setSelectedLocation("All");
         }
       } catch (error) {
         console.error("❌ [MainPerformanceMarketing] Error fetching zones:", error);
-        setZones(["All"]);
+        setLocations(["All"]);
       }
     };
 
-    fetchZones();
-  }, [pmSelectedBrand, setZones, setSelectedZone]);
+    fetchLocations();
+  }, [selectedCategory, setLocations, setSelectedLocation]);
 
 
 
@@ -139,9 +140,9 @@ export default function MainPerformanceMarketings() {
       try {
         const response = await axiosInstance.get("/performance-marketing", {
           params: {
-            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
-            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
-            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
+            platform: Array.isArray(platform) ? platform.join(',') : platform,
+            brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+            zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
           }
@@ -204,7 +205,7 @@ export default function MainPerformanceMarketings() {
     if (timeStart && timeEnd) {
       fetchPerformanceData();
     }
-  }, [timeStart, timeEnd, pmSelectedPlatform, pmSelectedBrand, selectedZone]); // Updated dependencies
+  }, [timeStart, timeEnd, platform, selectedCategory, selectedLocation]); // Updated dependencies
 
   return (
     <Box>
