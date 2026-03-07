@@ -77,6 +77,11 @@ export async function loginUser(email, password) {
         console.warn(`[Auth] No matching database found for db_id=${userDbId}, using fallback: ${dbName}`);
     }
 
+    // Workaround for readonly permission on tb_user: force mars for user
+    if (user.user_email === 'kenilkavar@gmail.com') {
+        dbName = 'mars';
+    }
+
     // 4. Generate JWT token
     const tokenPayload = {
         userId: user.user_id,
