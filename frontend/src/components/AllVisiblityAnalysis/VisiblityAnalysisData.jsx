@@ -449,7 +449,15 @@ const cards = [
   },
 ];
 
-const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters: parentFilters, topSearchFilter: parentTopSearchFilter, setTopSearchFilter: parentSetTopSearchFilter }) => {
+const VisiblityAnalysisData = ({
+  apiData = {},
+  apiErrors = {},
+  loading = {},
+  onRetry,
+  filters: parentFilters,
+  topSearchFilter: parentTopSearchFilter,
+  setTopSearchFilter: parentSetTopSearchFilter
+}) => {
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
@@ -850,7 +858,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       {/* Section 1: Visibility Overview */}
       {apiErrors?.overview ? (
         <ErrorRetryOverlay onRetry={() => onRetry?.('overview')} message={apiErrors.overview} compact />
-      ) : apiData?.overview === undefined ? (
+      ) : (loading?.overview || apiData?.overview === undefined) ? (
         <VisibilityOverviewSkeleton />
       ) : apiData?.overview?.cards?.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -873,7 +881,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       {/* Section 2: Platform KPI Matrix */}
       {apiErrors?.matrix ? (
         <ErrorRetryOverlay onRetry={() => onRetry?.('matrix')} message={apiErrors.matrix} compact />
-      ) : apiData?.matrix === undefined ? (
+      ) : (loading?.matrix || apiData?.matrix === undefined) ? (
         <TabbedHeatmapTableSkeleton />
       ) : (
         <TabbedHeatmapTable apiMatrixData={apiData?.matrix} />
@@ -922,7 +930,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         {apiErrors?.keywords ? (
           <ErrorRetryOverlay onRetry={() => onRetry?.('keywords')} message={apiErrors.keywords} compact />
-        ) : apiData?.keywords === undefined ? (
+        ) : (loading?.keywords || apiData?.keywords === undefined) ? (
           <VisibilityDrilldownSkeleton />
         ) : !apiData?.keywords?.hierarchy || apiData?.keywords?.hierarchy?.length === 0 ? (
           <NoDataAvailable title="No keywords data available" />
@@ -948,7 +956,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
         </div>
         {apiErrors?.searchTerms ? (
           <ErrorRetryOverlay onRetry={() => onRetry?.('searchTerms')} message={apiErrors.searchTerms} compact />
-        ) : apiData?.searchTerms === undefined ? (
+        ) : (loading?.searchTerms || apiData?.searchTerms === undefined) ? (
           <TopSearchTermsSkeleton />
         ) : apiData?.searchTerms?.terms?.length === 0 ? (
           <NoDataAvailable title="No search terms data available" />

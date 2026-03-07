@@ -140,10 +140,18 @@ export default function VisibilityAnalysis() {
   const [apiData, setApiData] = useState({});
   // Per-segment error tracking
   const [apiErrors, setApiErrors] = useState({});
+  // Per-segment loading state
+  const [loading, setLoading] = useState({
+    overview: false,
+    matrix: false,
+    keywords: false,
+    searchTerms: false
+  });
 
   // Individual segment fetch functions for retry capability
   const fetchVisibilityOverview = async (queryParams) => {
     try {
+      setLoading(prev => ({ ...prev, overview: true }));
       setApiErrors(prev => ({ ...prev, overview: null }));
       const res = await axiosInstance.get(`/visibility-analysis/visibility-overview?${queryParams}`);
       const data = res.data;
@@ -153,11 +161,14 @@ export default function VisibilityAnalysis() {
       console.error('❌ [Visibility] Overview fetch error:', err);
       setApiErrors(prev => ({ ...prev, overview: err.message }));
       return false;
+    } finally {
+      setLoading(prev => ({ ...prev, overview: false }));
     }
   };
 
   const fetchVisibilityMatrix = async (matrixParams) => {
     try {
+      setLoading(prev => ({ ...prev, matrix: true }));
       setApiErrors(prev => ({ ...prev, matrix: null }));
       const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${matrixParams}`);
       const data = res.data;
@@ -167,11 +178,14 @@ export default function VisibilityAnalysis() {
       console.error('❌ [Visibility] Platform KPI Matrix fetch error:', err);
       setApiErrors(prev => ({ ...prev, matrix: err.message }));
       return false;
+    } finally {
+      setLoading(prev => ({ ...prev, matrix: false }));
     }
   };
 
   const fetchVisibilityKeywords = async (queryParams) => {
     try {
+      setLoading(prev => ({ ...prev, keywords: true }));
       setApiErrors(prev => ({ ...prev, keywords: null }));
       const res = await axiosInstance.get(`/visibility-analysis/keywords-at-glance?${queryParams}`);
       const data = res.data;
@@ -181,11 +195,14 @@ export default function VisibilityAnalysis() {
       console.error('❌ [Visibility] Keywords at Glance fetch error:', err);
       setApiErrors(prev => ({ ...prev, keywords: err.message }));
       return false;
+    } finally {
+      setLoading(prev => ({ ...prev, keywords: false }));
     }
   };
 
   const fetchVisibilitySearchTerms = async (termsParams) => {
     try {
+      setLoading(prev => ({ ...prev, searchTerms: true }));
       setApiErrors(prev => ({ ...prev, searchTerms: null }));
       const res = await axiosInstance.get(`/visibility-analysis/top-search-terms?${termsParams}`);
       const data = res.data;
@@ -195,6 +212,8 @@ export default function VisibilityAnalysis() {
       console.error('❌ [Visibility] Top Search Terms fetch error:', err);
       setApiErrors(prev => ({ ...prev, searchTerms: err.message }));
       return false;
+    } finally {
+      setLoading(prev => ({ ...prev, searchTerms: false }));
     }
   };
 
@@ -292,12 +311,20 @@ export default function VisibilityAnalysis() {
       console.log('🔄 [Visibility] Main filters changed, resetting all data');
       setApiData({});
       setApiErrors({});
+      // Set all loading states to true
+      setLoading({
+        overview: true,
+        matrix: true,
+        keywords: true,
+        searchTerms: true
+      });
       // Update the main ref here to mark this state change
       lastMainFiltersRef.current = mainFiltersKey;
     } else {
       console.log('⚡ [Visibility] Only tab changed, isolating update');
       // Optionally clear only searchTerms to show its specific loader
       setApiData(prev => ({ ...prev, searchTerms: undefined }));
+      setLoading(prev => ({ ...prev, searchTerms: true }));
     }
 
     const fetchData = async () => {
@@ -410,6 +437,7 @@ export default function VisibilityAnalysis() {
         <VisiblityAnalysisData
           apiData={apiData}
           apiErrors={apiErrors}
+          loading={loading}
           onRetry={retrySegment}
           filters={filters}
           topSearchFilter={topSearchFilter}
