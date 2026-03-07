@@ -1,22 +1,19 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { queryClickHouse, dbStorage, connectClickHouse } from './src/config/clickhouse.js';
+import fs from 'fs';
 
 async function checkSchema() {
-    try {
-        const columns = await queryClickHouse('DESCRIBE rca_pm_olap');
-        console.log('Columns in rca_pm_olap:');
-        columns.forEach(col => {
-            console.log(`${col.name} (${col.type})`);
-        });
-
-        // Let's also get a sample row
-        const sample = await queryClickHouse('SELECT * FROM rca_pm_olap LIMIT 1');
-        console.log('\nSample row:', JSON.stringify(sample, null, 2));
-
-        process.exit(0);
-    } catch (error) {
-        console.error('Error fetching schema:', error);
-        process.exit(1);
-    }
+    await connectClickHouse();
+    await dbStorage.run({ dbName: 'mars' }, async () => {
+        try {
+            const res = await queryClickHouse('DESCRIBE rb_pdp_olap');
+            fs.writeFileSync('schema_results.json', JSON.stringify(res, null, 2));
+            console.log("Schema written to schema_results.json");
+            process.exit(0);
+        } catch (err) {
+            fs.writeFileSync('schema_error.txt', err.stack);
+            console.error(err);
+            process.exit(1);
+        }
+    });
 }
-
 checkSchema();

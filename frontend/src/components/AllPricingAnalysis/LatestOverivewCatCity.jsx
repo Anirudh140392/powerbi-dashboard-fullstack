@@ -144,6 +144,7 @@ const LatestOverivewCatCity = ({
                 const br = toParam(selectedBrand); if (br) params.append('brand', br);
                 const ca = toParam(selectedCategory); if (ca) params.append('category', ca);
                 const lo = toParam(selectedLocation); if (lo) params.append('location', lo);
+                const ch = toParam(selectedChannel); if (ch) params.append('channel', ch);
 
                 params.append('dimension', dimension);
                 if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
