@@ -3,14 +3,16 @@ import { queryClickHouse } from './src/config/clickhouse.js';
 (async () => {
     try {
         const query = `
-            SELECT Platform, Category, count() 
+            SELECT toDate(DATE) as d, count() 
             FROM rb_pdp_olap 
-            WHERE toDate(DATE) > '2026-02-01'
-            GROUP BY Platform, Category
-            ORDER BY Platform, Category
+            WHERE Product_Category != '' 
+            AND toDate(DATE) > '2025-10-01'
+            GROUP BY d 
+            ORDER BY d DESC 
+            LIMIT 5
         `;
         const results = await queryClickHouse(query);
-        console.log("All Platforms Category values:", results);
+        console.log("Last dates with Product_Category data:", results);
     } catch (e) {
         console.error("FAILED:", e.message);
     }

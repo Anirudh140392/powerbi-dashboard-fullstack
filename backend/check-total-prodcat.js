@@ -3,14 +3,12 @@ import { queryClickHouse } from './src/config/clickhouse.js';
 (async () => {
     try {
         const query = `
-            SELECT Platform, Category, count() 
+            SELECT count() 
             FROM rb_pdp_olap 
-            WHERE toDate(DATE) > '2026-02-01'
-            GROUP BY Platform, Category
-            ORDER BY Platform, Category
+            WHERE Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0'
         `;
         const results = await queryClickHouse(query);
-        console.log("All Platforms Category values:", results);
+        console.log("Non-empty Product_Category count:", results);
     } catch (e) {
         console.error("FAILED:", e.message);
     }

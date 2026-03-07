@@ -259,17 +259,8 @@ export default function GeoIntelligenceMap() {
             const popup = new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(`
             <div style="font-family: 'DM Sans', sans-serif; padding: 8px; min-width: 150px;">
                 <div style="font-weight: 700; font-size: 14px; color: #1e293b; margin-bottom: 6px;">${d.name}</div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-                    <span>${mainLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${mainValue}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-                    <span>Market Share:</span> <span style="font-weight: 600; color: #1e293b;">${d.marketShare}%</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-                    <span>Wt. OSA %:</span> <span style="font-weight: 600; color: #1e293b;">${d.osa}%</span>
-                </div>
                 <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b;">
-                    <span>Orders:</span> <span style="font-weight: 600; color: #1e293b;">${d.orders}</span>
+                    <span>${mainLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${mainValue}</span>
                 </div>
             </div>
         `);

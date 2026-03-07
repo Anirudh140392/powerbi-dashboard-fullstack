@@ -125,8 +125,17 @@ const getMapIntellectData = async (filters) => {
         return conds.join(' AND ');
     };
 
-    // Execute queries in parallel
-    const [currCityData, prevCityData, currMsData, prevMsData] = await Promise.all([
+    // Execute core queries in parallel
+    const targetPlatform = (!platform || platform === 'All') ? 'blinkit' : platform.toLowerCase();
+
+    // MS brands list (hardcoded as per user request for Mars SKUs)
+    const msBrands = [
+        'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
+        'Orbit', 'Skittles', 'Boomer', "Wrigley's Doublemint"
+    ];
+    const msBrandsSql = msBrands.map(b => `'${escapeStr(b)}'`).join(', ');
+
+    const [currCityData, prevCityData, validCitiesData] = await Promise.all([
         queryClickHouse(`
             SELECT Location,
                 SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as total_sales,
@@ -138,6 +147,7 @@ const getMapIntellectData = async (filters) => {
             WHERE ${currConds} AND Location IS NOT NULL AND Location != ''
             GROUP BY Location
             ORDER BY total_sales DESC
+            LIMIT 100
         `),
         queryClickHouse(`
             SELECT Location,
@@ -150,19 +160,89 @@ const getMapIntellectData = async (filters) => {
             WHERE ${prevConds} AND Location IS NOT NULL AND Location != ''
             GROUP BY Location
         `),
-        // Market size by location
-        queryClickHouse(`SELECT Location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_brand_ms WHERE ${buildMsConds(startDate, endDate)} GROUP BY Location`),
-        queryClickHouse(`SELECT Location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_brand_ms WHERE ${buildMsConds(prevStartDate, prevEndDate)} GROUP BY Location`),
+        // Valid Cities from rb_brand_ms for the requested time frame (filter by MS brands)
+        queryClickHouse(`
+            SELECT DISTINCT Location 
+            FROM rb_brand_ms 
+            WHERE ${buildMsConds(startDate, endDate)} 
+            AND brand IN (${msBrandsSql})
+            AND Location IS NOT NULL
+        `)
     ]);
+
+    // Safely execute Market Share from rb_brand_ms table using city level share
+    let currMsMap = new Map();
+    let prevMsMap = new Map();
+    try {
+        const msQueryBase = (platformName, sDate, eDate) => {
+            // Determine column based on category selection
+            let col = 'combined_ms';
+            if (categoryArr && categoryArr.length === 1) {
+                const c = categoryArr[0];
+                if (c === 'Chocolates') col = 'chocolates_ms';
+                else if (c === 'Chocolate Gift Pack') col = 'gift_pack_ms';
+                else if (c === 'GMFC') col = 'gmfc_ms';
+            }
+
+            return `
+                SELECT
+                    Location,
+                    AVG(${col}) as avg_market_share
+                FROM (
+                    SELECT
+                        Location,
+                        created_on,
+                        brand,
+                        maxIf(brand_ms, category = 'Chocolates') AS chocolates_ms,
+                        maxIf(brand_ms, category = 'Chocolate Gift Pack') AS gift_pack_ms,
+                        maxIf(brand_ms, category = 'GMFC') AS gmfc_ms,
+                        avg(brand_ms) AS combined_ms
+                    FROM
+                    (
+                        SELECT
+                            Location,
+                            toDate(created_on) AS created_on,
+                            category,
+                            brand,
+                            toFloat64(MAX(market_share)) AS brand_ms
+                        FROM rb_brand_ms
+                        WHERE Platform LIKE '%${platformName}%'
+                        AND brand IN (${msBrandsSql})
+                        AND toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
+                        AND Location IS NOT NULL
+                        GROUP BY Location, created_on, category, brand
+                    ) AS cat_level
+                    GROUP BY Location, created_on, brand
+                )
+                GROUP BY Location
+            `;
+        };
+
+        const [currMsData, prevMsData] = await Promise.all([
+            queryClickHouse(msQueryBase(targetPlatform, startDate, endDate)),
+            queryClickHouse(msQueryBase(targetPlatform, prevStartDate, prevEndDate))
+        ]);
+
+        currMsMap = new Map(currMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
+        prevMsMap = new Map(prevMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
+    } catch (e) {
+        console.error(`[MapIntellect] Safely caught error querying Market Share:`, e.message);
+    }
 
     // Build lookup maps
     const prevMap = new Map(prevCityData.map(d => [d.Location, d]));
-    const currMsMap = new Map(currMsData.map(d => [d.Location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
-    const prevMsMap = new Map(prevMsData.map(d => [d.Location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
+    const validCities = new Set(validCitiesData.map(d => d.Location?.toLowerCase()));
 
     // Process city data
     const cities = currCityData.map(data => {
         const cityName = data.Location || 'Unknown';
+        const cityKey = (cityName || '').trim().toLowerCase();
+
+        // Filter: only include cities present in rb_brand_ms
+        if (!validCities.has(cityKey)) {
+            return null;
+        }
+
         const prevData = prevMap.get(cityName) || {};
 
         // Current KPIs
@@ -173,8 +253,7 @@ const getMapIntellectData = async (filters) => {
         const deno = parseFloat(data.total_deno || 0);
         const osa = deno > 0 ? (neno / deno) * 100 : 0;
 
-        const currCityMarket = currMsMap.get(cityName.toLowerCase()) || 0;
-        const marketShare = currCityMarket > 0 ? (sales / currCityMarket) * 100 : 0;
+        const marketShare = currMsMap.get(cityKey) || 0;
 
         // Previous KPIs
         const prevSales = parseFloat(prevData.total_sales || 0);
@@ -184,8 +263,7 @@ const getMapIntellectData = async (filters) => {
         const prevDeno = parseFloat(prevData.total_deno || 0);
         const prevOsa = prevDeno > 0 ? (prevNeno / prevDeno) * 100 : 0;
 
-        const prevCityMarket = prevMsMap.get(cityName.toLowerCase()) || 0;
-        const prevMarketShare = prevCityMarket > 0 ? (prevSales / prevCityMarket) * 100 : 0;
+        const prevMarketShare = prevMsMap.get(cityKey) || 0;
 
         return {
             name: cityName,
@@ -200,7 +278,7 @@ const getMapIntellectData = async (filters) => {
             marketShareChange: parseFloat(calcChange(marketShare, prevMarketShare).toFixed(1)),
             qty: Math.round(qty),
         };
-    }).filter(c => c.name.toLowerCase() !== 'unknown' && c.name.toLowerCase() !== 'other');
+    }).filter(c => c && c.name.toLowerCase() !== 'unknown' && c.name.toLowerCase() !== 'other');
 
     console.log(`[MapIntellect] Returning ${cities.length} cities`);
 

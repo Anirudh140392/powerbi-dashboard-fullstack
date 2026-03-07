@@ -3,14 +3,12 @@ import { queryClickHouse } from './src/config/clickhouse.js';
 (async () => {
     try {
         const query = `
-            SELECT Platform, Category, count() 
+            SELECT DISTINCT Brand 
             FROM rb_pdp_olap 
             WHERE toDate(DATE) > '2026-02-01'
-            GROUP BY Platform, Category
-            ORDER BY Platform, Category
         `;
         const results = await queryClickHouse(query);
-        console.log("All Platforms Category values:", results);
+        console.log("Brands in rb_pdp_olap (Recent):", results);
     } catch (e) {
         console.error("FAILED:", e.message);
     }

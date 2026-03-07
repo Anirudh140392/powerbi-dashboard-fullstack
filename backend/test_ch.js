@@ -1,22 +1,17 @@
-import 'dotenv/config';
 import { queryClickHouse } from './src/config/clickhouse.js';
-
-async function checkDb() {
-    try {
-        const res = await queryClickHouse("DESCRIBE TABLE rb_brand_ms");
-        console.log("Columns:", res.map(r => r.name).join(", "));
-        
-        const minMax = await queryClickHouse("SELECT MIN(created_on) as min, MAX(created_on) as max FROM rb_brand_ms");
-        console.log("Date range for created_on:", minMax);
-        
-        try {
-            const sampleDate = await queryClickHouse("SELECT DATE FROM rb_brand_ms LIMIT 1");
-            console.log("Is there a DATE column?", sampleDate);
-        } catch(e) {
-            console.log("No DATE column.");
-        }
-    } catch(err) {
-        console.log("Error:", err.message);
-    }
+import MapIntellectService from './src/services/mapIntellectService.js';
+async function test() {
+  console.time('Full Execution');
+  try {
+    const filters = { platform: 'Blinkit', startDate: '2026-02-01', endDate: '2026-02-28', months: 1, brand: 'All', category: 'All' };
+    console.time('getMapIntellectData');
+    const result = await MapIntellectService.getMapIntellectData(filters);
+    console.timeEnd('getMapIntellectData');
+    console.log(result.cities.slice(0, 5));
+  } catch (err) {
+    console.error(err);
+  }
+  console.timeEnd('Full Execution');
+  process.exit();
 }
-checkDb();
+test();
