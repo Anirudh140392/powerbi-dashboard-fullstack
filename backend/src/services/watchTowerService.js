@@ -4679,9 +4679,9 @@ const getPlatformOverview = async (filters) => {
         queryClickHouse(`
                     SELECT Platform, SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${currMsDenomConds} AND weekly_category_size IS NOT NULL
+                        WHERE ${currMsDenomConds} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, category
                     )
                     GROUP BY Platform
@@ -4690,9 +4690,9 @@ const getPlatformOverview = async (filters) => {
         queryClickHouse(`
                     SELECT Platform, SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${prevMsDenomConds} AND weekly_category_size IS NOT NULL
+                        WHERE ${prevMsDenomConds} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, category
                     )
                     GROUP BY Platform
@@ -5369,9 +5369,9 @@ const getMonthOverview = async (filters) => {
                         SELECT 
                             formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
                             created_on, Platform, category, 
-                            sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                            sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${msDenomMoConds} AND weekly_category_size IS NOT NULL
+                        WHERE ${msDenomMoConds} AND monthly_category_size IS NOT NULL
                         GROUP BY month_date, created_on, Platform, category
                     )
                     GROUP BY month_date
@@ -5706,9 +5706,9 @@ const getCategoryOverview = async (filters) => {
         queryClickHouse(`
                     SELECT category, SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${buildMsCatConds(startDate, endDate, null)} AND weekly_category_size IS NOT NULL
+                        WHERE ${buildMsCatConds(startDate, endDate, null)} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, category
                     )
                     GROUP BY category
@@ -5716,9 +5716,9 @@ const getCategoryOverview = async (filters) => {
         queryClickHouse(`
                     SELECT category, SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${buildMsCatConds(momStart, momEnd, null)} AND weekly_category_size IS NOT NULL
+                        WHERE ${buildMsCatConds(momStart, momEnd, null)} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, category
                     )
                     GROUP BY category
@@ -6020,18 +6020,18 @@ const getBrandsOverview = async (filters) => {
         queryClickHouse(`
                     SELECT SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${buildMsBrandConds(startDate, endDate, null)} AND weekly_category_size IS NOT NULL
+                        WHERE ${buildMsBrandConds(startDate, endDate, null)} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, category
                     )
                 `),
         queryClickHouse(`
                     SELECT SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${buildMsBrandConds(momStart, momEnd, null)} AND weekly_category_size IS NOT NULL
+                        WHERE ${buildMsBrandConds(momStart, momEnd, null)} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, category
                     )
                 `),
@@ -8735,18 +8735,18 @@ const getSkuOverview = async (filters) => {
         queryClickHouse(`
                     SELECT SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${buildMsSkuConds(startDate, endDate)} AND weekly_category_size IS NOT NULL
+                        WHERE ${buildMsSkuConds(startDate, endDate)} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, category
                     )
                 `),
         queryClickHouse(`
                     SELECT SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${buildMsSkuConds(prevStartDate, prevEndDate)} AND weekly_category_size IS NOT NULL
+                        WHERE ${buildMsSkuConds(prevStartDate, prevEndDate)} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, category
                     )
                 `),
@@ -9011,13 +9011,13 @@ const getCityOverview = async (filters) => {
         // Market Share / Category Size by Location
         queryClickHouse(`SELECT Location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_brand_ms WHERE ${buildMsCityConds(startDate, endDate)} GROUP BY Location`),
         queryClickHouse(`SELECT Location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_brand_ms WHERE ${buildMsCityConds(prevStartDate, prevEndDate)} GROUP BY Location`),
-        // Category Size by Location (weekly_category_size summed per week/category)
+        // Category Size by Location (monthly_category_size summed per week/category)
         queryClickHouse(`
                     SELECT Location, SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, Location, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, Location, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${buildMsCityConds(startDate, endDate)} AND weekly_category_size IS NOT NULL
+                        WHERE ${buildMsCityConds(startDate, endDate)} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, Location, category
                     )
                     GROUP BY Location
@@ -9025,9 +9025,9 @@ const getCityOverview = async (filters) => {
         queryClickHouse(`
                     SELECT Location, SUM(size) as cat_size
                     FROM (
-                        SELECT created_on, Platform, Location, category, sumDistinct(toFloat64OrZero(toString(weekly_category_size))) as size
+                        SELECT created_on, Platform, Location, category, sumDistinct(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
-                        WHERE ${buildMsCityConds(prevStartDate, prevEndDate)} AND weekly_category_size IS NOT NULL
+                        WHERE ${buildMsCityConds(prevStartDate, prevEndDate)} AND monthly_category_size IS NOT NULL
                         GROUP BY created_on, Platform, Location, category
                     )
                     GROUP BY Location
