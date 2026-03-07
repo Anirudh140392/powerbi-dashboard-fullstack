@@ -174,45 +174,29 @@ const getMapIntellectData = async (filters) => {
     let currMsMap = new Map();
     let prevMsMap = new Map();
     try {
-        const msQueryBase = (platformName, sDate, eDate) => {
-            // Determine column based on category selection
-            let col = 'combined_ms';
-            if (categoryArr && categoryArr.length === 1) {
-                const c = categoryArr[0];
-                if (c === 'Chocolates') col = 'chocolates_ms';
-                else if (c === 'Chocolate Gift Pack') col = 'gift_pack_ms';
-                else if (c === 'GMFC') col = 'gmfc_ms';
-            }
+        const targetLocations = [
+            'Delhi', 'Ahmedabad', 'Bengaluru', 'Chandigarh', 'Chennai',
+            'Faridabad', 'Gurugram', 'Hyderabad', 'Kolkata', 'Lucknow',
+            'Mumbai', 'Pune'
+        ];
+        const targetLocationsSql = targetLocations.map(l => `'${escapeStr(l)}'`).join(', ');
 
+        const msQueryBase = (platformName, sDate, eDate) => {
             return `
                 SELECT
                     Location,
-                    AVG(${col}) as avg_market_share
+                    AVG(mars_city_ms) as avg_market_share
                 FROM (
                     SELECT
+                        toDate(created_on) AS created_on,
                         Location,
-                        created_on,
-                        brand,
-                        maxIf(brand_ms, category = 'Chocolates') AS chocolates_ms,
-                        maxIf(brand_ms, category = 'Chocolate Gift Pack') AS gift_pack_ms,
-                        maxIf(brand_ms, category = 'GMFC') AS gmfc_ms,
-                        avg(brand_ms) AS combined_ms
-                    FROM
-                    (
-                        SELECT
-                            Location,
-                            toDate(created_on) AS created_on,
-                            category,
-                            brand,
-                            toFloat64(MAX(market_share)) AS brand_ms
-                        FROM rb_brand_ms
-                        WHERE Platform LIKE '%${platformName}%'
-                        AND brand IN (${msBrandsSql})
-                        AND toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
-                        AND Location IS NOT NULL
-                        GROUP BY Location, created_on, category, brand
-                    ) AS cat_level
-                    GROUP BY Location, created_on, brand
+                        SUM(market_share) AS mars_city_ms
+                    FROM rb_brand_ms
+                    WHERE Platform ILIKE '%${platformName}%'
+                    AND brand IN (${msBrandsSql})
+                    AND Location IN (${targetLocationsSql})
+                    AND toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
+                    GROUP BY created_on, Location
                 )
                 GROUP BY Location
             `;
@@ -222,6 +206,8 @@ const getMapIntellectData = async (filters) => {
             queryClickHouse(msQueryBase(targetPlatform, startDate, endDate)),
             queryClickHouse(msQueryBase(targetPlatform, prevStartDate, prevEndDate))
         ]);
+
+        console.log(`[MapIntellect] Found MS data for ${currMsData.length} cities (current) and ${prevMsData.length} cities (previous)`);
 
         currMsMap = new Map(currMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
         prevMsMap = new Map(prevMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
