@@ -443,6 +443,7 @@ export default function InsightsPricingView({ loading = false }) {
                 if (selectedLocation && selectedLocation !== 'All') params.location = toStr(selectedLocation);
                 if (selectedCategory && selectedCategory !== 'All') params.category = toStr(selectedCategory);
                 if (selectedBrand && selectedBrand !== 'All') params.brand = toStr(selectedBrand);
+                if (selectedChannel && selectedChannel !== 'All') params.channel = toStr(selectedChannel);
 
                 console.log("[InsightsPricingView] Fetching Insights with params:", params);
                 const response = await axiosInstance.get('/pricing-analysis/insights', { params });

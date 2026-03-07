@@ -1,4 +1,4 @@
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
@@ -359,6 +359,11 @@ async function getPricingKpis(filters = {}) {
                 "ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0"
             ];
 
+            const dbName = getCurrentDbName();
+            const isMars = dbName === 'mars';
+            const channelCol = isMars ? 'p.channel' : 'p.Channel';
+            const weightExpr = isMars ? "1" : "ifNull(toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')), 0)";
+
             const platforms = parseMultiSelectFilter(platform);
             if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
 
@@ -372,7 +377,7 @@ async function getPricingKpis(filters = {}) {
             if (categories) whereConditions.push(buildInClause('p.Category', categories));
 
             const channels = parseMultiSelectFilter(channel);
-            if (channels) whereConditions.push(buildInClause('p.Channel', channels));
+            if (channels) whereConditions.push(buildInClause(channelCol, channels));
 
             const whereClause = whereConditions.join(' AND ');
 
@@ -391,8 +396,8 @@ async function getPricingKpis(filters = {}) {
                 NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0) * 100 AS weighted_discount_curr,
                 
                 AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ifNull(toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')), 0) > 0 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ifNull(toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')), 0) 
+                         AND ${weightExpr} > 0 
+                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ${weightExpr} 
                     ELSE NULL END) AS price_per_unit_curr,
                 
                 AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
@@ -417,8 +422,8 @@ async function getPricingKpis(filters = {}) {
                 NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0) * 100 AS weighted_discount_prev,
                 
                 AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ifNull(toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')), 0) > 0 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ifNull(toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')), 0) 
+                         AND ${weightExpr} > 0 
+                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ${weightExpr} 
                     ELSE NULL END) AS price_per_unit_prev,
                 
                 AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
@@ -512,6 +517,10 @@ async function getPricingInsights(filters = {}) {
                 "Brand IS NOT NULL"
             ];
 
+            const dbName = getCurrentDbName();
+            const isMars = dbName === 'mars';
+            const channelCol = isMars ? 'p.channel' : 'p.Channel';
+
             const platforms = parseMultiSelectFilter(platform);
             if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
 
@@ -525,7 +534,7 @@ async function getPricingInsights(filters = {}) {
             if (categories) whereConditions.push(buildInClause('p.Category', categories));
 
             const channels = parseMultiSelectFilter(channel);
-            if (channels) whereConditions.push(buildInClause('p.Channel', channels));
+            if (channels) whereConditions.push(buildInClause(channelCol, channels));
 
             const whereClause = whereConditions.join(' AND ');
 
@@ -629,12 +638,17 @@ const getDimensionOverview = async (filters) => {
         const location = filters.location || null;
         const brand = filters.brand || null;
         const category = filters.category || null;
+        const channel = filters.channel || null;
 
         let whereConditions = [
             "p.Selling_Price IS NOT NULL",
-            "p.Selling_Price != ''",
             "toFloat64OrZero(toString(p.Selling_Price)) > 0"
         ];
+
+        const dbName = getCurrentDbName();
+        const isMars = dbName === 'mars';
+        const channelCol = isMars ? 'p.channel' : 'p.Channel';
+        const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
 
         const platforms = parseMultiSelectFilter(platform);
         if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
@@ -647,6 +661,9 @@ const getDimensionOverview = async (filters) => {
 
         const categories = parseMultiSelectFilter(category);
         if (categories) whereConditions.push(buildInClause('p.Category', categories));
+
+        const channels = parseMultiSelectFilter(channel);
+        if (channels) whereConditions.push(buildInClause(channelCol, channels));
 
         const whereClause = whereConditions.join(' AND ');
 
@@ -661,8 +678,8 @@ const getDimensionOverview = async (filters) => {
                 THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * toFloat64OrZero(toString(p.Sales)) ELSE 0 END) / 
             NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.Sales)) ELSE 0 END), 0) * 100 AS weighted_discount_curr,
             
-            AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')) > 0 
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')) ELSE NULL END) AS price_per_unit_curr,
+            AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ${weightExpr} > 0 
+                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr} ELSE NULL END) AS price_per_unit_curr,
             
             AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP)) ELSE NULL END) AS rpi_curr,
@@ -677,8 +694,8 @@ const getDimensionOverview = async (filters) => {
                 THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * toFloat64OrZero(toString(p.Sales)) ELSE 0 END) / 
             NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.Sales)) ELSE 0 END), 0) * 100 AS weighted_discount_prev,
             
-            AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')) > 0 
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')) ELSE NULL END) AS price_per_unit_prev,
+            AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${weightExpr} > 0 
+                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr} ELSE NULL END) AS price_per_unit_prev,
             
             AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP)) ELSE NULL END) AS rpi_prev,
@@ -740,6 +757,10 @@ const getDimensionOverview = async (filters) => {
  */
 const getDimensionTrends = async (filters) => {
     try {
+        const dbName = getCurrentDbName();
+        const isMars = dbName === 'mars';
+        const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
+
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const periodDays = filters.period === '3M' ? 90 : filters.period === '6M' ? 180 : filters.period === '1Y' ? 365 : 30;
         const startDate = filters.startDate || dayjs(endDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
@@ -795,8 +816,8 @@ const getDimensionTrends = async (filters) => {
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100
                 ELSE NULL END) AS discount,
-            AVG(CASE WHEN toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')) > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))
+            AVG(CASE WHEN ${weightExpr} > 0
+                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr}
                 ELSE NULL END) AS price_per_unit,
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
@@ -878,6 +899,10 @@ const getPricingCompetitionTrends = async (filters) => {
         const targetColumn = mode === 'sku' ? 'Product' : 'Brand';
         whereConditions.push(buildInClause(`p.${targetColumn}`, targets));
 
+        const dbName = getCurrentDbName();
+        const isMars = dbName === 'mars';
+        const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
+
         const whereClause = whereConditions.join(' AND ');
 
         const query = `
@@ -887,8 +912,8 @@ const getPricingCompetitionTrends = async (filters) => {
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100
                 ELSE NULL END) AS discount,
-            AVG(CASE WHEN toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')) > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))
+            AVG(CASE WHEN ${weightExpr} > 0
+                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr}
                 ELSE NULL END) AS price_per_unit,
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
@@ -980,6 +1005,10 @@ const getPricingCompetition = async (filters) => {
             whereConditions.push(`lower(p.${groupByColumn}) = lower('${escapeStr(dimensionValue)}')`);
         }
 
+        const dbName = getCurrentDbName();
+        const isMars = dbName === 'mars';
+        const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
+
         const whereClause = whereConditions.join(' AND ');
 
         // Brand-level query: Discount, PricePerUnit, RPI, ASP grouped by brand
@@ -989,8 +1018,8 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100
                 ELSE NULL END) AS discount,
-            AVG(CASE WHEN toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')) > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))
+            AVG(CASE WHEN ${weightExpr} > 0
+                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr}
                 ELSE NULL END) AS price_per_unit,
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
@@ -1012,8 +1041,8 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100
                 ELSE NULL END) AS discount,
-            AVG(CASE WHEN toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')) > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))
+            AVG(CASE WHEN ${weightExpr} > 0
+                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr}
                 ELSE NULL END) AS price_per_unit,
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))

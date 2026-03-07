@@ -1183,6 +1183,8 @@ export default function PricingAnalysisData() {
     const brandFilter = selectedBrand || filters.brand;
     if (brandFilter && brandFilter !== 'All') params.brand = toFilterString(brandFilter);
 
+    if (selectedChannel && selectedChannel !== 'All') params.channel = toFilterString(selectedChannel);
+
     return params;
   };
 
