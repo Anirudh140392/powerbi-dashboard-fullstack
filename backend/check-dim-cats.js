@@ -3,14 +3,12 @@ import { queryClickHouse } from './src/config/clickhouse.js';
 (async () => {
     try {
         const query = `
-            SELECT Platform, Category, count() 
-            FROM rb_pdp_olap 
-            WHERE toDate(DATE) > '2026-02-01'
-            GROUP BY Platform, Category
-            ORDER BY Platform, Category
+            SELECT DISTINCT category 
+            FROM rca_sku_dim 
+            LIMIT 5
         `;
         const results = await queryClickHouse(query);
-        console.log("All Platforms Category values:", results);
+        console.log("rca_sku_dim Categories:", results);
     } catch (e) {
         console.error("FAILED:", e.message);
     }
