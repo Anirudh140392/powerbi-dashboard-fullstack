@@ -9334,14 +9334,14 @@ const getProducts = async (filters = {}) => {
 const getProductCategories = async (filters = {}) => {
     try {
         const { platform, brand } = filters;
-        const conditions = [`Product_Category IS NOT NULL`, `Product_Category != ''`, `toString(Comp_flag) = '0'`];
+        const conditions = [`Category IS NOT NULL`, `Category != ''`, `toString(Comp_flag) = '0'`];
         if (platform && platform !== 'All') {
             conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
         }
         if (brand && brand !== 'All') {
             conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
         }
-        const query = `SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY category LIMIT 500`;
+        const query = `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY category LIMIT 500`;
         const results = await queryClickHouse(query);
         return results.map(r => r.category).filter(Boolean).sort();
     } catch (error) {
