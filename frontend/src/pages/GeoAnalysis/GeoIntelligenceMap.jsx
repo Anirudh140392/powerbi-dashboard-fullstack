@@ -69,6 +69,20 @@ export default function GeoIntelligenceMap() {
             try {
                 // Build time period params
                 let params = `platform=${encodeURIComponent(platform)}`;
+                
+                // Add metric parameter based on selected KPI
+                let metricParam = 'all';
+                if (metric === 'Market Share') {
+                    metricParam = 'marketshare';
+                } else if (metric === 'Wt. OSA %') {
+                    metricParam = 'osa';
+                } else if (metric === 'Sales') {
+                    metricParam = 'sales';
+                } else if (metric === 'Orders') {
+                    metricParam = 'orders';
+                }
+                params += `&metric=${metricParam}`;
+                
                 if (timePeriod === "MTD") {
                     params += `&months=1`;
                 } else if (timePeriod === "7D") {
@@ -98,7 +112,7 @@ export default function GeoIntelligenceMap() {
             }
         };
         fetchData();
-    }, [platform, timePeriod]);
+    }, [platform, timePeriod, metric]);
 
     // --- Build coordinate-mapped data from API response ---
     const mapData = useMemo(() => {
@@ -213,13 +227,21 @@ export default function GeoIntelligenceMap() {
 
         const newMarkers = [];
 
-        // Filter logic
+        // Filter logic based on selected metric
         const filteredData = mapData.filter(d => {
             if (importanceFilter === "All") return true;
-            const osaVal = d.osa || 0;
-            return (osaVal > 80 && importanceFilter === "High") ||
-                (osaVal <= 80 && osaVal > 60 && importanceFilter === "Medium") ||
-                (osaVal <= 60 && importanceFilter === "Low");
+            // Use appropriate value based on selected metric for filtering
+            let filterVal = d.osa || 0;
+            if (metric === 'Market Share') {
+                filterVal = d.marketShare || 0;
+            } else if (metric === 'Sales') {
+                filterVal = d.sales > 0 ? 100 : 0; // High if has sales
+            } else if (metric === 'Orders') {
+                filterVal = d.orders > 0 ? 100 : 0; // High if has orders
+            }
+            return (filterVal > 80 && importanceFilter === "High") ||
+                (filterVal <= 80 && filterVal > 60 && importanceFilter === "Medium") ||
+                (filterVal <= 60 && importanceFilter === "Low");
         });
 
         filteredData.forEach(d => {
@@ -242,25 +264,29 @@ export default function GeoIntelligenceMap() {
             el.style.height = '56px';
             el.style.cursor = 'pointer';
 
-            // Popup content with real values
-            let mainLabel = 'Wt. OSA %';
-            let mainValue = `${d.osa}%`;
-            if (metric === 'Sales') {
-                mainLabel = 'Sales';
-                mainValue = d.salesFormatted || '₹0';
-            } else if (metric === 'Orders') {
-                mainLabel = 'Orders';
-                mainValue = `${d.orders}`;
+            // Popup content - show only the selected KPI value
+            let kpiLabel = '';
+            let kpiValue = '';
+            
+            if (metric === 'Wt. OSA %') {
+                kpiLabel = 'Wt. OSA %';
+                kpiValue = `${d.osa}%`;
             } else if (metric === 'Market Share') {
-                mainLabel = 'Market Share';
-                mainValue = `${d.marketShare}%`;
+                kpiLabel = 'Market Share';
+                kpiValue = `${d.marketShare}%`;
+            } else if (metric === 'Sales') {
+                kpiLabel = 'Sales';
+                kpiValue = d.salesFormatted;
+            } else if (metric === 'Orders') {
+                kpiLabel = 'Orders';
+                kpiValue = d.orders.toLocaleString('en-IN');
             }
-
+            
             const popup = new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(`
-            <div style="font-family: 'DM Sans', sans-serif; padding: 8px; min-width: 150px;">
-                <div style="font-weight: 700; font-size: 14px; color: #1e293b; margin-bottom: 6px;">${d.name}</div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b;">
-                    <span>${mainLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${mainValue}</span>
+            <div style="font-family: 'DM Sans', sans-serif; padding: 8px; min-width: 180px;">
+                <div style="font-weight: 700; font-size: 14px; color: #1e293b; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">${d.name}</div>
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b;">
+                    <span>${kpiLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${kpiValue}</span>
                 </div>
             </div>
         `);
@@ -280,7 +306,7 @@ export default function GeoIntelligenceMap() {
 
         setMarkers(newMarkers);
 
-    }, [mapData, importanceFilter]); // Re-render markers when data changes
+    }, [mapData, importanceFilter, metric]); // Re-render markers when data or metric changes
 
     // --- Render ---
     return (
