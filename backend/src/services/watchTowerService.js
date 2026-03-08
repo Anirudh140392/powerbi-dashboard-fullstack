@@ -6844,21 +6844,6 @@ const getCompetitionData = async (filters = {}) => {
             const brandCategory = brand.brand_category || '';
             const prevBrand = prevMap.get(brand.Brand) || {};
 
-            // Offtakes, Spend, ROAS
-            const offtakes = parseFloat(brand.total_offtakes || 0);
-            const prevOfftakes = parseFloat(prevBrand.total_offtakes || 0);
-            const offtakesDelta = calcChange(offtakes, prevOfftakes);
-
-            const spend = parseFloat(brand.total_spend || 0);
-            const prevSpend = parseFloat(prevBrand.total_spend || 0);
-            const spendDelta = calcChange(spend, prevSpend);
-
-            const adSales = parseFloat(brand.total_ad_sales || 0);
-            const roas = spend > 0 ? adSales / spend : (adSales > 0 ? adSales : 0);
-            const prevAdSales = parseFloat(prevBrand.total_ad_sales || 0);
-            const prevRoas = prevSpend > 0 ? prevAdSales / prevSpend : (prevAdSales > 0 ? prevAdSales : 0);
-            const roasDelta = calcChange(roas, prevRoas);
-
             // Calculate OSA (On-Shelf Availability)
             const osaBrand = osaMap.get(brand.Brand) || { neno: 0, deno: 0 };
             const osa = osaBrand.deno > 0 ? (osaBrand.neno / osaBrand.deno) * 100 : 0;
@@ -6915,9 +6900,6 @@ const getCompetitionData = async (filters = {}) => {
             return {
                 brand_name: brand.Brand,
                 brand: brand.Brand,
-                Offtakes: { value: parseFloat(offtakes.toFixed(0)), delta: parseFloat(offtakesDelta.toFixed(1)) },
-                Spend: { value: parseFloat(spend.toFixed(0)), delta: parseFloat(spendDelta.toFixed(1)) },
-                ROAS: { value: parseFloat(roas.toFixed(2)), delta: parseFloat(roasDelta.toFixed(1)) },
                 OSA: { value: parseFloat(osa.toFixed(1)), delta: parseFloat(osaDelta.toFixed(1)) },
                 SOS: { value: parseFloat(sos.toFixed(1)), delta: parseFloat(sosDelta.toFixed(1)) },
                 Discount: { value: parseFloat(discount.toFixed(1)), delta: parseFloat(discountDelta.toFixed(1)) },
@@ -6932,7 +6914,7 @@ const getCompetitionData = async (filters = {}) => {
         });
 
         // 5. Sort by OSA descending and limit to top 10
-        brandMetrics.sort((a, b) => b.osa - a.osa);
+        brandMetrics.sort((a, b) => (b.OSA?.value || 0) - (a.OSA?.value || 0));
         const topBrands = brandMetrics.slice(0, 10);
 
         console.log(`[getCompetitionData] Returning ${topBrands.length} brands`);
@@ -7021,22 +7003,6 @@ const getCompetitionData = async (filters = {}) => {
             const skuCategory = sku.sku_category || '';
             const prevSku = skuOsaMapPrev.get(sku.Product) || {};
 
-            // Offtakes, Spend, ROAS
-            const offtakes = parseFloat(sku.total_offtakes || 0);
-            const prevOfftakes = parseFloat(prevSku.total_offtakes || 0);
-            const offtakesDelta = calcChange(offtakes, prevOfftakes);
-
-            const skuAgg = skuOsaMap.get(sku.Product) || {};
-            const totalSpend = parseFloat(skuAgg.total_spend || 0);
-            const prevTotalSpend = parseFloat(prevSku.total_spend || 0);
-            const spendDelta = calcChange(totalSpend, prevTotalSpend);
-
-            const adSales = parseFloat(skuAgg.total_ad_sales || 0);
-            const roas = totalSpend > 0 ? adSales / totalSpend : (adSales > 0 ? adSales : 0);
-            const prevAdSales = parseFloat(prevSku.total_ad_sales || 0);
-            const prevRoas = prevTotalSpend > 0 ? prevAdSales / prevTotalSpend : (prevAdSales > 0 ? prevAdSales : 0);
-            const roasDelta = calcChange(roas, prevRoas);
-
             // Calculate OSA 
             const nenoOsa = parseFloat(sku.neno_osa || 0);
             const denoOsa = parseFloat(sku.deno_osa || 0);
@@ -7078,9 +7044,6 @@ const getCompetitionData = async (filters = {}) => {
                 sku_name: sku.Product,
                 brand_name: sku.Brand,
                 brand: sku.Product,
-                Offtakes: { value: parseFloat(offtakes.toFixed(0)), delta: parseFloat(offtakesDelta.toFixed(1)) },
-                Spend: { value: parseFloat(totalSpend.toFixed(0)), delta: parseFloat(spendDelta.toFixed(1)) },
-                ROAS: { value: parseFloat(roas.toFixed(2)), delta: parseFloat(roasDelta.toFixed(1)) },
                 OSA: { value: parseFloat(osa.toFixed(1)), delta: parseFloat(osaDelta.toFixed(1)) },
                 SOS: { value: parseFloat(sos.toFixed(1)), delta: parseFloat(sosDelta.toFixed(1)) },
                 Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(1)) },
@@ -7090,7 +7053,7 @@ const getCompetitionData = async (filters = {}) => {
         });
 
         // Sort by OSA descending and limit to top 10
-        skuMetrics.sort((a, b) => b.osa - a.osa);
+        skuMetrics.sort((a, b) => (b.OSA?.value || 0) - (a.OSA?.value || 0));
         const topSkus = skuMetrics.slice(0, 10);
 
         console.log(`[getCompetitionData] Returning ${topBrands.length} brands and ${topSkus.length} SKUs`);
