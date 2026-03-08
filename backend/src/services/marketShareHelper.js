@@ -14,10 +14,37 @@ export const normalizeFilterArray = (value) => {
     return [];
 };
 
+// ── Category name mapping helpers ──────────────────────────────────────────────
+// Maps rb_pdp_olap category names → rb_brand_ms category names + output column
+const mapCategoryToMs = (categoryArr) => {
+    // col: which column to SELECT from the outer query
+    // categoryCond: optional AND clause to filter inner rb_brand_ms by category
+    if (!categoryArr || categoryArr.length === 0) {
+        return { col: 'combined_ms', categoryCond: '' };
+    }
+    if (categoryArr.length === 1) {
+        const c = categoryArr[0];
+        if (c === 'Chocolates' || c === 'Chocolates (Non Gifting)') {
+            return { col: 'chocolates_ms', categoryCond: `AND category = 'Chocolates'` };
+        }
+        if (c === 'Chocolate Gift Pack' || c === 'Chocolates (Gifting)') {
+            return { col: 'gift_pack_ms', categoryCond: `AND category = 'Chocolate Gift Pack'` };
+        }
+        if (c === 'GMFC') {
+            return { col: 'gmfc_ms', categoryCond: `AND category = 'GMFC'` };
+        }
+    }
+    // Multiple categories or unrecognised — use combined_ms, no category filter
+    return { col: 'combined_ms', categoryCond: '' };
+};
+
 /**
  * Shared Market Share Calculation Helper
- * Uses rb_brand_ms table and nation_level_market_share logic.
- * Categorical logic: maxIf for Chocolates, Gift Pack, GMFC.
+ * Uses rb_brand_ms table with nation_level_market_share logic.
+ * Applies exact user-specified query:
+ *   outer: maxIf per category + avg(brand_ms) grouped by created_on, brand
+ *   inner: MAX(nation_level_market_share) grouped by created_on, category, brand
+ *   final: AVG of the selected column across the date range
  */
 export const getMarketShare = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null) => {
     try {
@@ -49,13 +76,7 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        let col = 'combined_ms';
-        if (categoryArr && categoryArr.length === 1) {
-            const c = categoryArr[0];
-            if (c === 'Chocolates' || c === 'Chocolates (Non Gifting)') col = 'chocolates_ms';
-            else if (c === 'Chocolate Gift Pack' || c === 'Chocolates (Gifting)') col = 'gift_pack_ms';
-            else if (c === 'GMFC') col = 'gmfc_ms';
-        }
+        const { col, categoryCond } = mapCategoryToMs(categoryArr);
 
         const query = `
             SELECT AVG(${col}) as avg_market_share
@@ -72,6 +93,7 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
                     WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
                     ${platformCond}
                     ${locationCond}
+                    ${categoryCond}
                     AND brand IN (${brandsSql})
                     GROUP BY created_on, category, brand
                 ) AS cat_level
@@ -118,13 +140,7 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        let col = 'combined_ms';
-        if (categoryArr && categoryArr.length === 1) {
-            const c = categoryArr[0];
-            if (c === 'Chocolates' || c === 'Chocolates (Non Gifting)') col = 'chocolates_ms';
-            else if (c === 'Chocolate Gift Pack' || c === 'Chocolates (Gifting)') col = 'gift_pack_ms';
-            else if (c === 'GMFC') col = 'gmfc_ms';
-        }
+        const { col, categoryCond } = mapCategoryToMs(categoryArr);
 
         const query = `
             SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
@@ -142,6 +158,7 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
                     WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
                     ${platformCond}
                     ${locationCond}
+                    ${categoryCond}
                     AND brand IN (${brandsSql})
                     GROUP BY created_on, category, brand
                 ) AS cat_level
@@ -188,13 +205,7 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        let col = 'combined_ms';
-        if (categoryArr && categoryArr.length === 1) {
-            const c = categoryArr[0];
-            if (c === 'Chocolates' || c === 'Chocolates (Non Gifting)') col = 'chocolates_ms';
-            else if (c === 'Chocolate Gift Pack' || c === 'Chocolates (Gifting)') col = 'gift_pack_ms';
-            else if (c === 'GMFC') col = 'gmfc_ms';
-        }
+        const { col, categoryCond } = mapCategoryToMs(categoryArr);
 
         const query = `
             SELECT brand,
@@ -212,6 +223,7 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
                     WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
                     ${platformCond}
                     ${locationCond}
+                    ${categoryCond}
                     AND brand IN (${brandsSql})
                     GROUP BY created_on, category, brand
                 ) AS cat_level
@@ -263,13 +275,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        let col = 'combined_ms';
-        if (categoryArr && categoryArr.length === 1) {
-            const c = categoryArr[0];
-            if (c === 'Chocolates' || c === 'Chocolates (Non Gifting)') col = 'chocolates_ms';
-            else if (c === 'Chocolate Gift Pack' || c === 'Chocolates (Gifting)') col = 'gift_pack_ms';
-            else if (c === 'GMFC') col = 'gmfc_ms';
-        }
+        const { col, categoryCond } = mapCategoryToMs(categoryArr);
 
         let groupFormat = '%Y-%m-%d';
         if (timeStep === 'Monthly') groupFormat = '%Y-%m-01';
@@ -293,6 +299,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
                     WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
                     ${platformCond}
                     ${locationCond}
+                    ${categoryCond}
                     AND brand IN (${brandsSql})
                     GROUP BY created_on, category, brand
                 ) AS cat_level

@@ -9,7 +9,7 @@ import ZeptoMarketShare from '../models/ZeptoMarketShare.js'; // Keeping for ref
 import RcaSkuDim from '../models/RcaSkuDim.js';
 import { Op, Sequelize } from 'sequelize';
 import sequelize from '../config/db.js';
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek.js';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
@@ -3136,7 +3136,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     // SOS - already uses ClickHouse
                     getShareOfSearch(startDate, endDate, brand, categoryOverviewPlatform, location, catName),
                     // Market Share - USING marketShareHelper
-                    getMarketShare(startDate, endDate, categoryOverviewPlatform, catName, brand, location),
+                    // Pass null platform so rb_brand_ms is queried without platform filter
+                    // (consistent with getCategoryOverview which also omits platform on getMarketShare)
+                    getMarketShare(startDate, endDate, null, catName, null, location),
                     // Promo My Brand (Comp_flag = 0)
                     queryClickHouse(`
                         SELECT AVG(CASE WHEN toFloat64OrZero(toString(MRP)) > 0 THEN (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)) ELSE 0 END) as avg_promo_depth
@@ -5661,7 +5663,9 @@ const getCategoryOverview = async (filters) => {
         const sosDenom = parseInt(currSosDenomMap.get(catKey) || 0);
         const sos = sosDenom > 0 ? (sosNum / sosDenom) * 100 : 0;
 
-        const marketShare = await getMarketShare(startDate, endDate, categoryOverviewPlatform, [catName], null, locationArr);
+        // Market Share via marketShareHelper — no platform filter on rb_brand_ms
+        // (rb_brand_ms platform values may differ; category filter is the key discriminator)
+        const marketShare = await getMarketShare(startDate, endDate, null, [catName], null, locationArr);
 
         // Previous
         const prevOfftake = parseFloat(prev.total_sales || 0);
@@ -5681,7 +5685,7 @@ const getCategoryOverview = async (filters) => {
         const prevSosDenom = parseInt(prevSosDenomMap.get(catKey) || 0);
         const prevSos = prevSosDenom > 0 ? (prevSosNum / prevSosDenom) * 100 : 0;
 
-        const prevMarketShare = await getMarketShare(momStart, momEnd, categoryOverviewPlatform, [catName], null, locationArr);
+        const prevMarketShare = await getMarketShare(momStart, momEnd, null, [catName], null, locationArr);
 
         const promoMyBrand = parseFloat(curr.my_mrp_val || 0) > 0
             ? ((parseFloat(curr.my_mrp_val) - parseFloat(curr.my_actual_sales)) / parseFloat(curr.my_mrp_val)) * 100
