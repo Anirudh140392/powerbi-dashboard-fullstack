@@ -372,9 +372,6 @@ const DASHBOARD_DATA = {
 
     columns: [
       { id: "brand", label: "Brand / SKU", type: "text" },
-      { id: "Offtakes", label: "Offtakes", type: "metric" },
-      { id: "Spend", label: "Spend", type: "metric" },
-      { id: "ROAS", label: "ROAS", type: "metric" },
       { id: "SOS", label: "SOS", type: "metric" },
       { id: "MarketShare", label: "Market Share", type: "metric" },
     ],
@@ -382,17 +379,11 @@ const DASHBOARD_DATA = {
     brands: [
       {
         brand: "Colgate",
-        Offtakes: { value: 32.9, delta: -4.5 },
-        Spend: { value: 6.8, delta: 0.4 },
-        ROAS: { value: 7.3, delta: 0.2 },
         SOS: { value: 44, delta: 1.2 },
         MarketShare: { value: 18.8, delta: 0.4 },
       },
       {
         brand: "Sensodyne",
-        Offtakes: { value: 19.6, delta: 2.2 },
-        Spend: { value: 5.1, delta: -0.3 },
-        ROAS: { value: 6.9, delta: -0.1 },
         SOS: { value: 39, delta: -0.8 },
         MarketShare: { value: 18.5, delta: -0.3 },
       },
@@ -1832,15 +1823,12 @@ const BrandTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[18%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[12%] whitespace-nowrap">Offtakes</th>
-                <th className="px-3 py-2 text-center w-[10%]">Spend</th>
-                <th className="px-3 py-2 text-center w-[10%]">ROAS</th>
-                <th className="px-3 py-2 text-center w-[10%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[10%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[10%]">Price</th>
-                <th className="px-3 py-2 text-center w-[10%]">Mkt Share</th>
-                <th className="px-3 py-2 text-center w-[10%]">Cat Share</th>
+                <th className="px-3 py-2 text-center w-[30%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[14%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[14%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[14%]">Price</th>
+                <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[14%]">Cat Share</th>
               </tr>
             </thead>
 
@@ -1850,11 +1838,8 @@ const BrandTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
               ))}
@@ -1870,30 +1855,6 @@ const BrandTable = ({ rows, loading }) => {
                     {row.name || row.brand_name || row.brand}
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>₹{formatLargeNumber(Number(row.Offtakes?.value) || 0)}</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.Offtakes?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.Offtakes?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.Offtakes?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>₹{formatLargeNumber(Number(row.Spend?.value) || 0)}</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.Spend?.delta) || 0) <= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.Spend?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.Spend?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.ROAS?.value) || 0).toFixed(1)}</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.ROAS?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.ROAS?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.ROAS?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-right text-slate-900 font-medium">
                     <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>{(Number(row.OSA?.value) || 0).toFixed(1)}%</span>
                       <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.OSA?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
@@ -1939,7 +1900,7 @@ const BrandTable = ({ rows, loading }) => {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -2074,7 +2035,7 @@ const SkuTable = ({ rows, loading }) => {
               {rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={7}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
