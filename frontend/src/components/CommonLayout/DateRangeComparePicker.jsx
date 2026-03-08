@@ -205,6 +205,23 @@ export default function DateRangeComparePicker({
     const [start, setStart] = useState(timeStart ? timeStart.toDate() : addDays(today, -7));
     const [end, setEnd] = useState(timeEnd ? timeEnd.toDate() : today);
 
+    // Sync internal state with props when they change (e.g. after fetching from backend)
+    useEffect(() => {
+        if (timeStart) {
+            setStart(timeStart.toDate());
+        }
+    }, [timeStart]);
+
+    useEffect(() => {
+        if (timeEnd) {
+            setEnd(timeEnd.toDate());
+            // If internal end state was "today" but prop is different, update activeQuick
+            if (activeQuick === "last7" || activeQuick === "today") {
+                setActiveQuick("custom");
+            }
+        }
+    }, [timeEnd]);
+
     const [activeQuick, setActiveQuick] = useState("last7");
     const [compareOn, setCompareOn] = useState(true);
     const [compareMode, setCompareMode] = useState("previous");
@@ -212,6 +229,14 @@ export default function DateRangeComparePicker({
     const computedCompare = useMemo(() => computeCompareRange(start, end, compareMode), [start, end, compareMode]);
     const [customCompareStart, setCustomCompareStart] = useState(initialCompareStart ? initialCompareStart.toDate() : computedCompare[0]);
     const [customCompareEnd, setCustomCompareEnd] = useState(initialCompareEnd ? initialCompareEnd.toDate() : computedCompare[1]);
+
+    useEffect(() => {
+        if (initialCompareStart) setCustomCompareStart(initialCompareStart.toDate());
+    }, [initialCompareStart]);
+
+    useEffect(() => {
+        if (initialCompareEnd) setCustomCompareEnd(initialCompareEnd.toDate());
+    }, [initialCompareEnd]);
 
     const compareStartFinal = compareMode === "custom" ? customCompareStart : computedCompare[0];
     const compareEndFinal = compareMode === "custom" ? customCompareEnd : computedCompare[1];

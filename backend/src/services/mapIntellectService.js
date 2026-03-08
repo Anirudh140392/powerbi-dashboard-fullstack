@@ -130,8 +130,8 @@ const getMapIntellectData = async (filters) => {
 
     let currCityData = [];
     let prevCityData = [];
-    let currMsData  = [];
-    let prevMsData  = [];
+    let currMsData = [];
+    let prevMsData = [];
 
     // ── Fetch PDP data (Wt. OSA / Sales / Orders) from rb_pdp_olap ──
     // OSA formula: SUM(neno_osa) / NULLIF(SUM(deno_osa), 0) * 100  (exact user-specified logic)
@@ -216,8 +216,8 @@ const getMapIntellectData = async (filters) => {
 
     // ── Build lookup maps ──────────────────────────────────────────
     const prevPdpMap = new Map(prevCityData.map(d => [d.Location, d]));
-    const currMsMap  = new Map(currMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
-    const prevMsMap  = new Map(prevMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
+    const currMsMap = new Map(currMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
+    const prevMsMap = new Map(prevMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
 
     // ── Process and return cities ──────────────────────────────────
     let cities = [];
@@ -226,10 +226,10 @@ const getMapIntellectData = async (filters) => {
         // Market Share view — iterate over the 12 rb_brand_ms locations
         cities = currMsData.map(data => {
             const cityName = (data.Location || '').trim();
-            const cityKey  = cityName.toLowerCase();
+            const cityKey = cityName.toLowerCase();
             if (!cityName || cityName.toLowerCase() === 'unknown' || cityName.toLowerCase() === 'other') return null;
 
-            const ms     = parseFloat(data.avg_market_share || 0);
+            const ms = parseFloat(data.avg_market_share || 0);
             const prevMs = prevMsMap.get(cityKey) || 0;
 
             return {
@@ -247,24 +247,24 @@ const getMapIntellectData = async (filters) => {
         // PDP metrics — iterate over ALL rb_pdp_olap locations
         cities = currCityData.map(data => {
             const cityName = (data.Location || '').trim();
-            const cityKey  = cityName.toLowerCase();
+            const cityKey = cityName.toLowerCase();
             if (!cityName || cityName.toLowerCase() === 'unknown' || cityName.toLowerCase() === 'other') return null;
 
             const prevData = prevPdpMap.get(data.Location) || {};
 
-            const sales   = parseFloat(data.total_sales  || 0);
-            const qty     = parseFloat(data.total_qty    || 0);
-            const orders  = parseFloat(data.total_orders || 0);
+            const sales = parseFloat(data.total_sales || 0);
+            const qty = parseFloat(data.total_qty || 0);
+            const orders = parseFloat(data.total_orders || 0);
             // city_osa computed directly in SQL: SUM(neno) / NULLIF(SUM(deno), 0) * 100
-            const osa     = parseFloat(data.city_osa     || 0);
+            const osa = parseFloat(data.city_osa || 0);
 
-            const prevSales  = parseFloat(prevData.total_sales  || 0);
+            const prevSales = parseFloat(prevData.total_sales || 0);
             const prevOrders = parseFloat(prevData.total_orders || 0);
             // previous OSA also from SQL
-            const prevOsa    = parseFloat(prevData.city_osa     || 0);
+            const prevOsa = parseFloat(prevData.city_osa || 0);
 
             // Enrich with MS value if available for this city
-            const ms     = currMsMap.get(cityKey) || 0;
+            const ms = currMsMap.get(cityKey) || 0;
             const prevMs = prevMsMap.get(cityKey) || 0;
 
             return {
@@ -289,7 +289,7 @@ const getMapIntellectData = async (filters) => {
         cities,
         period: {
             startDate: startDate.format('YYYY-MM-DD'),
-            endDate:   endDate.format('YYYY-MM-DD'),
+            endDate: endDate.format('YYYY-MM-DD'),
         }
     };
 };

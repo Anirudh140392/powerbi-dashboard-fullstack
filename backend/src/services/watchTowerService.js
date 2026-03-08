@@ -46,8 +46,7 @@ const formatUnits = (val) => {
     const v = parseFloat(val);
     if (isNaN(v)) return "0";
     if (v >= 10000000) return `${(v / 10000000).toFixed(2)} Cr`;
-    if (v >= 1000000) return `${(v / 1000000).toFixed(2)} M`;
-    if (v >= 100000) return `${(v / 100000).toFixed(2)} L`;
+    if (v >= 100000) return `${(v / 100000).toFixed(2)} lac`;
     if (v >= 1000) return `${(v / 1000).toFixed(2)} K`;
     return Math.round(v).toLocaleString('en-IN');
 };
@@ -225,9 +224,7 @@ const formatCurrency = (value) => {
     const val = parseFloat(value);
     if (isNaN(val)) return "0";
     if (val < 0.01 && val > -0.01) return "0";
-    if (val >= 1000000000) return `₹${(val / 1000000000).toFixed(2)} B`;
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-    if (val >= 1000000) return `₹${(val / 1000000).toFixed(2)} M`;
     if (val >= 100000) return `₹${(val / 100000).toFixed(2)} lac`;
     if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
     return `₹${val.toFixed(2)}`;
@@ -4279,9 +4276,7 @@ const getPlatformOverview = async (filters) => {
         const val = parseFloat(value);
         if (isNaN(val)) return "0";
         if (val < 0.01 && val > -0.01) return "0";
-        if (val >= 1000000000) return `₹${(val / 1000000000).toFixed(2)} B`;
         if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-        if (val >= 1000000) return `₹${(val / 1000000).toFixed(2)} M`;
         if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
         if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
         return `₹${val.toFixed(2)}`;
@@ -6041,10 +6036,8 @@ const getBrandsOverview = async (filters) => {
             if (!offtakeCol) return 0;
             // Parse the formatted currency value back to number
             const valStr = offtakeCol.value.replace(/[₹,]/g, '').trim();
-            if (valStr.includes('B')) return parseFloat(valStr) * 1000000000;
             if (valStr.includes('Cr')) return parseFloat(valStr) * 10000000;
-            if (valStr.includes('M')) return parseFloat(valStr) * 1000000;
-            if (valStr.includes('Lac')) return parseFloat(valStr) * 100000;
+            if (valStr.includes('lac')) return parseFloat(valStr) * 100000;
             if (valStr.includes('L')) return parseFloat(valStr) * 100000;
             if (valStr.includes('K')) return parseFloat(valStr) * 1000;
             return parseFloat(valStr) || 0;

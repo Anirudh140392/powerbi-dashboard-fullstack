@@ -638,7 +638,11 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                     )}
                     <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
                         <span className={`text-xs font-bold ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100`}>
-                            {deltaIcon} {Math.abs(kpi.delta || 0).toFixed(1)}% {kpi.deltaLabel ? `(${kpi.deltaLabel.replace(/[▲▼]/, '').trim()})` : ''}
+                            {kpi.deltaLabel ? (
+                                <span>{kpi.deltaLabel}</span>
+                            ) : (
+                                <span>{deltaIcon} {Math.abs(kpi.delta || 0).toFixed(1)}%</span>
+                            )}
                         </span>
                         <span className="text-[11px] text-slate-400 font-medium">
                             {kpi.prevText || "vs Previous Period"}

@@ -4,7 +4,7 @@
  * Uses rb_pdp_olap for price data and rb_sku_platform for size data
  */
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 // Helper to escape string for SQL
@@ -44,6 +44,10 @@ async function getBrandPriceOverview(filters = {}) {
     try {
         console.log('[BrandPriceOverviewService] getBrandPriceOverview called with filters:', filters);
 
+        const dbName = getCurrentDbName();
+        const isMars = dbName === 'mars';
+        const gramCol = isMars ? "''" : "s.gram";
+
         // Date range for calculation
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
@@ -62,7 +66,7 @@ async function getBrandPriceOverview(filters = {}) {
             SELECT
                 p.Brand,
                 p.Platform,
-                s.gram AS gram_size,
+                ${gramCol} AS gram_size,
                 ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)), 1) AS ecp,
                 ROUND(AVG(ifNull(toFloat64OrZero(toString(p.MRP)), 0)), 1) AS mrp,
                 ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Discount)), 0)), 1) AS discount,
@@ -75,11 +79,9 @@ async function getBrandPriceOverview(filters = {}) {
               AND p.Platform IS NOT NULL
               AND p.Platform != ''
               AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0
-              AND s.gram IS NOT NULL 
-              AND s.gram != '' 
-              AND s.gram != '0'
+              ${isMars ? '' : "AND s.gram IS NOT NULL AND s.gram != '' AND s.gram != '0'"}
               ${platformFilter}
-            GROUP BY p.Brand, p.Platform, s.gram
+            GROUP BY p.Brand, p.Platform, gram_size
             ORDER BY p.Brand, p.Platform
             LIMIT 500
         `;

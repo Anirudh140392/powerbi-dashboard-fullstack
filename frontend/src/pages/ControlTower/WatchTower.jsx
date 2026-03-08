@@ -260,7 +260,7 @@ export default function WatchTower() {
         id: 'offtake', title: 'Offtakes',
         value: `₹${getJitter(getLogicalKpiValue('offtake', context), 'offtake')}Cr`,
         delta: getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta'),
-        deltaLabel: `+₹${(getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta') * 5.8).toFixed(1)}L`,
+        deltaLabel: `+₹${(getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta') * 5.8).toFixed(1)} lac`,
         icon: ShoppingCart, gradient: ['#6366f1', '#8b5cf6'],
         trend: getLogicalKpiTrend('offtake', context)
       },
@@ -683,7 +683,7 @@ const FormatPerformanceStudio = ({ rows }) => {
       activeValue: active.spend,
       compareValue: compare?.spend ?? null,
       max: 20,
-      format: (v) => `₹${v} L`,
+      format: (v) => `₹${v} lac`,
     },
     {
       key: "roas",

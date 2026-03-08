@@ -3,7 +3,7 @@
  * Provides ECP and Discount data grouped by City and Brand
  */
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
@@ -44,6 +44,9 @@ async function getEcpByCity(filters = {}) {
     console.log('[EcpByCityService] getEcpByCity called with filters:', filters);
 
     try {
+        const dbName = getCurrentDbName();
+        const isMars = dbName === 'mars';
+        const gramCol = isMars ? "''" : "s.gram";
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
@@ -79,7 +82,7 @@ async function getEcpByCity(filters = {}) {
             ROUND(AVG(toFloat64OrZero(toString(p.MRP))), 1) as mrp,
             ROUND(AVG(toFloat64OrZero(toString(p.Discount))), 1) as discount,
             ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))) / NULLIF(AVG(toFloat64OrZero(toString(p.MRP))), 0), 2) as rpi,
-            any(s.gram) as ml
+            any(${gramCol}) as ml
         FROM rb_pdp_olap p
         LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
         WHERE ${whereClause}
