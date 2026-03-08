@@ -49,7 +49,8 @@ export const getPricingKpis = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
-            category: req.query.category
+            category: req.query.category,
+            channel: req.query.channel
         };
 
         console.log("[PricingAnalysisController] getPricingKpis called with filters:", filters);
@@ -79,7 +80,8 @@ export const getPricingInsights = async (req, res) => {
             platform: req.query.platform,
             location: req.query.location,
             brand: req.query.brand,
-            category: req.query.category
+            category: req.query.category,
+            channel: req.query.channel
         };
 
         console.log("[PricingAnalysisController] getPricingInsights called with filters:", filters);
@@ -142,7 +144,8 @@ export const getEcpComparison = async (req, res) => {
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            channel: req.query.channel
         };
 
         console.log("[PricingAnalysisController] getEcpComparison called with filters:", filters);
@@ -361,6 +364,7 @@ export const getDimensionTrends = async (req, res) => {
             location: req.query.location,
             brand: req.query.brand,
             category: req.query.category,
+            channel: req.query.channel,
         };
 
         console.log("[PricingAnalysisController] getDimensionTrends called with filters:", filters);
@@ -391,6 +395,7 @@ export const getPricingCompetitionTrends = async (req, res) => {
             location: req.query.location,
             brand: req.query.brand,
             category: req.query.category,
+            channel: req.query.channel,
         };
 
         console.log("[PricingAnalysisController] getPricingCompetitionTrends called with filters:", filters);
@@ -419,6 +424,7 @@ export const getPricingCompetition = async (req, res) => {
             location: req.query.location,
             brand: req.query.brand,
             category: req.query.category,
+            channel: req.query.channel,
         };
 
         console.log("[PricingAnalysisController] getPricingCompetition called with filters:", filters);

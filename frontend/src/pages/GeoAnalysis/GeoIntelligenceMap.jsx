@@ -69,7 +69,7 @@ export default function GeoIntelligenceMap() {
             try {
                 // Build time period params
                 let params = `platform=${encodeURIComponent(platform)}`;
-                
+
                 // Add metric parameter based on selected KPI
                 let metricParam = 'all';
                 if (metric === 'Market Share') {
@@ -82,7 +82,7 @@ export default function GeoIntelligenceMap() {
                     metricParam = 'orders';
                 }
                 params += `&metric=${metricParam}`;
-                
+
                 if (timePeriod === "MTD") {
                     params += `&months=1`;
                 } else if (timePeriod === "7D") {
@@ -121,23 +121,42 @@ export default function GeoIntelligenceMap() {
         CITIES.forEach(c => { coordsLookup[c.name.toLowerCase()] = { lat: c.coords[1], lng: c.coords[0], type: "City" }; });
         STATES.forEach(s => { coordsLookup[s.name.toLowerCase()] = { lat: s.center[1], lng: s.center[0], type: "State" }; });
 
+        // Calculate max values for relative thresholding on absolute metrics
+        const maxSales = Math.max(...apiData.map(c => c.sales || 0), 1);
+        const maxOrders = Math.max(...apiData.map(c => c.orders || 0), 1);
+
         return apiData
             .filter(city => coordsLookup[city.name.toLowerCase()])
             .map(city => {
                 const coords = coordsLookup[city.name.toLowerCase()];
-                // Pick the value based on the selected metric
-                let value = 0;
-                if (metric === "Wt. OSA %") value = city.osa || 0;
-                else if (metric === "Market Share") value = city.marketShare || 0;
-                else if (metric === "Sales") value = city.sales || 0;
-                else if (metric === "Orders") value = city.orders || 0;
 
-                // Color coding based on OSA value for consistency
-                const osaVal = city.osa || 0;
-                let color = COLORS.Red;
-                if (osaVal > 85) color = COLORS.Green;
-                else if (osaVal > 70) color = COLORS.Blue;
-                else if (osaVal > 55) color = COLORS.Orange;
+                // Pick the value and calculate color based on the selected metric
+                let value = 0;
+                let color = COLORS.Red; // Default
+
+                if (metric === "Wt. OSA %") {
+                    value = city.osa || 0;
+                    if (value > 80) color = COLORS.Green;
+                    else if (value > 65) color = COLORS.Blue; // Adjusted thresholds for better distribution
+                    else if (value > 45) color = COLORS.Orange;
+                } else if (metric === "Market Share") {
+                    value = city.marketShare || 0;
+                    if (value > 80) color = COLORS.Green;
+                    else if (value > 60) color = COLORS.Blue;
+                    else if (value > 40) color = COLORS.Orange;
+                } else if (metric === "Sales") {
+                    value = city.sales || 0;
+                    const ratio = (value / maxSales) * 100;
+                    if (ratio > 75) color = COLORS.Green;
+                    else if (ratio > 40) color = COLORS.Blue;
+                    else if (ratio > 20) color = COLORS.Orange;
+                } else if (metric === "Orders") {
+                    value = city.orders || 0;
+                    const ratio = (value / maxOrders) * 100;
+                    if (ratio > 75) color = COLORS.Green;
+                    else if (ratio > 40) color = COLORS.Blue;
+                    else if (ratio > 20) color = COLORS.Orange;
+                }
 
                 return {
                     name: city.name,
@@ -227,21 +246,13 @@ export default function GeoIntelligenceMap() {
 
         const newMarkers = [];
 
-        // Filter logic based on selected metric
+        // Filter logic mapping based on markers assigned color
         const filteredData = mapData.filter(d => {
             if (importanceFilter === "All") return true;
-            // Use appropriate value based on selected metric for filtering
-            let filterVal = d.osa || 0;
-            if (metric === 'Market Share') {
-                filterVal = d.marketShare || 0;
-            } else if (metric === 'Sales') {
-                filterVal = d.sales > 0 ? 100 : 0; // High if has sales
-            } else if (metric === 'Orders') {
-                filterVal = d.orders > 0 ? 100 : 0; // High if has orders
-            }
-            return (filterVal > 80 && importanceFilter === "High") ||
-                (filterVal <= 80 && filterVal > 60 && importanceFilter === "Medium") ||
-                (filterVal <= 60 && importanceFilter === "Low");
+            if (importanceFilter === "High") return d.color === COLORS.Green;
+            if (importanceFilter === "Medium") return d.color === COLORS.Blue || d.color === COLORS.Orange;
+            if (importanceFilter === "Low") return d.color === COLORS.Red;
+            return true;
         });
 
         filteredData.forEach(d => {
@@ -267,7 +278,7 @@ export default function GeoIntelligenceMap() {
             // Popup content - show only the selected KPI value
             let kpiLabel = '';
             let kpiValue = '';
-            
+
             if (metric === 'Wt. OSA %') {
                 kpiLabel = 'Wt. OSA %';
                 kpiValue = `${d.osa}%`;
@@ -281,7 +292,7 @@ export default function GeoIntelligenceMap() {
                 kpiLabel = 'Orders';
                 kpiValue = d.orders.toLocaleString('en-IN');
             }
-            
+
             const popup = new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(`
             <div style="font-family: 'DM Sans', sans-serif; padding: 8px; min-width: 180px;">
                 <div style="font-weight: 700; font-size: 14px; color: #1e293b; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">${d.name}</div>

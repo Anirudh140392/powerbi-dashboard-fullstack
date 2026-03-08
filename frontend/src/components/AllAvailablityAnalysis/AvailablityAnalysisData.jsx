@@ -25,6 +25,11 @@ import {
   LayoutGrid
 } from "lucide-react";
 import { FilterContext } from "../../utils/FilterContext";
+import {
+  AvailabilityOverviewSkeleton,
+  PlatformKpiMatrixSkeleton,
+  OsaDetailViewSkeleton
+} from "./AvailabilitySkeletons";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -1373,63 +1378,75 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
         {/* <MetricCardContainer title="Availability Overview" cards={cards[availability]} /> */}
 
-        <SnapshotOverview
-          title="Availability Overview"
-          icon={LayoutGrid}
-          chip="Absolute Basis"
-          loading={isLoading}
-          headerRight={
-            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-              vs Previous Period
-            </span>
-          }
-          kpis={availabilityKpis}
-        />
+        {isLoading ? (
+          <AvailabilityOverviewSkeleton />
+        ) : (
+          <SnapshotOverview
+            title="Availability Overview"
+            icon={LayoutGrid}
+            chip="Absolute Basis"
+            loading={isLoading}
+            headerRight={
+              <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+                vs Previous Period
+              </span>
+            }
+            kpis={availabilityKpis}
+          />
+        )}
 
         {/* Signal Lab Availability Segment */}
         <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
-          <SignalLabVisibility type="availability" />
+          <SignalLabVisibility type="availability" loading={isLoading} />
         </div>
 
-        <TabbedHeatmapTable
-          olaMode={availability}
-          loading={isLoading}
-          apiData={apiData}
-          onFiltersChange={(matrixFilters) => {
-            if (!props.onFiltersChange) return;
-            // Map Matrix filter keys to Global filter keys
-            const mappedFilters = {};
-            if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
-            if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
-            if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
-            if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
-            if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
-            if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
-            if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
-            if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
-            if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
-            props.onFiltersChange(mappedFilters);
-          }}
-        />
-        <OsaHeatmapTable
-          olaMode={availability}
-          loading={isLoading}
-          apiData={apiData}
-          onFiltersChange={(matrixFilters) => {
-            if (!props.onFiltersChange) return;
-            const mappedFilters = {};
-            if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
-            if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
-            if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
-            if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
-            if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
-            if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
-            if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
-            if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
-            if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
-            props.onFiltersChange(mappedFilters);
-          }}
-        />
+        {isLoading ? (
+          <PlatformKpiMatrixSkeleton />
+        ) : (
+          <TabbedHeatmapTable
+            olaMode={availability}
+            loading={isLoading}
+            apiData={apiData}
+            onFiltersChange={(matrixFilters) => {
+              if (!props.onFiltersChange) return;
+              // Map Matrix filter keys to Global filter keys
+              const mappedFilters = {};
+              if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
+              if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
+              if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
+              if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
+              if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
+              if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
+              if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
+              if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
+              if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
+              props.onFiltersChange(mappedFilters);
+            }}
+          />
+        )}
+        {isLoading ? (
+          <OsaDetailViewSkeleton />
+        ) : (
+          <OsaHeatmapTable
+            olaMode={availability}
+            loading={isLoading}
+            apiData={apiData}
+            onFiltersChange={(matrixFilters) => {
+              if (!props.onFiltersChange) return;
+              const mappedFilters = {};
+              if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
+              if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
+              if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
+              if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
+              if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
+              if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
+              if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
+              if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
+              if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
+              props.onFiltersChange(mappedFilters);
+            }}
+          />
+        )}
 
       </div>
     </div>

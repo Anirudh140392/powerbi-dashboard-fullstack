@@ -1056,7 +1056,7 @@ class VisibilityService {
                 }
                 whereConditions.push("keyword_search_rank < 11");
 
-                const sosBrandCondition = buildCHCondition(filters.brand, 'brand_name', { isBrand: true });
+                const sosBrandCondition = buildCHCondition(filters.brand, 'brand_crawl', { isBrand: true });
 
                 // If a specific brand is selected, we filter the results BY that brand(s)
                 if (filters.brand && filters.brand !== 'All') {
@@ -1101,7 +1101,7 @@ class VisibilityService {
                     SELECT 
                         keyword_type, 
                         keyword, 
-                        brand_name, 
+                        brand_crawl as brand_name, 
                         keyword_search_product as sku, 
                         location_name as city, 
                         platform_name,
@@ -1114,7 +1114,7 @@ class VisibilityService {
                     FROM rb_kw
                     ${whereClause}
                     ${keywordCondition}
-                    GROUP BY keyword_type, keyword, brand_name, sku, city, platform_name
+                    GROUP BY keyword_type, keyword, brand_crawl, sku, city, platform_name
                 `;
 
                 console.log('[VisibilityService] Fetching hierarchy details (ClickHouse)...');

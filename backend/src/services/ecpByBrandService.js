@@ -4,7 +4,7 @@
  * ECP Per Unit = ECP / avg gram (from rb_sku_platform.quantity)
  */
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
@@ -67,6 +67,9 @@ async function getEcpByBrand(filters = {}) {
 
     return await getCachedOrCompute(cacheKey, async () => {
         try {
+            const dbName = getCurrentDbName();
+            const isMars = dbName === 'mars';
+            const gramCol = isMars ? "''" : "s.gram";
             // ... (rest of the logic inside try block)
             // Note: I will need to provide the full content to replace correctly
             // but for brevity I will do a precise replace of the start/end
@@ -116,12 +119,8 @@ async function getEcpByBrand(filters = {}) {
                 ) AS ecp,
                 AVG(
                     CASE 
-                        WHEN s.gram IS NOT NULL 
-                        AND s.gram != '' 
-                        AND s.gram != '0' 
-                        AND isFinite(ifNull(toFloat64OrZero(toString(s.gram)), 0))
-                        AND ifNull(toFloat64OrZero(toString(s.gram)), 0) > 0 
-                        THEN ifNull(toFloat64OrZero(toString(s.gram)), 0) 
+                        WHEN ${isMars ? '1=0' : "s.gram IS NOT NULL AND s.gram != '' AND s.gram != '0' AND isFinite(ifNull(toFloat64OrZero(toString(s.gram)), 0)) AND ifNull(toFloat64OrZero(toString(s.gram)), 0) > 0"}
+                        THEN ifNull(toFloat64OrZero(toString(${gramCol})), 0)
                         ELSE NULL 
                     END
                 ) AS avg_gram

@@ -4,7 +4,7 @@
  * Joins rb_pdp_olap and rb_sku_platform tables
  */
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 // Helper to escape string for SQL
@@ -43,6 +43,10 @@ const buildInClause = (column, values) => {
 async function getOneViewPriceGrid(filters = {}) {
     try {
         console.log('[OneViewPriceGridService] getOneViewPriceGrid called with filters:', filters);
+
+        const dbName = getCurrentDbName();
+        const isMars = dbName === 'mars';
+        const gramCol = isMars ? "''" : "s.gram";
 
         // Date range (required)
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
@@ -84,7 +88,7 @@ async function getOneViewPriceGrid(filters = {}) {
 
         // ML filter
         if (filters.ml) {
-            filterClauses.push(`s.gram = '${filters.ml}'`);
+            filterClauses.push(`${gramCol} = '${filters.ml}'`);
         }
 
         // Combine all filter clauses
@@ -104,7 +108,7 @@ async function getOneViewPriceGrid(filters = {}) {
                 p.Product as product,
                 CASE WHEN p.Comp_flag = 0 THEN 'Own' ELSE 'Competition' END as skuType,
                 p.Category as format,
-                COALESCE(s.gram, '') as ml,
+                COALESCE(${gramCol}, '') as ml,
                 ROUND(AVG(toFloat64OrZero(p.MRP)), 1) as mrp,
                 0 as basePrice,
                 ROUND(AVG(toFloat64OrZero(p.Discount)), 1) as discount,
@@ -118,7 +122,7 @@ async function getOneViewPriceGrid(filters = {}) {
               AND p.Platform IS NOT NULL
               AND p.Platform != ''
               ${additionalFilters}
-            GROUP BY p.DATE, p.Platform, p.Brand, p.Product, p.Comp_flag, p.Category, s.gram
+            GROUP BY p.DATE, p.Platform, p.Brand, p.Product, p.Comp_flag, p.Category, ml
             ORDER BY p.DATE DESC, p.Platform, p.Brand
             LIMIT 2000
         `;

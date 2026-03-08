@@ -1296,10 +1296,12 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
 -------------------------------------------------------*/
-function SignalLabBase({ metricType, usePagination = true }) {
+function SignalLabBase({ metricType, usePagination = true, loading = false }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isInternalLoading, setIsInternalLoading] = useState(true);
+
+    const isLoading = isInternalLoading || loading;
 
     const {
         platform: globalPlatform,
@@ -1323,7 +1325,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
     // Fetch real data from backend API
     useEffect(() => {
         let cancelled = false;
-        setIsLoading(true);
+        setIsInternalLoading(true);
         setApiError(null);
         setPage(1); // Reset to page 1 on filter change
 
@@ -1391,7 +1393,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
                     setTotalCount(fallback.length);
                 }
             } finally {
-                if (!cancelled) setIsLoading(false);
+                if (!cancelled) setIsInternalLoading(false);
             }
         };
 
@@ -1405,7 +1407,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
         if (apiSkus === null) return;
 
         let cancelled = false;
-        setIsLoading(true);
+        setIsInternalLoading(true);
 
         const fetchPage = async () => {
             try {
@@ -1464,7 +1466,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
             } catch (err) {
                 console.error('[SignalLab] Pagination fetch error:', err);
             } finally {
-                if (!cancelled) setIsLoading(false);
+                if (!cancelled) setIsInternalLoading(false);
             }
         };
 
@@ -1588,7 +1590,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
 }
 
 
-export function SignalLabVisibility({ type, usePagination = true }) {
-    return <SignalLabBase metricType={type} usePagination={usePagination} />;
+export function SignalLabVisibility({ type, usePagination = true, loading = false }) {
+    return <SignalLabBase metricType={type} usePagination={usePagination} loading={loading} />;
 }
 
