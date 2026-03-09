@@ -67,7 +67,6 @@ const kpiOptions = [
     { key: 'spend', label: 'Spend' },
     { key: 'roas', label: 'Category size' },
     { key: 'inorgSales', label: 'Inorg Sales' },
-    { key: 'dspSales', label: 'DSP Sales' },
     { key: 'conversion', label: 'Conversion' },
     { key: 'availability', label: 'Availability' },
     { key: 'shareOfVolume', label: 'Share of Volume' },
@@ -75,10 +74,8 @@ const kpiOptions = [
     { key: 'organic_sov', label: 'Organic SOV' },
     { key: 'marketShare', label: 'Market share' },
     { key: 'promoMyBrand', label: 'Promo (My)' },
-    { key: 'promoCompete', label: 'Promo (Comp)' },
     { key: 'cpm', label: 'CPM' },
     { key: 'cpc', label: 'CPC' },
-    { key: 'asp', label: 'ASP' },
 ]
 
 // ========================================

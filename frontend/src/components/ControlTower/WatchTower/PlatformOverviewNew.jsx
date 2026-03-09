@@ -1,4 +1,4 @@
-import { useState, useMemo, useContext, useEffect, useCallback } from 'react'
+import { useState, useMemo, useContext, useEffect, useCallback, useRef } from 'react'
 import axiosInstance from '../../../api/axiosInstance'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../../utils/FilterContext'
@@ -204,6 +204,7 @@ const PlatformOverviewNew = ({
         kpis: defaultKpiKeys,
         filterLogic: 'OR',
     })
+    const fetchIdRef = useRef(0)
 
     // Re-sync glanceKpis when dimension changes (remove 'roas'/Category size for SKU)
     useEffect(() => {
@@ -307,9 +308,13 @@ const PlatformOverviewNew = ({
             return;
         }
 
+        const currentFetchId = ++fetchIdRef.current;
+
         const debounceTimer = setTimeout(() => {
+            // Skip if a newer update arrived during the debounce window
+            if (currentFetchId !== fetchIdRef.current) return;
             fetchDimensionData()
-        }, 500);
+        }, 800);
 
         return () => clearTimeout(debounceTimer);
     }, [fetchDimensionData, datesFetched, platformsFetched])

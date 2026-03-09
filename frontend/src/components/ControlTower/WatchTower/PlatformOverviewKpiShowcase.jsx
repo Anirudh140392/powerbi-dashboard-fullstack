@@ -1828,7 +1828,6 @@ const BrandTable = ({ rows, loading }) => {
                 <th className="px-3 py-2 text-center w-[14%]">SOS</th>
                 <th className="px-3 py-2 text-center w-[14%]">Price</th>
                 <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>
-                <th className="px-3 py-2 text-center w-[14%]">Cat Share</th>
               </tr>
             </thead>
 
@@ -1840,7 +1839,6 @@ const BrandTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -1886,21 +1884,13 @@ const BrandTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.CategoryShare?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.CategoryShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.CategoryShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.CategoryShare?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
                 </tr>
               ))}
 
-              {rows.length === 0 && (
+              {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -1954,7 +1944,6 @@ const SkuTable = ({ rows, loading }) => {
                 <th className="px-3 py-2 text-center w-[14%]">OSA</th>
                 <th className="px-3 py-2 text-center w-[14%]">SOS</th>
                 <th className="px-3 py-2 text-center w-[14%]">Price</th>
-                <th className="px-3 py-2 text-center w-[14%]">Cat Share</th>
                 <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>
               </tr>
             </thead>
@@ -1967,7 +1956,6 @@ const SkuTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
               ))}
@@ -2011,16 +1999,6 @@ const SkuTable = ({ rows, loading }) => {
                   </td>
                   <td className="px-3 py-2 text-center text-slate-900 font-medium">
                     <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                      <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700 text-[12px]">
-                        {(Number(row.CategoryShare?.value) || 0).toFixed(1)}%
-                      </span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.CategoryShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.CategoryShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.CategoryShare?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                       <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
                         {(Number(row.MarketShare?.value) || 0).toFixed(1)}%
                       </span>
@@ -2032,10 +2010,10 @@ const SkuTable = ({ rows, loading }) => {
                 </tr>
               ))}
 
-              {rows.length === 0 && (
+              {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
