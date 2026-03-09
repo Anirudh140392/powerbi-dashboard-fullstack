@@ -109,11 +109,11 @@ async function getOneViewPriceGrid(filters = {}) {
                 CASE WHEN p.Comp_flag = 0 THEN 'Own' ELSE 'Competition' END as skuType,
                 p.Category as format,
                 COALESCE(${gramCol}, '') as ml,
-                ROUND(AVG(toFloat64OrZero(p.MRP)), 1) as mrp,
+                ROUND(AVG(toFloat64OrZero(toString(p.MRP))), 1) as mrp,
                 0 as basePrice,
-                ROUND(AVG(toFloat64OrZero(p.Discount)), 1) as discount,
-                ROUND(AVG(toFloat64OrZero(p.Selling_Price)), 1) as ecp,
-                ROUND(AVG(toFloat64OrZero(p.Selling_Price)) / NULLIF(AVG(toFloat64OrZero(p.MRP)), 0), 2) as rpi
+                ROUND(AVG(toFloat64OrZero(toString(p.Discount))), 1) as discount,
+                ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))), 1) as ecp,
+                ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))) / NULLIF(AVG(toFloat64OrZero(toString(p.MRP))), 0), 2) as rpi
             FROM rb_pdp_olap p
             LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
             WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
