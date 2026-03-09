@@ -179,7 +179,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {darkStoreData.totalCount > 0 ? (
+                      {/*{darkStoreData.totalCount > 0 ? (
                         <>
                           DS # ({Object.entries(darkStoreData.byPlatform)
                             .map(([p, c]) => `${p}-${c}`)
@@ -187,7 +187,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                         </>
                       ) : (
                         "0 Active Platforms"
-                      )}
+                      )}*/}
                     </Typography>
                   </Box>
                 )}
