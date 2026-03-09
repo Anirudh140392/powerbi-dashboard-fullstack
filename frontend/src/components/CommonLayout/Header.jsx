@@ -93,6 +93,34 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
   // 🌗 Dark/Light Mode
   const { mode } = React.useContext(AppThemeContext);
 
+  const isGeoPage = location.pathname === "/geo-intelligence";
+
+  if (isGeoPage) {
+    return (
+      <Box
+        sx={{
+          display: { xs: "flex", sm: "none" },
+          bgcolor: (theme) => theme.palette.background.paper,
+          borderBottom: "1px solid",
+          borderColor: (theme) => "#e5e7eb",
+          px: 2,
+          py: 0.8,
+          position: "sticky",
+          top: 0,
+          zIndex: 1200,
+          alignItems: "center"
+        }}
+      >
+        <IconButton
+          onClick={onMenuClick}
+          sx={{ display: "block", p: 0.5 }}
+        >
+          <MenuIcon />
+        </IconButton>
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{
