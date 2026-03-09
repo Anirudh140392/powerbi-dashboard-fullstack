@@ -16,7 +16,7 @@ const performanceMarketingService = {
             const dbName = getCurrentDbName();
 
             if (dbName === 'mars') {
-                const query = `SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE Product_Category IS NOT NULL ORDER BY category ASC`;
+                const query = `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE Category IS NOT NULL ORDER BY category ASC`;
                 const rows = await queryClickHouse(query);
                 return rows.map(r => r.category);
             }

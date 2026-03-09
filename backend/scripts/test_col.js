@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config({ path: '../.env' });
-import { queryClickHouse } from './config/clickhouse.js';
+import { queryClickHouse } from '../src/config/clickhouse.js';
 async function run() {
     const schema2 = await queryClickHouse('DESCRIBE rb_pdp_olap');
     const cols = schema2.map(c => c.name);

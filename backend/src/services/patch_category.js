@@ -36,40 +36,40 @@ content = content.replace(commentRegex, (match, indent, offset, str) => {
         arrName = 'conds';
     }
 
-    return `${indent}// Apply Product_Category filter for rb_pdp_olap
+    return `${indent}// Apply Category filter for rb_pdp_olap
 ${indent}const catArrLocal = normalizeFilterArray(${varName});
 ${indent}if (catArrLocal && catArrLocal.length > 0) {
-${indent}    ${arrName}.push(\`Product_Category IN (\${catArrLocal.map(c => \`'\${${escapeFn}(c)}'\`).join(', ')})\`);
+${indent}    ${arrName}.push(\`Category IN (\${catArrLocal.map(c => \`'\${${escapeFn}(c)}'\`).join(', ')})\`);
 ${indent}}
 `;
 });
 
-// 2. Replace Category with Product_Category in existing OSA Trend logic
+// 2. Replace Category with Category in existing OSA Trend logic
 content = content.replace(
     "osaConds.push(`Category IN (${catArr.map(c => `'${osaEscapeStr(c)}'`).join(', ')})`);",
-    "osaConds.push(`Product_Category IN (${catArr.map(c => `'${osaEscapeStr(c)}'`).join(', ')})`);"
+    "osaConds.push(`Category IN (${catArr.map(c => `'${osaEscapeStr(c)}'`).join(', ')})`);"
 );
 content = content.replace(
     "osaConds.push(`Category = '${osaEscapeStr(catArr[0])}'`);",
-    "osaConds.push(`Product_Category = '${osaEscapeStr(catArr[0])}'`);"
+    "osaConds.push(`Category = '${osaEscapeStr(catArr[0])}'`);"
 );
 
-// 3. Replace Category with Product_Category in Category Overview logic
+// 3. Replace Category with Category in Category Overview logic
 content = content.replace(
     "SELECT DISTINCT Category as category FROM rb_pdp_olap",
-    "SELECT DISTINCT Product_Category as category FROM rb_pdp_olap"
+    "SELECT DISTINCT Category as category FROM rb_pdp_olap"
 );
 content = content.replace(
     "AND Category IS NOT NULL AND Category != '' AND Category != '0' ORDER BY category",
-    "AND Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0' ORDER BY category"
+    "AND Category IS NOT NULL AND Category != '' AND Category != '0' ORDER BY category"
 );
 content = content.replace(
     "`Category = '${escapeStrMain(catName)}'`",
-    "`Product_Category = '${escapeStrMain(catName)}'`"
+    "`Category = '${escapeStrMain(catName)}'`"
 );
 content = content.replace(
     "AND Category = '${escapeStrMain(catName)}'",
-    "AND Product_Category = '${escapeStrMain(catName)}'"
+    "AND Category = '${escapeStrMain(catName)}'"
 );
 
 fs.writeFileSync(filepath, content);

@@ -25,11 +25,11 @@ dayjs.extend(customParseFormat);
 import { ensurePlatformData, queryByFilters, aggregateMetrics, getPlatformStats, isPlatformDataLoaded, coalesceRequest, getBrandMonthlyData } from './redisDataService.js';
 import { normalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries } from './marketShareHelper.js';
 
-// Global SQL snippet to resolve the Product_Category from Brand if the column is empty
+// Global SQL snippet to resolve the Category from Brand if the column is empty
 // For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
 // Gifting (gift, tin pack, minis) from Non-Gifting
-const PRODUCT_CATEGORY_SQL = `if(Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0', 
-    Product_Category, 
+const CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
+    Category, 
     multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%' OR LOWER(toString(Product)) LIKE '%minis%', 
@@ -588,10 +588,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (cond) conditions.push(cond);
             }
 
-            // Apply Product_Category filter for rb_pdp_olap
+            // Apply Category filter for rb_pdp_olap
             const catArrLocal = normalizeFilterArray(category);
             if (catArrLocal && catArrLocal.length > 0) {
-                conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                conditions.push(`${CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
             }
 
             // Advanced SKU Search Filters
@@ -654,10 +654,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 conditions.push(`Location IN (${locationFilterArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
 
-            // Apply Product_Category filter for rb_pdp_olap
+            // Apply Category filter for rb_pdp_olap
             const catArrLocal = normalizeFilterArray(categoryFilter);
             if (catArrLocal && catArrLocal.length > 0) {
-                conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                conditions.push(`${CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
             }
 
             // Advanced SKU Search Filters
@@ -950,10 +950,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(platformCond);
                     }
 
-                    // Apply Product_Category filter for rb_pdp_olap
+                    // Apply Category filter for rb_pdp_olap
                     const catArrLocal = normalizeFilterArray(category);
                     if (catArrLocal && catArrLocal.length > 0) {
-                        conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                        conditions.push(`${CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                     }
                     const skuArr = normalizeFilterArray(skuName);
                     if (skuArr && skuArr.length > 0) {
@@ -1017,7 +1017,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const query = `
                             SELECT Platform as platform_name, AVG(avg_nation) as ms
                             FROM (
-                                SELECT Platform, AVG(nation_level_market_share) as avg_nation
+                                SELECT Platform, AVG(market_share) as avg_nation
                                 FROM rb_brand_ms
                                 WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
                                 GROUP BY Platform, category, sub_category, group_brand
@@ -1070,7 +1070,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const query = `
                             SELECT Platform as platform_name, AVG(avg_nation) as ms
                             FROM (
-                                SELECT Platform, AVG(nation_level_market_share) as avg_nation
+                                SELECT Platform, AVG(market_share) as avg_nation
                                 FROM rb_brand_ms
                                 WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
                                 GROUP BY Platform, category, sub_category, group_brand
@@ -1316,10 +1316,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const cond = buildPlatformChannelCond(null, channel);
                         if (cond) prevConditions.push(cond);
                     }
-                    // Apply Product_Category filter for rb_pdp_olap
+                    // Apply Category filter for rb_pdp_olap
                     const catArrLocal = normalizeFilterArray(category);
                     if (catArrLocal && catArrLocal.length > 0) {
-                        prevConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                        prevConditions.push(`${CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
                     }
                     // Advanced SKU Search Filters
                     const skuArr = normalizeFilterArray(skuName);
@@ -1987,9 +1987,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const catArr = normalizeFilterArray(category);
                     if (catArr && catArr.length > 0) {
                         if (catArr.length === 1) {
-                            osaConds.push(`${PRODUCT_CATEGORY_SQL} = '${osaEscapeStr(catArr[0])}'`);
+                            osaConds.push(`${CATEGORY_SQL} = '${osaEscapeStr(catArr[0])}'`);
                         } else {
-                            osaConds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArr.map(c => `'${osaEscapeStr(c)}'`).join(', ')})`);
+                            osaConds.push(`${CATEGORY_SQL} IN (${catArr.map(c => `'${osaEscapeStr(c)}'`).join(', ')})`);
                         }
                     }
 
@@ -2368,10 +2368,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
 
-            // Apply Product_Category filter for rb_pdp_olap
+            // Apply Category filter for rb_pdp_olap
             const catArrLocal = normalizeFilterArray(filters.category);
             if (catArrLocal && catArrLocal.length > 0) {
-                conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                conds.push(`${CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
             }
 
 
@@ -2422,10 +2422,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                     }
                 }
-                // Apply Product_Category filter for rb_pdp_olap
+                // Apply Category filter for rb_pdp_olap
                 const catArrLocal = normalizeFilterArray(filters.category);
                 if (catArrLocal && catArrLocal.length > 0) {
-                    conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    conditions.push(`${CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
 
                 // Apply channel-based platform filter (matching Watch Tower Overview logic)
@@ -2755,10 +2755,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conds.push(`Location IN (${locationArr.map(l => `'${escapeStrMo(l)}'`).join(', ')})`);
                     }
                 }
-                // Apply Product_Category filter for rb_pdp_olap
+                // Apply Category filter for rb_pdp_olap
                 const catArrLocal = normalizeFilterArray(filters.category);
                 if (catArrLocal && catArrLocal.length > 0) {
-                    conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(Mo(c))}'`).join(', ')})`);
+                    conds.push(`${CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(Mo(c))}'`).join(', ')})`);
                 }
 
                 // Advanced SKU Search Filters
@@ -2995,7 +2995,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             catDataConds.push(`Location IN (${catLocArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
         }
         const distinctCategories = await queryClickHouse(
-            `SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${catDataConds.join(' AND ')} AND ${PRODUCT_CATEGORY_SQL} != 'Others' ORDER BY category`
+            `SELECT DISTINCT ${CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${catDataConds.join(' AND ')} AND ${CATEGORY_SQL} != 'Others' ORDER BY category`
         );
 
         const categories = distinctCategories.map(c => c.category).filter(Boolean);
@@ -3006,7 +3006,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Build ClickHouse conditions for this category
                 const catConds = [
                     `toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
-                    `${PRODUCT_CATEGORY_SQL} = '${escapeStrMain(catName)}'`
+                    `${CATEGORY_SQL} = '${escapeStrMain(catName)}'`
                 ];
                 if (catBrandArr && catBrandArr.length > 0) {
                     const bConds = catBrandArr.map(b => `Brand LIKE '%${escapeStrMain(b)}%'`).join(' OR ');
@@ -3252,9 +3252,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
         if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
             if (brandsOverviewCategoryArr.length === 1) {
-                boOfftakeConds.push(`${PRODUCT_CATEGORY_SQL} = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
+                boOfftakeConds.push(`${CATEGORY_SQL} = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
             } else {
-                boOfftakeConds.push(`${PRODUCT_CATEGORY_SQL} IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                boOfftakeConds.push(`${CATEGORY_SQL} IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
             }
         }
 
@@ -3285,9 +3285,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         }
         if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
             if (brandsOverviewCategoryArr.length === 1) {
-                boPrevOfftakeConds.push(`${PRODUCT_CATEGORY_SQL} = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
+                boPrevOfftakeConds.push(`${CATEGORY_SQL} = '${escapeStrMain(brandsOverviewCategoryArr[0])}'`);
             } else {
-                boPrevOfftakeConds.push(`${PRODUCT_CATEGORY_SQL} IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
+                boPrevOfftakeConds.push(`${CATEGORY_SQL} IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
             }
         }
         const locArr2 = normalizeFilterArray(location);
@@ -3817,9 +3817,9 @@ const computeTrendData = async (filters) => {
             const trendCatArr = normalizeFilterArray(category);
             if (trendCatArr && trendCatArr.length > 0) {
                 if (trendCatArr.length === 1) {
-                    conds.push(`${PRODUCT_CATEGORY_SQL} = '${escapeStr(trendCatArr[0])}'`);
+                    conds.push(`${CATEGORY_SQL} = '${escapeStr(trendCatArr[0])}'`);
                 } else {
-                    conds.push(`${PRODUCT_CATEGORY_SQL} IN (${trendCatArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    conds.push(`${CATEGORY_SQL} IN (${trendCatArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                 }
             }
             const trendBrandArr = normalizeFilterArray(brand);
@@ -4074,7 +4074,7 @@ const getBrandCategories = async (platform) => {
     try {
         const dbName = getCurrentDbName();
         if (dbName === 'mars') {
-            const query = `SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${PRODUCT_CATEGORY_SQL} != 'Others' ORDER BY category ASC`;
+            const query = `SELECT DISTINCT ${CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${CATEGORY_SQL} != 'Others' ORDER BY category ASC`;
             const rows = await queryClickHouse(query);
             return rows.map(r => r.category);
         }
@@ -4242,7 +4242,7 @@ const getPlatformOverview = async (filters) => {
             conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`${PRODUCT_CATEGORY_SQL} IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`${CATEGORY_SQL} IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Channel-based platform filtering
@@ -5016,7 +5016,7 @@ const getMonthOverview = async (filters) => {
             conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`${PRODUCT_CATEGORY_SQL} IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`${CATEGORY_SQL} IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         // Advanced SKU Search Filters
         const skuArr = normalizeFilterArray(skuName);
@@ -5342,7 +5342,7 @@ const getCategoryOverview = async (filters) => {
         }
 
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`LOWER(${PRODUCT_CATEGORY_SQL}) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`LOWER(${CATEGORY_SQL}) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Advanced SKU Search Filters
@@ -5412,12 +5412,12 @@ const getCategoryOverview = async (filters) => {
     ] = await Promise.all([
         // Query 1: Distinct categories from rb_pdp_olap (same table as metrics)
         queryClickHouse(`
-            SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as category
+            SELECT DISTINCT ${CATEGORY_SQL} as category
             FROM rb_pdp_olap
-            WHERE ${buildCatConds(startDate, endDate)} AND ${PRODUCT_CATEGORY_SQL} != 'Others'
+            WHERE ${buildCatConds(startDate, endDate)} AND ${CATEGORY_SQL} != 'Others'
         `),
         // Metrics
-        queryClickHouse(`SELECT ${PRODUCT_CATEGORY_SQL} as Category, 
+        queryClickHouse(`SELECT ${CATEGORY_SQL} as Category, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as total_sales, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as total_qty, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_Spend)), 0) ELSE 0 END) as total_spend, 
@@ -5432,7 +5432,7 @@ const getCategoryOverview = async (filters) => {
             SUM(CASE WHEN Comp_flag = 1 AND toFloat64OrZero(toString(MRP)) > 0 THEN toFloat64OrZero(toString(MRP)) * toFloat64OrZero(toString(Qty_Sold)) ELSE 0 END) as comp_mrp_val,
             SUM(CASE WHEN Comp_flag = 1 AND toFloat64OrZero(toString(MRP)) > 0 THEN toFloat64OrZero(toString(Selling_Price)) * toFloat64OrZero(toString(Qty_Sold)) ELSE 0 END) as comp_actual_sales 
         FROM rb_pdp_olap WHERE ${buildCatConds(startDate, endDate)} GROUP BY Category`),
-        queryClickHouse(`SELECT ${PRODUCT_CATEGORY_SQL} as Category, 
+        queryClickHouse(`SELECT ${CATEGORY_SQL} as Category, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as total_sales, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Qty_Sold)), 0) ELSE 0 END) as total_qty, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Ad_Spend)), 0) ELSE 0 END) as total_spend, 
@@ -5666,7 +5666,7 @@ const getBrandsOverview = async (filters) => {
         if (platformCond) conds.push(platformCond);
         const categoryArr = normalizeFilterArray(boCategory);
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`${PRODUCT_CATEGORY_SQL} IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`${CATEGORY_SQL} IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
             conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
@@ -6010,12 +6010,12 @@ const getKpiTrends = async (filters) => {
             const dimKey = dimension.toLowerCase();
             const val = dimensionValue;
             if (dimKey === 'platform') conds.push(`Platform = '${escapeStr(val)}'`);
-            else if (dimKey === 'category' || dimKey === 'format') conds.push(`${PRODUCT_CATEGORY_SQL} = '${escapeStr(val)}'`);
+            else if (dimKey === 'category' || dimKey === 'format') conds.push(`${CATEGORY_SQL} = '${escapeStr(val)}'`);
             else if (dimKey === 'brand') conds.push(`Brand = '${escapeStr(val)}'`);
             else if (dimKey === 'city' || dimKey === 'location') conds.push(`Location = '${escapeStr(val)}'`);
         }
 
-        if (catArr && catArr.length > 0) conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        if (catArr && catArr.length > 0) conds.push(`${CATEGORY_SQL} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
 
         if (brandArr && brandArr.length > 0) {
             const brandConditions = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
@@ -6643,7 +6643,7 @@ const getCompetitionData = async (filters = {}) => {
         // Get valid brand names to pass into Market Share helper
         const validBrandNamesForNum = (brand && brand !== 'All') ? (Array.isArray(brand) ? brand : [brand]) : validBrandNames;
 
-        // Use centralized Market Share helper for consistent AVG(nation_level_market_share) logic
+        // Use centralized Market Share helper for consistent AVG(market_share) logic
         const msMapCurr = await getMarketShareByBrand(startDate, endDate, platform, category, validBrandNamesForNum, location);
         const msMapPrev = await getMarketShareByBrand(momStartDate, momEndDate, platform, category, validBrandNamesForNum, location);
 
@@ -6866,7 +6866,7 @@ const getCompetitionData = async (filters = {}) => {
             try {
                 const [availableLocations, availableCategories, availableBrands] = await Promise.all([
                     queryClickHouse(`SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' LIMIT 10`),
-                    queryClickHouse(`SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${PRODUCT_CATEGORY_SQL} != 'Others' LIMIT 10`),
+                    queryClickHouse(`SELECT DISTINCT ${CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${CATEGORY_SQL} != 'Others' LIMIT 10`),
                     queryClickHouse(`SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != '' LIMIT 30`)
                 ]);
 
@@ -7089,7 +7089,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 }
                 const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
                 if (catArr.length > 0) {
-                    conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
+                    conds.push(`${CATEGORY_SQL} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
                 }
                 const bndArr = brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All');
                 if (bndArr.length > 0) {
@@ -7985,7 +7985,7 @@ const getRcaData = async (filters = {}) => {
                 conds.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
             }
             if (category && category !== 'All') {
-                conds.push(`${PRODUCT_CATEGORY_SQL} = '${escapeStr(category)}'`);
+                conds.push(`${CATEGORY_SQL} = '${escapeStr(category)}'`);
             }
             if (brand && brand !== 'All' && brand !== 'All Brands') {
                 conds.push(`Brand LIKE '%${escapeStr(brand)}%'`);
@@ -8866,11 +8866,11 @@ const getPerformanceBreakdownData = async (filters) => {
     try {
         const platformClause = filters.platform_uuid && filters.platform_uuid !== 'All' ? `AND Platform = '${filters.platform_uuid}'` : '';
         const groupByMap = {
-            'category': PRODUCT_CATEGORY_SQL,
+            'category': CATEGORY_SQL,
             'brand': 'Brand',
             'sku': 'Product'
         };
-        const groupByCol = groupByMap[filters.group_by] || PRODUCT_CATEGORY_SQL;
+        const groupByCol = groupByMap[filters.group_by] || CATEGORY_SQL;
 
         let dateClause = '';
         if (filters.start_date && filters.end_date) {

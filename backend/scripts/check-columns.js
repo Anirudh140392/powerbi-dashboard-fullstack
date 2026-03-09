@@ -1,13 +1,13 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { queryClickHouse } from '../src/config/clickhouse.js';
 
 async function test() {
     try {
-        const tables = ['rca_sku_dim', 'rb_pdp_olap', 'rb_sku_platform'];
+        const tables = ['rca_sku_dim', 'rb_pdp_olap', 'rb_sku_platform', 'rb_brand_ms', 'rb_kw', 'rb_location_darkstore'];
         for (const table of tables) {
-            console.log(`--- ${table} ---`);
+            console.log(`\n--- ${table} ---`);
             const res = await queryClickHouse(`DESCRIBE TABLE ${table}`);
             const columns = res.map(r => r.name);
-            console.log(columns.join(', '));
+            console.log("Columns:", columns.join(', '));
             
             // Check count of non-null values for category-related columns
             if (table === 'rca_sku_dim') {

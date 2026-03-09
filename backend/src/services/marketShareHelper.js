@@ -40,10 +40,10 @@ const mapCategoryToMs = (categoryArr) => {
 
 /**
  * Shared Market Share Calculation Helper
- * Uses rb_brand_ms table with nation_level_market_share logic.
+ * Uses rb_brand_ms table with market_share logic.
  * Applies exact user-specified query:
  *   outer: maxIf per category + avg(brand_ms) grouped by created_on, brand
- *   inner: MAX(nation_level_market_share) grouped by created_on, category, brand
+ *   inner: MAX(market_share) grouped by created_on, category, brand
  *   final: AVG of the selected column across the date range
  */
 export const getMarketShare = async (start, end, platformFilter, categoryFilter, brandFilter = null, locationFilter = null) => {
@@ -84,7 +84,7 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
         const query = `
             SELECT AVG(avg_nation) as avg_market_share
             FROM (
-                SELECT AVG(nation_level_market_share) as avg_nation
+                SELECT AVG(market_share) as avg_nation
                 FROM rb_brand_ms
                 WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
                 ${platformCond}
@@ -144,7 +144,7 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
                    AVG(avg_nation) as avg_market_share
             FROM (
                 SELECT toDate(created_on) as month_date_val,
-                       AVG(nation_level_market_share) as avg_nation
+                       AVG(market_share) as avg_nation
                 FROM rb_brand_ms
                 WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
                 ${platformCond}
@@ -205,7 +205,7 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
                    AVG(avg_nation) as avg_market_share
             FROM (
                 SELECT brand,
-                       AVG(nation_level_market_share) as avg_nation
+                       AVG(market_share) as avg_nation
                 FROM rb_brand_ms
                 WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
                 ${platformCond}
@@ -276,7 +276,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
                    AVG(avg_nation) as avg_market_share
             FROM (
                 SELECT toDate(created_on) as created_on_val,
-                       AVG(nation_level_market_share) as avg_nation
+                       AVG(market_share) as avg_nation
                 FROM rb_brand_ms
                 WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
                 ${platformCond}

@@ -4,7 +4,7 @@ import fs from 'fs';
 
 async function checkSchema() {
     try {
-        const { queryClickHouse } = await import('./config/clickhouse.js');
+        const { queryClickHouse } = await import('../src/config/clickhouse.js');
         let output = '';
 
         output += '--- rb_sku_platform ---\n';

@@ -48,7 +48,7 @@ const buildWhereConditions = (filters, includeDate = true) => {
         conditions.push(`Location = '${location}'`);
     }
     if (category && category !== 'All') {
-        conditions.push(`Product_Category = '${category}'`);
+        conditions.push(`Category = '${category}'`);
     }
 
     return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -178,7 +178,7 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (cArr.length > 0) {
         const uniqueCArr = [...new Set(cArr)];
-        conditions.push(`lower(replace(${prefix}Product_Category, ' ', '_')) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
 
     // Product Category filter
@@ -202,7 +202,7 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (pcArr.length > 0) {
         const uniquePcArr = [...new Set(pcArr)];
-        conditions.push(`lower(replace(${prefix}Product_Category, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
 
     // Date/Month range
@@ -1396,9 +1396,9 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
     if (filterType === 'categories' || filterType === 'formats') {
         try {
             const query = `
-                SELECT DISTINCT Product_Category as value 
+                SELECT DISTINCT Category as value 
                 FROM rb_pdp_olap
-                WHERE Product_Category IS NOT NULL AND Product_Category != ''
+                WHERE Category IS NOT NULL AND Category != ''
                 ORDER BY value
             `;
             const results = await queryClickHouse(query);
@@ -1936,7 +1936,7 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         baseConds.push('Comp_flag = 1');
 
         // 2. Build Category conditions (filtered by Platform/Location/Advanced)
-        const catQuery = `SELECT DISTINCT Product_Category as value FROM rb_pdp_olap WHERE ${baseConds.join(' AND ')} AND Product_Category IS NOT NULL AND Product_Category != '' ORDER BY Product_Category`;
+        const catQuery = `SELECT DISTINCT Category as value FROM rb_pdp_olap WHERE ${baseConds.join(' AND ')} AND Category IS NOT NULL AND Category != '' ORDER BY Category`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
         const brandWhere = buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
