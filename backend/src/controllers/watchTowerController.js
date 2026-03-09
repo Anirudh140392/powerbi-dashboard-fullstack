@@ -509,10 +509,10 @@ export const getProducts = async (req, res) => {
  */
 export const getProductCategories = async (req, res) => {
     try {
-        const productCategories = await watchTowerService.getProductCategories();
+        const productCategories = await watchTowerService.getProductCategories(req.query);
         res.json(productCategories);
     } catch (error) {
-        console.error('[getProductCategories] Error:', error);
+        console.error('[getProductCategories] Error:', error.message, error.stack);
         res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
