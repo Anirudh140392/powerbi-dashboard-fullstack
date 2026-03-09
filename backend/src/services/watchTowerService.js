@@ -6536,7 +6536,8 @@ const getCompetitionData = async (filters = {}) => {
                     AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
                     SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
                     0 as sum_weight,
-                    count() as record_count
+                    count() as record_count,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${currConds}
                 GROUP BY Brand
@@ -6554,7 +6555,8 @@ const getCompetitionData = async (filters = {}) => {
                     SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
                     0 as sum_weight,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno_osa,
-                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno_osa
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno_osa,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${momConds}
                 GROUP BY Brand
@@ -6585,30 +6587,30 @@ const getCompetitionData = async (filters = {}) => {
             `),
             // Query 8: Keyword counts per brand (current)
             queryClickHouse(`
-                SELECT brand_name, count() as keyword_count
-                FROM rb_kw
-                WHERE ${buildKwConds(startDate, endDate)}
+                SELECT brand_name, AVG(overall_sos) as keyword_count
+                FROM (
+                    SELECT keyword, brand_name, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER (PARTITION BY keyword) AS overall_sos
+                    FROM rb_kw
+                    WHERE ${buildKwConds(startDate, endDate)} AND keyword_search_rank <= 10
+                    GROUP BY keyword, brand_name
+                )
                 GROUP BY brand_name
             `),
-            // Query 9: Keyword total count (current)
-            queryClickHouse(`
-                SELECT count() as total_keyword_count
-                FROM rb_kw
-                WHERE ${buildKwConds(startDate, endDate)}
-            `),
+            // Query 9: Keyword total count (current) - Deprecated by new SOS logic
+            Promise.resolve([]),
             // Query 10: Keyword counts per brand (previous)
             queryClickHouse(`
-                SELECT brand_name, count() as keyword_count
-                FROM rb_kw
-                WHERE ${buildKwConds(momStartDate, momEndDate)}
+                SELECT brand_name, AVG(overall_sos) as keyword_count
+                FROM (
+                    SELECT keyword, brand_name, COUNT(*) * 1.0 / SUM(COUNT(*)) OVER (PARTITION BY keyword) AS overall_sos
+                    FROM rb_kw
+                    WHERE ${buildKwConds(momStartDate, momEndDate)} AND keyword_search_rank <= 10
+                    GROUP BY keyword, brand_name
+                )
                 GROUP BY brand_name
             `),
-            // Query 11: Keyword total count (previous)
-            queryClickHouse(`
-                SELECT count() as total_keyword_count
-                FROM rb_kw
-                WHERE ${buildKwConds(momStartDate, momEndDate)}
-            `),
+            // Query 11: Keyword total count (previous) - Deprecated by new SOS logic
+            Promise.resolve([]),
             // Query 12: Keyword counts per SKU (current)
             queryClickHouse(`
                 SELECT keyword_search_product, count() as keyword_count
@@ -6653,6 +6655,24 @@ const getCompetitionData = async (filters = {}) => {
         msMapPrev.forEach((ms, brandName) => brandSalesMapPrev.set(brandName.toLowerCase(), ms));
 
         console.log(`[getCompetitionData] Got accurate averaged market share from helper for ${brandSalesMap.size} brands`);
+
+        // Query per-brand sales from rb_brand_ms for Category Share calculation
+        const [brandSalesQuery, brandSalesQueryPrev] = await Promise.all([
+            queryClickHouse(`
+                SELECT brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales
+                FROM rb_brand_ms
+                WHERE ${buildMsConds(false)}
+                GROUP BY brand
+            `),
+            queryClickHouse(`
+                SELECT brand, SUM(toFloat64OrZero(toString(sales))) as brand_sales
+                FROM rb_brand_ms
+                WHERE ${buildMsConds(false).replace(startDate.format('YYYY-MM-DD'), momStartDate.format('YYYY-MM-DD')).replace(endDate.format('YYYY-MM-DD'), momEndDate.format('YYYY-MM-DD'))}
+                GROUP BY brand
+            `)
+        ]);
+        const brandAbsoluteSalesMap = new Map(brandSalesQuery.map(r => [r.brand?.toLowerCase(), parseFloat(r.brand_sales || 0)]));
+        const brandAbsoluteSalesMapPrev = new Map(brandSalesQueryPrev.map(r => [r.brand?.toLowerCase(), parseFloat(r.brand_sales || 0)]));
 
         // Query per-category sales from rb_brand_ms for Category Share calculation
         // This gets total sales and our brands' sales per category
@@ -6765,8 +6785,8 @@ const getCompetitionData = async (filters = {}) => {
         console.log(`[getCompetitionData] Got category sales data (${categoryTotalSalesMap.size} total, ${categoryOurBrandsSalesMap.size} our brands) from rb_brand_ms`);
 
         // SOS (Share of Search) Maps from rb_kw
-        const kwBrandMap = new Map(kwBrandCounts.map(k => [k.brand_name?.toLowerCase(), parseInt(k.keyword_count || 0)]));
-        const kwBrandMapPrev = new Map(kwBrandCountsPrev.map(k => [k.brand_name?.toLowerCase(), parseInt(k.keyword_count || 0)]));
+        const kwBrandMap = new Map(kwBrandCounts.map(k => [k.brand_name?.toLowerCase(), parseFloat(k.keyword_count || 0)]));
+        const kwBrandMapPrev = new Map(kwBrandCountsPrev.map(k => [k.brand_name?.toLowerCase(), parseFloat(k.keyword_count || 0)]));
         const totalKwCount = parseInt(kwTotalData?.[0]?.total_keyword_count || 0);
         const totalKwCountPrev = parseInt(kwTotalDataPrev?.[0]?.total_keyword_count || 0);
         const kwSkuMap = new Map(kwSkuCounts.map(k => [k.keyword_search_product?.toLowerCase(), parseInt(k.keyword_count || 0)]));
@@ -6791,19 +6811,17 @@ const getCompetitionData = async (filters = {}) => {
             const prevOsaDeno = parseFloat(prevBrand.deno_osa || 0);
             const prevOsaNeno = parseFloat(prevBrand.neno_osa || 0);
             const osaPrev = prevOsaDeno > 0 ? (prevOsaNeno / prevOsaDeno) * 100 : 0;
-            const osaDelta = calcPPChange(osa, osaPrev);
+            const osaDelta = calcChange(osa, osaPrev);
 
-            // Calculate SOS (Share of Search) - based on search result visibility in rb_kw
-            const kwCount = kwBrandMap.get(brand.Brand?.toLowerCase()) || 0;
-            const sos = totalKwCount > 0 ? (kwCount / totalKwCount) * 100 : 0;
-            const kwCountPrev = kwBrandMapPrev.get(brand.Brand?.toLowerCase()) || 0;
-            const sosPrev = totalKwCountPrev > 0 ? (kwCountPrev / totalKwCountPrev) * 100 : 0;
-            const sosDelta = calcPPChange(sos, sosPrev);
+            // Calculate SOS (Share of Search) - using average of partition-based logic
+            const sos = kwBrandMap.get(brand.Brand?.toLowerCase()) || 0;
+            const sosPrev = kwBrandMapPrev.get(brand.Brand?.toLowerCase()) || 0;
+            const sosDelta = calcChange(sos, sosPrev);
 
             // Pricing Metrics
             const discount = parseFloat(brand.avg_discount || 0);
             const prevDiscount = parseFloat(prevBrand.avg_discount || 0);
-            const discountDelta = calcPPChange(discount, prevDiscount);
+            const discountDelta = calcChange(discount, prevDiscount);
 
             const sumSellingPrice = parseFloat(brand.sum_selling_price || 0);
             const sumWeight = parseFloat(brand.sum_weight || 0);
@@ -6822,12 +6840,16 @@ const getCompetitionData = async (filters = {}) => {
             const rpi = avgMrp > 0 ? (avgSellingPrice / avgMrp) : 0;
             const prevAvgMrp = parseFloat(prevBrand.avg_mrp || 0);
             const prevRpi = prevAvgMrp > 0 ? (prevAvgSellingPrice / prevAvgMrp) : 0;
-            const rpiDelta = calcPPChange(rpi, prevRpi);
+            const rpiDelta = calcChange(rpi, prevRpi);
+
+            const brandLower = brand.Brand?.toLowerCase() || '';
+            const brandSales = brandAbsoluteSalesMap.get(brandLower) || 0;
+            const brandSalesPrev = brandAbsoluteSalesMapPrev.get(brandLower) || 0;
 
             // Market Share: Individual brand's share = brand's sales / total platform sales
             const marketShare = brandSalesMap.get(brandLower) || 0;
             const marketSharePrev = brandSalesMapPrev.get(brandLower) || 0;
-            const marketShareDelta = calcPPChange(marketShare, marketSharePrev);
+            const marketShareDelta = calcChange(marketShare, marketSharePrev);
 
             // Category Share: Individual brand's share in its specific category
             const lowerBrandCat = brandCategory.toLowerCase();
@@ -6835,13 +6857,18 @@ const getCompetitionData = async (filters = {}) => {
             const categoryShare = categoryTotalSales > 0 ? (brandSales / categoryTotalSales) * 100 : 0;
             const categoryTotalSalesPrev = categoryTotalSalesMapPrev.get(lowerBrandCat) || 0;
             const categorySharePrev = categoryTotalSalesPrev > 0 ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : 0;
-            const categoryShareDelta = calcPPChange(categoryShare, categorySharePrev);
+            const categoryShareDelta = calcChange(categoryShare, categorySharePrev);
+
+            // Listing Percent
+            const listingPercent = parseFloat(brand.avg_listing_percent || 0);
+            const prevListingPercent = parseFloat(prevBrand.avg_listing_percent || 0);
+            const listingPercentDelta = calcChange(listingPercent, prevListingPercent);
 
             return {
                 brand_name: brand.Brand,
                 brand: brand.Brand,
                 OSA: { value: parseFloat(osa.toFixed(1)), delta: parseFloat(osaDelta.toFixed(1)) },
-                SOS: { value: parseFloat(sos.toFixed(1)), delta: parseFloat(sosDelta.toFixed(1)) },
+                SOS: { value: parseFloat(sos.toFixed(3)), delta: parseFloat(sosDelta.toFixed(3)) },
                 Discount: { value: parseFloat(discount.toFixed(1)), delta: parseFloat(discountDelta.toFixed(1)) },
                 PricePerUnit: { value: parseFloat(pricePerUnit.toFixed(1)), delta: parseFloat(pricePerUnitDelta.toFixed(1)) },
                 ASP: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(1)) },
@@ -6849,7 +6876,8 @@ const getCompetitionData = async (filters = {}) => {
                 // Legacy key for compat if needed
                 Price: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(1)) },
                 CategoryShare: { value: parseFloat(categoryShare.toFixed(1)), delta: parseFloat(categoryShareDelta.toFixed(1)) },
-                MarketShare: { value: parseFloat(marketShare.toFixed(1)), delta: parseFloat(marketShareDelta.toFixed(1)) }
+                MarketShare: { value: parseFloat(marketShare.toFixed(1)), delta: parseFloat(marketShareDelta.toFixed(1)) },
+                ListingPercent: { value: parseFloat(listingPercent.toFixed(1)), delta: parseFloat(listingPercentDelta.toFixed(1)) }
             };
         });
 
@@ -6893,7 +6921,8 @@ const getCompetitionData = async (filters = {}) => {
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Impressions), '[^0-9.-]', '')), 0)) as total_impressions,
                     AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_price,
                     SUM(toFloat64OrNull(toString(neno_osa))) as neno_osa,
-                    SUM(toFloat64OrNull(toString(deno_osa))) as deno_osa
+                    SUM(toFloat64OrNull(toString(deno_osa))) as deno_osa,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${currConds}
                 GROUP BY Product, Brand
@@ -6907,7 +6936,8 @@ const getCompetitionData = async (filters = {}) => {
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Impressions), '[^0-9.-]', '')), 0)) as total_impressions,
                     AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_price,
                     SUM(toFloat64OrNull(toString(neno_osa))) as neno_osa,
-                    SUM(toFloat64OrNull(toString(deno_osa))) as deno_osa
+                    SUM(toFloat64OrNull(toString(deno_osa))) as deno_osa,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${currConds}
                 GROUP BY Product
@@ -6920,7 +6950,8 @@ const getCompetitionData = async (filters = {}) => {
                     SUM(ifNull(toFloat64OrZero(replaceRegexpAll(toString(Ad_Impressions), '[^0-9.-]', '')), 0)) as total_impressions,
                     AVG(ifNull(toFloat64OrZero(replaceRegexpAll(toString(MRP), '[^0-9.-]', '')), 0)) as avg_price,
                     SUM(toFloat64OrNull(toString(neno_osa))) as neno_osa,
-                    SUM(toFloat64OrNull(toString(deno_osa))) as deno_osa
+                    SUM(toFloat64OrNull(toString(deno_osa))) as deno_osa,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${momConds}
                 GROUP BY Product
@@ -6950,46 +6981,50 @@ const getCompetitionData = async (filters = {}) => {
             const prevDenoOsa = parseFloat(prevSku.deno_osa || 0);
             const prevNenoOsa = parseFloat(prevSku.neno_osa || 0);
             const prevOsa = prevDenoOsa > 0 ? (prevNenoOsa / prevDenoOsa) * 100 : 0;
-            const osaDelta = calcPPChange(osa, prevOsa);
+            const osaDelta = calcChange(osa, prevOsa);
 
             // Calculate SOS (Share of Search) - based on search result visibility in rb_kw
             const kwCount = kwSkuMap.get(sku.Product?.toLowerCase()) || 0;
             const sos = totalKwCount > 0 ? (kwCount / totalKwCount) * 100 : 0;
             const kwCountPrev = kwSkuMapPrev.get(sku.Product?.toLowerCase()) || 0;
             const sosPrev = totalKwCountPrev > 0 ? (kwCountPrev / totalKwCountPrev) * 100 : 0;
-            const sosDelta = calcPPChange(sos, sosPrev);
+            const sosDelta = calcChange(sos, sosPrev);
 
             // Calculate Price
             const prevAvgPrice = parseFloat(prevSku.avg_price || 0);
             const priceDelta = calcChange(avgPrice, prevAvgPrice);
 
-            // Market Share: Use the SKU's brand's market share (brand sales / total platform sales)
-            const skuBrandSales = brandSalesMap.get(sku.Brand?.toLowerCase()) || 0;
-            const marketShare = totalPlatformSales > 0 ? (skuBrandSales / totalPlatformSales) * 100 : 0;
-            const skuBrandSalesPrev = brandSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
-            const marketSharePrev = totalPlatformSalesPrev > 0 ? (skuBrandSalesPrev / totalPlatformSalesPrev) * 100 : 0;
-            const marketShareDelta = calcPPChange(marketShare, marketSharePrev);
+            // Market Share: Use the brand's averaged market share directly from helper
+            const marketShare = brandSalesMap.get(sku.Brand?.toLowerCase()) || 0;
+            const marketSharePrev = brandSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
+            const marketShareDelta = calcChange(marketShare, marketSharePrev);
 
             // Category Share: Our brands' share in this SKU's specific category
             const lowerSkuCat = skuCategory.toLowerCase();
+            const skuBrandSales = brandAbsoluteSalesMap.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSales = categoryTotalSalesMap.get(lowerSkuCat) || 0;
-            const skuCategoryOurBrandsSales = categoryOurBrandsSalesMap.get(lowerSkuCat) || 0;
-            const categoryShare = skuCategoryTotalSales > 0 ? (skuCategoryOurBrandsSales / skuCategoryTotalSales) * 100 : 0;
+            const categoryShare = skuCategoryTotalSales > 0 ? (skuBrandSales / skuCategoryTotalSales) * 100 : 0;
 
+            const skuBrandSalesPrev = brandAbsoluteSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSalesPrev = categoryTotalSalesMapPrev.get(lowerSkuCat) || 0;
-            const skuCategoryOurBrandsSalesPrev = categoryOurBrandsSalesMapPrev.get(lowerSkuCat) || 0;
-            const categorySharePrev = skuCategoryTotalSalesPrev > 0 ? (skuCategoryOurBrandsSalesPrev / skuCategoryTotalSalesPrev) * 100 : 0;
-            const categoryShareDelta = calcPPChange(categoryShare, categorySharePrev);
+            const categorySharePrev = skuCategoryTotalSalesPrev > 0 ? (skuBrandSalesPrev / skuCategoryTotalSalesPrev) * 100 : 0;
+            const categoryShareDelta = calcChange(categoryShare, categorySharePrev);
+
+            // Listing Percent
+            const skuListingPercent = parseFloat(sku.avg_listing_percent || 0);
+            const prevSkuListingPercent = parseFloat(prevSku.avg_listing_percent || 0);
+            const skuListingPercentDelta = calcChange(skuListingPercent, prevSkuListingPercent);
 
             return {
                 sku_name: sku.Product,
                 brand_name: sku.Brand,
                 brand: sku.Product,
                 OSA: { value: parseFloat(osa.toFixed(1)), delta: parseFloat(osaDelta.toFixed(1)) },
-                SOS: { value: parseFloat(sos.toFixed(1)), delta: parseFloat(sosDelta.toFixed(1)) },
+                SOS: { value: parseFloat(sos.toFixed(3)), delta: parseFloat(sosDelta.toFixed(3)) },
                 Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(1)) },
                 CategoryShare: { value: parseFloat(categoryShare.toFixed(1)), delta: parseFloat(categoryShareDelta.toFixed(1)) },
-                MarketShare: { value: parseFloat(marketShare.toFixed(1)), delta: parseFloat(marketShareDelta.toFixed(1)) }
+                MarketShare: { value: parseFloat(marketShare.toFixed(1)), delta: parseFloat(marketShareDelta.toFixed(1)) },
+                ListingPercent: { value: parseFloat(skuListingPercent.toFixed(1)), delta: parseFloat(skuListingPercentDelta.toFixed(1)) }
             };
         });
 
@@ -7540,6 +7575,10 @@ const getDarkStoreCount = async (filters = {}) => {
         // Build conditions
         const conds = [];
 
+        // Base conditions requested by user
+        conds.push(`pf_id IN (4,6,7)`);
+        conds.push(`status IN ('1','2')`);
+
         // Platform filter
         if (platform && platform !== 'All') {
             const platformArr = Array.isArray(platform) ? platform : [platform];
@@ -7561,11 +7600,14 @@ const getDarkStoreCount = async (filters = {}) => {
         // Query for dark store count grouped by platform (refined as per user request)
         const query = `
             SELECT 
+                pf_id,
                 platform,
-                count(DISTINCT(merchant_name)) as store_count
+                uniq(concat(toString(pincode), merchant_name)) AS store_count
             FROM rb_location_darkstore
             ${whereClause}
-            GROUP BY 1
+            GROUP BY 
+                pf_id,
+                platform
             LIMIT 100
         `;
 
