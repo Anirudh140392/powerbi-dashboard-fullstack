@@ -6645,9 +6645,17 @@ const getCompetitionData = async (filters = {}) => {
         // Get valid brand names to pass into Market Share helper
         const validBrandNamesForNum = (brand && brand !== 'All') ? (Array.isArray(brand) ? brand : [brand]) : validBrandNames;
 
+        // NEW: Get all competitor brands to pass to Market Share helper instead of 'our brands' (validBrandNames)
+        const competitorBrands = Array.from(new Set([
+            ...currentBrands.map(b => b.Brand),
+            ...previousBrands.map(b => b.Brand)
+        ])).filter(Boolean);
+
+        const msBrandFilter = competitorBrands.length > 0 ? competitorBrands : validBrandNamesForNum;
+
         // Use centralized Market Share helper for consistent AVG(nation_level_market_share) logic
-        const msMapCurr = await getMarketShareByBrand(startDate, endDate, platform, category, validBrandNamesForNum, location);
-        const msMapPrev = await getMarketShareByBrand(momStartDate, momEndDate, platform, category, validBrandNamesForNum, location);
+        const msMapCurr = await getMarketShareByBrand(startDate, endDate, platform, category, msBrandFilter, location);
+        const msMapPrev = await getMarketShareByBrand(momStartDate, momEndDate, platform, category, msBrandFilter, location);
 
         const brandSalesMap = new Map();
         const brandSalesMapPrev = new Map();

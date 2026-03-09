@@ -135,7 +135,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
             </IconButton>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {title !== "Scheduled Reports" && (
+              {location.pathname !== "/scheduled-reports" && (
                 <IconButton
                   size="small"
                   onClick={() => setIsExpanded(!isExpanded)}
@@ -198,7 +198,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
         {/* FILTERS CONTAINER */}
         <AnimatePresence>
-          {isExpanded && title !== "Scheduled Reports" && (
+          {isExpanded && location.pathname !== "/scheduled-reports" && (
             <Box
               component={motion.div}
               initial={{ opacity: 0, height: 0 }}
@@ -329,7 +329,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
       {/* ---------------- SECOND ROW ---------------- */}
       <AnimatePresence>
-        {isExpanded && title !== "Scheduled Reports" && (
+        {isExpanded && location.pathname !== "/scheduled-reports" && (
           <Box
             component={motion.div}
             initial={{ opacity: 0, height: 0 }}
