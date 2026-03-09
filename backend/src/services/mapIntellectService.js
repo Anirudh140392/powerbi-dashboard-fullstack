@@ -145,7 +145,8 @@ const getMapIntellectData = async (filters) => {
                     (
                         SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
                         NULLIF(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)
-                    ) * 100 AS city_osa
+                    ) * 100 AS city_osa,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) AS city_listing
                 FROM rb_pdp_olap
                 WHERE ${currPdpConds}
                   AND Location IS NOT NULL AND Location != ''
@@ -162,7 +163,8 @@ const getMapIntellectData = async (filters) => {
                     (
                         SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
                         NULLIF(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)
-                    ) * 100 AS city_osa
+                    ) * 100 AS city_osa,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) AS city_listing
                 FROM rb_pdp_olap
                 WHERE ${prevPdpConds}
                   AND Location IS NOT NULL AND Location != ''
@@ -249,6 +251,7 @@ const getMapIntellectData = async (filters) => {
                 marketShare: parseFloat(ms.toFixed(2)),
                 marketShareChange: parseFloat(calcChange(ms, prevMs).toFixed(2)),
                 qty: 0,
+                listingPercentage: 0
             };
         }).filter(Boolean);
 
@@ -288,6 +291,7 @@ const getMapIntellectData = async (filters) => {
                 marketShare: parseFloat(ms.toFixed(2)),
                 marketShareChange: parseFloat(calcChange(ms, prevMs).toFixed(2)),
                 qty: Math.round(qty),
+                listingPercentage: parseFloat((data.city_listing || 0).toFixed(1))
             };
         }).filter(Boolean);
     }
