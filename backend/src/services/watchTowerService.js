@@ -19,6 +19,9 @@ dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
 dayjs.extend(customParseFormat);
 
+// Helper to escape strings for ClickHouse
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
 // Redis cache helpers removed - all queries now hit ClickHouse directly
 
 // Import Redis data layer for indexed platform data (data retrieval only, no caching)
@@ -4072,14 +4075,19 @@ const getTrendData = async (filters) => {
 
 const getBrandCategories = async (platform) => {
     try {
+        const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
         const dbName = getCurrentDbName();
         if (dbName === 'mars') {
-            const query = `SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${PRODUCT_CATEGORY_SQL} != 'Others' ORDER BY category ASC`;
+            const conditions = [`${PRODUCT_CATEGORY_SQL} IN (${allowedCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(',')})`];
+            const platArr = normalizeFilterArray(platform);
+            if (platArr && platArr.length > 0) {
+                conditions.push(`Platform IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(',')})`);
+            }
+            const query = `SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY category ASC`;
             const rows = await queryClickHouse(query);
             return rows.map(r => r.category);
         }
-        // Fallback for other databases if needed, or keeping the restricted list as a default
-        return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+        return allowedCategories;
     } catch (error) {
         console.error("Error fetching brand categories:", error);
         return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
@@ -6303,8 +6311,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
     try {
         console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}`);
 
-        // Helper to escape strings for ClickHouse
-        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+        // Normalize arrays for multi-select support
+        const platArr = normalizeFilterArray(platform);
+        const brandArr = normalizeFilterArray(brand);
 
         if (filterType === 'platforms') {
             // Fetch unique platforms from rb_pdp_olap
@@ -6316,9 +6325,14 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
 
         if (filterType === 'categories') {
             // Fetch unique categories (Category) from rb_pdp_olap
-            const conditions = [`Category IS NOT NULL`, `Category != ''`];
-            if (platform && platform !== 'All') {
-                conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
+            const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+            const conditions = [
+                `Category IS NOT NULL`,
+                `Category != ''`,
+                `Category IN (${allowedCategories.map(c => `'${escapeStr(c)}'`).join(',')})`
+            ];
+            if (platArr && platArr.length > 0) {
+                conditions.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY category`;
@@ -6330,8 +6344,8 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
         if (filterType === 'brands') {
             // Fetch unique brands from rb_pdp_olap
             const conditions = [`Brand IS NOT NULL`, `Brand != ''`];
-            if (platform && platform !== 'All') {
-                conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
+            if (platArr && platArr.length > 0) {
+                conditions.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY brand`;
@@ -6343,11 +6357,11 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
         if (filterType === 'cities') {
             // Fetch unique cities (Location) from rb_pdp_olap
             const conditions = [`Location IS NOT NULL`, `Location != ''`];
-            if (platform && platform !== 'All') {
-                conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
+            if (platArr && platArr.length > 0) {
+                conditions.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
-            if (brand && brand !== 'All') {
-                conditions.push(`Brand LIKE '%${escapeStr(brand)}%'`);
+            if (brandArr && brandArr.length > 0) {
+                conditions.push(`Brand IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT Location as city FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY city`;
@@ -6359,11 +6373,11 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
         if (filterType === 'skus') {
             // "use Product column from rb_pdp_olap table"
             const conditions = [`Product IS NOT NULL`, `Product != ''`];
-            if (platform && platform !== 'All') {
-                conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
+            if (platArr && platArr.length > 0) {
+                conditions.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
-            if (brand && brand !== 'All') {
-                conditions.push(`lower(Brand) = '${escapeStr(brand.toLowerCase())}'`);
+            if (brandArr && brandArr.length > 0) {
+                conditions.push(`lower(Brand) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT Product as sku FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY sku LIMIT 1000`;
@@ -7116,28 +7130,26 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             // Fetch distinct categories filtered by platform/location
             (() => {
                 const conds = [];
-                if (platform && platform !== 'All') {
-                    const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
-                    if (platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+                const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+                if (platArr && platArr.length > 0) {
+                    conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
                 }
-                if (location && location !== 'All' && location !== 'All India') {
-                    const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
-                    if (locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+                if (locArr && locArr.length > 0) {
+                    conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
                 }
                 conds.push(`Category IS NOT NULL`, `Category != ''`);
+                conds.push(`Category IN (${allowedCategories.map(c => `'${escapeStr(c)}'`).join(',')})`);
                 return queryClickHouse(`SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY category`);
             })(),
 
             // Fetch distinct brands filtered by platform/location + category
             (() => {
                 const conds = [];
-                if (platform && platform !== 'All') {
-                    const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
-                    if (platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+                if (platArr && platArr.length > 0) {
+                    conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
                 }
-                if (location && location !== 'All' && location !== 'All India') {
-                    const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
-                    if (locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+                if (locArr && locArr.length > 0) {
+                    conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
                 }
                 conds.push(`Brand IS NOT NULL`, `Brand != ''`);
                 if (context === 'performance') {
@@ -7145,8 +7157,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 } else {
                     conds.push(`toString(Comp_flag) IN ('0', '1')`);
                 }
-                const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
-                if (catArr.length > 0) {
+                if (catArr && catArr.length > 0) {
                     conds.push(`lower(Category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
                 return queryClickHouse(`SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY brand`);
@@ -7342,8 +7353,8 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         console.log('[getCompetitionBrandTrends] Filters:', { brands, skus, location, category, period });
 
         const isSkuMode = skus && skus !== 'All';
-        const brandList = brands && brands !== 'All' ? brands.split(',').map(b => b.trim()) : [];
-        const skuList = isSkuMode ? skus.split(',').map(s => s.trim()) : [];
+        const brandList = normalizeFilterArray(brands);
+        const skuList = normalizeFilterArray(skus);
         const targetList = isSkuMode ? skuList : brandList;
 
         if (targetList.length === 0) {
@@ -7360,9 +7371,6 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             case '1Y': startDate = endDate.subtract(1, 'year'); break;
             default: startDate = endDate.subtract(1, 'month'); // Default 1M
         }
-
-        // Helper to escape strings for ClickHouse
-        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
         // Get valid brand names from rca_sku_dim (comp_flag = 0) for Market Share calculation
         const validBrandsResult = await queryClickHouse(`
@@ -9131,14 +9139,20 @@ const getProducts = async (filters = {}) => {
     try {
         const { platform, brand, category } = filters;
         const conditions = [`Product IS NOT NULL`, `Product != ''`, `toString(Comp_flag) = '0'`];
-        if (platform && platform !== 'All') {
-            conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
+
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+        const platArr = normalizeFilterArray(platform);
+        const bndArr = normalizeFilterArray(brand);
+        const catArr = normalizeFilterArray(category);
+
+        if (platArr && platArr.length > 0) {
+            conditions.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
         }
-        if (brand && brand !== 'All') {
-            conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
+        if (bndArr && bndArr.length > 0) {
+            conditions.push(`Brand IN (${bndArr.map(b => `'${escapeStr(b)}'`).join(', ')})`);
         }
-        if (category && category !== 'All') {
-            conditions.push(`Category = '${category.replace(/'/g, "''")}'`);
+        if (catArr && catArr.length > 0) {
+            conditions.push(`Category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         const query = `SELECT DISTINCT Product FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY Product LIMIT 500`;
         const results = await queryClickHouse(query);
@@ -9152,14 +9166,18 @@ const getProducts = async (filters = {}) => {
 const getProductCategories = async (filters = {}) => {
     try {
         const { platform, channel } = filters;
-        const conditions = [`toString(Comp_flag) = '0'`];
+        const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+        const conditions = [
+            `toString(Comp_flag) = '0'`,
+            `Category IN (${allowedCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(',')})`
+        ];
         const pCond = buildPlatformChannelCond(platform, channel);
         if (pCond) conditions.push(pCond);
 
         const query = `
             SELECT DISTINCT Category as category
             FROM rb_pdp_olap
-            WHERE ${conditions.join(' AND ')} AND Category != 'Others'
+            WHERE ${conditions.join(' AND ')}
             ORDER BY category
         `;
         const results = await queryClickHouse(query);
