@@ -235,7 +235,7 @@ function DateWiseDrilldownTable() {
             { id: "month", label: "Month", options: [{ id: "all", label: "All" }, ...monthOptions] },
             { id: "brand", label: "Brand", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.brands)] },
             { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.platforms)] },
-            { id: "format", label: "Format", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
+            { id: "format", label: "Category", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.formats)] },
             { id: "city", label: "City", options: [{ id: "all", label: "All" }, ...toOptions(dynamicFilterData.cities)] },
         ];
     }, [dynamicFilterData]);
