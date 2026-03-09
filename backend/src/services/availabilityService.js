@@ -28,7 +28,7 @@ const getColumnMapping = (dbName) => {
 // Helper to build WHERE clause from filters
 const buildWhereConditions = (filters, includeDate = true) => {
     const conditions = [];
-    const { platform, brand, location, category, startDate, endDate } = filters;
+    const { platform, brand, location, category, productCategory, startDate, endDate } = filters;
 
     if (includeDate) {
         if (startDate && endDate) {
@@ -49,6 +49,9 @@ const buildWhereConditions = (filters, includeDate = true) => {
     }
     if (category && category !== 'All') {
         conditions.push(`Product_Category = '${category}'`);
+    }
+    if (productCategory && productCategory !== 'All') {
+        conditions.push(`Category = '${productCategory}'`);
     }
 
     return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -202,7 +205,7 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (pcArr.length > 0) {
         const uniquePcArr = [...new Set(pcArr)];
-        conditions.push(`lower(replace(${prefix}Product_Category, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
 
     // Date/Month range
@@ -1375,15 +1378,16 @@ const getMetroCityStockAvailability = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, city, location, months, metroFlag }) => {
+const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, productCategory, city, location, months, metroFlag }) => {
     const pKey = Array.isArray(platform) ? platform.join(',') : (platform || 'all');
     const bKey = Array.isArray(brand) ? brand.join(',') : (brand || 'all');
     const cKey = Array.isArray(category) ? category.join(',') : (category || 'all');
+    const pcKey = Array.isArray(productCategory) ? productCategory.join(',') : (productCategory || 'all');
     const ctKey = Array.isArray(city) ? city.join(',') : (city || 'all');
     const mKey = Array.isArray(months) ? months.join(',') : (months || 'all');
     const mfKey = Array.isArray(metroFlag) ? metroFlag.join(',') : (metroFlag || 'all');
 
-    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}`;
+    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${pcKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}`;
 
     // Helper to build IN clause or equality
     const buildInClause = (col, val) => {
@@ -1404,6 +1408,22 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             return { options: results.map(r => r.value).filter(Boolean) };
         } catch (error) {
             console.error('[getAvailabilityFilterOptions] Categories Error:', error);
+            return { options: [] };
+        }
+    }
+
+    if (filterType === 'productCategories') {
+        try {
+            const query = `
+                        SELECT DISTINCT Category as value 
+                        FROM rb_pdp_olap
+                        WHERE Category IS NOT NULL AND Category != ''
+                        ORDER BY value
+                    `;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
+        } catch (error) {
+            console.error('[getAvailabilityFilterOptions] Product Categories Error:', error);
             return { options: [] };
         }
     }
@@ -1449,7 +1469,8 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 const cityConditions = [];
                 if (platform && platform !== 'All') cityConditions.push(buildInClause('Platform', platform));
                 if (brand && brand !== 'All') cityConditions.push(buildInClause('Brand', brand));
-                if (category && category !== 'All') cityConditions.push(buildInClause('Category', category));
+                if (category && category !== 'All') cityConditions.push(buildInClause('Product_Category', category));
+                if (productCategory && productCategory !== 'All') cityConditions.push(buildInClause('Category', productCategory));
 
                 if (metroFlag && metroFlag !== 'All') {
                     const tierArr = Array.isArray(metroFlag) ? metroFlag : [metroFlag];
@@ -1475,7 +1496,8 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 const brandConditions = [];
                 if (platform && platform !== 'All') brandConditions.push(buildInClause('Platform', platform));
                 if (city && city !== 'All') brandConditions.push(buildInClause('Location', city));
-                if (category && category !== 'All') brandConditions.push(buildInClause('Category', category));
+                if (category && category !== 'All') brandConditions.push(buildInClause('Product_Category', category));
+                if (productCategory && productCategory !== 'All') brandConditions.push(buildInClause('Category', productCategory));
 
                 brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
                 const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';

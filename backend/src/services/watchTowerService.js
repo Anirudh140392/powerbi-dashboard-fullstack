@@ -9177,11 +9177,10 @@ const getProducts = async (filters = {}) => {
 const getProductCategories = async (filters = {}) => {
     try {
         const { platform, channel } = filters;
-        const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
         const conditions = [
-            `toString(Comp_flag) = '0'`,
-            `Category IN (${allowedCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(',')})`
+            `Category IS NOT NULL AND Category IN ('Bronze', 'Silver', 'Gold')`
         ];
+
         const pCond = buildPlatformChannelCond(platform, channel);
         if (pCond) conditions.push(pCond);
 
@@ -9194,7 +9193,7 @@ const getProductCategories = async (filters = {}) => {
         const results = await queryClickHouse(query);
         return results.map(r => r.category).filter(Boolean);
     } catch (error) {
-        console.error('Error fetching categories:', error);
+        console.error('[getProductCategories] Error:', error);
         return [];
     }
 };

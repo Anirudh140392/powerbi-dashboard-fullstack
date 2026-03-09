@@ -256,15 +256,16 @@ export const getMetroCityStockAvailability = async (req, res) => {
  */
 export const getAvailabilityFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, category, format, city, location, months, metroFlag } = req.query;
+        const { filterType, platform, brand, category, productCategory, format, city, location, months, metroFlag } = req.query;
         console.log('\n========== AVAILABILITY FILTER OPTIONS API ==========');
-        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'format:', format, 'city:', city, 'location:', location, 'months:', months, 'metroFlag:', metroFlag);
+        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'productCategory:', productCategory, 'format:', format, 'city:', city, 'location:', location, 'months:', months, 'metroFlag:', metroFlag);
 
         const data = await availabilityService.getAvailabilityFilterOptions({
             filterType: filterType || 'platforms',
             platform: parseFilter(platform),
             brand: parseFilter(brand),
             category: parseFilter(category || format),
+            productCategory: parseFilter(productCategory),
             city: parseFilter(city),
             location: parseFilter(location),
             months: parseFilter(months),
