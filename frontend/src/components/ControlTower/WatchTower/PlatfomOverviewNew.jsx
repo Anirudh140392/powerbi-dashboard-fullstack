@@ -119,7 +119,7 @@ const PlatformOverviewNew = ({
                 {
                     key: 'swiggy',
                     name: 'Swiggy Instamart',
-                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+                    logoSrc: 'C:\Ads-Auto\powerbi-dashboard-fullstack\frontend\public\instamart_photo.png',
                     color: '#f97316'
                 },
                 {
