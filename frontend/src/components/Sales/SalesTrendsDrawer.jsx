@@ -409,13 +409,35 @@ export default function SalesTrendsDrawer({
                                 </Select>
                                 <Box sx={{ flex: 1, minWidth: 0, maxWidth: '600px' }}>
                                     <ScrollRow>
-                                        const isSelected = filterType === "Platform" ? selectedPlatform === p : filterType === "Format" ? selectedCategory === p : filterType === "City" ? selectedLocationState === p : selectedBrandState === p;
-                                        return (
-                                        <Box key={p} onClick={() => { if (filterType === "Platform") setSelectedPlatformState(p); else if (filterType === "Format") setSelectedCategory(p); else if (filterType === "City") setSelectedLocationState(p); else setSelectedBrandState(p); }} sx={{ px: 2, py: 0.8, borderRadius: "999px", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: 'nowrap', border: isSelected ? "1px solid #0ea5e9" : "1px solid #E5E7EB", backgroundColor: isSelected ? "#0ea5e9" : "white", color: isSelected ? "white" : "#0f172a" }}>
-                                            {p}
-                                        </Box>
-                                        );
-                                        })}
+                                        {(filterType === "Platform" ? PLATFORM_OPTIONS :
+                                            filterType === "Category" ? FORMAT_OPTIONS :
+                                                filterType === "Brand" ? BRAND_OPTIONS :
+                                                    CITY_OPTIONS).map((p) => {
+                                                        const isSelected = filterType === "Platform" ? selectedPlatform === p :
+                                                            filterType === "Category" ? selectedCategory === p :
+                                                                filterType === "City" ? selectedLocationState === p :
+                                                                    selectedBrandState === p;
+                                                        return (
+                                                            <Box
+                                                                key={p}
+                                                                onClick={() => {
+                                                                    if (filterType === "Platform") setSelectedPlatformState(p);
+                                                                    else if (filterType === "Category") setSelectedCategory(p);
+                                                                    else if (filterType === "City") setSelectedLocationState(p);
+                                                                    else setSelectedBrandState(p);
+                                                                }}
+                                                                sx={{
+                                                                    px: 2, py: 0.8, borderRadius: "999px", fontSize: "12px",
+                                                                    fontWeight: 600, cursor: "pointer", whiteSpace: 'nowrap',
+                                                                    border: isSelected ? "1px solid #0ea5e9" : "1px solid #E5E7EB",
+                                                                    backgroundColor: isSelected ? "#0ea5e9" : "white",
+                                                                    color: isSelected ? "white" : "#0f172a"
+                                                                }}
+                                                            >
+                                                                {p}
+                                                            </Box>
+                                                        );
+                                                    })}
                                     </ScrollRow>
                                 </Box>
                             </Box>
