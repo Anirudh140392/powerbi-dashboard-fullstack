@@ -2761,7 +2761,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Apply Product_Category filter for rb_pdp_olap
                 const catArrLocal = normalizeFilterArray(filters.category);
                 if (catArrLocal && catArrLocal.length > 0) {
-                    conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(Mo(c))}'`).join(', ')})`);
+                    conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStrMo(c)}'`).join(', ')})`);
                 }
 
                 // Advanced SKU Search Filters
@@ -6437,7 +6437,7 @@ const getCompetitionData = async (filters = {}) => {
             }
 
             if (catArr && catArr.length > 0) {
-                conds.push(`lower(Category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+                conds.push(`lower(${PRODUCT_CATEGORY_SQL}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
 
             if (brandArr && brandArr.length > 0) {
@@ -7705,13 +7705,18 @@ const getTopActions = async (filters = {}) => {
             ? `platform IN(${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
             : '1=1';
 
+        const catArr = normalizeFilterArray(filters.category || filters.categoryOverviewCategory);
+        const catCondOlap = (catArr && catArr.length > 0)
+            ? `AND ${PRODUCT_CATEGORY_SQL} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`
+            : '';
+
         const requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
             ? dayjs(filters.endDate).format('YYYY-MM-DD')
             : dayjs().format('YYYY-MM-DD');
 
         // Check for presence of data for the EXACT requested date
         const [olapCheckRes, insightCheckRes] = await Promise.all([
-            queryClickHouse(`SELECT count(*) as count FROM rb_pdp_olap WHERE ${platCond.replace('platform', 'Platform')} AND toDate(DATE) = '${requestedEnd}'`),
+            queryClickHouse(`SELECT count(*) as count FROM rb_pdp_olap WHERE ${platCond.replace('platform', 'Platform')} ${catCondOlap} AND toDate(DATE) = '${requestedEnd}'`),
             queryClickHouse(`SELECT count(*) as count FROM rca_watchtower_insight WHERE ${platCond} AND toDate(DATE) = '${requestedEnd}'`)
         ]);
 
@@ -7723,7 +7728,7 @@ const getTopActions = async (filters = {}) => {
 
         // Fallback: if no data for exact date, find latest available date
         if (!hasOlapData) {
-            const latestRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rb_pdp_olap WHERE ${platCond.replace('platform', 'Platform')} `);
+            const latestRes = await queryClickHouse(`SELECT MAX(toDate(DATE)) as latest FROM rb_pdp_olap WHERE ${platCond.replace('platform', 'Platform')} ${catCondOlap} `);
             if (latestRes[0]?.latest) {
                 endDateStr = dayjs(latestRes[0].latest).format('YYYY-MM-DD');
                 hasOlapData = true;
@@ -7762,7 +7767,7 @@ const getTopActions = async (filters = {}) => {
         const skuQuery = `
             SELECT count(DISTINCT Web_Pid) as count, groupArray(DISTINCT Web_Pid) as pids 
             FROM rb_pdp_olap 
-            WHERE ${platCond.replace('platform', 'Platform')} AND toDate(DATE) = '${endDateStr}' AND ${ncrCondOlap}
+            WHERE ${platCond.replace('platform', 'Platform')} ${catCondOlap} AND toDate(DATE) = '${endDateStr}' AND ${ncrCondOlap}
         `;
 
         const [storeRes, skuRes] = await Promise.all([
@@ -7784,12 +7789,12 @@ const getTopActions = async (filters = {}) => {
         const osaCurrentQuery = `
             SELECT SUM(toFloat64OrZero(toString(neno_osa))) as neno, SUM(toFloat64OrZero(toString(deno_osa))) as deno 
             FROM rb_pdp_olap 
-            WHERE ${platCondOlap} AND toDate(DATE) = '${endDateStr}'
+            WHERE ${platCondOlap} ${catCondOlap} AND toDate(DATE) = '${endDateStr}'
             `;
         const osaPrevQuery = `
             SELECT SUM(toFloat64OrZero(toString(neno_osa))) as neno, SUM(toFloat64OrZero(toString(deno_osa))) as deno 
             FROM rb_pdp_olap 
-            WHERE ${platCondOlap} AND toDate(DATE) = '${dayjs(endDateStr).subtract(7, 'day').format('YYYY-MM-DD')}'
+            WHERE ${platCondOlap} ${catCondOlap} AND toDate(DATE) = '${dayjs(endDateStr).subtract(7, 'day').format('YYYY-MM-DD')}'
             `;
 
         // Sales MTD
@@ -7797,14 +7802,14 @@ const getTopActions = async (filters = {}) => {
         const salesMtdQuery = `
             SELECT SUM(toFloat64OrZero(toString(Sales))) as sales 
             FROM rb_pdp_olap 
-            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
+            WHERE ${platCondOlap} ${catCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
             `;
         const lastMtdStart = dayjs(endDateStr).subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
         const lastMtdEnd = dayjs(endDateStr).subtract(1, 'month').format('YYYY-MM-DD');
         const lastSalesMtdQuery = `
             SELECT SUM(toFloat64OrZero(toString(Sales))) as sales 
             FROM rb_pdp_olap 
-            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${lastMtdStart}' AND '${lastMtdEnd}'
+            WHERE ${platCondOlap} ${catCondOlap} AND toDate(DATE) BETWEEN '${lastMtdStart}' AND '${lastMtdEnd}'
         `;
 
         const [osaCurr, osaPrev, salesCurr, salesPrev] = await Promise.all([
@@ -7903,6 +7908,11 @@ const getOsaDeepDive = async (filters = {}) => {
             ? `Platform IN(${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
             : '1=1';
 
+        const catArr = normalizeFilterArray(filters.category);
+        const catCondOlap = (catArr && catArr.length > 0)
+            ? `AND ${PRODUCT_CATEGORY_SQL} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`
+            : '';
+
         const requestedEnd = (filters.endDate && filters.endDate !== 'null' && filters.endDate !== 'undefined')
             ? dayjs(filters.endDate).format('YYYY-MM-DD')
             : dayjs().format('YYYY-MM-DD');
@@ -7969,7 +7979,7 @@ const getOsaDeepDive = async (filters = {}) => {
             SUM(CASE WHEN toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}' THEN toFloat64OrZero(toString(Sales)) ELSE 0 END) as sales_mtd,
             count(DISTINCT CASE WHEN toDate(DATE) = '${endDateStr}' ${heroSkuFilter} THEN Web_Pid END) as hero_skus
             FROM rb_pdp_olap
-            WHERE ${platCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
+            WHERE ${platCondOlap} ${catCondOlap} AND toDate(DATE) BETWEEN '${mtdStart}' AND '${endDateStr}'
             GROUP BY city
         `;
 
@@ -8075,8 +8085,9 @@ const getRcaData = async (filters = {}) => {
             if (platArr && platArr.length > 0) {
                 conds.push(`Platform IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
             }
-            if (category && category !== 'All') {
-                conds.push(`${PRODUCT_CATEGORY_SQL} = '${escapeStr(category)}'`);
+            const catArr = normalizeFilterArray(category);
+            if (catArr && catArr.length > 0) {
+                conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
             }
             if (brand && brand !== 'All' && brand !== 'All Brands') {
                 conds.push(`Brand LIKE '%${escapeStr(brand)}%'`);
@@ -8444,7 +8455,7 @@ const getSkuOverview = async (filters) => {
             conds.push(`Location IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Category IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`${PRODUCT_CATEGORY_SQL} IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Advanced SKU Search Filters
@@ -8759,7 +8770,7 @@ const getCityOverview = async (filters) => {
         }
 
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`Category IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`${PRODUCT_CATEGORY_SQL} IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Advanced SKU Search Filters
