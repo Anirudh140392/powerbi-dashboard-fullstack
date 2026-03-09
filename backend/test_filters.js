@@ -9,39 +9,25 @@ import { createClient } from '@clickhouse/client';
     });
 
     try {
-        console.log('--- VERIFYING BRAND FILTER LOGIC (rb_pdp_olap) ---');
+        console.log('--- VERIFYING CATEGORY RESTRICTION (rb_pdp_olap) ---');
 
-        // 1. Check total unique brands in rb_pdp_olap
-        const totalBrandsRes = await client.query({
-            query: `SELECT COUNT(DISTINCT Brand) as total FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != ''`,
+        const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+
+        // 1. Check unique categories in rb_pdp_olap matches our restriction
+        const categoriesRes = await client.query({
+            query: `SELECT DISTINCT Category FROM rb_pdp_olap WHERE Category IN (${allowedCategories.map(c => `'${c}'`).join(',')})`,
             format: 'JSONEachRow'
         });
-        const totalBrands = (await totalBrandsRes.json())[0].total;
-        console.log('Total Unique Brands in rb_pdp_olap:', totalBrands);
+        const categories = await categoriesRes.json();
+        console.log('Categories found (within allowed list):', categories.map(c => c.Category));
 
-        // 2. Check brands with Comp_flag = 0 (Own Brands)
-        const ownBrandsRes = await client.query({
-            query: `SELECT COUNT(DISTINCT Brand) as total FROM rb_pdp_olap WHERE toString(Comp_flag) = '0' AND Brand IS NOT NULL AND Brand != ''`,
+        // 2. Check if any OTHER categories exist in the table (just to be sure our query filter is what we want)
+        const otherCategoriesRes = await client.query({
+            query: `SELECT DISTINCT Category FROM rb_pdp_olap WHERE Category NOT IN (${allowedCategories.map(c => `'${c}'`).join(',')}) AND Category IS NOT NULL AND Category != ''`,
             format: 'JSONEachRow'
         });
-        const ownBrands = (await ownBrandsRes.json())[0].total;
-        console.log('Own Brands (Comp_flag=0):', ownBrands);
-
-        // 3. Check brands with Comp_flag = 1 (Competitor Brands)
-        const compBrandsRes = await client.query({
-            query: `SELECT COUNT(DISTINCT Brand) as total FROM rb_pdp_olap WHERE toString(Comp_flag) = '1' AND Brand IS NOT NULL AND Brand != ''`,
-            format: 'JSONEachRow'
-        });
-        const compBrands = (await compBrandsRes.json())[0].total;
-        console.log('Competitor Brands (Comp_flag=1):', compBrands);
-
-        // 4. Sample Competitor Brands
-        const sampleCompRes = await client.query({
-            query: `SELECT DISTINCT Brand FROM rb_pdp_olap WHERE toString(Comp_flag) = '1' AND Brand IS NOT NULL AND Brand != '' LIMIT 10`,
-            format: 'JSONEachRow'
-        });
-        const sampleComp = await sampleCompRes.json();
-        console.log('Sample Competitor Brands:', sampleComp.map(r => r.Brand));
+        const otherCategories = await otherCategoriesRes.json();
+        console.log('Other Categories in DB (should be filtered out by service):', otherCategories.map(c => c.Category));
 
     } catch (e) {
         console.error(e);
