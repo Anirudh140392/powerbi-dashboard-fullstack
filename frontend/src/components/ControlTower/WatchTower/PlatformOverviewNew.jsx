@@ -68,7 +68,6 @@ const cardSize = {
 const kpiLabels = {
     offtakes: 'Offtakes',
     spend: 'Spend',
-    roas: 'Category size',
     availability: 'Availability',
     marketShare: 'Market share',
     conversion: 'Conversion',
@@ -77,17 +76,12 @@ const kpiLabels = {
     organic_sov: 'Organic SOV',
     inorgSales: 'Inorganic Sales',
     dspSales: 'DSP Sales',
-    promoMyBrand: 'Promo - My Brand',
-    promoCompete: 'Promo - Compete',
-    cpm: 'CPM',
-    cpc: 'CPC',
     asp: 'ASP'
 };
 
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
-    'Category Size': 'roas',
     'Spend': 'spend',
     'ROAS': 'roas_x',
     'Inorg Sales': 'inorgSales',
@@ -97,8 +91,6 @@ const BACKEND_TITLE_TO_KEY = {
     'Ad SOV': 'ad_sov',
     'Organic SOV': 'organic_sov',
     'Market Share': 'marketShare',
-    'Promo My Brand': 'promoMyBrand',
-    'Promo Compete': 'promoCompete',
     'CPM': 'cpm',
     'CPC': 'cpc',
 }
@@ -161,7 +153,6 @@ const PlatformOverviewNew = ({
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
         { key: 'spend', label: 'Spend' },
-        { key: 'roas', label: 'Category size' },
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
@@ -169,9 +160,6 @@ const PlatformOverviewNew = ({
         { key: 'shareOfVolume', label: 'Share of Volume' },
         { key: 'ad_sov', label: 'Ad SOV' },
         { key: 'organic_sov', label: 'Organic SOV' },
-        { key: 'marketShare', label: 'Market share' },
-        { key: 'promoMyBrand', label: 'Promo - My Brand' },
-        { key: 'promoCompete', label: 'Promo - Compete' },
         { key: 'cpm', label: 'CPM' },
         { key: 'cpc', label: 'CPC' },
         { key: 'asp', label: 'ASP' },
@@ -183,7 +171,7 @@ const PlatformOverviewNew = ({
     const filteredKpis = dimension === 'sku' ? kpis.filter(k => k.key !== 'roas') : kpis;
     const defaultKpiKeys = dimension === 'sku'
         ? ['offtakes', 'spend', 'availability', 'marketShare', 'conversion']
-        : ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'];
+        : ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'];
 
     const [glanceKpis, setGlanceKpis] = useState(defaultKpiKeys)
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
