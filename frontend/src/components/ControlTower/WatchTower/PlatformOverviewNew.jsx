@@ -167,11 +167,9 @@ const PlatformOverviewNew = ({
     // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
 
-    // Filter out Category size (key: 'roas') when viewing SKU dimension
-    const filteredKpis = dimension === 'sku' ? kpis.filter(k => k.key !== 'roas') : kpis;
-    const defaultKpiKeys = dimension === 'sku'
-        ? ['offtakes', 'spend', 'availability', 'marketShare', 'conversion']
-        : ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'];
+    // Filter out unwanted KPIs
+    const filteredKpis = kpis;
+    const defaultKpiKeys = ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'];
 
     const [glanceKpis, setGlanceKpis] = useState(defaultKpiKeys)
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -194,11 +192,9 @@ const PlatformOverviewNew = ({
     })
     const fetchIdRef = useRef(0)
 
-    // Re-sync glanceKpis when dimension changes (remove 'roas'/Category size for SKU)
+    // Re-sync glanceKpis when dimension changes
     useEffect(() => {
-        if (dimension === 'sku') {
-            setGlanceKpis(prev => prev.filter(k => k !== 'roas'));
-        }
+        // We can add logic here if specific KPIs need to be removed for certain dimensions
     }, [dimension]);
 
     // Static dimension metadata (icons, logos for known platforms)

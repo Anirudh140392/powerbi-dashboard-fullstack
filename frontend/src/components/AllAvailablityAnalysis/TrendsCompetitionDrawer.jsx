@@ -2089,12 +2089,7 @@ export default function TrendsCompetitionDrawer({
                         : allTrendMeta.context.audience === "Brand"
                           ? BRAND_OPTIONS
                           : [];
-                  const MAX_VISIBLE = 6;
-                  const needsTruncation = allOptions.length > MAX_VISIBLE;
-                  const visibleOptions = needsTruncation && !showAllPills
-                    ? allOptions.slice(0, MAX_VISIBLE)
-                    : allOptions;
-                  const hiddenCount = allOptions.length - MAX_VISIBLE;
+                  const visibleOptions = allOptions;
 
                   return (
                     <Box display="flex" gap={0.5} flexWrap="wrap" alignItems="center">
@@ -2125,25 +2120,6 @@ export default function TrendsCompetitionDrawer({
                           {p}
                         </Box>
                       ))}
-                      {needsTruncation && (
-                        <Box
-                          onClick={() => setShowAllPills(prev => !prev)}
-                          sx={{
-                            px: 1.5,
-                            py: 0.7,
-                            borderRadius: "999px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            border: "1px solid #E5E7EB",
-                            backgroundColor: "#F1F5F9",
-                            color: "#3B82F6",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {showAllPills ? "Show less" : `+${hiddenCount} more`}
-                        </Box>
-                      )}
                     </Box>
                   );
                 })()}
