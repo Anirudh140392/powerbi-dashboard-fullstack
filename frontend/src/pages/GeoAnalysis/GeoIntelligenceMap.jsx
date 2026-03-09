@@ -141,9 +141,11 @@ export default function GeoIntelligenceMap() {
                     else if (value > 45) color = COLORS.Orange;
                 } else if (metric === "Market Share") {
                     value = city.marketShare || 0;
-                    if (value > 80) color = COLORS.Green;
-                    else if (value > 60) color = COLORS.Blue;
-                    else if (value > 40) color = COLORS.Orange;
+                    // Realistic thresholds for Mars market share (typically 2-30%)
+                    if (value > 15) color = COLORS.Green;       // Leader (e.g. Delhi, Mumbai)
+                    else if (value > 10) color = COLORS.Blue;   // Strong
+                    else if (value > 5) color = COLORS.Orange;  // Moderate
+                    // else Red (< 5%)
                 } else if (metric === "Sales") {
                     value = city.sales || 0;
                     const ratio = (value / maxSales) * 100;

@@ -6599,8 +6599,43 @@ const getCompetitionData = async (filters = {}) => {
             return conds.join(' AND ');
         };
 
+        // Build SOS conditions for rb_kw
+        const buildKwConds = (startDt, endDt) => {
+            const conds = [`toDate(created_on) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
+            if (platArr && platArr.length > 0) {
+                conds.push(`lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+            }
+            if (locArr && locArr.length > 0) {
+                conds.push(`lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+            }
+            if (catArr && catArr.length > 0) {
+                // Map Mars-specific categories to generic searchable terms for rb_kw
+                const mappedTerms = [];
+                catArr.forEach(c => {
+                    const lc = c.toLowerCase();
+                    if (lc.includes('chocolates (non gifting)')) {
+                        mappedTerms.push('chocolate', 'chocolates', 'dark chocolate');
+                    } else if (lc.includes('chocolates (gifting)')) {
+                        mappedTerms.push('chocolate gift', 'gifting');
+                    } else if (lc.includes('gmfc')) {
+                        mappedTerms.push('gmfc', 'gum', 'mint', 'chewing gum', 'confectionery');
+                    } else {
+                        mappedTerms.push(c);
+                    }
+                });
+
+                const catConds = mappedTerms.map(t => `lower(keyword_category) LIKE '%${escapeStr(t.toLowerCase())}%'`).join(' OR ');
+                conds.push(`(${catConds})`);
+            }
+            conds.push(`keyword_search_rank < 11`);
+            return conds.join(' AND ');
+        };
+
         // Run all queries in parallel using ClickHouse
-        const [currentBrands, previousBrands, osaData, msTotalData, msOurBrandsData, catTotalData, catOurBrandsData] = await Promise.all([
+        const [
+            currentBrands, previousBrands, osaData, msTotalData, msOurBrandsData, catTotalData, catOurBrandsData,
+            kwBrandCounts, kwTotalData, kwBrandCountsPrev, kwTotalDataPrev, kwSkuCounts, kwSkuCountsPrev
+        ] = await Promise.all([
             // Query 1: Current period brand data from rb_pdp_olap (with Category)
             queryClickHouse(`
                 SELECT Brand,
@@ -6669,6 +6704,46 @@ const getCompetitionData = async (filters = {}) => {
                 SELECT SUM(toFloat64OrZero(toString(sales))) as our_cat_sales
                 FROM rb_brand_ms
                 WHERE ${buildCategoryConds(true)}
+            `),
+            // Query 8: Keyword counts per brand (current)
+            queryClickHouse(`
+                SELECT brand_name, count() as keyword_count
+                FROM rb_kw
+                WHERE ${buildKwConds(startDate, endDate)}
+                GROUP BY brand_name
+            `),
+            // Query 9: Keyword total count (current)
+            queryClickHouse(`
+                SELECT count() as total_keyword_count
+                FROM rb_kw
+                WHERE ${buildKwConds(startDate, endDate)}
+            `),
+            // Query 10: Keyword counts per brand (previous)
+            queryClickHouse(`
+                SELECT brand_name, count() as keyword_count
+                FROM rb_kw
+                WHERE ${buildKwConds(momStartDate, momEndDate)}
+                GROUP BY brand_name
+            `),
+            // Query 11: Keyword total count (previous)
+            queryClickHouse(`
+                SELECT count() as total_keyword_count
+                FROM rb_kw
+                WHERE ${buildKwConds(momStartDate, momEndDate)}
+            `),
+            // Query 12: Keyword counts per SKU (current)
+            queryClickHouse(`
+                SELECT keyword_search_product, count() as keyword_count
+                FROM rb_kw
+                WHERE ${buildKwConds(startDate, endDate)} AND keyword_search_product != ''
+                GROUP BY keyword_search_product
+            `),
+            // Query 13: Keyword counts per SKU (previous)
+            queryClickHouse(`
+                SELECT keyword_search_product, count() as keyword_count
+                FROM rb_kw
+                WHERE ${buildKwConds(momStartDate, momEndDate)} AND keyword_search_product != ''
+                GROUP BY keyword_search_product
             `)
         ]);
 
@@ -6824,6 +6899,14 @@ const getCompetitionData = async (filters = {}) => {
 
         console.log(`[getCompetitionData] Got category sales data (${categoryTotalSalesMap.size} total, ${categoryOurBrandsSalesMap.size} our brands) from rb_brand_ms`);
 
+        // SOS (Share of Search) Maps from rb_kw
+        const kwBrandMap = new Map(kwBrandCounts.map(k => [k.brand_name?.toLowerCase(), parseInt(k.keyword_count || 0)]));
+        const kwBrandMapPrev = new Map(kwBrandCountsPrev.map(k => [k.brand_name?.toLowerCase(), parseInt(k.keyword_count || 0)]));
+        const totalKwCount = parseInt(kwTotalData?.[0]?.total_keyword_count || 0);
+        const totalKwCountPrev = parseInt(kwTotalDataPrev?.[0]?.total_keyword_count || 0);
+        const kwSkuMap = new Map(kwSkuCounts.map(k => [k.keyword_search_product?.toLowerCase(), parseInt(k.keyword_count || 0)]));
+        const kwSkuMapPrev = new Map(kwSkuCountsPrev.map(k => [k.keyword_search_product?.toLowerCase(), parseInt(k.keyword_count || 0)]));
+
         // 4. Calculate metrics for each brand
         // Calculate total impressions for SOS calculation  
         const totalImpressions = currentBrands.reduce((sum, b) => sum + parseFloat(b.total_impressions || 0), 0);
@@ -6845,10 +6928,11 @@ const getCompetitionData = async (filters = {}) => {
             const osaPrev = prevOsaDeno > 0 ? (prevOsaNeno / prevOsaDeno) * 100 : 0;
             const osaDelta = calcPPChange(osa, osaPrev);
 
-            // Calculate SOS (Share of Search) - based on impressions share
-            const sos = totalImpressions > 0 ? (impressions / totalImpressions) * 100 : 0;
-            const prevImpressions = parseFloat(prevBrand.total_impressions || 0);
-            const sosPrev = totalImpressionsPrev > 0 ? (prevImpressions / totalImpressionsPrev) * 100 : 0;
+            // Calculate SOS (Share of Search) - based on search result visibility in rb_kw
+            const kwCount = kwBrandMap.get(brand.Brand?.toLowerCase()) || 0;
+            const sos = totalKwCount > 0 ? (kwCount / totalKwCount) * 100 : 0;
+            const kwCountPrev = kwBrandMapPrev.get(brand.Brand?.toLowerCase()) || 0;
+            const sosPrev = totalKwCountPrev > 0 ? (kwCountPrev / totalKwCountPrev) * 100 : 0;
             const sosDelta = calcPPChange(sos, sosPrev);
 
             // Pricing Metrics
@@ -7005,11 +7089,12 @@ const getCompetitionData = async (filters = {}) => {
             const prevOsa = prevDenoOsa > 0 ? (prevNenoOsa / prevDenoOsa) * 100 : 0;
             const osaDelta = calcPPChange(osa, prevOsa);
 
-            // Calculate SOS (Share of Search)
-            const sos = totalSkuImpressions > 0 ? (impressions / totalSkuImpressions) * 100 : 0;
-            const prevImpressions = parseFloat(prevSku.total_impressions || 0);
-            const prevSos = totalSkuImpressionsPrev > 0 ? (prevImpressions / totalSkuImpressionsPrev) * 100 : 0;
-            const sosDelta = calcPPChange(sos, prevSos);
+            // Calculate SOS (Share of Search) - based on search result visibility in rb_kw
+            const kwCount = kwSkuMap.get(sku.Product?.toLowerCase()) || 0;
+            const sos = totalKwCount > 0 ? (kwCount / totalKwCount) * 100 : 0;
+            const kwCountPrev = kwSkuMapPrev.get(sku.Product?.toLowerCase()) || 0;
+            const sosPrev = totalKwCountPrev > 0 ? (kwCountPrev / totalKwCountPrev) * 100 : 0;
+            const sosDelta = calcPPChange(sos, sosPrev);
 
             // Calculate Price
             const prevAvgPrice = parseFloat(prevSku.avg_price || 0);
