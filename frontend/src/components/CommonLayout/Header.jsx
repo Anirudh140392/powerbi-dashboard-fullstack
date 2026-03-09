@@ -135,18 +135,20 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
             </IconButton>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <IconButton
-                size="small"
-                onClick={() => setIsExpanded(!isExpanded)}
-                sx={{
-                  bgcolor: "#f1f5f9",
-                  "&:hover": { bgcolor: "#e2e8f0" },
-                  transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                  transition: "transform 0.3s ease",
-                }}
-              >
-                <ChevronDown size={18} />
-              </IconButton>
+              {title !== "Scheduled Reports" && (
+                <IconButton
+                  size="small"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  sx={{
+                    bgcolor: "#f1f5f9",
+                    "&:hover": { bgcolor: "#e2e8f0" },
+                    transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.3s ease",
+                  }}
+                >
+                  <ChevronDown size={18} />
+                </IconButton>
+              )}
 
               <Box sx={{ display: "flex", flexDirection: "column" }}>
                 <Typography
@@ -196,7 +198,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
         {/* FILTERS CONTAINER */}
         <AnimatePresence>
-          {isExpanded && (
+          {isExpanded && title !== "Scheduled Reports" && (
             <Box
               component={motion.div}
               initial={{ opacity: 0, height: 0 }}
@@ -327,7 +329,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
       {/* ---------------- SECOND ROW ---------------- */}
       <AnimatePresence>
-        {isExpanded && (
+        {isExpanded && title !== "Scheduled Reports" && (
           <Box
             component={motion.div}
             initial={{ opacity: 0, height: 0 }}

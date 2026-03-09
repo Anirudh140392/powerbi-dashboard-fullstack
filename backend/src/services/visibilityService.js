@@ -1279,8 +1279,13 @@ class VisibilityService {
                 prevDateCondition += ` AND keyword_search_rank < 11`;
 
                 // 2. Aggregate metrics for keywords
-                const typeFilter = filters.filter && filters.filter !== 'All'
-                    ? `AND keyword_type = '${escapeCH(filters.filter)}'`
+                let mappedType = filters.filter;
+                if (mappedType === 'Competitor') {
+                    mappedType = 'Competition';
+                }
+
+                const typeFilter = mappedType && mappedType !== 'All'
+                    ? `AND keyword_type = '${escapeCH(mappedType)}'`
                     : '';
 
                 // Apply keyword filter if provided

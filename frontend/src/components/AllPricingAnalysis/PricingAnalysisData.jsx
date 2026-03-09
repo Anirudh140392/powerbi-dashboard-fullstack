@@ -319,7 +319,7 @@ const ownVsCompColumns = [
       />
     ),
   },
-  { id: "format", label: "Format", sortable: true },
+  { id: "format", label: "Category", sortable: true },
   { id: "ml", label: "ML", sortable: true, numeric: true },
 ];
 
@@ -2240,7 +2240,7 @@ export default function PricingAnalysisData() {
     { id: "brand", label: "Brand", sortable: true },
     { id: "product", label: "Product", sortable: true },
     { id: "skuType", label: "SKU Type", sortable: true },
-    { id: "format", label: "Format", sortable: true },
+    { id: "format", label: "Category", sortable: true },
     { id: "flavour", label: "Flavour", sortable: true },
     { id: "ml", label: "ML", sortable: true, numeric: true },
     { id: "mrp", label: "MRP (₹)", sortable: true, numeric: true },
@@ -2310,7 +2310,7 @@ export default function PricingAnalysisData() {
     { id: "brand", label: "Brand", sortable: true },
     { id: "product", label: "Product", sortable: true },
     { id: "skuType", label: "SKU Type", sortable: true },
-    { id: "format", label: "Format", sortable: true },
+    { id: "format", label: "Category", sortable: true },
     { id: "ml", label: "ML", sortable: true, numeric: true },
     {
       id: "mrp",

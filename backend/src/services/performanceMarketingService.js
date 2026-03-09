@@ -673,30 +673,89 @@ const performanceMarketingService = {
                     return { total: 0, Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
                 }
 
-                let totalSpend = 0;
-                let totalRoas = 0;
-                results.forEach(r => {
-                    totalSpend += Number(r.spend);
-                    totalRoas += Number(r.roas);
-                });
+                // Determine selected duration for normalization
+                const selectedEndDate = filters.endDate ? dayjs(filters.endDate).endOf('day') : dayjs().endOf('day');
+                const selectedStartDate = filters.startDate ? dayjs(filters.startDate).startOf('day') : selectedEndDate.subtract(29, 'days').startOf('day');
+                const selectedDuration = selectedEndDate.diff(selectedStartDate, 'day') + 1;
 
-                const avgSpend = totalSpend / results.length;
-                const avgRoas = totalRoas / results.length;
+                // Calculate Strict L2M (Last 2 Months) baseline for thresholds BEFORE the selected period
+                const endDateL2M = selectedStartDate.subtract(1, 'day').endOf('day').format('YYYY-MM-DD');
+                const startDateL2M = dayjs(endDateL2M).subtract(60, 'day').startOf('day').format('YYYY-MM-DD');
+
+                let l2mConditions = [];
+                // Apply the same platform and brand filters for L2M baseline
+                if (filters.platform && filters.platform !== 'All') {
+                    const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
+                    l2mConditions.push(`lower(Platform) IN (${platforms})`);
+                }
+                if (filters.brand && filters.brand !== 'All') {
+                    const dbName = getCurrentDbName();
+                    const filterColumn = dbName === 'mars' ? 'category' : 'brand';
+                    const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                    l2mConditions.push(`lower(${filterColumn}) IN (${values})`);
+                }
+                l2mConditions.push(`Date BETWEEN '${startDateL2M}' AND '${endDateL2M}'`);
+                // Weekend Flag applies to baseline as well for contextual averages
+                if (filters.weekendFlag) {
+                    const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
+                    if (flags.includes('Weekend') && !flags.includes('Weekday')) l2mConditions.push(`toDayOfWeek(Date) IN (6, 7)`);
+                    else if (flags.includes('Weekday') && !flags.includes('Weekend')) l2mConditions.push(`toDayOfWeek(Date) NOT IN (6, 7)`);
+                }
+
+                const l2mWhereSql = l2mConditions.length > 0 ? l2mConditions.join(' AND ') : '1=1';
+
+                // Fetch PER-KEYWORD L2M Baseline
+                const l2mQuery = `
+                    SELECT 
+                        keyword,
+                        SUM(ad_spend) as spend,
+                        SUM(ad_sales) as revenue,
+                        if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+                    FROM mars.rca_pm_olap
+                    WHERE ${l2mWhereSql} AND (ad_spend > 0 OR ad_sales > 0)
+                    GROUP BY keyword
+                    HAVING spend > 0
+                `;
+
+                const l2mResults = await queryClickHouse(l2mQuery);
+
+                // Build a map for instant keyword lookup
+                const kwHistoryMap = {};
+                l2mResults.forEach(r => {
+                    kwHistoryMap[r.keyword] = {
+                        spend: Number(r.spend),
+                        roas: Number(r.roas)
+                    };
+                });
 
                 let q1 = 0, q2 = 0, q3 = 0, q4 = 0;
 
-                // Q1 (Performing Well): High Spend, High ROAS
-                // Q2 (Need Attention): High Spend, Low ROAS
-                // Q3 (Experiment): Low Spend, Low ROAS
-                // Q4 (Opportunity): Low Spend, High ROAS
+                // Evaluate Each Keyword against ITS OWN history
                 results.forEach(r => {
-                    const s = Number(r.spend);
-                    const ro = Number(r.roas);
+                    const kw = r.keyword;
+                    const currentSpend = Number(r.spend);
+                    const currentRoas = Number(r.roas);
 
-                    if (s >= avgSpend && ro >= avgRoas) q1++;
-                    else if (s >= avgSpend && ro < avgRoas) q2++;
-                    else if (s < avgSpend && ro < avgRoas) q3++;
-                    else if (s < avgSpend && ro >= avgRoas) q4++;
+                    let kw_avg_spend_l2m = 0;
+                    let kw_avg_roas_l2m = 0;
+
+                    if (kwHistoryMap[kw]) {
+                        // Normalize 60-day historical spend down to the selected duration
+                        kw_avg_spend_l2m = (kwHistoryMap[kw].spend / 60) * selectedDuration;
+                        kw_avg_roas_l2m = kwHistoryMap[kw].roas;
+                    }
+                    // If a keyword has NO history, its historical baseline remains 0.
+                    // This means any current spend > 0 mathematically puts it in Q1 or Q2 as incremental wins.
+
+                    // Classification Match (Mimicking the Python NP Select Matrix)
+                    // Q1 (Performing Well): High Spend, High ROAS
+                    // Q2 (Need Attention): High Spend, Low ROAS
+                    // Q3 (Experiment): Low Spend, Low ROAS
+                    // Q4 (Opportunity): Low Spend, High ROAS
+                    if (currentRoas >= kw_avg_roas_l2m && currentSpend >= kw_avg_spend_l2m) q1++;
+                    else if (currentRoas < kw_avg_roas_l2m && currentSpend >= kw_avg_spend_l2m) q2++;
+                    else if (currentRoas < kw_avg_roas_l2m && currentSpend < kw_avg_spend_l2m) q3++;
+                    else q4++; // default
                 });
 
                 return {
@@ -777,6 +836,84 @@ const performanceMarketingService = {
                         baseConditions.push(`toDayOfWeek(Date) NOT IN (6, 7)`);
                     }
                 }
+
+                // -------------------------------------------------------------
+                // Apply Quadrant / Insight Filter Logic (if specific quadrant selected)
+                // -------------------------------------------------------------
+                if (filters.insight && filters.insight !== "All Campaign Summary" && filters.insight.startsWith("Q")) {
+                    const insightQ = filters.insight.substring(0, 2); // get "Q1", "Q2" etc.
+
+                    // 1. Calculate the Strict L2M baselines BEFORE the selected period per keyword
+                    const endDateL2M = startDate.subtract(1, 'day').endOf('day').format('YYYY-MM-DD');
+                    const startDateL2M = dayjs(endDateL2M).subtract(60, 'day').startOf('day').format('YYYY-MM-DD');
+                    const l2mWhereSql = [...baseConditions, `Date BETWEEN '${startDateL2M}' AND '${endDateL2M}'`].join(' AND ');
+
+                    const l2mQuery = `
+                        SELECT 
+                            keyword,
+                            SUM(ad_spend) as spend, 
+                            SUM(ad_sales) as revenue, 
+                            if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+                        FROM mars.rca_pm_olap
+                        WHERE ${l2mWhereSql} AND (ad_spend > 0 OR ad_sales > 0)
+                        GROUP BY keyword
+                        HAVING spend > 0
+                    `;
+                    const l2mResults = await queryClickHouse(l2mQuery);
+
+                    const kwHistoryMap = {};
+                    l2mResults.forEach(r => {
+                        kwHistoryMap[r.keyword] = {
+                            spend: Number(r.spend),
+                            roas: Number(r.roas)
+                        };
+                    });
+
+                    // 2. Fetch all keywords in the CURRENT period so we can math them out
+                    const currentWhereSql = [...baseConditions, `Date BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`].join(' AND ');
+                    const kwQuery = `
+                        SELECT keyword, SUM(ad_spend) as spend, if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+                        FROM mars.rca_pm_olap
+                        WHERE ${currentWhereSql} AND (ad_spend > 0 OR ad_sales > 0)
+                        GROUP BY keyword HAVING spend > 0
+                    `;
+                    const currentKws = await queryClickHouse(kwQuery);
+
+                    // 3. Find exactly which keywords belong to the requested quadrant
+                    const validKeywords = [];
+                    currentKws.forEach(r => {
+                        const kw = r.keyword;
+                        const currentSpend = Number(r.spend);
+                        const currentRoas = Number(r.roas);
+
+                        let kw_avg_spend_l2m = 0;
+                        let kw_avg_roas_l2m = 0;
+
+                        if (kwHistoryMap[kw]) {
+                            // Normalize 60-day historical spend down to the selected duration
+                            kw_avg_spend_l2m = (kwHistoryMap[kw].spend / 60) * duration;
+                            kw_avg_roas_l2m = kwHistoryMap[kw].roas;
+                        }
+
+                        let kwQ = "Q4"; // Default
+                        if (currentRoas >= kw_avg_roas_l2m && currentSpend >= kw_avg_spend_l2m) kwQ = "Q1";
+                        else if (currentRoas < kw_avg_roas_l2m && currentSpend >= kw_avg_spend_l2m) kwQ = "Q2";
+                        else if (currentRoas < kw_avg_roas_l2m && currentSpend < kw_avg_spend_l2m) kwQ = "Q3";
+
+                        if (kwQ === insightQ) validKeywords.push(`'${r.keyword.replace(/'/g, "''")}'`);
+                    });
+
+                    // 4. Force inject these valid keywords into base conditions
+                    if (validKeywords.length > 0) {
+                        baseConditions.push(`keyword IN (${validKeywords.join(',')})`);
+                    } else {
+                        // Math resulted in nothing... Force 0 results instead of crashing
+                        baseConditions.push(`1=0`);
+                    }
+                }
+                // -------------------------------------------------------------
+
+
 
                 // Helper function to get aggregated data for a date range
                 const getKeywordTypeData = async (start, end) => {
