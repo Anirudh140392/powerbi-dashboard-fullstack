@@ -1488,7 +1488,7 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
         <>
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <h2 className="text-lg font-semibold capitalize">
-                    Signal Lab — Kwality Wall&apos;s ({metricType === "performance" ? "Performance Marketing" : metricType})
+                    Signal Lab - Mars ({metricType === "performance" ? "Performance Marketing" : metricType})
                 </h2>
 
                 <SegmentedSwitch

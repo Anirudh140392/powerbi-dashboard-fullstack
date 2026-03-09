@@ -492,7 +492,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
             // Determine group column based on viewMode
-            const groupColumn = viewMode === 'Format' ? 'Category' :
+            const groupColumn = viewMode === 'Format' ? 'Product_Category' :
                 viewMode === 'City' ? 'Location' : 'Platform';
 
             // Build base filter conditions using the helper (excluding date as it's handled separately for current/prev)
@@ -1392,15 +1392,14 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
         return `${col} IN (${arr.map(v => `'${escapeStr(v)}'`).join(',')})`;
     };
 
-    // Special case for categories/formats - often needs updates during debugging
     if (filterType === 'categories' || filterType === 'formats') {
         try {
             const query = `
-                SELECT DISTINCT Product_Category as value 
-                FROM rb_pdp_olap
-                WHERE Product_Category IS NOT NULL AND Product_Category != ''
-                ORDER BY value
-            `;
+                        SELECT DISTINCT Product_Category as value 
+                        FROM rb_pdp_olap
+                        WHERE Product_Category IS NOT NULL AND Product_Category != ''
+                        ORDER BY value
+                    `;
             const results = await queryClickHouse(query);
             return { options: results.map(r => r.value).filter(Boolean) };
         } catch (error) {
@@ -1553,7 +1552,7 @@ const getOsaDetailByCategory = async (filters) => {
                 JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
                     AND lower(t1.Location) = lower(t2.location) 
                     AND lower(t1.Brand) = lower(t2.brand_name) 
-                    AND lower(t1.Category) = lower(t2.category)
+                    AND lower(t1.Product_Category) = lower(t2.category)
                 WHERE ${whereClause}
                   AND t2.status = 1
                 GROUP BY t1.Product, t1.Web_Pid, t1.DATE
