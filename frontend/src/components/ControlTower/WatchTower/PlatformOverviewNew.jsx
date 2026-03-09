@@ -224,14 +224,15 @@ const PlatformOverviewNew = ({
     // Known platform logos for enriching API data
     const platformLogos = {
         'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
-        'instamart': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
-        'swiggy instamart': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+        'instamart': '\instamart_photo.png',
+        'swiggy instamart': '\instamart_photo.png',
+        'swiggy': '\instamart_photo.png',
         'zepto': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
         'flipkart': FlipkartLogo,
         'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
     }
     const platformColors = {
-        'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316',
+        'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316', 'swiggy': '#f97316',
         'zepto': '#8b5cf6', 'flipkart': '#2874f0', 'amazon': '#f59e0b',
     }
 
