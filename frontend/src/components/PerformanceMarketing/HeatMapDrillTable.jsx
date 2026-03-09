@@ -185,7 +185,8 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
           zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
           startDate: timeStart?.format?.("YYYY-MM-DD"),
-          endDate: timeEnd?.format?.("YYYY-MM-DD")
+          endDate: timeEnd?.format?.("YYYY-MM-DD"),
+          insight: selectedInsight // Pass the selected quadrant directly back
         };
 
         console.log("🚀 [HeatMapDrillTable] Fetching with params:", params);
@@ -200,7 +201,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     };
 
     fetchData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedInsight]);
 
   const collectedData = apiData;
 

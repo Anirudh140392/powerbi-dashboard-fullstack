@@ -279,7 +279,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
 
     return [
       { key: "platform", label: "Platform", data: platformData },
-      { key: "format", label: "Format", data: formatData },
+      { key: "format", label: "Category", data: formatData },
       { key: "city", label: "City", data: cityData },
     ];
   }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
@@ -317,7 +317,7 @@ const PowerHierarchyHeat = ({ olaMode = "absolute" }) => {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-            Platform-Level Format Heatmap
+            Platform-Level Category Heatmap
           </p>
           <p className="text-sm text-slate-600">
             Flat table without hierarchy (Platform → Region → City).
@@ -423,7 +423,7 @@ const ProductLevelHeat = ({ olaMode = "absolute" }) => {
             Platform-Level OSA Drill
           </p>
           <p className="text-sm text-slate-600">
-            Format → Product → Sales Loss drill-down.
+            Category → Product → Sales Loss drill-down.
           </p>
         </div>
 

@@ -15,7 +15,7 @@ function cn(...classes) {
 // ========================================
 const reportTypes = [
     { key: "platform", label: "Platform" },
-    { key: "format", label: "Format" },
+    { key: "format", label: "Category" },
     { key: "city", label: "City" },
 ];
 
@@ -173,7 +173,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     // Dynamic filter options fetched from backend (lazy-loaded when panel opens)
     const [filterOptions, setFilterOptions] = useState([
         { id: 'platform', label: 'Platform', options: [] },
-        { id: 'format', label: 'Format / Category', options: [] },
+        { id: 'format', label: 'Category', options: [] },
         { id: 'city', label: 'City', options: [] },
         { id: 'brand', label: 'Brand', options: [] },
         { id: 'kpi', label: 'KPI', options: [] },
@@ -216,7 +216,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
             try {
                 const filterTypes = [
                     { id: 'platform', apiType: 'platforms', label: 'Platform' },
-                    { id: 'format', apiType: 'formats', label: 'Format / Category' },
+                    { id: 'format', apiType: 'formats', label: 'Category' },
                     { id: 'city', apiType: 'cities', label: 'City' },
                     { id: 'brand', apiType: 'brands', label: 'Brand' },
                     { id: 'kpi', apiType: 'kpis', label: 'KPI' },
