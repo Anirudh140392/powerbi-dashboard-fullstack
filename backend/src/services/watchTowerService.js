@@ -6600,7 +6600,12 @@ const getCompetitionData = async (filters = {}) => {
         };
 
         // Run all queries in parallel using ClickHouse
-        const [currentBrands, previousBrands, osaData, msTotalData, msOurBrandsData, catTotalData, catOurBrandsData] = await Promise.all([
+        const [
+            currentBrands, previousBrands, osaData,
+            msTotalData, msOurBrandsData, catTotalData, catOurBrandsData,
+            sosDenoData, sosNenoData, sosDenoDataPrev, sosNenoDataPrev,
+            skuSosNenoData, skuSosNenoDataPrev
+        ] = await Promise.all([
             // Query 1: Current period brand data from rb_pdp_olap (with Category)
             queryClickHouse(`
                 SELECT Brand,
@@ -6669,6 +6674,70 @@ const getCompetitionData = async (filters = {}) => {
                 SELECT SUM(toFloat64OrZero(toString(sales))) as our_cat_sales
                 FROM rb_brand_ms
                 WHERE ${buildCategoryConds(true)}
+            `),
+            // Query 8: SOS Deno (Overall) from rb_kw - Current Period
+            queryClickHouse(`
+                SELECT COUNT(*) AS overall_deno
+                FROM rb_kw
+                WHERE keyword_search_rank < 11 
+                  AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                  ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
+                  ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
+                  ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
+            `),
+            // Query 9: SOS Neno (Per Brand) from rb_kw - Current Period
+            queryClickHouse(`
+                SELECT brand_name_th, COUNT(*) AS overall_neno
+                FROM rb_kw
+                WHERE keyword_search_rank < 11 
+                  AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                  ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
+                  ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
+                  ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
+                GROUP BY brand_name_th
+            `),
+            // Query 10: SOS Deno (Overall) from rb_kw - MoM Period
+            queryClickHouse(`
+                SELECT COUNT(*) AS overall_deno
+                FROM rb_kw
+                WHERE keyword_search_rank < 11 
+                  AND toDate(created_on) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
+                  ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
+                  ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
+                  ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
+            `),
+            // Query 11: SOS Neno (Per Brand) from rb_kw - MoM Period
+            queryClickHouse(`
+                SELECT brand_name_th, COUNT(*) AS overall_neno
+                FROM rb_kw
+                WHERE keyword_search_rank < 11 
+                  AND toDate(created_on) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
+                  ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
+                  ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
+                  ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
+                GROUP BY brand_name_th
+            `),
+            // Query 12: SKU SOS Neno (Per Product) from rb_kw - Current Period
+            queryClickHouse(`
+                SELECT keyword_search_product AS Product, COUNT(*) AS overall_neno
+                FROM rb_kw
+                WHERE keyword_search_rank < 11 
+                  AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                  ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
+                  ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
+                  ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
+                GROUP BY Product
+            `),
+            // Query 13: SKU SOS Neno (Per Product) from rb_kw - MoM Period
+            queryClickHouse(`
+                SELECT keyword_search_product AS Product, COUNT(*) AS overall_neno
+                FROM rb_kw
+                WHERE keyword_search_rank < 11 
+                  AND toDate(created_on) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
+                  ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
+                  ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
+                  ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
+                GROUP BY Product
             `)
         ]);
 
@@ -6678,6 +6747,15 @@ const getCompetitionData = async (filters = {}) => {
         } else {
             console.log('[getCompetitionData] ⚠️ NO BRANDS FOUND with current filters!');
         }
+
+        // Extract SOS values from Query 8-13
+        const sosDeno = parseFloat(sosDenoData[0]?.overall_deno || 0);
+        const sosNenoMap = new Map(sosNenoData.map(r => [r.brand_name_th?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
+        const sosDenoPrev = parseFloat(sosDenoDataPrev[0]?.overall_deno || 0);
+        const sosNenoMapPrev = new Map(sosNenoDataPrev.map(r => [r.brand_name_th?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
+
+        const skuSosNenoMap = new Map(skuSosNenoData.map(r => [r.Product?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
+        const skuSosNenoMapPrev = new Map(skuSosNenoDataPrev.map(r => [r.Product?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
 
         // Create map for previous period data
         const prevMap = new Map(previousBrands.map(b => [b.Brand, b]));
@@ -6825,15 +6903,10 @@ const getCompetitionData = async (filters = {}) => {
         console.log(`[getCompetitionData] Got category sales data (${categoryTotalSalesMap.size} total, ${categoryOurBrandsSalesMap.size} our brands) from rb_brand_ms`);
 
         // 4. Calculate metrics for each brand
-        // Calculate total impressions for SOS calculation  
-        const totalImpressions = currentBrands.reduce((sum, b) => sum + parseFloat(b.total_impressions || 0), 0);
-        const totalImpressionsPrev = previousBrands.reduce((sum, b) => sum + parseFloat(b.total_impressions || 0), 0);
-
         const calcChange = (current, previous) => previous === 0 ? (current > 0 ? 100 : 0) : ((current - previous) / previous) * 100;
         const calcPPChange = (current, previous) => (parseFloat(current) || 0) - (parseFloat(previous) || 0);
 
         const brandMetrics = currentBrands.map(brand => {
-            const impressions = parseFloat(brand.total_impressions || 0);
             const brandCategory = brand.brand_category || '';
             const prevBrand = prevMap.get(brand.Brand) || {};
 
@@ -6845,10 +6918,13 @@ const getCompetitionData = async (filters = {}) => {
             const osaPrev = prevOsaDeno > 0 ? (prevOsaNeno / prevOsaDeno) * 100 : 0;
             const osaDelta = calcPPChange(osa, osaPrev);
 
-            // Calculate SOS (Share of Search) - based on impressions share
-            const sos = totalImpressions > 0 ? (impressions / totalImpressions) * 100 : 0;
-            const prevImpressions = parseFloat(prevBrand.total_impressions || 0);
-            const sosPrev = totalImpressionsPrev > 0 ? (prevImpressions / totalImpressionsPrev) * 100 : 0;
+            // Calculate SOS (Share of Search) - using rb_kw logic
+            const bNameLower = brand.Brand?.toLowerCase();
+            const neno = sosNenoMap.get(bNameLower) || 0;
+            const sos = sosDeno > 0 ? (neno / sosDeno) * 100 : 0;
+
+            const nenoPrev = sosNenoMapPrev.get(bNameLower) || 0;
+            const sosPrev = sosDenoPrev > 0 ? (nenoPrev / sosDenoPrev) * 100 : 0;
             const sosDelta = calcPPChange(sos, sosPrev);
 
             // Pricing Metrics
@@ -7006,9 +7082,12 @@ const getCompetitionData = async (filters = {}) => {
             const osaDelta = calcPPChange(osa, prevOsa);
 
             // Calculate SOS (Share of Search)
-            const sos = totalSkuImpressions > 0 ? (impressions / totalSkuImpressions) * 100 : 0;
-            const prevImpressions = parseFloat(prevSku.total_impressions || 0);
-            const prevSos = totalSkuImpressionsPrev > 0 ? (prevImpressions / totalSkuImpressionsPrev) * 100 : 0;
+            const prodLower = sku.Product?.toLowerCase();
+            const skuNeno = skuSosNenoMap.get(prodLower) || 0;
+            const sos = sosDeno > 0 ? (skuNeno / sosDeno) * 100 : 0;
+
+            const skuNenoPrev = skuSosNenoMapPrev.get(prodLower) || 0;
+            const prevSos = sosDenoPrev > 0 ? (skuNenoPrev / sosDenoPrev) * 100 : 0;
             const sosDelta = calcPPChange(sos, prevSos);
 
             // Calculate Price
