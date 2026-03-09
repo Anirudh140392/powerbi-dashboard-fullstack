@@ -6418,50 +6418,50 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
         if (filterType === 'platforms') {
-            // Fetch unique platforms from rca_sku_dim (comp_flag=0)
-            const query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE comp_flag = 0 AND platform IS NOT NULL AND platform != '' ORDER BY platform`;
+            // Fetch unique platforms from rb_pdp_olap
+            const query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
             const results = await queryClickHouse(query);
             const platformList = results.map(p => p.platform).filter(p => p && p.trim()).sort();
             return { options: [...platformList] };
         }
 
         if (filterType === 'categories') {
-            // Fetch unique categories (category) from rca_sku_dim (requested source)
-            const conditions = [`category IS NOT NULL`, `category != ''`];
+            // Fetch unique categories (Category) from rb_pdp_olap
+            const conditions = [`Category IS NOT NULL`, `Category != ''`];
             if (platform && platform !== 'All') {
-                conditions.push(`lower(platform) = '${escapeStr(platform.toLowerCase())}'`);
+                conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
             }
 
-            const query = `SELECT DISTINCT category as category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category`;
+            const query = `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY category`;
             const results = await queryClickHouse(query);
             const categoryList = results.map(c => c.category).filter(c => c && c.trim()).sort();
             return { options: [...categoryList] };
         }
 
         if (filterType === 'brands') {
-            // Fetch unique brands from rca_sku_dim (comp_flag=0)
-            const conditions = [`comp_flag = 0`, `brand_name IS NOT NULL`, `brand_name != ''`];
+            // Fetch unique brands from rb_pdp_olap
+            const conditions = [`Brand IS NOT NULL`, `Brand != ''`];
             if (platform && platform !== 'All') {
-                conditions.push(`lower(platform) = '${escapeStr(platform.toLowerCase())}'`);
+                conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
             }
 
-            const query = `SELECT DISTINCT brand_name as brand FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY brand`;
+            const query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY brand`;
             const results = await queryClickHouse(query);
             const brandList = results.map(b => b.brand).filter(b => b && b.trim()).sort();
             return { options: [...brandList] };
         }
 
         if (filterType === 'cities') {
-            // Fetch unique cities (location) from rca_sku_dim (comp_flag=0)
-            const conditions = [`comp_flag = 0`, `location IS NOT NULL`, `location != ''`];
+            // Fetch unique cities (Location) from rb_pdp_olap
+            const conditions = [`Location IS NOT NULL`, `Location != ''`];
             if (platform && platform !== 'All') {
-                conditions.push(`lower(platform) = '${escapeStr(platform.toLowerCase())}'`);
+                conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
             }
             if (brand && brand !== 'All') {
-                conditions.push(`brand_name LIKE '%${escapeStr(brand)}%'`);
+                conditions.push(`Brand LIKE '%${escapeStr(brand)}%'`);
             }
 
-            const query = `SELECT DISTINCT location as city FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY city`;
+            const query = `SELECT DISTINCT Location as city FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY city`;
             const results = await queryClickHouse(query);
             const cityList = results.map(c => c.city).filter(c => c && c.trim()).sort();
             return { options: [...cityList] };
@@ -7179,32 +7179,46 @@ const getCompetitionFilterOptions = async (filters = {}) => {
 
         // Run all queries in parallel using ClickHouse
         const [locationResults, categoryResults, brandResults, skuResults] = await Promise.all([
-            // Fetch distinct locations from rca_sku_dim
-            queryClickHouse(`SELECT DISTINCT location FROM rca_sku_dim WHERE location IS NOT NULL AND location != '' ORDER BY location`),
+            // Fetch distinct locations from rb_pdp_olap
+            queryClickHouse(`SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE location IS NOT NULL AND location != '' ORDER BY location`),
 
             // Fetch distinct categories filtered by platform/location
             (() => {
-                const conds = buildBaseConds();
+                const conds = [];
+                if (platform && platform !== 'All') {
+                    const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
+                    if (platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+                }
+                if (location && location !== 'All' && location !== 'All India') {
+                    const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
+                    if (locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+                }
                 conds.push(`Category IS NOT NULL`, `Category != ''`);
-                return queryClickHouse(`SELECT DISTINCT Category as category FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY category`);
+                return queryClickHouse(`SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY category`);
             })(),
 
             // Fetch distinct brands filtered by platform/location + category
-            // When context='performance', fetch OUR brands (comp_flag=0) since Performance Matrix only shows our data
-            // Otherwise fetch competitor brands (comp_flag=1) for Competition page
             (() => {
-                const conds = buildBaseConds();
-                conds.push(`brand_name IS NOT NULL`, `brand_name != ''`);
+                const conds = [];
+                if (platform && platform !== 'All') {
+                    const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
+                    if (platArr.length > 0) conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
+                }
+                if (location && location !== 'All' && location !== 'All India') {
+                    const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
+                    if (locArr.length > 0) conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
+                }
+                conds.push(`Brand IS NOT NULL`, `Brand != ''`);
                 if (context === 'performance') {
-                    conds.push(`toString(comp_flag) = '0'`);
+                    conds.push(`toString(Comp_flag) = '0'`);
                 } else {
-                    conds.push(`toString(comp_flag) = '1'`);
+                    conds.push(`toString(Comp_flag) IN ('0', '1')`);
                 }
                 const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
                 if (catArr.length > 0) {
-                    conds.push(`lower(category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+                    conds.push(`lower(Category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
-                return queryClickHouse(`SELECT DISTINCT brand_name as brand FROM rca_sku_dim WHERE ${conds.join(' AND ')} ORDER BY brand`);
+                return queryClickHouse(`SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY brand`);
             })(),
 
             // Fetch distinct SKUs from rb_pdp_olap filtered by platform/location + category + brand
@@ -7229,7 +7243,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 if (context === 'performance') {
                     conds.push(`toString(Comp_flag) = '0'`);
                 } else {
-                    conds.push(`toString(Comp_flag) = '1'`);
+                    conds.push(`toString(Comp_flag) IN ('0', '1')`);
                 }
                 conds.push(`Product IS NOT NULL`, `Product != ''`, `Web_Pid IS NOT NULL`, `Web_Pid != ''`);
                 return queryClickHouse(`SELECT DISTINCT Product as skuName, toString(Web_Pid) as skuCode FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY skuName LIMIT 500`);
