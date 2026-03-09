@@ -76,28 +76,22 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        const { col, categoryCond } = mapCategoryToMs(categoryArr);
+        let categoryCond = '';
+        if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        }
 
         const query = `
-            SELECT AVG(${col}) as avg_market_share
+            SELECT AVG(avg_nation) as avg_market_share
             FROM (
-                SELECT created_on, brand,
-                    maxIf(brand_ms, category = 'Chocolates') AS chocolates_ms,
-                    maxIf(brand_ms, category = 'Chocolate Gift Pack') AS gift_pack_ms,
-                    maxIf(brand_ms, category = 'GMFC') AS gmfc_ms,
-                    avg(brand_ms) AS combined_ms
-                FROM (
-                    SELECT toDate(created_on) AS created_on, category, brand,
-                        MAX(nation_level_market_share) AS brand_ms
-                    FROM rb_brand_ms
-                    WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-                    ${platformCond}
-                    ${locationCond}
-                    ${categoryCond}
-                    AND brand IN (${brandsSql})
-                    GROUP BY created_on, category, brand
-                ) AS cat_level
-                GROUP BY created_on, brand
+                SELECT AVG(nation_level_market_share) as avg_nation
+                FROM rb_brand_ms
+                WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                ${platformCond}
+                ${locationCond}
+                ${categoryCond}
+                AND brand IN (${brandsSql})
+                GROUP BY category, sub_category, group_brand
             )
         `;
         const result = await queryClickHouse(query);
@@ -140,29 +134,24 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        const { col, categoryCond } = mapCategoryToMs(categoryArr);
+        let categoryCond = '';
+        if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        }
 
         const query = `
-            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
-                AVG(${col}) as avg_market_share
+            SELECT formatDateTime(toDate(month_date_val), '%Y-%m-01') as month_date,
+                   AVG(avg_nation) as avg_market_share
             FROM (
-                SELECT created_on, brand,
-                    maxIf(brand_ms, category = 'Chocolates') AS chocolates_ms,
-                    maxIf(brand_ms, category = 'Chocolate Gift Pack') AS gift_pack_ms,
-                    maxIf(brand_ms, category = 'GMFC') AS gmfc_ms,
-                    avg(brand_ms) AS combined_ms
-                FROM (
-                    SELECT toDate(created_on) AS created_on, category, brand,
-                        MAX(nation_level_market_share) AS brand_ms
-                    FROM rb_brand_ms
-                    WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-                    ${platformCond}
-                    ${locationCond}
-                    ${categoryCond}
-                    AND brand IN (${brandsSql})
-                    GROUP BY created_on, category, brand
-                ) AS cat_level
-                GROUP BY created_on, brand
+                SELECT toDate(created_on) as month_date_val,
+                       AVG(nation_level_market_share) as avg_nation
+                FROM rb_brand_ms
+                WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                ${platformCond}
+                ${locationCond}
+                ${categoryCond}
+                AND brand IN (${brandsSql})
+                GROUP BY month_date_val, category, sub_category, group_brand
             )
             GROUP BY month_date
         `;
@@ -205,29 +194,25 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        const { col, categoryCond } = mapCategoryToMs(categoryArr);
+        let categoryCond = '';
+        if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        }
 
+        // Keep it grouped by brand for the final output
         const query = `
             SELECT brand,
-                AVG(${col}) as avg_market_share
+                   AVG(avg_nation) as avg_market_share
             FROM (
-                SELECT created_on, brand,
-                    maxIf(brand_ms, category = 'Chocolates') AS chocolates_ms,
-                    maxIf(brand_ms, category = 'Chocolate Gift Pack') AS gift_pack_ms,
-                    maxIf(brand_ms, category = 'GMFC') AS gmfc_ms,
-                    avg(brand_ms) AS combined_ms
-                FROM (
-                    SELECT toDate(created_on) AS created_on, category, brand,
-                        MAX(nation_level_market_share) AS brand_ms
-                    FROM rb_brand_ms
-                    WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-                    ${platformCond}
-                    ${locationCond}
-                    ${categoryCond}
-                    AND brand IN (${brandsSql})
-                    GROUP BY created_on, category, brand
-                ) AS cat_level
-                GROUP BY created_on, brand
+                SELECT brand,
+                       AVG(nation_level_market_share) as avg_nation
+                FROM rb_brand_ms
+                WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                ${platformCond}
+                ${locationCond}
+                ${categoryCond}
+                AND brand IN (${brandsSql})
+                GROUP BY brand, category, sub_category, group_brand
             )
             GROUP BY brand
         `;
@@ -275,35 +260,30 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
-        const { col, categoryCond } = mapCategoryToMs(categoryArr);
+        let categoryCond = '';
+        if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        }
 
         let groupFormat = '%Y-%m-%d';
         if (timeStep === 'Monthly') groupFormat = '%Y-%m-01';
 
-        let groupExpr = `formatDateTime(toDate(created_on), '${groupFormat}')`;
-        if (timeStep === 'Weekly') groupExpr = `toYearWeek(toDate(created_on), 1)`;
+        let groupExpr = `formatDateTime(toDate(created_on_val), '${groupFormat}')`;
+        if (timeStep === 'Weekly') groupExpr = `toYearWeek(toDate(created_on_val), 1)`;
 
         const query = `
             SELECT ${groupExpr} as date_group,
-                AVG(${col}) as avg_market_share
+                   AVG(avg_nation) as avg_market_share
             FROM (
-                SELECT created_on, brand,
-                    maxIf(brand_ms, category = 'Chocolates') AS chocolates_ms,
-                    maxIf(brand_ms, category = 'Chocolate Gift Pack') AS gift_pack_ms,
-                    maxIf(brand_ms, category = 'GMFC') AS gmfc_ms,
-                    avg(brand_ms) AS combined_ms
-                FROM (
-                    SELECT toDate(created_on) AS created_on, category, brand,
-                        MAX(nation_level_market_share) AS brand_ms
-                    FROM rb_brand_ms
-                    WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-                    ${platformCond}
-                    ${locationCond}
-                    ${categoryCond}
-                    AND brand IN (${brandsSql})
-                    GROUP BY created_on, category, brand
-                ) AS cat_level
-                GROUP BY created_on, brand
+                SELECT toDate(created_on) as created_on_val,
+                       AVG(nation_level_market_share) as avg_nation
+                FROM rb_brand_ms
+                WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                ${platformCond}
+                ${locationCond}
+                ${categoryCond}
+                AND brand IN (${brandsSql})
+                GROUP BY created_on_val, category, sub_category, group_brand
             )
             GROUP BY date_group
         `;
