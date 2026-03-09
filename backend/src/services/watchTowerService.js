@@ -6495,25 +6495,13 @@ const getCompetitionData = async (filters = {}) => {
             if (locArr && locArr.length > 0) {
                 conds.push(`lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
             }
-            if (catArr && catArr.length > 0) {
-                // Map Mars-specific categories to generic searchable terms for rb_kw
-                const mappedTerms = [];
-                catArr.forEach(c => {
-                    const lc = c.toLowerCase();
-                    if (lc.includes('chocolates (non gifting)')) {
-                        mappedTerms.push('chocolate', 'chocolates', 'dark chocolate');
-                    } else if (lc.includes('chocolates (gifting)')) {
-                        mappedTerms.push('chocolate gift', 'gifting');
-                    } else if (lc.includes('gmfc')) {
-                        mappedTerms.push('gmfc', 'gum', 'mint', 'chewing gum', 'confectionery');
-                    } else {
-                        mappedTerms.push(c);
-                    }
-                });
 
-                const catConds = mappedTerms.map(t => `lower(keyword_category) LIKE '%${escapeStr(t.toLowerCase())}%'`).join(' OR ');
-                conds.push(`(${catConds})`);
+            // USE NORMALIZED CATEGORY FILTER CONSISTENT WITH getBulkShareOfSearch
+            const catArrNorm = normalizeFilterArray(category);
+            if (catArrNorm && catArrNorm.length > 0) {
+                conds.push(`lower(keyword_category) IN (${catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
+
             conds.push(`keyword_search_rank < 11`);
             return conds.join(' AND ');
         };

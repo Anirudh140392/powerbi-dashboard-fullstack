@@ -172,7 +172,7 @@ export default function GeoIntelligenceMap() {
                     lat: coords.lat,
                     lng: coords.lng,
                     type: coords.type,
-                    listingPurchase: city.osa || 0,
+                    listingPercentage: city.listingPercentage || 0,
                 };
             });
     }, [apiData, metric]);
@@ -301,6 +301,11 @@ export default function GeoIntelligenceMap() {
                 <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b;">
                     <span>${kpiLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${kpiValue}</span>
                 </div>
+                ${metric === "Wt. OSA %" ? `
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-top: 4px;">
+                    <span>Listing %:</span> <span style="font-weight: 600; color: #1e293b;">${d.listingPercentage}%</span>
+                </div>
+                ` : ""}
             </div>
         `);
 
