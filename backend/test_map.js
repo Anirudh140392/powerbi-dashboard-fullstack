@@ -19,7 +19,7 @@ async function test() {
         console.log("OLAP date formats:");
         console.log(d1);
 
-        const d2 = await queryClickHouse("SELECT toDate(created_on) as date_key, COUNT(*) as cnt FROM rb_kw WHERE toDate(created_on) >= '2025-12-07' AND toDate(created_on) <= '2026-03-07' AND lower(brand_crawl) = 'ferrero' GROUP BY date_key LIMIT 3");
+        const d2 = await queryClickHouse("SELECT toDate(created_on) as date_key, COUNT(*) as cnt FROM rb_kw_olap WHERE toDate(created_on) >= '2025-12-07' AND toDate(created_on) <= '2026-03-07' AND lower(brand_crawl) = 'ferrero' GROUP BY date_key LIMIT 3");
         console.log("KW date formats:");
         console.log(d2);
 
@@ -32,7 +32,7 @@ async function test() {
         for (let row of d1) {
             console.log(row.date_key, targetKwMap.get(String(row.date_key)));
         }
-    } catch(e) {
+    } catch (e) {
         console.error(e);
     }
 }

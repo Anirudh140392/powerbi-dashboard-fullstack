@@ -30,7 +30,7 @@ const sequelize = new Sequelize(
       // Note: MySQL2 doesn't support statementCacheSize through Sequelize
     },
     query: {
-      timeout: 60000  // 1 minute query timeout (increased for SOS queries on rb_kw)
+      timeout: 60000  // 1 minute query timeout (increased for SOS queries on rb_kw_olap)
     },
     retry: {
       max: 3, // Reduced retries to fail faster

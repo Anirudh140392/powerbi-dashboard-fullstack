@@ -11,7 +11,7 @@ async function checkIndexes() {
 
         const tables = [
             'rb_pdp_olap',
-            'rb_kw',
+            'rb_kw_olap',
             'rb_brand_ms',
             'rb_sku_platform',
             'rca_sku_dim'
@@ -74,7 +74,7 @@ async function checkIndexes() {
                 INDEX_TYPE
             FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA = DATABASE()
-            AND TABLE_NAME IN ('rb_pdp_olap', 'rb_kw', 'rb_brand_ms', 'rb_sku_platform', 'rca_sku_dim')
+            AND TABLE_NAME IN ('rb_pdp_olap', 'rb_kw_olap', 'rb_brand_ms', 'rb_sku_platform', 'rca_sku_dim')
             GROUP BY TABLE_NAME, INDEX_NAME, NON_UNIQUE, INDEX_TYPE
             ORDER BY TABLE_NAME, INDEX_NAME
         `, { type: QueryTypes.SELECT });

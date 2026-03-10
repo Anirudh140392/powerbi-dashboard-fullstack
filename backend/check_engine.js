@@ -12,7 +12,7 @@ const clickhouse = createClient({
 async function checkEngine() {
     try {
         const result = await clickhouse.query({
-            query: "SELECT engine, partition_key, sorting_key FROM system.tables WHERE name = 'rb_kw' AND database = currentDatabase()",
+            query: "SELECT engine, partition_key, sorting_key FROM system.tables WHERE name = 'rb_kw_olap' AND database = currentDatabase()",
             format: 'JSONEachRow',
         });
         const data = await result.json();

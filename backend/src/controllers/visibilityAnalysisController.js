@@ -262,7 +262,7 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
 
 /**
  * Get Latest Available Dates for Visibility Analysis
- * Returns: Date range of the latest month with available data in rb_kw table
+ * Returns: Date range of the latest month with available data in rb_kw_olap table
  */
 export const getVisibilityLatestAvailableDates = async (req, res) => {
     const startTime = Date.now();

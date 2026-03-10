@@ -48,9 +48,9 @@ echo ""
 
 # Run all migrations
 mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" <<EOF
--- rb_kw indexes (MOST CRITICAL - fixes SOS timeouts)
-CREATE INDEX IF NOT EXISTS idx_rbkw_crawl_platform_brand ON rb_kw(kw_crawl_date, platform_name, brand_name);
-CREATE INDEX IF NOT EXISTS idx_rbkw_spons_flag_date ON rb_kw(spons_flag, kw_crawl_date);
+-- rb_kw_olap indexes (MOST CRITICAL - fixes SOS timeouts)
+CREATE INDEX IF NOT EXISTS idx_rbkw_crawl_platform_brand ON rb_kw_olap(kw_crawl_date, platform_name, brand_name);
+CREATE INDEX IF NOT EXISTS idx_rbkw_spons_flag_date ON rb_kw_olap(spons_flag, kw_crawl_date);
 
 -- rb_pdp_olap indexes (fixes general queries)
 CREATE INDEX IF NOT EXISTS idx_rbpdp_date_platform ON rb_pdp_olap(DATE, Platform);

@@ -9,7 +9,7 @@ async function testQuery() {
         SELECT 
             brand_name, 
             count() as brand_count
-        FROM rb_kw
+        FROM rb_kw_olap
         WHERE toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
           AND keyword_search_rank < 11
         GROUP BY brand_name

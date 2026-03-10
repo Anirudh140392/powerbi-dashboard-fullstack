@@ -14,7 +14,7 @@ async function testById() {
         const start = Date.now();
         // Since we know kw_data_id 1 existed from our schema check row sample
         const result = await clickhouse.query({
-            query: "SELECT kw_data_id, brand_name, created_on FROM rb_kw WHERE kw_data_id = 1",
+            query: "SELECT kw_data_id, brand_name, created_on FROM rb_kw_olap WHERE kw_data_id = 1",
             format: 'JSONEachRow',
         });
         const data = await result.json();

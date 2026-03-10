@@ -1020,67 +1020,65 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange, filterOptions }) => {
-  // initial tab: brand view starts with category, sku view starts with sku
+const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location }) => {
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
   );
   const [search, setSearch] = useState("");
 
-  // strict dependency: Category -> Brand -> SKU
-  // helpers to build dependent option lists
+  const [filterOptions, setFilterOptions] = useState({
+    categories: [],
+    brands: [],
+    skus: [],
+    loading: false,
+    error: null
+  });
 
-  const getBrandOptions = () => {
-    let brands = RAW_DATA.brands;
+  useEffect(() => {
+    if (!open) return;
 
-    // if categories selected, only brands from those categories
-    if (value.categories.length) {
-      brands = brands.filter((b) => value.categories.includes(b.category));
-    }
+    const fetchFilterOptions = async () => {
+      setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
-    return brands.map((b) => b.name);
-  };
+      try {
+        const params = new URLSearchParams();
+        if (platform) params.append('platform', platform);
+        if (location) params.append('location', location === 'All India' ? 'All' : location);
+        if (value.categories.length > 0) {
+          params.append('category', value.categories.join(','));
+        }
+        if (value.brands.length > 0) {
+          params.append('brand', value.brands.join(','));
+        }
 
-  const getSkuOptions = () => {
-    let skus = RAW_DATA.skus;
+        const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
 
-    // filter by categories (if selected)
-    if (value.categories.length) {
-      skus = skus.filter((s) => value.categories.includes(s.category));
-    }
+        if (response.data) {
+          setFilterOptions({
+            categories: (response.data.categories || []).filter(c => c && c !== 'All'),
+            brands: (response.data.brands || []).filter(b => b && b !== 'All'),
+            skus: (response.data.skus || []).filter(s => s && s !== 'All'),
+            loading: false,
+            error: null
+          });
+        }
+      } catch (error) {
+        console.error('[FilterDialog] Error:', error);
+        setFilterOptions(prev => ({
+          ...prev,
+          loading: false,
+          error: 'Failed to load filter options'
+        }));
+      }
+    };
 
-    // filter by brands (if selected)
-    if (value.brands.length) {
-      const allowedBrandIds = new Set(
-        value.brands.map((name) => BRAND_NAME_TO_ID[name]).filter(Boolean)
-      );
-      skus = skus.filter((s) => allowedBrandIds.has(s.brandId));
-    }
-
-    return skus.map((s) => s.name);
-  };
-
-  const tabOptions = ["category", "brand", "sku"]; // always show all three
+    fetchFilterOptions();
+  }, [open, value.categories, value.brands, platform, location]);
 
   const getListForTab = () => {
-    if (activeTab === "category") {
-      return filterOptions?.formats?.length > 0 ? filterOptions.formats : CATEGORY_OPTIONS;
-    }
-    if (activeTab === "brand") {
-      if (value.categories.length) {
-        // If a category is selected, use the category-filtered brands from raw data if dynamic brands aren't category-mapped, 
-        // else just return dynamic brands. For simplicity, filtering on category uses RAW_DATA category associations.
-        return getBrandOptions();
-      }
-      return filterOptions?.brands?.length > 0 ? filterOptions.brands : getBrandOptions();
-    }
-    if (activeTab === "sku") {
-      if (value.brands.length || value.categories.length) {
-        return getSkuOptions();
-      }
-      return filterOptions?.skus?.length > 0 ? filterOptions.skus : getSkuOptions();
-    }
-    return [];
+    if (activeTab === "category") return filterOptions.categories;
+    if (activeTab === "brand") return filterOptions.brands;
+    return filterOptions.skus;
   };
 
   const list = useMemo(() => {
@@ -1088,7 +1086,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, filterOptions }) =
     return base.filter((item) =>
       item.toLowerCase().includes(search.toLowerCase())
     );
-  }, [activeTab, search, value]); // value drives dependencies
+  }, [activeTab, search, filterOptions]);
 
   const currentKey =
     activeTab === "category"
@@ -1097,7 +1095,6 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, filterOptions }) =
         ? "brands"
         : "skus";
 
-  // strict dependency: parent change clears children
   const handleToggle = (type, item) => {
     const current = new Set(value[type]);
     if (current.has(item)) current.delete(item);
@@ -1106,11 +1103,9 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, filterOptions }) =
     const next = { ...value, [type]: Array.from(current) };
 
     if (type === "categories") {
-      // changing categories resets brands & skus
       next.brands = [];
       next.skus = [];
     } else if (type === "brands") {
-      // changing brands resets skus
       next.skus = [];
     }
 
@@ -1158,7 +1153,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, filterOptions }) =
               className="flex-1"
             >
               <TabsList className="flex flex-col items-stretch gap-1 bg-transparent p-0">
-                {tabOptions.map((t) => (
+                {["category", "brand", "sku"].map((t) => (
                   <TabsTrigger
                     key={t}
                     value={t}
@@ -1209,7 +1204,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, filterOptions }) =
 
                 {list.length === 0 && (
                   <div className="px-3 py-8 text-center text-xs text-slate-400">
-                    No options found.
+                    {filterOptions.loading ? "Loading..." : filterOptions.error ? filterOptions.error : "No options found."}
                   </div>
                 )}
               </div>
@@ -1310,6 +1305,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
   const metricMeta = KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
 
   const [apiTrendData, setApiTrendData] = useState(null);
+  const [primaryBrand, setPrimaryBrand] = useState(null);
   const [trendLoading, setTrendLoading] = useState(false);
   const [trendError, setTrendError] = useState(null);
 
@@ -1333,6 +1329,9 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
 
       const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
       setApiTrendData(response.data);
+      if (response.data?.metadata?.primaryBrand) {
+        setPrimaryBrand(response.data.metadata.primaryBrand);
+      }
     } catch (err) {
       console.error("Error fetching watchtower competition trends", err);
       setTrendError(err.message || "Failed to load trend data");
@@ -1351,7 +1350,13 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
     const dataObj = {}; // { "01 Feb'26": { date: "...", "Brand A": 95 }, "02 Feb'26": { ... } }
     const allDates = new Set();
 
-    visibleIds.forEach((id) => {
+    // Always include primaryBrand if available in brand mode
+    const idsToPlot = [...visibleIds];
+    if (isBrandMode && primaryBrand && !idsToPlot.includes(primaryBrand)) {
+      idsToPlot.unshift(primaryBrand);
+    }
+
+    idsToPlot.forEach((id) => {
       const series = apiTrendData.brands[id];
       if (series && Array.isArray(series)) {
         series.forEach(point => {
@@ -1366,7 +1371,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
     // We want to return an array sorted correctly. Since the backend returns sorted arrays,
     // we can just extract the dates in the order they were inserted.
     return Array.from(allDates).map(d => dataObj[d]);
-  }, [apiTrendData, visibleIds, activeMetric]);
+  }, [apiTrendData, visibleIds, activeMetric, isBrandMode, primaryBrand]);
 
   const formatValue = (v) => {
     if (metricMeta.unit) return `${v.toFixed(1)}${metricMeta.unit}`;
@@ -1379,7 +1384,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
       <CardHeader className="flex flex-col gap-4 border-b pb-4">
         <div className="flex items-center justify-between w-full">
           <Box display="flex" gap={1} flexWrap="wrap">
-            {KPI_KEYS.map((m) => (
+            {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos')).map((m) => (
               <MetricChip
                 key={m.key}
                 label={m.label}
@@ -1548,7 +1553,31 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
                   formatter={formatValue}
                 />
-                <Legend verticalAlign="top" height={36} />
+                <Legend verticalAlign="top" height={36} content={() => (
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    {(() => {
+                      const idsToPlot = [...visibleIds];
+                      if (isBrandMode && primaryBrand && !idsToPlot.includes(primaryBrand)) {
+                        idsToPlot.unshift(primaryBrand);
+                      }
+                      return idsToPlot.map((id, idx) => (
+                        <Box key={id} display="flex" title={id} alignItems="center" gap={0.5}>
+                          <div
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              backgroundColor: CHART_COLORS[idx % CHART_COLORS.length],
+                            }}
+                          />
+                          <span className="text-[11px] font-medium text-slate-600 truncate max-w-[80px]">
+                            {id === primaryBrand ? `${id} (Ours)` : id}
+                          </span>
+                        </Box>
+                      ));
+                    })()}
+                  </div>
+                )} />
 
                 {visibleIds.map((id, idx) => (
                   <Line
@@ -1625,7 +1654,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
   const selectedIds = useMemo(() => {
     if (isBrandMode) {
       const rows = brandRows || [];
-      return rows.map((r) => r.label || r.name || r.brand_name || r.brandName || r.brand).slice(0, 4);
+      return rows.map((r) => r.label || r.name || r.brand_name || r.brand).slice(0, 4);
     }
     const rows = skuRows || [];
     return rows.map((r) => r.label || r.name || r.sku_name || r.Product).slice(0, 4);
@@ -1723,7 +1752,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
       </CardHeader>
 
       <CardContent className="grid max-h-[420px] gap-4 overflow-y-auto pt-4 md:grid-cols-2">
-        {KPI_KEYS.map((kpi) => (
+        {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(k => k.key !== 'sos')).map((kpi) => (
           <Card
             key={kpi.key}
             className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50"
@@ -2068,9 +2097,9 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
         const params = {
           platform: selectedItem || 'All',
           location: city !== 'All India' ? city : 'All',
-          category: filters.categories.length > 0 ? filters.categories[0] : 'All',
-          brand: filters.brands.length > 0 ? filters.brands[0] : 'All',
-          sku: filters.skus.length > 0 ? filters.skus[0] : 'All',
+          category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
+          brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
+          sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
           period: period || '1M'
         };
 
@@ -2264,7 +2293,8 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
         mode={tab}
         value={filters}
         onChange={setFilters}
-        filterOptions={filterOptions}
+        platform={selectedItem}
+        location={city}
       />
     </div>
   );

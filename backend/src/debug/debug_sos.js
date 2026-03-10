@@ -38,8 +38,8 @@ const debugSOS = async () => {
         console.log(`Found ${ourBrandList.length} OUR brands:\n`, ourBrandList);
         console.log();
 
-        // ===== STEP 2: Check brand names in rb_kw table =====
-        console.log('--- STEP 2: Check ALL brand names in rb_kw (Zepto) ---');
+        // ===== STEP 2: Check brand names in rb_kw_olap table =====
+        console.log('--- STEP 2: Check ALL brand names in rb_kw_olap (Zepto) ---');
         const allBrandsInKw = await RbKw.findAll({
             attributes: [[Sequelize.fn('DISTINCT', Sequelize.col('brand_name')), 'brand_name']],
             where: {
@@ -49,11 +49,11 @@ const debugSOS = async () => {
             raw: true
         });
         const kwBrandList = allBrandsInKw.map(b => b.brand_name).filter(b => b);
-        console.log(`Found ${kwBrandList.length} distinct brands in rb_kw for Zepto:\n`, kwBrandList.slice(0, 20), '...');
+        console.log(`Found ${kwBrandList.length} distinct brands in rb_kw_olap for Zepto:\n`, kwBrandList.slice(0, 20), '...');
         console.log();
 
-        // ===== STEP 3: Check which of OUR brands exist in rb_kw =====
-        console.log('--- STEP 3: Match OUR brands in rb_kw ---');
+        // ===== STEP 3: Check which of OUR brands exist in rb_kw_olap =====
+        console.log('--- STEP 3: Match OUR brands in rb_kw_olap ---');
         const matchingBrands = ourBrandList.filter(b => kwBrandList.includes(b));
         const nonMatchingBrands = ourBrandList.filter(b => !kwBrandList.includes(b));
         console.log(`Matching brands (${matchingBrands.length}):`, matchingBrands);

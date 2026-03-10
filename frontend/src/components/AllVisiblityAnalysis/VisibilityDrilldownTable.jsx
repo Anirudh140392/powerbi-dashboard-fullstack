@@ -328,13 +328,13 @@ const FROZEN_WIDTHS = {
     spacer: 40,
 }
 
-// Initial static structure - will be populated dynamically from rb_kw table
+// Initial static structure - will be populated dynamically from rb_kw_olap table
 const FILTER_OPTIONS_CONFIG = [
     { id: "date", label: "Date", options: [] }, // Date range picker would be custom
     { id: "month", label: "Month", options: [{ id: "all", label: "All" }] },
     { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }] },
     { id: "productName", label: "Product Name", options: [{ id: "all", label: "All" }] },
-    { id: "format", label: "Category", options: [{ id: "all", label: "All" }] }, // Mapped to keyword_search_product in rb_kw
+    { id: "format", label: "Category", options: [{ id: "all", label: "All" }] }, // Mapped to keyword_search_product in rb_kw_olap
     { id: "city", label: "City", options: [{ id: "all", label: "All" }] },
     { id: "pincode", label: "Pincode", options: [{ id: "all", label: "All" }] },
 ]
@@ -384,7 +384,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     const [page, setPage] = useState(1) // 1-indexed for PaginationFooter
     const [pageSize, setPageSize] = useState(5)
     const [filterPanelOpen, setFilterPanelOpen] = useState(false)
-    // Dynamic filter options from rb_kw table
+    // Dynamic filter options from rb_kw_olap table
     const [filterOptions, setFilterOptions] = useState(FILTER_OPTIONS_CONFIG)
 
     // Fetch dynamic filter options from backend on mount

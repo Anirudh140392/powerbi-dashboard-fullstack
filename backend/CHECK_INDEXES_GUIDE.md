@@ -15,7 +15,7 @@ mysql -h 15.207.197.27 -u your_username -p your_database_name < check_existing_i
 # Option 2: Interactive
 mysql -h 15.207.197.27 -u your_username -p your_database_name
 mysql> SHOW INDEX FROM rb_pdp_olap;
-mysql> SHOW INDEX FROM rb_kw;
+mysql> SHOW INDEX FROM rb_kw_olap;
 mysql> SHOW INDEX FROM rb_brand_ms;
 ```
 

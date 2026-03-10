@@ -38,7 +38,7 @@ export default (app) => {
      * /api/visibility-analysis/latest-available-dates:
      *   get:
      *     summary: Get latest available dates for Visibility Analysis
-     *     description: Returns the date range of the latest month that has data in rb_kw table. Call this first before fetching visibility data.
+     *     description: Returns the date range of the latest month that has data in rb_kw_olap table. Call this first before fetching visibility data.
      *     responses:
      *       200:
      *         description: Date range for available visibility data

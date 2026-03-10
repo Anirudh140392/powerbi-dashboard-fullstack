@@ -7,7 +7,7 @@ async function checkMaxDates() {
     try {
         const queries = [
             { table: 'rb_pdp_olap', col: 'DATE' },
-            { table: 'rb_kw', col: 'kw_crawl_date' },
+            { table: 'rb_kw_olap', col: 'kw_crawl_date' },
             { table: 'rb_brand_ms', col: 'created_on' }
         ];
 

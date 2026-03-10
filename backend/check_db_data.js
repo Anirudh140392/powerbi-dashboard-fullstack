@@ -13,7 +13,7 @@ async function checkData() {
         console.log(`--- Checking rows for ${platform} between ${dateFrom} and ${dateTo} ---`);
         const results = await sequelize.query(`
       SELECT COUNT(*) as count 
-      FROM rb_kw 
+      FROM rb_kw_olap 
       WHERE platform_name = :platform 
         AND kw_crawl_date BETWEEN :dateFrom AND :dateTo
     `, {
@@ -29,7 +29,7 @@ async function checkData() {
             console.log('\n--- Checking brands for this range ---');
             const brands = await sequelize.query(`
         SELECT brand_name, COUNT(*) as impressions
-        FROM rb_kw 
+        FROM rb_kw_olap 
         WHERE platform_name = :platform 
           AND kw_crawl_date BETWEEN :dateFrom AND :dateTo
           AND brand_name IS NOT NULL AND brand_name != ''

@@ -513,7 +513,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
   const [activeTab, setActiveTab] = useState("platform");
   const [search, setSearch] = useState("");
 
-  // Dynamic filter options from API (rb_kw table)
+  // Dynamic filter options from API (rb_kw_olap table)
   const [filterOptions, setFilterOptions] = useState({
     platforms: [],    // from platform_name
     formats: [],      // from keyword_search_product (category)
@@ -532,7 +532,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
       setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
       try {
-        // Fetch all filter types in parallel (including platforms from rb_kw)
+        // Fetch all filter types in parallel (including platforms from rb_kw_olap)
         const [platformsRes, formatsRes, citiesRes, productNamesRes, brandsRes] = await Promise.all([
           axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
           axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
@@ -570,7 +570,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
     fetchFilterOptions();
   }, [open, value.formats]); // Refetch when formats change (cascading for cities)
 
-  // Filter tabs - mapped to rb_kw columns (platform first for Platform KPI Matrix)
+  // Filter tabs - mapped to rb_kw_olap columns (platform first for Platform KPI Matrix)
   const tabOptions = ["platform", "format", "city", "productName", "brand"];
 
   const getListForTab = () => {
@@ -1550,7 +1550,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
   const [filters, setFilters] = useState({
     // API-based filter keys
-    platforms: [],    // from platform_name in rb_kw table
+    platforms: [],    // from platform_name in rb_kw_olap table
     formats: [],      // from keyword_search_product (category)
     cities: [],       // from location_name
     productNames: [], // from keyword

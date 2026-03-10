@@ -30,7 +30,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
                 ROUND(countIf(${RB_SOS_CONDITION}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
                 ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
                 ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
-            FROM rb_kw
+            FROM rb_kw_olap
             WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
               AND keyword_search_rank < 11
               AND ${platformCondition}
@@ -83,7 +83,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
                 ROUND(countIf(${RB_SOS_CONDITION}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
                 ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
                 ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
-            FROM rb_kw
+            FROM rb_kw_olap
             WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
               AND keyword_search_rank < 11
               AND ${platformCondition}
@@ -728,7 +728,7 @@ class VisibilityService {
 
     /**
      * Get Platform KPI Matrix data with Platform/Format/City breakdown
-     * Fetches real data from rb_kw table
+     * Fetches real data from rb_kw_olap table
      */
     async getPlatformKpiMatrix(filters) {
         console.log('[VisibilityService] getPlatformKpiMatrix called with filters:', filters);
@@ -900,7 +900,7 @@ class VisibilityService {
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
                             ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
-                        FROM rb_kw
+                        FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
                         ORDER BY count() DESC
@@ -914,7 +914,7 @@ class VisibilityService {
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
                             ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
-                        FROM rb_kw
+                        FROM rb_kw_olap
                         WHERE ${prevWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
                     `;
@@ -927,7 +927,7 @@ class VisibilityService {
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
                             ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
                             ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
-                        FROM rb_kw
+                        FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}, date
                         ORDER BY date ASC
@@ -1024,7 +1024,7 @@ class VisibilityService {
 
     /**
      * Get Keywords at a Glance hierarchical data
-     * Fetches real data from rb_kw table with hierarchy:
+     * Fetches real data from rb_kw_olap table with hierarchy:
      * Keyword Type → Keyword → Brand → SKU → City
      */
     async getKeywordsAtGlance(filters) {
@@ -1052,7 +1052,7 @@ class VisibilityService {
                     whereConditions.push(`toDate(created_on) BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
                 } else {
                     // Default to latest date using subquery for precision
-                    whereConditions.push("toDate(created_on) = (SELECT MAX(toDate(created_on)) FROM rb_kw)");
+                    whereConditions.push("toDate(created_on) = (SELECT MAX(toDate(created_on)) FROM rb_kw_olap)");
                 }
                 whereConditions.push("keyword_search_rank < 11");
 
@@ -1075,7 +1075,7 @@ class VisibilityService {
                             count() as row_count,
                             countIf(${sosBrandCondition}) as rb_results,
                             ROW_NUMBER() OVER(PARTITION BY keyword_type ORDER BY countIf(${sosBrandCondition}) DESC, count() DESC) as rnk
-                        FROM rb_kw
+                        FROM rb_kw_olap
                         ${whereClause}
                         GROUP BY keyword, keyword_type
                     ) t
@@ -1111,7 +1111,7 @@ class VisibilityService {
                         countIf(toString(spons_flag) != '1' AND ${sosBrandCondition}) as rbo,
                         avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), toString(spons_flag) = '1' AND ${sosBrandCondition} AND ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as aap,
                         avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), toString(spons_flag) != '1' AND ${sosBrandCondition} AND ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as aop
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     ${whereClause}
                     ${keywordCondition}
                     GROUP BY keyword_type, keyword, brand_crawl, sku, city, platform_name
@@ -1253,7 +1253,7 @@ class VisibilityService {
                 // 1. Get latest date
                 const maxDateRes = await queryClickHouse(`
                     SELECT MAX(toDate(created_on)) as maxDate
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE created_on IS NOT NULL
                 `);
                 const maxDate = maxDateRes[0]?.maxDate;
@@ -1310,7 +1310,7 @@ class VisibilityService {
                         avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as avg_overall_pos,
                         avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), ${brandSOSCondition} AND toString(spons_flag) != '1' AND ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as avg_org_pos,
                         avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), ${brandSOSCondition} AND toString(spons_flag) = '1' AND ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as avg_ad_pos
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE ${dateCondition}
                       AND ${platformCondition}
                       AND ${locationCondition}
@@ -1337,7 +1337,7 @@ class VisibilityService {
                         countIf(${brandSOSCondition}) as rb_results,
                         countIf(${brandSOSCondition} AND toString(spons_flag) != '1') as rb_organic,
                         countIf(${brandSOSCondition} AND toString(spons_flag) = '1') as rb_sponsored
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE ${prevDateCondition}
                       AND ${platformCondition}
                       AND ${locationCondition}
@@ -1363,7 +1363,7 @@ class VisibilityService {
                         keyword,
                         brand_crawl as brand_name,
                         count() as brand_count
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE ${dateCondition}
                       AND keyword IN (${keywordList})
                       AND ${platformCondition}
@@ -1463,7 +1463,7 @@ class VisibilityService {
                         count() as brand_results,
                         countIf(toString(spons_flag) != '1') as brand_organic,
                         countIf(toString(spons_flag) = '1') as brand_sponsored
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
                       AND (
                           toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}'
@@ -1487,7 +1487,7 @@ class VisibilityService {
                     SELECT 
                         if(toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
                         count() as total 
-                    FROM rb_kw 
+                    FROM rb_kw_olap 
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
                       AND (
                           toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}'
@@ -1556,7 +1556,7 @@ class VisibilityService {
 
     /**
      * Get dynamic filter options for visibility analysis cascading filters
-     * Uses rb_kw as primary source (main visibility data table)
+     * Uses rb_kw_olap as primary source (main visibility data table)
      * @param {Object} params - { filterType, platform, format, city }
      * @returns {Object} { options: [...] }
      */
@@ -1578,11 +1578,11 @@ class VisibilityService {
                 const cityCondition = buildCHCondition(cityFilter, 'location_name');
                 const brandCondition = buildCHCondition(brand || null, 'brand_crawl');
 
-                // PLATFORMS: from rb_kw.platform_name
+                // PLATFORMS: from rb_kw_olap.platform_name
                 if (filterType === 'platforms') {
                     const results = await queryClickHouse(`
                     SELECT DISTINCT platform_name as platform
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE platform_name IS NOT NULL AND platform_name != ''
                     ORDER BY platform_name
                 `);
@@ -1590,11 +1590,11 @@ class VisibilityService {
                     return { options };
                 }
 
-                // MONTHS: from rb_kw.created_on
+                // MONTHS: from rb_kw_olap.created_on
                 if (filterType === 'months') {
                     const results = await queryClickHouse(`
                     SELECT DISTINCT toStartOfMonth(toDate(created_on)) as date
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE created_on IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 12
@@ -1603,11 +1603,11 @@ class VisibilityService {
                     return { options };
                 }
 
-                // DATES: from rb_kw.created_on (Active Dates)
+                // DATES: from rb_kw_olap.created_on (Active Dates)
                 if (filterType === 'dates') {
                     const results = await queryClickHouse(`
                     SELECT DISTINCT toDate(created_on) as date
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE created_on IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 30
@@ -1635,7 +1635,7 @@ class VisibilityService {
                 }
                 const baseWhere = `WHERE ${whereConditions.join(' AND ')}`;
 
-                // CITIES: from rb_kw.location_name
+                // CITIES: from rb_kw_olap.location_name
                 if (filterType === 'cities') {
                     let cityWhere = baseWhere;
                     if (format && format !== 'All') {
@@ -1644,7 +1644,7 @@ class VisibilityService {
 
                     const results = await queryClickHouse(`
                     SELECT DISTINCT location_name as city
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     ${cityWhere} AND location_name IS NOT NULL AND location_name != ''
                     ORDER BY location_name
                 `);
@@ -1652,11 +1652,11 @@ class VisibilityService {
                     return { options };
                 }
 
-                // DATES: from rb_kw.created_on
+                // DATES: from rb_kw_olap.created_on
                 if (filterType === 'dates') {
                     const results = await queryClickHouse(`
                     SELECT DISTINCT toDate(created_on) as date
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE created_on IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 60
@@ -1689,7 +1689,7 @@ class VisibilityService {
                     return { options };
                 }
 
-                // PINCODES: from rb_kw.pincode (handle type conversion)
+                // PINCODES: from rb_kw_olap.pincode (handle type conversion)
                 if (filterType === 'pincodes') {
                     let pinWhere = baseWhere;
                     if (city && city !== 'All') {
@@ -1697,7 +1697,7 @@ class VisibilityService {
                     }
                     const results = await queryClickHouse(`
                     SELECT DISTINCT toString(pincode) as pincode_str
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     ${pinWhere} AND pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
                     ORDER BY pincode_str
                     LIMIT 500
@@ -1707,11 +1707,11 @@ class VisibilityService {
                 }
 
 
-                // PRODUCT NAMES: from rb_kw.keyword
+                // PRODUCT NAMES: from rb_kw_olap.keyword
                 if (filterType === 'productName') {
                     const results = await queryClickHouse(`
                     SELECT DISTINCT keyword as productName
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     ${baseWhere} AND keyword IS NOT NULL AND keyword != ''
                     ORDER BY keyword
                     LIMIT 200
@@ -1720,7 +1720,7 @@ class VisibilityService {
                     return { options };
                 }
 
-                // SKUs: from rb_kw.keyword_search_product
+                // SKUs: from rb_kw_olap.keyword_search_product
                 if (filterType === 'skus') {
                     let skuWhere = baseWhere;
                     if (format && format !== 'All') {
@@ -1731,7 +1731,7 @@ class VisibilityService {
                     }
                     const results = await queryClickHouse(`
                     SELECT DISTINCT keyword_search_product as sku
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     ${skuWhere} AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
                     ORDER BY keyword_search_product
                     LIMIT 200
@@ -1740,11 +1740,11 @@ class VisibilityService {
                     return { options };
                 }
 
-                // BRANDS: from rb_kw.brand_crawl (competitor brands where is_competitor_product=1)
+                // BRANDS: from rb_kw_olap.brand_crawl (competitor brands where is_competitor_product=1)
                 if (filterType === 'brands') {
                     const results = await queryClickHouse(`
                     SELECT DISTINCT brand_crawl as brand
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     ${baseWhere} AND brand_crawl IS NOT NULL AND brand_crawl != '' AND toString(is_competitor_product) = '1'
                     ORDER BY brand_crawl
                     LIMIT 200
@@ -1762,7 +1762,7 @@ class VisibilityService {
     }
 
     /**
-     * Get the latest available dates from rb_kw table
+     * Get the latest available dates from rb_kw_olap table
      * Returns the date range of the latest month that has data
      */
     async getLatestAvailableDates() {
@@ -1772,17 +1772,17 @@ class VisibilityService {
         return await getCachedOrCompute(cacheKey, async () => {
             try {
 
-                // Get the max date from rb_kw table - ClickHouse
+                // Get the max date from rb_kw_olap table - ClickHouse
                 const results = await queryClickHouse(`
                 SELECT MAX(toDate(created_on)) as maxDate
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE created_on IS NOT NULL
             `);
 
                 const maxDate = results[0]?.maxDate;
 
                 if (!maxDate || maxDate === '0000-00-00' || maxDate === '1970-01-01') {
-                    console.log('[VisibilityService] No valid data found in rb_kw table, returning current month');
+                    console.log('[VisibilityService] No valid data found in rb_kw_olap table, returning current month');
                     // Fallback to current month if no data
                     const now = dayjs();
                     return {
@@ -1845,7 +1845,7 @@ class VisibilityService {
                     // Fetch the latest available date from ClickHouse
                     const maxDateRes = await queryClickHouse(`
                         SELECT MAX(toDate(created_on)) as maxDate
-                        FROM rb_kw
+                        FROM rb_kw_olap
                         WHERE created_on IS NOT NULL
                     `);
                     const maxDate = maxDateRes[0]?.maxDate;
@@ -1898,7 +1898,7 @@ class VisibilityService {
                     ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
                     ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
                     ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1')) * 100.0 / nullIf(count(), 0), 2) AS display_sos
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND keyword_search_rank < 11
                   AND ${platformCondition}
@@ -1945,14 +1945,14 @@ class VisibilityService {
                 // First, get the latest available date from ClickHouse
                 const maxDateRes = await queryClickHouse(`
                 SELECT MAX(toDate(created_on)) as maxDate
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE created_on IS NOT NULL
             `);
 
                 const maxDate = maxDateRes[0]?.maxDate;
 
                 if (!maxDate || maxDate === '0000-00-00') {
-                    console.error('[VisibilityService] No data found in rb_kw table');
+                    console.error('[VisibilityService] No data found in rb_kw_olap table');
                     return { brands: [], skus: [] };
                 }
 
@@ -2000,7 +2000,7 @@ class VisibilityService {
                 SELECT 
                     countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}') as current_total,
                     countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') as prev_total
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE (toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
                   AND keyword_search_rank < 11
                 ${allFilters}
@@ -2023,7 +2023,7 @@ class VisibilityService {
                     ROUND(countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) = '1') * 100.0 / ${prevVolume}, 2) AS prev_sponsored_sos,
                     ROUND(countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) != '1') * 100.0 / ${prevVolume}, 2) AS prev_organic_sos,
                     countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}') as impressions
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE (toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
                   AND keyword_search_rank < 11
                   ${allFilters}
@@ -2062,7 +2062,7 @@ class VisibilityService {
                     ROUND(countIf(toString(spons_flag) = '1') * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
                     ROUND(countIf(toString(spons_flag) != '1') * 100.0 / ${currentVolume}, 2) AS organic_sos,
                     count() as impressions
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND keyword_search_rank < 11
                   ${allFilters}
@@ -2139,7 +2139,7 @@ class VisibilityService {
                     // Fetch the latest available date from ClickHouse
                     const maxDateRes = await queryClickHouse(`
                         SELECT MAX(toDate(created_on)) as maxDate
-                        FROM rb_kw
+                        FROM rb_kw_olap
                         WHERE created_on IS NOT NULL
                     `);
                     const maxDate = maxDateRes[0]?.maxDate;
@@ -2184,7 +2184,7 @@ class VisibilityService {
                 SELECT 
                     ${dateAggregation} as crawl_date,
                     count() as total_volume
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND keyword_search_rank < 11
                   AND ${platformCondition}
@@ -2212,7 +2212,7 @@ class VisibilityService {
                     countIf(toString(spons_flag) = '1') as sponsored_volume,
                     countIf(toString(spons_flag) != '1') as organic_volume,
                     countIf(toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1') as display_volume
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND keyword_search_rank < 11
                   AND ${platformCondition}

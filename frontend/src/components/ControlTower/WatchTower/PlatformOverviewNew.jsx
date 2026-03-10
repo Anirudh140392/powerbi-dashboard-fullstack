@@ -225,88 +225,97 @@ const PlatformOverviewNew = ({
         'zepto': '#8b5cf6', 'flipkart': '#2874f0', 'amazon': '#f59e0b',
     }
 
-    // Fetch data from backend API when dimension or filters change
-    const fetchDimensionData = useCallback(async () => {
+    // Generate a stable key for current filter state to avoid redundant fetches
+    const filterKey = useMemo(() => {
+        const reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
+            : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
+        const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',') : '';
+        const reqCategory = advancedFilters.categories?.length > 0 ? advancedFilters.categories.join(',')
+            : (selectedCategory === 'All' ? 'All' : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
+        const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
+        const reqEndDate = advancedFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : '');
+        const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
+        const reqChannel = selectedChannel || 'All';
+
+        return JSON.stringify({
+            dimension,
+            reqPlatform,
+            reqBrand,
+            reqCategory,
+            reqLocation,
+            reqStartDate,
+            reqEndDate,
+            reqChannel,
+            advancedFilters: {
+                skuName: advancedFilters.skuName,
+                skuCode: advancedFilters.skuCode,
+                filterLogic: advancedFilters.filterLogic
+            }
+        });
+    }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters]);
+
+    // Fetch data from backend API when filters change (stable version)
+    const fetchDimensionData = useCallback(async (currentFetchId) => {
         const endpoint = DIMENSION_API_MAP[dimension]
         if (!endpoint) return
 
-        setApiLoading(true)
         setApiError(null)
         try {
-            // Priority: Local Advanced Filters > Global Context Filters
-            const reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
-                : (globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
-
-            const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',')
-                : undefined;
-
-            const reqCategory = advancedFilters.categories?.length > 0 ? advancedFilters.categories.join(',')
-                : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
-
-            const reqStartDate = advancedFilters.dateFrom ? advancedFilters.dateFrom
-                : (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
-
-            const reqEndDate = advancedFilters.dateTo ? advancedFilters.dateTo
-                : (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
-
-            // Combine SKUs filter mapping specifically
-            let skuNameParam, skuCodeParam;
-            if (advancedFilters.skus?.length > 0) {
-                skuNameParam = advancedFilters.skus.join(',');
-            } else if (advancedFilters.skuName) {
-                skuNameParam = advancedFilters.skuName;
-            }
-            skuCodeParam = advancedFilters.skuCode || undefined;
-
+            const parsed = JSON.parse(filterKey);
             const params = {
-                platform: reqPlatform,
-                brand: reqBrand,
-                category: reqCategory,
-                location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation),
-                startDate: reqStartDate,
-                endDate: reqEndDate,
+                platform: parsed.reqPlatform === 'All' ? undefined : parsed.reqPlatform,
+                brand: parsed.reqBrand || undefined,
+                category: parsed.reqCategory === 'All' ? undefined : parsed.reqCategory,
+                location: parsed.reqLocation === 'All' ? undefined : parsed.reqLocation,
+                startDate: parsed.reqStartDate || undefined,
+                endDate: parsed.reqEndDate || undefined,
                 compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
                 compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
-                channel: selectedChannel || undefined,
-                skuName: skuNameParam,
-                skuCode: skuCodeParam,
-                filterLogic: advancedFilters.filterLogic || 'OR'
+                channel: parsed.reqChannel === 'All' ? undefined : parsed.reqChannel,
+                skuName: parsed.advancedFilters.skuName || undefined,
+                skuCode: parsed.advancedFilters.skuCode || undefined,
+                filterLogic: parsed.advancedFilters.filterLogic || 'OR'
             }
-            console.log(`[PlatformOverviewNew] Fetching ${dimension} data from ${endpoint}`, params)
+
+            console.log(`[PlatformOverviewNew] Fetching ${dimension} data`, params)
             const res = await axiosInstance.get(endpoint, { params, timeout: 60000 })
 
+            // Only update state if this is still the most recent fetch
+            if (currentFetchId !== fetchIdRef.current) return;
+
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                console.log(`[PlatformOverviewNew] Got ${res.data.length} ${dimension} entities from API`)
+                console.log(`[PlatformOverviewNew] Got ${res.data.length} ${dimension} entities`)
                 setApiData(prev => ({ ...prev, [dimension]: res.data }))
             } else {
-                console.warn(`[PlatformOverviewNew] Empty response for ${dimension}`)
                 setApiData(prev => ({ ...prev, [dimension]: [] }))
             }
         } catch (err) {
-            console.error(`[PlatformOverviewNew] API error for ${dimension}:`, err.message)
-            setApiError(err.message || `Failed to load ${dimension} data`)
-            setApiData(prev => ({ ...prev, [dimension]: null }))
+            if (currentFetchId === fetchIdRef.current) {
+                console.error(`[PlatformOverviewNew] API error:`, err.message)
+                setApiError(err.message || `Failed to load ${dimension} data`)
+                setApiData(prev => ({ ...prev, [dimension]: null }))
+            }
         } finally {
-            setApiLoading(false)
+            if (currentFetchId === fetchIdRef.current) {
+                setApiLoading(false)
+            }
         }
-    }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, advancedFilters])
+    }, [dimension, filterKey, compareStart, compareEnd]);
 
     useEffect(() => {
-        if (!datesFetched || !platformsFetched) {
-            console.log("[PlatformOverviewNew] Waiting for context to initialize dates/platforms...");
-            return;
-        }
+        // Wait for essential context data
+        if (!datesFetched || !platformsFetched) return;
 
         const currentFetchId = ++fetchIdRef.current;
+        setApiLoading(true);
 
         const debounceTimer = setTimeout(() => {
-            // Skip if a newer update arrived during the debounce window
             if (currentFetchId !== fetchIdRef.current) return;
-            fetchDimensionData()
+            fetchDimensionData(currentFetchId)
         }, 800);
 
         return () => clearTimeout(debounceTimer);
-    }, [fetchDimensionData, datesFetched, platformsFetched])
+    }, [filterKey, datesFetched, platformsFetched, fetchDimensionData])
 
     // Fetch product/SKU options from DB for the filter dropdown
     useEffect(() => {

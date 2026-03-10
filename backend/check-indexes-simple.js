@@ -15,7 +15,7 @@ async function checkIndexes() {
         await sequelize.authenticate();
         console.log('✅ Connected successfully!\n');
 
-        const tables = ['rb_pdp_olap', 'rb_kw', 'rb_brand_ms', 'rb_sku_platform', 'rca_sku_dim'];
+        const tables = ['rb_pdp_olap', 'rb_kw_olap', 'rb_brand_ms', 'rb_sku_platform', 'rca_sku_dim'];
 
         for (const table of tables) {
             console.log(`\n${'='.repeat(50)}`);
@@ -62,7 +62,7 @@ async function checkIndexes() {
                 COUNT(DISTINCT INDEX_NAME) as index_count
             FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA = 'gcpl'
-            AND TABLE_NAME IN ('rb_pdp_olap', 'rb_kw', 'rb_brand_ms', 'rb_sku_platform', 'rca_sku_dim')
+            AND TABLE_NAME IN ('rb_pdp_olap', 'rb_kw_olap', 'rb_brand_ms', 'rb_sku_platform', 'rca_sku_dim')
             GROUP BY TABLE_NAME
             ORDER BY TABLE_NAME
         `, { type: QueryTypes.SELECT });

@@ -395,7 +395,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
             <CardHeader className="flex items-start justify-between border-b pb-3">
                 <div className="space-y-2">
                     <Box display="flex" gap={1} flexWrap="wrap">
-                        {KPI_KEYS.map((m) => (
+                        {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'Sos')).map((m) => (
                             <MetricChip
                                 key={m.key}
                                 label={m.label}

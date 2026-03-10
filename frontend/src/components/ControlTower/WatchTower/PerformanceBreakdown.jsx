@@ -349,6 +349,7 @@ export function AggregatedViewTable() {
         { key: "mtd", label: "MTD", type: "preset" },
         { key: "last_3_months", label: "Last 3M", type: "preset" },
     ]);
+    const fetchIdRef = useRef(0);
     // slicerFilters removed — filter panel hidden
 
     useEffect(() => { if (selectedPeriods.length > 0 && !comparePeriods) setComparePeriods(true); else if (selectedPeriods.length === 0 && comparePeriods) setComparePeriods(false); }, [selectedPeriods.length]);
@@ -364,6 +365,7 @@ export function AggregatedViewTable() {
     const [apiError, setApiError] = useState(null);
 
     const fetchData = useCallback(async () => {
+        const currentFetchId = ++fetchIdRef.current;
         setLoading(true);
         setApiError(null);
         try {
@@ -387,6 +389,10 @@ export function AggregatedViewTable() {
                 params.set("compare_periods", periodParams.join(","));
             }
             const res = await authGet(`/api/watchtower/performance-breakdown?${params.toString()}`);
+
+            // Race condition check
+            if (currentFetchId !== fetchIdRef.current) return;
+
             const result = res.data;
             if (res.success && result?.success && result.data?.length > 0) {
                 setData(result.data);
@@ -401,11 +407,17 @@ export function AggregatedViewTable() {
                 setPeriodComparison(null);
             }
         } catch (e) {
-            console.error("Failed to fetch performance breakdown:", e);
-            setApiError(e.message || "Failed to load Performance Breakdown data");
+            if (currentFetchId === fetchIdRef.current) {
+                console.error("Failed to fetch performance breakdown:", e);
+                setApiError(e.message || "Failed to load Performance Breakdown data");
+            }
+        } finally {
+            if (currentFetchId === fetchIdRef.current) {
+                setLoading(false);
+            }
         }
-        setLoading(false);
-    }, [groupBy, filters, selectedPeriods]); // DO NOT ADD fetchOptions or objects to dependencies that change on render
+    }, [groupBy, filters, selectedPeriods]);
+    // DO NOT ADD fetchOptions or objects to dependencies that change on render
 
     useEffect(() => {
         fetchData();
