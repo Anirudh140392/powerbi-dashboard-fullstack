@@ -34,6 +34,7 @@ import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import PlatformOverviewKpiShowcase from "../ControlTower/WatchTower/PlatformOverviewKpiShowcase";
+import { AvailabilityCompetitionKpiShowcase } from "./AvailabilityCompetitionKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../CommonLayout/ErrorRetryOverlay";
 
@@ -589,6 +590,27 @@ export default function TrendsCompetitionDrawer({
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
         const response = await axiosInstance.get('/pricing-analysis/dimension-trends', { params });
+
+        if (response.data?.timeSeries?.length > 0) {
+          setChartData(response.data.timeSeries);
+        } else {
+          setChartData([]);
+        }
+      } else if (dynamicKey === "marketshare") {
+        const params = {
+          period: range,
+          timeStep: timeStep,
+          dimension: selectedLevel?.toLowerCase(),
+          dimensionValue: shouldSendDimensionValue ? (selectedColumn || undefined) : undefined,
+          startDate: range === "Custom" && customStart ? customStart : undefined,
+          endDate: range === "Custom" && customEnd ? customEnd : undefined,
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
+          category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+        };
+
+        const response = await axiosInstance.get('/market-share/trends', { params });
 
         if (response.data?.timeSeries?.length > 0) {
           setChartData(response.data.timeSeries);
@@ -2248,6 +2270,15 @@ export default function TrendsCompetitionDrawer({
                 filterOptions={filterOptions}
                 period={range}
                 timeStep={timeStep}
+              />
+            ) : dynamicKey === "availability" ? (
+              <AvailabilityCompetitionKpiShowcase
+                platform={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : 'All'}
+                globalFilters={{
+                  startDate: customStart || undefined,
+                  endDate: customEnd || undefined,
+                }}
+                period={range}
               />
             ) : (
               <KpiTrendShowcase

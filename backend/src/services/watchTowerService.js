@@ -4957,7 +4957,7 @@ const getMonthOverview = async (filters) => {
     // Build MS conditions
     const buildMsMoConds = (brandsFilter = null) => {
         const conds = [`toDate(created_on) BETWEEN '${fetchStartDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
-        const platformCond = buildPlatformChannelCond(moPlatform, channel);
+        const platformCond = buildPlatformChannelCond(moPlatform, channel, 'platform');
         if (platformCond) conds.push(platformCond);
         conds.push(`sales IS NOT NULL`);
         if (brandsFilter && brandsFilter.length > 0) {
@@ -4967,7 +4967,7 @@ const getMonthOverview = async (filters) => {
             conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         return conds.join(' AND ');
     };
@@ -5022,17 +5022,17 @@ const getMonthOverview = async (filters) => {
                         SUM(size) as cat_size
                     FROM (
                         SELECT 
-                            month_date, Platform, category, 
+                            month_date, platform, category, 
                             MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM (
                             SELECT 
                                 formatDateTime(toDate(created_on), '%Y-%m-01') as month_date,
-                                Platform, category,
+                                platform, category,
                                 monthly_category_size
                             FROM rb_brand_ms
                             WHERE ${msDenomMoConds} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
                         )
-                        GROUP BY month_date, Platform, category
+                        GROUP BY month_date, platform, category
                     )
                     GROUP BY month_date
                 `),
@@ -5362,20 +5362,20 @@ const getCategoryOverview = async (filters) => {
         queryClickHouse(`
                     SELECT category, SUM(size) as cat_size
                     FROM (
-                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${buildMsCatConds(startDate, endDate, null)} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, category
+                        GROUP BY m, platform, category
                     )
                     GROUP BY category
                 `),
         queryClickHouse(`
                     SELECT category, SUM(size) as cat_size
                     FROM (
-                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${buildMsCatConds(momStart, momEnd, null)} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, category
+                        GROUP BY m, platform, category
                     )
                     GROUP BY category
                 `),
@@ -5680,19 +5680,19 @@ const getBrandsOverview = async (filters) => {
         queryClickHouse(`
                     SELECT SUM(size) as cat_size
                     FROM (
-                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${buildMsBrandConds(startDate, endDate, null)} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, category
+                        GROUP BY m, platform, category
                     )
                 `),
         queryClickHouse(`
                     SELECT SUM(size) as cat_size
                     FROM (
-                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${buildMsBrandConds(momStart, momEnd, null)} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, category
+                        GROUP BY m, platform, category
                     )
                 `),
         // Ad SOV by brand (spons_flag=1)
@@ -6218,15 +6218,15 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
             // Fetch unique categories (Category) from rb_pdp_olap
             const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
             const conditions = [
-                `Category IS NOT NULL`,
-                `Category != ''`,
-                `Category IN (${allowedCategories.map(c => `'${escapeStr(c)}'`).join(',')})`
+                `Product_Category IS NOT NULL`,
+                `Product_Category != ''`,
+                `Product_Category IN (${allowedCategories.map(c => `'${escapeStr(c)}'`).join(',')})`
             ];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
 
-            const query = `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY category`;
+            const query = `SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY category`;
             const results = await queryClickHouse(query);
             const categoryList = results.map(c => c.category).filter(c => c && c.trim()).sort();
             return { options: [...categoryList] };
@@ -7028,9 +7028,9 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 if (locArr && locArr.length > 0) {
                     conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
                 }
-                conds.push(`Category IS NOT NULL`, `Category != ''`);
-                conds.push(`Category IN (${allowedCategories.map(c => `'${escapeStr(c)}'`).join(',')})`);
-                return queryClickHouse(`SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY category`);
+                conds.push(`Product_Category IS NOT NULL`, `Product_Category != ''`);
+                conds.push(`Product_Category IN (${allowedCategories.map(c => `'${escapeStr(c)}'`).join(',')})`);
+                return queryClickHouse(`SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY category`);
             })(),
 
             // Fetch distinct brands filtered by platform/location + category
@@ -8434,13 +8434,13 @@ const getSkuOverview = async (filters) => {
     const buildMsSkuConds = (sDate, eDate) => {
         const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         conds.push(`sales IS NOT NULL`);
-        const pCond = buildPlatformChannelCond(skuPlatform, channel);
+        const pCond = buildPlatformChannelCond(skuPlatform, channel, 'platform');
         if (pCond) conds.push(pCond);
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`category IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`Location IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`location IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         return conds.join(' AND ');
     };
@@ -8525,19 +8525,19 @@ const getSkuOverview = async (filters) => {
         queryClickHouse(`
                     SELECT SUM(size) as cat_size
         FROM(
-            SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+            SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${buildMsSkuConds(startDate, endDate)} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, category
+                        GROUP BY m, platform, category
         )
             `),
         queryClickHouse(`
                     SELECT SUM(size) as cat_size
         FROM(
-            SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+            SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${buildMsSkuConds(prevStartDate, prevEndDate)} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, category
+                        GROUP BY m, platform, category
         )
                 `),
         // SOS by SKU (keyword_search_product)

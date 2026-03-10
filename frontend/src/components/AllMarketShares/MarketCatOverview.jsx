@@ -1,6 +1,9 @@
-import { useState, useMemo, useContext } from 'react'
+
+import { useState, useEffect, useMemo, useContext } from 'react'
+import { Skeleton } from '@mui/material'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../utils/FilterContext'
+import axiosInstance from '../../api/axiosInstance'
 import {
     TrendingUp,
     TrendingDown,
@@ -10,7 +13,6 @@ import {
     LineChart,
     BarChart3,
 } from 'lucide-react'
-import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
 import { cn } from '../../lib/utils'
 
@@ -21,7 +23,7 @@ const getStatusText = (delta) => {
 };
 
 const copy = (title, value) => {
-    navigator.clipboard.writeText(`${title}: ${value}`);
+    navigator.clipboard.writeText(`${title}: ${value} `);
 };
 
 const cardSize = {
@@ -57,6 +59,7 @@ const platformEntities = [
 ];
 
 const MarketCatOverview = ({
+    loading: parentLoading,
     onViewTrends = () => { },
     onViewRca = () => { },
 }) => {
@@ -84,74 +87,44 @@ const MarketCatOverview = ({
         filterLogic: 'OR',
     })
 
-    /* --- Mock data generator per platform per KPI --- */
-    function generatePlatformData(entityKey, entityIdx, context) {
-        const data = {}
+    // Backend data state
+    const [backendData, setBackendData] = useState(null);
+    const [dataLoading, setDataLoading] = useState(true);
 
-        kpiDefs.forEach((kpi) => {
-            const seed = { ...context, entityKey, entityIdx, kpi: kpi.key };
-            const base = getLogicalKpiValue(kpi.key, seed);
-            const isUp = getLogicalKpiValue(kpi.key + 'dir', seed) > 50;
+    // Fetch cross-platform data from backend
+    useEffect(() => {
+        const fetchCrossPlatformData = async () => {
+            setDataLoading(true);
+            try {
+                const selectedCities = advancedFilters.cities?.length > 0 ? advancedFilters.cities : (selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation : [selectedLocation]));
+                const selectedCats = advancedFilters.categories?.length > 0 ? advancedFilters.categories : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory : [selectedCategory]));
 
-            let value, deltaVal, rawValue;
+                const params = {
+                    platform: globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(",") : globalPlatform),
+                    category: selectedCats ? (Array.isArray(selectedCats) ? selectedCats.join(",") : selectedCats) : undefined,
+                    location: selectedCities ? (Array.isArray(selectedCities) ? selectedCities.join(",") : selectedCities) : undefined,
+                    startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+                    endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+                };
 
-            switch (kpi.key) {
-                case 'categorySize': {
-                    rawValue = 50 + (base % 451);
-                    value = `₹ ${rawValue.toFixed(2)} Cr`;
-                    const absChange = (getLogicalKpiValue(kpi.key + 'abs', seed) % 250) + 10;
-                    const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
-                    deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (₹${absChange.toFixed(2)} Cr)`;
-                    break;
+
+                const response = await axiosInstance.get('/market-share/cross-platform', { params });
+                console.log("Cross Platform Data:", response.data);
+
+                if (response.data && response.data.platforms) {
+                    setBackendData(response.data.platforms);
                 }
-                case 'mwMarketShare': {
-                    rawValue = 2 + (base % 34) / 10;
-                    value = `${rawValue.toFixed(2)}%`;
-                    const absChange = ((getLogicalKpiValue(kpi.key + 'abs', seed) % 80) / 10).toFixed(1);
-                    const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
-                    deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (${absChange}%)`;
-                    break;
-                }
-                case 'mwSales': {
-                    rawValue = 1 + (base % 100) / 10;
-                    value = `₹ ${rawValue.toFixed(2)} Cr`;
-                    const absChange = ((getLogicalKpiValue(kpi.key + 'abs', seed) % 120) / 10).toFixed(2);
-                    const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
-                    deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (₹${absChange} Cr)`;
-                    break;
-                }
-                case 'mlMarketShare': {
-                    rawValue = 30 + (base % 20) / 10;
-                    value = `${rawValue.toFixed(2)}%`;
-                    const absChange = ((getLogicalKpiValue(kpi.key + 'abs', seed) % 500) / 10).toFixed(1);
-                    const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
-                    deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (${absChange}%)`;
-                    break;
-                }
-                case 'mlSales': {
-                    rawValue = 10 + (base % 200) / 10;
-                    value = `₹ ${rawValue.toFixed(2)} Cr`;
-                    const absChange = ((getLogicalKpiValue(kpi.key + 'abs', seed) % 100)).toFixed(2);
-                    const pctChange = (getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1);
-                    deltaVal = `${isUp ? '▲' : '▼'} ${pctChange}% (₹${absChange} Cr)`;
-                    break;
-                }
-                default: {
-                    rawValue = base;
-                    value = `${base}`;
-                    deltaVal = `${isUp ? '▲' : '▼'} ${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`;
-                }
+            } catch (error) {
+                console.error("Error fetching Cross Platform data:", error);
+            } finally {
+                setDataLoading(false);
             }
+        };
 
-            data[kpi.key] = {
-                value,
-                delta: { value: deltaVal, dir: isUp ? 'up' : 'down' },
-                raw: rawValue
-            }
-        })
+        fetchCrossPlatformData();
+    }, [globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, advancedFilters]);
 
-        return data
-    }
+    const loading = parentLoading || dataLoading;
 
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
@@ -166,95 +139,27 @@ const MarketCatOverview = ({
     const selectedKpis = kpiDefs.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
-    // Build data for each platform
+    // Build platformData from backend response
     const platformData = useMemo(() => {
-        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
-
-        // 1. Generate data for individual platforms (Blinkit, Instamart, Zepto)
-        const individualPlats = platformEntities
-            .filter(e => e.key !== 'odd_overall')
-            .map((e, idx) => ({
+        if (!backendData) {
+            // Return empty structure while loading
+            return platformEntities.map(e => ({
                 ...e,
-                data: generatePlatformData(e.key, idx + 1, context)
+                data: kpiDefs.reduce((acc, kpi) => {
+                    acc[kpi.key] = { value: '—', delta: { value: '—', dir: 'up' }, raw: 0 };
+                    return acc;
+                }, {})
             }));
+        }
 
-        // 2. Calculate "Odd Overall" as the sum of the others
-        const oddOverall = {
-            key: 'odd_overall',
-            name: 'ODD Overall',
-            data: {}
-        };
-
-        const totalCategorySize = individualPlats.reduce((sum, p) => sum + p.data.categorySize.raw, 0);
-        const totalMwSales = individualPlats.reduce((sum, p) => sum + p.data.mwSales.raw, 0);
-        const totalMlSales = individualPlats.reduce((sum, p) => sum + p.data.mlSales.raw, 0);
-
-        // Calculate deltas for Odd Overall (simple average for now, better than zero or random)
-        const avgDelta = (kpi) => {
-            const count = individualPlats.length;
-            const upCount = individualPlats.filter(p => p.data[kpi].delta.dir === 'up').length;
-            const isUp = upCount > count / 2;
-            const pctAvg = (individualPlats.reduce((sum, p) => sum + parseFloat(p.data[kpi].delta.value.split(' ')[1]), 0) / count).toFixed(1);
-
-            // Extract and average absolute changes if applicable
-            let absPart = "";
-            if (kpi === 'categorySize' || kpi === 'mwSales' || kpi === 'mlSales') {
-                const absAvg = (individualPlats.reduce((sum, p) => {
-                    const match = p.data[kpi].delta.value.match(/₹([\d.]+)/);
-                    return sum + (match ? parseFloat(match[1]) : 0);
-                }, 0)).toFixed(2);
-                absPart = ` (₹${absAvg} Cr)`;
-            } else {
-                const absAvg = (individualPlats.reduce((sum, p) => {
-                    const match = p.data[kpi].delta.value.match(/\(([\d.]+)\%\)/);
-                    return sum + (match ? parseFloat(match[1]) : 0);
-                }, 0) / count).toFixed(1);
-                absPart = ` (${absAvg}%)`;
-            }
-
-            return {
-                value: `${isUp ? '▲' : '▼'} ${pctAvg}%${absPart}`,
-                dir: isUp ? 'up' : 'down'
-            };
-        };
-
-        oddOverall.data.categorySize = {
-            raw: totalCategorySize,
-            value: `₹ ${totalCategorySize.toFixed(2)} Cr`,
-            delta: avgDelta('categorySize')
-        };
-        oddOverall.data.mwSales = {
-            raw: totalMwSales,
-            value: `₹ ${totalMwSales.toFixed(2)} Cr`,
-            delta: avgDelta('mwSales')
-        };
-        oddOverall.data.mlSales = {
-            raw: totalMlSales,
-            value: `₹ ${totalMlSales.toFixed(2)} Cr`,
-            delta: avgDelta('mlSales')
-        };
-
-        // Recalculate Market Shares as Sums
-        const mwShare = individualPlats.reduce((sum, p) => sum + p.data.mwMarketShare.raw, 0);
-        const mlShare = individualPlats.reduce((sum, p) => sum + p.data.mlMarketShare.raw, 0);
-
-        oddOverall.data.mwMarketShare = {
-            raw: mwShare,
-            value: `${mwShare.toFixed(2)}%`,
-            delta: avgDelta('mwMarketShare')
-        };
-        oddOverall.data.mlMarketShare = {
-            raw: mlShare,
-            value: `${mlShare.toFixed(2)}%`,
-            delta: avgDelta('mlMarketShare')
-        };
-
-        // Combine them in the original order (Odd Overall first)
-        return [oddOverall, ...individualPlats];
-    }, [
-        selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd,
-        advancedFilters,
-    ])
+        return platformEntities.map(e => ({
+            ...e,
+            data: backendData[e.key] || kpiDefs.reduce((acc, kpi) => {
+                acc[kpi.key] = { value: '—', delta: { value: '—', dir: 'up' }, raw: 0 };
+                return acc;
+            }, {})
+        }));
+    }, [backendData]);
 
     const SectionWrapper = ({
         title,
@@ -266,7 +171,7 @@ const MarketCatOverview = ({
     }) => {
         return (
             <motion.div
-                className={`bg-white rounded-3xl shadow-lg border border-slate-100/60 ${className}`}
+                className={`bg - white rounded - 3xl shadow - lg border border - slate - 100 / 60 ${className} `}
                 style={{ boxShadow: '0 2px 0px rgba(0, 0, 0, 0.04)' }}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -413,10 +318,19 @@ const MarketCatOverview = ({
                                             const textColor = getStatusText(cell?.delta)
                                             const isUp = cell?.delta?.dir === 'up'
 
+
+                                            if (loading) {
+                                                return (
+                                                    <div key={plat.key} className={cn('flex-1 px-3', cardSize.minW, cardSize.py)}>
+                                                        <Skeleton variant="rounded" height={45} width="100%" style={{ borderRadius: "12px" }} />
+                                                        <Skeleton variant="text" width="60%" height={15} className="mx-auto mt-1" />
+                                                    </div>
+                                                )
+                                            }
                                             return (
                                                 <motion.button
                                                     key={plat.key}
-                                                    onClick={() => copy(`${plat.name} ${kpi.label}`, cell?.value)}
+                                                    onClick={() => copy(`${plat.name} ${kpi.label} `, cell?.value)}
                                                     className={cn(
                                                         'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
                                                         'bg-gradient-to-br from-white to-slate-50',
