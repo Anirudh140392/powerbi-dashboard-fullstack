@@ -65,7 +65,7 @@ const MS_BRANDS_SQL = MS_BRANDS.map(b => `'${escapeStr(b)}'`).join(', ');
 
 const MS_LOCATIONS = [
     'Delhi', 'Ahmedabad', 'Bengaluru', 'Chandigarh', 'Chennai',
-    'Faridabad', 'Gurugram', 'Hyderabad', 'Kolkata', 'Lucknow',
+    'Faridabad', 'Gurgaon', 'Hyderabad', 'Kolkata', 'Lucknow',
     'Mumbai', 'Pune'
 ];
 const MS_LOCATIONS_SQL = MS_LOCATIONS.map(l => `'${escapeStr(l)}'`).join(', ');
@@ -116,7 +116,7 @@ const getMapIntellectData = async (filters) => {
     const buildMsConds = (sDate, eDate) => {
         const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         if (platform && platform !== 'All') {
-            conds.push(`Platform LIKE '%${escapeStr(platform)}%'`);
+            conds.push(`platform LIKE '%${escapeStr(platform)}%'`);
         }
         return conds.join(' AND ');
     };
@@ -189,30 +189,30 @@ const getMapIntellectData = async (filters) => {
         // Use the LATEST available date's SUM(market_share) per city
         // This gives the most current snapshot instead of averaging across the range
         const msQueryBase = (sDate, eDate) => `
-            SELECT t.Location, t.mars_city_ms AS avg_market_share
+            SELECT t.location, t.mars_city_ms AS avg_market_share
             FROM (
                 SELECT
                     toDate(created_on) AS dt,
-                    Location,
+                    location,
                     SUM(market_share)  AS mars_city_ms
                 FROM rb_brand_ms
                 WHERE ${buildMsConds(sDate, eDate)}
                   AND brand    IN (${MS_BRANDS_SQL})
-                  AND Location IN (${MS_LOCATIONS_SQL})
-                GROUP BY dt, Location
+                  AND location IN (${MS_LOCATIONS_SQL})
+                GROUP BY dt, location
             ) t
             INNER JOIN (
-                SELECT Location, MAX(dt) AS max_dt
+                SELECT location, MAX(dt) AS max_dt
                 FROM (
-                    SELECT toDate(created_on) AS dt, Location
+                    SELECT toDate(created_on) AS dt, location
                     FROM rb_brand_ms
                     WHERE ${buildMsConds(sDate, eDate)}
                       AND brand    IN (${MS_BRANDS_SQL})
-                      AND Location IN (${MS_LOCATIONS_SQL})
-                    GROUP BY dt, Location
+                      AND location IN (${MS_LOCATIONS_SQL})
+                    GROUP BY dt, location
                 )
-                GROUP BY Location
-            ) m ON t.Location = m.Location AND t.dt = m.max_dt
+                GROUP BY location
+            ) m ON t.location = m.location AND t.dt = m.max_dt
         `;
 
         [currMsData, prevMsData] = await Promise.all([
@@ -227,8 +227,8 @@ const getMapIntellectData = async (filters) => {
 
     // ── Build lookup maps ──────────────────────────────────────────
     const prevPdpMap = new Map(prevCityData.map(d => [d.Location, d]));
-    const currMsMap = new Map(currMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
-    const prevMsMap = new Map(prevMsData.map(d => [(d.Location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
+    const currMsMap = new Map(currMsData.map(d => [(d.location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
+    const prevMsMap = new Map(prevMsData.map(d => [(d.location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
 
     // ── Process and return cities ──────────────────────────────────
     let cities = [];
@@ -236,7 +236,7 @@ const getMapIntellectData = async (filters) => {
     if (isMarketShareOnly) {
         // Market Share view — iterate over the 12 rb_brand_ms locations
         cities = currMsData.map(data => {
-            const cityName = (data.Location || '').trim();
+            const cityName = (data.location || '').trim();
             const cityKey = cityName.toLowerCase();
             if (!cityName || cityName.toLowerCase() === 'unknown' || cityName.toLowerCase() === 'other') return null;
 
