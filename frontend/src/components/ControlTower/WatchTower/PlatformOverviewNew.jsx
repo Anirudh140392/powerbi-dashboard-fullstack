@@ -68,7 +68,6 @@ const cardSize = {
 const kpiLabels = {
     offtakes: 'Offtakes',
     spend: 'Spend',
-    roas: 'Category size',
     availability: 'Availability',
     marketShare: 'Market share',
     conversion: 'Conversion',
@@ -77,17 +76,12 @@ const kpiLabels = {
     organic_sov: 'Organic SOV',
     inorgSales: 'Inorganic Sales',
     dspSales: 'DSP Sales',
-    promoMyBrand: 'Promo - My Brand',
-    promoCompete: 'Promo - Compete',
-    cpm: 'CPM',
-    cpc: 'CPC',
     asp: 'ASP'
 };
 
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
-    'Category Size': 'roas',
     'Spend': 'spend',
     'ROAS': 'roas_x',
     'Inorg Sales': 'inorgSales',
@@ -97,8 +91,6 @@ const BACKEND_TITLE_TO_KEY = {
     'Ad SOV': 'ad_sov',
     'Organic SOV': 'organic_sov',
     'Market Share': 'marketShare',
-    'Promo My Brand': 'promoMyBrand',
-    'Promo Compete': 'promoCompete',
     'CPM': 'cpm',
     'CPC': 'cpc',
 }
@@ -161,7 +153,6 @@ const PlatformOverviewNew = ({
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
         { key: 'spend', label: 'Spend' },
-        { key: 'roas', label: 'Category size' },
         { key: 'inorgSales', label: 'Inorg Sales' },
         { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
@@ -169,9 +160,6 @@ const PlatformOverviewNew = ({
         { key: 'shareOfVolume', label: 'Share of Volume' },
         { key: 'ad_sov', label: 'Ad SOV' },
         { key: 'organic_sov', label: 'Organic SOV' },
-        { key: 'marketShare', label: 'Market share' },
-        { key: 'promoMyBrand', label: 'Promo - My Brand' },
-        { key: 'promoCompete', label: 'Promo - Compete' },
         { key: 'cpm', label: 'CPM' },
         { key: 'cpc', label: 'CPC' },
         { key: 'asp', label: 'ASP' },
@@ -179,11 +167,9 @@ const PlatformOverviewNew = ({
     // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
 
-    // Filter out Category size (key: 'roas') when viewing SKU dimension
-    const filteredKpis = dimension === 'sku' ? kpis.filter(k => k.key !== 'roas') : kpis;
-    const defaultKpiKeys = dimension === 'sku'
-        ? ['offtakes', 'spend', 'availability', 'marketShare', 'conversion']
-        : ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'];
+    // Filter out unwanted KPIs
+    const filteredKpis = kpis;
+    const defaultKpiKeys = ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'];
 
     const [glanceKpis, setGlanceKpis] = useState(defaultKpiKeys)
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -206,11 +192,9 @@ const PlatformOverviewNew = ({
     })
     const fetchIdRef = useRef(0)
 
-    // Re-sync glanceKpis when dimension changes (remove 'roas'/Category size for SKU)
+    // Re-sync glanceKpis when dimension changes
     useEffect(() => {
-        if (dimension === 'sku') {
-            setGlanceKpis(prev => prev.filter(k => k !== 'roas'));
-        }
+        // We can add logic here if specific KPIs need to be removed for certain dimensions
     }, [dimension]);
 
     // Static dimension metadata (icons, logos for known platforms)
@@ -225,14 +209,15 @@ const PlatformOverviewNew = ({
     // Known platform logos for enriching API data
     const platformLogos = {
         'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
-        'instamart': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
-        'swiggy instamart': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+        'instamart': '\instamart_photo.png',
+        'swiggy instamart': '\instamart_photo.png',
+        'swiggy': '\instamart_photo.png',
         'zepto': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
         'flipkart': FlipkartLogo,
         'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
     }
     const platformColors = {
-        'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316',
+        'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316', 'swiggy': '#f97316',
         'zepto': '#8b5cf6', 'flipkart': '#2874f0', 'amazon': '#f59e0b',
     }
 

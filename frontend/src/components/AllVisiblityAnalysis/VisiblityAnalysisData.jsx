@@ -703,7 +703,7 @@ const VisiblityAnalysisData = ({
   //   // ---------------- TABS ----------------
   //   const tabs = [
   //     { key: "platform", label: "Platform", data: platformData },
-  //     { key: "format", label: "Format", data: formatData },
+  //     { key: "format", label: "Category", data: formatData },
   //     { key: "city", label: "City", data: cityData },
   //   ];
 
@@ -762,7 +762,7 @@ const VisiblityAnalysisData = ({
       ]
     },
     { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-    { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
+    { id: "format", label: "Category", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
     { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
     { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
     { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
@@ -778,22 +778,22 @@ const VisiblityAnalysisData = ({
       // Use only real API matrix data — no hardcoded fallback
       const emptyData = { columns: ["kpi"], rows: [] };
 
-      const platformData = apiMatrixData?.platformData?.rows?.length > 0
+      const platformKpis = apiMatrixData?.platformData?.rows?.length > 0
         ? apiMatrixData.platformData
         : emptyData;
 
-      const formatData = apiMatrixData?.formatData?.rows?.length > 0
+      const formatKpis = apiMatrixData?.formatData?.rows?.length > 0
         ? apiMatrixData.formatData
         : emptyData;
 
-      const cityData = apiMatrixData?.cityData?.rows?.length > 0
+      const cityKpis = apiMatrixData?.cityData?.rows?.length > 0
         ? apiMatrixData.cityData
         : emptyData;
 
       return [
-        { key: "platform", label: "Platform", data: platformData },
-        { key: "format", label: "Format", data: formatData },
-        { key: "city", label: "City", data: cityData },
+        { key: "platform", label: "Platform", data: platformKpis },
+        { key: "format", label: "Category", data: formatKpis },
+        { key: "city", label: "City", data: cityKpis },
       ];
     }, [apiMatrixData]);
 

@@ -334,7 +334,7 @@ const FILTER_OPTIONS_CONFIG = [
     { id: "month", label: "Month", options: [{ id: "all", label: "All" }] },
     { id: "platform", label: "Platform", options: [{ id: "all", label: "All" }] },
     { id: "productName", label: "Product Name", options: [{ id: "all", label: "All" }] },
-    { id: "format", label: "Format", options: [{ id: "all", label: "All" }] }, // Mapped to keyword_search_product in rb_kw
+    { id: "format", label: "Category", options: [{ id: "all", label: "All" }] }, // Mapped to keyword_search_product in rb_kw
     { id: "city", label: "City", options: [{ id: "all", label: "All" }] },
     { id: "pincode", label: "Pincode", options: [{ id: "all", label: "All" }] },
 ]
@@ -412,7 +412,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                     { id: "month", label: "Month", options: toOptions(monthsRes.data?.options) },
                     { id: "platform", label: "Platform", options: toOptions(platformsRes.data?.options) },
                     { id: "productName", label: "Product Name", options: toOptions(productNamesRes.data?.options) },
-                    { id: "format", label: "Format", options: toOptions(formatsRes.data?.options) },
+                    { id: "format", label: "Category", options: toOptions(formatsRes.data?.options) },
                     { id: "city", label: "City", options: toOptions(citiesRes.data?.options) },
                     { id: "pincode", label: "Pincode", options: toOptions(pincodesRes.data?.options) },
                 ]

@@ -23,7 +23,7 @@ export const FilterProvider = ({ children }) => {
 
     // Channel state (fetched dynamically from rca_sku_dim)
     const [channels, setChannels] = useState(FALLBACK_CHANNELS);
-    const [selectedChannel, setSelectedChannel] = useState(FALLBACK_CHANNELS[0]);
+    const [selectedChannel, setSelectedChannel] = useState("All");
 
     // Platform state
     const [platforms, setPlatforms] = useState(FALLBACK_PLATFORMS);
@@ -104,8 +104,9 @@ export const FilterProvider = ({ children }) => {
                     setChannels(res.data);
                     // Keep current selection if still valid, otherwise select first
                     setSelectedChannel(prev => {
+                        if (prev === 'All') return 'All'; // Always keep "All" as valid
                         if (res.data.includes(prev)) return prev;
-                        return res.data[0];
+                        return 'All'; // Default to All instead of first channel
                     });
                 } else {
                     setChannels(FALLBACK_CHANNELS);

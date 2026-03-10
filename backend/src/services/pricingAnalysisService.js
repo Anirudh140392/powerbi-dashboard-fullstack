@@ -6,11 +6,11 @@ import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheH
 // Helper to escape string for SQL
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
-// Global SQL snippet to resolve the Category from Brand if the column is empty
+// Global SQL snippet to resolve the Product_Category from Brand if the column is empty
 // For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
 // Gifting (gift, tin pack, minis) from Non-Gifting
-const CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
-    Category, 
+const PRODUCT_CATEGORY_SQL = `if(Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0', 
+    Product_Category, 
     multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%' OR LOWER(toString(Product)) LIKE '%minis%', 
@@ -156,7 +156,7 @@ async function getEcpComparison(filters = {}) {
 
             const categories = parseMultiSelectFilter(category);
             if (categories) {
-                whereConditions.push(`${CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
             }
 
             const whereClause = whereConditions.join(' AND ');
@@ -228,7 +228,7 @@ async function getEcpComparison(filters = {}) {
               ${platforms ? `AND ${buildInClause('p.Platform', platforms)}` : ''}
               ${locations ? `AND ${buildInClause('p.Location', locations)}` : ''}
               ${channels ? `AND ${buildInClause('p.Channel', channels)}` : ''}
-              ${categories ? `AND ${CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
+              ${categories ? `AND ${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
             GROUP BY p.Platform, p.Brand, p.Product, pack_size
             HAVING ecp_prev IS NOT NULL AND ecp_curr IS NOT NULL
             ORDER BY p.Platform, p.Brand, p.Product
@@ -322,7 +322,7 @@ async function getEcpComparison(filters = {}) {
                           ${platforms ? `AND ${buildInClause('p.Platform', platforms)}` : ''}
                           ${locations ? `AND ${buildInClause('p.Location', locations)}` : ''}
                           ${channels ? `AND ${buildInClause('p.Channel', channels)}` : ''}
-                          ${categories ? `AND ${CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
+                          ${categories ? `AND ${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
                         GROUP BY p.Product, p.Location
                         HAVING ecp_prev IS NOT NULL AND ecp_curr IS NOT NULL
                     `;
@@ -442,7 +442,7 @@ async function getPricingKpis(filters = {}) {
             if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
             const categories = parseMultiSelectFilter(category);
-            if (categories) whereConditions.push(`${CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+            if (categories) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
             if (channels) whereConditions.push(buildInClause(channelCol, channels));
@@ -598,7 +598,7 @@ async function getPricingInsights(filters = {}) {
             if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
             const categories = parseMultiSelectFilter(category);
-            if (categories) whereConditions.push(`${CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+            if (categories) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
             if (channels) whereConditions.push(buildInClause(channelCol, channels));
@@ -611,7 +611,7 @@ async function getPricingInsights(filters = {}) {
             SELECT
                 p.Brand,
                 p.Product,
-                ${CATEGORY_SQL} AS Category,
+                ${PRODUCT_CATEGORY_SQL} AS Category,
                 p.Comp_flag,
                 AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
                          AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
@@ -690,9 +690,8 @@ async function getPricingInsights(filters = {}) {
  */
 const getDimensionOverview = async (filters = {}) => {
     console.log('[PricingAnalysisService] getDimensionOverview called with filters:', filters);
-    const cacheKey = generateCacheKey('pricing_dimension_overview', filters);
-
-    return await getCachedOrCompute(cacheKey, async () => {
+    // return await getCachedOrCompute(cacheKey, async () => {
+    return await (async () => {
         try {
             const startDate = filters.startDate || dayjs().subtract(14, 'day').format('YYYY-MM-DD');
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
@@ -700,8 +699,7 @@ const getDimensionOverview = async (filters = {}) => {
             const dimensionParam = filters.dimension || 'category';
             // dimensionParam can be 'category', 'location', or 'city' (frontend sends 'city')
             const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
-            const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : CATEGORY_SQL;
-            const locationCol = isLocation ? CITY_NORMALIZATION_SQL : 'p.Location';
+            const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
 
             const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
             const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
@@ -726,16 +724,14 @@ const getDimensionOverview = async (filters = {}) => {
             if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
 
             const locations = normalizeLocations(parseMultiSelectFilter(location));
-            // Ignore location filter if we are grouping by location (Overview mode)
-            if (locations && !isLocation) whereConditions.push(buildInClause('p.Location', locations));
+            if (locations) whereConditions.push(buildInClause('p.Location', locations));
 
             const brands = parseMultiSelectFilter(brand);
             if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
             const categories = parseMultiSelectFilter(category);
-            // Ignore category filter if we are grouping by category (Overview mode)
-            if (categories && isLocation) {
-                whereConditions.push(`${CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+            if (categories) {
+                whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
             }
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
@@ -788,8 +784,11 @@ const getDimensionOverview = async (filters = {}) => {
             SETTINGS max_execution_time = 30
             `;
 
-            console.log(`[PricingAnalysisService] Executing Dimension Overview query (group by ${dimensionParam})...`);
-            const results = await queryClickHouse(query);
+            console.log(`[PricingAnalysisService] Executing Dimension Overview query (group by ${dimensionParam}):\n${query}`);
+            console.log(`[PricingAnalysisService] Query returned ${results?.length || 0} rows`);
+            if (results && results.length > 0) {
+                console.log(`[PricingAnalysisService] Raw dimension names:`, results.map(r => r.dimension_name));
+            }
 
             const processedData = (results || []).map(r => {
                 const mapMetric = (currKey, prevKey) => {
@@ -825,7 +824,7 @@ const getDimensionOverview = async (filters = {}) => {
             console.error('[PricingAnalysisService] Error in getDimensionOverview:', error);
             return { success: false, error: error.message };
         }
-    }, CACHE_TTL.ONE_HOUR);
+    })();
 }
 
 /**
@@ -844,7 +843,7 @@ const getDimensionTrends = async (filters) => {
 
         const dimensionParam = filters.dimension || 'category';
         const isLocation = dimensionParam === "location" || dimensionParam === "city";
-        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : CATEGORY_SQL;
+        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
         const dimensionValue = filters.dimensionValue;
 
         const timeStep = (filters.timeStep || 'Daily').toLowerCase();
@@ -877,7 +876,7 @@ const getDimensionTrends = async (filters) => {
         if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
         const categories = parseMultiSelectFilter(category);
-        if (categories) whereConditions.push(`${CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+        if (categories) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
 
         const channels = normalizeChannels(parseMultiSelectFilter(filters.channel));
         if (channels) {
@@ -961,7 +960,7 @@ const getPricingCompetitionTrends = async (filters) => {
         const dimensionParam = filters.dimension || 'category';
         const dimensionValue = filters.dimensionValue;
         const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
-        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : CATEGORY_SQL;
+        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
 
         const platforms = parseMultiSelectFilter(platform);
         if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
@@ -970,7 +969,7 @@ const getPricingCompetitionTrends = async (filters) => {
         if (locations) whereConditions.push(buildInClause('p.Location', locations));
 
         const categoriesArr = parseMultiSelectFilter(category);
-        if (categoriesArr) whereConditions.push(`${CATEGORY_SQL} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
+        if (categoriesArr) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
 
         const channels = normalizeChannels(parseMultiSelectFilter(filters.channel));
         if (channels) {
@@ -1059,7 +1058,7 @@ const getPricingCompetition = async (filters) => {
 
         const dimensionParam = filters.dimension || 'category';
         const isLocation = dimensionParam === "location" || dimensionParam === "city";
-        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : CATEGORY_SQL;
+        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
         const dimensionValue = filters.dimensionValue;
 
         let whereConditions = [
@@ -1084,7 +1083,7 @@ const getPricingCompetition = async (filters) => {
         if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
         const categoriesArr = parseMultiSelectFilter(category);
-        if (categoriesArr) whereConditions.push(`${CATEGORY_SQL} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
+        if (categoriesArr) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
 
         const channels = normalizeChannels(parseMultiSelectFilter(filters.channel));
         if (channels) {

@@ -148,15 +148,10 @@ export default function ScheduledReports() {
         "Watch Tower",
         "Availability Analysis",
         "Visibility Analysis",
-        "Market Share",
         "Sales Data",
         "Pricing Analysis",
         "Performance Marketing",
-        "Portfolio Analysis",
-        "Content Analysis",
         "Inventory Analysis",
-        "Play it Yourself",
-        "Category RCA",
     ];
 
     const handleDownload = async () => {

@@ -2,8 +2,10 @@ import performanceMarketingService from './src/services/performanceMarketingServ
 
 async function verify() {
     console.log("Testing getCampaignQuadrants...");
-    const quadrants = await performanceMarketingService.getCampaignQuadrants({});
-    console.log(quadrants);
+    const filters = { startDate: '2026-02-06', endDate: '2026-02-12' };
+    console.log("Filters:", filters);
+    const quadrants = await performanceMarketingService.getCampaignQuadrants(filters);
+    console.log("Result:", quadrants);
 }
 
 verify().then(() => process.exit(0)).catch(console.error);

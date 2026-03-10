@@ -707,21 +707,21 @@ export default function TrendsCompetitionDrawer({
               id: "ShareOfSearch",
               label: "Share of Search",
               color: "#2563EB",
-              axis: "left",
+              axis: "right",
               default: true,
             },
             {
               id: "InorganicSales",
               label: "Inorganic Sales",
               color: "#16A34A",
-              axis: "right",
+              axis: "left",
               default: true,
             },
             {
               id: "Conversion",
               label: "Conversion",
               color: "#F97316",
-              axis: "left",
+              axis: "right",
               default: false,
             },
             {
@@ -940,21 +940,21 @@ export default function TrendsCompetitionDrawer({
               id: "Osa",
               label: "Osa",
               color: "#F97316",
-              axis: "left",
+              axis: "right",
               default: true,
             },
             {
               id: "Listing",
               label: "Listing %",
               color: "#0EA5E9",
-              axis: "left",
+              axis: "right",
               default: true,
             },
             {
               id: "Assortment",
               label: "Assortment",
               color: "#22C55E",
-              axis: "left",
+              axis: "right",
               default: false,
             },
           ],
@@ -1116,7 +1116,7 @@ export default function TrendsCompetitionDrawer({
               id: "RPI",
               label: "RPI",
               color: "#F43F5E",
-              axis: "left",
+              axis: "right",
               default: false,
             },
             {
@@ -1197,13 +1197,6 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             {
-              id: "CategorySize",
-              label: "Category Size (Cr)",
-              color: "#6366F1",
-              axis: "left",
-              default: true,
-            },
-            {
               id: "MWMarketShare",
               label: "MW Market Share%",
               color: "#14B8A6",
@@ -1242,7 +1235,6 @@ export default function TrendsCompetitionDrawer({
             { date: "04 Oct'25", CategorySize: 232, MWMarketShare: 3.5, MWSales: 8.1, MLMarketShare: 36.0, MLSales: 83.5 },
           ].map((p, idx) => ({
             ...p,
-            CategorySize: applyVar(p.CategorySize, idx),
             MWMarketShare: applyVar(p.MWMarketShare, idx),
             MWSales: applyVar(p.MWSales, idx),
             MLMarketShare: applyVar(p.MLMarketShare, idx),
@@ -1257,7 +1249,6 @@ export default function TrendsCompetitionDrawer({
           timeSteps: ["Daily", "Weekly", "Monthly"],
           defaultTimeStep: "Daily",
           metrics: [
-            { id: "CategorySize", label: "Category Size (Cr)", color: "#6366F1", default: true },
             { id: "MWMarketShare", label: "MW Market Share%", color: "#14B8A6", default: true },
             { id: "MWSales", label: "MW Sales (Cr)", color: "#F43F5E", default: false },
             { id: "MLMarketShare", label: "ML Market Share%", color: "#8B5CF6", default: false },
@@ -1265,9 +1256,9 @@ export default function TrendsCompetitionDrawer({
           ],
           x: COMPARE_X,
           trendsBySku: {
-            1: COMPARE_X.map(x => ({ x, CategorySize: applyVar(220, x), MWMarketShare: applyVar(3.1, x), MWSales: applyVar(6.9, x), MLMarketShare: applyVar(35.2, x), MLSales: applyVar(77.5, x) })),
-            2: COMPARE_X.map(x => ({ x, CategorySize: applyVar(190, x), MWMarketShare: applyVar(2.8, x), MWSales: applyVar(5.3, x), MLMarketShare: applyVar(33.8, x), MLSales: applyVar(64.2, x) })),
-            3: COMPARE_X.map(x => ({ x, CategorySize: applyVar(250, x), MWMarketShare: applyVar(3.6, x), MWSales: applyVar(9.0, x), MLMarketShare: applyVar(36.1, x), MLSales: applyVar(90.2, x) })),
+            1: COMPARE_X.map(x => ({ x, MWMarketShare: applyVar(3.1, x), MWSales: applyVar(6.9, x), MLMarketShare: applyVar(35.2, x), MLSales: applyVar(77.5, x) })),
+            2: COMPARE_X.map(x => ({ x, MWMarketShare: applyVar(2.8, x), MWSales: applyVar(5.3, x), MLMarketShare: applyVar(33.8, x), MLSales: applyVar(64.2, x) })),
+            3: COMPARE_X.map(x => ({ x, MWMarketShare: applyVar(3.6, x), MWSales: applyVar(9.0, x), MLMarketShare: applyVar(36.1, x), MLSales: applyVar(90.2, x) })),
           },
         },
 
@@ -1277,7 +1268,6 @@ export default function TrendsCompetitionDrawer({
           periodToggle: { primary: "MTD", compare: "Previous Month" },
           columns: [
             { id: "brand", label: "Brand", type: "text" },
-            { id: "CategorySize", label: "Category Size (Cr)", type: "metric" },
             { id: "MWMarketShare", label: "MW Market Share%", type: "metric" },
             { id: "MWSales", label: "MW Sales (Cr)", type: "metric" },
             { id: "MLMarketShare", label: "ML Market Share%", type: "metric" },
@@ -1336,47 +1326,23 @@ export default function TrendsCompetitionDrawer({
               id: "InorgSales",
               label: "Inorg Sales",
               color: "#7C3AED",
-              axis: "right",
+              axis: "left",
             },
             {
               id: "Conversion",
               label: "Conversion",
               color: "#F97316",
-              axis: "left",
+              axis: "right",
             },
             {
               id: "Availability",
               label: "Availability",
               color: "#22C55E",
-              axis: "left",
-            },
-            { id: "SOS", label: "SOS", color: "#A855F7", axis: "left" },
-            {
-              id: "CategorySize",
-              label: "Category Size",
-              color: "#EC4899",
               axis: "right",
             },
-            {
-              id: "MarketShare",
-              label: "Market Share",
-              color: "#9333EA",
-              axis: "right",
-            },
-            {
-              id: "PromoMyBrand",
-              label: "Promo – My Brand",
-              color: "#F59E0B",
-              axis: "left",
-            },
-            {
-              id: "PromoCompete",
-              label: "Promo – Compete",
-              color: "#FB7185",
-              axis: "left",
-            },
-            { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
-            { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
+            { id: "SOS", label: "SOS", color: "#A855F7", axis: "right" },
+            { id: "CPM", label: "CPM", color: "#64748B", axis: "left" },
+            { id: "CPC", label: "CPC", color: "#475569", axis: "left" },
           ],
 
           points: [
@@ -1389,10 +1355,6 @@ export default function TrendsCompetitionDrawer({
               Conversion: 3.4,
               Availability: 84,
               SOS: 42,
-              CategorySize: 24.3,
-              MarketShare: 18.1,
-              PromoMyBrand: 12.4,
-              PromoCompete: 9.8,
               CPM: 146,
               CPC: 9.6,
             },
@@ -1550,7 +1512,6 @@ export default function TrendsCompetitionDrawer({
             Conversion: applyVar(p.Conversion, idx),
             Availability: applyVar(p.Availability, idx),
             SOS: applyVar(p.SOS, idx),
-            CategoryShare: applyVar(p.CategoryShare, idx),
             MarketShare: applyVar(p.MarketShare, idx),
           })),
         },
@@ -1844,6 +1805,14 @@ export default function TrendsCompetitionDrawer({
           axisTick: { show: false },
           splitLine: { lineStyle: { color: "#F3F4F6" } },
           scale: true,
+          axisLabel: {
+            formatter: (value) => {
+              if (value >= 10000000) return `₹ ${(value / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
+              if (value >= 100000) return `₹ ${(value / 100000).toFixed(1).replace(/\.0$/, '')} lac`;
+              if (value >= 1000) return `₹ ${(value / 1000).toFixed(1).replace(/\.0$/, '')} K`;
+              return `₹ ${value}`;
+            }
+          }
         },
         {
           type: "value",
@@ -1852,6 +1821,9 @@ export default function TrendsCompetitionDrawer({
           axisTick: { show: false },
           splitLine: { show: false },
           scale: true,
+          axisLabel: {
+            formatter: (value) => `${value} %`
+          }
         },
       ],
       legend: { show: false },
@@ -2117,12 +2089,7 @@ export default function TrendsCompetitionDrawer({
                         : allTrendMeta.context.audience === "Brand"
                           ? BRAND_OPTIONS
                           : [];
-                  const MAX_VISIBLE = 6;
-                  const needsTruncation = allOptions.length > MAX_VISIBLE;
-                  const visibleOptions = needsTruncation && !showAllPills
-                    ? allOptions.slice(0, MAX_VISIBLE)
-                    : allOptions;
-                  const hiddenCount = allOptions.length - MAX_VISIBLE;
+                  const visibleOptions = allOptions;
 
                   return (
                     <Box display="flex" gap={0.5} flexWrap="wrap" alignItems="center">
@@ -2153,25 +2120,6 @@ export default function TrendsCompetitionDrawer({
                           {p}
                         </Box>
                       ))}
-                      {needsTruncation && (
-                        <Box
-                          onClick={() => setShowAllPills(prev => !prev)}
-                          sx={{
-                            px: 1.5,
-                            py: 0.7,
-                            borderRadius: "999px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            border: "1px solid #E5E7EB",
-                            backgroundColor: "#F1F5F9",
-                            color: "#3B82F6",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {showAllPills ? "Show less" : `+${hiddenCount} more`}
-                        </Box>
-                      )}
                     </Box>
                   );
                 })()}
@@ -2260,18 +2208,6 @@ export default function TrendsCompetitionDrawer({
                   ))}
                 </Box>
 
-                <Button
-                  size="small"
-                  endIcon={<ChevronDown size={14} />}
-                  sx={{
-                    textTransform: "none",
-                    borderRadius: "999px",
-                    borderColor: "#E5E7EB",
-                  }}
-                  variant="outlined"
-                >
-                  +{Math.max(trendMeta.metrics.length - 4, 0)} more
-                </Button>
               </Box>
 
               {/* Chart */}

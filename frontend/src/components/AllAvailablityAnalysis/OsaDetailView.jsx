@@ -98,7 +98,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
         return [
             { id: "platform", label: "Platform", options: platforms },
             { id: "productName", label: "Product Name", options: products },
-            { id: "format", label: "Format", options: formats },
+            { id: "format", label: "Category", options: formats },
             { id: "city", label: "City", options: cities },
         ];
     }, [apiData]);
