@@ -28,11 +28,11 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 import { ensurePlatformData, queryByFilters, aggregateMetrics, getPlatformStats, isPlatformDataLoaded, coalesceRequest, getBrandMonthlyData } from './redisDataService.js';
 import { normalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketShareByBrand, getMarketShareTimeSeries } from './marketShareHelper.js';
 
-// Global SQL snippet to resolve the Product_Category from Brand if the column is empty
+// Global SQL snippet to resolve the Category from Brand if the column is empty
 // For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
 // Gifting (gift, tin pack, minis) from Non-Gifting
-const PRODUCT_CATEGORY_SQL = `if(Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0', 
-    Product_Category, 
+const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
+    Category, 
     multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%' OR LOWER(toString(Product)) LIKE '%minis%', 
@@ -591,7 +591,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (cond) conditions.push(cond);
             }
 
-            // Apply Product_Category filter for rb_pdp_olap
+            // Apply Category filter for rb_pdp_olap
             const catArrLocal = normalizeFilterArray(category);
             if (catArrLocal && catArrLocal.length > 0) {
                 conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
@@ -657,7 +657,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 conditions.push(`Location IN (${locationFilterArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
 
-            // Apply Product_Category filter for rb_pdp_olap
+            // Apply Category filter for rb_pdp_olap
             const catArrLocal = normalizeFilterArray(categoryFilter);
             if (catArrLocal && catArrLocal.length > 0) {
                 conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -953,7 +953,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(platformCond);
                     }
 
-                    // Apply Product_Category filter for rb_pdp_olap
+                    // Apply Category filter for rb_pdp_olap
                     const catArrLocal = normalizeFilterArray(category);
                     if (catArrLocal && catArrLocal.length > 0) {
                         conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -1319,7 +1319,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const cond = buildPlatformChannelCond(null, channel);
                         if (cond) prevConditions.push(cond);
                     }
-                    // Apply Product_Category filter for rb_pdp_olap
+                    // Apply Category filter for rb_pdp_olap
                     const catArrLocal = normalizeFilterArray(category);
                     if (catArrLocal && catArrLocal.length > 0) {
                         prevConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
@@ -2371,7 +2371,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
             }
 
-            // Apply Product_Category filter for rb_pdp_olap
+            // Apply Category filter for rb_pdp_olap
             const catArrLocal = normalizeFilterArray(filters.category);
             if (catArrLocal && catArrLocal.length > 0) {
                 conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -2425,7 +2425,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                     }
                 }
-                // Apply Product_Category filter for rb_pdp_olap
+                // Apply Category filter for rb_pdp_olap
                 const catArrLocal = normalizeFilterArray(filters.category);
                 if (catArrLocal && catArrLocal.length > 0) {
                     conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -2758,7 +2758,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conds.push(`Location IN (${locationArr.map(l => `'${escapeStrMo(l)}'`).join(', ')})`);
                     }
                 }
-                // Apply Product_Category filter for rb_pdp_olap
+                // Apply Category filter for rb_pdp_olap
                 const catArrLocal = normalizeFilterArray(filters.category);
                 if (catArrLocal && catArrLocal.length > 0) {
                     conds.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStrMo(c)}'`).join(', ')})`);
