@@ -735,7 +735,12 @@ const getDimensionOverview = async (filters = {}) => {
             const categories = parseMultiSelectFilter(category);
             // Ignore category filter if we are grouping by category (Overview mode)
             if (categories && isLocation) {
-                whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                const escapedCats = categories.map(v => `'${escapeStr(v)}'`).join(',');
+                whereConditions.push(`(
+                    ${PRODUCT_CATEGORY_SQL} IN (${escapedCats}) OR 
+                    p.Product_Category IN (${escapedCats}) OR 
+                    p.Brand IN (${escapedCats})
+                )`);
             }
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
