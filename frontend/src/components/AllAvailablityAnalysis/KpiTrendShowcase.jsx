@@ -1069,6 +1069,12 @@ const KPI_KEYS = [
     unit: "%",
   },
   {
+    key: "Sos",
+    label: "SOS",
+    color: "#6366F1",
+    unit: "%",
+  },
+  {
     key: "Listing",
     label: "Listing %",
     color: "#8B5CF6",

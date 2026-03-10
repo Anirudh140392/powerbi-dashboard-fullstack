@@ -104,25 +104,28 @@ const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
  * @param {string} channel - The selected channel (e.g. 'Ecommerce', 'Modern Trades')
  * @returns {string|null} - The SQL condition for platform
  */
-const buildPlatformChannelCond = (platform, channel, columnName = 'Platform') => {
+const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', forceLower = false) => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+    const formatStr = (s) => forceLower && s ? s.toLowerCase() : s;
 
     if (platform && platform !== 'All') {
         const platforms = Array.isArray(platform) ? platform : (typeof platform === 'string' && platform.includes(',') ? platform.split(',') : [platform]);
         if (platforms.length === 1) {
-            return `${columnName} = '${escapeStr(platforms[0])}'`;
+            return `${columnName} = '${escapeStr(formatStr(platforms[0]))}'`;
         } else if (platforms.length > 1) {
-            const list = platforms.map(p => `'${escapeStr(p.trim())}'`).join(', ');
+            const list = platforms.map(p => `'${escapeStr(formatStr(p.trim()))}'`).join(', ');
             return `${columnName} IN (${list})`;
         }
     }
 
     if (channel === 'Ecommerce' || channel === 'E-commerce' || channel === 'Ecom') {
-        return `${columnName} IN ('Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart')`;
+        const ecomPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart'];
+        return `${columnName} IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`;
     }
 
     if (channel === 'Modern Trades' || channel === 'ModernTrade') {
-        return `${columnName} NOT IN ('Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart')`;
+        const ecomPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart'];
+        return `${columnName} NOT IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`;
     }
 
     return null;
@@ -710,27 +713,33 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 const catArr = normalizeFilterArray(categoryFilter);
                 if (catArr && catArr.length > 0) {
-                    baseConditions.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    baseConditions.push(`lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
                 }
 
                 // Location with multi-value support
                 const locFilterArr = normalizeFilterArray(locationFilter);
                 if (locFilterArr && locFilterArr.length > 0) {
                     if (locFilterArr.length === 1) {
-                        baseConditions.push(`location_name = '${escapeStr(locFilterArr[0])}'`);
+                        baseConditions.push(`lower(location_name) = '${escapeStr(locFilterArr[0].toLowerCase())}'`);
                     } else {
-                        baseConditions.push(`location_name IN (${locFilterArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                        baseConditions.push(`lower(location_name) IN (${locFilterArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
                     }
+                }
+
+                // Brand Condition
+                const brandArr = normalizeFilterArray(brandFilter);
+                if (brandArr && brandArr.length > 0) {
+                    baseConditions.push(`(${brandArr.map(b => `lower(brand_name) LIKE lower('%${escapeStr(b)}%')`).join(' OR ')})`);
                 }
 
                 // Platform with multi-value support
                 const platFilterArr = normalizeFilterArray(platformFilter);
                 if (platFilterArr && platFilterArr.length > 0) {
-                    const cond = buildPlatformChannelCond(platFilterArr, channel, 'platform_name');
+                    const cond = buildPlatformChannelCond(platFilterArr, channel, 'lower(platform_name)', true);
                     if (cond) baseConditions.push(cond);
                 } else {
                     // Handle All platform based on channel
-                    const pCond = buildPlatformChannelCond(null, channel, 'platform_name');
+                    const pCond = buildPlatformChannelCond(null, channel, 'lower(platform_name)', true);
                     if (pCond) baseConditions.push(pCond);
                 }
 
@@ -803,10 +812,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     const platArr = normalizeFilterArray(platformFilter);
                     if (platArr && platArr.length > 0) {
-                        const platCond = buildPlatformChannelCond(platArr, channel, 'platform_name');
+                        const platCond = buildPlatformChannelCond(platArr, channel, 'LOWER(platform_name)', true);
                         if (platCond) conditions.push(platCond);
                     } else {
-                        const pCond = buildPlatformChannelCond(null, channel, 'platform_name');
+                        const pCond = buildPlatformChannelCond(null, channel, 'LOWER(platform_name)', true);
                         if (pCond) conditions.push(pCond);
                     }
 
@@ -823,7 +832,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 console.log(`[Bulk SOS] Calculating SOS for ${validBrands.length} brands:`, validBrands.slice(0, 5).join(', ') + '...');
 
                 // Build brand list for IN clause
-                const brandInClause = validBrands.map(b => `'${escapeStr(b)}'`).join(', ');
+                const brandInClause = validBrands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
                 const baseConditions = buildBaseConditions();
                 const baseCondStr = baseConditions.length > 0 ? ` AND ${baseConditions.join(' AND ')}` : '';
 
@@ -834,7 +843,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         SELECT brand_name, count() as count
                         FROM rb_kw
                         WHERE toDate(created_on) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
-                        AND brand_name IN (${brandInClause})
+                        AND LOWER(brand_name) IN (${brandInClause})
                         ${baseCondStr}
                         GROUP BY brand_name
                     `),
@@ -850,7 +859,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         SELECT brand_name, count() as count
                         FROM rb_kw
                         WHERE toDate(created_on) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
-                        AND brand_name IN (${brandInClause})
+                        AND LOWER(brand_name) IN (${brandInClause})
                         ${baseCondStr}
                         GROUP BY brand_name
                     `),
@@ -4157,19 +4166,25 @@ const getPlatformOverview = async (filters) => {
     const buildSosConds = (start, end) => {
         const conds = [`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
         if (locationArr && locationArr.length > 0) {
-            conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`lower(location_name) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
-            conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`lower(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
         }
         // Apply brand filter (rb_kw uses brand_name column)
         if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `brand_name LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+            conds.push(`(${brandArr.map(b => `lower(brand_name) LIKE lower('%${escapeStr(b)}%')`).join(' OR ')})`);
         }
+
         // Apply platform filter (rb_kw uses platform_name column)
         if (platformArr && platformArr.length > 0) {
-            conds.push(`platform_name IN (${platformArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            const cond = buildPlatformChannelCond(platformArr, channel, 'lower(platform_name)', true);
+            if (cond) conds.push(cond);
+        } else {
+            const pCond = buildPlatformChannelCond(null, channel, 'lower(platform_name)', true);
+            if (pCond) conds.push(pCond);
         }
+
         return conds.join(' AND ');
     };
 
@@ -7221,7 +7236,7 @@ const getLatestAvailableMonth = async (filters = {}) => {
  */
 const getCompetitionBrandTrends = async (filters = {}) => {
     try {
-        let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M' } = filters;
+        let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M', platform = 'All' } = filters;
 
         // Handle "All India" -> "All" conversion
         if (location === 'All India') location = 'All';
@@ -7290,8 +7305,23 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             ? `brand IN(${validBrandNames.map(b => `'${escapeStr(b)}'`).join(', ')})`
             : '1=0';
 
+        // Build conditions for Keyword Share of Search (Denominator)
+        const platArr = normalizeFilterArray(platform);
+        const kwBaseConds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
+        if (platArr && platArr.length > 0) {
+            kwBaseConds.push(`lower(platform_name) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+        }
+        if (locArr && locArr.length > 0) {
+            kwBaseConds.push(`lower(location_name) IN(${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        }
+        const catArrNorm = normalizeFilterArray(category);
+        if (catArrNorm && catArrNorm.length > 0) {
+            kwBaseConds.push(`lower(keyword_category) IN(${catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+        }
+        kwBaseConds.push(`keyword_search_rank < 11`);
+
         // Parallel queries: total impressions, total sales (MS denominator), our brands sales (MS numerator), category totals
-        const [totalsData, msTotalsData, msOurBrandsData, catTotalsData] = await Promise.all([
+        const [totalsData, msTotalsData, msOurBrandsData, catTotalsData, kwTotalsData] = await Promise.all([
             // Query 1: Total impressions per day from rb_pdp_olap (for SOS calculation)
             queryClickHouse(`
         SELECT
@@ -7331,6 +7361,16 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 WHERE ${catBaseConds.join(' AND ')}
                 GROUP BY date_key
                 ORDER BY date_key ASC
+            `),
+            // Query 5: Total keyword searches per day for SOS Denominator
+            queryClickHouse(`
+        SELECT
+        toDate(created_on) as date_key,
+            COUNT(*) as total_kw
+                FROM rb_kw
+                WHERE ${kwBaseConds.join(' AND ')}
+                GROUP BY date_key
+                ORDER BY date_key ASC
             `)
         ]);
 
@@ -7351,6 +7391,11 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         const catTotalsMap = new Map(catTotalsData.map(r => [
             String(r.date_key),
             { total_category_sales: parseFloat(r.total_cat_sales || 0) }
+        ]));
+
+        const kwTotalsMap = new Map(kwTotalsData.map(r => [
+            String(r.date_key),
+            { total_kw: parseFloat(r.total_kw || 0) }
         ]));
 
         console.log(`[getCompetitionBrandTrends] Got totals: ${totalsData.length} days impressions, ${msTotalsData.length} days platform sales, ${catTotalsData.length} days category sales`);
@@ -7374,14 +7419,17 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
             // Build conditions to get this specific target's sales from rb_brand_ms
             let targetMsConds;
+            let targetKwConds;
             if (isSkuMode) {
                 targetMsConds = [...msBaseConds, `lower(item_name) = '${escapeStr(targetName.toLowerCase())}'`];
+                targetKwConds = [...kwBaseConds, `lower(keyword_search_product) = '${escapeStr(targetName.toLowerCase())}'`];
             } else {
                 targetMsConds = [...msBaseConds, `lower(brand) = '${escapeStr(targetName.toLowerCase())}'`];
+                targetKwConds = [...kwBaseConds, `lower(brand_crawl) = '${escapeStr(targetName.toLowerCase())}'`];
             }
 
             // Parallel queries: main metrics from rb_pdp_olap and sales from rb_brand_ms
-            const [rawData, targetSalesData] = await Promise.all([
+            const [rawData, targetSalesData, targetKwData] = await Promise.all([
                 // Query main metrics from rb_pdp_olap (OSA, SOS numerator, Price)
                 queryClickHouse(`
         SELECT
@@ -7407,6 +7455,16 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                     WHERE ${targetMsConds.join(' AND ')}
                     GROUP BY date_key
                     ORDER BY date_key ASC
+            `),
+                // Query this specific target's keyword count per day from rb_kw (for SOS numerator)
+                queryClickHouse(`
+        SELECT
+        toDate(created_on) as date_key,
+            COUNT(*) as target_kw
+                    FROM rb_kw
+                    WHERE ${targetKwConds.join(' AND ')}
+                    GROUP BY date_key
+                    ORDER BY date_key ASC
             `)
             ]);
 
@@ -7415,6 +7473,19 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 String(r.date_key),
                 parseFloat(r.target_sales || 0)
             ]));
+
+            const targetKwMap = new Map(targetKwData.map(r => [
+                String(r.date_key),
+                parseFloat(r.target_kw || 0)
+            ]));
+
+            if (targetName === 'Amul' || targetName === 'Ferrero') {
+                console.log(`[DEBUG SOS ${targetName}] targetKwMap keys:`, Array.from(targetKwMap.keys()).slice(0, 5));
+                console.log(`[DEBUG SOS ${targetName}] kwTotalsMap keys:`, Array.from(kwTotalsMap.keys()).slice(0, 5));
+                if (rawData.length > 0) {
+                    console.log(`[DEBUG SOS ${targetName}] rawData key type:`, String(rawData[0].date_key));
+                }
+            }
 
             console.log(`[getCompetitionBrandTrends] Target "${targetName}": ${rawData.length} data points, ${targetSalesData.length} market share points`);
 
@@ -7434,11 +7505,17 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 const msTotals = msTotalsMap.get(dateKey) || { total_sales: 0 };
                 const catTotals = catTotalsMap.get(dateKey) || { total_category_sales: 0 };
                 const targetSales = targetSalesMap.get(dateKey) || 0;
+                const kwTotals = kwTotalsMap.get(dateKey) || { total_kw: 0 };
+                const targetKw = targetKwMap.get(dateKey) || 0;
 
-                // Calculate SOS (Share of Search) = impressions / total impressions
-                const sos = totals.total_impressions > 0
-                    ? (impressions / totals.total_impressions) * 100
+                // Calculate SOS (Share of Search) = target_kw / total_kw
+                const sos = kwTotals.total_kw > 0
+                    ? (targetKw / kwTotals.total_kw) * 100
                     : 0;
+
+                if (targetName === 'Amul' && row.date_key === '2025-12-07') {
+                    console.log(`[DEBUG SOS Amul calc] date: ${dateKey}, targetKw: ${targetKw}, totalKw: ${kwTotals.total_kw}, sos: ${sos}`);
+                }
 
                 // Calculate Market Share = this specific's sales / total platform sales
                 // (Note: for SKUs, this is an approximation as it uses the SKU sales / platform sales)
