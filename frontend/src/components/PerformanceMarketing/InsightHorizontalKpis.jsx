@@ -44,7 +44,8 @@ export default function InsightHorizontalKpis({
 }) {
   const {
     timeStart, timeEnd,
-    platform, selectedCategory, selectedLocation
+    platform, selectedCategory, selectedLocation,
+    selectedProductCategory
   } = useContext(FilterContext);
 
   const [quadrantData, setQuadrantData] = useState({
@@ -56,6 +57,7 @@ export default function InsightHorizontalKpis({
   const platformStr = JSON.stringify(platform);
   const brandStr = JSON.stringify(selectedCategory);
   const zoneStr = JSON.stringify(selectedLocation);
+  const productCategoryStr = JSON.stringify(selectedProductCategory);
 
   // Fetch quadrant data when filters change
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function InsightHorizontalKpis({
             platform: Array.isArray(platform) ? platform.join(',') : platform,
             brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
             zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+            productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
           }
@@ -99,7 +102,7 @@ export default function InsightHorizontalKpis({
     if (timeStart && timeEnd) {
       fetchQuadrants();
     }
-  }, [timeStart, timeEnd, platformStr, brandStr, zoneStr]);
+  }, [timeStart, timeEnd, platformStr, brandStr, zoneStr, productCategoryStr]);
 
   // Build KPI cards from data
   const insightKPIs = [

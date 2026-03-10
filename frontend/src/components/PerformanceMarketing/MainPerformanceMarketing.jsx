@@ -18,7 +18,8 @@ export default function MainPerformanceMarketings() {
     timeStart, timeEnd, comparisonLabel,
     locations, selectedLocation, setLocations, setSelectedLocation,
     platforms, platform, setPlatforms, setPlatform,
-    categories, selectedCategory, setCategories, setSelectedCategory
+    categories, selectedCategory, setCategories, setSelectedCategory,
+    selectedProductCategory
   } = useContext(FilterContext);
 
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
@@ -143,6 +144,7 @@ export default function MainPerformanceMarketings() {
             platform: Array.isArray(platform) ? platform.join(',') : platform,
             brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
             zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+            productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
           }
@@ -205,7 +207,7 @@ export default function MainPerformanceMarketings() {
     if (timeStart && timeEnd) {
       fetchPerformanceData();
     }
-  }, [timeStart, timeEnd, platform, selectedCategory, selectedLocation]); // Updated dependencies
+  }, [timeStart, timeEnd, platform, selectedCategory, selectedLocation, selectedProductCategory]); // Updated dependencies
 
   return (
     <Box>
