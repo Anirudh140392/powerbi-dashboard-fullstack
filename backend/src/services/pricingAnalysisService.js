@@ -730,8 +730,14 @@ const getDimensionOverview = async (filters = {}) => {
             if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
             const categories = parseMultiSelectFilter(category);
-            if (categories) {
-                whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+            // Ignore category filter if we are grouping by category (Overview mode)
+            if (categories && isLocation) {
+                const escapedCats = categories.map(v => `'${escapeStr(v)}'`).join(',');
+                whereConditions.push(`(
+                    ${PRODUCT_CATEGORY_SQL} IN (${escapedCats}) OR 
+                    p.Product_Category IN (${escapedCats}) OR 
+                    p.Brand IN (${escapedCats})
+                )`);
             }
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
@@ -785,6 +791,7 @@ const getDimensionOverview = async (filters = {}) => {
             `;
 
             console.log(`[PricingAnalysisService] Executing Dimension Overview query (group by ${dimensionParam}):\n${query}`);
+            const results = await queryClickHouse(query);
             console.log(`[PricingAnalysisService] Query returned ${results?.length || 0} rows`);
             if (results && results.length > 0) {
                 console.log(`[PricingAnalysisService] Raw dimension names:`, results.map(r => r.dimension_name));
