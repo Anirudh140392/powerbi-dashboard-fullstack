@@ -1,7 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
+import { Skeleton } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, ChevronDown, Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { FilterContext } from '../../utils/FilterContext';
+import axiosInstance from '../../api/axiosInstance';
 
 /* ── Sparkline helpers ── */
 const generateSparkData = (currentVal, delta, seed = 0) => {
@@ -88,253 +91,25 @@ const SparklineCell = ({ data, kpiId, children }) => {
     );
 };
 
-/* ── Sub-category → brand data mapping ── */
-const subCategoryBrands = {
-    Candies: [
-        {
-            brand: 'Cadbury',
-            metrics: {
-                marketShare: { val: 35.17, delta: -1.6, status: 'Action' },
-                asp: { val: 141, delta: +4.2, status: 'Healthy' },
-                overallSov: { val: 26.65, delta: -3.1, status: 'Watch' },
-                paidSov: { val: 9.92, delta: +1.5, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'Ferrero',
-            metrics: {
-                marketShare: { val: 24.27, delta: +1.5, status: 'Healthy' },
-                asp: { val: 766, delta: -0.1, status: 'Watch' },
-                overallSov: { val: 2.84, delta: -4.4, status: 'Action' },
-                paidSov: { val: 4.63, delta: -0.1, status: 'Watch' }
-            }
-        },
-        {
-            brand: 'Lindt',
-            metrics: {
-                marketShare: { val: 6.48, delta: -4.9, status: 'Action' },
-                asp: { val: 685, delta: -1.2, status: 'Watch' },
-                overallSov: { val: 0.07, delta: -0.5, status: 'Action' },
-                paidSov: { val: 0.00, delta: -0.0, status: 'Watch' }
-            }
-        },
-        {
-            brand: 'Nestle',
-            metrics: {
-                marketShare: { val: 5.23, delta: -0.2, status: 'Watch' },
-                asp: { val: 96, delta: +1.6, status: 'Healthy' },
-                overallSov: { val: 9.58, delta: -0.2, status: 'Watch' },
-                paidSov: { val: 3.78, delta: -7.1, status: 'Action' }
-            }
-        },
-        {
-            brand: 'Mars',
-            metrics: {
-                marketShare: { val: 3.13, delta: -2.2, status: 'Action' },
-                asp: { val: 99, delta: +4.8, status: 'Healthy' },
-                overallSov: { val: 11.60, delta: +4.8, status: 'Healthy' },
-                paidSov: { val: 13.15, delta: -7.1, status: 'Action' }
-            }
-        }
-    ],
-    'Filled Bars': [
-        {
-            brand: 'Snickers',
-            metrics: {
-                marketShare: { val: 28.45, delta: +2.3, status: 'Healthy' },
-                asp: { val: 55, delta: +1.1, status: 'Healthy' },
-                overallSov: { val: 18.20, delta: +3.5, status: 'Healthy' },
-                paidSov: { val: 12.40, delta: +0.8, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'KitKat',
-            metrics: {
-                marketShare: { val: 22.10, delta: -0.5, status: 'Watch' },
-                asp: { val: 42, delta: +2.0, status: 'Healthy' },
-                overallSov: { val: 15.70, delta: -1.2, status: 'Watch' },
-                paidSov: { val: 8.90, delta: -2.3, status: 'Action' }
-            }
-        },
-        {
-            brand: 'Twix',
-            metrics: {
-                marketShare: { val: 12.80, delta: -1.8, status: 'Action' },
-                asp: { val: 65, delta: +0.5, status: 'Healthy' },
-                overallSov: { val: 7.35, delta: -0.9, status: 'Watch' },
-                paidSov: { val: 5.20, delta: +1.1, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'Bounty',
-            metrics: {
-                marketShare: { val: 8.55, delta: +0.7, status: 'Healthy' },
-                asp: { val: 70, delta: -0.3, status: 'Watch' },
-                overallSov: { val: 4.10, delta: -2.1, status: 'Action' },
-                paidSov: { val: 3.65, delta: +0.4, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'Milky Way',
-            metrics: {
-                marketShare: { val: 5.30, delta: -3.1, status: 'Action' },
-                asp: { val: 38, delta: +1.8, status: 'Healthy' },
-                overallSov: { val: 2.90, delta: -0.6, status: 'Watch' },
-                paidSov: { val: 1.80, delta: -1.5, status: 'Action' }
-            }
-        }
-    ],
-    Gums: [
-        {
-            brand: 'Orbit',
-            metrics: {
-                marketShare: { val: 32.60, delta: +1.2, status: 'Healthy' },
-                asp: { val: 30, delta: +0.8, status: 'Healthy' },
-                overallSov: { val: 22.40, delta: +2.1, status: 'Healthy' },
-                paidSov: { val: 14.50, delta: +1.7, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'Mentos',
-            metrics: {
-                marketShare: { val: 18.90, delta: -0.3, status: 'Watch' },
-                asp: { val: 25, delta: +1.5, status: 'Healthy' },
-                overallSov: { val: 12.80, delta: -1.0, status: 'Watch' },
-                paidSov: { val: 6.20, delta: -2.8, status: 'Action' }
-            }
-        },
-        {
-            brand: 'Center Fresh',
-            metrics: {
-                marketShare: { val: 14.25, delta: -2.5, status: 'Action' },
-                asp: { val: 10, delta: +0.2, status: 'Healthy' },
-                overallSov: { val: 8.60, delta: -0.4, status: 'Watch' },
-                paidSov: { val: 4.30, delta: +0.9, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'Happydent',
-            metrics: {
-                marketShare: { val: 10.40, delta: +0.6, status: 'Healthy' },
-                asp: { val: 15, delta: -0.1, status: 'Watch' },
-                overallSov: { val: 5.90, delta: +1.3, status: 'Healthy' },
-                paidSov: { val: 2.70, delta: -1.2, status: 'Action' }
-            }
-        },
-        {
-            brand: 'Boomer',
-            metrics: {
-                marketShare: { val: 7.15, delta: -1.8, status: 'Action' },
-                asp: { val: 5, delta: +0.3, status: 'Healthy' },
-                overallSov: { val: 3.40, delta: -0.7, status: 'Watch' },
-                paidSov: { val: 1.10, delta: -0.5, status: 'Watch' }
-            }
-        }
-    ],
-    'Gift Packs': [
-        {
-            brand: 'Cadbury Celebrations',
-            metrics: {
-                marketShare: { val: 42.30, delta: +3.5, status: 'Healthy' },
-                asp: { val: 350, delta: +2.0, status: 'Healthy' },
-                overallSov: { val: 30.10, delta: +4.2, status: 'Healthy' },
-                paidSov: { val: 18.70, delta: +2.8, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'Ferrero Rocher',
-            metrics: {
-                marketShare: { val: 22.80, delta: -0.8, status: 'Watch' },
-                asp: { val: 650, delta: +1.1, status: 'Healthy' },
-                overallSov: { val: 14.50, delta: -1.5, status: 'Watch' },
-                paidSov: { val: 9.30, delta: +0.3, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'Toblerone',
-            metrics: {
-                marketShare: { val: 11.45, delta: -2.1, status: 'Action' },
-                asp: { val: 480, delta: -0.5, status: 'Watch' },
-                overallSov: { val: 6.20, delta: -1.8, status: 'Action' },
-                paidSov: { val: 3.90, delta: -0.7, status: 'Watch' }
-            }
-        },
-        {
-            brand: 'Lindt Box',
-            metrics: {
-                marketShare: { val: 8.90, delta: +0.4, status: 'Healthy' },
-                asp: { val: 900, delta: +3.2, status: 'Healthy' },
-                overallSov: { val: 3.80, delta: +0.6, status: 'Healthy' },
-                paidSov: { val: 2.50, delta: -1.0, status: 'Watch' }
-            }
-        },
-        {
-            brand: 'Mars Assorted',
-            metrics: {
-                marketShare: { val: 5.60, delta: -1.3, status: 'Action' },
-                asp: { val: 280, delta: +0.9, status: 'Healthy' },
-                overallSov: { val: 2.10, delta: -0.4, status: 'Watch' },
-                paidSov: { val: 1.40, delta: -2.5, status: 'Action' }
-            }
-        }
-    ],
-    Others: [
-        {
-            brand: 'Amul',
-            metrics: {
-                marketShare: { val: 18.70, delta: -1.1, status: 'Watch' },
-                asp: { val: 178, delta: +0.2, status: 'Healthy' },
-                overallSov: { val: 10.50, delta: -0.8, status: 'Watch' },
-                paidSov: { val: 4.20, delta: -2.1, status: 'Action' }
-            }
-        },
-        {
-            brand: 'Parle',
-            metrics: {
-                marketShare: { val: 14.30, delta: +0.9, status: 'Healthy' },
-                asp: { val: 20, delta: +1.4, status: 'Healthy' },
-                overallSov: { val: 8.90, delta: +2.3, status: 'Healthy' },
-                paidSov: { val: 5.60, delta: +0.7, status: 'Healthy' }
-            }
-        },
-        {
-            brand: 'ITC',
-            metrics: {
-                marketShare: { val: 10.80, delta: -2.4, status: 'Action' },
-                asp: { val: 45, delta: +0.5, status: 'Healthy' },
-                overallSov: { val: 6.30, delta: -1.6, status: 'Action' },
-                paidSov: { val: 3.10, delta: -0.9, status: 'Watch' }
-            }
-        },
-        {
-            brand: 'Britannia',
-            metrics: {
-                marketShare: { val: 8.25, delta: +0.3, status: 'Healthy' },
-                asp: { val: 60, delta: -0.2, status: 'Watch' },
-                overallSov: { val: 4.70, delta: +0.8, status: 'Healthy' },
-                paidSov: { val: 2.40, delta: -1.3, status: 'Action' }
-            }
-        },
-        {
-            brand: 'Haldirams',
-            metrics: {
-                marketShare: { val: 6.50, delta: -0.7, status: 'Watch' },
-                asp: { val: 120, delta: +2.1, status: 'Healthy' },
-                overallSov: { val: 3.20, delta: -0.3, status: 'Watch' },
-                paidSov: { val: 1.80, delta: +0.2, status: 'Healthy' }
-            }
-        }
-    ]
-};
-
-const subCategories = Object.keys(subCategoryBrands);
-
-const SubCategoryMarket = () => {
-    const [currentPage, setCurrentPage] = useState(1);
+const SubCategoryMarket = ({ loading: parentLoading }) => {
     const [colsPerPage, setColsPerPage] = useState(5);
-    const [selectedSubCat, setSelectedSubCat] = useState('Candies');
+    const [selectedSubCat, setSelectedSubCat] = useState('');
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
+
+    // Backend data state
+    const [subCategories, setSubCategories] = useState([]);
+    const [brandsData, setBrandsData] = useState([]);
+    const [dataLoading, setDataLoading] = useState(true);
+
+    // Get filters from context
+    const {
+        platform,
+        selectedCategory,
+        selectedLocation,
+        timeStart,
+        timeEnd,
+    } = useContext(FilterContext);
 
     // Close dropdown on outside click
     useEffect(() => {
@@ -347,7 +122,47 @@ const SubCategoryMarket = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const brandsData = subCategoryBrands[selectedSubCat] || [];
+    // Fetch sub-category KPI data from backend
+    useEffect(() => {
+        const fetchSubCategoryKpi = async () => {
+            setDataLoading(true);
+            try {
+                const params = {
+                    platform: platform === 'All' ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+                    category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+                    location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+                    startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+                    endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+                    subCategory: selectedSubCat || undefined,
+                };
+
+                const response = await axiosInstance.get('/market-share/sub-category-kpi', { params });
+                console.log("Sub-Category KPI Data:", response.data);
+
+                if (response.data) {
+                    const { subCategories: cats, brands, selectedSubCategory } = response.data;
+                    if (cats && cats.length > 0) {
+                        setSubCategories(cats);
+                    }
+                    if (brands) {
+                        setBrandsData(brands);
+                    }
+                    // Set default selected sub-category on first load
+                    if (!selectedSubCat && selectedSubCategory) {
+                        setSelectedSubCat(selectedSubCategory);
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching Sub-Category KPI data:", error);
+            } finally {
+                setDataLoading(false);
+            }
+        };
+
+        fetchSubCategoryKpi();
+    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedSubCat]);
+
+    const loading = parentLoading || dataLoading;
 
     const kpiColumns = [
         { id: 'marketShare', label: 'Market Share %' },
@@ -383,7 +198,6 @@ const SubCategoryMarket = () => {
                     <p className="text-[13px] text-slate-500 mt-0.5">Hover on any value to see trend sparkline.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    {/* Sub-Category Dropdown */}
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -395,7 +209,7 @@ const SubCategoryMarket = () => {
                             )}
                         >
                             <span className="text-[10px] font-semibold uppercase tracking-wider opacity-60">Sub-Category:</span>
-                            <span>{selectedSubCat}</span>
+                            <span>{selectedSubCat || 'Select'}</span>
                             <ChevronDown
                                 size={14}
                                 className={cn(
@@ -412,7 +226,7 @@ const SubCategoryMarket = () => {
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: -4, scale: 0.97 }}
                                     transition={{ duration: 0.15 }}
-                                    className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden"
+                                    className="absolute right-0 top-full mt-2 w-52 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden max-h-64 overflow-y-auto"
                                 >
                                     <div className="p-1.5">
                                         {subCategories.map(cat => (
@@ -456,7 +270,6 @@ const SubCategoryMarket = () => {
                 </div>
             </div>
 
-            {/* Matrix Table */}
             <div className="overflow-x-auto no-scrollbar">
                 <table className="w-full border-collapse">
                     <thead>
@@ -476,46 +289,63 @@ const SubCategoryMarket = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {brandsData.map((brandInfo) => (
-                            <tr key={brandInfo.brand} className="group hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0 font-roboto">
-                                <td className="px-8 py-4 sticky left-0 bg-white z-10 group-hover:bg-slate-50/50 transition-colors border-r border-slate-50/50">
-                                    <span className="text-[11px] font-extrabold text-slate-900 tracking-widest uppercase">
-                                        {brandInfo.brand}
-                                    </span>
+                        {loading ? (
+                            [...Array(5)].map((_, i) => (
+                                <tr key={"skeleton-" + i} className="border-b border-slate-50">
+                                    <td className="px-8 py-4 sticky left-0 bg-white z-10"><Skeleton variant="text" width="60%" /></td>
+                                    <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
+                                    <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
+                                    <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
+                                    <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
+                                </tr>
+                            ))
+                        ) : brandsData.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="px-8 py-12 text-center text-slate-400 text-sm">
+                                    No data available for the selected filters.
                                 </td>
-                                {kpiColumns.map(kpi => {
-                                    const data = brandInfo.metrics[kpi.id];
-                                    return (
-                                        <td key={kpi.id} className="px-6 py-4 border-l border-slate-50/30">
-                                            <SparklineCell data={data} kpiId={kpi.id}>
-                                                <div className={cn(
-                                                    "inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl border transition-all duration-300 cursor-default",
-                                                    getStatusStyles(data.status)
-                                                )}>
-                                                    <span className="text-[11px] font-extrabold tracking-tight">
-                                                        {formatValue(data.val, kpi.id)}
-                                                    </span>
-                                                    <div className="flex items-center gap-1 opacity-80">
-                                                        {data.delta >= 0 ?
-                                                            <TrendingUp size={10} className="text-emerald-500" /> :
-                                                            <TrendingDown size={10} className="text-rose-500" />
-                                                        }
-                                                        <span className="text-[9px] font-bold">
-                                                            {data.delta >= 0 ? '+' : ''}{data.delta}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </SparklineCell>
-                                        </td>
-                                    );
-                                })}
                             </tr>
-                        ))}
+                        ) : (
+                            brandsData.map((brandInfo) => (
+                                <tr key={brandInfo.brand} className="group hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0 font-roboto">
+                                    <td className="px-8 py-4 sticky left-0 bg-white z-10 group-hover:bg-slate-50/50 transition-colors border-r border-slate-50/50">
+                                        <span className="text-[11px] font-extrabold text-slate-900 tracking-widest uppercase">
+                                            {brandInfo.brand}
+                                        </span>
+                                    </td>
+                                    {kpiColumns.map(kpi => {
+                                        const data = brandInfo.metrics[kpi.id];
+                                        return (
+                                            <td key={kpi.id} className="px-6 py-4 border-l border-slate-50/30">
+                                                <SparklineCell data={data} kpiId={kpi.id}>
+                                                    <div className={cn(
+                                                        "inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl border transition-all duration-300 cursor-default",
+                                                        getStatusStyles(data.status)
+                                                    )}>
+                                                        <span className="text-[11px] font-extrabold tracking-tight">
+                                                            {formatValue(data.val, kpi.id)}
+                                                        </span>
+                                                        <div className="flex items-center gap-1 opacity-80">
+                                                            {data.delta >= 0 ?
+                                                                <TrendingUp size={10} className="text-emerald-500" /> :
+                                                                <TrendingDown size={10} className="text-rose-500" />
+                                                            }
+                                                            <span className="text-[9px] font-bold">
+                                                                {data.delta >= 0 ? '+' : ''}{data.delta}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </SparklineCell>
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
             </div>
 
-            {/* Footer */}
             <div className="px-6 py-5 flex items-center justify-between border-t border-slate-100 bg-white shadow-[0_-4px_20px_-12px_rgba(0,0,0,0.1)]">
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-1.5">
