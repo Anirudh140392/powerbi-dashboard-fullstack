@@ -55,13 +55,13 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `Platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND Location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         // If brandFilter is provided, use it. Otherwise use the hardcoded Mars brands.
@@ -114,13 +114,13 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `Platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND Location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let brandsToQuery = [];
@@ -174,13 +174,13 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `Platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND Location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let brandsToQuery = [];
@@ -240,13 +240,13 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `Platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND Location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let brandsToQuery = [];

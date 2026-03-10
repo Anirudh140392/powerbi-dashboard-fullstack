@@ -269,7 +269,6 @@ const generateKpiColumns = ({
         { title: "Ad SOV", value: `${adSov.toFixed(1)}%`, change: { text: formatChange(adSovChange, true), positive: adSovChange >= 0 }, meta: { units: "sponsored", change: formatChange(adSovChange, true) } },
         { title: "Organic SOV", value: `${organicSov.toFixed(1)}%`, change: { text: formatChange(organicSovChange, true), positive: organicSovChange >= 0 }, meta: { units: "organic", change: formatChange(organicSovChange, true) } },
         { title: "Market Share", value: `${(parseFloat(marketShare) || 0).toFixed(1)}%`, change: { text: formatChange(marketShareChange, true), positive: marketShareChange >= 0 }, meta: { units: "Category", change: formatChange(marketShareChange, true) } },
-        { title: "Promo My Brand", value: `${promoMyBrand.toFixed(1)}%`, change: { text: formatChange(promoMyBrandChange, true), positive: promoMyBrandChange >= 0 }, meta: { units: "Depth", change: formatChange(promoMyBrandChange, true) } },
         { title: "Promo Compete", value: `${promoCompete.toFixed(1)}%`, change: { text: formatChange(promoCompeteChange, true), positive: promoCompeteChange >= 0 }, meta: { units: "Depth", change: formatChange(promoCompeteChange, true) } },
         { title: "CPM", value: `₹${cpm.toFixed(2)}`, change: { text: formatChange(cpmChange), positive: cpmChange >= 0 }, meta: { units: "impressions", change: formatChange(cpmChange) } },
         { title: "CPC", value: `₹${cpc.toFixed(2)}`, change: { text: formatChange(cpcChange), positive: cpcChange >= 0 }, meta: { units: "clicks", change: formatChange(cpcChange) } }
@@ -1003,9 +1002,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const locArr = normalizeFilterArray(location);
                         if (locArr && locArr.length > 0) {
                             if (locArr.length === 1) {
-                                msConds.push(`Location = '${escapeStr(locArr[0])}'`);
+                                msConds.push(`location = '${escapeStr(locArr[0])}'`);
                             } else {
-                                msConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                                msConds.push(`location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                             }
                         }
                         const catArr = normalizeFilterArray(category);
@@ -1018,14 +1017,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
 
                         const query = `
-                            SELECT Platform as platform_name, AVG(avg_nation) as ms
+                            SELECT platform as platform_name, AVG(avg_nation) as ms
                             FROM (
-                                SELECT Platform, AVG(nation_level_market_share) as avg_nation
+                                SELECT platform, AVG(nation_level_market_share) as avg_nation
                                 FROM rb_brand_ms
                                 WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
-                                GROUP BY Platform, category, sub_category, group_brand
+                                GROUP BY platform, category, sub_category, group_brand
                             )
-                            GROUP BY Platform
+                            GROUP BY platform
                         `;
                         return await queryClickHouse(query);
                     })(),
@@ -1056,9 +1055,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const locArr = normalizeFilterArray(location);
                         if (locArr && locArr.length > 0) {
                             if (locArr.length === 1) {
-                                msConds.push(`Location = '${escapeStr(locArr[0])}'`);
+                                msConds.push(`location = '${escapeStr(locArr[0])}'`);
                             } else {
-                                msConds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                                msConds.push(`location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                             }
                         }
                         const catArr = normalizeFilterArray(category);
@@ -1071,14 +1070,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
 
                         const query = `
-                            SELECT Platform as platform_name, AVG(avg_nation) as ms
+                            SELECT platform as platform_name, AVG(avg_nation) as ms
                             FROM (
-                                SELECT Platform, AVG(nation_level_market_share) as avg_nation
+                                SELECT platform, AVG(nation_level_market_share) as avg_nation
                                 FROM rb_brand_ms
                                 WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
-                                GROUP BY Platform, category, sub_category, group_brand
+                                GROUP BY platform, category, sub_category, group_brand
                             )
-                            GROUP BY Platform
+                            GROUP BY platform
                         `;
                         return await queryClickHouse(query);
                     })()
@@ -2170,12 +2169,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     meta: { units: "Category", change: formatChange(marketShareChange, true) }
                 },
                 {
-                    title: "Promo My Brand",
-                    value: `${promoMyBrand.toFixed(1)}%`,
-                    change: { text: formatChange(promoMyBrandChange, true), positive: promoMyBrandChange >= 0 },
-                    meta: { units: "Depth", change: formatChange(promoMyBrandChange, true) }
-                },
-                {
                     title: "Promo Compete",
                     value: `${promoCompete.toFixed(1)}%`,
                     change: { text: formatChange(promoCompeteChange, true), positive: promoCompeteChange >= 0 },
@@ -2749,9 +2742,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const msBaseConds = [
                             `toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
                             `sales IS NOT NULL`,
-                            `Platform = '${escapeStrMo(moPlatform)}'`
+                            `platform = '${escapeStrMo(moPlatform)}'`
                         ];
-                        if (location && location !== 'All') msBaseConds.push(`Location = '${escapeStrMo(location)}'`);
+                        if (location && location !== 'All') msBaseConds.push(`location = '${escapeStrMo(location)}'`);
                         const localCatArr = normalizeFilterArray(category);
                         if (localCatArr && localCatArr.length > 0) {
                             if (localCatArr.length === 1) {
@@ -3784,17 +3777,17 @@ const computeTrendData = async (filters) => {
             const locArr = normalizeFilterArray(location);
             if (locArr && locArr.length > 0) {
                 if (locArr.length === 1) {
-                    conds.push(`Location = '${escapeStr(locArr[0])}'`);
+                    conds.push(`location = '${escapeStr(locArr[0])}'`);
                 } else {
-                    conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                    conds.push(`location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                 }
             }
             const trendPlatArrMs = normalizeFilterArray(platform);
             if (trendPlatArrMs && trendPlatArrMs.length > 0) {
                 if (trendPlatArrMs.length === 1) {
-                    conds.push(`Platform = '${escapeStr(trendPlatArrMs[0])}'`);
+                    conds.push(`platform = '${escapeStr(trendPlatArrMs[0])}'`);
                 } else {
-                    conds.push(`Platform IN (${trendPlatArrMs.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                    conds.push(`platform IN (${trendPlatArrMs.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                 }
             }
             if (includeBrandFilter && validBrandNamesForMs.length > 0) {
@@ -4188,14 +4181,14 @@ const getPlatformOverview = async (filters) => {
             conds.push(`brand IN (${brandsFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
 
         // Add platform/channel filter - for denominator we want all platforms in that channel
-        const platformCond = buildPlatformChannelCond(null, channel);
+        const platformCond = buildPlatformChannelCond(null, channel, 'platform');
         if (platformCond) {
             conds.push(platformCond);
         }
@@ -4297,53 +4290,53 @@ const getPlatformOverview = async (filters) => {
                 `),
         // Query 7: Current Market Share - numerator (our brands)
         queryClickHouse(`
-                    SELECT Platform, SUM(toFloat64OrZero(toString(sales))) as our_sales
+                    SELECT platform, SUM(toFloat64OrZero(toString(sales))) as our_sales
                     FROM rb_brand_ms
                     WHERE ${currMsNumConds}
-                    GROUP BY Platform
+                    GROUP BY platform
                 `),
         // Query 8: Current Market Share - denominator (total)
         queryClickHouse(`
-                    SELECT Platform, SUM(toFloat64OrZero(toString(sales))) as total_sales
+                    SELECT platform, SUM(toFloat64OrZero(toString(sales))) as total_sales
                     FROM rb_brand_ms
                     WHERE ${currMsDenomConds}
-                    GROUP BY Platform
+                    GROUP BY platform
                 `),
         // Query 9: Previous Market Share - numerator
         queryClickHouse(`
-                    SELECT Platform, SUM(toFloat64OrZero(toString(sales))) as our_sales
+                    SELECT platform, SUM(toFloat64OrZero(toString(sales))) as our_sales
                     FROM rb_brand_ms
                     WHERE ${prevMsNumConds}
-                    GROUP BY Platform
+                    GROUP BY platform
                 `),
         // Query 10: Previous Market Share - denominator
         queryClickHouse(`
-                    SELECT Platform, SUM(toFloat64OrZero(toString(sales))) as total_sales
+                    SELECT platform, SUM(toFloat64OrZero(toString(sales))) as total_sales
                     FROM rb_brand_ms
                     WHERE ${prevMsDenomConds}
-                    GROUP BY Platform
+                    GROUP BY platform
                 `),
         // Query 11: Current Category Size by Platform
         queryClickHouse(`
-                    SELECT Platform, SUM(size) as cat_size
+                    SELECT platform, SUM(size) as cat_size
                     FROM (
-                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${currMsDenomConds} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, category
+                        GROUP BY m, platform, category
                     )
-                    GROUP BY Platform
+                    GROUP BY platform
                 `),
         // Query 12: Previous Category Size by Platform
         queryClickHouse(`
-                    SELECT Platform, SUM(size) as cat_size
+                    SELECT platform, SUM(size) as cat_size
                     FROM (
-                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+                        SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${prevMsDenomConds} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, category
+                        GROUP BY m, platform, category
                     )
-                    GROUP BY Platform
+                    GROUP BY platform
                 `),
         // Query 13: Current Ad SOV - Our brands (spons_flag=1)
         queryClickHouse(`
@@ -4404,32 +4397,32 @@ const getPlatformOverview = async (filters) => {
     ]);
 
     // Calculate Market Share per platform from numerator/denominator
-    const currMsNumMap = new Map(currMsNum.map(r => [r.Platform?.toLowerCase(), parseFloat(r.our_sales || 0)]));
-    const currMsDenomMap = new Map(currMsDenom.map(r => [r.Platform?.toLowerCase(), parseFloat(r.total_sales || 0)]));
-    const currCatSizeMap = new Map(currCatSizeByPlatform.map(r => [r.Platform?.toLowerCase(), parseFloat(r.cat_size || 0)]));
+    const currMsNumMap = new Map(currMsNum.map(r => [r.platform?.toLowerCase(), parseFloat(r.our_sales || 0)]));
+    const currMsDenomMap = new Map(currMsDenom.map(r => [r.platform?.toLowerCase(), parseFloat(r.total_sales || 0)]));
+    const currCatSizeMap = new Map(currCatSizeByPlatform.map(r => [r.platform?.toLowerCase(), parseFloat(r.cat_size || 0)]));
     const currMs = currMsDenom.map(r => {
-        const key = r.Platform?.toLowerCase();
+        const key = r.platform?.toLowerCase();
         const ourSales = currMsNumMap.get(key) || 0;
         const totalSales = parseFloat(r.total_sales || 0);
-        return { Platform: r.Platform, avg_ms: totalSales > 0 ? (ourSales / totalSales) * 100 : 0 };
+        return { platform: r.platform, avg_ms: totalSales > 0 ? (ourSales / totalSales) * 100 : 0 };
     });
 
-    const prevMsNumMap = new Map(prevMsNum.map(r => [r.Platform?.toLowerCase(), parseFloat(r.our_sales || 0)]));
-    const prevMsDenomMap = new Map(prevMsDenom.map(r => [r.Platform?.toLowerCase(), parseFloat(r.total_sales || 0)]));
+    const prevMsNumMap = new Map(prevMsNum.map(r => [r.platform?.toLowerCase(), parseFloat(r.our_sales || 0)]));
+    const prevMsDenomMap = new Map(prevMsDenom.map(r => [r.platform?.toLowerCase(), parseFloat(r.total_sales || 0)]));
 
     // Calculate sumCatSize from all query results (not just those in platformDefinitions)
     const sumCatSize = currCatSizeByPlatform.reduce((sum, r) => sum + parseFloat(r.cat_size || 0), 0);
     const prevSumCatSize = prevCatSizeByPlatform.reduce((sum, r) => sum + parseFloat(r.cat_size || 0), 0);
 
     // Map platform category sizes for fuzzy matching later
-    const currCatSizeByPlatformMap = new Map(currCatSizeByPlatform.map(r => [r.Platform?.toLowerCase(), parseFloat(r.cat_size || 0)]));
-    const prevCatSizeByPlatformMap = new Map(prevCatSizeByPlatform.map(r => [r.Platform?.toLowerCase(), parseFloat(r.cat_size || 0)]));
+    const currCatSizeByPlatformMap = new Map(currCatSizeByPlatform.map(r => [r.platform?.toLowerCase(), parseFloat(r.cat_size || 0)]));
+    const prevCatSizeByPlatformMap = new Map(prevCatSizeByPlatform.map(r => [r.platform?.toLowerCase(), parseFloat(r.cat_size || 0)]));
 
     const prevMs = prevMsDenom.map(r => {
-        const key = r.Platform?.toLowerCase();
+        const key = r.platform?.toLowerCase();
         const ourSales = prevMsNumMap.get(key) || 0;
         const totalSales = parseFloat(r.total_sales || 0);
-        return { Platform: r.Platform, avg_ms: totalSales > 0 ? (ourSales / totalSales) * 100 : 0 };
+        return { platform: r.platform, avg_ms: totalSales > 0 ? (ourSales / totalSales) * 100 : 0 };
     });
 
     // Build SOS lookup maps
@@ -4451,8 +4444,8 @@ const getPlatformOverview = async (filters) => {
     const prevOrgSovTotalMap = new Map(prevOrgSovTotal.map(r => [r.platform_name?.toLowerCase(), parseInt(r.count) || 0]));
 
     // Build Market Share lookup maps
-    const currMsMap = new Map(currMs.map(r => [r.Platform?.toLowerCase(), parseFloat(r.avg_ms) || 0]));
-    const prevMsMap = new Map(prevMs.map(r => [r.Platform?.toLowerCase(), parseFloat(r.avg_ms) || 0]));
+    const currMsMap = new Map(currMs.map(r => [r.platform?.toLowerCase(), parseFloat(r.avg_ms) || 0]));
+    const prevMsMap = new Map(prevMs.map(r => [r.platform?.toLowerCase(), parseFloat(r.avg_ms) || 0]));
 
     // Helper to calculate SOS percentage
     const calcSos = (ourCount, totalCount) => totalCount > 0 ? (ourCount / totalCount) * 100 : 0;
@@ -5275,13 +5268,13 @@ const getCategoryOverview = async (filters) => {
         const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         conds.push(`sales IS NOT NULL`);
         conds.push(`category IS NOT NULL`);
-        const platformCond = buildPlatformChannelCond(catPlatform, channel);
+        const platformCond = buildPlatformChannelCond(catPlatform, channel, 'platform');
         if (platformCond) conds.push(platformCond);
         if (brandsFilter && brandsFilter.length > 0) {
             conds.push(`LOWER(brand) IN (${brandsFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
         }
         if (locationArr && locationArr.length > 0) {
-            conds.push(`Location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`location IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`LOWER(category) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -5602,7 +5595,7 @@ const getBrandsOverview = async (filters) => {
         const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         conds.push(`sales IS NOT NULL`);
         const platformArr = normalizeFilterArray(boPlatform);
-        const platformCond = buildPlatformChannelCond(boPlatform, channel);
+        const platformCond = buildPlatformChannelCond(boPlatform, channel, 'platform');
         if (platformCond) conds.push(platformCond);
         const categoryArr = normalizeFilterArray(boCategory);
         if (categoryArr && categoryArr.length > 0) {
@@ -5613,7 +5606,7 @@ const getBrandsOverview = async (filters) => {
         }
         const locArr = normalizeFilterArray(location);
         if (locArr && locArr.length > 0) {
-            conds.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            conds.push(`location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         return conds.join(' AND ');
     };
@@ -6353,10 +6346,10 @@ const getCompetitionData = async (filters = {}) => {
             const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
             conds.push(`sales IS NOT NULL`);
             if (platArr && platArr.length > 0) {
-                conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                conds.push(`lower(platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
             if (locArr && locArr.length > 0) {
-                conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                conds.push(`lower(location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
             }
             if (includeBrandFilter && validBrandNames.length > 0) {
                 const brandList = validBrandNames.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
@@ -6370,10 +6363,10 @@ const getCompetitionData = async (filters = {}) => {
             const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
             conds.push(`sales IS NOT NULL`);
             if (platArr && platArr.length > 0) {
-                conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                conds.push(`lower(platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
             if (locArr && locArr.length > 0) {
-                conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                conds.push(`lower(location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
             }
             if (catArr && catArr.length > 0) {
                 conds.push(`lower(category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
@@ -6608,10 +6601,10 @@ const getCompetitionData = async (filters = {}) => {
         // This gets total sales and our brands' sales per category
         const baseMsConds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `sales IS NOT NULL`];
         const msPlatArr = normalizeFilterArray(platform);
-        if (msPlatArr && msPlatArr.length > 0) baseMsConds.push(`Platform IN(${msPlatArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        if (msPlatArr && msPlatArr.length > 0) baseMsConds.push(`platform IN(${msPlatArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
 
         const msLocArr = normalizeFilterArray(location);
-        if (msLocArr && msLocArr.length > 0) baseMsConds.push(`Location IN(${msLocArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        if (msLocArr && msLocArr.length > 0) baseMsConds.push(`location IN(${msLocArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
 
         const [categorySalesQuery, categoryOurBrandsSalesQuery, categorySalesQueryPrev, categoryOurBrandsSalesQueryPrev] = await Promise.all([
             // Total sales per category
@@ -7277,14 +7270,14 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         const msBaseConds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         msBaseConds.push(`sales IS NOT NULL`);
         if (locArr && locArr.length > 0) {
-            msBaseConds.push(`Location IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            msBaseConds.push(`location IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
 
         // Category Share conditions for rb_brand_ms table (category-level totals)
         const catBaseConds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         catBaseConds.push(`sales IS NOT NULL`);
         if (locArr && locArr.length > 0) {
-            catBaseConds.push(`Location IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            catBaseConds.push(`location IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         const catArr = (normalizeFilterArray(category) || []).map(c => c.toLowerCase());
         if (catArr.length > 0) {
@@ -8678,7 +8671,7 @@ const getCityOverview = async (filters) => {
     const buildMsCityConds = (sDate, eDate) => {
         const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         conds.push(`sales IS NOT NULL`);
-        const pCond = buildPlatformChannelCond(cityPlatform, channel);
+        const pCond = buildPlatformChannelCond(cityPlatform, channel, 'platform');
         if (pCond) conds.push(pCond);
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`category IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -8729,38 +8722,38 @@ const getCityOverview = async (filters) => {
             GROUP BY Location
         `),
         // Market Share / Category Size by Location
-        queryClickHouse(`SELECT Location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_brand_ms WHERE ${buildMsCityConds(startDate, endDate)} GROUP BY Location`),
-        queryClickHouse(`SELECT Location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_brand_ms WHERE ${buildMsCityConds(prevStartDate, prevEndDate)} GROUP BY Location`),
+        queryClickHouse(`SELECT location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_brand_ms WHERE ${buildMsCityConds(startDate, endDate)} GROUP BY location`),
+        queryClickHouse(`SELECT location, SUM(ifNull(toFloat64OrZero(toString(sales)), 0)) as city_market_sales FROM rb_brand_ms WHERE ${buildMsCityConds(prevStartDate, prevEndDate)} GROUP BY location`),
         // Category Size by Location (monthly_category_size summed per week/category)
         queryClickHouse(`
-                    SELECT Location, SUM(size) as cat_size
+                    SELECT location, SUM(size) as cat_size
         FROM(
-            SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, Location, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+            SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, location, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${buildMsCityConds(startDate, endDate)} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, Location, category
+                        GROUP BY m, platform, location, category
         )
-                    GROUP BY Location
+                    GROUP BY location
             `),
         queryClickHouse(`
-                    SELECT Location, SUM(size) as cat_size
+                    SELECT location, SUM(size) as cat_size
         FROM(
-            SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, Platform, Location, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
+            SELECT formatDateTime(toDate(created_on), '%Y-%m') as m, platform, location, category, MAX(toFloat64OrZero(toString(monthly_category_size))) as size
                         FROM rb_brand_ms
                         WHERE ${buildMsCityConds(prevStartDate, prevEndDate)} AND monthly_category_size IS NOT NULL AND toString(monthly_category_size) != '0'
-                        GROUP BY m, Platform, Location, category
+                        GROUP BY m, platform, location, category
         )
-                    GROUP BY Location
+                    GROUP BY location
             `)
     ]);
 
     const [currCityMetrics, prevCityMetrics, currMsResult, prevMsResult, currCityCatSize, prevCityCatSize] = results;
     const prevCityMap = new Map(prevCityMetrics.map(d => [d.Location, d]));
 
-    const currMsMap = new Map(currMsResult.map(d => [d.Location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
-    const prevMsMap = new Map(prevMsResult.map(d => [d.Location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
-    const currCityCatSizeMap = new Map(currCityCatSize.map(d => [d.Location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
-    const prevCityCatSizeMap = new Map(prevCityCatSize.map(d => [d.Location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
+    const currMsMap = new Map(currMsResult.map(d => [d.location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
+    const prevMsMap = new Map(prevMsResult.map(d => [d.location?.toLowerCase(), parseFloat(d.city_market_sales || 0)]));
+    const currCityCatSizeMap = new Map(currCityCatSize.map(d => [d.location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
+    const prevCityCatSizeMap = new Map(prevCityCatSize.map(d => [d.location?.toLowerCase(), parseFloat(d.cat_size || 0)]));
 
     const cityOverview = currCityMetrics.map(data => {
         const cityName = data.Location || 'Unknown';

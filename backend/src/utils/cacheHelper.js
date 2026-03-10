@@ -78,10 +78,14 @@ export function generateCacheKey(section, filters) {
         includeBreakdown = '',
         // Advanced SKU Search Filters
         skuName = '',
-        skuCode = ''
+        skuCode = '',
+        dimension = '',
+        dimensionValue = ''
     } = filters;
 
     // 4. Append secondary filters
+    if (dimension) key += `:dim_${normalize(dimension)}`;
+    if (dimensionValue) key += `:dimval_${normalize(dimensionValue)}`;
     if (filterType) key += `:ft_${normalize(filterType)}`;
     if (viewMode) key += `:vm_${normalize(viewMode)}`;
     if (level) key += `:lv_${normalize(level)}`;
