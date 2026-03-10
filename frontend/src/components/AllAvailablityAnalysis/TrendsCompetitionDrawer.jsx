@@ -1363,6 +1363,7 @@ export default function TrendsCompetitionDrawer({
               axis: "right",
             },
             { id: "SOS", label: "SOS", color: "#A855F7", axis: "right" },
+            { id: "MarketShare", label: "Market Share", color: "#9333EA", axis: "right" },
             { id: "CPM", label: "CPM", color: "#64748B", axis: "left" },
             { id: "CPC", label: "CPC", color: "#475569", axis: "left" },
           ],
