@@ -93,6 +93,34 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
   // 🌗 Dark/Light Mode
   const { mode } = React.useContext(AppThemeContext);
 
+  const isGeoPage = location.pathname === "/geo-intelligence";
+
+  if (isGeoPage) {
+    return (
+      <Box
+        sx={{
+          display: { xs: "flex", sm: "none" },
+          bgcolor: (theme) => theme.palette.background.paper,
+          borderBottom: "1px solid",
+          borderColor: (theme) => "#e5e7eb",
+          px: 2,
+          py: 0.8,
+          position: "sticky",
+          top: 0,
+          zIndex: 1200,
+          alignItems: "center"
+        }}
+      >
+        <IconButton
+          onClick={onMenuClick}
+          sx={{ display: "block", p: 0.5 }}
+        >
+          <MenuIcon />
+        </IconButton>
+      </Box>
+    );
+  }
+
   return (
     <Box
       sx={{
@@ -135,7 +163,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
             </IconButton>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {title !== "Scheduled Reports" && (
+              {location.pathname !== "/scheduled-reports" && (
                 <IconButton
                   size="small"
                   onClick={() => setIsExpanded(!isExpanded)}
@@ -179,7 +207,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {darkStoreData.totalCount > 0 ? (
+                      {/*{darkStoreData.totalCount > 0 ? (
                         <>
                           DS # ({Object.entries(darkStoreData.byPlatform)
                             .map(([p, c]) => `${p}-${c}`)
@@ -187,7 +215,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                         </>
                       ) : (
                         "0 Active Platforms"
-                      )}
+                      )}*/}
                     </Typography>
                   </Box>
                 )}
@@ -198,7 +226,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
         {/* FILTERS CONTAINER */}
         <AnimatePresence>
-          {isExpanded && title !== "Scheduled Reports" && (
+          {isExpanded && location.pathname !== "/scheduled-reports" && (
             <Box
               component={motion.div}
               initial={{ opacity: 0, height: 0 }}
@@ -329,7 +357,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
       {/* ---------------- SECOND ROW ---------------- */}
       <AnimatePresence>
-        {isExpanded && title !== "Scheduled Reports" && (
+        {isExpanded && location.pathname !== "/scheduled-reports" && (
           <Box
             component={motion.div}
             initial={{ opacity: 0, height: 0 }}

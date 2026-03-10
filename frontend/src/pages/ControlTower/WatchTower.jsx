@@ -335,7 +335,10 @@ export default function WatchTower() {
   }, [dashboardData]);
 
 
-  // Update filters when context changes
+  const [fetchError, setFetchError] = useState(null);
+  const fetchIdRef = useRef(0);
+
+  // Sync filters state from context (used only by child props, NOT for triggering fetches)
   useEffect(() => {
     setFilters((prev) => ({
       ...prev,
@@ -348,60 +351,87 @@ export default function WatchTower() {
       compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
       compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
     }));
-  }, [
-    selectedCategory,
-    timeStart,
-    timeEnd,
-    compareStart,
-    compareEnd,
-    platform,
-    selectedKeyword,
-    selectedLocation,
-  ]);
-  const [fetchError, setFetchError] = useState(null);
+  }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setFetchError(null);
-    try {
-      const params = {
-        ...filters,
-        platform: filters.platform === "All" ? undefined : (Array.isArray(filters.platform) ? filters.platform.join(",") : filters.platform),
-        category: filters.category === "All" ? undefined : (Array.isArray(filters.category) ? filters.category.join(",") : filters.category),
-        location: filters.location === "All" ? undefined : (Array.isArray(filters.location) ? filters.location.join(",") : filters.location),
-        brand: filters.brand === "All" ? undefined : (Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand),
-      };
-      const response = await axiosInstance.get("/watchtower", {
-        params,
-      });
-      if (response.data) {
-        console.log("Fetched Watch Tower data:", response.data);
-        setDashboardData(response.data);
-      }
-    } catch (error) {
-      console.error("Error fetching Watch Tower data:", error);
-      setFetchError(error.message || "Failed to load Watch Tower data");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
-
+  // Single debounced data-fetch effect — reads context directly, no intermediate state
   useEffect(() => {
-    // Prevent fetching if core context data hasn't loaded yet
     if (!datesFetched || !platformsFetched) {
       console.log("[WatchTower] Waiting for context to initialize dates/platforms...");
       return;
     }
 
-    // Use a small timeout to debounce the initial rapid filter updates 
-    // caused by the context syncing dynamic dates/platforms
-    const debounceTimer = setTimeout(() => {
-      fetchData();
-    }, 500);
+    const currentFetchId = ++fetchIdRef.current;
+
+    const debounceTimer = setTimeout(async () => {
+      // If another update arrived while we were waiting, skip this one
+      if (currentFetchId !== fetchIdRef.current) return;
+
+      setLoading(true);
+      setFetchError(null);
+      try {
+        const params = {
+          platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+          category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+          location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+          keyword: selectedKeyword || undefined,
+          startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+          endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+          compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+          compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
+        };
+        const response = await axiosInstance.get("/watchtower", { params });
+        // Only apply result if this is still the latest fetch
+        if (currentFetchId === fetchIdRef.current && response.data) {
+          console.log("Fetched Watch Tower data:", response.data);
+          setDashboardData(response.data);
+        }
+      } catch (error) {
+        if (currentFetchId === fetchIdRef.current) {
+          console.error("Error fetching Watch Tower data:", error);
+          setFetchError(error.message || "Failed to load Watch Tower data");
+        }
+      } finally {
+        if (currentFetchId === fetchIdRef.current) {
+          setLoading(false);
+        }
+      }
+    }, 800);
 
     return () => clearTimeout(debounceTimer);
-  }, [filters, datesFetched, platformsFetched, fetchData]); // Refetch when filters change
+  }, [platform, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd, compareStart, compareEnd, datesFetched, platformsFetched]);
 
+  // Memoize the PerformanceBreakdownProvider filters to prevent child re-renders
+  const perfBreakdownFilters = useMemo(() => ({
+    companyId: localStorage.getItem('selectedCompanyId') || '',
+    platform: filters.platform ? [filters.platform].flat() : [],
+    dateStart: filters.startDate || undefined,
+    dateEnd: filters.endDate || undefined,
+  }), [filters.platform, filters.startDate, filters.endDate]);
+
+  // Retry handler for error overlay — bumps fetchIdRef to trigger the effect
+  const retryFetch = useCallback(() => {
+    fetchIdRef.current++; // force a new cycle
+    // Trigger re-render by toggling a dummy dependency — we simply re-call the effect
+    setFetchError(null);
+    setLoading(true);
+    const params = {
+      platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+      category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+      location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+      keyword: selectedKeyword || undefined,
+      startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+      endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+    };
+    axiosInstance.get("/watchtower", { params }).then(response => {
+      if (response.data) {
+        setDashboardData(response.data);
+      }
+    }).catch(error => {
+      setFetchError(error.message || "Failed to load Watch Tower data");
+    }).finally(() => {
+      setLoading(false);
+    });
+  }, [platform, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd]);
 
   return (
     <>
@@ -421,7 +451,7 @@ export default function WatchTower() {
         )} */}
 
         {fetchError && !loading && !dashboardData?.performanceMetricsKpis?.length ? (
-          <ErrorRetryOverlay onRetry={fetchData} message={fetchError} />
+          <ErrorRetryOverlay onRetry={retryFetch} message={fetchError} />
         ) : (
           <SnapshotOverview
             title="Business Overview"
@@ -602,12 +632,7 @@ export default function WatchTower() {
         <Box sx={{ mb: 4 }}>
           <PerformanceBreakdownProvider
             darkMode={false}
-            filters={{
-              companyId: localStorage.getItem('selectedCompanyId') || '',
-              platform: filters.platform ? [filters.platform].flat() : [],
-              dateStart: filters.startDate || undefined,
-              dateEnd: filters.endDate || undefined,
-            }}
+            filters={perfBreakdownFilters}
           >
             <AggregatedViewTable />
           </PerformanceBreakdownProvider>
@@ -690,8 +715,8 @@ const FormatPerformanceStudio = ({ rows }) => {
       label: "ROAS",
       activeValue: active.roas,
       compareValue: compare?.roas ?? null,
-      max: 15,
-      format: (v) => `${v.toFixed(1)}x`,
+      max: 10,
+      format: (v) => `${v}x`,
     },
     {
       key: "inorgSalesPct",
@@ -714,22 +739,6 @@ const FormatPerformanceStudio = ({ rows }) => {
       label: "Market Share",
       activeValue: active.marketSharePct,
       compareValue: compare?.marketSharePct ?? null,
-      max: 100,
-      format: (v) => `${v}%`,
-    },
-    {
-      key: "promoMyBrandPct",
-      label: "Promo My Brand",
-      activeValue: active.promoMyBrandPct,
-      compareValue: compare?.promoMyBrandPct ?? null,
-      max: 100,
-      format: (v) => `${v}%`,
-    },
-    {
-      key: "promoCompetePct",
-      label: "Promo Compete",
-      activeValue: active.promoCompetePct,
-      compareValue: compare?.promoCompetePct ?? null,
       max: 100,
       format: (v) => `${v}%`,
     },

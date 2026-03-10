@@ -125,8 +125,7 @@ const getMapIntellectData = async (filters) => {
     const prevPdpConds = buildPdpConds(prevStartDate, prevEndDate);
 
     // Determine which data to fetch based on metric
-    const isMarketShare = metric === 'marketshare' || metric === 'Market Share';
-    const isPdpMetric = !isMarketShare; // everything else is PDP-based
+    const isMarketShareOnly = metric === 'marketshare' || metric === 'Market Share';
 
     let currCityData = [];
     let prevCityData = [];
@@ -135,7 +134,7 @@ const getMapIntellectData = async (filters) => {
 
     // ── Fetch PDP data (Wt. OSA / Sales / Orders) from rb_pdp_olap ──
     // OSA formula: SUM(neno_osa) / NULLIF(SUM(deno_osa), 0) * 100  (exact user-specified logic)
-    if (isPdpMetric) {
+    if (!isMarketShareOnly) {
         [currCityData, prevCityData] = await Promise.all([
             queryClickHouse(`
                 SELECT
@@ -146,7 +145,8 @@ const getMapIntellectData = async (filters) => {
                     (
                         SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
                         NULLIF(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)
-                    ) * 100 AS city_osa
+                    ) * 100 AS city_osa,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) AS city_listing
                 FROM rb_pdp_olap
                 WHERE ${currPdpConds}
                   AND Location IS NOT NULL AND Location != ''
@@ -163,7 +163,8 @@ const getMapIntellectData = async (filters) => {
                     (
                         SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
                         NULLIF(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)
-                    ) * 100 AS city_osa
+                    ) * 100 AS city_osa,
+                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) AS city_listing
                 FROM rb_pdp_olap
                 WHERE ${prevPdpConds}
                   AND Location IS NOT NULL AND Location != ''
@@ -173,45 +174,55 @@ const getMapIntellectData = async (filters) => {
         console.log(`[MapIntellect] PDP locations: curr=${currCityData.length}, prev=${prevCityData.length}`);
     }
 
-    // ── Fetch Market Share from rb_brand_ms (exact user-specified logic) ──
-    if (isMarketShare) {
-        try {
-            // Build the exact query the user specified:
-            // SELECT toDate(created_on), Location, SUM(market_share)
-            // FROM rb_brand_ms
-            // WHERE Platform LIKE '%<platform>%'
-            //   AND brand IN (<MS_BRANDS>)
-            //   AND Location IN (<MS_LOCATIONS>)
-            //   AND date range
-            // GROUP BY created_on, Location
-            // Then AVG per Location across dates
-            const msQueryBase = (sDate, eDate) => `
+    // ── ALWAYS fetch Market Share from rb_brand_ms (city-wise + date-wise) ──
+    // This ensures market share appears on the map regardless of which metric is selected
+    try {
+        // Build the exact query the user specified:
+        // SELECT toDate(created_on), Location, SUM(market_share)
+        // FROM rb_brand_ms
+        // WHERE Platform LIKE '%<platform>%'
+        //   AND brand IN (<MS_BRANDS>)
+        //   AND Location IN (<MS_LOCATIONS>)
+        //   AND date range
+        // GROUP BY created_on, Location
+        // Then AVG per Location across dates
+        // Use the LATEST available date's SUM(market_share) per city
+        // This gives the most current snapshot instead of averaging across the range
+        const msQueryBase = (sDate, eDate) => `
+            SELECT t.Location, t.mars_city_ms AS avg_market_share
+            FROM (
                 SELECT
+                    toDate(created_on) AS dt,
                     Location,
-                    AVG(mars_city_ms) AS avg_market_share
+                    SUM(market_share)  AS mars_city_ms
+                FROM rb_brand_ms
+                WHERE ${buildMsConds(sDate, eDate)}
+                  AND brand    IN (${MS_BRANDS_SQL})
+                  AND Location IN (${MS_LOCATIONS_SQL})
+                GROUP BY dt, Location
+            ) t
+            INNER JOIN (
+                SELECT Location, MAX(dt) AS max_dt
                 FROM (
-                    SELECT
-                        toDate(created_on) AS created_on,
-                        Location,
-                        SUM(market_share)  AS mars_city_ms
+                    SELECT toDate(created_on) AS dt, Location
                     FROM rb_brand_ms
                     WHERE ${buildMsConds(sDate, eDate)}
                       AND brand    IN (${MS_BRANDS_SQL})
                       AND Location IN (${MS_LOCATIONS_SQL})
-                    GROUP BY created_on, Location
+                    GROUP BY dt, Location
                 )
                 GROUP BY Location
-            `;
+            ) m ON t.Location = m.Location AND t.dt = m.max_dt
+        `;
 
-            [currMsData, prevMsData] = await Promise.all([
-                queryClickHouse(msQueryBase(startDate, endDate)),
-                queryClickHouse(msQueryBase(prevStartDate, prevEndDate))
-            ]);
+        [currMsData, prevMsData] = await Promise.all([
+            queryClickHouse(msQueryBase(startDate, endDate)),
+            queryClickHouse(msQueryBase(prevStartDate, prevEndDate))
+        ]);
 
-            console.log(`[MapIntellect] MS locations: curr=${currMsData.length}, prev=${prevMsData.length}`);
-        } catch (e) {
-            console.error('[MapIntellect] Error querying rb_brand_ms:', e.message);
-        }
+        console.log(`[MapIntellect] MS locations: curr=${currMsData.length}, prev=${prevMsData.length}`);
+    } catch (e) {
+        console.error('[MapIntellect] Error querying rb_brand_ms:', e.message);
     }
 
     // ── Build lookup maps ──────────────────────────────────────────
@@ -222,7 +233,7 @@ const getMapIntellectData = async (filters) => {
     // ── Process and return cities ──────────────────────────────────
     let cities = [];
 
-    if (isMarketShare) {
+    if (isMarketShareOnly) {
         // Market Share view — iterate over the 12 rb_brand_ms locations
         cities = currMsData.map(data => {
             const cityName = (data.Location || '').trim();
@@ -237,9 +248,10 @@ const getMapIntellectData = async (filters) => {
                 sales: 0, salesFormatted: '₹0', salesChange: 0,
                 orders: 0, ordersChange: 0,
                 osa: 0, osaChange: 0,
-                marketShare: parseFloat(ms.toFixed(1)),
-                marketShareChange: parseFloat(calcChange(ms, prevMs).toFixed(1)),
+                marketShare: parseFloat(ms.toFixed(2)),
+                marketShareChange: parseFloat(calcChange(ms, prevMs).toFixed(2)),
                 qty: 0,
+                listingPercentage: 0
             };
         }).filter(Boolean);
 
@@ -276,9 +288,10 @@ const getMapIntellectData = async (filters) => {
                 ordersChange: parseFloat(calcChange(orders, prevOrders).toFixed(1)),
                 osa: parseFloat(osa.toFixed(1)),
                 osaChange: parseFloat(calcChange(osa, prevOsa).toFixed(1)),
-                marketShare: parseFloat(ms.toFixed(1)),
-                marketShareChange: parseFloat(calcChange(ms, prevMs).toFixed(1)),
+                marketShare: parseFloat(ms.toFixed(2)),
+                marketShareChange: parseFloat(calcChange(ms, prevMs).toFixed(2)),
                 qty: Math.round(qty),
+                listingPercentage: parseFloat((data.city_listing || 0).toFixed(1))
             };
         }).filter(Boolean);
     }

@@ -170,7 +170,7 @@ const evaluateRule = (rowValues, rule) => {
 // ----------------- COMPONENT -----------------
 export default function HeatMapDrillTable({ selectedInsight }) {
   // Use Filter Context
-  const { platform, selectedCategory, selectedLocation, timeStart, timeEnd } = useContext(FilterContext);
+  const { platform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedProductCategory } = useContext(FilterContext);
 
   const [apiData, setApiData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -184,6 +184,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
           platform: Array.isArray(platform) ? platform.join(',') : (platform || 'All'),
           brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
           zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+          productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
           startDate: timeStart?.format?.("YYYY-MM-DD"),
           endDate: timeEnd?.format?.("YYYY-MM-DD"),
           insight: selectedInsight // Pass the selected quadrant directly back
@@ -201,7 +202,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     };
 
     fetchData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedInsight]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedInsight, selectedProductCategory]);
 
   const collectedData = apiData;
 

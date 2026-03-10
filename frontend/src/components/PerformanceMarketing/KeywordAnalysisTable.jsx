@@ -218,6 +218,7 @@ export default function KeywordAnalysisTable() {
     selectedLocation,
     timeStart,
     timeEnd,
+    selectedProductCategory,
   } = useContext(FilterContext);
 
   useEffect(() => {
@@ -229,6 +230,7 @@ export default function KeywordAnalysisTable() {
             platform: Array.isArray(platform) ? platform.join(',') : platform,
             brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
             zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+            productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD"),
             weekendFlag: activeFilters.weekendFlag
@@ -245,7 +247,7 @@ export default function KeywordAnalysisTable() {
       }
     };
     fetchKeywordData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, activeFilters.weekendFlag]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, activeFilters.weekendFlag, selectedProductCategory]);
 
   useEffect(() => {
     const fetchCategories = async () => {

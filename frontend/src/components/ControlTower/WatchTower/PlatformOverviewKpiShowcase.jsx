@@ -103,18 +103,7 @@ const DASHBOARD_DATA = {
         color: "#9333EA",
         axis: "right",
       },
-      {
-        id: "PromoMyBrand",
-        label: "Promo – My Brand",
-        color: "#F59E0B",
-        axis: "left",
-      },
-      {
-        id: "PromoCompete",
-        label: "Promo – Compete",
-        color: "#FB7185",
-        axis: "left",
-      },
+
       { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
       { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
       { id: "ASP", label: "ASP", color: "#E11D48", axis: "right" },
@@ -1185,7 +1174,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, filterOptions }) =
           </div>
 
           {/* Main pane */}
-          <div className="flex-1 px-6 py-4">
+          <div className="flex-1 min-w-0 px-6 py-4">
             <div className="flex items-center justify-between gap-4">
               <Input
                 placeholder="Search"
@@ -1203,18 +1192,18 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, filterOptions }) =
               </button>
             </div>
 
-            <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60">
+            <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60 overflow-x-hidden">
               <div className="space-y-1 p-3">
                 {list.map((item) => (
                   <label
                     key={item}
-                    className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
+                    className="flex cursor-pointer items-center gap-3 w-full rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
                   >
                     <Checkbox
                       checked={value[currentKey].includes(item)}
                       onCheckedChange={() => handleToggle(currentKey, item)}
                     />
-                    <span className="truncate">{item}</span>
+                    <span className="truncate flex-1 min-w-0" title={item}>{item}</span>
                   </label>
                 ))}
 
@@ -1823,12 +1812,12 @@ const BrandTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[30%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[14%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[14%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[14%]">Price</th>
-                <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>
-                <th className="px-3 py-2 text-center w-[14%]">Cat Share</th>
+                <th className="px-3 py-2 text-center w-[25%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[13%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[13%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[13%]">Listing %</th>
+                <th className="px-3 py-2 text-center w-[13%]">Price</th>
+                <th className="px-3 py-2 text-center w-[13%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -1839,8 +1828,8 @@ const BrandTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -1864,9 +1853,17 @@ const BrandTable = ({ rows, loading }) => {
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900">
                     <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.SOS?.value) || 0).toFixed(1)}%</span>
+                      <span>{(Number(row.SOS?.value) || 0).toFixed(3)}%</span>
                       <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.SOS?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.SOS?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.SOS?.delta) || 0).toFixed(1)}%
+                        {(Number(row.SOS?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.SOS?.delta) || 0).toFixed(3)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{(Number(row.ListingPercent?.value) || 0).toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.ListingPercent?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {(Number(row.ListingPercent?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.ListingPercent?.delta) || 0).toFixed(1)}%
                       </span>
                     </div>
                   </td>
@@ -1886,18 +1883,10 @@ const BrandTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.CategoryShare?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.CategoryShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.CategoryShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.CategoryShare?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
                 </tr>
               ))}
 
-              {rows.length === 0 && (
+              {!loading && rows.length === 0 && (
                 <tr>
                   <td
                     colSpan={6}
@@ -1949,13 +1938,12 @@ const SkuTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[15%]">SKU</th>
-                <th className="px-3 py-2 text-center w-[15%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[14%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[14%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[14%]">Price</th>
-                <th className="px-3 py-2 text-center w-[14%]">Cat Share</th>
-                <th className="px-3 py-2 text-center w-[14%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[16%]">SKU</th>
+                <th className="px-3 py-2 text-center w-[16%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[13%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[13%]">Listing %</th>
+                <th className="px-3 py-2 text-center w-[13%]">Price</th>
+                <th className="px-3 py-2 text-center w-[13%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -1967,7 +1955,6 @@ const SkuTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
               ))}
@@ -1995,9 +1982,9 @@ const SkuTable = ({ rows, loading }) => {
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900">
                     <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.SOS?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.SOS?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.SOS?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.SOS?.delta) || 0).toFixed(1)}%
+                      <span>{(Number(row.ListingPercent?.value) || 0).toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.ListingPercent?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {(Number(row.ListingPercent?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.ListingPercent?.delta) || 0).toFixed(1)}%
                       </span>
                     </div>
                   </td>
@@ -2006,16 +1993,6 @@ const SkuTable = ({ rows, loading }) => {
                       <span>₹{(Number(row.Price?.value) || 0).toFixed(0)}</span>
                       <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.Price?.delta) || 0) <= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {(Number(row.Price?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.Price?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                      <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700 text-[12px]">
-                        {(Number(row.CategoryShare?.value) || 0).toFixed(1)}%
-                      </span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.CategoryShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.CategoryShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.CategoryShare?.delta) || 0).toFixed(1)}%
                       </span>
                     </div>
                   </td>
@@ -2032,7 +2009,7 @@ const SkuTable = ({ rows, loading }) => {
                 </tr>
               ))}
 
-              {rows.length === 0 && (
+              {!loading && rows.length === 0 && (
                 <tr>
                   <td
                     colSpan={7}
