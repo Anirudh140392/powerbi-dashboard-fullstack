@@ -117,6 +117,8 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
             category: req.query.category || 'All',
+            sku: req.query.sku || 'All',
+            city: req.query.city || 'All',
             view: req.query.view || 'keywords', // keywords, skus, platforms
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -202,7 +204,7 @@ export const getVisibilityFilterOptions = async (req, res) => {
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
 
-        const cacheKey = generateCacheKey('visibility_filters_v2', params);
+        const cacheKey = generateCacheKey('visibility_filters_v4', params);
         const data = await getCachedOrCompute(cacheKey, async () => {
             return await visibilityService.getVisibilityFilterOptions(params);
         }, CACHE_TTL.STATIC);

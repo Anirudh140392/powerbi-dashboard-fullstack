@@ -454,6 +454,7 @@ const VisiblityAnalysisData = ({
   apiErrors = {},
   loading = {},
   onRetry,
+  onFiltersChange,
   filters: parentFilters,
   topSearchFilter: parentTopSearchFilter,
   setTopSearchFilter: parentSetTopSearchFilter
@@ -739,37 +740,6 @@ const VisiblityAnalysisData = ({
   // };
 
   // ---------------- FILTER OPTIONS ----------------
-  const VISIBILITY_FILTER_OPTIONS = [
-    { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-    { id: "keywords", label: "Keyword" },
-    { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-    {
-      id: "platform", label: "Platform", options: [
-        { id: "blinkit", label: "Blinkit" },
-        { id: "instamart", label: "Instamart" },
-        { id: "zepto", label: "Zepto" },
-        { id: "flipkart", label: "Flipkart" },
-        { id: "amazon", label: "Amazon" }
-      ]
-    },
-    {
-      id: "kpi",
-      label: "KPI",
-      options: [
-        { id: "Overall Weighted SOS", label: "OVERALL WEIGHTED SOS" },
-        { id: "Sponsored Weighted SOS", label: "SPONSORED WEIGHTED SOS" },
-        { id: "Organic Weighted SOS", label: "ORGANIC WEIGHTED SOS" }
-      ]
-    },
-    { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-    { id: "format", label: "Category", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
-    { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
-    { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
-    { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
-    { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
-    { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
-  ];
-
   const TabbedHeatmapTable = ({ apiMatrixData }) => {
     const [activeTab, setActiveTab] = useState("platform");
 
@@ -828,7 +798,23 @@ const VisiblityAnalysisData = ({
             data={active.data}
             title={active.label}
             showPagination={true}
-            kpiFilterOptions={VISIBILITY_FILTER_OPTIONS}
+            filterApiUrl="/api/visibility-analysis/filter-options"
+            onFilterChange={(appliedFilters) => {
+              // Map matrix internal filter names to global filter names
+              const mapped = {
+                platform: appliedFilters.platforms?.[0] || 'All',
+                category: appliedFilters.categories?.[0] || 'All',
+                brand: appliedFilters.brands?.[0] || 'All',
+                location: appliedFilters.cities?.[0] || 'All'
+              };
+              onFiltersChange(prev => ({ ...prev, ...mapped }));
+            }}
+            filterSections={[
+              { id: "platforms", label: "Platform", apiType: "platforms" },
+              { id: "categories", label: "Category", apiType: "formats" },
+              { id: "cities", label: "City", apiType: "cities" },
+              { id: "brands", label: "Brand", apiType: "brands" },
+            ]}
           />
         )}
       </div>
@@ -935,7 +921,11 @@ const VisiblityAnalysisData = ({
         ) : !apiData?.keywords?.hierarchy || apiData?.keywords?.hierarchy?.length === 0 ? (
           <NoDataAvailable title="No keywords data available" />
         ) : (
-          <VisibilityDrilldownTable data={apiData?.keywords?.hierarchy} />
+          <VisibilityDrilldownTable 
+            data={apiData?.keywords?.hierarchy} 
+            filters={parentFilters}
+            onFiltersChange={onFiltersChange}
+          />
         )}
       </div>
       {/* Section 4: Top Search Terms */}

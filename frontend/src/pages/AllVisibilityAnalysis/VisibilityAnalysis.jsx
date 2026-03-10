@@ -440,6 +440,7 @@ export default function VisibilityAnalysis() {
           loading={loading}
           onRetry={retrySegment}
           filters={filters}
+          onFiltersChange={setFilters}
           topSearchFilter={topSearchFilter}
           setTopSearchFilter={setTopSearchFilter}
         />

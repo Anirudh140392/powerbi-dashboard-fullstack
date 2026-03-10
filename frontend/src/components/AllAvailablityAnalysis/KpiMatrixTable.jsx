@@ -176,7 +176,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
         { id: 'format', label: 'Category', options: [] },
         { id: 'city', label: 'City', options: [] },
         { id: 'brand', label: 'Brand', options: [] },
-        { id: 'kpi', label: 'KPI', options: [] },
         { id: 'month', label: 'Month', options: [] },
         { id: 'metroFlag', label: 'Metro Flag', options: [] },
     ]);
@@ -192,7 +191,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
         format: [],
         city: [],
         brand: [],
-        kpi: [],
         month: [],
         metroFlag: [],
     });
@@ -202,7 +200,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
         format: [],
         city: [],
         brand: [],
-        kpi: [],
         month: [],
         metroFlag: [],
     });
@@ -219,7 +216,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     { id: 'format', apiType: 'formats', label: 'Category' },
                     { id: 'city', apiType: 'cities', label: 'City' },
                     { id: 'brand', apiType: 'brands', label: 'Brand' },
-                    { id: 'kpi', apiType: 'kpis', label: 'KPI' },
                     { id: 'month', apiType: 'months', label: 'Month' },
                     { id: 'metroFlag', apiType: 'metroFlags', label: 'Metro Flag' },
                 ];
@@ -397,7 +393,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
             format: [],
             city: [],
             brand: [],
-            kpi: [],
             month: [],
             metroFlag: [],
         });

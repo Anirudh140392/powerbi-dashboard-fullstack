@@ -1,4 +1,4 @@
-import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareCompetitionTrends } from '../controllers/marketShareController.js';
+import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown } from '../controllers/marketShareController.js';
 
 export default (app) => {
     /**
@@ -112,4 +112,16 @@ export default (app) => {
      *         description: Successful response.
      */
     app.get('/api/market-share/competition-trends', MarketShareCompetitionTrends);
+
+    /**
+     * @swagger
+     * /api/market-share/drilldown:
+     *   get:
+     *     summary: Get Hierarchical Market Share Drilldown
+     *     description: Retrieve Brand -> Sub-Brand -> SKU hierarchy with share and mrp.
+     *     responses:
+     *       200:
+     *         description: Successful response.
+     */
+    app.get('/api/market-share/drilldown', MarketShareDrilldown);
 };

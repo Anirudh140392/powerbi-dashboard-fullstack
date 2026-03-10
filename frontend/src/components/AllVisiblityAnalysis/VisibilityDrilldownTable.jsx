@@ -17,7 +17,6 @@ const PLATFORM_LABELS = {
     Blinkit: 'Blinkit',
     Zepto: 'Zepto',
     Instamart: 'Instamart',
-    BigBasket: 'BigBasket',
 }
 
 const PERCENT_KPIS = ['adSos', 'orgSos', 'overallSos']
@@ -32,7 +31,7 @@ const sampleHierarchy = [
             Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
             Zepto: { overallSos: 0.7, adSos: 0.5, orgSos: 0.9, catImpShare: 64.2 },
             Instamart: { overallSos: 0.9, adSos: 0.7, orgSos: 1.1, catImpShare: 66.3 },
-            BigBasket: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.1 },
+            Instamart: { overallSos: 0.9, adSos: 0.7, orgSos: 1.1, catImpShare: 66.3 },
         },
         children: [
             {
@@ -229,55 +228,67 @@ const formatMetric = (kpi, value) => {
 const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
     const rows = []
 
+    const checkNodeMatches = (node, paths) => {
+        return (
+            (!filters.keyword || paths.keyword === filters.keyword) &&
+            (!filters.brand || paths.brand === filters.brand) &&
+            (!filters.sku || paths.sku === filters.sku) &&
+            (!filters.city || paths.city === filters.city)
+        );
+    };
+
+    const hasMatchingDescendant = (node, parentPaths) => {
+        const myPaths = {
+            ...parentPaths,
+            keywordType: node.level === 'keyword-type' ? node.label : parentPaths.keywordType,
+            keyword: node.level === 'keyword' ? node.label : parentPaths.keyword,
+            brand: node.level === 'brand' ? node.label : parentPaths.brand,
+            sku: node.level === 'sku' ? node.label : parentPaths.sku,
+            city: node.level === 'city' ? node.label : parentPaths.city,
+        };
+
+        if (checkNodeMatches(node, myPaths)) return true;
+        if (node.children) {
+            return node.children.some(c => hasMatchingDescendant(c, myPaths));
+        }
+        return false;
+    };
+
     const walk = (node, depth, parentPaths) => {
-        // Determine paths based on view and depth
         const keywordTypePath = depth === 0 && view !== 'skus' ? node.label : parentPaths.keywordType
-
-        // In SKU view, depth 0 is SKU
         const skuPath = view === 'skus' ? (depth === 0 ? node.label : parentPaths.sku) : (node.level === 'sku' ? node.label : parentPaths.sku)
-
         const keywordPath = node.level === 'keyword' ? node.label : parentPaths.keyword
+        const brandPath = node.level === 'brand' ? node.label : parentPaths.brand
         const cityPath = node.level === 'city' ? node.label : parentPaths.city
 
-        // Filter logic
-        const passesFilter =
-            (!filters.keyword || keywordPath === filters.keyword) &&
-            (!filters.sku || skuPath === filters.sku) &&
-            (!filters.city || cityPath === filters.city)
+        const myPaths = {
+            keywordType: keywordTypePath,
+            keyword: keywordPath,
+            brand: brandPath,
+            sku: skuPath,
+            city: cityPath
+        };
 
-        if (!passesFilter) {
-            if (node.children) {
-                // Pass explicit paths for filtering logic during recursion if needed, 
-                // though simplistic walking is usually fine if we don't prune parents based on children visibility here.
-                // Current implementation just recurses.
-                node.children.forEach((c) => walk(c, depth + 1, { keywordType: keywordTypePath, keyword: keywordPath, sku: skuPath }))
-            }
-            return
-        }
+        const isMatch = checkNodeMatches(node, myPaths);
+        const shouldShow = isMatch || (node.children && node.children.some(c => hasMatchingDescendant(c, myPaths)));
+
+        if (!shouldShow) return;
 
         // Determine if this node has appropriate children to show
         let hasAppropriateChildren = false
         if (node.children && node.children.length > 0) {
             if (view === 'skus') {
-                if (depth === 0) { // SKU -> Keyword
-                    hasAppropriateChildren = node.children.some(c => c.level === 'keyword')
-                } else if (depth === 1) { // Keyword -> City
-                    hasAppropriateChildren = node.children.some(c => c.level === 'city')
-                }
+                if (depth === 0) hasAppropriateChildren = node.children.some(c => c.level === 'keyword')
+                else if (depth === 1) hasAppropriateChildren = node.children.some(c => c.level === 'city')
             } else {
-                // Standard hierarchy: Type -> Keyword -> Brand -> SKU -> City
-                hasAppropriateChildren = node.children && node.children.length > 0;
+                hasAppropriateChildren = node.children.length > 0;
             }
         }
 
         rows.push({
             id: node.id,
             depth,
-            keywordType: keywordTypePath,
-            brand: node.level === 'brand' ? node.label : parentPaths.brand,
-            keyword: keywordPath,
-            sku: skuPath,
-            city: cityPath,
+            ...myPaths,
             label: node.label,
             subtitle: node.subtitle,
             level: node.level,
@@ -287,31 +298,18 @@ const flattenHierarchy = (nodes, expanded, filters, view = 'platforms') => {
         })
 
         if (node.children && expanded.has(node.id)) {
-            // Filter children based on parent level to enforce proper hierarchy
             let childrenToShow = node.children
-
             if (view === 'skus') {
                 if (depth === 0) childrenToShow = node.children.filter(c => c.level === 'keyword')
                 else if (depth === 1) childrenToShow = node.children.filter(c => c.level === 'city')
             } else {
-                // Type -> Keyword -> Brand -> SKU -> City
-                if (depth === 0) {
-                    childrenToShow = node.children.filter(c => c.level === 'keyword')
-                } else if (depth === 1 && node.level === 'keyword') {
-                    childrenToShow = node.children.filter(c => c.level === 'brand')
-                } else if (node.level === 'brand') {
-                    childrenToShow = node.children.filter(c => c.level === 'sku')
-                } else if (node.level === 'sku') {
-                    childrenToShow = node.children.filter(c => c.level === 'city')
-                }
+                if (depth === 0) childrenToShow = node.children.filter(c => c.level === 'keyword')
+                else if (depth === 1 && node.level === 'keyword') childrenToShow = node.children.filter(c => c.level === 'brand')
+                else if (node.level === 'brand') childrenToShow = node.children.filter(c => c.level === 'sku')
+                else if (node.level === 'sku') childrenToShow = node.children.filter(c => c.level === 'city')
             }
 
-            childrenToShow.forEach((child) => walk(child, depth + 1, {
-                keywordType: keywordTypePath,
-                brand: node.level === 'brand' ? node.label : parentPaths.brand,
-                keyword: keywordPath,
-                sku: skuPath
-            }))
+            childrenToShow.forEach((child) => walk(child, depth + 1, myPaths))
         }
     }
 
@@ -339,13 +337,13 @@ const FILTER_OPTIONS_CONFIG = [
     { id: "pincode", label: "Pincode", options: [{ id: "all", label: "All" }] },
 ]
 
-export default function VisibilityDrilldownTable({ data = null, loading = false }) {
+export default function VisibilityDrilldownTable({ data = null, loading = false, filters: parentFilters = null, onFiltersChange = null }) {
     const [popupFilters, setPopupFilters] = useState({
         keyword: null,
+        brand: null,
         sku: null,
         city: null,
         platform: 'All',
-
     })
 
     // Responsive check
@@ -380,64 +378,34 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     const [activeView, setActiveView] = useState('keywords')
     const [expandedRows, setExpandedRows] = useState(new Set())
     const [expandedKpis, setExpandedKpis] = useState(new Set())
-    const [filters, setFilters] = useState({ keyword: null, sku: null, city: null, platform: 'All' })
+    const [filters, setFilters] = useState({ keyword: null, brand: null, sku: null, city: null, platform: 'All' })
+
+    // Sync from parent filters (global context)
+    useEffect(() => {
+        if (parentFilters) {
+            setFilters(prev => ({
+                ...prev,
+                keyword: parentFilters.keyword === 'All' ? null : (parentFilters.keyword || prev.keyword),
+                brand: parentFilters.brand === 'All' ? null : (parentFilters.brand || prev.brand),
+                platform: parentFilters.platform || prev.platform,
+            }));
+            
+            setPopupFilters(prev => ({
+                ...prev,
+                keyword: parentFilters.keyword === 'All' ? null : (parentFilters.keyword || prev.keyword),
+                brand: parentFilters.brand === 'All' ? null : (parentFilters.brand || prev.brand),
+                platform: parentFilters.platform || prev.platform,
+            }));
+        }
+    }, [parentFilters]);
     const [page, setPage] = useState(1) // 1-indexed for PaginationFooter
     const [pageSize, setPageSize] = useState(5)
     const [filterPanelOpen, setFilterPanelOpen] = useState(false)
     // Dynamic filter options from rb_kw table
-    const [filterOptions, setFilterOptions] = useState(FILTER_OPTIONS_CONFIG)
-
-    // Fetch dynamic filter options from backend on mount
-    useEffect(() => {
-        const fetchFilterOptions = async () => {
-            try {
-                // Fetch all filter types in parallel from visibility API
-                const [monthsRes, platformsRes, formatsRes, citiesRes, pincodesRes, productNamesRes] = await Promise.all([
-                    axiosInstance.get('/visibility-analysis/filter-options?filterType=months'),
-                    axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
-                    axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
-                    axiosInstance.get('/visibility-analysis/filter-options?filterType=cities'),
-                    axiosInstance.get('/visibility-analysis/filter-options?filterType=pincodes'),
-                    axiosInstance.get('/visibility-analysis/filter-options?filterType=productName')
-                ])
-
-                // Transform API responses to option format { id, label }
-                const toOptions = (arr) => [
-                    { id: 'all', label: 'All' },
-                    ...(arr || []).filter(v => v && v !== 'All').map(v => ({ id: v, label: String(v) }))
-                ]
-
-                const dynamicOptions = [
-                    { id: "date", label: "Date", options: [] },
-                    { id: "month", label: "Month", options: toOptions(monthsRes.data?.options) },
-                    { id: "platform", label: "Platform", options: toOptions(platformsRes.data?.options) },
-                    { id: "productName", label: "Product Name", options: toOptions(productNamesRes.data?.options) },
-                    { id: "format", label: "Category", options: toOptions(formatsRes.data?.options) },
-                    { id: "city", label: "City", options: toOptions(citiesRes.data?.options) },
-                    { id: "pincode", label: "Pincode", options: toOptions(pincodesRes.data?.options) },
-                ]
-
-                setFilterOptions(dynamicOptions)
-                console.log('[VisibilityDrilldownTable] Dynamic filter options loaded:', {
-                    months: monthsRes.data?.options?.length || 0,
-                    platforms: platformsRes.data?.options?.length || 0,
-                    formats: formatsRes.data?.options?.length || 0,
-                    cities: citiesRes.data?.options?.length || 0,
-                    pincodes: pincodesRes.data?.options?.length || 0,
-                    productNames: productNamesRes.data?.options?.length || 0
-                })
-            } catch (error) {
-                console.error('[VisibilityDrilldownTable] Error fetching filter options:', error)
-                // Keep using static fallback on error
-            }
-        }
-
-        fetchFilterOptions()
-    }, []) // Run once on mount
-
-    // Use prop data first, then fallback to sampleHierarchy
-    const sourceData = data || sampleHierarchy;
-    console.log('[VisibilityDrilldownTable] Using sourceData:', data ? 'Prop data' : 'Fallback sampleHierarchy');
+    // Use prop data first, if null/empty while loading, it will show skeleton (handled by parent)
+    // If we have actual data, use it. If not, only use sampleHierarchy if explicitly in demo mode or if no data at all.
+    const sourceData = data && data.length > 0 ? data : (loading ? [] : (data || [])); 
+    console.log('[VisibilityDrilldownTable] Using sourceData:', data && data.length > 0 ? 'Actual data' : 'Empty/Loading');
 
 
 
@@ -529,22 +497,23 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
     // Check if any keyword type (level 0) is expanded to show Brand column
     const showBrandColumn = useMemo(() => {
         if (activeView !== 'keywords') return false
-        return pageRows.some(r => r.level === 'brand')
-    }, [activeView, pageRows])
+        return true // Always show Brand column in keywords view for hierarchy stability
+    }, [activeView])
 
     // Columns detection
     const showKeywordColumn = useMemo(() => {
-        return pageRows.some(r => r.level === 'keyword')
-    }, [pageRows])
+        if (activeView === 'platforms') return false
+        return true // Always show Keyword column in keywords/skus view
+    }, [activeView])
 
     const showSkuColumn = useMemo(() => {
         if (activeView === 'skus') return false
-        return pageRows.some(r => r.level === 'sku')
-    }, [pageRows, activeView])
+        return flatRows.some(r => r.level === 'sku')
+    }, [flatRows, activeView])
 
     const showCityColumn = useMemo(() => {
-        return pageRows.some(r => r.level === 'city')
-    }, [pageRows])
+        return flatRows.some(r => r.level === 'city')
+    }, [flatRows])
 
     const keywordWidth = showKeywordColumn ? FROZEN_WIDTHS.keyword : 0
     const brandWidth = showBrandColumn ? FROZEN_WIDTHS.brand : 0
@@ -573,34 +542,39 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
         })
     }
 
-    const keywordOptions = useMemo(() =>
-        sampleHierarchy
-            .flatMap((n) => n.children ?? []) // brands
-            .flatMap((b) => b.children ?? []) // keywords
-            .map((k) => ({ id: k.label, label: k.label })),
-        []
-    )
-    const skuOptions = useMemo(
-        () =>
-            sampleHierarchy
-                .flatMap((n) => n.children ?? []) // brands
-                .flatMap((b) => b.children ?? []) // keywords
-                .flatMap((k) => k.children ?? []) // skus
-                .filter((c) => c.level === 'sku')
-                .map((c) => ({ id: c.label, label: c.label })),
-        []
-    )
-    const cityOptions = useMemo(
-        () =>
-            sampleHierarchy
-                .flatMap((n) => n.children ?? []) // brands
-                .flatMap((b) => b.children ?? []) // keywords
-                .flatMap((k) => k.children ?? []) // skus
-                .flatMap((s) => s.children ?? []) // cities
-                .filter((c) => c.level === 'city')
-                .map((c) => ({ id: c.label, label: c.label })),
-        []
-    )
+    const keywordOptions = useMemo(() => {
+        const base = sourceData && sourceData.length > 0 ? sourceData : sampleHierarchy;
+        const types = base || [];
+        const kws = types.flatMap(n => n.children || []);
+        return [...new Set(kws.map(k => k.label))].map(l => ({ id: l, label: l }));
+    }, [sourceData]);
+
+    const brandOptions = useMemo(() => {
+        const base = sourceData && sourceData.length > 0 ? sourceData : sampleHierarchy;
+        const types = base || [];
+        const kws = types.flatMap(n => n.children || []);
+        const brands = kws.flatMap(k => k.children || []).filter(c => c.level === 'brand');
+        return [...new Set(brands.map(b => b.label))].map(l => ({ id: l, label: l }));
+    }, [sourceData]);
+
+    const skuOptions = useMemo(() => {
+        const base = sourceData && sourceData.length > 0 ? sourceData : sampleHierarchy;
+        const types = base || [];
+        const kws = types.flatMap(n => n.children || []);
+        const brands = kws.flatMap(k => k.children || []).filter(c => c.level === 'brand');
+        const skus = brands.flatMap(b => b.children || []).filter(c => c.level === 'sku');
+        return [...new Set(skus.map(s => s.label))].map(l => ({ id: l, label: l }));
+    }, [sourceData]);
+
+    const cityOptions = useMemo(() => {
+        const base = sourceData && sourceData.length > 0 ? sourceData : sampleHierarchy;
+        const types = base || [];
+        const kws = types.flatMap(n => n.children || []);
+        const brands = kws.flatMap(k => k.children || []).filter(c => c.level === 'brand');
+        const skus = brands.flatMap(b => b.children || []).filter(c => c.level === 'sku');
+        const cities = skus.flatMap(s => s.children || []).filter(c => c.level === 'city');
+        return [...new Set(cities.map(c => c.label))].map(l => ({ id: l, label: l }));
+    }, [sourceData]);
     const platformOptions = useMemo(() => (['All', ...Object.keys(PLATFORM_LABELS)]).map((p) => ({ id: String(p), label: String(p) })), [])
 
     const handleKeywordChange = (ids) => setFilters((prev) => ({ ...prev, keyword: ids[0] ?? null }))
@@ -610,6 +584,14 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
         const selected = ids[0]
         setFilters((prev) => ({ ...prev, platform: selected === 'All' || !selected ? 'All' : selected }))
     }
+
+    const filterOptions = useMemo(() => [
+        { id: 'platform', label: 'Platform', options: platformOptions },
+        { id: 'city', label: 'City', options: cityOptions },
+        { id: 'brand', label: 'Brand', options: brandOptions },
+        { id: 'keyword', label: 'Keyword', options: keywordOptions },
+        { id: 'sku', label: 'SKU', options: skuOptions },
+    ], [platformOptions, cityOptions, brandOptions, keywordOptions, skuOptions]);
 
     const visiblePlatforms = filters.platform === 'All' ? Object.keys(PLATFORM_LABELS) : [filters.platform]
 
@@ -1138,29 +1120,42 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                             <div className="mt-8 space-y-4">
                                 <div>
                                     <label className="mb-1.5 block text-xs font-semibold text-slate-700">Filter by Keyword</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {/* Simplified for demo - robust multi-select usually needs a library or complex component */}
-                                        <select
-                                            className="w-full rounded border border-slate-300 p-2 text-sm"
-                                            onChange={(e) => handleKeywordChange([e.target.value])}
-                                            value={filters.keyword || ''}
-                                        >
-                                            <option value="">All Keywords</option>
-                                            {keywordOptions.map((o) => (
-                                                <option key={o.id} value={o.id}>
-                                                    {o.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    <select
+                                        className="w-full rounded border border-slate-300 p-2 text-sm"
+                                        onChange={(e) => setPopupFilters(prev => ({ ...prev, keyword: e.target.value || null }))}
+                                        value={popupFilters.keyword || ''}
+                                    >
+                                        <option value="">All Keywords</option>
+                                        {keywordOptions.map((o) => (
+                                            <option key={o.id} value={o.id}>
+                                                {o.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="mb-1.5 block text-xs font-semibold text-slate-700">Filter by Brand</label>
+                                    <select
+                                        className="w-full rounded border border-slate-300 p-2 text-sm"
+                                        onChange={(e) => setPopupFilters(prev => ({ ...prev, brand: e.target.value || null }))}
+                                        value={popupFilters.brand || ''}
+                                    >
+                                        <option value="">All Brands</option>
+                                        {brandOptions.map((o) => (
+                                            <option key={o.id} value={o.id}>
+                                                {o.label}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 <div>
                                     <label className="mb-1.5 block text-xs font-semibold text-slate-700">Filter by SKU</label>
                                     <select
                                         className="w-full rounded border border-slate-300 p-2 text-sm"
-                                        onChange={(e) => handleSkuChange([e.target.value])}
-                                        value={filters.sku || ''}
+                                        onChange={(e) => setPopupFilters(prev => ({ ...prev, sku: e.target.value || null }))}
+                                        value={popupFilters.sku || ''}
                                     >
                                         <option value="">All SKUs</option>
                                         {skuOptions.map((o) => (
@@ -1175,8 +1170,8 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                     <label className="mb-1.5 block text-xs font-semibold text-slate-700">Filter by City</label>
                                     <select
                                         className="w-full rounded border border-slate-300 p-2 text-sm"
-                                        onChange={(e) => handleCityChange([e.target.value])}
-                                        value={filters.city || ''}
+                                        onChange={(e) => setPopupFilters(prev => ({ ...prev, city: e.target.value || null }))}
+                                        value={popupFilters.city || ''}
                                     >
                                         <option value="">All Cities</option>
                                         {cityOptions.map((o) => (
@@ -1263,13 +1258,25 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                 </button>
                                 <button
                                     onClick={() => {
-                                        setFilters(prev => ({
-                                            ...prev,
+                                        const newFilters = {
                                             keyword: popupFilters.keyword || null,
+                                            brand: popupFilters.brand || null,
                                             sku: popupFilters.sku || null,
                                             city: popupFilters.city || null,
                                             platform: popupFilters.platform || 'All',
-                                        }))
+                                        };
+                                        
+                                        setFilters(newFilters);
+
+                                        if (onFiltersChange) {
+                                            onFiltersChange(prev => ({
+                                                ...prev,
+                                                keyword: newFilters.keyword || 'All',
+                                                brand: newFilters.brand || 'All',
+                                                platform: newFilters.platform || 'All',
+                                                location: newFilters.city || prev.location
+                                            }));
+                                        }
 
                                         setPage(1)
                                         setExpandedRows(new Set())
@@ -1280,8 +1287,10 @@ export default function VisibilityDrilldownTable({ data = null, loading = false 
                                     Apply Filters
                                 </button>
                             </div>
+
                         </div>
                     </div>
+
                 )
             }
         </div >
