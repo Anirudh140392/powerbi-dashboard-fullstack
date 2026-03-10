@@ -1,13 +1,13 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { queryClickHouse } from '../src/config/clickhouse.js';
 import dayjs from 'dayjs';
 
 (async () => {
     try {
         const query = `
-            SELECT Product_Category, count() 
+            SELECT Category, count() 
             FROM rb_pdp_olap 
             WHERE toDate(DATE) BETWEEN '2026-02-01' AND '2026-03-07'
-            GROUP BY Product_Category 
+            GROUP BY Category 
             LIMIT 10
         `;
         const results = await queryClickHouse(query);

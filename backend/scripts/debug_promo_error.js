@@ -1,4 +1,4 @@
-import watchTowerService from './src/services/watchTowerService.js';
+import watchTowerService from '../src/services/watchTowerService.js';
 
 async function test() {
     try {

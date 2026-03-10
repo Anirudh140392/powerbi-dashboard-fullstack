@@ -1,4 +1,4 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { queryClickHouse } from '../src/config/clickhouse.js';
 
 async function test() {
     console.log("--- rca_sku_dim duplicates for join key ---");

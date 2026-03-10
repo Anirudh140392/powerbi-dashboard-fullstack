@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import inventoryAnalysisService from './src/services/inventoryAnalysisService.js';
+import inventoryAnalysisService from '../src/services/inventoryAnalysisService.js';
 
 async function debugMatrix() {
     try {

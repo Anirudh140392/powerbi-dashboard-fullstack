@@ -1,5 +1,5 @@
 
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { queryClickHouse } from '../src/config/clickhouse.js';
 
 async function checkSchemas() {
     try {

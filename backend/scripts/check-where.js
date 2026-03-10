@@ -1,4 +1,4 @@
-import availabilityService from './src/services/availabilityService.js';
+import availabilityService from '../src/services/availabilityService.js';
 import dayjs from 'dayjs';
 
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';

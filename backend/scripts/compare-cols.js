@@ -1,11 +1,10 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { queryClickHouse } from '../src/config/clickhouse.js';
 
 (async () => {
     try {
         const query = `
             SELECT 
-                count(Category) as cat_count, 
-                count(Product_Category) as prod_cat_count 
+                count(Category) as cat_count
             FROM rb_pdp_olap 
             WHERE toDate(DATE) > '2026-01-01'
         `;

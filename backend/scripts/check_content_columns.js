@@ -1,6 +1,6 @@
 
 import "dotenv/config";
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { queryClickHouse } from '../src/config/clickhouse.js';
 import fs from 'fs';
 
 const checkColumns = async () => {

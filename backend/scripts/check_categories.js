@@ -1,5 +1,5 @@
 
-import { clickhouse } from './src/config/clickhouse.js';
+import { clickhouse } from '../src/config/clickhouse.js';
 
 const checkCategories = async () => {
     try {

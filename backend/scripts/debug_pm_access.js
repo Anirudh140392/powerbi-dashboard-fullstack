@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 dotenv.config();
 import fs from 'fs';
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { queryClickHouse } from '../src/config/clickhouse.js';
 
 const runDebug = async () => {
     try {

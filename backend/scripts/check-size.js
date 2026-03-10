@@ -1,4 +1,4 @@
-import availabilityService from './src/services/availabilityService.js';
+import availabilityService from '../src/services/availabilityService.js';
 
 async function test() {
     try {
