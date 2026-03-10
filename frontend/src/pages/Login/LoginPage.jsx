@@ -1,25 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../utils/AuthContext";
 import {
     Box,
-    TextField,
-    Button,
     Typography,
-    IconButton,
-    InputAdornment,
     Alert,
-    useMediaQuery,
-    useTheme,
 } from "@mui/material";
 import {
-    Visibility,
-    VisibilityOff,
-    Email as EmailIcon,
-    Lock as LockIcon,
-} from "@mui/icons-material";
-import ads3dIllustration from "../../assets/ads_3d.png";
+    Mail,
+    Lock,
+    Eye,
+    EyeOff,
+    BarChart3,
+    TrendingUp,
+    PieChart,
+    Send,
+    Truck,
+} from "lucide-react";
 
 const LoginPage = () => {
     const [email, setEmail] = useState("");
@@ -30,49 +28,16 @@ const LoginPage = () => {
 
     const { login } = useAuth();
     const navigate = useNavigate();
-    const location = useLocation();
-    const theme = useTheme();
-    const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-
-    // Mouse Parallax Values
-    const mouseX = useMotionValue(0);
-    const mouseY = useMotionValue(0);
-
-    const springConfig = { damping: 25, stiffness: 150 };
-    const springX = useSpring(mouseX, springConfig);
-    const springY = useSpring(mouseY, springConfig);
-
-    // Parallax Transforms
-    const rotateX = useTransform(springY, [-0.5, 0.5], [10, -10]);
-    const rotateY = useTransform(springX, [-0.5, 0.5], [-10, 10]);
-    const translateX = useTransform(springX, [-0.5, 0.5], [-20, 20]);
-    const translateY = useTransform(springY, [-0.5, 0.5], [-20, 20]);
-
-    useEffect(() => {
-        const handleMouseMove = (e) => {
-            const { innerWidth, innerHeight } = window;
-            const x = (e.clientX / innerWidth) - 0.5;
-            const y = (e.clientY / innerHeight) - 0.5;
-            mouseX.set(x);
-            mouseY.set(y);
-        };
-        window.addEventListener("mousemove", handleMouseMove);
-        return () => window.removeEventListener("mousemove", handleMouseMove);
-    }, [mouseX, mouseY]);
-
 
     const handleLogin = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         setError("");
         setLoading(true);
 
-        // Start a 2-second timer
         const timer = new Promise((resolve) => setTimeout(resolve, 2000));
-
         const result = await login({ email, password });
 
         if (result.success) {
-            // Wait for the timer to finish before navigating
             await timer;
             navigate("/watch-tower", { replace: true });
         } else {
@@ -81,347 +46,159 @@ const LoginPage = () => {
         }
     };
 
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { duration: 0.6, staggerChildren: 0.1 },
-        },
-    };
-
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0 },
-        visible: { y: 0, opacity: 1, transition: { duration: 0.5 } },
-    };
-
     return (
-        <Box
-            sx={{
-                height: "100vh",
-                width: "100vw",
-                display: "flex",
-                overflow: "hidden",
-                bgcolor: "#fff",
-            }}
-        >
-            {/* LEFT PANEL - 3D ILLUSTRATION */}
-            {!isMobile && (
-                <Box
-                    sx={{
-                        flex: 1.5,
-                        background: "linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        position: "relative",
-                        p: 6,
-                        overflow: "hidden",
-                    }}
-                >
+        <div className="w-screen h-screen flex overflow-hidden font-['Outfit',_sans-serif] bg-[#f4f4f7]">
+            {/* Background Layout */}
+            <div className="absolute inset-0 flex">
+                <div className="w-[65%] h-full bg-gradient-to-br from-[#4c46f5] via-[#6248f4] to-[#7b45f0]" />
+                <div className="w-[35%] h-full bg-[#f4f4f7]" />
+            </div>
+
+            {/* Content Layer */}
+            <div className="relative z-10 w-full h-full flex items-center">
+                {/* Logo top-left */}
+                <div className="absolute top-10 left-12">
+                    <img src="/sidebar_logo.png" alt="Trailytics Logo" className="h-10 w-auto" />
+                </div>
+
+                {/* Left Side Content */}
+                <div className="w-[60%] h-full flex flex-col justify-center px-16 lg:px-24">
                     <motion.div
-                        style={{
-                            perspective: 1000,
-                            width: "100%",
-                            maxWidth: "600px",
-                            textAlign: "center",
-                            zIndex: 2,
-                        }}
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.7 }}
                     >
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            transition={{ duration: 0.8 }}
-                        >
-                            <Typography
-                                variant="h3"
-                                sx={{
-                                    color: "#fff",
-                                    fontWeight: 800,
-                                    mb: 1.5,
-                                    fontFamily: "Outfit, sans-serif",
-                                    textShadow: "0 10px 20px rgba(0,0,0,0.1)",
-                                }}
-                            >
-                                Master Your Ad Campaigns
-                            </Typography>
-                            <Typography
-                                variant="h6"
-                                sx={{
-                                    color: "rgba(255, 255, 255, 0.85)",
-                                    mb: 8,
-                                    fontWeight: 400,
-                                    maxWidth: "500px",
-                                    mx: "auto",
-                                }}
-                            >
-                                Intelligent analytics for maximum performance and cross-platform visibility.
-                            </Typography>
-                        </motion.div>
+                        <h1 className="text-white text-[56px] font-extrabold leading-[1.1] tracking-tight">
+                            Unified E-Commerce <br /> Intelligence
+                        </h1>
 
-                        <motion.div
-                            style={{
-                                rotateX,
-                                rotateY,
-                                x: translateX,
-                                y: translateY,
-                            }}
-                            animate={{
-                                y: [0, -15, 0],
-                            }}
-                            transition={{
-                                duration: 6,
-                                repeat: Infinity,
-                                ease: "easeInOut",
-                            }}
-                        >
-                            <Box
-                                component="img"
-                                src={ads3dIllustration}
-                                alt="Ads Management Illustration"
-                                sx={{
-                                    width: "100%",
-                                    height: "auto",
-                                    maxHeight: "550px",
-                                    objectFit: "contain",
-                                    filter: "drop-shadow(0 30px 50px rgba(0,0,0,0.3))",
-                                }}
-                            />
-                        </motion.div>
+                        <p className="text-white/80 mt-8 text-[18px] max-w-[500px] leading-relaxed">
+                            Actionable analytics for modern retail performance and
+                            market share visibility.
+                        </p>
                     </motion.div>
 
-                    {/* Decorative 3D-feeling shapes (parallax) */}
+                    {/* Dashboard Illustration */}
                     <motion.div
-                        style={{
-                            position: "absolute",
-                            top: "10%",
-                            left: "5%",
-                            width: 150,
-                            height: 150,
-                            borderRadius: "50%",
-                            background: "rgba(255, 255, 255, 0.08)",
-                            x: useTransform(springX, [-0.5, 0.5], [-50, 50]),
-                            y: useTransform(springY, [-0.5, 0.5], [-50, 50]),
-                        }}
-                    />
-                    <motion.div
-                        style={{
-                            position: "absolute",
-                            bottom: "15%",
-                            right: "10%",
-                            width: 250,
-                            height: 250,
-                            borderRadius: "50%",
-                            background: "rgba(255, 255, 255, 0.05)",
-                            x: useTransform(springX, [-0.5, 0.5], [100, -100]),
-                            y: useTransform(springY, [-0.5, 0.5], [100, -100]),
-                        }}
-                    />
-                    <Box
-                        sx={{
-                            position: "absolute",
-                            top: "-15%",
-                            right: "-5%",
-                            width: 400,
-                            height: 400,
-                            borderRadius: "50%",
-                            background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)",
-                            zIndex: 1,
-                        }}
-                    />
-                </Box>
-            )}
+                        initial={{ opacity: 0, y: 40 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.8, delay: 0.3 }}
+                        className="relative mt-16 w-full max-w-[580px]"
+                    >
+                        {/* Simplified Dashboard Mockup */}
+                        <div className="bg-white/10 backdrop-blur-md rounded-[28px] border border-white/20 p-8 shadow-2xl">
+                            <div className="flex gap-3 mb-8">
+                                <div className="w-3 h-3 rounded-full bg-white/30" />
+                                <div className="w-3 h-3 rounded-full bg-white/30" />
+                                <div className="w-3 h-3 rounded-full bg-white/30" />
+                            </div>
+                            <div className="space-y-6">
+                                <div className="h-6 w-3/4 bg-white/20 rounded-full" />
+                                <div className="flex items-end gap-3 h-[120px]">
+                                    {[40, 70, 45, 90, 65, 80, 50].map((h, i) => (
+                                        <div
+                                            key={i}
+                                            className="flex-1 bg-white/30 rounded-t-lg transition-all hover:bg-white/50"
+                                            style={{ height: `${h}%` }}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
 
-            {/* RIGHT PANEL - LOGIN FORM */}
-            <Box
-                sx={{
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    p: { xs: 3, md: 8 },
-                    bgcolor: "#fff",
-                    zIndex: 10,
-                }}
-            >
-                <motion.div
-                    variants={containerVariants}
-                    initial="hidden"
-                    animate="visible"
-                    style={{ width: "100%", maxWidth: "420px" }}
-                >
-                    <motion.div variants={itemVariants}>
-                        <Typography
-                            variant="h4"
-                            sx={{
-                                fontWeight: 800,
-                                color: "#1e293b",
-                                mb: 1,
-                                fontFamily: "Outfit, sans-serif",
-                                textAlign: "left",
-                                letterSpacing: "-0.02em",
-                            }}
-                        >
-                            Get Started
-                        </Typography>
-                        <Box sx={{ width: "50px", height: "4px", bgcolor: "#4F46E5", mb: 8, borderRadius: "2px" }} />
+                        {/* Floating elements */}
+                        <div className="absolute -right-6 -top-6 w-20 h-20 bg-white/20 backdrop-blur-lg rounded-full flex items-center justify-center">
+                            <TrendingUp className="w-10 h-10 text-white" />
+                        </div>
+                        <div className="absolute -left-4 bottom-10 w-16 h-16 bg-white/10 backdrop-blur-lg rounded-2xl flex items-center justify-center transform -rotate-12">
+                            <PieChart className="w-8 h-8 text-white" />
+                        </div>
                     </motion.div>
+                </div>
 
-                    {error && (
-                        <motion.div variants={itemVariants}>
-                            <Alert severity="error" sx={{ mb: 4, borderRadius: "16px", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
+                {/* Right Side - Overlapping Login Card */}
+                <div className="w-[40%] flex justify-start items-center">
+                    <motion.div
+                        initial={{ opacity: 0, x: 50 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.7, delay: 0.2 }}
+                        className="w-[480px] bg-white rounded-[32px] shadow-[0_50px_100px_rgba(0,0,0,0.12)] p-14 -ml-8 z-20"
+                    >
+                        <h2 className="text-[32px] font-bold text-[#1f2937]">Sign In</h2>
+                        <div className="w-14 h-[5px] bg-[#4c46f5] mt-3 rounded-full mb-10" />
+
+                        {error && (
+                            <Alert severity="error" sx={{ mb: 4, borderRadius: "18px" }}>
                                 {error}
                             </Alert>
-                        </motion.div>
-                    )}
+                        )}
 
-                    <Box
-                        component="form"
-                        onSubmit={handleLogin}
-                        sx={{ width: "100%" }}
-                    >
-                        <motion.div variants={itemVariants}>
-                            <Typography
-                                variant="body2"
-                                sx={{
-                                    fontWeight: 600,
-                                    color: "#475569",
-                                    mb: 1.5,
-                                    ml: 0.5,
-                                    textTransform: "uppercase",
-                                    fontSize: "0.75rem",
-                                    letterSpacing: "0.05em",
-                                }}
-                            >
-                                Email Address
-                            </Typography>
-                            <TextField
-                                fullWidth
-                                placeholder="name@company.com"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                variant="outlined"
-                                required
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <EmailIcon sx={{ color: "#94a3b8", fontSize: "1.2rem" }} />
-                                        </InputAdornment>
-                                    ),
-                                }}
-                                sx={{
-                                    mb: 4,
-                                    "& .MuiOutlinedInput-root": {
-                                        borderRadius: "16px",
-                                        bgcolor: "#f8fafc",
-                                        transition: "all 0.2s",
-                                        "&:hover": { bgcolor: "#f1f5f9" },
-                                        "&.Mui-focused": { bgcolor: "#fff", boxShadow: "0 0 0 4px rgba(79, 70, 229, 0.1)" },
-                                        "& fieldset": { borderColor: "#e2e8f0" },
-                                    },
-                                }}
-                            />
-                        </motion.div>
+                        <form onSubmit={handleLogin} className="space-y-8">
+                            {/* EMAIL */}
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-400 tracking-[0.2em] uppercase">
+                                    EMAIL ADDRESS
+                                </label>
+                                <div className="mt-3 flex items-center border border-gray-100 rounded-[20px] px-6 h-[60px] bg-gray-50 focus-within:ring-4 focus-within:ring-[#4c46f5]/5 focus-within:border-[#4c46f5]/20 transition-all">
+                                    <Mail className="w-5 h-5 text-gray-400" />
+                                    <input
+                                        type="email"
+                                        placeholder="name@company.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        required
+                                        className="ml-4 w-full bg-transparent outline-none text-[16px] text-[#4b5565] placeholder:text-gray-300"
+                                    />
+                                </div>
+                            </div>
 
-                        <motion.div variants={itemVariants}>
-                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontWeight: 600,
-                                        color: "#475569",
-                                        ml: 0.5,
-                                        textTransform: "uppercase",
-                                        fontSize: "0.75rem",
-                                        letterSpacing: "0.05em",
-                                    }}
-                                >
-                                    Password
-                                </Typography>
-                                {/* <Typography
-                                    variant="body2"
-                                    sx={{
-                                        color: "#4F46E5",
-                                        fontWeight: 600,
-                                        fontSize: "0.75rem",
-                                        cursor: "pointer",
-                                        "&:hover": { textDecoration: "underline" },
-                                    }}
-                                >
-                                    Forgot password?
-                                </Typography> */}
-                            </Box>
-                            <TextField
-                                fullWidth
-                                type={showPassword ? "text" : "password"}
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                variant="outlined"
-                                required
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <LockIcon sx={{ color: "#94a3b8", fontSize: "1.2rem" }} />
-                                        </InputAdornment>
-                                    ),
-                                    endAdornment: (
-                                        <InputAdornment position="end">
-                                            <IconButton
-                                                onClick={() => setShowPassword(!showPassword)}
-                                                edge="end"
-                                                sx={{ color: "#94a3b8" }}
-                                            >
-                                                {showPassword ? <VisibilityOff /> : <Visibility />}
-                                            </IconButton>
-                                        </InputAdornment>
-                                    ),
-                                }}
-                                sx={{
-                                    mb: 6,
-                                    "& .MuiOutlinedInput-root": {
-                                        borderRadius: "16px",
-                                        bgcolor: "#f8fafc",
-                                        transition: "all 0.2s",
-                                        "&:hover": { bgcolor: "#f1f5f9" },
-                                        "&.Mui-focused": { bgcolor: "#fff", boxShadow: "0 0 0 4px rgba(79, 70, 229, 0.1)" },
-                                        "& fieldset": { borderColor: "#e2e8f0" },
-                                    },
-                                }}
-                            />
-                        </motion.div>
+                            {/* PASSWORD */}
+                            <div>
+                                <label className="text-[11px] font-bold text-gray-400 tracking-[0.2em] uppercase">
+                                    PASSWORD
+                                </label>
+                                <div className="mt-3 flex items-center border border-gray-100 rounded-[20px] px-6 h-[60px] bg-gray-50 focus-within:ring-4 focus-within:ring-[#4c46f5]/5 focus-within:border-[#4c46f5]/20 transition-all">
+                                    <Lock className="w-5 h-5 text-gray-400" />
+                                    <input
+                                        type={showPassword ? "text" : "password"}
+                                        placeholder="••••••••"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        required
+                                        className="ml-4 w-full bg-transparent outline-none text-[16px] text-[#4b5565] placeholder:text-gray-300"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="p-2 transition-colors rounded-lg overflow-hidden flex items-center justify-center hover:bg-black/5"
+                                    >
+                                        {showPassword ? (
+                                            <EyeOff className="w-5 h-5 text-gray-400" />
+                                        ) : (
+                                            <Eye className="w-5 h-5 text-gray-400" />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
 
-                        <motion.div variants={itemVariants}>
-                            <Button
-                                fullWidth
+                            {/* BUTTON */}
+                            <button
                                 type="submit"
-                                variant="contained"
                                 disabled={loading}
-                                sx={{
-                                    py: 2,
-                                    borderRadius: "16px",
-                                    bgcolor: "#4F46E5",
-                                    textTransform: "none",
-                                    fontSize: "1.05rem",
-                                    fontWeight: 700,
-                                    boxShadow: "0 10px 25px -5px rgba(79, 70, 229, 0.4)",
-                                    "&:hover": {
-                                        bgcolor: "#4338CA",
-                                        boxShadow: "0 20px 30px -5px rgba(79, 70, 229, 0.5)",
-                                        transform: "translateY(-2px)",
-                                    },
-                                    transition: "all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-                                }}
+                                className="mt-8 w-full h-[64px] bg-[#4c46f5] text-white rounded-[24px] text-[18px] font-bold shadow-[0_20px_40px_rgba(76,70,245,0.3)] hover:bg-[#3d38c5] hover:shadow-[0_25px_50px_rgba(76,70,245,0.4)] transition-all transform hover:-translate-y-1 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
                             >
-                                Sign In
-                            </Button>
-                        </motion.div>
-                    </Box>
-                </motion.div>
-            </Box>
+                                {loading ? "Signing In..." : "Sign In"}
+                            </button>
+                        </form>
 
-            {/* FULL SCREEN LOADER */}
+                        <p className="text-center text-[15px] font-medium text-gray-500 mt-8 cursor-pointer hover:text-[#4c46f5] transition-colors">
+                            Forgot password?
+                        </p>
+                    </motion.div>
+                </div>
+            </div>
+
+            {/* FULL SCREEN LOADER - Preserved */}
             <AnimatePresence>
                 {loading && (
                     <motion.div
@@ -456,9 +233,9 @@ const LoginPage = () => {
                         >
                             <Box
                                 component="img"
-                                src="/Trailytics.jpg"
+                                src="/sidebar_logo.png"
                                 alt="Trailytics Logo"
-                                sx={{ width: 120, height: "auto", mb: 3 }}
+                                sx={{ width: 180, height: "auto", mb: 3 }}
                             />
                         </motion.div>
                         <motion.div
@@ -476,7 +253,7 @@ const LoginPage = () => {
                                     textAlign: "center"
                                 }}
                             >
-                                Powered by <span style={{ color: "#4F46E5" }}>Trailytics</span>
+                                Powered by <span style={{ color: "#4f46e5" }}>Trailytics</span>
                             </Typography>
                             <Box sx={{ width: "100%", mt: 2, height: 4, bgcolor: "#f1f5f9", borderRadius: 2, overflow: 'hidden' }}>
                                 <motion.div
@@ -491,7 +268,7 @@ const LoginPage = () => {
                                     style={{
                                         width: "100%",
                                         height: "100%",
-                                        background: "linear-gradient(90deg, transparent, #4F46E5, transparent)"
+                                        background: "linear-gradient(90deg, transparent, #4f46e5, transparent)"
                                     }}
                                 />
                             </Box>
@@ -499,7 +276,7 @@ const LoginPage = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
-        </Box>
+        </div>
     );
 };
 
