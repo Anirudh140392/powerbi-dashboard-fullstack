@@ -10,7 +10,6 @@ async function checkSchema() {
             console.log("Mars rb_kw schema written to mars_kw_schema.json");
             process.exit(0);
         } catch (err) {
-            fs.writeFileSync('schema_error.txt', err.stack);
             console.error(err);
             process.exit(1);
         }

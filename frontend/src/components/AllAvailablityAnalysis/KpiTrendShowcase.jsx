@@ -560,7 +560,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
           setFilterOptions({
             categories: (response.data.categories || []).filter(c => c && c !== 'All'),
             brands: (response.data.brands || []).filter(b => b && b !== 'All'),
-            skus: (response.data.skuCodes || response.data.skus || []).filter(s => s && s !== 'All'),
+            skus: (response.data.skuNames || response.data.skus || response.data.skuCodes || []).filter(s => s && s !== 'All'),
             loading: false,
             error: null
           });
@@ -1209,11 +1209,9 @@ const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSel
               {loading && Array.from({ length: 5 }).map((_, idx) => (
                 <tr key={`skeleton-${idx}`} className="animate-pulse">
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  {kpiKeys.map((_, kIdx) => (
+                    <td key={`skel-col-${kIdx}`} className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  ))}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -1309,11 +1307,9 @@ const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelec
                 <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  {kpiKeys.map((_, kIdx) => (
+                    <td key={`skel-sku-col-${kIdx}`} className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  ))}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -1501,29 +1497,40 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       apiBrands = apiBrands.filter(b => filters.brands.includes(b.brand_name || b.name));
     }
 
-    return apiBrands.slice(0, 8).map((b, idx) => ({
-      id: b.brand_name || `brand-${idx}`,
-      name: b.brand_name || 'Unknown',
-      osa: b.osa?.value ?? (b.osa || 0),
-      osaDelta: b.osa?.delta || 0,
-      sos: b.sos?.value ?? (b.sos || 0),
-      sosDelta: b.sos?.delta || 0,
-      price: b.price?.value ?? (b.price || 0),
-      priceDelta: b.price?.delta || 0,
-      categoryShare: b.CategoryShare?.value ?? (b.categoryShare?.value ?? (b.categoryShare || 0)),
-      categoryShareDelta: b.CategoryShare?.delta ?? (b.categoryShare?.delta || 0),
-      marketShare: b.MarketShare?.value ?? (b.marketShare?.value ?? (b.marketShare || 0)),
-      marketShareDelta: b.MarketShare?.delta ?? (b.marketShare?.delta || 0),
-      // Market Share specific generic fields
-      CategorySize: b.CategorySize?.value ?? b.CategorySize ?? 0,
-      MarketShare: b.MarketShare?.value ?? b.MarketShare ?? 0,
-      Sales: b.Sales?.value ?? b.Sales ?? 0,
-      // Pricing fields — the pricing API returns plain numbers; other APIs may return {value, delta} objects
-      Discount: typeof b.Discount === 'number' ? b.Discount : (b.Discount?.value ?? parseFloat(b.discount ?? b.Discount) ?? 0),
-      PricePerUnit: typeof b.PricePerUnit === 'number' ? b.PricePerUnit : (b.PricePerUnit?.value ?? parseFloat(b.pricePerUnit ?? b.PricePerUnit) ?? 0),
-      RPI: typeof b.RPI === 'number' ? b.RPI : (b.RPI?.value ?? parseFloat(b.rpi ?? b.RPI) ?? 0),
-      ASP: typeof b.ASP === 'number' ? b.ASP : (b.ASP?.value ?? parseFloat(b.asp ?? b.ASP) ?? 0),
-    }));
+    return apiBrands.slice(0, 8).map((b, idx) => {
+      const osaVal = b.OSA?.value ?? b.osa?.value ?? b.OSA ?? b.osa ?? 0;
+      const sosVal = b.SOS?.value ?? b.sos?.value ?? b.SOS ?? b.sos ?? 0;
+      const priceVal = b.Price?.value ?? b.price?.value ?? b.Price ?? b.price ?? 0;
+      const listingVal = b.Listing?.value ?? b.listing?.value ?? b.ListingPercent?.value ?? b.Listing ?? b.listing ?? 0;
+      const assortmentVal = b.Assortment?.value ?? b.assortment?.value ?? b.Assortment ?? b.assortment ?? 0;
+      const catShareVal = b.CategoryShare?.value ?? b.categoryShare?.value ?? b.CategoryShare ?? b.categoryShare ?? 0;
+      const mktShareVal = b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0;
+      return {
+        id: b.brand_name || `brand-${idx}`,
+        name: b.brand_name || 'Unknown',
+        // lowercase keys (legacy)
+        osa: osaVal, osaDelta: b.OSA?.delta ?? b.osa?.delta ?? 0,
+        sos: sosVal, sosDelta: b.SOS?.delta ?? b.sos?.delta ?? 0,
+        price: priceVal, priceDelta: b.Price?.delta ?? b.price?.delta ?? 0,
+        listing: listingVal, listingDelta: b.Listing?.delta ?? b.listing?.delta ?? b.ListingPercent?.delta ?? 0,
+        assortment: assortmentVal,
+        categoryShare: catShareVal, categoryShareDelta: b.CategoryShare?.delta ?? b.categoryShare?.delta ?? 0,
+        marketShare: mktShareVal, marketShareDelta: b.MarketShare?.delta ?? b.marketShare?.delta ?? 0,
+        // TitleCase keys — these MUST match KPI_KEYS[].key for table rendering
+        Osa: osaVal,
+        Listing: listingVal,
+        Assortment: assortmentVal,
+        MarketShare: mktShareVal,
+        CategoryShare: catShareVal,
+        // Formatting fields for display components
+        CategorySize: b.CategorySize?.value ?? b.CategorySize ?? 0,
+        Sales: b.Sales?.value ?? b.Sales ?? 0,
+        Discount: typeof b.Discount === 'number' ? b.Discount : (b.Discount?.value ?? parseFloat(b.discount ?? b.Discount) ?? 0),
+        PricePerUnit: typeof b.PricePerUnit === 'number' ? b.PricePerUnit : (b.PricePerUnit?.value ?? parseFloat(b.pricePerUnit ?? b.PricePerUnit) ?? 0),
+        RPI: typeof b.RPI === 'number' ? b.RPI : (b.RPI?.value ?? parseFloat(b.rpi ?? b.RPI) ?? 0),
+        ASP: typeof b.ASP === 'number' ? b.ASP : (b.ASP?.value ?? parseFloat(b.asp ?? b.ASP) ?? 0),
+      };
+    });
   }, [competitionData.brands, filters.brands]);
 
   // Derived Trend List For Brands (either selected by user or top 4 default fallback)
@@ -1546,30 +1553,41 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       apiSkus = apiSkus.filter(s => filters.skus.includes(s.sku_name || s.name));
     }
 
-    return apiSkus.slice(0, 8).map((s, idx) => ({
-      id: s.sku_name || `sku-${idx}`,
-      name: s.sku_name || 'Unknown',
-      brandName: s.brand_name || 'Unknown',
-      osa: s.osa?.value ?? (s.osa || 0),
-      osaDelta: s.osa?.delta || 0,
-      sos: s.sos?.value ?? (s.sos || 0),
-      sosDelta: s.sos?.delta || 0,
-      price: s.price?.value ?? (s.price || 0),
-      priceDelta: s.price?.delta || 0,
-      categoryShare: s.CategoryShare?.value ?? (s.categoryShare?.value ?? (s.categoryShare || 0)),
-      categoryShareDelta: s.CategoryShare?.delta ?? (s.categoryShare?.delta || 0),
-      marketShare: s.MarketShare?.value ?? (s.marketShare?.value ?? (s.marketShare || 0)),
-      marketShareDelta: s.MarketShare?.delta ?? (s.marketShare?.delta || 0),
-      // Market Share specific generic fields
-      CategorySize: s.CategorySize?.value ?? s.CategorySize ?? 0,
-      MarketShare: s.MarketShare?.value ?? s.MarketShare ?? 0,
-      Sales: s.Sales?.value ?? s.Sales ?? 0,
-      // Pricing fields — the pricing API returns plain numbers; other APIs may return {value, delta} objects
-      Discount: typeof s.Discount === 'number' ? s.Discount : (s.Discount?.value ?? parseFloat(s.discount ?? s.Discount) ?? 0),
-      PricePerUnit: typeof s.PricePerUnit === 'number' ? s.PricePerUnit : (s.PricePerUnit?.value ?? parseFloat(s.pricePerUnit ?? s.PricePerUnit) ?? 0),
-      RPI: typeof s.RPI === 'number' ? s.RPI : (s.RPI?.value ?? parseFloat(s.rpi ?? s.RPI) ?? 0),
-      ASP: typeof s.ASP === 'number' ? s.ASP : (s.ASP?.value ?? parseFloat(s.asp ?? s.ASP) ?? 0),
-    }));
+    return apiSkus.slice(0, 8).map((s, idx) => {
+      const osaVal = s.OSA?.value ?? s.osa?.value ?? s.OSA ?? s.osa ?? 0;
+      const sosVal = s.SOS?.value ?? s.sos?.value ?? s.SOS ?? s.sos ?? 0;
+      const priceVal = s.Price?.value ?? s.price?.value ?? s.Price ?? s.price ?? 0;
+      const listingVal = s.Listing?.value ?? s.listing?.value ?? s.ListingPercent?.value ?? s.Listing ?? s.listing ?? 0;
+      const assortmentVal = s.Assortment?.value ?? s.assortment?.value ?? s.Assortment ?? s.assortment ?? 0;
+      const catShareVal = s.CategoryShare?.value ?? s.categoryShare?.value ?? s.CategoryShare ?? s.categoryShare ?? 0;
+      const mktShareVal = s.MarketShare?.value ?? s.marketShare?.value ?? s.MarketShare ?? s.marketShare ?? 0;
+      return {
+        id: s.sku_name || `sku-${idx}`,
+        name: s.sku_name || 'Unknown',
+        brandName: s.brand_name || 'Unknown',
+        // lowercase keys (legacy)
+        osa: osaVal, osaDelta: s.OSA?.delta ?? s.osa?.delta ?? 0,
+        sos: sosVal, sosDelta: s.SOS?.delta ?? s.sos?.delta ?? 0,
+        price: priceVal, priceDelta: s.Price?.delta ?? s.price?.delta ?? 0,
+        listing: listingVal, listingDelta: s.Listing?.delta ?? s.listing?.delta ?? s.ListingPercent?.delta ?? 0,
+        assortment: assortmentVal,
+        categoryShare: catShareVal, categoryShareDelta: s.CategoryShare?.delta ?? s.categoryShare?.delta ?? 0,
+        marketShare: mktShareVal, marketShareDelta: s.MarketShare?.delta ?? s.marketShare?.delta ?? 0,
+        // TitleCase keys — these MUST match KPI_KEYS[].key for table rendering
+        Osa: osaVal,
+        Listing: listingVal,
+        Assortment: assortmentVal,
+        MarketShare: mktShareVal,
+        CategoryShare: catShareVal,
+        // Formatting fields for display components
+        CategorySize: s.CategorySize?.value ?? s.CategorySize ?? 0,
+        Sales: s.Sales?.value ?? s.Sales ?? 0,
+        Discount: typeof s.Discount === 'number' ? s.Discount : (s.Discount?.value ?? parseFloat(s.discount ?? s.Discount) ?? 0),
+        PricePerUnit: typeof s.PricePerUnit === 'number' ? s.PricePerUnit : (s.PricePerUnit?.value ?? parseFloat(s.pricePerUnit ?? s.PricePerUnit) ?? 0),
+        RPI: typeof s.RPI === 'number' ? s.RPI : (s.RPI?.value ?? parseFloat(s.rpi ?? s.RPI) ?? 0),
+        ASP: typeof s.ASP === 'number' ? s.ASP : (s.ASP?.value ?? parseFloat(s.asp ?? s.ASP) ?? 0),
+      };
+    });
   }, [competitionData.skus, filters.brands, filters.skus]);
 
   // Derived Trend List For SKUs (either selected by user or top 5 default fallback)

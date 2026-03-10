@@ -6425,7 +6425,7 @@ const getCompetitionData = async (filters = {}) => {
                     AVG(ifNull(toFloat64OrZero(toString(Discount)), 0)) as avg_discount,
                     SUM(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as sum_selling_price,
                     0 as sum_weight,
-                    count() as record_count,
+                    count(DISTINCT Product) as assortment,
                     AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${currConds}
@@ -6799,7 +6799,9 @@ const getCompetitionData = async (filters = {}) => {
                 Price: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(1)) },
                 CategoryShare: { value: parseFloat(categoryShare.toFixed(1)), delta: parseFloat(categoryShareDelta.toFixed(1)) },
                 MarketShare: { value: parseFloat(marketShare.toFixed(1)), delta: parseFloat(marketShareDelta.toFixed(1)) },
-                ListingPercent: { value: parseFloat(listingPercent.toFixed(1)), delta: parseFloat(listingPercentDelta.toFixed(1)) }
+                ListingPercent: { value: parseFloat(listingPercent.toFixed(1)), delta: parseFloat(listingPercentDelta.toFixed(1)) },
+                Assortment: { value: parseInt(brand.assortment || 0), delta: 0 },
+                Listing: { value: parseFloat(listingPercent.toFixed(1)), delta: parseFloat(listingPercentDelta.toFixed(1)) }
             };
         });
 
@@ -6991,47 +6993,45 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         // Helper to escape strings for ClickHouse
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
-        // Build base condition for rca_sku_dim
-        const buildBaseConds = () => {
-            const conds = [`toString(status) = '1'`];
-            if (platform && platform !== 'All') {
-                const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
-                if (platArr.length > 0) conds.push(`lower(Platform) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
-            }
-            if (location && location !== 'All' && location !== 'All India') {
-                const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
-                if (locArr.length > 0) conds.push(`lower(location) IN(${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
-            }
-            return conds;
-        };
+        // Pre-compute filter arrays at function scope so all lambdas can use them
+        const platArr = (platform && platform !== 'All')
+            ? platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All')
+            : [];
+        const locArr = (location && location !== 'All' && location !== 'All India')
+            ? location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India')
+            : [];
+        const catArr = (category && category !== 'All')
+            ? category.split(',').map(c => c.trim()).filter(c => c && c !== 'All')
+            : [];
+        const bndArr = (brand && brand !== 'All')
+            ? brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All')
+            : [];
 
         // Run all queries in parallel using ClickHouse
         const [locationResults, categoryResults, brandResults, skuResults] = await Promise.all([
             // Fetch distinct locations from rb_pdp_olap
             queryClickHouse(`SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE location IS NOT NULL AND location != '' ORDER BY location`),
 
-            // Fetch distinct categories filtered by platform/location
+            // Fetch distinct product categories filtered by platform/location
             (() => {
                 const conds = [];
-                const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
-                if (platArr && platArr.length > 0) {
+                if (platArr.length > 0) {
                     conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
                 }
-                if (locArr && locArr.length > 0) {
+                if (locArr.length > 0) {
                     conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
                 }
-                conds.push(`Category IS NOT NULL`, `Category != ''`);
-                conds.push(`Category IN (${allowedCategories.map(c => `'${escapeStr(c)}'`).join(',')})`);
-                return queryClickHouse(`SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY category`);
+                conds.push(`${PRODUCT_CATEGORY_SQL} IS NOT NULL`, `${PRODUCT_CATEGORY_SQL} != ''`, `${PRODUCT_CATEGORY_SQL} != 'Others'`);
+                return queryClickHouse(`SELECT DISTINCT ${PRODUCT_CATEGORY_SQL} as category FROM rb_pdp_olap WHERE ${conds.join(' AND ')} ORDER BY category`);
             })(),
 
             // Fetch distinct brands filtered by platform/location + category
             (() => {
                 const conds = [];
-                if (platArr && platArr.length > 0) {
+                if (platArr.length > 0) {
                     conds.push(`lower(Platform) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
                 }
-                if (locArr && locArr.length > 0) {
+                if (locArr.length > 0) {
                     conds.push(`lower(Location) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
                 }
                 conds.push(`Brand IS NOT NULL`, `Brand != ''`);
@@ -7040,28 +7040,24 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 } else {
                     conds.push(`toString(Comp_flag) IN ('0', '1')`);
                 }
-                if (catArr && catArr.length > 0) {
-                    conds.push(`lower(Category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+                if (catArr.length > 0) {
+                    conds.push(`lower(${PRODUCT_CATEGORY_SQL}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
-                return queryClickHouse(`SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY brand`);
+                return queryClickHouse(`SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conds.join(' AND ')} ORDER BY brand`);
             })(),
 
-            // Fetch distinct SKUs from rb_pdp_olap filtered by platform/location + category + brand
+            // Fetch distinct SKUs filtered by platform/location + category + brand
             (() => {
                 const conds = [];
-                if (platform && platform !== 'All') {
-                    const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
-                    if (platArr.length > 0) conds.push(`Platform IN(${platArr.map(p => `'${escapeStr(p)}'`).join(',')})`);
+                if (platArr.length > 0) {
+                    conds.push(`Platform IN(${platArr.map(p => `'${escapeStr(p)}'`).join(',')})`);
                 }
-                if (location && location !== 'All' && location !== 'All India') {
-                    const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
-                    if (locArr.length > 0) conds.push(`Location IN(${locArr.map(l => `'${escapeStr(l)}'`).join(',')})`);
+                if (locArr.length > 0) {
+                    conds.push(`Location IN(${locArr.map(l => `'${escapeStr(l)}'`).join(',')})`);
                 }
-                const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
                 if (catArr.length > 0) {
                     conds.push(`${PRODUCT_CATEGORY_SQL} IN(${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
                 }
-                const bndArr = brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All');
                 if (bndArr.length > 0) {
                     conds.push(`Brand IN(${bndArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
                 }
@@ -7070,8 +7066,8 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 } else {
                     conds.push(`toString(Comp_flag) IN ('0', '1')`);
                 }
-                conds.push(`Product IS NOT NULL`, `Product != ''`, `Web_Pid IS NOT NULL`, `Web_Pid != ''`);
-                return queryClickHouse(`SELECT DISTINCT Product as skuName, toString(Web_Pid) as skuCode FROM rb_pdp_olap WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY skuName LIMIT 500`);
+                conds.push(`Product IS NOT NULL`, `Product != ''`);
+                return queryClickHouse(`SELECT DISTINCT Product as skuName FROM rb_pdp_olap WHERE ${conds.join(' AND ')} ORDER BY skuName LIMIT 500`);
             })()
         ]);
 
@@ -7081,26 +7077,29 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         const skuNames = skuResults.map(s => s.skuName).filter(Boolean);
         const skuCodes = skuResults.map(s => s.skuCode).filter(Boolean);
 
-        // Ensure uniqueness for codes if multiple names share same code or vice versa
+        // Ensure uniqueness
         const uniqueSkuNames = [...new Set(skuNames)];
         const uniqueSkuCodes = [...new Set(skuCodes)];
 
+        console.log(`[getCompetitionFilterOptions] Found ${locations.length} locations, ${categories.length} categories, ${brands.length} brands, ${uniqueSkuNames.length} SKUs`);
+
         return {
             locations: ['All India', ...locations],
-            categories: ['All', ...categories],
-            brands: ['All', ...brands],
-            skuNames: ['All', ...uniqueSkuNames],
-            skuCodes: ['All', ...uniqueSkuCodes]
+            categories,
+            brands,
+            skuNames: uniqueSkuNames,
+            skuCodes: uniqueSkuCodes,
+            skus: uniqueSkuNames
         };
 
     } catch (error) {
         console.error('[getCompetitionFilterOptions] Error:', error);
         return {
             locations: ['All India'],
-            categories: ['All'],
-            brands: ['All'],
-            skuNames: ['All'],
-            skuCodes: ['All']
+            categories: [],
+            brands: [],
+            skuNames: [],
+            skuCodes: []
         };
     }
 };
@@ -7399,7 +7398,9 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno_osa,
             SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno_osa,
             SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as Impressions,
-            AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)) as avg_price
+            AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)) as avg_price,
+            AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) as listing,
+            count(DISTINCT Product) as assortment
                     FROM rb_pdp_olap
                     WHERE ${conds.join(' AND ')}
                     GROUP BY date_key
@@ -7466,7 +7467,9 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                     sos: parseFloat(sos.toFixed(1)),
                     price: parseFloat(avgPrice.toFixed(0)),
                     categoryShare: parseFloat(categoryShare.toFixed(1)),
-                    marketShare: parseFloat(marketShare.toFixed(1))
+                    marketShare: parseFloat(marketShare.toFixed(1)),
+                    listing: parseFloat((row.listing || 0).toFixed(1)),
+                    assortment: parseInt(row.assortment || 0)
                 };
             });
         }

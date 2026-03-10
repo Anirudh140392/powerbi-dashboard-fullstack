@@ -696,10 +696,10 @@ export default function VisibilityTrendsCompetitionDrawer({
         console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length });
 
         setFilterOptions({
-          platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart", "BigBasket"],
-          formats: formats.length > 0 ? formats : ["Cassata", "Core Tubs", "Premium"],
+          platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart"],
+          formats: formats.length > 0 ? formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
           cities: cities.length > 0 ? cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"],
-          brands: brands.length > 0 ? brands : ["Amul", "Mother Dairy", "Nestle", "Britannia"],
+          brands: brands.length > 0 ? brands : ["Cadbury", "Hershey's", "Amul", "Kit-kat", "Ferrero rocher 2024"],
           loading: false
         });
 
@@ -710,10 +710,10 @@ export default function VisibilityTrendsCompetitionDrawer({
       } catch (error) {
         console.error("[VisibilityTrendsDrawer] Error fetching filter options:", error);
         setFilterOptions({
-          platforms: ["Blinkit", "Zepto", "Instamart", "BigBasket"],
-          formats: ["Cassata", "Core Tubs", "Premium"],
+          platforms: ["Blinkit", "Zepto", "Instamart"],
+          formats: ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
           cities: ["Delhi", "Mumbai", "Bangalore", "Chennai"],
-          brands: ["Amul", "Mother Dairy", "Nestle", "Britannia"],
+          brands: ["Cadbury", "Hershey's", "Amul", "Kit-kat", "Ferrero rocher 2024"],
           loading: false
         });
       }
@@ -971,9 +971,9 @@ export default function VisibilityTrendsCompetitionDrawer({
 
   // Use dynamic filter options from API, with fallbacks
   const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : ["Blinkit", "Zepto", "Instamart", "BigBasket"];
-  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Cassata", "Core Tubs", "Premium"];
+  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : ["Amul", "Mother Dairy", "Nestle", "Britannia"];
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : ["Cadbury", "Hershey's", "Amul", "Kit-kat", "Ferrero rocher 2024"];
 
   if (!open) return null;
 
@@ -1295,26 +1295,28 @@ export default function VisibilityTrendsCompetitionDrawer({
                 </Box>
 
                 <Box>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    endIcon={<ChevronDown size={14} />}
-                    sx={{
-                      textTransform: "none",
-                      borderRadius: "999px",
-                      borderColor: "#E2E8F0",
-                      color: "#3b82f6",
-                      backgroundColor: "#eff6ff",
-                      fontSize: "0.75rem",
-                      px: 2,
-                      "&:hover": {
-                        borderColor: "#3b82f6",
-                        backgroundColor: "#dbeafe",
-                      }
-                    }}
-                  >
-                    +{Math.max(trendMeta.metrics.length - 4, 0)} more
-                  </Button>
+                  {trendMeta.metrics.length > 4 && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      endIcon={<ChevronDown size={14} />}
+                      sx={{
+                        textTransform: "none",
+                        borderRadius: "999px",
+                        borderColor: "#E2E8F0",
+                        color: "#3b82f6",
+                        backgroundColor: "#eff6ff",
+                        fontSize: "0.75rem",
+                        px: 2,
+                        "&:hover": {
+                          borderColor: "#3b82f6",
+                          backgroundColor: "#dbeafe",
+                        }
+                      }}
+                    >
+                      +{trendMeta.metrics.length - 4} more
+                    </Button>
+                  )}
                 </Box>
               </Box>
 

@@ -1596,3 +1596,126 @@ export const getMarketShareCompetitionTrends = async (mode, targets, period, sta
     }
 };
 
+/**
+ * Get Market Share Drilldown (Hierarchical)
+ * Hierarchy: group_brand -> brand -> item_name
+ */
+export const getMarketShareDrilldown = async (start, end, platformFilter, categoryFilter, locationFilter) => {
+    try {
+        const platformArr = normalizeFilterArray(platformFilter);
+        const categoryArr = normalizeFilterArray(categoryFilter);
+        const locationArr = normalizeFilterArray(locationFilter);
+
+        let platformCond = '';
+        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
+            platformCond = `AND platform IN (${platformArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        let locationCond = '';
+        if (locationArr && locationArr.length > 0 && !locationArr.includes('All') && !locationArr.includes('All India')) {
+            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        let categoryCond = '';
+        if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        const startStr = start.format('YYYY-MM-DD');
+        const endStr = end.format('YYYY-MM-DD');
+
+        const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
+
+        // 1. Query for the full nested data at once
+        const query = `
+            SELECT 
+                group_brand,
+                brand,
+                item_name,
+                AVG(toFloat64OrZero(toString(nation_level_market_share))) as share,
+                AVG(toFloat64OrZero(toString(mrp))) as mrp
+            FROM rb_brand_ms
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
+            AND group_brand != '' AND brand != '' AND item_name != ''
+            GROUP BY group_brand, brand, item_name
+            ORDER BY group_brand, brand, item_name
+        `;
+
+        const results = await queryClickHouse(query);
+
+        // 2. Build hierarchical tree
+        const tree = [];
+        const groupMap = new Map();
+
+        results.forEach(row => {
+            const groupKey = row.group_brand;
+            const brandKey = row.brand;
+
+            if (!groupMap.has(groupKey)) {
+                groupMap.set(groupKey, {
+                    id: `group-${groupKey}`,
+                    label: groupKey,
+                    level: 'Brand',
+                    metrics: { share: 0, mrp: 0, count: 0 },
+                    children: new Map()
+                });
+                tree.push(groupMap.get(groupKey));
+            }
+
+            const group = groupMap.get(groupKey);
+            if (!group.children.has(brandKey)) {
+                group.children.set(brandKey, {
+                    id: `brand-${groupKey}-${brandKey}`,
+                    label: brandKey,
+                    level: 'Sub Brand',
+                    metrics: { share: 0, mrp: 0, count: 0 },
+                    children: []
+                });
+            }
+
+            const brand = group.children.get(brandKey);
+            const sku = {
+                id: `sku-${row.item_name}-${row.brand}`,
+                label: row.item_name,
+                level: 'SKU',
+                metrics: {
+                    share: parseFloat(parseFloat(row.share || 0).toFixed(1)),
+                    mrp: parseFloat(parseFloat(row.mrp || 0).toFixed(1))
+                }
+            };
+
+            brand.children.push(sku);
+
+            // Aggregate values for averages
+            brand.metrics.share += parseFloat(row.share || 0);
+            brand.metrics.mrp += parseFloat(row.mrp || 0);
+            brand.metrics.count += 1;
+
+            group.metrics.share += parseFloat(row.share || 0);
+            group.metrics.mrp += parseFloat(row.mrp || 0);
+            group.metrics.count += 1;
+        });
+
+        // 3. Finalize averages
+        return tree.map(group => {
+            group.metrics.share = parseFloat((group.metrics.share / group.metrics.count).toFixed(1));
+            group.metrics.mrp = parseFloat((group.metrics.mrp / group.metrics.count).toFixed(1));
+            delete group.metrics.count;
+
+            group.children = Array.from(group.children.values()).map(brand => {
+                brand.metrics.share = parseFloat((brand.metrics.share / brand.metrics.count).toFixed(1));
+                brand.metrics.mrp = parseFloat((brand.metrics.mrp / brand.metrics.count).toFixed(1));
+                delete brand.metrics.count;
+                return brand;
+            });
+
+            return group;
+        });
+
+    } catch (error) {
+        console.error('[MarketShareDrilldown] Error:', error.message);
+        return [];
+    }
+};
+
