@@ -515,7 +515,7 @@ const DATA_MODEL = buildDataModel();
 /*                               Filter Dialog                                */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location, dynamicKey }) => {
   // initial tab: brand view starts with category, sku view starts with sku
   const [activeTab, setActiveTab] = useState(
     mode === "brand" ? "category" : "sku"
@@ -549,8 +549,12 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
         if (value.brands.length > 0) {
           params.append('brand', value.brands.join(','));
         }
+        let endpoint = '/watchtower/competition-filter-options';
+        if (dynamicKey === 'marketshare') {
+          endpoint = '/market-share/competition-filter-options';
+        }
 
-        const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
+        const response = await axiosInstance.get(`${endpoint}?${params.toString()}`);
 
         if (response.data) {
           setFilterOptions({
@@ -577,7 +581,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
     };
 
     fetchFilterOptions();
-  }, [open, value.categories, value.brands, platform, location]); // Refetch when categories, brands, platform or location change (cascading filters)
+  }, [open, value.categories, value.brands, platform, location, dynamicKey]); // Refetch when categories, brands, platform or location change (cascading filters)
 
   // Use API-fetched options instead of hardcoded ones
   const getCategoryOptions = () => filterOptions.categories;
@@ -807,7 +811,8 @@ const MetricChip = ({ label, color, active, onClick }) => {
 
 const TrendView = ({
   mode, filters, city, onBackToTable, onSwitchToKpi, kpiKeys = KPI_KEYS,
-  platform, timeStart, timeEnd, dynamicKey, dimensionValue, dimensionType, listData
+  platform, timeStart, timeEnd, dynamicKey, dimensionValue, dimensionType, listData,
+  trendData, loading
 }) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState(kpiKeys[0]?.key || "Osa");
@@ -816,9 +821,6 @@ const TrendView = ({
     kpiKeys.find((m) => m.key === activeMetric) || kpiKeys[0];
 
   const isBrandMode = mode === "brand";
-
-  const [trendData, setTrendData] = useState({ dates: [], timeSeries: {} });
-  const [loading, setLoading] = useState(false);
 
   /* ---------------- SELECTED IDS ---------------- */
   // Take top 4 or 5 IDs from the table listData
@@ -853,87 +855,6 @@ const TrendView = ({
       return next;
     });
   };
-
-  /* ---------------- FETCH TRENDS ---------------- */
-  useEffect(() => {
-    if (selectedIds.length === 0) return;
-
-    const fetchTrends = async () => {
-      setLoading(true);
-      try {
-        const isCategoryFilterActive = filters.categories && filters.categories.length > 0;
-        const isBrandFilterActive = filters.brands && filters.brands.length > 0;
-
-        let activeDimensionValue = dimensionValue;
-        if (dimensionType === 'category' && isCategoryFilterActive) activeDimensionValue = undefined;
-        if (dimensionType === 'brand' && isBrandFilterActive) activeDimensionValue = undefined;
-
-        let res;
-        if (dynamicKey && dynamicKey.toLowerCase() === 'pricing') {
-          const params = {
-            mode,
-            targets: selectedIds.join(','),
-            platform: platform || 'All',
-            location: city === 'All India' ? 'All' : city,
-            category: isCategoryFilterActive ? filters.categories.join(',') : 'All',
-            brand: isBrandFilterActive ? filters.brands.join(',') : 'All',
-            sku: filters.skus && filters.skus.length > 0 ? filters.skus.join(',') : 'All',
-            period: '1M',
-            startDate: timeStart?.format('YYYY-MM-DD'),
-            endDate: timeEnd?.format('YYYY-MM-DD'),
-            dimension: dimensionType,
-            dimensionValue: activeDimensionValue
-          };
-          res = await axiosInstance.get('/pricing-analysis/competition-trends', { params });
-          console.log('[TrendView] API response:', res.data);
-          if (res.data && res.data.success !== false) {
-            setTrendData({
-              dates: res.data.dates || [],
-              timeSeries: res.data.timeSeriesByTarget || {}
-            });
-          }
-        } else {
-          // Watchtower fallback
-          const params = {
-            brands: isBrandMode ? selectedIds.join(',') : 'All',
-            skus: !isBrandMode ? selectedIds.join(',') : 'All',
-            location: city === 'All India' ? 'All' : city,
-            category: isCategoryFilterActive ? filters.categories.join(',') : (dimensionType === 'category' ? dimensionValue : 'All'),
-            period: '1M',
-            startDate: timeStart?.format('YYYY-MM-DD'),
-            endDate: timeEnd?.format('YYYY-MM-DD'),
-          };
-          res = await axiosInstance.get('/watchtower/competition-brand-trends', { params });
-          if (res.data && res.data.brands) {
-            const ts = {};
-            const datesSet = new Set();
-            Object.entries(res.data.brands || {}).forEach(([target, series]) => {
-              ts[target] = {};
-              series.forEach(pt => {
-                const d = pt.date_key || pt.date;
-                datesSet.add(d);
-                ts[target][d] = {
-                  Osa: pt.osa?.value ?? pt.osa ?? 0,
-                  Sos: pt.sos?.value ?? pt.sos ?? 0,
-                  Listing: pt.listing?.value ?? pt.listing ?? 0,
-                  Assortment: pt.assortment?.value ?? pt.assortment ?? 0
-                };
-              });
-            });
-            setTrendData({
-              dates: Array.from(datesSet).sort(),
-              timeSeries: ts
-            });
-          }
-        }
-      } catch (error) {
-        console.error('[TrendView] Error fetching competition trends', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTrends();
-  }, [mode, selectedIds, platform, timeStart, timeEnd, city, filters, dimensionValue, dimensionType, dynamicKey]);
 
   /* ---------------- CHART DATA ---------------- */
   const chartData = useMemo(() => {
@@ -1114,109 +1035,43 @@ const PRICING_KPI_KEYS = [
 
 const MARKET_SHARE_KPI_KEYS = [
   {
-    key: "CategorySize",
-    label: "CATEGORY SIZE",
-    color: "#6366F1",
-    unit: " Cr",
-  },
-  {
-    key: "MWMarketShare",
-    label: "MW MARKET SHARE%",
+    key: "MarketShare",
+    label: "MARKET SHARE%",
     color: "#14B8A6",
     unit: "%",
   },
   {
-    key: "MWSales",
-    label: "MW SALES (Cr)",
+    key: "Sales",
+    label: "SALES (Cr)",
     color: "#F43F5E",
     unit: " Cr",
-  },
-  {
-    key: "MLMarketShare",
-    label: "ML MARKET SHARE%",
-    color: "#8B5CF6",
-    unit: "%",
-  },
-  {
-    key: "MLSales",
-    label: "ML SALES (Cr)",
-    color: "#F97316",
-    unit: " Cr",
-  },
+  }
 ];
 
 
-const KpiCompareView = ({ mode, filters, city, onBackToTrend, kpiKeys = KPI_KEYS }) => {
+const KpiCompareView = ({ mode, filters, city, onBackToTrend, kpiKeys = KPI_KEYS, trendData, loading, listData }) => {
   const isBrandMode = mode === "brand";
 
   const selectedIds = useMemo(() => {
-    if (isBrandMode) {
-      const allRows = DATA_MODEL.brandSummaryByCity[city] || [];
-      let rows = allRows;
+    if (!listData || listData.length === 0) return [];
+    const limit = isBrandMode ? 4 : 5;
+    return listData.slice(0, limit).map(r => r.id);
+  }, [listData, isBrandMode]);
 
-      if (filters.categories.length) {
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      }
-      if (filters.brands.length) {
-        rows = rows.filter((r) => filters.brands.includes(r.name));
-      }
-
-      const ids = rows.map((r) => r.id);
-      if (ids.length) return ids.slice(0, 4);
-      return allRows.slice(0, 3).map((r) => r.id);
-    } else {
-      const allRows = DATA_MODEL.skuSummaryByCity[city] || [];
-      let rows = allRows;
-
-      if (filters.categories.length) {
-        rows = rows.filter((r) => filters.categories.includes(r.category));
-      }
-      if (filters.brands.length) {
-        rows = rows.filter((r) => filters.brands.includes(r.brandName));
-      }
-      if (filters.skus.length) {
-        rows = rows.filter((r) => filters.skus.includes(r.name));
-      }
-
-      const ids = rows.map((r) => r.id);
-      if (ids.length) return ids.slice(0, 5);
-      return allRows.slice(0, 5).map((r) => r.id);
-    }
-  }, [isBrandMode, filters, city]);
-
-  const selectedLabels = useMemo(
-    () =>
-      selectedIds.map((id) =>
-        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-      ),
-    [selectedIds, isBrandMode]
-  );
+  const selectedLabels = useMemo(() => selectedIds, [selectedIds]);
 
   const chartDataFor = (metricKey) => {
-    const days = DATA_MODEL.days;
+    if (!trendData.dates || trendData.dates.length === 0) return [];
 
-    if (isBrandMode) {
-      return days.map((date, idx) => {
-        const row = { date };
-        selectedIds.forEach((id) => {
-          const series =
-            DATA_MODEL.brandTrendsByCity[city] &&
-            DATA_MODEL.brandTrendsByCity[city][id];
-          if (!series) return;
-          row[id] = series[idx][metricKey];
-        });
-        return row;
-      });
-    }
-
-    return days.map((date, idx) => {
+    return trendData.dates.map(date => {
       const row = { date };
       selectedIds.forEach((id) => {
-        const series =
-          DATA_MODEL.skuTrendsByCity[city] &&
-          DATA_MODEL.skuTrendsByCity[city][id];
-        if (!series) return;
-        row[id] = series[idx][metricKey];
+        const series = trendData.timeSeries[id];
+        if (series && series[date] && series[date][metricKey] !== undefined) {
+          row[id] = series[date][metricKey];
+        } else {
+          row[id] = null;
+        }
       });
       return row;
     });
@@ -1263,17 +1118,29 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, kpiKeys = KPI_KEYS
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
-                  <YAxis tickLine={false} fontSize={10} width={32} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip />
-                  {selectedIds.map((id) => (
+                  <YAxis
+                    tickLine={false}
+                    fontSize={10}
+                    width={32}
+                    tickFormatter={(v) => {
+                      if (kpi.unit) return `${v}${kpi.unit}`;
+                      if (kpi.prefix) return `${kpi.prefix}${v}`;
+                      return v;
+                    }}
+                  />
+                  <Tooltip formatter={(v) => {
+                    if (kpi.unit) return `${v}${kpi.unit}`;
+                    if (kpi.prefix) return `${kpi.prefix}${v}`;
+                    return v;
+                  }} />
+                  {selectedIds.map((id, idx) => (
                     <Line
                       key={id}
                       type="monotone"
                       dataKey={id}
-                      name={
-                        isBrandMode ? BRAND_ID_TO_NAME[id] : SKU_ID_TO_NAME[id]
-                      }
+                      name={id}
                       dot={false}
+                      stroke={['#6366F1', '#F43F5E', '#14B8A6', '#F59E0B', '#8B5CF6'][idx % 5]}
                       strokeWidth={2}
                     />
                   ))}
@@ -1539,6 +1406,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
   const [loading, setLoading] = useState(true);
 
   // Fetch competition data from API
+
+  // Fetch competition data from API
   useEffect(() => {
     const fetchCompetitionData = async () => {
       setLoading(true);
@@ -1572,6 +1441,23 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             console.log('[KpiTrendShowcase] Pricing competition received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
             setCompetitionData({ brands: response.data.brands || [], skus: response.data.skus || [] });
           }
+        } else if (dynamicKey === 'marketshare') {
+          // For market share: call the dedicated market share competition endpoint
+          const params = {
+            platform: platform || 'All',
+            period: '1M',
+            startDate: timeStart?.format('YYYY-MM-DD'),
+            endDate: timeEnd?.format('YYYY-MM-DD'),
+            location: isCityFilterActive ? city : undefined,
+            category: isCategoryFilterActive ? filters.categories.join(',') : undefined,
+            brand: isBrandFilterActive ? filters.brands.join(',') : undefined,
+          };
+          console.log('[KpiTrendShowcase] Fetching market share competition data:', params);
+          const response = await axiosInstance.get('/market-share/competition', { params });
+          if (response.data) {
+            console.log('[KpiTrendShowcase] Market Share competition received:', response.data.brands?.length || 0, 'brands,', response.data.skus?.length || 0, 'skus');
+            setCompetitionData({ brands: response.data.brands || [], skus: response.data.skus || [] });
+          }
         } else {
           // For availability/other: call the watchtower competition endpoint
           const params = {
@@ -1600,6 +1486,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
     fetchCompetitionData();
   }, [city, filters, platform, timeStart, timeEnd, dynamicKey, dimensionValue, dimensionType]);
 
+
+
+
   const selectionCount =
     filters.categories.length + filters.brands.length + filters.skus.length;
 
@@ -1625,6 +1514,10 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       categoryShareDelta: b.CategoryShare?.delta ?? (b.categoryShare?.delta || 0),
       marketShare: b.MarketShare?.value ?? (b.marketShare?.value ?? (b.marketShare || 0)),
       marketShareDelta: b.MarketShare?.delta ?? (b.marketShare?.delta || 0),
+      // Market Share specific generic fields
+      CategorySize: b.CategorySize?.value ?? b.CategorySize ?? 0,
+      MarketShare: b.MarketShare?.value ?? b.MarketShare ?? 0,
+      Sales: b.Sales?.value ?? b.Sales ?? 0,
       // Pricing fields — the pricing API returns plain numbers; other APIs may return {value, delta} objects
       Discount: typeof b.Discount === 'number' ? b.Discount : (b.Discount?.value ?? parseFloat(b.discount ?? b.Discount) ?? 0),
       PricePerUnit: typeof b.PricePerUnit === 'number' ? b.PricePerUnit : (b.PricePerUnit?.value ?? parseFloat(b.pricePerUnit ?? b.PricePerUnit) ?? 0),
@@ -1667,6 +1560,10 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       categoryShareDelta: s.CategoryShare?.delta ?? (s.categoryShare?.delta || 0),
       marketShare: s.MarketShare?.value ?? (s.marketShare?.value ?? (s.marketShare || 0)),
       marketShareDelta: s.MarketShare?.delta ?? (s.marketShare?.delta || 0),
+      // Market Share specific generic fields
+      CategorySize: s.CategorySize?.value ?? s.CategorySize ?? 0,
+      MarketShare: s.MarketShare?.value ?? s.MarketShare ?? 0,
+      Sales: s.Sales?.value ?? s.Sales ?? 0,
       // Pricing fields — the pricing API returns plain numbers; other APIs may return {value, delta} objects
       Discount: typeof s.Discount === 'number' ? s.Discount : (s.Discount?.value ?? parseFloat(s.discount ?? s.Discount) ?? 0),
       PricePerUnit: typeof s.PricePerUnit === 'number' ? s.PricePerUnit : (s.PricePerUnit?.value ?? parseFloat(s.pricePerUnit ?? s.PricePerUnit) ?? 0),
@@ -1682,6 +1579,119 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
     }
     return skuRows;
   }, [selectedSkuIds, skuRows]);
+
+  // --- START TREND LOGIC ---
+  // Shared trend data for TrendView and KpiCompareView
+  const [trendData, setTrendData] = useState({ dates: [], timeSeries: {} });
+  const [trendLoading, setTrendLoading] = useState(false);
+
+  const trendTargets = useMemo(() => {
+    const list = tab === 'brand' ? brandTrendList : skuTrendList;
+    const limit = tab === 'brand' ? 4 : 5;
+    return (list || []).slice(0, limit).map(r => r.id);
+  }, [tab, brandTrendList, skuTrendList]);
+
+  // Fetch trend data
+  useEffect(() => {
+    if (viewMode === 'table' || (trendTargets || []).length === 0) return;
+
+    const fetchTrendData = async () => {
+      setTrendLoading(true);
+      try {
+        const isCategoryFilterActive = filters.categories.length > 0;
+        const isBrandFilterActive = filters.brands.length > 0;
+        const isCityFilterActive = city && city !== 'All India' && city !== 'All';
+
+        let effectiveDimValue = dimensionValue;
+        if ((dimensionType === 'category' || dimensionType === 'Category') && isCategoryFilterActive) effectiveDimValue = undefined;
+        if ((dimensionType === 'brand' || dimensionType === 'Brand') && isBrandFilterActive) effectiveDimValue = undefined;
+        if ((dimensionType === 'city' || dimensionType === 'City') && isCityFilterActive) effectiveDimValue = undefined;
+
+        let res;
+        if (dynamicKey === 'pricing') {
+          const params = {
+            mode: tab,
+            targets: trendTargets.join(','),
+            platform: platform || 'All',
+            location: isCityFilterActive ? city : 'All',
+            category: isCategoryFilterActive ? filters.categories.join(',') : 'All',
+            brand: isBrandFilterActive ? filters.brands.join(',') : 'All',
+            sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
+            period: '1M',
+            startDate: timeStart?.format('YYYY-MM-DD'),
+            endDate: timeEnd?.format('YYYY-MM-DD'),
+            dimension: dimensionType || 'category',
+            dimensionValue: effectiveDimValue || undefined
+          };
+          res = await axiosInstance.get('/pricing-analysis/competition-trends', { params });
+          if (res.data) {
+            setTrendData({
+              dates: res.data.dates || [],
+              timeSeries: res.data.timeSeriesByTarget || {}
+            });
+          }
+        } else if (dynamicKey === 'marketshare') {
+          const params = {
+            mode: tab,
+            targets: trendTargets.join(','),
+            platform: platform || 'All',
+            location: isCityFilterActive ? city : 'All',
+            category: isCategoryFilterActive ? filters.categories.join(',') : 'All',
+            brand: isBrandFilterActive ? filters.brands.join(',') : 'All',
+            period: '1M',
+            startDate: timeStart?.format('YYYY-MM-DD'),
+            endDate: timeEnd?.format('YYYY-MM-DD')
+          };
+          res = await axiosInstance.get('/market-share/competition-trends', { params });
+          if (res.data) {
+            setTrendData({
+              dates: res.data.dates || [],
+              timeSeries: res.data.timeSeriesByTarget || {}
+            });
+          }
+        } else {
+          // Watchtower fallback
+          const params = {
+            brands: tab === 'brand' ? trendTargets.join(',') : 'All',
+            skus: tab === 'sku' ? trendTargets.join(',') : 'All',
+            location: isCityFilterActive ? city : 'All',
+            category: isCategoryFilterActive ? filters.categories.join(',') : (dimensionType === 'category' ? dimensionValue : 'All'),
+            period: '1M',
+            startDate: timeStart?.format('YYYY-MM-DD'),
+            endDate: timeEnd?.format('YYYY-MM-DD'),
+          };
+          res = await axiosInstance.get('/watchtower/competition-brand-trends', { params });
+          if (res.data && res.data.brands) {
+            const ts = {};
+            const datesSet = new Set();
+            Object.entries(res.data.brands || {}).forEach(([target, series]) => {
+              ts[target] = {};
+              series.forEach(pt => {
+                const d = pt.date_key || pt.date;
+                datesSet.add(d);
+                ts[target][d] = {
+                  Osa: pt.osa?.value ?? pt.osa ?? 0,
+                  Sos: pt.sos?.value ?? pt.sos ?? 0,
+                  Listing: pt.listing?.value ?? pt.listing ?? 0,
+                  Assortment: pt.assortment?.value ?? pt.assortment ?? 0
+                };
+              });
+            });
+            setTrendData({
+              dates: Array.from(datesSet).sort(),
+              timeSeries: ts
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[KpiTrendShowcase] Error fetching trend data:', error);
+      } finally {
+        setTrendLoading(false);
+      }
+    };
+    fetchTrendData();
+  }, [viewMode, trendTargets, platform, timeStart, timeEnd, city, filters, dynamicKey, dimensionValue, dimensionType, tab]);
+  // --- END TREND LOGIC ---
 
   return (
     <div className="flex-col bg-slate-50 text-slate-900">
@@ -1818,6 +1828,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
               dimensionValue={dimensionValue}
               dimensionType={dimensionType}
               listData={brandTrendList}
+              trendData={trendData}
+              loading={trendLoading}
             />
           )}
           {viewMode === "kpi" && (
@@ -1827,6 +1839,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
               city={city}
               kpiKeys={kpiKeys}
               onBackToTrend={() => setViewMode("trend")}
+              trendData={trendData}
+              loading={trendLoading}
+              listData={brandTrendList}
             />
           )}
         </TabsContent>
@@ -1849,6 +1864,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
               dimensionValue={dimensionValue}
               dimensionType={dimensionType}
               listData={skuTrendList}
+              trendData={trendData}
+              loading={trendLoading}
             />
           )}
           {viewMode === "kpi" && (
@@ -1858,6 +1875,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
               city={city}
               kpiKeys={kpiKeys}
               onBackToTrend={() => setViewMode("trend")}
+              trendData={trendData}
+              loading={trendLoading}
+              listData={skuTrendList}
             />
           )}
         </TabsContent>
@@ -1869,8 +1889,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         mode={tab}
         value={filters}
         onChange={setFilters}
-        platform={platform || 'All'}
+        platform={platform}
         location={city}
+        dynamicKey={dynamicKey}
       />
     </div>
   );

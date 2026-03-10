@@ -1,4 +1,6 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, useContext } from "react";
+import { Skeleton } from "@mui/material";
+import { FilterContext } from "../../utils/FilterContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Area,
@@ -322,7 +324,18 @@ const heatCell = (v, max = 100) => {
 export default function MarketShareAnalysis() {
   const [showFilters, setShowFilters] = useState(false);
   const [marketMode, setMarketMode] = useState("geographical");
-  const calledOnce = useRef(false);
+  const [loading, setLoading] = useState(true);
+
+  // Use state for KPIs to allow dynamic updates from backend
+  const [kpis, setKpis] = useState(marketShareKpis);
+
+  const {
+    platform,
+    selectedCategory,
+    selectedLocation,
+    timeStart,
+    timeEnd,
+  } = useContext(FilterContext);
 
   // ── Drawer state for MarketCatOverview trends ──────────────────────────────
   const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
@@ -336,27 +349,105 @@ export default function MarketShareAnalysis() {
   };
 
   useEffect(() => {
-    if (calledOnce.current) return;
-    calledOnce.current = true;
-
     const fetchMarketShareData = async () => {
+      setLoading(true);
       try {
-        const response = await axiosInstance.get('/market-share', {
-          params: { platform: 'Blinkit' } // Default filter
-        });
+        const params = {
+          platform: platform === 'All' ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+          category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+          location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+          startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
+          endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
+        };
+
+        const response = await axiosInstance.get('/market-share', { params });
         console.log("Market Share Data:", response.data);
+
+        if (response.data) {
+          setKpis(prev => prev.map(k => {
+            // Category Size KPI
+            if (k.id === "ms-category-size" && response.data.categorySize !== undefined) {
+              const val = response.data.categorySize;
+              const formattedValue = val > 10000000
+                ? `₹ ${(val / 10000000).toFixed(2)} Cr`
+                : val > 100000
+                  ? `₹ ${(val / 100000).toFixed(2)} L`
+                  : `₹ ${val.toFixed(2)}`;
+              return { ...k, value: formattedValue };
+            }
+
+            // Market Leader Sales KPI
+            if (k.id === "ms-leader-sales" && response.data.marketLeader) {
+              const leader = response.data.marketLeader;
+              const val = leader.sales;
+              const formattedValue = val > 10000000
+                ? `₹ ${(val / 10000000).toFixed(2)} Cr`
+                : val > 100000
+                  ? `₹ ${(val / 100000).toFixed(2)} L`
+                  : `₹ ${val.toFixed(2)}`;
+
+              const deltaAbsCr = Math.abs(leader.deltaAbs) > 10000000
+                ? `₹${(Math.abs(leader.deltaAbs) / 10000000).toFixed(2)} Cr`
+                : Math.abs(leader.deltaAbs) > 100000
+                  ? `₹${(Math.abs(leader.deltaAbs) / 100000).toFixed(2)} L`
+                  : `₹${Math.abs(leader.deltaAbs).toFixed(2)}`;
+
+              const arrow = leader.delta >= 0 ? '▲' : '▼';
+              return {
+                ...k,
+                value: formattedValue,
+                brand: leader.brand,
+                delta: leader.delta,
+                deltaLabel: `${arrow} ${Math.abs(leader.delta)}% (${deltaAbsCr})`,
+                extraChangeColor: leader.delta >= 0 ? "green" : "red",
+              };
+            }
+
+            // Mars Wrigley Sales KPI
+            if (k.id === "ms-mars-wrigley" && response.data.marsWrigley) {
+              const mars = response.data.marsWrigley;
+              const val = mars.sales;
+              const formattedValue = val > 10000000
+                ? `₹ ${(val / 10000000).toFixed(2)} Cr`
+                : val > 100000
+                  ? `₹ ${(val / 100000).toFixed(2)} L`
+                  : `₹ ${val.toFixed(2)}`;
+
+              const deltaAbsCr = Math.abs(mars.deltaAbs) > 10000000
+                ? `₹${(Math.abs(mars.deltaAbs) / 10000000).toFixed(2)} Cr`
+                : Math.abs(mars.deltaAbs) > 100000
+                  ? `₹${(Math.abs(mars.deltaAbs) / 100000).toFixed(2)} L`
+                  : `₹${Math.abs(mars.deltaAbs).toFixed(2)}`;
+
+              const arrow = mars.delta >= 0 ? '▲' : '▼';
+              return {
+                ...k,
+                value: formattedValue,
+                delta: mars.delta,
+                deltaLabel: `${arrow} ${Math.abs(mars.delta)}% (${deltaAbsCr})`,
+                extraChangeColor: mars.delta >= 0 ? "green" : "red",
+              };
+            }
+
+            return k;
+          }));
+        }
       } catch (error) {
         console.error("Error fetching Market Share data:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchMarketShareData();
-  }, []);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd]);
+
 
   return (
     <div className="relative min-h-screen bg-slate-50 text-slate-900 px-3 md:px-6 py-3 md:py-5 flex flex-col gap-1 md:gap-0">
       {/* <HeaderStats /> */}
       <SnapshotOverview
+        loading={loading}
         title="Market Share Overview"
         icon={LayoutGrid}
         chip="All Platforms"
@@ -365,17 +456,18 @@ export default function MarketShareAnalysis() {
             vs Comparison Period
           </span>
         }
-        kpis={marketShareKpis}
+        kpis={kpis}
         variant="detailed"
       />
 
       <MarketCatOverview
+        loading={loading}
         onViewTrends={handleViewTrends}
         onViewRca={handleViewRca}
       />
 
-      <MarketShareDrilldown />
-      <SubCategoryMarket />
+      {/* <MarketShareDrilldown loading={loading} /> */}
+      {/* <SubCategoryMarket loading={loading} /> */}
 
       {/* <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
         <div className="text-sm font-semibold">
@@ -387,7 +479,7 @@ export default function MarketShareAnalysis() {
         <DualAxisDrillMatrix />
       </div> */}
 
-      <div className="space-y-4 mt-6">
+      {/* <div className="space-y-4 mt-6">
         <div className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4 space-y-4">
           <div className="flex justify-center">
             <div className="relative w-full md:w-[420px]">
@@ -424,23 +516,16 @@ export default function MarketShareAnalysis() {
           {marketMode === "geographical" ? (
             <>
 
-              <TwoUp />
-              {/* <ZoneTables /> */}
+              {loading ? <Skeleton variant="rectangular" height={400} /> : <TwoUp />}
             </>
           ) : (
             <>
-              <ListingTable />
-              <PincodeLists />
+              {loading ? <Skeleton variant="rectangular" height={300} /> : <ListingTable />}
+              {loading ? <Skeleton variant="rectangular" height={300} /> : <PincodeLists />}
             </>
           )}
         </div>
-
-        {/* <CategoryTables /> */}
-
-        {/* <SkuTables /> */}
-        {/* <TrendCharts /> */}
-        {/* <LocationStack /> */}
-      </div>
+      </div> */}
 
       <button
         onClick={() => setShowFilters(true)}
@@ -541,10 +626,11 @@ function TwoUp() {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (subCatRef.current && !subCatRef.current.contains(e.target)) setIsSubCatOpen(false);
+      if (subCatRef.current && !subCatRef.current.contains(e.target))
+        setIsSubCatOpen(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const activeBrandHeat = subCategoryBrandHeat[selectedSubCat] || brandShareHeat;

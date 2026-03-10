@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
+import { Skeleton } from '@mui/material'
 import { motion, AnimatePresence } from 'framer-motion'
 import { SlidersHorizontal, Plus, Minus, Search, X } from 'lucide-react'
 import { KpiFilterPanel } from '../KpiFilterPanel'
@@ -131,7 +132,7 @@ const flattenHierarchy = (nodes, expanded) => {
     return rows;
 };
 
-const MarketShareDrilldown = () => {
+const MarketShareDrilldown = ({ loading }) => {
     const [expandedRows, setExpandedRows] = useState(new Set([]));
     const [searchTerm, setSearchTerm] = useState('');
     const [showFilterPanel, setShowFilterPanel] = useState(false);

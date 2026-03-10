@@ -595,6 +595,27 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+      } else if (dynamicKey === "marketshare") {
+        const params = {
+          period: range,
+          timeStep: timeStep,
+          dimension: selectedLevel?.toLowerCase(),
+          dimensionValue: shouldSendDimensionValue ? (selectedColumn || undefined) : undefined,
+          startDate: range === "Custom" && customStart ? customStart : undefined,
+          endDate: range === "Custom" && customEnd ? customEnd : undefined,
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
+          category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+        };
+
+        const response = await axiosInstance.get('/market-share/trends', { params });
+
+        if (response.data?.timeSeries?.length > 0) {
+          setChartData(response.data.timeSeries);
+        } else {
+          setChartData([]);
+        }
       } else {
         // Use watchtower API for availability/visibility/performance
         const params = {
