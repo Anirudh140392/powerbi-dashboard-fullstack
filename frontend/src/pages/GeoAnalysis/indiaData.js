@@ -266,6 +266,7 @@ export const CITIES = [
     { name: "Delhi", state_id: "DL", coords: [77.1, 28.7], value: 95 },
     { name: "Bengaluru", state_id: "KA", coords: [77.59, 12.97], value: 90 },
     { name: "Gurugram", state_id: "HR", coords: [77.0266, 28.4595], value: 85 },
+    { name: "Gurgaon", state_id: "HR", coords: [77.0266, 28.4595], value: 85 },
     { name: "Faridabad", state_id: "HR", coords: [77.3178, 28.4089], value: 75 },
     { name: "Mysore", state_id: "KA", coords: [76.63, 12.29], value: 50 },
     { name: "Chennai", state_id: "TN", coords: [80.27, 13.08], value: 85 },

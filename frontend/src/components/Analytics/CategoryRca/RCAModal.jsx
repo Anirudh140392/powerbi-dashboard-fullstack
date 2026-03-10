@@ -139,6 +139,31 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
         }
     }, [initialData, open]);
 
+    // Fetch SKUs when filter dependencies change
+    useEffect(() => {
+        if (!open || !platform) return;
+        let cancelled = false;
+        const loadSkus = async () => {
+            try {
+                const params = {
+                    platform: platform === 'All' ? '' : platform,
+                    category: category === 'All' ? '' : category,
+                    brand: brand === 'All Brands' ? '' : brand
+                };
+                const res = await axiosInstance.get('/watchtower/products', { params });
+                if (cancelled) return;
+                const skus = ['All SKUs', ...(res.data || [])];
+                setSkuOptions(skus);
+                // Reset selected SKU if it is no longer valid
+                setSku(prev => (!prev || !skus.includes(prev) ? 'All SKUs' : prev));
+            } catch (err) {
+                console.error('[RCAModal] Failed to load SKU options:', err);
+            }
+        };
+        loadSkus();
+        return () => { cancelled = true; };
+    }, [platform, category, brand, open]);
+
     const context = { platform, category, brand, sku, month };
 
     return (
