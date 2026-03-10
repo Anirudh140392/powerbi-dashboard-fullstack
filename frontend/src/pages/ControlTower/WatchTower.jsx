@@ -167,8 +167,12 @@ export default function WatchTower() {
     },
 
     topMetrics: [],
-    skuTable: [],
+    performanceMetricsKpis: [],
   });
+
+  const [categoryDataLoading, setCategoryDataLoading] = useState(false);
+  const [categoryOverview, setCategoryOverview] = useState([]);
+  const [performanceLoading, setPerformanceLoading] = useState(false);
 
   const {
     selectedBrand,
@@ -300,8 +304,8 @@ export default function WatchTower() {
   }, [dashboardData, selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
 
   const FORMAT_ROWS = useMemo(() => {
-    if (dashboardData?.categoryOverview?.length > 0) {
-      return dashboardData.categoryOverview.map(cat => {
+    if (categoryOverview?.length > 0) {
+      return categoryOverview.map(cat => {
         const getColVal = (title) => {
           const col = cat.columns?.find(c => c.title.toLowerCase().includes(title.toLowerCase()));
           if (!col || !col.value) return 0;
@@ -326,13 +330,21 @@ export default function WatchTower() {
       }).sort((a, b) => b.offtakes - a.offtakes);
     }
 
+    if (categoryDataLoading) {
+      return [{
+        name: "Loading...",
+        offtakes: 0, spend: 0, roas: 0, inorgSalesPct: 0, conversionPct: 0,
+        marketSharePct: 0, promoMyBrandPct: 0, promoCompetePct: 0, cpm: 0, cpc: 0
+      }];
+    }
+
     // Default safe row to prevent undefined errors when dashboardData is empty
     return [{
       name: "Loading...",
       offtakes: 0, spend: 0, roas: 0, inorgSalesPct: 0, conversionPct: 0,
       marketSharePct: 0, promoMyBrandPct: 0, promoCompetePct: 0, cpm: 0, cpc: 0
     }];
-  }, [dashboardData]);
+  }, [categoryOverview, categoryDataLoading]);
 
 
   const [fetchError, setFetchError] = useState(null);
@@ -368,33 +380,73 @@ export default function WatchTower() {
 
       setLoading(true);
       setFetchError(null);
-      try {
-        const params = {
-          platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
-          category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
-          location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
-          keyword: selectedKeyword || undefined,
-          startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
-          endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
-          compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
-          compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
-        };
-        const response = await axiosInstance.get("/watchtower", { params });
-        // Only apply result if this is still the latest fetch
-        if (currentFetchId === fetchIdRef.current && response.data) {
-          console.log("Fetched Watch Tower data:", response.data);
-          setDashboardData(response.data);
-        }
-      } catch (error) {
-        if (currentFetchId === fetchIdRef.current) {
-          console.error("Error fetching Watch Tower data:", error);
-          setFetchError(error.message || "Failed to load Watch Tower data");
-        }
-      } finally {
-        if (currentFetchId === fetchIdRef.current) {
-          setLoading(false);
-        }
-      }
+      setCategoryDataLoading(true);
+      setPerformanceLoading(true);
+
+      const params = {
+        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+        category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+        location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+        keyword: selectedKeyword || undefined,
+        startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+        endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+        compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+        compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
+      };
+
+      // 1. Fetch fast overview data
+      axiosInstance.get("/watchtower/overview", { params })
+        .then(response => {
+          if (currentFetchId === fetchIdRef.current && response.data) {
+            console.log("Fetched Watch Tower Overview:", response.data);
+            setDashboardData(prev => ({
+              ...prev,
+              ...response.data
+            }));
+            setLoading(false);
+          }
+        })
+        .catch(error => {
+          if (currentFetchId === fetchIdRef.current) {
+            console.error("Error fetching Watch Tower Overview:", error);
+            setFetchError(error.message || "Failed to load Overview data");
+            setLoading(false);
+          }
+        });
+
+      // 2. Fetch Category performance data independently
+      axiosInstance.get("/watchtower/category-overview", { params })
+        .then(response => {
+          if (currentFetchId === fetchIdRef.current && response.data) {
+            console.log("Fetched Category Overview:", response.data);
+            setCategoryOverview(response.data);
+            setCategoryDataLoading(false);
+          }
+        })
+        .catch(error => {
+          if (currentFetchId === fetchIdRef.current) {
+            console.error("Error fetching Category Overview:", error);
+            setCategoryDataLoading(false);
+          }
+        });
+
+      // 3. Fetch Performance Metrics KPIs independently
+      axiosInstance.get("/watchtower/performance-metrics", { params })
+        .then(response => {
+          if (currentFetchId === fetchIdRef.current && response.data) {
+            console.log("Fetched Performance Metrics KPIs:", response.data);
+            setDashboardData(prev => ({
+              ...prev,
+              performanceMetricsKpis: response.data.performanceMetricsKpis || []
+            }));
+            setPerformanceLoading(false);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching Performance Metrics:", error);
+          setPerformanceLoading(false);
+        });
+
     }, 800);
 
     return () => clearTimeout(debounceTimer);
@@ -467,7 +519,7 @@ export default function WatchTower() {
             seed={`${platform}-${selectedCategory}-${selectedBrand}`}
             loading={loading}
             performanceData={dashboardData?.performanceMetricsKpis || []}
-            performanceLoading={loading}
+            performanceLoading={performanceLoading}
           />
         )}
 
@@ -670,7 +722,11 @@ const FormatPerformanceStudio = ({ rows }) => {
   const [compareName, setCompareName] = useState(null);
 
   const active = useMemo(
-    () => rows.find((f) => f.name === activeName) ?? rows[0],
+    () => rows.find((f) => f.name === activeName) ?? rows[0] ?? {
+      name: "Loading...", offtakes: 0, spend: 0, roas: 0, inorgSalesPct: 0,
+      conversionPct: 0, marketSharePct: 0, promoMyBrandPct: 0,
+      promoCompetePct: 0, cpm: 0, cpc: 0
+    },
     [activeName, rows]
   );
   const compare = useMemo(

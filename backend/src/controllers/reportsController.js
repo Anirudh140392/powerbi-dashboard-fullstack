@@ -349,7 +349,7 @@ export const downloadReport = async (req, res) => {
                     SUM(assumeNotNull(Qty_Sold)) as Units_Sold,
                     round(SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as Stock_Availability,
                     round(avg(toFloat64(DIH)), 2) as DOI,
-                    round(avg(toFloat64(listing_percent)), 2) as listing_percentage,
+                    round(avg(ifNull(toFloat64OrZero(toString(listing_percent)), 0)), 2) as listing_percentage,
                     
                     -- Performance Marketing Metrics
                     SUM(toFloat64(Ad_sales)) as Inorganic_Sales,

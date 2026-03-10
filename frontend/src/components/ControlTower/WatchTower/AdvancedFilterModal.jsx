@@ -65,7 +65,7 @@ const mockPlatforms = [
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
     { key: 'spend', label: 'Spend' },
-    { key: 'roas', label: 'Category size' },
+    { key: 'categorySize', label: 'Category size' },
     { key: 'inorgSales', label: 'Inorg Sales' },
     { key: 'conversion', label: 'Conversion' },
     { key: 'availability', label: 'Availability' },
@@ -227,10 +227,10 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 // MAIN ADVANCED FILTER MODAL
 // ========================================
 export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
-    // Filter out "Category size" (key: 'roas') when on SKU dimension
+    // Filter out "Category size" (key: 'categorySize') when on SKU dimension
     const baseKpiOptions = propKpiOptions || kpiOptions;
     const kpisToUse = currentDimension === 'sku'
-        ? baseKpiOptions.filter(k => k.key !== 'roas')
+        ? baseKpiOptions.filter(k => k.key !== 'categorySize')
         : baseKpiOptions;
 
     // Local filter state (applied on confirm)
@@ -243,7 +243,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         skuCode: '',
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
+        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'],
         filterLogic: 'OR',
     })
 
@@ -277,7 +277,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             skus: [],
             skuName: '',
             skuCode: '',
-            kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
+            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'],
             filterLogic: 'OR',
         })
     }

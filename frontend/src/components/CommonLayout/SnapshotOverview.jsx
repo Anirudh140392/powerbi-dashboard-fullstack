@@ -612,15 +612,18 @@ const SnapshotOverview = ({
         });
 
         // Add Share of Search (sos_new) from performanceData to Top Row
-        const sosItem = performanceData.find(item => item.id === 'sos_new');
+        // Refinement: Also check kpis (from overview API) so it shows up immediately without jumping
+        const sosItem = performanceData.find(item => item.id === 'sos_new') ||
+            kpis.find(k => normalize(k.title) === 'share_of_search' || k.id === 'sos');
+        const isSosWait = performanceLoading && !sosItem;
 
         let topRowItems = baseTop.map((kpi, idx) => ({
             ...kpi,
             trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
         }));
 
-        if (sosItem) {
-            const sosKpi = {
+        if (sosItem || isSosWait) {
+            const sosKpi = sosItem ? {
                 id: 'sos_top',
                 title: 'Share of Search',
                 value: sosItem.value,
@@ -629,6 +632,12 @@ const SnapshotOverview = ({
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
                 trendSeries: makeSeries(35, 30, 0.12, seed)
+            } : {
+                id: 'sos_top_loading',
+                title: 'Share of Search',
+                loading: true,
+                icon: Eye,
+                gradient: ['#6366f1', '#8b5cf6'],
             };
 
             // Find Market Share to swap ensuring SOS comes BEFORE it
@@ -769,7 +778,7 @@ const SnapshotOverview = ({
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.05, duration: 0.3 }}
                                     >
-                                        <ComparisonCard kpi={kpi} />
+                                        <ComparisonCard kpi={kpi} loading={kpi.loading} />
                                     </motion.div>
                                 ))
                             )}

@@ -1009,7 +1009,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             `toDate(created_on) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'`
                         ];
                         const locArr = normalizeFilterArray(location);
-                        if (locArr && locArr.length > 0) {
+                        const hasLocFilter = locArr && locArr.length > 0;
+                        if (hasLocFilter) {
                             if (locArr.length === 1) {
                                 msConds.push(`location = '${escapeStr(locArr[0])}'`);
                             } else {
@@ -1018,23 +1019,42 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
                         const catArr = normalizeFilterArray(category);
                         if (catArr && catArr.length > 0) {
-                            if (catArr.length === 1) {
-                                msConds.push(`category = '${escapeStr(catArr[0])}'`);
+                            const mappedCats = catArr.map(c => {
+                                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                                return c;
+                            });
+                            if (mappedCats.length === 1) {
+                                msConds.push(`category = '${escapeStr(mappedCats[0])}'`);
                             } else {
-                                msConds.push(`category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                                msConds.push(`category IN (${mappedCats.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                             }
                         }
 
-                        const query = `
-                            SELECT platform as platform_name, AVG(avg_nation) as ms
-                            FROM (
-                                SELECT platform, AVG(nation_level_market_share) as avg_nation
-                                FROM rb_brand_ms
-                                WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
-                                GROUP BY platform, category, sub_category, group_brand
-                            )
-                            GROUP BY platform
-                        `;
+                        let query;
+                        if (hasLocFilter) {
+                            query = `
+                                SELECT platform as platform_name, SUM(ms_val) as ms
+                                FROM (
+                                    SELECT platform, MAX(market_share) as ms_val
+                                    FROM rb_brand_ms
+                                    WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
+                                    GROUP BY created_on, platform, location, category, brand
+                                )
+                                GROUP BY platform
+                            `;
+                        } else {
+                            query = `
+                                SELECT platform as platform_name, AVG(ms_val) as ms
+                                FROM (
+                                    SELECT platform, MAX(nation_level_market_share) as ms_val
+                                    FROM rb_brand_ms
+                                    WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
+                                    GROUP BY created_on, platform, category, brand
+                                )
+                                GROUP BY platform
+                            `;
+                        }
                         return await queryClickHouse(query);
                     })(),
                     // Query 3: Previous period offtake metrics for all platforms
@@ -1062,7 +1082,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             `toDate(created_on) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'`
                         ];
                         const locArr = normalizeFilterArray(location);
-                        if (locArr && locArr.length > 0) {
+                        const hasLocFilter = locArr && locArr.length > 0;
+                        if (hasLocFilter) {
                             if (locArr.length === 1) {
                                 msConds.push(`location = '${escapeStr(locArr[0])}'`);
                             } else {
@@ -1071,23 +1092,42 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         }
                         const catArr = normalizeFilterArray(category);
                         if (catArr && catArr.length > 0) {
-                            if (catArr.length === 1) {
-                                msConds.push(`category = '${escapeStr(catArr[0])}'`);
+                            const mappedCats = catArr.map(c => {
+                                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                                return c;
+                            });
+                            if (mappedCats.length === 1) {
+                                msConds.push(`category = '${escapeStr(mappedCats[0])}'`);
                             } else {
-                                msConds.push(`category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                                msConds.push(`category IN (${mappedCats.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                             }
                         }
 
-                        const query = `
-                            SELECT platform as platform_name, AVG(avg_nation) as ms
-                            FROM (
-                                SELECT platform, AVG(nation_level_market_share) as avg_nation
-                                FROM rb_brand_ms
-                                WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
-                                GROUP BY platform, category, sub_category, group_brand
-                            )
-                            GROUP BY platform
-                        `;
+                        let query;
+                        if (hasLocFilter) {
+                            query = `
+                                SELECT platform as platform_name, SUM(ms_val) as ms
+                                FROM (
+                                    SELECT platform, MAX(market_share) as ms_val
+                                    FROM rb_brand_ms
+                                    WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
+                                    GROUP BY created_on, platform, location, category, brand
+                                )
+                                GROUP BY platform
+                            `;
+                        } else {
+                            query = `
+                                SELECT platform as platform_name, AVG(ms_val) as ms
+                                FROM (
+                                    SELECT platform, MAX(nation_level_market_share) as ms_val
+                                    FROM rb_brand_ms
+                                    WHERE ${msConds.join(' AND ')} AND brand IN (${brandInClause})
+                                    GROUP BY created_on, platform, category, brand
+                                )
+                                GROUP BY platform
+                            `;
+                        }
                         return await queryClickHouse(query);
                     })()
                 ]);

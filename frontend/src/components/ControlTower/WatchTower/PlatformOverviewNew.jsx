@@ -76,7 +76,8 @@ const kpiLabels = {
     organic_sov: 'Organic SOV',
     inorgSales: 'Inorganic Sales',
     dspSales: 'DSP Sales',
-    asp: 'ASP'
+    asp: 'ASP',
+    categorySize: 'Category Size'
 };
 
 // Map backend KPI title → frontend kpiKey
@@ -91,6 +92,7 @@ const BACKEND_TITLE_TO_KEY = {
     'Ad SOV': 'ad_sov',
     'Organic SOV': 'organic_sov',
     'Market Share': 'marketShare',
+    'Category Size': 'categorySize',
     'CPM': 'cpm',
     'CPC': 'cpc',
 }
@@ -163,13 +165,15 @@ const PlatformOverviewNew = ({
         { key: 'cpm', label: 'CPM' },
         { key: 'cpc', label: 'CPC' },
         { key: 'asp', label: 'ASP' },
+        { key: 'marketShare', label: 'Market Share' },
+        { key: 'categorySize', label: 'Category Size' },
     ]
     // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
 
     // Filter out unwanted KPIs
     const filteredKpis = kpis;
-    const defaultKpiKeys = ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'];
+    const defaultKpiKeys = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
 
     const [glanceKpis, setGlanceKpis] = useState(defaultKpiKeys)
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
