@@ -225,8 +225,8 @@ const formatChange = (val, isPP = false) => {
  */
 const formatCurrency = (value) => {
     const val = parseFloat(value);
-    if (isNaN(val)) return "0";
-    if (val < 0.01 && val > -0.01) return "0";
+    if (isNaN(val)) return "₹0";
+    if (val < 0.01 && val > -0.01) return "₹0";
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
     if (val >= 100000) return `₹${(val / 100000).toFixed(2)} lac`;
     if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
@@ -1151,36 +1151,19 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             prevPromoDepth,
             promoTrendData
         ] = await Promise.all([
-            // 1. Total Offtake (Sales) & Chart Data - NOW USES CLICKHOUSE
+            // 1. Total Offtake (Sales)
             (async () => {
                 try {
-                    const result = await queryClickHouse(`
-                        SELECT 
-                            toMonday(toDate(DATE)) as week_date,
-                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales
-                        FROM rb_pdp_olap
-                        WHERE ${offtakeCondStr}
-                        GROUP BY toMonday(toDate(DATE))
-                        ORDER BY week_date
-                    `);
-                    return result;
+                    const result = await queryClickHouse(`SELECT SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales FROM rb_pdp_olap WHERE ${offtakeCondStr}`);
+                    return [{ total_sales: result[0]?.total_sales || 0 }];
                 } catch (err) {
                     console.error('[Offtake] ClickHouse error:', err.message);
-                    return [];
+                    return [{ total_sales: 0 }];
                 }
             })(),
             // 2. Market Share - USING marketShareHelper
             (async () => {
-                try {
-                    const msMap = await getMarketShareTimeSeries(startDate, endDate, platformArr, categoryArr, brandArr, 'Weekly', locationArr);
-                    return Array.from(msMap.entries()).map(([date, val]) => ({
-                        week_date: date,
-                        avg_market_share: val
-                    }));
-                } catch (err) {
-                    console.error('[MarketShare] helper error:', err.message);
-                    return [];
-                }
+                return [];
             })(),
             // 3. Total Market Share Average - USING marketShareHelper
             (async () => {
@@ -1221,79 +1204,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             getShareOfSearch(momStartDate, momEndDate, brand, platform, location, category),
             // 9. Availability Trend Data - USING CLICKHOUSE
             (async () => {
-                try {
-                    return await queryClickHouse(`
-                        SELECT 
-                            toMonday(toDate(DATE)) as week_date,
-                            SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
-                            SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
-                        FROM rb_pdp_olap
-                        WHERE ${offtakeCondStr}
-                        GROUP BY toMonday(toDate(DATE))
-                        ORDER BY week_date
-                    `);
-                } catch (err) {
-                    console.error('[AvailabilityTrend] ClickHouse error:', err.message);
-                    return [];
-                }
+                return [];
             })(),
             // 10. Share of Search Trend Data - USING CLICKHOUSE
             (async () => {
-                try {
-                    const kwBaseConditions = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
-                    const catArrLocal = normalizeFilterArray(category);
-                    if (catArrLocal && catArrLocal.length > 0) {
-                        kwBaseConditions.push(`lower(keyword_category) IN (${catArrLocal.map(c => `'${escapeStrMain(c.toLowerCase())}'`).join(', ')})`);
-                    }
-                    if (locationArr && locationArr.length > 0) {
-                        if (locationArr.length === 1) {
-                            kwBaseConditions.push(`lower(location_name) = '${escapeStrMain(locationArr[0].toLowerCase())}'`);
-                        } else {
-                            kwBaseConditions.push(`location_name IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
-                        }
-                    }
-                    if (platformArr && platformArr.length > 0) {
-                        const cond = buildPlatformChannelCond(platformArr, channel, 'platform_name');
-                        if (cond) kwBaseConditions.push(cond);
-                    } else {
-                        // Handle All platform based on channel
-                        const pCond = buildPlatformChannelCond(null, channel, 'platform_name');
-                        if (pCond) kwBaseConditions.push(pCond);
-                    }
-
-                    const numeratorConditions = [...kwBaseConditions];
-                    // Fixed: Always use keyword_is_rb_product='1' for SOS Trend
-                    numeratorConditions.push(`toString(keyword_is_rb_product) = '1'`);
-
-                    const [brandWeekCounts, totalWeekCounts] = await Promise.all([
-                        queryClickHouse(`
-                            SELECT toMonday(toDate(created_on)) as week, count() as count
-                            FROM rb_kw
-                            WHERE ${numeratorConditions.join(' AND ')}
-                            GROUP BY toMonday(toDate(created_on))
-                        `),
-                        queryClickHouse(`
-                            SELECT toMonday(toDate(created_on)) as week, count() as count
-                            FROM rb_kw
-                            WHERE ${kwBaseConditions.join(' AND ')}
-                            GROUP BY toMonday(toDate(created_on))
-                        `)
-                    ]);
-
-                    const brandCountMap = new Map(brandWeekCounts.map(r => [dayjs(r.week).format('YYYY-MM-DD'), parseInt(r.count)]));
-                    const totalCountMap = new Map(totalWeekCounts.map(r => [dayjs(r.week).format('YYYY-MM-DD'), parseInt(r.count)]));
-
-                    return weekBuckets.map(bucket => {
-                        const weekKey = dayjs(bucket.date).startOf('isoWeek').format('YYYY-MM-DD');
-                        const brandCount = brandCountMap.get(weekKey) || 0;
-                        const totalCount = totalCountMap.get(weekKey) || 0;
-                        const sosValue = totalCount > 0 ? (brandCount / totalCount) * 100 : 0;
-                        return { week_date: bucket.date, value: sosValue };
-                    });
-                } catch (error) {
-                    console.error('Error calculating bulk SOS trend:', error.message);
-                    return weekBuckets.map(bucket => ({ week_date: bucket.date, value: 0 }));
-                }
+                return [];
             })(),
             // 11. Previous Offtake - USING CLICKHOUSE
             (async () => {
@@ -1383,31 +1298,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })(),
             // 15. Promo Trend Data - CLICKHOUSE
             (async () => {
-                try {
-                    const result = await queryClickHouse(`
-                        SELECT 
-                            toMonday(toDate(DATE)) as week_date,
-                            AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) * 100 as avg_promo
-                        FROM rb_pdp_olap
-                        WHERE ${offtakeCondStr}
-                        GROUP BY toMonday(toDate(DATE))
-                        ORDER BY week_date
-                    `);
-                    return result;
-                } catch (err) {
-                    console.error('[PromoTrend] ClickHouse error:', err.message);
-                    return [];
-                }
+                return [];
             })()
         ]);
 
         // Process Offtake Data - Using weekBuckets for weekly chart
-        const offtakeChart = weekBuckets.map(bucket => {
-            const match = offtakeData.find(d => {
-                return dayjs(d.week_date).isSame(dayjs(bucket.date), 'week');
-            });
-            return match ? parseFloat(match.total_sales) / 10000000 : 0; // Convert to Cr
-        });
+        const offtakeChart = [];
 
         const totalOfftake = offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales), 0);
         const formattedOfftake = formatCurrency(totalOfftake);
@@ -1423,10 +1319,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(1) + "%";
 
         // Process Market Share Data - Using weekBuckets for weekly chart
-        const marketShareChart = weekBuckets.map(bucket => {
-            const match = marketShareData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
-            return match ? parseFloat(match.avg_market_share) : 0;
-        });
+        const marketShareChart = [];
 
         // Hardcode overall Market Share removed, now using calculation
         const totalMarketShare = parseFloat(totalMarketShareResult?.avg_market_share || 0);
@@ -1445,15 +1338,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const availabilityTrendStr = (availabilityChange >= 0 ? "+" : "") + availabilityChange.toFixed(1) + "%";
 
         // Process Availability Chart - Using weekBuckets for weekly chart
-        const availabilityChart = weekBuckets.map(bucket => {
-            const match = availabilityTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
-            if (match) {
-                const totalNeno = parseFloat(match.total_neno || 0);
-                const totalDeno = parseFloat(match.total_deno || 0);
-                return totalDeno > 0 ? (totalNeno / totalDeno) * 100 : 0;
-            }
-            return 0;
-        });
+        const availabilityChart = [];
 
         // Process Share of Search Data
         const formattedShareOfSearch = currentShareOfSearch.toFixed(1) + "%";
@@ -1463,10 +1348,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const sosTrendStr = (sosChange >= 0 ? "+" : "") + sosChange.toFixed(1) + "%";
 
         // Process Share of Search Chart - Using weekBuckets for weekly chart
-        const shareOfSearchChart = weekBuckets.map(bucket => {
-            const match = shareOfSearchTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
-            return match ? parseFloat(match.value) : 0;
-        });
+        const shareOfSearchChart = [];
 
         // Process Promo Data (with safe defaults to prevent crash)
         const safePromoDepth = parseFloat(currentPromoDepth) || 0;
@@ -1476,10 +1358,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const promoTrendStr = (promoChange >= 0 ? "+" : "") + promoChange.toFixed(1) + "%";
 
         const safePromoTrendData = Array.isArray(promoTrendData) ? promoTrendData : [];
-        const promoChart = weekBuckets.map(bucket => {
-            const match = safePromoTrendData.find(d => dayjs(d.week_date).isSame(dayjs(bucket.date), 'week'));
-            return match ? parseFloat(match.avg_promo) : 0;
-        });
+        const promoChart = [];
 
         // Process Top SKUs
         const skuTableData = topSkus.map(sku => ({
@@ -2476,6 +2355,10 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             allAdSales = parseFloat(currMetrics.total_ad_sales || 0);
             const allClicks = parseFloat(currMetrics.total_clicks || 0);
             const allImpressions = parseFloat(currMetrics.total_impressions || 0);
+
+            console.log("ALL COLUMN OFFTAKE VALUES:", {
+                allOfftake, currMetrics_totalSales: currMetrics.total_sales, currConditions
+            });
 
             // Previous period values (ClickHouse returns array)
             const prevMetrics = prevAllMetricsResult[0] || {};
@@ -4169,10 +4052,10 @@ const getPlatformOverview = async (filters) => {
     // Helper for currency formatting
     const formatCurrency = (value) => {
         const val = parseFloat(value);
-        if (isNaN(val)) return "0";
-        if (val < 0.01 && val > -0.01) return "0";
+        if (isNaN(val)) return "₹0";
+        if (val < 0.01 && val > -0.01) return "₹0";
         if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-        if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
+        if (val >= 100000) return `₹${(val / 100000).toFixed(2)} lac`;
         if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
         return `₹${val.toFixed(2)}`;
     };

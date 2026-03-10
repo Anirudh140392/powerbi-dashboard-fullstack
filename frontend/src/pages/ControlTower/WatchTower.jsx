@@ -711,6 +711,14 @@ const FormatPerformanceStudio = ({ rows }) => {
       format: (v) => `₹${v} lac`,
     },
     {
+      key: "roas",
+      label: "ROAS",
+      activeValue: active.roas,
+      compareValue: compare?.roas ?? null,
+      max: 10,
+      format: (v) => `${v}x`,
+    },
+    {
       key: "inorgSalesPct",
       label: "Inorg Sales",
       activeValue: active.inorgSalesPct,
