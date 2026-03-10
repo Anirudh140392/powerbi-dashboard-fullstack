@@ -54,7 +54,7 @@ export const getSalesVisibilitySignals = async (req, res) => {
 
 /**
  * Get city-level KPI details for a specific keyword or SKU visibility signal
- * Returns: City-level metrics from rb_kw table
+ * Returns: City-level metrics from rb_kw_olap table
  */
 export const getSalesVisibilitySignalCityDetails = async (req, res) => {
     const startTime = Date.now();

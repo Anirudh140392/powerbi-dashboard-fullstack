@@ -69,7 +69,7 @@ async function getVisibilitySignals(filters = {}) {
                 ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 2) as organic_sos,
                 avgIf(keyword_search_rank, toString(spons_flag) = '1') as avg_ad_position,
                 avgIf(keyword_search_rank, toString(spons_flag) != '1') as avg_organic_position
-            FROM rb_kw
+            FROM rb_kw_olap
             WHERE ${whereClause}
             GROUP BY ${groupColumn}, platform_name
             HAVING COUNT(*) >= 5
@@ -153,7 +153,7 @@ async function getVisibilitySignals(filters = {}) {
 
 /**
  * Get city-level KPI details for a specific keyword or SKU
- * Queries rb_kw for visibility metrics using ClickHouse
+ * Queries rb_kw_olap for visibility metrics using ClickHouse
  * @param {Object} params - { keyword, skuName, level, platform, startDate, endDate }
  * @returns {Object} { cities: [...] }
  */
@@ -194,7 +194,7 @@ async function getVisibilitySignalCityDetails(params = {}) {
                 ROUND(countIf(toString(keyword_is_rb_product) = '1') * 100.0 / nullIf(count(), 0), 2) as overall_sos,
                 ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 2) as ad_sos,
                 ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 2) as organic_sos
-            FROM rb_kw
+            FROM rb_kw_olap
             WHERE ${whereClause}
             GROUP BY location_name
             ORDER BY total_appearances DESC
@@ -211,7 +211,7 @@ async function getVisibilitySignalCityDetails(params = {}) {
         // Build cities array with visibility data + mock sales data
         const cities = (visibilityResults || []).map(row => ({
             city: row.city,
-            // Visibility metrics from rb_kw
+            // Visibility metrics from rb_kw_olap
             overallSos: parseFloat(row.overall_sos) || 0,
             adSos: parseFloat(row.ad_sos) || 0,
             organicSos: parseFloat(row.organic_sos) || 0,

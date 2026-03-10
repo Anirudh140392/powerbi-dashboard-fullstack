@@ -890,8 +890,8 @@ export const getCityDetailsForProduct = async (req, res) => {
                     estCatShareChange: 0, // Would need comparison period calc
                     wtOsa: osa,
                     wtOsaChange: osaChange,
-                    overallSos: 0, // SOS requires rb_kw table, not in rb_pdp_olap
-                    adSos: 0, // SOS requires rb_kw table
+                    overallSos: 0, // SOS requires rb_kw_olap table, not in rb_pdp_olap
+                    adSos: 0, // SOS requires rb_kw_olap table
                     wtDisc: discount
                 };
             });

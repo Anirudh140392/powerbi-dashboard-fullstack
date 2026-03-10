@@ -374,14 +374,14 @@ export default function WatchTower() {
 
     const currentFetchId = ++fetchIdRef.current;
 
+    setLoading(true);
+    setFetchError(null);
+    setCategoryDataLoading(true);
+    setPerformanceLoading(true);
+
     const debounceTimer = setTimeout(async () => {
       // If another update arrived while we were waiting, skip this one
       if (currentFetchId !== fetchIdRef.current) return;
-
-      setLoading(true);
-      setFetchError(null);
-      setCategoryDataLoading(true);
-      setPerformanceLoading(true);
 
       const params = {
         platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),

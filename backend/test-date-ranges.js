@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 
 async function checkDateRanges() {
     try {
-        console.log('Checking rb_kw table date ranges...');
+        console.log('Checking rb_kw_olap table date ranges...');
         const kwDates = await RbKw.findAll({
             attributes: [
                 [Sequelize.fn('MIN', Sequelize.col('kw_crawl_date')), 'min_date'],
@@ -18,7 +18,7 @@ async function checkDateRanges() {
             },
             raw: true
         });
-        console.log('rb_kw (Zepto):', kwDates[0]);
+        console.log('rb_kw_olap (Zepto):', kwDates[0]);
 
         console.log('\nChecking rb_pdp_olap table date ranges...');
         const olapDates = await RbPdpOlap.findAll({
@@ -47,7 +47,7 @@ async function checkDateRanges() {
                 }
             }
         });
-        console.log('rb_kw rows in last month:', kwCountMonth);
+        console.log('rb_kw_olap rows in last month:', kwCountMonth);
 
         const olapCountMonth = await RbPdpOlap.count({
             where: {

@@ -1,12 +1,12 @@
-import { queryClickHouse } from './src/utils/clickHouse.js';
+import { queryClickHouse } from './src/config/clickhouse.js';
 
 async function checkSchema() {
     try {
-        const rows = await queryClickHouse("DESCRIBE mars.rca_pm_olap");
-        console.log("COLUMNS:");
-        rows.forEach(r => console.log(r.name));
-    } catch (e) {
-        console.error(e);
+        const res = await queryClickHouse('DESCRIBE rb_pdp_olap');
+        console.log(JSON.stringify(res, null, 2));
+    } catch (err) {
+        console.error('Error:', err.message);
     }
 }
-checkSchema().then(() => process.exit(0));
+
+checkSchema();

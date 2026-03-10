@@ -114,14 +114,14 @@ export const downloadReport = async (req, res) => {
                     SELECT 
                         toDate(kw_crawl_date) as DATE, platform_name as Platform, brand_name as Brand, keyword_category as Category,
                         count() as brand_kw_count
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     GROUP BY DATE, Platform, Brand, Category
                 ),
                 total_kw_stats AS (
                     SELECT 
                         toDate(kw_crawl_date) as DATE, platform_name as Platform, keyword_category as Category,
                         count() as total_kw_count
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     GROUP BY DATE, Platform, Category
                 )
                 SELECT 
@@ -161,7 +161,7 @@ export const downloadReport = async (req, res) => {
                     SELECT 
                         toDate(kw_crawl_date) as JoinDate, platform_name as Platform, keyword_category as Category,
                         count() as Total_Category_Keywords
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE toDate(kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'
                     AND keyword_search_rank < 11
                     ${platform && platform !== 'All' ? `AND platform_name = '${platform.replace(/'/g, "''")}'` : ''}
@@ -174,7 +174,7 @@ export const downloadReport = async (req, res) => {
                     round(countIf(toString(t.spons_flag) != '1' AND toString(t.keyword_is_rb_product) = '1') * 100.0 / nullIf(any(c.Total_Category_Keywords), 0), 2) as Organic_SOS_Percentage,
                     round(avgIf(toInt64OrZero(toString(t.keyword_search_rank)), toString(t.spons_flag) = '1'), 2) as Ad_POS,
                     round(avgIf(toInt64OrZero(toString(t.keyword_search_rank)), toString(t.spons_flag) != '1'), 2) as Org_Pos
-                FROM rb_kw t
+                FROM rb_kw_olap t
                 LEFT JOIN category_stats c ON toDate(t.kw_crawl_date) = c.JoinDate AND t.platform_name = c.Platform AND t.keyword_category = c.Category
                 WHERE toDate(t.kw_crawl_date) BETWEEN '${startDate}' AND '${endDate}'
                 AND t.keyword_search_rank < 11

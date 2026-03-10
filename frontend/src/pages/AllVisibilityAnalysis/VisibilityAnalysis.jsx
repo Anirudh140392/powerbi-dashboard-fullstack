@@ -20,7 +20,7 @@ export default function VisibilityAnalysis() {
 
   const [showTrends, setShowTrends] = useState(false);
 
-  // Track if visibility-specific dates have been initialized from rb_kw table
+  // Track if visibility-specific dates have been initialized from rb_kw_olap table
   const [visibilityDatesReady, setVisibilityDatesReady] = useState(false);
 
   // Initialize filters with empty dates - will be set after fetching from backend
@@ -47,7 +47,7 @@ export default function VisibilityAnalysis() {
 
     const fetchVisibilityDates = async () => {
       try {
-        console.log('🗓️ [Visibility] Fetching latest available dates from rb_kw table...');
+        console.log('🗓️ [Visibility] Fetching latest available dates from rb_kw_olap table...');
         const response = await axiosInstance.get('/visibility-analysis/latest-available-dates');
         const data = response.data;
 

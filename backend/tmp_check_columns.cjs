@@ -1,6 +1,6 @@
 const http = require('http');
 
-const query = "SELECT name, type FROM system.columns WHERE table = 'rb_kw' FORMAT JSON";
+const query = "SELECT name, type FROM system.columns WHERE table = 'rb_kw_olap' FORMAT JSON";
 const requestBody = query;
 
 const req = http.request({

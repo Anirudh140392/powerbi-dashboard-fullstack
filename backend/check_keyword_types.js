@@ -4,7 +4,7 @@ async function checkKeywordTypes() {
     try {
         const results = await queryClickHouse(`
             SELECT DISTINCT keyword_type
-            FROM rb_kw
+            FROM rb_kw_olap
             WHERE keyword_type IS NOT NULL AND keyword_type != ''
         `);
         console.log('Distinct keyword_type values:');

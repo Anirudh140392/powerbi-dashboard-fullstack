@@ -24,7 +24,7 @@ Error in watchTowerService: Error
     at /home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/sequelize.js:315:28
     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
     at async MySQLQueryInterface.select (/home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/query-interface.js:407:12)
-    at async rb_kw.findAll (/home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/model.js:1140:21)
+    at async rb_kw_olap.findAll (/home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/model.js:1140:21)
     at async Object.getSummaryMetrics (file:///home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/src/services/watchTowerService.js:992:34)
     at async runDebug (file:///home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/debug_brands_overview.js:26:24) {
   name: 'SequelizeDatabaseError',
@@ -43,7 +43,7 @@ Error in watchTowerService: Error
     errno: 1054,
     sqlState: '42S22',
     sqlMessage: "Unknown column 'id' in 'field list'",
-    sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw` AS `rb_kw` WHERE `rb_kw`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
+    sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw_olap` AS `rb_kw_olap` WHERE `rb_kw_olap`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
     parameters: undefined
   },
   original: Error: Unknown column 'id' in 'field list'
@@ -61,10 +61,10 @@ Error in watchTowerService: Error
     errno: 1054,
     sqlState: '42S22',
     sqlMessage: "Unknown column 'id' in 'field list'",
-    sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw` AS `rb_kw` WHERE `rb_kw`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
+    sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw_olap` AS `rb_kw_olap` WHERE `rb_kw_olap`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
     parameters: undefined
   },
-  sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw` AS `rb_kw` WHERE `rb_kw`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
+  sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw_olap` AS `rb_kw_olap` WHERE `rb_kw_olap`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
   parameters: {}
 }
 Error: Error
@@ -72,7 +72,7 @@ Error: Error
     at /home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/sequelize.js:315:28
     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
     at async MySQLQueryInterface.select (/home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/dialects/abstract/query-interface.js:407:12)
-    at async rb_kw.findAll (/home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/model.js:1140:21)
+    at async rb_kw_olap.findAll (/home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/node_modules/sequelize/lib/model.js:1140:21)
     at async Object.getSummaryMetrics (file:///home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/src/services/watchTowerService.js:992:34)
     at async runDebug (file:///home/asus/Documents/Trailytics/Backend-Frontend/powerbi-dashboard-fullstack/backend/debug_brands_overview.js:26:24) {
   name: 'SequelizeDatabaseError',
@@ -91,7 +91,7 @@ Error: Error
     errno: 1054,
     sqlState: '42S22',
     sqlMessage: "Unknown column 'id' in 'field list'",
-    sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw` AS `rb_kw` WHERE `rb_kw`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
+    sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw_olap` AS `rb_kw_olap` WHERE `rb_kw_olap`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
     parameters: undefined
   },
   original: Error: Unknown column 'id' in 'field list'
@@ -109,9 +109,9 @@ Error: Error
     errno: 1054,
     sqlState: '42S22',
     sqlMessage: "Unknown column 'id' in 'field list'",
-    sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw` AS `rb_kw` WHERE `rb_kw`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
+    sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw_olap` AS `rb_kw_olap` WHERE `rb_kw_olap`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
     parameters: undefined
   },
-  sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw` AS `rb_kw` WHERE `rb_kw`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
+  sql: "SELECT `brand_name`, COUNT(`id`) AS `count` FROM `rb_kw_olap` AS `rb_kw_olap` WHERE `rb_kw_olap`.`kw_crawl_date` BETWEEN '2025-11-08 18:30:00' AND '2025-12-09 18:29:59' AND LOWER(`platform_name`) = 'zepto' GROUP BY `brand_name`;",
   parameters: {}
 }

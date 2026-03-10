@@ -7,7 +7,7 @@ async function checkCurrentData() {
                 toDate(created_on) as date,
                 count() as total_rows,
                 countIf(toString(keyword_is_rb_product) = '1') as rb_rows
-            FROM rb_kw
+            FROM rb_kw_olap
             WHERE toDate(created_on) BETWEEN '2026-03-01' AND '2026-03-06'
             GROUP BY date
             ORDER BY date ASC

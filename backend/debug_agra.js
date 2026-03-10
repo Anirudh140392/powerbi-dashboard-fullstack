@@ -18,13 +18,13 @@ const RbPdpOlap = sequelize.define('rb_pdp_olap', {
     deno_osa: { type: Sequelize.FLOAT }
 }, { tableName: 'rb_pdp_olap', timestamps: false });
 
-const RbKw = sequelize.define('rb_kw', {
+const RbKw = sequelize.define('rb_kw_olap', {
     kw_crawl_date: { type: Sequelize.DATEONLY },
     brand_name: { type: Sequelize.STRING },
     platform_name: { type: Sequelize.STRING },
     location_name: { type: Sequelize.STRING },
     spons_flag: { type: Sequelize.INTEGER }
-}, { tableName: 'rb_kw', timestamps: false });
+}, { tableName: 'rb_kw_olap', timestamps: false });
 
 const checkMetrics = async (label, start, end) => {
     console.log(`\n--- Checking: ${label} (${start} to ${end}) ---`);

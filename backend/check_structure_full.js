@@ -2,7 +2,7 @@ import { queryClickHouse } from './src/config/clickhouse.js';
 
 async function checkFullStructure() {
     try {
-        const structure = await queryClickHouse(`DESCRIBE rb_kw`);
+        const structure = await queryClickHouse(`DESCRIBE rb_kw_olap`);
         console.log('Full Table structure:');
         structure.forEach(r => console.log(`${r.name}: ${r.type}`));
 
@@ -10,7 +10,7 @@ async function checkFullStructure() {
             SELECT 
                 MAX(kw_crawl_date) as max_crawl,
                 MAX(created_on) as max_created
-            FROM rb_kw
+            FROM rb_kw_olap
         `);
         console.log('Max Dates:');
         console.log(JSON.stringify(maxDates[0]));

@@ -188,13 +188,13 @@ Higher % = better stock management.
 
 ### Formula
 ```sql
-SOS = (COUNT(rb_kw WHERE brand_name = 'Brand X') / COUNT(rb_kw)) × 100
+SOS = (COUNT(rb_kw_olap WHERE brand_name = 'Brand X') / COUNT(rb_kw_olap)) × 100
 ```
 
 ### Database Details
 | Component | Value |
 |-----------|-------|
-| **Table** | `rb_kw` |
+| **Table** | `rb_kw_olap` |
 | **Key Columns** | `brand_name`, `kw_crawl_date` |
 | **Filter Columns** | `platform_name`, `location_name`, `keyword_category`, `spons_flag` |
 | **Aggregation** | COUNT (rows) |
@@ -209,14 +209,14 @@ SOS = (COUNT(rb_kw WHERE brand_name = 'Brand X') / COUNT(rb_kw)) × 100
 ```sql
 -- Numerator: Brand keyword count
 SELECT COUNT(*) as Brand_Count
-FROM rb_kw
+FROM rb_kw_olap
 WHERE brand_name = 'Cinthol'
   AND kw_crawl_date BETWEEN '2025-01-01' AND '2025-01-31'
   AND LOWER(platform_name) = 'zepto';
 
 -- Denominator: All brands keyword count
 SELECT COUNT(*) as Total_Count
-FROM rb_kw
+FROM rb_kw_olap
 WHERE kw_crawl_date BETWEEN '2025-01-01' AND '2025-01-31'
   AND LOWER(platform_name) = 'zepto';
 
@@ -455,7 +455,7 @@ Lower % = more efficient marketing spend.
 | 4 | Inorganic Sales % | rb_pdp_olap | Ad_sales, Sales | Percentage |
 | 5 | Conversion % | rb_pdp_olap | Ad_Orders, Ad_Clicks | Percentage |
 | 6 | Availability % | rb_pdp_olap | neno_osa, deno_osa | Percentage |
-| 7 | Share of Search | rb_kw | brand_name, kw_crawl_date | Count Ratio |
+| 7 | Share of Search | rb_kw_olap | brand_name, kw_crawl_date | Count Ratio |
 | 8 | Market Share | rb_brand_ms | market_share | AVG |
 | 9 | Promo My Brand | rb_pdp_olap | MRP, Selling_Price, Comp_flag | AVG % |
 | 10 | Promo Compete | rb_pdp_olap | MRP, Selling_Price, Comp_flag | AVG % |
@@ -488,7 +488,7 @@ Columns Used:
 - Category           (STRING)     - Product category
 ```
 
-### Table: `rb_kw`
+### Table: `rb_kw_olap`
 ```sql
 Columns Used:
 - brand_name         (STRING)     - Brand name

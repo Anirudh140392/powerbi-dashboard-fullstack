@@ -7,14 +7,14 @@ async function checkMaxDate() {
                 MAX(toDate(created_on)) as max_date,
                 MIN(toDate(created_on)) as min_date,
                 count() as total_rows
-            FROM rb_kw
+            FROM rb_kw_olap
         `);
-        console.log('rb_kw table date range:');
+        console.log('rb_kw_olap table date range:');
         console.table(results);
 
         const recent = await queryClickHouse(`
             SELECT toDate(created_on) as date, count() as count
-            FROM rb_kw
+            FROM rb_kw_olap
             GROUP BY date
             ORDER BY date DESC
             LIMIT 10

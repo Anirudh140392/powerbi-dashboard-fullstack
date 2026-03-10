@@ -32,5 +32,5 @@ req.on('error', (e) => {
     console.error(`problem with request: ${e.message}`);
 });
 
-req.write("SELECT name, type FROM system.columns WHERE table = 'rb_kw' FORMAT JSON");
+req.write("SELECT name, type FROM system.columns WHERE table = 'rb_kw_olap' FORMAT JSON");
 req.end();

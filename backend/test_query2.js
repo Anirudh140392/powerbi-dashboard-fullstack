@@ -17,7 +17,7 @@ import dayjs from 'dayjs';
 
         // 1. Overall Deno
         const denoResult = await client.query({
-            query: `SELECT COUNT(*) AS overall_deno FROM rb_kw WHERE keyword_search_rank < 11 AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
+            query: `SELECT COUNT(*) AS overall_deno FROM rb_kw_olap WHERE keyword_search_rank < 11 AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
             format: 'JSONEachRow'
         });
         const denoRows = await denoResult.json();
@@ -26,7 +26,7 @@ import dayjs from 'dayjs';
 
         // 2. Brand Neno
         const nenoResult = await client.query({
-            query: `SELECT brand_name_th, COUNT(*) AS overall_neno FROM rb_kw WHERE keyword_search_rank < 11 AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}' GROUP BY brand_name_th ORDER BY overall_neno DESC LIMIT 5`,
+            query: `SELECT brand_name_th, COUNT(*) AS overall_neno FROM rb_kw_olap WHERE keyword_search_rank < 11 AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}' GROUP BY brand_name_th ORDER BY overall_neno DESC LIMIT 5`,
             format: 'JSONEachRow'
         });
         const nenoRows = await nenoResult.json();

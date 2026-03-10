@@ -4,7 +4,7 @@ async function checkCategoryKeywords() {
     try {
         const results = await queryClickHouse(`
             SELECT keyword, keyword_type, count() as count
-            FROM rb_kw
+            FROM rb_kw_olap
             WHERE keyword_type = 'Category'
             GROUP BY keyword, keyword_type
             LIMIT 10

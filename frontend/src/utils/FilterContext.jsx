@@ -37,7 +37,7 @@ export const FilterProvider = ({ children }) => {
     const [locations, setLocations] = useState(FALLBACK_LOCATIONS);
     const [selectedLocation, setSelectedLocation] = useState("All");
 
-    // Keyword state (for visibility analysis) - fetched dynamically from rb_kw
+    // Keyword state (for visibility analysis) - fetched dynamically from rb_kw_olap
     const [keywords, setKeywords] = useState([]);
     const [selectedKeyword, setSelectedKeyword] = useState("All");
 

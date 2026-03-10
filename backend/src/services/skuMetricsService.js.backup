@@ -239,7 +239,7 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
             // CTR (Click-Through Rate): (Ad_Clicks / Ad_Impressions) * 100
             aggregationExpr = '(SUM(olap.Ad_Clicks) / NULLIF(SUM(olap.Ad_Impressions), 0)) * 100';
         } else if (dbColumn === 'SOS_CALC') {
-            // SOS placeholder - For now, return 0 (requires keyword search data from rb_kw table)
+            // SOS placeholder - For now, return 0 (requires keyword search data from rb_kw_olap table)
             // TODO: Implement proper SOS calculation when keyword data is available
             aggregationExpr = '0';
         } else if (dbColumn === 'MARKET_SHARE_CALC') {

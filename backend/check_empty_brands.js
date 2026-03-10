@@ -15,7 +15,7 @@ async function checkEmptyBrands() {
             SELECT 
                 count() as total_count,
                 countIf(brand_name IS NULL OR brand_name = '' OR trim(brand_name) = '') as empty_brand_count
-            FROM colpal.rb_kw
+            FROM colpal.rb_kw_olap
             WHERE toDate(created_on) = '2025-11-18'
               AND keyword_search_rank < 11
               AND platform_name = 'Blinkit'

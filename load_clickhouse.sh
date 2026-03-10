@@ -1,5 +1,5 @@
 #!/bin/bash
-# ClickHouse Data Loader for rb_kw table
+# ClickHouse Data Loader for rb_kw_olap table
 # Loads all CSV data without skipping any rows or columns
 
 CLICKHOUSE_HOST="localhost"
@@ -7,8 +7,8 @@ CLICKHOUSE_PORT="9000"
 CLICKHOUSE_USER="default"
 CLICKHOUSE_PASSWORD="12345678"
 CLICKHOUSE_DB="GCPL"
-TABLE="rb_kw"
-CSV_FILE="/home/asus/Downloads/rb_kw 1/rb_kw.csv"
+TABLE="rb_kw_olap"
+CSV_FILE="/home/asus/Downloads/rb_kw_olap 1/rb_kw_olap.csv"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -143,7 +143,7 @@ echo -e "\n${YELLOW}📊 Sample data with key columns:${NC}"
 clickhouse-client --host="$CLICKHOUSE_HOST" --port="$CLICKHOUSE_PORT" --user="$CLICKHOUSE_USER" --password="$CLICKHOUSE_PASSWORD" --database="$CLICKHOUSE_DB" --query="SELECT kw_crawl_date, platform_name, brand_name, keyword, keyword_is_rb_product FROM $TABLE LIMIT 5"
 
 # Check date range
-echo -e "\n${YELLOW}📊 Date Range in rb_kw:${NC}"
+echo -e "\n${YELLOW}📊 Date Range in rb_kw_olap:${NC}"
 clickhouse-client --host="$CLICKHOUSE_HOST" --port="$CLICKHOUSE_PORT" --user="$CLICKHOUSE_USER" --password="$CLICKHOUSE_PASSWORD" --database="$CLICKHOUSE_DB" --query="SELECT MIN(kw_crawl_date), MAX(kw_crawl_date), count() FROM $TABLE"
 
 # Data statistics by platform

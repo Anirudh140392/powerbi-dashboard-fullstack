@@ -92,35 +92,35 @@ CREATE INDEX idx_pdp_covering_promo ON rb_pdp_olap (
 ) COMMENT 'Covering index for promo depth calculations';
 
 -- =====================================================
--- TABLE: rb_kw (Share of Search Queries)
+-- TABLE: rb_kw_olap (Share of Search Queries)
 -- =====================================================
 -- Used for SOS calculations - 20+ queries per load
 
-CREATE INDEX idx_kw_date ON rb_kw (kw_crawl_date) COMMENT 'Date filter for keyword data';
+CREATE INDEX idx_kw_date ON rb_kw_olap (kw_crawl_date) COMMENT 'Date filter for keyword data';
 
-CREATE INDEX idx_kw_platform ON rb_kw (platform_name) COMMENT 'Platform filter';
+CREATE INDEX idx_kw_platform ON rb_kw_olap (platform_name) COMMENT 'Platform filter';
 
-CREATE INDEX idx_kw_brand ON rb_kw (brand_name) COMMENT 'Brand filter';
+CREATE INDEX idx_kw_brand ON rb_kw_olap (brand_name) COMMENT 'Brand filter';
 
-CREATE INDEX idx_kw_category ON rb_kw (keyword_category) COMMENT 'Category filter';
+CREATE INDEX idx_kw_category ON rb_kw_olap (keyword_category) COMMENT 'Category filter';
 
 -- Composite indexes
-CREATE INDEX idx_kw_date_platform_brand ON rb_kw (
+CREATE INDEX idx_kw_date_platform_brand ON rb_kw_olap (
     kw_crawl_date,
     platform_name,
     brand_name
 ) COMMENT 'SOS calculation - date + platform + brand';
 
-CREATE INDEX idx_kw_date_platform_category ON rb_kw (
+CREATE INDEX idx_kw_date_platform_category ON rb_kw_olap (
     kw_crawl_date,
     platform_name,
     keyword_category
 ) COMMENT 'SOS by category';
 
-CREATE INDEX idx_kw_date_location ON rb_kw (kw_crawl_date, location_name) COMMENT 'SOS by location';
+CREATE INDEX idx_kw_date_location ON rb_kw_olap (kw_crawl_date, location_name) COMMENT 'SOS by location';
 
 -- Covering index for count queries
-CREATE INDEX idx_kw_covering_count ON rb_kw (
+CREATE INDEX idx_kw_covering_count ON rb_kw_olap (
     kw_crawl_date,
     platform_name,
     brand_name,
@@ -214,7 +214,7 @@ CREATE INDEX idx_zepto_date_brand ON tb_zepto_brand_sales_analytics (date, brand
 
 ANALYZE TABLE rb_pdp_olap;
 
-ANALYZE TABLE rb_kw;
+ANALYZE TABLE rb_kw_olap;
 
 ANALYZE TABLE rb_brand_ms;
 
@@ -253,7 +253,7 @@ FROM mysql.innodb_index_stats
 WHERE
     TABLE_NAME IN (
         'rb_pdp_olap',
-        'rb_kw',
+        'rb_kw_olap',
         'rb_brand_ms',
         'rb_sku_platform',
         'rca_sku_dim'

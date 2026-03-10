@@ -252,7 +252,7 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
             aggregationExpr = '(SUM(olap.Ad_Clicks) / NULLIF(SUM(olap.Ad_Impressions), 0)) * 100';
         } else if (dbColumn === 'SOS_CALC') {
             // SOS (Share of Search): (keyword_is_rb_product=1 count) / (total count) * 100
-            // This requires a special query to rb_kw table
+            // This requires a special query to rb_kw_olap table
             return await fetchSosByProduct(filters, metricKey);
         } else if (dbColumn === 'MARKET_SHARE_CALC') {
             // Market Share: (Sales of our brands) / (Total sales) * 100
