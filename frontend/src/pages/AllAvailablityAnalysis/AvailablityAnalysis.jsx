@@ -1,10 +1,14 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import AvailablityAnalysisData from "../../components/AllAvailablityAnalysis/AvailablityAnalysisData";
+import AvailabilityCompetitionKpiShowcase from "../../components/AllAvailablityAnalysis/AvailabilityCompetitionKpiShowcase";
 import { FilterContext } from "../../utils/FilterContext";
 import dayjs from "dayjs";
+import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 
 export default function AvailablityAnalysis() {
+  const [activeTab, setActiveTab] = useState("overview");
+
   // Get values from FilterContext - the source of truth for dropdown selections
   const {
     platform,
@@ -358,6 +362,8 @@ export default function AvailablityAnalysis() {
   };
 
   useEffect(() => {
+    if (activeTab !== 'overview') return;
+
     // Create a stable key to detect actual filter changes
     const filterKey = JSON.stringify({
       platform: filters.platform,
@@ -430,7 +436,7 @@ export default function AvailablityAnalysis() {
     };
 
     fetchData();
-  }, [filters]);
+  }, [filters, activeTab]);
 
   return (
     <>
@@ -439,14 +445,31 @@ export default function AvailablityAnalysis() {
         filters={filters}
         onFiltersChange={handleFiltersChange}
       >
-        <AvailablityAnalysisData
-          apiData={apiData}
-          apiErrors={apiErrors}
-          onRetry={retrySegment}
-          filters={filters}
-          onFiltersChange={handleFiltersChange}
-          loading={isLoading}
-        />
+        <div className="mb-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full max-w-[400px] grid-cols-2">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="competition">Competition</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {activeTab === "overview" ? (
+          <AvailablityAnalysisData
+            apiData={apiData}
+            apiErrors={apiErrors}
+            onRetry={retrySegment}
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            loading={isLoading}
+          />
+        ) : (
+          <AvailabilityCompetitionKpiShowcase
+            platform={filters.platform}
+            globalFilters={filters}
+            period="1M"
+          />
+        )}
       </CommonContainer>
     </>
   );

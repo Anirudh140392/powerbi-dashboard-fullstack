@@ -463,9 +463,9 @@ const KPI_KEYS = [
         unit: "%",
     },
     {
-        key: "Osa",
-        label: "OSA",
-        color: "#F97316",
+        key: "Sos",
+        label: "SOS",
+        color: "#6366F1",
         unit: "%",
     },
     {
