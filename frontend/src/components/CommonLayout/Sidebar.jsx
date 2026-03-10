@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import eyLogo from "../../assets/sidebar_logo.png";
-const trailyticsLogo = "/Trailytics.jpg";
+import marsLogo from "../../assets/mars2.svg";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -141,7 +141,7 @@ const Sidebar = ({
             justifyContent: 'center', // Center logo horizontally
             transition: 'all 0.3s ease',
             width: '100%',
-            height: 48,
+            height: 60,
           }}
         >
           {/* EY Logo Container */}
@@ -157,12 +157,12 @@ const Sidebar = ({
             }}
           >
             <img
-              src={trailyticsLogo}
-              alt="Trailytics Logo"
+              src={marsLogo}
+              alt="Mars Logo"
               style={{
-                height: 'auto',
-                width: '100%',
-                maxWidth: isCollapsed ? '42px' : '160px',
+                maxHeight: isCollapsed ? '32px' : '45px',
+                width: isCollapsed ? '100%' : 'auto',
+                maxWidth: isCollapsed ? '42px' : '180px',
                 objectFit: 'contain',
                 display: 'block'
               }}
