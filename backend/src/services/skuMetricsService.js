@@ -476,59 +476,69 @@ async function fetchSosByProduct(filters, metricKey) {
  */
 async function fetchMarketShareByProduct(filters, metricKey) {
     try {
-        console.log('=== fetchMarketShareByProduct (Optimized) called ===');
+        console.log('=== fetchMarketShareByProduct (web_pid_ms) called ===');
 
-        const dateFrom = dayjs(filters.dateFrom);
-        const dateTo = dayjs(filters.dateTo);
+        const dateFrom = filters.dateFrom;
+        const dateTo = filters.dateTo;
         const platform = filters.platform;
         const category = filters.category;
         const brandFilter = filters.brand;
 
-        // 1. Get Brand-level Market Share from shared helper
-        const brandMsMap = await getMarketShareByBrand(dateFrom, dateTo, platform, category);
+        // Build WHERE conditions for rb_brand_ms
+        let conditions = [`toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'`];
 
-        // 2. Get SKU-to-Brand mapping from rb_pdp_olap
-        let olapWhere = ['toDate(DATE) BETWEEN {dateFrom: String} AND {dateTo: String}'];
-        let olapReplacements = { dateFrom: filters.dateFrom, dateTo: filters.dateTo };
+        // Brand filter - default to Mars brands
+        const defaultBrands = ['Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's", 'Orbit', 'Skittles', 'Boomer', 'Doublemint'];
+        let brandsToQuery = defaultBrands;
+        if (brandFilter && brandFilter !== 'All') {
+            brandsToQuery = Array.isArray(brandFilter) ? brandFilter : [brandFilter];
+        }
+        const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
+        conditions.push(`brand IN (${brandsSql})`);
 
         if (platform && platform !== 'All') {
-            olapWhere.push('LOWER(Platform) = {platform: String}');
-            olapReplacements.platform = platform.toLowerCase();
+            conditions.push(`platform LIKE '%${platform.charAt(0).toUpperCase() + platform.slice(1)}%'`);
         }
-        if (brandFilter && brandFilter !== 'All') {
-            olapWhere.push('Brand = {brand: String}');
-            olapReplacements.brand = brandFilter;
+        if (category && category !== 'All') {
+            let mappedCat = category;
+            if (category === 'Chocolates') mappedCat = 'Chocolates (Non Gifting)';
+            else if (category === 'Chocolate Gift Pack') mappedCat = 'Chocolates (Gifting)';
+
+            conditions.push(`category = '${mappedCat.replace(/'/g, "''")}'`);
         }
 
-        const skuQuery = `
+        const whereClause = conditions.join(' AND ');
+
+        // Case 3: SKU page → use market_share (web_pid_ms), take AVG grouped by web_pid
+        const query = `
             SELECT 
-                Product as sku_name,
-                Brand as brand,
-                Category as category,
-                Platform as platform,
-                SUM(ifNull(Sales, 0)) as sales_vol
-            FROM rb_pdp_olap
-            WHERE ${olapWhere.join(' AND ')}
-            GROUP BY Product, Brand, Category, Platform
-            ORDER BY sales_vol DESC
+                web_pid,
+                any(item_name) as sku_name,
+                any(brand) as brand,
+                any(category) as category,
+                any(platform) as platform_name,
+                AVG(market_share) as web_pid_ms
+            FROM rb_brand_ms
+            WHERE ${whereClause}
+              AND web_pid IS NOT NULL AND web_pid != ''
+            GROUP BY web_pid, platform
+            ORDER BY web_pid_ms DESC
             LIMIT 500
         `;
 
-        const skuResults = await queryClickHouse(skuQuery, olapReplacements);
+        const results = await queryClickHouse(query, {});
 
-        // 3. Map Brand MS to SKUs
+        // Group by SKU name
         const skuMap = {};
-        skuResults.forEach(row => {
-            const sku = row.sku_name || 'Unknown';
-            const brand = row.brand?.toLowerCase() || '';
-            const platform = row.platform?.toLowerCase() || 'unknown';
-            const category = row.category || '';
-            const ms = brandMsMap.get(brand) || 0;
+        results.forEach(row => {
+            const sku = row.sku_name || row.web_pid || 'Unknown';
+            const platformKey = (row.platform_name || 'unknown').toLowerCase();
+            const ms = parseFloat(row.web_pid_ms) || 0;
 
             if (!skuMap[sku]) {
                 skuMap[sku] = {
                     name: sku,
-                    category: category,
+                    category: row.category || '',
                     all: { value: 0 },
                     blinkit: { value: 0 },
                     zepto: { value: 0 },
@@ -539,15 +549,23 @@ async function fetchMarketShareByProduct(filters, metricKey) {
                 };
             }
 
-            if (skuMap[sku][platform]) {
-                skuMap[sku][platform].value = ms;
-                skuMap[sku].platformsFetched.add(platform);
+            // Match platform key (handle Instamart -> swiggy mapping etc.)
+            let mappedPlatform = platformKey;
+            if (platformKey.includes('instamart') || platformKey.includes('swiggy')) mappedPlatform = 'swiggy';
+            else if (platformKey.includes('blinkit')) mappedPlatform = 'blinkit';
+            else if (platformKey.includes('zepto')) mappedPlatform = 'zepto';
+            else if (platformKey.includes('amazon')) mappedPlatform = 'amazon';
+            else if (platformKey.includes('flipkart')) mappedPlatform = 'flipkart';
+
+            if (skuMap[sku][mappedPlatform]) {
+                skuMap[sku][mappedPlatform].value = ms;
+                skuMap[sku].platformsFetched.add(mappedPlatform);
             }
         });
 
         // Calculate "all" as average of available platform MS
         Object.values(skuMap).forEach(sku => {
-            const values = Array.from(sku.platformsFetched).map(p => sku[p].value);
+            const values = Array.from(sku.platformsFetched).map(p => sku[p].value).filter(v => v > 0);
             sku.all.value = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
             delete sku.platformsFetched;
         });

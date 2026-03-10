@@ -53,6 +53,8 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
+        const hasLocationFilter = locationArr && locationArr.length > 0 && !locationArr.includes('All');
+
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
             const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
@@ -60,7 +62,7 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
         }
 
         let locationCond = '';
-        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
+        if (hasLocationFilter) {
             locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
@@ -71,31 +73,73 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
         } else {
             brandsToQuery = [
                 'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-                'Orbit', 'Skittles', 'Boomer', "Wrigley's Doublemint"
+                'Orbit', 'Skittles', 'Boomer', 'Doublemint'
             ];
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
-        const query = `
-            SELECT AVG(avg_nation) as avg_market_share
-            FROM (
-                SELECT AVG(nation_level_market_share) as avg_nation
-                FROM rb_brand_ms
-                WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-                ${platformCond}
-                ${locationCond}
-                ${categoryCond}
-                AND brand IN (${brandsSql})
-                GROUP BY category, sub_category, group_brand
-            )
-        `;
+        let query;
+        if (hasLocationFilter) {
+            // Case 2: Location filter active → use market_share column
+            // 1) MAX per (dt, platform, loc, cat, brand)
+            // 2) SUM per dt
+            // 3) AVG over all dt
+            query = `
+                SELECT AVG(daily_ms) as avg_market_share
+                FROM (
+                    SELECT dt, SUM(ms_val) as daily_ms
+                    FROM (
+                        SELECT toDate(created_on) as dt, platform, location, category, brand, MAX(market_share) as ms_val
+                        FROM rb_brand_ms
+                        WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                        ${platformCond}
+                        ${locationCond}
+                        ${categoryCond}
+                        AND brand IN (${brandsSql})
+                        GROUP BY dt, platform, location, category, brand
+                    )
+                    GROUP BY dt
+                )
+            `;
+        } else {
+            // Case 1: No location filter → use nation_level_market_share column
+            // 1) MAX per (dt, platform, cat, brand)
+            // 2) AVG per (dt, brand)
+            // 3) SUM these brand daily averages, then divide by selected days
+            const daysCount = end.diff(start, 'day') + 1;
+            query = `
+                SELECT SUM(brand_daily_avg) / ${daysCount} as avg_market_share
+                FROM (
+                    SELECT dt, brand, AVG(ms_val) as brand_daily_avg
+                    FROM (
+                        SELECT toDate(created_on) as dt, platform, category, brand, MAX(nation_level_market_share) as ms_val
+                        FROM rb_brand_ms
+                        WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                        ${platformCond}
+                        ${categoryCond}
+                        AND brand IN (${brandsSql})
+                        GROUP BY dt, platform, category, brand
+                    )
+                    GROUP BY dt, brand
+                )
+            `;
+        }
+        // console.log(`[MarketShare] hasLocation=${hasLocationFilter}, platform=${platformArr}, category=${categoryArr}, brands=${brandsToQuery.length}`);
+        // console.log(`[MarketShare] Query:`, query.substring(0, 200));
         const result = await queryClickHouse(query);
-        return parseFloat(result?.[0]?.avg_market_share || 0);
+        const val = parseFloat(result?.[0]?.avg_market_share || 0);
+        // console.log(`[MarketShare] Result: ${val}, raw:`, JSON.stringify(result?.[0]));
+        return val;
     } catch (error) {
         console.error('[MarketShare] Error:', error.message);
         return 0;
@@ -112,6 +156,8 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
+        const hasLocationFilter = locationArr && locationArr.length > 0 && !locationArr.includes('All');
+
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
             const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
@@ -119,7 +165,7 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
         }
 
         let locationCond = '';
-        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
+        if (hasLocationFilter) {
             locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
@@ -129,32 +175,67 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
         } else {
             brandsToQuery = [
                 'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-                'Orbit', 'Skittles', 'Boomer', "Wrigley's Doublemint"
+                'Orbit', 'Skittles', 'Boomer', 'Doublemint'
             ];
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
-        const query = `
-            SELECT formatDateTime(toDate(month_date_val), '%Y-%m-01') as month_date,
-                   AVG(avg_nation) as avg_market_share
-            FROM (
-                SELECT toDate(created_on) as month_date_val,
-                       AVG(nation_level_market_share) as avg_nation
-                FROM rb_brand_ms
-                WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-                ${platformCond}
-                ${locationCond}
-                ${categoryCond}
-                AND brand IN (${brandsSql})
-                GROUP BY month_date_val, category, sub_category, group_brand
-            )
-            GROUP BY month_date
-        `;
+        let query;
+        if (hasLocationFilter) {
+            // Case 2: Location filter active → use market_share column, SUM per month after daily SUM
+            query = `
+                SELECT formatDateTime(toDate(month_date_val), '%Y-%m-01') as month_date,
+                       AVG(daily_ms) as avg_market_share
+                FROM (
+                    SELECT month_date_val, SUM(ms_val) as daily_ms
+                    FROM (
+                        SELECT toDate(created_on) as month_date_val, platform, location, category, brand, MAX(market_share) as ms_val
+                        FROM rb_brand_ms
+                        WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                        ${platformCond}
+                        ${locationCond}
+                        ${categoryCond}
+                        AND brand IN (${brandsSql})
+                        GROUP BY month_date_val, platform, location, category, brand
+                    )
+                    GROUP BY month_date_val
+                )
+                GROUP BY month_date
+            `;
+        } else {
+            // Case 1: No location filter → use nation_level_market_share column
+            // 1) MAX per (dt, platform, cat, brand)
+            // 2) AVG per (dt, brand)
+            // 3) SUM these brand daily averages, then divide by distinct days in that month
+            query = `
+                SELECT formatDateTime(toDate(month_date_val), '%Y-%m-01') as month_date,
+                       SUM(brand_daily_avg) / count(distinct month_date_val) as avg_market_share
+                FROM (
+                    SELECT month_date_val, brand, AVG(ms_val) as brand_daily_avg
+                    FROM (
+                        SELECT toDate(created_on) as month_date_val, platform, category, brand, MAX(nation_level_market_share) as ms_val
+                        FROM rb_brand_ms
+                        WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                        ${platformCond}
+                        ${categoryCond}
+                        AND brand IN (${brandsSql})
+                        GROUP BY month_date_val, platform, category, brand
+                    )
+                    GROUP BY month_date_val, brand
+                )
+                GROUP BY month_date
+            `;
+        }
         return await queryClickHouse(query);
     } catch (error) {
         console.error('[MarketShareByMonth] Error:', error.message);
@@ -172,6 +253,8 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
+        const hasLocationFilter = locationArr && locationArr.length > 0 && !locationArr.includes('All');
+
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
             const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
@@ -179,7 +262,7 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
         }
 
         let locationCond = '';
-        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
+        if (hasLocationFilter) {
             locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
@@ -189,33 +272,68 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
         } else {
             brandsToQuery = [
                 'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-                'Orbit', 'Skittles', 'Boomer', "Wrigley's Doublemint"
+                'Orbit', 'Skittles', 'Boomer', 'Doublemint'
             ];
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
-        // Keep it grouped by brand for the final output
-        const query = `
-            SELECT brand,
-                   AVG(avg_nation) as avg_market_share
-            FROM (
+        let query;
+        if (hasLocationFilter) {
+            // Case 2: Location filter active → use market_share column, SUM grouped by brand
+            query = `
                 SELECT brand,
-                       AVG(nation_level_market_share) as avg_nation
-                FROM rb_brand_ms
-                WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-                ${platformCond}
-                ${locationCond}
-                ${categoryCond}
-                AND brand IN (${brandsSql})
-                GROUP BY brand, category, sub_category, group_brand
-            )
-            GROUP BY brand
-        `;
+                       AVG(daily_ms) as avg_market_share
+                FROM (
+                    SELECT dt, brand, SUM(ms_val) as daily_ms
+                    FROM (
+                        SELECT toDate(created_on) as dt, platform, location, category, brand, MAX(market_share) as ms_val
+                        FROM rb_brand_ms
+                        WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                        ${platformCond}
+                        ${locationCond}
+                        ${categoryCond}
+                        AND brand IN (${brandsSql})
+                        GROUP BY dt, platform, location, category, brand
+                    )
+                    GROUP BY dt, brand
+                )
+                GROUP BY brand
+            `;
+        } else {
+            // Case 1: No location filter → use nation_level_market_share column
+            // 1) MAX per (dt, platform, cat, brand)
+            // 2) AVG per (dt, brand)
+            // 3) SUM these brand daily averages, then divide by selected days
+            const daysCount = end.diff(start, 'day') + 1;
+            query = `
+                SELECT brand,
+                       SUM(brand_daily_avg) / ${daysCount} as avg_market_share
+                FROM (
+                    SELECT dt, brand, AVG(ms_val) as brand_daily_avg
+                    FROM (
+                        SELECT toDate(created_on) as dt, platform, category, brand, MAX(nation_level_market_share) as ms_val
+                        FROM rb_brand_ms
+                        WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                        ${platformCond}
+                        ${categoryCond}
+                        AND brand IN (${brandsSql})
+                        GROUP BY dt, platform, category, brand
+                    )
+                    GROUP BY dt, brand
+                )
+                GROUP BY brand
+            `;
+        }
         const results = await queryClickHouse(query);
         const msMap = new Map();
         results.forEach(r => {
@@ -238,6 +356,8 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         const brandArr = normalizeFilterArray(brandFilter);
         const locationArr = normalizeFilterArray(locationFilter);
 
+        const hasLocationFilter = locationArr && locationArr.length > 0 && !locationArr.includes('All');
+
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
             const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
@@ -245,7 +365,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         }
 
         let locationCond = '';
-        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
+        if (hasLocationFilter) {
             locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
@@ -255,38 +375,73 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         } else {
             brandsToQuery = [
                 'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-                'Orbit', 'Skittles', 'Boomer', "Wrigley's Doublemint"
+                'Orbit', 'Skittles', 'Boomer', 'Doublemint'
             ];
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let groupFormat = '%Y-%m-%d';
         if (timeStep === 'Monthly') groupFormat = '%Y-%m-01';
 
-        let groupExpr = `formatDateTime(toDate(created_on_val), '${groupFormat}')`;
-        if (timeStep === 'Weekly') groupExpr = `toYearWeek(toDate(created_on_val), 1)`;
+        let groupExpr = `formatDateTime(dt, '${groupFormat}')`;
+        if (timeStep === 'Weekly') groupExpr = `toYearWeek(dt, 1)`;
 
-        const query = `
-            SELECT ${groupExpr} as date_group,
-                   AVG(avg_nation) as avg_market_share
-            FROM (
-                SELECT toDate(created_on) as created_on_val,
-                       AVG(nation_level_market_share) as avg_nation
-                FROM rb_brand_ms
-                WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-                ${platformCond}
-                ${locationCond}
-                ${categoryCond}
-                AND brand IN (${brandsSql})
-                GROUP BY created_on_val, category, sub_category, group_brand
-            )
-            GROUP BY date_group
-        `;
+        let query;
+        if (hasLocationFilter) {
+            // Case 2: Location filter active → use market_share column, SUM per time bucket after daily SUM
+            query = `
+                SELECT ${groupExpr} as date_group,
+                       AVG(daily_ms) as avg_market_share
+                FROM (
+                    SELECT dt, SUM(ms_val) as daily_ms
+                    FROM (
+                        SELECT toDate(created_on) as dt, platform, location, category, brand, MAX(market_share) as ms_val
+                        FROM rb_brand_ms
+                        WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                        ${platformCond}
+                        ${locationCond}
+                        ${categoryCond}
+                        AND brand IN (${brandsSql})
+                        GROUP BY dt, platform, location, category, brand
+                    )
+                    GROUP BY dt
+                )
+                GROUP BY date_group
+            `;
+        } else {
+            // Case 1: No location filter → use nation_level_market_share column
+            // 1) MAX per (dt, platform, cat, brand)
+            // 2) AVG per (dt, brand)
+            // 3) SUM these brand daily averages, then divide by distinct days in that bucket
+            query = `
+                SELECT ${groupExpr} as date_group,
+                       SUM(brand_daily_avg) / count(distinct dt) as avg_market_share
+                FROM (
+                    SELECT dt, brand, AVG(ms_val) as brand_daily_avg
+                    FROM (
+                        SELECT toDate(created_on) as dt, platform, category, brand, MAX(nation_level_market_share) as ms_val
+                        FROM rb_brand_ms
+                        WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
+                        ${platformCond}
+                        ${categoryCond}
+                        AND brand IN (${brandsSql})
+                        GROUP BY dt, platform, category, brand
+                    )
+                    GROUP BY dt, brand
+                )
+                GROUP BY date_group
+            `;
+        }
         const results = await queryClickHouse(query);
         const msMap = new Map();
         results.forEach(r => {
@@ -323,7 +478,12 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -407,7 +567,12 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -495,7 +660,12 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const query = `
@@ -547,7 +717,12 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -687,7 +862,12 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         const startStr = start.format('YYYY-MM-DD');
@@ -1002,7 +1182,12 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let platformCond = '';
@@ -1221,7 +1406,12 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
 
         let categoryCond = '';
         if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
-            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            const mappedCats = categoryArr.map(c => {
+                if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                return c;
+            });
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let platformCond = '';
