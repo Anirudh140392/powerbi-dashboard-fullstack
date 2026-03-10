@@ -93,7 +93,7 @@ const buildPlatformChannelCond = (platform, channel, prefix = '') => {
 const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     const {
         platform, brand, location, startDate, endDate, dates, months,
-        cities, categories, formats, zones, metroFlags, pincodes, productCategory
+        cities, categories, formats, zones, metroFlags, pincodes, productCategory, sku, skus
     } = filters;
     const conditions = [];
 
@@ -206,6 +206,30 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     if (pcArr.length > 0) {
         const uniquePcArr = [...new Set(pcArr)];
         conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+    }
+
+    // SKU filter
+    const sArr = [];
+    if (sku && sku !== 'All') {
+        if (Array.isArray(sku)) {
+            const filtered = sku.filter(v => v !== 'All' && v !== 'all');
+            sArr.push(...filtered);
+        } else {
+            sArr.push(sku);
+        }
+    }
+    if (skus && skus !== 'All') {
+        if (Array.isArray(skus)) {
+            const filtered = skus.filter(v => v !== 'All' && v !== 'all');
+            sArr.push(...filtered);
+        } else {
+            sArr.push(skus);
+        }
+    }
+
+    if (sArr.length > 0) {
+        const uniqueSArr = [...new Set(sArr)];
+        conditions.push(`${prefix}Web_Pid IN (${uniqueSArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
     }
 
     // Date/Month range
@@ -1843,7 +1867,11 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 const brandListStr = foundBrands.map(b => `'${escapeStr(b)}'`).join(', ');
                 const masterConds = [`status = 1`, `brand_name IN (${brandListStr})`];
                 // Platform filter is omitted as rb_sku_platform doesn't have a platform column
-                if (category && category !== 'All') masterConds.push(`lower(brand_category) = '${escapeStr(category.toLowerCase())}'`);
+                if (category && category !== 'All') {
+                    const cArr = Array.isArray(category) ? category : category.split(',').map(c => c.trim());
+                    const catListStr = cArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ');
+                    masterConds.push(`lower(brand_category) IN (${catListStr})`);
+                }
 
                 const masterQuery = `
                     SELECT brand_name, count(DISTINCT web_pid) as total_master
@@ -2048,7 +2076,11 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
             if (brandList.length > 0) {
                 const brandFilterStr = brandList.map(b => `'${escapeStr(b)}'`).join(',');
                 const masterConds = [`status = 1`, `brand_name IN (${brandFilterStr})`];
-                if (category && category !== 'All') masterConds.push(`brand_category = '${escapeStr(category)}'`);
+                if (category && category !== 'All') {
+                    const cArr = Array.isArray(category) ? category : category.split(',').map(c => c.trim());
+                    const catListStr = cArr.map(c => `'${escapeStr(c)}'`).join(', ');
+                    masterConds.push(`brand_category IN (${catListStr})`);
+                }
 
                 const masterQuery = `
                     SELECT brand_name, count(DISTINCT web_pid) as total_master
