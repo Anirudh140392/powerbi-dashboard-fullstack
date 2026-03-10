@@ -141,9 +141,11 @@ export default function GeoIntelligenceMap() {
                     else if (value > 45) color = COLORS.Orange;
                 } else if (metric === "Market Share") {
                     value = city.marketShare || 0;
-                    if (value > 80) color = COLORS.Green;
-                    else if (value > 60) color = COLORS.Blue;
-                    else if (value > 40) color = COLORS.Orange;
+                    // Realistic thresholds for Mars market share (typically 2-30%)
+                    if (value > 15) color = COLORS.Green;       // Leader (e.g. Delhi, Mumbai)
+                    else if (value > 10) color = COLORS.Blue;   // Strong
+                    else if (value > 5) color = COLORS.Orange;  // Moderate
+                    // else Red (< 5%)
                 } else if (metric === "Sales") {
                     value = city.sales || 0;
                     const ratio = (value / maxSales) * 100;
@@ -170,7 +172,7 @@ export default function GeoIntelligenceMap() {
                     lat: coords.lat,
                     lng: coords.lng,
                     type: coords.type,
-                    listingPurchase: city.osa || 0,
+                    listingPercentage: city.listingPercentage || 0,
                 };
             });
     }, [apiData, metric]);
@@ -299,6 +301,11 @@ export default function GeoIntelligenceMap() {
                 <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b;">
                     <span>${kpiLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${kpiValue}</span>
                 </div>
+                ${metric === "Wt. OSA %" ? `
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-top: 4px;">
+                    <span>Listing %:</span> <span style="font-weight: 600; color: #1e293b;">${d.listingPercentage}%</span>
+                </div>
+                ` : ""}
             </div>
         `);
 
@@ -322,7 +329,7 @@ export default function GeoIntelligenceMap() {
     // --- Render ---
     return (
         <CommonContainer title="India Overview" filters={filters} onFiltersChange={setFilters}>
-            <div style={{ padding: "20px 24px", background: "#f8fafc", minHeight: "100vh", fontFamily: '"DM Sans", sans-serif' }}>
+            <div style={{ padding: "30px 28px", background: "#f8fafc", minHeight: "100vh", fontFamily: '"DM Sans", sans-serif' }}>
 
                 {/* Header removed per request (Map Intellect panel & analysis period) */}
 
@@ -413,10 +420,9 @@ export default function GeoIntelligenceMap() {
                         </div>
                     </div>
 
-                    {/* Map Area */}
                     <div style={{
                         position: "relative",
-                        height: "calc(100vh - 180px)",
+                        height: "calc(100vh - 120px)",
                         width: "100%",
                         overflow: "hidden",
                         borderRadius: "32px",

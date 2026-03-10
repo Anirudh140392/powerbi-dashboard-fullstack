@@ -154,6 +154,9 @@ const LatestOverivewCatCity = ({
                 console.log('[CategoryOverview] Fetching:', url);
                 const response = await axiosInstance.get(url);
                 console.log('[CategoryOverview] Response:', response.data?.success, 'rows:', response.data?.data?.length);
+                if (response.data?.data?.length > 0) {
+                    console.log('[CategoryOverview] First row:', response.data.data[0]);
+                }
                 if (isMounted && response.data?.success) {
                     setApiData(response.data.data);
                 }

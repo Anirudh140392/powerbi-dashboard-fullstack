@@ -9,12 +9,9 @@ const url = "http://127.0.0.1:5000/api/watchtower/platform-overview?startDate=20
 fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     .then(res => res.json())
     .then(json => {
-        if (!Array.isArray(json)) console.log("JSON:", json);
         const allPlatform = json.find(p => p.key === 'all' || p.label === 'All');
         if (allPlatform) {
-            console.log("All column title offtakes:", allPlatform.columns.find(c => c.title === 'Offtakes'));
-        } else {
-             console.log("Platform 'all' not found");
+            console.log("All column title offtakes value:", allPlatform.columns.find(c => c.title === 'Offtakes').value);
         }
     })
     .catch(err => console.error(err));

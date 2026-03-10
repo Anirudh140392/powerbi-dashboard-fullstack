@@ -418,7 +418,7 @@ export default function DrilldownLatestTable() {
   const [page, setPage] = useState(1)
 
   // Use FilterContext values - PM specific
-  const { platform, selectedCategory, selectedLocation, timeStart, timeEnd } = React.useContext(FilterContext);
+  const { platform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedProductCategory } = React.useContext(FilterContext);
 
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState([]);
@@ -558,7 +558,8 @@ export default function DrilldownLatestTable() {
           keywords: activeFilters.keywords.length > 0 ? activeFilters.keywords.join(',') : '',
           weekendFlag: activeFilters.weekendFlag?.length > 0 ? activeFilters.weekendFlag.join(',') : (localFilters.weekendFlag === 'All' ? '' : localFilters.weekendFlag),
           startDate: timeStart?.format?.("YYYY-MM-DD"),
-          endDate: timeEnd?.format?.("YYYY-MM-DD")
+          endDate: timeEnd?.format?.("YYYY-MM-DD"),
+          productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory
         };
 
         console.log("🚀 [DrilldownLatestTable] Fetching with params:", params);
@@ -574,7 +575,7 @@ export default function DrilldownLatestTable() {
     };
 
     fetchData();
-  }, [platform, selectedCategory, selectedLocation, localFilters.weekendFlag, timeStart, timeEnd, activeFilters]);
+  }, [platform, selectedCategory, selectedLocation, localFilters.weekendFlag, timeStart, timeEnd, activeFilters, selectedProductCategory]);
 
 
   // --------------- TRANSFORM API DATA ---------------

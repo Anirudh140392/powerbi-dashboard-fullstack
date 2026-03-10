@@ -245,8 +245,6 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
     return (
         <>
             <Card
-                onMouseEnter={onCardEnter}
-                onMouseLeave={onCardLeave}
                 sx={{
                     p: 2.25,
                     height: "100%",
@@ -291,60 +289,6 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                     {kpi.subtitle || "Performance Metric"}
                 </Typography>
             </Card>
-
-            <HoverPopover
-                open={open}
-                anchorRect={anchorRect}
-                onMouseEnter={() => { isPopoverHoverRef.current = true; if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current); }}
-                onMouseLeave={() => { isPopoverHoverRef.current = false; setOpen(false); }}
-            >
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Typography sx={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{kpi.title} Trend</Typography>
-                            <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                                {hoverDeltaStr} <span className="text-[11px] font-normal text-slate-400">vs start</span>
-                            </Typography>
-                        </div>
-                        <div className="flex items-center gap-1 rounded-lg bg-slate-50 p-1 border border-slate-100">
-                            {[7, 14, 30].map((p) => (
-                                <button
-                                    key={p}
-                                    onClick={(e) => { e.stopPropagation(); setPeriod(p); }}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${period === p
-                                        ? "bg-white shadow-sm border border-slate-200 text-slate-900"
-                                        : "text-slate-500 hover:text-slate-900"
-                                        }`}
-                                >
-                                    {p}D
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50/50 p-2 border border-slate-100/50">
-                        <Sparkline values={sliceSeries} width={268} height={80} color={themeColor} />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Period</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{period} Days</Typography>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: themeColor }}>
-                                {kpi.value}
-                            </Typography>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Δ {period}D</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {hoverDeltaStr}
-                            </Typography>
-                        </div>
-                    </div>
-                </div>
-            </HoverPopover>
         </>
     );
 };
@@ -429,8 +373,6 @@ const ComparisonCard = ({ kpi, loading = false }) => {
     return (
         <>
             <Card
-                onMouseEnter={onCardEnter}
-                onMouseLeave={onCardLeave}
                 sx={{
                     p: 2.5,
                     borderRadius: "1.25rem",
@@ -477,61 +419,6 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     {kpi.title}
                 </Typography>
             </Card>
-
-            <HoverPopover
-                open={open}
-                anchorRect={anchorRect}
-                onMouseEnter={() => { isPopoverHoverRef.current = true; if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current); }}
-                onMouseLeave={() => { isPopoverHoverRef.current = false; setOpen(false); }}
-            >
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Typography sx={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{kpi.title} Trend</Typography>
-                            <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                                {hoverDeltaStr} <span className="text-[11px] font-normal text-slate-400">vs start</span>
-                            </Typography>
-                        </div>
-                        <div className="flex items-center gap-1 rounded-lg bg-slate-50 p-1 border border-slate-100">
-                            {[7, 14, 30].map((p) => (
-                                <button
-                                    key={p}
-                                    onClick={(e) => { e.stopPropagation(); setPeriod(p); }}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${period === p
-                                        ? "bg-white shadow-sm border border-slate-200 text-slate-900"
-                                        : "text-slate-500 hover:text-slate-900"
-                                        }`}
-                                >
-                                    {p}D
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50/50 p-2 border border-slate-100/50">
-                        <Sparkline values={sliceSeries} width={268} height={80} color={color} />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Period</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{period} Days</Typography>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: color }}>
-                                {kpi.value}
-                            </Typography>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Δ {period}D</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {hoverDeltaPct > 0 ? '+' : ''}{hoverDeltaPct}%
-                            </Typography>
-                        </div>
-                    </div>
-                </div>
-            </HoverPopover>
         </>
     )
 }

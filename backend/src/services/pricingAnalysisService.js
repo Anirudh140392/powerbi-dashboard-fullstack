@@ -690,9 +690,8 @@ async function getPricingInsights(filters = {}) {
  */
 const getDimensionOverview = async (filters = {}) => {
     console.log('[PricingAnalysisService] getDimensionOverview called with filters:', filters);
-    const cacheKey = generateCacheKey('pricing_dimension_overview', filters);
-
-    return await getCachedOrCompute(cacheKey, async () => {
+    // return await getCachedOrCompute(cacheKey, async () => {
+    return await (async () => {
         try {
             const startDate = filters.startDate || dayjs().subtract(14, 'day').format('YYYY-MM-DD');
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
@@ -701,7 +700,6 @@ const getDimensionOverview = async (filters = {}) => {
             // dimensionParam can be 'category', 'location', or 'city' (frontend sends 'city')
             const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
             const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
-            const locationCol = isLocation ? CITY_NORMALIZATION_SQL : 'p.Location';
 
             const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
             const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
@@ -726,21 +724,14 @@ const getDimensionOverview = async (filters = {}) => {
             if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
 
             const locations = normalizeLocations(parseMultiSelectFilter(location));
-            // Ignore location filter if we are grouping by location (Overview mode)
-            if (locations && !isLocation) whereConditions.push(buildInClause('p.Location', locations));
+            if (locations) whereConditions.push(buildInClause('p.Location', locations));
 
             const brands = parseMultiSelectFilter(brand);
             if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
             const categories = parseMultiSelectFilter(category);
-            // Ignore category filter if we are grouping by category (Overview mode)
-            if (categories && isLocation) {
-                const escapedCats = categories.map(v => `'${escapeStr(v)}'`).join(',');
-                whereConditions.push(`(
-                    ${PRODUCT_CATEGORY_SQL} IN (${escapedCats}) OR 
-                    p.Product_Category IN (${escapedCats}) OR 
-                    p.Brand IN (${escapedCats})
-                )`);
+            if (categories) {
+                whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
             }
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
@@ -793,8 +784,11 @@ const getDimensionOverview = async (filters = {}) => {
             SETTINGS max_execution_time = 30
             `;
 
-            console.log(`[PricingAnalysisService] Executing Dimension Overview query (group by ${dimensionParam})...`);
-            const results = await queryClickHouse(query);
+            console.log(`[PricingAnalysisService] Executing Dimension Overview query (group by ${dimensionParam}):\n${query}`);
+            console.log(`[PricingAnalysisService] Query returned ${results?.length || 0} rows`);
+            if (results && results.length > 0) {
+                console.log(`[PricingAnalysisService] Raw dimension names:`, results.map(r => r.dimension_name));
+            }
 
             const processedData = (results || []).map(r => {
                 const mapMetric = (currKey, prevKey) => {
@@ -830,7 +824,7 @@ const getDimensionOverview = async (filters = {}) => {
             console.error('[PricingAnalysisService] Error in getDimensionOverview:', error);
             return { success: false, error: error.message };
         }
-    }, CACHE_TTL.ONE_HOUR);
+    })();
 }
 
 /**

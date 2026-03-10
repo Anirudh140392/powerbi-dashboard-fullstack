@@ -57,6 +57,11 @@ const performanceMarketingService = {
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
                     whereConditions.push(`lower(${filterColumn}) IN (${values})`);
                 }
+                // Product Category filter (from rb_pdp_olap.Product_Category)
+                if (filters.productCategory && filters.productCategory !== 'All') {
+                    const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
+                    whereConditions.push(`category IN (${cats})`);
+                }
 
                 // Weekend Flag
                 if (filters.weekendFlag) {
@@ -195,6 +200,11 @@ const performanceMarketingService = {
                 if (filters.brand && filters.brand !== 'All') {
                     const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
                     const dbName = getCurrentDbName(); const filterColumn = dbName === 'mars' ? 'category' : 'brand'; const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(','); baseConditions.push(`lower(${filterColumn}) IN (${values})`);
+                }
+                // Product Category filter (from rb_pdp_olap.Product_Category)
+                if (filters.productCategory && filters.productCategory !== 'All') {
+                    const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
+                    baseConditions.push(`category IN (${cats})`);
                 }
 
                 // Weekend Flag
@@ -410,6 +420,11 @@ const performanceMarketingService = {
                     const filterColumn = dbName === 'mars' ? 'category' : 'brand';
                     const values = brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
                     conditions.push(`lower(${filterColumn}) IN (${values})`);
+                }
+                // Product Category filter (from rb_pdp_olap.Product_Category)
+                if (filters.productCategory && filters.productCategory !== 'All') {
+                    const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
+                    conditions.push(`category IN (${cats})`);
                 }
 
                 // Weekend Flag
@@ -634,6 +649,11 @@ const performanceMarketingService = {
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
                     conditions.push(`lower(${filterColumn}) IN (${values})`);
                 }
+                // Product Category filter (from rb_pdp_olap.Product_Category)
+                if (filters.productCategory && filters.productCategory !== 'All') {
+                    const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
+                    conditions.push(`category IN (${cats})`);
+                }
 
                 // Date filter
                 if (filters.startDate && filters.endDate) {
@@ -693,6 +713,11 @@ const performanceMarketingService = {
                     const filterColumn = dbName === 'mars' ? 'category' : 'brand';
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
                     l2mConditions.push(`lower(${filterColumn}) IN (${values})`);
+                }
+                // Product Category filter for L2M baseline
+                if (filters.productCategory && filters.productCategory !== 'All') {
+                    const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
+                    l2mConditions.push(`category IN (${cats})`);
                 }
                 l2mConditions.push(`Date BETWEEN '${startDateL2M}' AND '${endDateL2M}'`);
                 // Weekend Flag applies to baseline as well for contextual averages
@@ -820,6 +845,11 @@ const performanceMarketingService = {
                 if (filters.brand && filters.brand !== 'All') {
                     const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
                     const dbName = getCurrentDbName(); const filterColumn = dbName === 'mars' ? 'category' : 'brand'; const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(','); baseConditions.push(`lower(${filterColumn}) IN (${values})`);
+                }
+                // Product Category filter (from rb_pdp_olap.Product_Category)
+                if (filters.productCategory && filters.productCategory !== 'All') {
+                    const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
+                    baseConditions.push(`category IN (${cats})`);
                 }
 
                 // Filter out null keyword_type
