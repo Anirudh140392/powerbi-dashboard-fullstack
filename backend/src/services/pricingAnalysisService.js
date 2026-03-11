@@ -785,6 +785,7 @@ const getDimensionOverview = async (filters = {}) => {
             `;
 
             console.log(`[PricingAnalysisService] Executing Dimension Overview query (group by ${dimensionParam}):\n${query}`);
+            const results = await queryClickHouse(query);
             console.log(`[PricingAnalysisService] Query returned ${results?.length || 0} rows`);
             if (results && results.length > 0) {
                 console.log(`[PricingAnalysisService] Raw dimension names:`, results.map(r => r.dimension_name));
