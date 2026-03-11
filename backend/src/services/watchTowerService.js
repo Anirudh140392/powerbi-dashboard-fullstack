@@ -129,7 +129,7 @@ async function getWatchtowerSource() {
             skuCode: 'Web_Pid',
             quantitySold: 'Qty_Sold',
             discount: 'if(ifNull(toFloat64OrZero(toString(MRP)), 0) > 0, (ifNull(toFloat64OrZero(toString(MRP)), 0) - ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(MRP)), 0) * 100, 0)',
-            listingPercent: 'ifNull(toFloat64OrZero(toString(listing_percent)), 0)'
+            listingPercent: 'if(toFloat64OrZero(toString(listing_percent)) > 0, toFloat64OrZero(toString(listing_percent)), (ifNull(toFloat64OrZero(toString(neno_osa)), 0) / NULLIF(ifNull(toFloat64OrZero(toString(deno_osa)), 0), 0)) * 100)'
         }
     };
 }
@@ -6538,8 +6538,8 @@ const getCompetitionData = async (filters = {}) => {
                     AVG(${src.f.discount}) as avg_discount,
                     SUM(${src.f.sellingPrice}) as sum_selling_price,
                     0 as sum_weight,
-                    SUM(${src.f.neno}) as neno_osa,
-                    SUM(${src.f.deno}) as deno_osa,
+                    SUM(${src.f.neno}) as neno_osa_sum,
+                    SUM(${src.f.deno}) as deno_osa_sum,
                     AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${momConds}
@@ -6815,8 +6815,8 @@ const getCompetitionData = async (filters = {}) => {
             // Calculate OSA (On-Shelf Availability)
             const osaBrand = osaMap.get(brand.Brand) || { neno: 0, deno: 0 };
             const osa = osaBrand.deno > 0 ? (osaBrand.neno / osaBrand.deno) * 100 : 0;
-            const prevOsaDeno = parseFloat(prevBrand.deno_osa || 0);
-            const prevOsaNeno = parseFloat(prevBrand.neno_osa || 0);
+            const prevOsaDeno = parseFloat(prevBrand.deno_osa_sum || 0);
+            const prevOsaNeno = parseFloat(prevBrand.neno_osa_sum || 0);
             const osaPrev = prevOsaDeno > 0 ? (prevOsaNeno / prevOsaDeno) * 100 : 0;
             const osaDelta = calcChange(osa, osaPrev);
 
@@ -6931,8 +6931,8 @@ const getCompetitionData = async (filters = {}) => {
             SUM(${src.f.sales}) as total_sales,
             SUM(${src.f.impressions}) as total_impressions,
             AVG(${src.f.mrp}) as avg_price,
-            SUM(${src.f.neno}) as neno_osa,
-            SUM(${src.f.deno}) as deno_osa,
+            SUM(${src.f.neno}) as neno_osa_sum,
+            SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${currConds}
@@ -6946,8 +6946,8 @@ const getCompetitionData = async (filters = {}) => {
             SUM(${src.f.adSales}) as total_ad_sales,
             SUM(${src.f.impressions}) as total_impressions,
             AVG(${src.f.mrp}) as avg_price,
-            SUM(${src.f.neno}) as neno_osa,
-            SUM(${src.f.deno}) as deno_osa,
+            SUM(${src.f.neno}) as neno_osa_sum,
+            SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${currConds}
@@ -6960,8 +6960,8 @@ const getCompetitionData = async (filters = {}) => {
             SUM(${src.f.adSales}) as total_ad_sales,
             SUM(${src.f.impressions}) as total_impressions,
             AVG(${src.f.mrp}) as avg_price,
-            SUM(${src.f.neno}) as neno_osa,
-            SUM(${src.f.deno}) as deno_osa,
+            SUM(${src.f.neno}) as neno_osa_sum,
+            SUM(${src.f.deno}) as deno_osa_sum,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${momConds}
@@ -6986,11 +6986,11 @@ const getCompetitionData = async (filters = {}) => {
             const prevSku = skuOsaMapPrev.get(sku.Product) || {};
 
             // Calculate OSA 
-            const nenoOsa = parseFloat(sku.neno_osa || 0);
-            const denoOsa = parseFloat(sku.deno_osa || 0);
+            const nenoOsa = parseFloat(sku.neno_osa_sum || 0);
+            const denoOsa = parseFloat(sku.deno_osa_sum || 0);
             const osa = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
-            const prevDenoOsa = parseFloat(prevSku.deno_osa || 0);
-            const prevNenoOsa = parseFloat(prevSku.neno_osa || 0);
+            const prevDenoOsa = parseFloat(prevSku.deno_osa_sum || 0);
+            const prevNenoOsa = parseFloat(prevSku.neno_osa_sum || 0);
             const prevOsa = prevDenoOsa > 0 ? (prevNenoOsa / prevDenoOsa) * 100 : 0;
             const osaDelta = calcChange(osa, prevOsa);
 
@@ -7535,8 +7535,8 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             SUM(${src.f.sales}) as Offtakes,
             SUM(${src.f.spend}) as Spend,
             SUM(${src.f.adSales}) as Ad_sales,
-            SUM(${src.f.neno}) as neno_osa,
-            SUM(${src.f.deno}) as deno_osa,
+            SUM(${src.f.neno}) as neno_osa_sum,
+            SUM(${src.f.deno}) as deno_osa_sum,
             SUM(${src.f.impressions}) as Impressions,
             AVG(${src.f.mrp}) as avg_price
                     FROM ${src.table}
@@ -7589,8 +7589,8 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
             // Process the raw data to get trend points
             brandTrends[targetName] = rawData.map(row => {
-                const nenoOsa = parseFloat(row.neno_osa || 0);
-                const denoOsa = parseFloat(row.deno_osa || 0);
+                const nenoOsa = parseFloat(row.neno_osa_sum || 0);
+                const denoOsa = parseFloat(row.deno_osa_sum || 0);
                 const avgPrice = parseFloat(row.avg_price || 0);
                 const impressions = parseFloat(row.Impressions || 0);
 

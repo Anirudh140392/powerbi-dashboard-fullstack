@@ -529,7 +529,23 @@ export default function TrendsCompetitionDrawer({
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
         const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
-        const defaultCities = (citiesRes.data?.options || []).filter(c => c !== 'All' && c !== 'All India');
+        const TIER_1_CITIES = [
+          "Ahmedabad",
+          "Bangalore",
+          "Chennai",
+          "Delhi",
+          "Hyderabad",
+          "Kolkata",
+          "Mumbai",
+          "Lucknow",
+          "Gurugram",
+          "Chandigarh",
+          "Faridabad",
+          "Pune"
+        ];
+        const defaultCities = (citiesRes.data?.options || [])
+          .filter(c => c !== 'All' && c !== 'All India')
+          .filter(c => TIER_1_CITIES.some(t => c.toLowerCase().includes(t.toLowerCase())));
         const cities = ["All India", ...defaultCities];
         const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
         const skus = (skusRes.data?.options || []).filter(s => s !== 'All');
