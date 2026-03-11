@@ -311,7 +311,14 @@ export default function WatchTower() {
           if (!col || !col.value) return 0;
           const strVal = String(col.value).replace(/,/g, '');
           const numMatch = strVal.match(/-?[\d.]+/);
-          return numMatch ? parseFloat(numMatch[0]) : 0;
+          let val = numMatch ? parseFloat(numMatch[0]) : 0;
+
+          // Normalize currency values to a common base (Lakhs) for proper scaling
+          if (strVal.includes('Cr')) val *= 100;
+          else if (strVal.includes('K')) val /= 100;
+          // If it has 'lac' or no unit, we treat it as unscaled (Lakhs or raw value)
+
+          return val;
         };
 
         return {
@@ -749,14 +756,21 @@ const FormatPerformanceStudio = ({ rows }) => {
   const visibleItems = rows.slice(0, visibleCount);
   const total = rows.length;
 
+  const formatCurrencyShort = (val) => {
+    if (!Number.isFinite(val) || val === 0) return "0";
+    if (Math.abs(val) >= 100) return `${(val / 100).toFixed(2)} Cr`;
+    if (Math.abs(val) >= 1) return `${val.toFixed(2)} lac`;
+    return `${(val * 100).toFixed(1)} K`;
+  };
+
   const kpiBands = [
     {
       key: "offtakes",
       label: "Offtakes",
       activeValue: active.offtakes,
       compareValue: compare?.offtakes ?? null,
-      max: 100,
-      format: (v) => `${v} Cr`,
+      max: 10000,
+      format: (v) => formatCurrencyShort(v),
     },
     {
       key: "spend",
@@ -764,7 +778,7 @@ const FormatPerformanceStudio = ({ rows }) => {
       activeValue: active.spend,
       compareValue: compare?.spend ?? null,
       max: 20,
-      format: (v) => `₹${v} lac`,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "roas",
@@ -898,7 +912,7 @@ const FormatPerformanceStudio = ({ rows }) => {
                         fontSize: "0.75rem",
                       }}
                     >
-                      Offtakes {f.offtakes} Cr · ROAS {f.roas.toFixed(1)}x
+                      Offtakes {formatCurrencyShort(f.offtakes)} · ROAS {f.roas.toFixed(1)}x
                     </div>
                   </div>
                 </div>
@@ -952,7 +966,7 @@ const FormatPerformanceStudio = ({ rows }) => {
               <div className="flex flex-col items-end gap-1 text-right">
                 <div className="text-[10px] text-slate-500">Offtakes</div>
                 <div className="text-lg font-semibold">
-                  {formatNumber(active.offtakes)} Cr
+                  {formatCurrencyShort(active.offtakes)}
                 </div>
                 <div className="mt-1 text-[10px] text-slate-500">
                   Market share

@@ -1054,16 +1054,18 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                     >
                       <div className="flex items-center justify-center gap-2">
                         <span>{col}</span>
-                        <span
-                          className="cursor-pointer text-slate-600 hover:text-indigo-600 transition-colors trend-icon"
-                          onClick={() => {
-                            setSelectedColumn(col);
-                            setCompMetaForDrawer(buildCompMeta(col));
-                            setOpenTrend(true);
-                          }}
-                        >
-                          <LineChartIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
-                        </span>
+                        {dynamicKey !== "availability" && (
+                          <span
+                            className="cursor-pointer text-slate-600 hover:text-indigo-600 transition-colors trend-icon"
+                            onClick={() => {
+                              setSelectedColumn(col);
+                              setCompMetaForDrawer(buildCompMeta(col));
+                              setOpenTrend(true);
+                            }}
+                          >
+                            <LineChartIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
+                          </span>
+                        )}
                       </div>
                     </th>
                   ))}

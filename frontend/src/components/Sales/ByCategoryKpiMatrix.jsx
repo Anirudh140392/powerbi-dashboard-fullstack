@@ -40,7 +40,7 @@ import { KpiFilterPanel } from '../KpiFilterPanel';
 const fmt = (val) => {
     if (val === undefined || val === null || isNaN(val)) return "0";
     if (val >= 10000000) return (val / 10000000).toFixed(1) + " Cr";
-    if (val >= 100000) return (val / 100000).toFixed(1) + " L";
+    if (val >= 100000) return (val / 100000).toFixed(1) + " lac";
     if (val >= 1000) return (val / 1000).toFixed(1) + " K";
     return val.toFixed(1);
 };
