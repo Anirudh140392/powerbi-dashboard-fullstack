@@ -911,7 +911,6 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                      AND Comp_flag = 1
                       ${baseFilter}
                     GROUP BY Brand
                     ORDER BY total_deno DESC
