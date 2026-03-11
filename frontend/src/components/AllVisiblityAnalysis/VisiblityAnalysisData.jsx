@@ -913,7 +913,7 @@ const VisiblityAnalysisData = ({
         // </div> */}
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
       {/* Section 3: Keywords at a Glance */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         {apiErrors?.keywords ? (
           <ErrorRetryOverlay onRetry={() => onRetry?.('keywords')} message={apiErrors.keywords} compact />
         ) : (loading?.keywords || apiData?.keywords === undefined) ? (
@@ -927,7 +927,7 @@ const VisiblityAnalysisData = ({
             onFiltersChange={onFiltersChange}
           />
         )}
-      </div>
+      </div> */}
       {/* Section 4: Top Search Terms */}
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
         <div className="flex items-center justify-between mb-4">

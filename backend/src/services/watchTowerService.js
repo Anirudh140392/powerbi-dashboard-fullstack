@@ -706,8 +706,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Build base conditions - use toDate() for ClickHouse date comparison
                 const baseConditions = [];
-                baseConditions.push(`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`);
-                baseConditions.push(`keyword_search_rank < 11`);
+                baseConditions.push(`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`);
+                baseConditions.push(`POSITION < 11`);
 
                 const catArr = normalizeFilterArray(categoryFilter);
                 if (catArr && catArr.length > 0) {
@@ -735,14 +735,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (pCond) baseConditions.push(pCond);
                 }
 
-                // Build numerator conditions (Fixed: Always use keyword_is_rb_product='1' for our brands)
+                // Build numerator conditions (Fixed: Always use flag='1' for our brands)
                 const numeratorConditions = [...baseConditions];
-                numeratorConditions.push(`toString(keyword_is_rb_product) = '1'`);
+                numeratorConditions.push(`toString(flag) = '1'`);
 
                 // Execute both count queries in parallel
                 const [numResult, denomResult] = await Promise.all([
-                    queryClickHouse(`SELECT count() as cnt FROM rb_kw WHERE ${numeratorConditions.join(' AND ')}`),
-                    queryClickHouse(`SELECT count() as cnt FROM rb_kw WHERE ${baseConditions.join(' AND ')}`)
+                    queryClickHouse(`SELECT count() as cnt FROM rb_kw_olap WHERE ${numeratorConditions.join(' AND ')}`),
+                    queryClickHouse(`SELECT count() as cnt FROM rb_kw_olap WHERE ${baseConditions.join(' AND ')}`)
                 ]);
 
                 const numeratorCount = parseInt(numResult[0]?.cnt || 0);
@@ -775,7 +775,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             brands,
             currStart, currEnd,
             prevStart, prevEnd,
-            platformFilter, locationFilter, categoryFilter
+            platformFilter, locationFilter, categoryFilter, channel
         ) => {
             try {
                 const timerLabel = `[Bulk SOS] Total Time ${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
@@ -790,7 +790,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Build base conditions for ClickHouse
                 const buildBaseConditions = () => {
                     const conditions = [];
-                    conditions.push(`keyword_search_rank < 11`);
+                    conditions.push(`POSITION < 11`);
 
                     const catArr = normalizeFilterArray(categoryFilter);
                     if (catArr && catArr.length > 0) {
@@ -832,34 +832,34 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const [currBrandCounts, currTotalResult, prevBrandCounts, prevTotalResult] = await Promise.all([
                     // Query 1: Get counts for ALL brands (current period)
                     queryClickHouse(`
-                        SELECT brand_name, count() as count
-                        FROM rb_kw
-                        WHERE toDate(created_on) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
-                        AND brand_name IN (${brandInClause})
+                        SELECT brand_name_th as brand_name, count() as count
+                        FROM rb_kw_olap
+                        WHERE toDate(DATE) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
+                        AND brand_name_th IN (${brandInClause})
                         ${baseCondStr}
                         GROUP BY brand_name
                     `),
                     // Query 2: Get total count (current period)
                     queryClickHouse(`
                         SELECT count() as cnt
-                        FROM rb_kw
-                        WHERE toDate(created_on) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
+                        FROM rb_kw_olap
+                        WHERE toDate(DATE) BETWEEN '${currStart.format('YYYY-MM-DD')}' AND '${currEnd.format('YYYY-MM-DD')}'
                         ${baseCondStr}
                     `),
                     // Query 3: Get counts for ALL brands (previous period)
                     queryClickHouse(`
-                        SELECT brand_name, count() as count
-                        FROM rb_kw
-                        WHERE toDate(created_on) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
-                        AND brand_name IN (${brandInClause})
+                        SELECT brand_name_th as brand_name, count() as count
+                        FROM rb_kw_olap
+                        WHERE toDate(DATE) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
+                        AND brand_name_th IN (${brandInClause})
                         ${baseCondStr}
                         GROUP BY brand_name
                     `),
                     // Query 4: Get total count (previous period)
                     queryClickHouse(`
                         SELECT count() as cnt
-                        FROM rb_kw
-                        WHERE toDate(created_on) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
+                        FROM rb_kw_olap
+                        WHERE toDate(DATE) BETWEEN '${prevStart.format('YYYY-MM-DD')}' AND '${prevEnd.format('YYYY-MM-DD')}'
                         ${baseCondStr}
                     `)
                 ]);
@@ -1772,8 +1772,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const sosEndDate = last7Months[6].end;
 
                     const sosBaseConds = [
-                        `toDate(created_on) BETWEEN '${sosStartDate.format('YYYY-MM-DD')}' AND '${sosEndDate.format('YYYY-MM-DD')}'`,
-                        `keyword_search_rank < 11`
+                        `toDate(DATE) BETWEEN '${sosStartDate.format('YYYY-MM-DD')}' AND '${sosEndDate.format('YYYY-MM-DD')}'`,
+                        `POSITION < 11`
                     ];
                     const platArrSos = normalizeFilterArray(platform);
                     if (platArrSos && platArrSos.length > 0) {
@@ -1799,22 +1799,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const sosNumConds = [...sosBaseConds];
                     const brandArrLocal = normalizeFilterArray(brand);
                     if (brandArrLocal && brandArrLocal.length > 0) {
-                        sosNumConds.push(`brand_name IN (${brandArrLocal.map(b => `'${sosEscapeStr(b)}'`).join(', ')})`);
+                        sosNumConds.push(`brand_name_th IN (${brandArrLocal.map(b => `'${sosEscapeStr(b)}'`).join(', ')})`);
                     } else {
-                        sosNumConds.push(`toString(keyword_is_rb_product) = '1'`);
+                        sosNumConds.push(`toString(flag) = '1'`);
                     }
 
                     // 2 queries instead of 14
                     const [sosNumByMonth, sosDenomByMonth] = await Promise.all([
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, count() as count
-                            FROM rb_kw WHERE ${sosNumConds.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
+                            SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, count() as count
+                            FROM rb_kw_olap WHERE ${sosNumConds.join(' AND ')}
+                            GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
                         `),
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as month, count() as count
-                            FROM rb_kw WHERE ${sosBaseConds.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(created_on), '%Y-%m-01')
+                            SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, count() as count
+                            FROM rb_kw_olap WHERE ${sosBaseConds.join(' AND ')}
+                            GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
                         `)
                     ]);
 
@@ -3525,10 +3525,10 @@ const getKeywords = async (brand) => {
         // ClickHouse query
         const conditions = [`keyword IS NOT NULL`, `keyword != ''`];
         if (brand) {
-            conditions.push(`brand_name = '${brand.replace(/'/g, "''")}'`);
+            conditions.push(`brand_name_th = '${brand.replace(/'/g, "''")}'`);
         }
 
-        const query = `SELECT DISTINCT keyword FROM rb_kw WHERE ${conditions.join(' AND ')} ORDER BY keyword`;
+        const query = `SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${conditions.join(' AND ')} ORDER BY keyword LIMIT 1000`;
         const results = await queryClickHouse(query);
         return results.map(k => k.keyword).filter(Boolean).sort();
     } catch (error) {
@@ -4162,16 +4162,16 @@ const getPlatformOverview = async (filters) => {
 
     // Build base conditions for rb_kw (SOS / Ad SOV / Organic SOV)
     const buildSosConds = (start, end) => {
-        const conds = [`toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
+        const conds = [`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`, `POSITION < 11`];
         if (locationArr && locationArr.length > 0) {
             conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`keyword_category IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         }
-        // Apply brand filter (rb_kw uses brand_name column)
+        // Apply brand filter (rb_kw_olap uses brand_name_th column)
         if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `brand_name LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+            conds.push(`(${brandArr.map(b => `brand_name_th LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
         }
         // Apply platform filter (rb_kw uses platform_name column)
         if (platformArr && platformArr.length > 0) {
@@ -4270,28 +4270,28 @@ const getPlatformOverview = async (filters) => {
         // Query 3: Current SOS - Our brands count per platform
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${currSosConds} AND toString(keyword_is_rb_product) = '1'
+                    FROM rb_kw_olap
+                    WHERE ${currSosConds} AND toString(flag) = '1'
                     GROUP BY platform_name
                 `),
         // Query 4: Current SOS - Total count per platform
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE ${currSosConds}
                     GROUP BY platform_name
                 `),
         // Query 5: Previous SOS - Our brands count per platform
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${prevSosConds} AND toString(keyword_is_rb_product) = '1'
+                    FROM rb_kw_olap
+                    WHERE ${prevSosConds} AND toString(flag) = '1'
                     GROUP BY platform_name
                 `),
         // Query 6: Previous SOS - Total count per platform
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
+                    FROM rb_kw_olap
                     WHERE ${prevSosConds}
                     GROUP BY platform_name
                 `),
@@ -4345,60 +4345,60 @@ const getPlatformOverview = async (filters) => {
                     )
                     GROUP BY Platform
                 `),
-        // Query 13: Current Ad SOV - Our brands (spons_flag=1)
+        // Query 13: Current Ad SOV - Our brands (spons=1)
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${currSosConds} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1'
+                    FROM rb_kw_olap
+                    WHERE ${currSosConds} AND toString(flag) = '1' AND toString(spons) = '1'
                     GROUP BY platform_name
                 `),
-        // Query 14: Current Ad SOV - Total (spons_flag=1)
+        // Query 14: Current Ad SOV - Total (spons=1)
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${currSosConds} AND toString(spons_flag) = '1'
+                    FROM rb_kw_olap
+                    WHERE ${currSosConds} AND toString(spons) = '1'
                     GROUP BY platform_name
                 `),
-        // Query 15: Previous Ad SOV - Our brands (spons_flag=1)
+        // Query 15: Previous Ad SOV - Our brands (spons=1)
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${prevSosConds} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1'
+                    FROM rb_kw_olap
+                    WHERE ${prevSosConds} AND toString(flag) = '1' AND toString(spons) = '1'
                     GROUP BY platform_name
                 `),
-        // Query 16: Previous Ad SOV - Total (spons_flag=1)
+        // Query 16: Previous Ad SOV - Total (spons=1)
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${prevSosConds} AND toString(spons_flag) = '1'
+                    FROM rb_kw_olap
+                    WHERE ${prevSosConds} AND toString(spons) = '1'
                     GROUP BY platform_name
                 `),
-        // Query 17: Current Organic SOV - Our brands (spons_flag=0)
+        // Query 17: Current Organic SOV - Our brands (organic=1)
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${currSosConds} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '0'
+                    FROM rb_kw_olap
+                    WHERE ${currSosConds} AND toString(flag) = '1' AND toString(organic) = '1'
                     GROUP BY platform_name
                 `),
-        // Query 18: Current Organic SOV - Total (spons_flag=0)
+        // Query 18: Current Organic SOV - Total (organic=1)
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${currSosConds} AND toString(spons_flag) = '0'
+                    FROM rb_kw_olap
+                    WHERE ${currSosConds} AND toString(organic) = '1'
                     GROUP BY platform_name
                 `),
-        // Query 19: Previous Organic SOV - Our brands (spons_flag=0)
+        // Query 19: Previous Organic SOV - Our brands (organic=1)
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${prevSosConds} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '0'
+                    FROM rb_kw_olap
+                    WHERE ${prevSosConds} AND toString(flag) = '1' AND toString(organic) = '1'
                     GROUP BY platform_name
                 `),
-        // Query 20: Previous Organic SOV - Total (spons_flag=0)
+        // Query 20: Previous Organic SOV - Total (organic=1)
         queryClickHouse(`
                     SELECT platform_name, count() as count
-                    FROM rb_kw
-                    WHERE ${prevSosConds} AND toString(spons_flag) = '0'
+                    FROM rb_kw_olap
+                    WHERE ${prevSosConds} AND toString(organic) = '1'
                     GROUP BY platform_name
                 `)
     ]);
@@ -5580,9 +5580,9 @@ const getBrandsOverview = async (filters) => {
         return conds.join(' AND ');
     };
 
-    // Build SOS conditions for rb_kw
+    // Build SOS conditions for rb_kw_olap
     const buildSosBrandConds = (sDate, eDate) => {
-        const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
+        const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`, `POSITION < 11`];
         const platformArr = normalizeFilterArray(boPlatform);
         const pCond = buildPlatformChannelCond(boPlatform, channel, 'platform_name');
         if (pCond) conds.push(pCond);
@@ -5632,10 +5632,10 @@ const getBrandsOverview = async (filters) => {
     ] = await Promise.all([
         queryClickHouse(`SELECT DISTINCT brand_name FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL AND brand_name != ''`),
         // SOS
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(keyword_is_rb_product) = '1' GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(startDate, endDate)} GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(keyword_is_rb_product) = '1' GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(momStart, momEnd)} GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(flag) = '1' GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(startDate, endDate)} GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(flag) = '1' GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(momStart, momEnd)} GROUP BY brand_name`),
         // Metrics from rb_pdp_olap
         queryClickHouse(`SELECT Brand, 
             SUM(CASE WHEN Comp_flag = 0 THEN ifNull(toFloat64OrZero(toString(Sales)), 0) ELSE 0 END) as total_sales, 
@@ -5687,16 +5687,16 @@ const getBrandsOverview = async (filters) => {
                         GROUP BY m, Platform, category
                     )
                 `),
-        // Ad SOV by brand (spons_flag=1)
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1' GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(spons_flag) = '1' GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1' GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(spons_flag) = '1' GROUP BY brand_name`),
-        // Organic SOV by brand (spons_flag=0)
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '0' GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(spons_flag) = '0' GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '0' GROUP BY brand_name`),
-        queryClickHouse(`SELECT brand_name, count() as count FROM rb_kw WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(spons_flag) = '0' GROUP BY brand_name`)
+        // Ad SOV by brand (spons=1)
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(flag) = '1' AND toString(spons) = '1' GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(spons) = '1' GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(flag) = '1' AND toString(spons) = '1' GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(spons) = '1' GROUP BY brand_name`),
+        // Organic SOV by brand (organic=1)
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(flag) = '1' AND toString(organic) = '1' GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(startDate, endDate)} AND toString(organic) = '1' GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(flag) = '1' AND toString(organic) = '1' GROUP BY brand_name`),
+        queryClickHouse(`SELECT brand_name_th as brand_name, count() as count FROM rb_kw_olap WHERE ${buildSosBrandConds(momStart, momEnd)} AND toString(organic) = '1' GROUP BY brand_name`)
     ]);
 
     const brands = brandsData.map(d => d.brand_name).filter(Boolean);
@@ -5874,15 +5874,15 @@ const getKpiTrends = async (filters) => {
     if (timeStep === 'Monthly') {
         groupFormat = '%Y-%m-01';
         groupExpression = `formatDateTime(toDate(DATE), '${groupFormat}')`;
-        groupExpressionKw = `formatDateTime(toDate(created_on), '${groupFormat}')`;
+        groupExpressionKw = `formatDateTime(toDate(DATE), '${groupFormat}')`;
     } else if (timeStep === 'Weekly') {
         groupFormat = 'WEEK';
         groupExpression = `toYearWeek(toDate(DATE), 1)`;
-        groupExpressionKw = `toYearWeek(toDate(created_on), 1)`;
+        groupExpressionKw = `toYearWeek(toDate(DATE), 1)`;
     } else { // Daily
         groupFormat = '%Y-%m-%d';
         groupExpression = `formatDateTime(toDate(DATE), '${groupFormat}')`;
-        groupExpressionKw = `formatDateTime(toDate(created_on), '${groupFormat}')`;
+        groupExpressionKw = `formatDateTime(toDate(DATE), '${groupFormat}')`;
     }
 
     // Helper to escape strings for ClickHouse
@@ -5971,7 +5971,7 @@ const getKpiTrends = async (filters) => {
 
     // Build SOS base conditions (matching Platform Overview - no spons_flag filter)
     const buildSosConds = () => {
-        const conds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
+        const conds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`, `POSITION < 11`];
 
         if (catArr && catArr.length > 0) conds.push(`keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
         if (locArr && locArr.length > 0) conds.push(`location_name IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
@@ -5980,9 +5980,9 @@ const getKpiTrends = async (filters) => {
         return conds;
     };
 
-    // Numerator conditions - always use keyword_is_rb_product=1 (matching Platform Overview)
+    // Numerator conditions - always use flag='1' (matching Platform Overview)
     const sosNumConds = buildSosConds();
-    sosNumConds.push(`toString(keyword_is_rb_product) = '1'`);
+    sosNumConds.push(`toString(flag) = '1'`);
 
     // Denominator: All products (no brand filter, matching Platform Overview)
     const sosDenomConds = buildSosConds();
@@ -6042,14 +6042,14 @@ const getKpiTrends = async (filters) => {
         // SOS Numerator
         queryClickHouse(`
                 SELECT ${groupExpressionKw} as date_group, count() as count
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE ${sosNumConds.join(' AND ')}
                 GROUP BY ${groupExpressionKw}
             `),
         // SOS Denominator
         queryClickHouse(`
                 SELECT ${groupExpressionKw} as date_group, count() as count
-                FROM rb_kw
+                FROM rb_kw_olap
                 WHERE ${sosDenomConds.join(' AND ')}
                 GROUP BY ${groupExpressionKw}
             `),
@@ -6387,7 +6387,7 @@ const getCompetitionData = async (filters = {}) => {
 
         // Build SOS conditions for rb_kw
         const buildKwConds = (startDt, endDt) => {
-            const conds = [`toDate(created_on) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
+            const conds = [`toDate(DATE) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
             if (platArr && platArr.length > 0) {
                 conds.push(`lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
@@ -6401,7 +6401,7 @@ const getCompetitionData = async (filters = {}) => {
                 conds.push(`lower(keyword_category) IN (${catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
 
-            conds.push(`keyword_search_rank < 11`);
+            conds.push(`POSITION < 11`);
             return conds.join(' AND ');
         };
 
@@ -6474,65 +6474,65 @@ const getCompetitionData = async (filters = {}) => {
                 FROM rb_brand_ms
                 WHERE ${buildCategoryConds(true)}
             `),
-            // Query 8: SOS Deno (Overall) from rb_kw - Current Period
+            // Query 8: SOS Deno (Overall) from rb_kw_olap - Current Period
             queryClickHouse(`
                 SELECT COUNT(*) AS overall_deno
-                FROM rb_kw
-                WHERE keyword_search_rank < 11 
-                  AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                FROM rb_kw_olap
+                WHERE POSITION < 11 
+                  AND toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
             `),
-            // Query 9: SOS Neno (Per Brand) from rb_kw - Current Period
+            // Query 9: SOS Neno (Per Brand) from rb_kw_olap - Current Period
             queryClickHouse(`
                 SELECT brand_name_th, COUNT(*) AS overall_neno
-                FROM rb_kw
-                WHERE keyword_search_rank < 11 
-                  AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                FROM rb_kw_olap
+                WHERE POSITION < 11 
+                  AND toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
                 GROUP BY brand_name_th
             `),
-            // Query 10: SOS Deno (Overall) from rb_kw - MoM Period
+            // Query 10: SOS Deno (Overall) from rb_kw_olap - MoM Period
             queryClickHouse(`
                 SELECT COUNT(*) AS overall_deno
-                FROM rb_kw
-                WHERE keyword_search_rank < 11 
-                  AND toDate(created_on) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
+                FROM rb_kw_olap
+                WHERE POSITION < 11 
+                  AND toDate(DATE) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
             `),
-            // Query 11: SOS Neno (Per Brand) from rb_kw - MoM Period
+            // Query 11: SOS Neno (Per Brand) from rb_kw_olap - MoM Period
             queryClickHouse(`
                 SELECT brand_name_th, COUNT(*) AS overall_neno
-                FROM rb_kw
-                WHERE keyword_search_rank < 11 
-                  AND toDate(created_on) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
+                FROM rb_kw_olap
+                WHERE POSITION < 11 
+                  AND toDate(DATE) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
                 GROUP BY brand_name_th
             `),
-            // Query 12: SKU SOS Neno (Per Product) from rb_kw - Current Period
+            // Query 12: SKU SOS Neno (Per Product) from rb_kw_olap - Current Period
             queryClickHouse(`
                 SELECT keyword_search_product AS Product, COUNT(*) AS overall_neno
-                FROM rb_kw
-                WHERE keyword_search_rank < 11 
-                  AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
+                FROM rb_kw_olap
+                WHERE POSITION < 11 
+                  AND toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
                 GROUP BY Product
             `),
-            // Query 13: SKU SOS Neno (Per Product) from rb_kw - MoM Period
+            // Query 13: SKU SOS Neno (Per Product) from rb_kw_olap - MoM Period
             queryClickHouse(`
                 SELECT keyword_search_product AS Product, COUNT(*) AS overall_neno
-                FROM rb_kw
-                WHERE keyword_search_rank < 11 
-                  AND toDate(created_on) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
+                FROM rb_kw_olap
+                WHERE POSITION < 11 
+                  AND toDate(DATE) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
@@ -7986,8 +7986,8 @@ const getRcaData = async (filters = {}) => {
 
         // Build conditions for rb_kw
         const buildKwConds = (sDate, eDate) => {
-            const conds = [`toDate(created_on) BETWEEN '${sDate}' AND '${eDate}'`];
-            conds.push(`keyword_search_rank < 11`);
+            const conds = [`toDate(DATE) BETWEEN '${sDate}' AND '${eDate}'`];
+            conds.push(`POSITION < 11`);
             const platArr = normalizeFilterArray(platform);
             if (platArr && platArr.length > 0) {
                 conds.push(`platform_name IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
@@ -8038,16 +8038,16 @@ const getRcaData = async (filters = {}) => {
             WHERE ${conds}
         `;
 
-        // SOS query from rb_kw
+        // SOS query from rb_kw_olap
         const kwQuery = (conds) => `
         SELECT
         count() as total_kws,
-            countIf(toString(keyword_is_rb_product) = '1') as rb_kws,
-            countIf(toString(spons_flag) = '0' AND toString(keyword_is_rb_product) = '1') as organic_rb_kws,
-            countIf(toString(spons_flag) = '1' AND toString(keyword_is_rb_product) = '1') as ad_rb_kws,
-            countIf(toString(spons_flag) = '0') as organic_kws,
-            countIf(toString(spons_flag) = '1') as ad_kws
-            FROM rb_kw
+            countIf(toString(flag) = '1') as rb_kws,
+            countIf(toString(organic) = '1' AND toString(flag) = '1') as organic_rb_kws,
+            countIf(toString(spons) = '1' AND toString(flag) = '1') as ad_rb_kws,
+            countIf(toString(organic) = '1') as organic_kws,
+            countIf(toString(spons) = '1') as ad_kws
+            FROM rb_kw_olap
             WHERE ${conds}
         `;
 
@@ -8378,13 +8378,13 @@ const getSkuOverview = async (filters) => {
         return conds.join(' AND ');
     };
 
-    // Build SOS conditions for rb_kw (SKU level uses keyword_search_product)
+    // Build SOS conditions for rb_kw_olap (SKU level uses keyword_search_product)
     const buildSosSkuConds = (sDate, eDate) => {
-        const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`, `keyword_search_rank < 11`];
+        const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`, `POSITION < 11`];
         const pCond = buildPlatformChannelCond(skuPlatform, channel, 'platform_name');
         if (pCond) conds.push(pCond);
         if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `brand_name LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+            conds.push(`(${brandArr.map(b => `brand_name_th LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
         }
         if (locationArr && locationArr.length > 0) {
             conds.push(`location_name IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
@@ -8474,20 +8474,20 @@ const getSkuOverview = async (filters) => {
         )
                 `),
         // SOS by SKU (keyword_search_product)
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${currSosSkuConds} AND toString(keyword_is_rb_product) = '1' GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${currSosSkuConds} GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${prevSosSkuConds} AND toString(keyword_is_rb_product) = '1' GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${prevSosSkuConds} GROUP BY keyword_search_product`),
-        // Ad SOV by SKU (spons_flag=1)
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${currSosSkuConds} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1' GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${currSosSkuConds} AND toString(spons_flag) = '1' GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${prevSosSkuConds} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1' GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${prevSosSkuConds} AND toString(spons_flag) = '1' GROUP BY keyword_search_product`),
-        // Organic SOV by SKU (spons_flag=0)
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${currSosSkuConds} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '0' GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${currSosSkuConds} AND toString(spons_flag) = '0' GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${prevSosSkuConds} AND toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '0' GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw WHERE ${prevSosSkuConds} AND toString(spons_flag) = '0' GROUP BY keyword_search_product`)
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${currSosSkuConds} AND toString(flag) = '1' GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${currSosSkuConds} GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${prevSosSkuConds} AND toString(flag) = '1' GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${prevSosSkuConds} GROUP BY keyword_search_product`),
+        // Ad SOV by SKU (spons=1)
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${currSosSkuConds} AND toString(flag) = '1' AND toString(spons) = '1' GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${currSosSkuConds} AND toString(spons) = '1' GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${prevSosSkuConds} AND toString(flag) = '1' AND toString(spons) = '1' GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${prevSosSkuConds} AND toString(spons) = '1' GROUP BY keyword_search_product`),
+        // Organic SOV by SKU (organic=1)
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${currSosSkuConds} AND toString(flag) = '1' AND toString(organic) = '1' GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${currSosSkuConds} AND toString(organic) = '1' GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${prevSosSkuConds} AND toString(flag) = '1' AND toString(organic) = '1' GROUP BY keyword_search_product`),
+        queryClickHouse(`SELECT keyword_search_product, count() as count FROM rb_kw_olap WHERE ${prevSosSkuConds} AND toString(organic) = '1' GROUP BY keyword_search_product`)
     ]);
 
     const currMarketSize = parseFloat(currMsResult[0]?.total_sales || 0);

@@ -551,35 +551,23 @@ export const getSignalLabData = async (req, res) => {
             /* ================= 2. DEFINE METRIC & SORTING LOGIC ================= */
             const direction = signalType === 'gainer' ? 'DESC' : 'ASC';
 
-            let mainMetricExpr = '';
-            let metricExpr = '';
-            let havingClause = '';
+            // Main metric for sorting and classification: OSA Increment (OSA Change)
+            const mainOsaExpr = `(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
+            const compOsaExpr = `(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
+            
+            // This is the OSA increment logic requested by the user
+            const osaMetricExpr = `(ifNull(${mainOsaExpr}, 0) - ifNull(${compOsaExpr}, 0))`;
 
-            if (metricType === 'availability') {
-                // OSA columns are Int64 - use toFloat64() with 0.0 as else value for type matching
-                mainMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
-                const compMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
-                metricExpr = `(ifNull(${mainMetricExpr}, 0) - ifNull(${compMetricExpr}, 0))`;
+            // We use OSA change as the sort metric for ALL availability signal lab tabs (as per user request)
+            const sortMetric = osaMetricExpr;
 
-                havingClause = signalType === 'gainer'
-                    ? `HAVING ${metricExpr} > 0`
-                    : `HAVING ${metricExpr} < 0`;
-            } else {
-                const baseField = 'Sales';
-                mainMetricExpr = `sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(${baseField})), 0.0), 0.0))`;
-                const compMetricExprVal = `sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(${baseField})), 0.0), 0.0))`;
-                metricExpr = `((ifNull(${mainMetricExpr}, 0) - ifNull(${compMetricExprVal}, 0)) / nullIf(ifNull(${compMetricExprVal}, 0), 0)) * 100`;
+            const havingClause = signalType === 'gainer'
+                ? `HAVING ${sortMetric} > 0`
+                : `HAVING ${sortMetric} < 0`;
 
-                if (signalType === 'gainer') {
-                    havingClause = `HAVING (${metricExpr} > 0 OR (${compMetricExprVal} = 0 AND ${mainMetricExpr} > 0))`;
-                } else {
-                    havingClause = `HAVING ${metricExpr} < 0`;
-                }
-            }
-
-            /* ================= STEP 3: GET SORTED IDs (True Top N) ================= */
+            /* ================= STEP 3: GET SORTED IDs (By OSA Change) ================= */
             const skuQuery = `
-                SELECT Web_Pid, ${metricExpr} as sortMetric
+                SELECT Web_Pid, ${sortMetric} as sortMetric
                 FROM rb_pdp_olap
                 WHERE ${buildWhereClause(true)}
                 GROUP BY Web_Pid
@@ -642,19 +630,20 @@ export const getSignalLabData = async (req, res) => {
 
             const sortedRows = webPids.map(pid => rows.find(r => r.Web_Pid === pid)).filter(Boolean);
 
-            /* ================= STEP 6: City level data ================= */
+            /* ================= STEP 6: City level data (Current & Comparison) ================= */
             const cityAggQuery = `
                 SELECT
                     Web_Pid, Location,
-                    (sum(toFloat64(neno_osa)) / nullIf(sum(toFloat64(deno_osa)), 0)) * 100 AS osa,
-                    avg(toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0)) as roas,
-                    sum(toFloat64(Ad_Clicks)) as clicks,
-                    sum(toFloat64(Ad_Impressions)) as impressions,
-                    avg(toFloat64(Inventory)) as inventory,
-                    sum(toFloat64(Qty_Sold)) as qtySold
+                    (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
+                    (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS prev_osa,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) as roas,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) as clicks,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) as impressions,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) as inventory,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold
                 FROM rb_pdp_olap
                 WHERE Web_Pid IN (${webPidsStr})
-                    AND toDate(DATE) BETWEEN '${start}' AND '${end}'
+                    AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
                 GROUP BY Web_Pid, Location
             `;
 
@@ -671,12 +660,8 @@ export const getSignalLabData = async (req, res) => {
                 const compOsa = cDeno ? (cNeno / cDeno) * 100 : 0;
                 const osaChange = osa - compOsa;
 
-                let metricChange = osaChange;
-                if (metricType === 'sales' || metricType === 'performance' || metricType === 'inventory') {
-                    const curr = Number(item.currSales || 0);
-                    const prev = Number(item.prevSales || 0);
-                    metricChange = prev > 0 ? ((curr - prev) / prev) * 100 : (curr > 0 ? 100 : 0);
-                }
+                // As per user request, the primary impact metric is always the OSA Increment
+                const metricChange = osaChange;
 
                 const qty = Number(item.totalQtySold || 0);
                 const price = Number(item.avgPrice || 0);
@@ -730,13 +715,17 @@ export const getSignalLabData = async (req, res) => {
                 }
 
                 const podCities = cityRows.filter(c => c.Web_Pid === item.Web_Pid);
-                const sortedByImpact = podCities.sort((a, b) =>
-                    signalType === 'drainer' ? Number(a.osa) - Number(b.osa) : Number(b.osa) - Number(a.osa)
-                );
+                const sortedByImpact = podCities.sort((a, b) => {
+                    const diffA = Number(a.osa || 0) - Number(a.prev_osa || 0);
+                    const diffB = Number(b.osa || 0) - Number(b.prev_osa || 0);
+                    return signalType === 'drainer' ? diffA - diffB : diffB - diffA;
+                });
 
                 const topCities = sortedByImpact.slice(0, 2).map((c, idx) => {
-                    const dummyChange = (Math.random() * 2).toFixed(1);
-                    const impactSign = signalType === 'drainer' ? '-' : '+';
+                    const cityOsaNow = Number(c.osa || 0);
+                    const cityOsaWas = Number(c.prev_osa || 0);
+                    const cityOsaChange = cityOsaNow - cityOsaWas;
+                    const impactSign = cityOsaChange >= 0 ? '+' : '';
 
                     if (metricType === 'inventory') {
                         const cityQty = Number(c.qtySold || 0);
@@ -746,7 +735,7 @@ export const getSignalLabData = async (req, res) => {
                         return {
                             city: c.Location,
                             metric: idx === 0 ? `DOI ${cityDoi.toFixed(1)}` : `DRR ${Math.round(cityDrr)}`,
-                            change: idx === 0 ? `${impactSign}${dummyChange}` : `${impactSign}${Math.round(Math.random() * 5)}`
+                            change: `${impactSign}${cityOsaChange.toFixed(1)}%`
                         };
                     }
 
@@ -755,14 +744,14 @@ export const getSignalLabData = async (req, res) => {
                         return {
                             city: c.Location,
                             metric: idx === 0 ? `ROAS ${Number(c.roas || 0).toFixed(1)}x` : `Clicks ${cityClicks > 1000 ? (cityClicks / 1000).toFixed(1) + 'k' : cityClicks}`,
-                            change: idx === 0 ? `${impactSign}${dummyChange}x` : `${impactSign}${Math.round(Math.random() * 500)}`
+                            change: `${impactSign}${cityOsaChange.toFixed(1)}%`
                         };
                     }
 
                     return {
                         city: c.Location,
-                        metric: `OSA ${Number(c.osa).toFixed(1)}%`,
-                        change: `${impactSign}${dummyChange}%`
+                        metric: `OSA ${cityOsaNow.toFixed(1)}%`,
+                        change: `${impactSign}${cityOsaChange.toFixed(1)}%`
                     };
                 });
 
