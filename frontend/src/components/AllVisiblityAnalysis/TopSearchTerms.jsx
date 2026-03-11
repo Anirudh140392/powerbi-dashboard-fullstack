@@ -150,7 +150,7 @@ const DeltaIndicator = ({ value }) => {
 };
 
 export default function TopSearchTerms({ filter = "All", apiData }) {
-    const [selectedKeyword, setSelectedKeyword] = useState(null);
+    const [drilldownKeyword, setDrilldownKeyword] = useState(null);
     const [expandedCityRows, setExpandedCityRows] = useState(new Set());
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
@@ -166,7 +166,7 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
     const [modalPage, setModalPage] = useState(1);
     const [modalPageSize, setModalPageSize] = useState(5);
 
-    const { platform, location, timeStart, timeEnd } = useContext(FilterContext) || {};
+    const { platform, location, timeStart, timeEnd, selectedKeyword } = useContext(FilterContext) || {};
 
     // Select specific data based on tab filter
     // Use API data (already filtered by backend based on filter param)
@@ -180,7 +180,7 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
     }, [filter]);
 
     const handleBrandClick = async (keyword) => {
-        setSelectedKeyword(keyword);
+        setDrilldownKeyword(keyword);
         setShowOnlyLosers(false); // Reset toggle when opening a new drilldown
         setModalPage(1);
 
@@ -238,7 +238,7 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
     };
 
     const closeDrilldown = () => {
-        setSelectedKeyword(null);
+        setDrilldownKeyword(null);
         setSelectedBrands([]);
         setDrilldownData([]);
         setDrilldownLosers([]);
@@ -430,7 +430,7 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
 
             {/* Drilldown Modal */}
             <AnimatePresence>
-                {selectedKeyword && (
+                {drilldownKeyword && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -446,7 +446,7 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                         >
                             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
                                 <h4 className="text-sm font-semibold text-slate-800">
-                                    Brand Visibility for <span className="text-blue-600">"{selectedKeyword}"</span>
+                                    Brand Visibility for <span className="text-blue-600">"{drilldownKeyword}"</span>
                                 </h4>
                                 <div className="flex items-center gap-3">
                                     {/* Modal Tabs for All Brands vs Losers */}

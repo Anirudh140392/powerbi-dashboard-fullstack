@@ -16,6 +16,11 @@ const parseFilter = (val) => {
     return val;
 };
 
+/**
+ * Helper to escape SQL single quotes
+ */
+const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
 export const AvailabilityControlTower = async (req, res) => {
     try {
         const filters = req.query;
@@ -379,7 +384,7 @@ export const getAvailabilityCompetition = async (req, res) => {
 
         const data = await availabilityService.getAvailabilityCompetitionData(filters);
 
-        console.log('[RESPONSE]:', data.brands?.length, 'brands returned');
+        console.log('[RESPONSE] brands length:', data.brands?.length, 'skus length:', data.skus?.length);
         console.log('===================================================\n');
 
         res.json(data);
@@ -468,7 +473,8 @@ export const getSignalLabData = async (req, res) => {
                 type: metricType = 'availability',
                 page = 1,
                 limit = 4,
-                signalType = 'drainer'
+                signalType = 'drainer',
+                keyword = 'All'
             } = req.query;
 
             const pageNum = Number(page) || 1;
@@ -485,9 +491,6 @@ export const getSignalLabData = async (req, res) => {
             const daysInPeriod = dayjs(end).diff(dayjs(start), 'day') + 1;
 
             /* ================= 1. FILTER LOGIC (MULTI-SELECT) ================= */
-            // Helper to escape strings for SQL
-            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-
             const processFilter = (val) => {
                 if (!val || val === 'All') return null;
                 if (typeof val === 'string' && val.includes(',')) {
@@ -500,6 +503,7 @@ export const getSignalLabData = async (req, res) => {
             const locationFilter = processFilter(location);
             const brandFilter = processFilter(brand);
             const categoryFilter = processFilter(category);
+            const keywordFilter = processFilter(keyword);
 
             // Build WHERE clause for ClickHouse
             const buildWhereClause = (includeCompDates = false) => {
@@ -545,6 +549,14 @@ export const getSignalLabData = async (req, res) => {
                     conditions.push(`toString(Comp_flag) = '0'`);
                 }
 
+                if (keywordFilter) {
+                    if (Array.isArray(keywordFilter)) {
+                        conditions.push(`Keyword IN (${keywordFilter.map(k => `'${escapeStr(k)}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`Keyword = '${escapeStr(keywordFilter)}'`);
+                    }
+                }
+
                 return conditions.join(' AND ');
             };
 
@@ -554,16 +566,17 @@ export const getSignalLabData = async (req, res) => {
             // Main metric for sorting and classification: OSA Increment (OSA Change)
             const mainOsaExpr = `(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
             const compOsaExpr = `(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
-            
+
             // This is the OSA increment logic requested by the user
             const osaMetricExpr = `(ifNull(${mainOsaExpr}, 0) - ifNull(${compOsaExpr}, 0))`;
 
             // We use OSA change as the sort metric for ALL availability signal lab tabs (as per user request)
             const sortMetric = osaMetricExpr;
 
+            const threshold = 5; // User requested "drastic" changes, e.g., > 5%
             const havingClause = signalType === 'gainer'
-                ? `HAVING ${sortMetric} > 0`
-                : `HAVING ${sortMetric} < 0`;
+                ? `HAVING ${sortMetric} > ${threshold}`
+                : `HAVING ${sortMetric} < -${threshold}`;
 
             /* ================= STEP 3: GET SORTED IDs (By OSA Change) ================= */
             const skuQuery = `
@@ -794,7 +807,7 @@ export const getCityDetailsForProduct = async (req, res) => {
         const cacheKey = generateCacheKey('signal_lab_city_details', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
-            const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability' } = req.query;
+            const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer' } = req.query;
 
             if (!webPid) throw new Error('webPid is required');
 
@@ -803,15 +816,42 @@ export const getCityDetailsForProduct = async (req, res) => {
             const compStart = compareStartDate || '2025-11-01';
             const compEnd = compareEndDate || '2025-11-30';
 
-            // Helper to escape strings
-            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+            // Build WHERE clause with filters
+            const processFilter = (val) => {
+                if (!val || val === 'All') return null;
+                if (typeof val === 'string' && val.includes(',')) return val.split(',').map(v => v.trim());
+                return val;
+            };
 
-            // First get the category of this product for category share calculation
-            const categoryQuery = `
-                SELECT any(Category) as category FROM rb_pdp_olap WHERE Web_Pid = '${escapeStr(webPid)}'
-            `;
-            const catResult = await queryClickHouse(categoryQuery);
-            const productCategory = catResult[0]?.category || '';
+            const locationFilter = processFilter(req.query.location);
+            const categoryFilter = processFilter(req.query.category);
+
+            const buildConditions = (includeCompDates = false) => {
+                const conds = [`Web_Pid = '${escapeStr(webPid)}'`];
+                if (includeCompDates) {
+                    conds.push(`(toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')`);
+                } else {
+                    conds.push(`toDate(DATE) BETWEEN '${start}' AND '${end}'`);
+                }
+
+                if (platformFilter) {
+                    if (Array.isArray(platformFilter)) conds.push(`Platform IN (${platformFilter.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                    else conds.push(`Platform = '${escapeStr(platformFilter)}'`);
+                }
+                if (locationFilter) {
+                    if (Array.isArray(locationFilter)) conds.push(`Location IN (${locationFilter.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                    else conds.push(`Location = '${escapeStr(locationFilter)}'`);
+                }
+                if (brandFilter) {
+                    if (Array.isArray(brandFilter)) conds.push(`Brand IN (${brandFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+                    else conds.push(`Brand LIKE '%${escapeStr(brandFilter)}%'`);
+                }
+                if (categoryFilter) {
+                    if (Array.isArray(categoryFilter)) conds.push(`Category IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    else conds.push(`Category = '${escapeStr(categoryFilter)}'`);
+                }
+                return conds.join(' AND ');
+            };
 
             // Main query with all metrics
             const query = `
@@ -823,38 +863,20 @@ export const getCityDetailsForProduct = async (req, res) => {
                     -- Sales/Offtake metrics
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS offtake,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS compOfftake,
-                    -- Discount calculation: (MRP - Selling_Price) / MRP * 100
+                    -- Discount calculation
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}' AND toFloat64(MRP) > 0, 
                         (toFloat64(MRP) - toFloat64(Selling_Price)) / toFloat64(MRP) * 100, 0.0)) AS discount,
-                    -- For category share - we need total sales for this location
+                    -- Category share info
                     count() as rowCount
                 FROM rb_pdp_olap
-                WHERE Web_Pid = '${escapeStr(webPid)}'
-                  AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
+                WHERE ${buildConditions(true)}
                 GROUP BY Location
-                ORDER BY offtake DESC
+                ORDER BY abs(osa - compOsa) DESC
             `;
 
-            const rows = await queryClickHouse(query);
+            console.log(`[CityDetails] webPid=${webPid} query=`, query.replace(/\s+/g, ' '));
 
-            // Get category total sales per location for category share calculation
-            let catShareData = {};
-            if (productCategory) {
-                const catShareQuery = `
-                    SELECT
-                        Location,
-                        sum(toFloat64(Sales)) AS catTotal
-                    FROM rb_pdp_olap
-                    WHERE Category = '${escapeStr(productCategory)}'
-                      AND toDate(DATE) BETWEEN '${start}' AND '${end}'
-                      AND toString(Comp_flag) = '0'
-                    GROUP BY Location
-                `;
-                const catShareRows = await queryClickHouse(catShareQuery);
-                catShareRows.forEach(r => {
-                    catShareData[r.Location] = Number(r.catTotal || 0);
-                });
-            }
+            const rows = await queryClickHouse(query);
 
             const cities = rows.map(row => {
                 const osa = Number(row.osa || 0);
@@ -865,25 +887,23 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const compOfftake = Number(row.compOfftake || 0);
                 const offtakeChange = compOfftake > 0 ? ((offtake - compOfftake) / compOfftake) * 100 : 0;
 
-                // Category share: product sales / category total sales * 100
-                const catTotal = catShareData[row.city] || 0;
-                const catShare = catTotal > 0 ? (offtake / catTotal) * 100 : 0;
-
                 const discount = Number(row.discount || 0);
 
                 return {
                     city: row.city,
                     estOfftake: offtake / 100000, // Convert to lacs
                     estOfftakeChange: offtakeChange,
-                    estCatShare: catShare,
-                    estCatShareChange: 0, // Would need comparison period calc
                     wtOsa: osa,
                     wtOsaChange: osaChange,
                     overallSos: 0, // SOS requires rb_kw_olap table, not in rb_pdp_olap
                     adSos: 0, // SOS requires rb_kw_olap table
                     wtDisc: discount
                 };
-            });
+            })
+                // Filter by 5% OSA threshold: drainers show cities with OSA drop > 5%, gainers show cities with OSA rise > 5%
+                .filter(c => signalType === 'drainer' ? c.wtOsaChange < -5 : c.wtOsaChange > 5)
+                // Sort: drainers by biggest drop first, gainers by biggest rise first
+                .sort((a, b) => signalType === 'drainer' ? a.wtOsaChange - b.wtOsaChange : b.wtOsaChange - a.wtOsaChange);
 
             return { cities, totalCities: cities.length };
         }, CACHE_TTL.METRICS);
