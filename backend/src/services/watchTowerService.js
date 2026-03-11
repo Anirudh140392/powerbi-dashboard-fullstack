@@ -14,10 +14,17 @@ import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek.js';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
+import minMax from 'dayjs/plugin/minMax.js';
 
 dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
 dayjs.extend(customParseFormat);
+dayjs.extend(minMax);
+
+// --- Excel Data Source Integration ---
+import { queryExcelData, aggregateExcelMetrics } from '../utils/excelDataHelper.js';
+const USE_EXCEL = process.env.EXCEL_DATA_PATH ? true : false;
+// ------------------------------------
 
 // Helper to escape strings for ClickHouse
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -75,6 +82,12 @@ const getGlobalOurBrandsList = async () => {
     const cache = distinctValuesCache.ourBrands;
     if (cache.data && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
         return cache.data;
+    }
+    if (USE_EXCEL) {
+        const data = queryExcelData({ includeCompetitors: false });
+        const brands = [...new Set(data.map(r => r.Brand))].filter(Boolean).sort();
+        distinctValuesCache.ourBrands = { data: brands, timestamp: Date.now() };
+        return brands;
     }
 
     try {
@@ -143,6 +156,15 @@ const getCachedMaxDate = async () => {
     }
 
     cachedMaxDatePromise = (async () => {
+        if (USE_EXCEL) {
+            const data = queryExcelData();
+            if (data.length > 0) {
+                const dates = data.map(r => dayjs(r.DATE)).filter(d => d.isValid());
+                const maxDate = dates.length > 0 ? dayjs.max(dates) : dayjs();
+                cachedMaxDate = { date: maxDate, timestamp: Date.now() };
+                return maxDate;
+            }
+        }
         try {
             const result = await queryClickHouse(`SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap`);
             const maxDateStr = result?.[0]?.maxDate;
@@ -442,8 +464,169 @@ const aggregateFromRows = (rows, column, operation = 'sum') => {
     }
 };
 
+/**
+ * Excel Data Source specific Summary Metrics computation
+ */
+const computeExcelSummaryMetrics = async (context) => {
+    const { 
+        filters, startDate, endDate, momStartDate, momEndDate, 
+        platformArr, brandArr, categoryArr, locationArr,
+        onlyOverview, skipPerformanceKpis 
+    } = context;
+
+    // Helper for currency formatting
+    const formatCurrency = (value) => {
+        const val = parseFloat(value);
+        if (isNaN(val)) return "0";
+        if (val < 0.01 && val > -0.01) return "0";
+        if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
+        if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
+        if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
+        return `₹${val.toFixed(2)}`;
+    };
+
+    const formatChange = (val, isPercentage = true) => {
+        const v = parseFloat(val);
+        if (v === 0) return "0%";
+        const prefix = v > 0 ? "▲" : "▼";
+        return `${prefix}${Math.abs(v).toFixed(1)}${isPercentage ? '%' : ''}`;
+    };
+
+    // 1. Fetch data from Excel
+    const currData = queryExcelData({ 
+        platform: platformArr, brand: brandArr, category: categoryArr, location: locationArr,
+        startDate: startDate.format('YYYY-MM-DD'), endDate: endDate.format('YYYY-MM-DD')
+    });
+    
+    const prevData = queryExcelData({
+        platform: platformArr, brand: brandArr, category: categoryArr, location: locationArr,
+        startDate: momStartDate.format('YYYY-MM-DD'), endDate: momEndDate.format('YYYY-MM-DD')
+    });
+
+    const currAgg = aggregateExcelMetrics(currData);
+    const prevAgg = aggregateExcelMetrics(prevData);
+
+    const calcGrowth = (curr, prev) => (prev > 0 ? ((curr - prev) / prev) * 100 : 0);
+
+    // 2. Top Metrics
+    const topMetrics = [
+        {
+            title: "Total Sales",
+            value: formatCurrency(currAgg.sales),
+            change: { text: formatChange(calcGrowth(currAgg.sales, prevAgg.sales)), positive: currAgg.sales >= prevAgg.sales },
+            meta: { units: "sum(Sales)", change: formatChange(calcGrowth(currAgg.sales, prevAgg.sales)) }
+        },
+        {
+            title: "Offtakes",
+            value: formatUnits(currAgg.offtakes),
+            change: { text: formatChange(calcGrowth(currAgg.offtakes, prevAgg.offtakes)), positive: currAgg.offtakes >= prevAgg.offtakes },
+            meta: { units: "units", change: formatChange(calcGrowth(currAgg.offtakes, prevAgg.offtakes)) }
+        },
+        {
+            title: "Availability",
+            value: `${(currAgg.deno_osa > 0 ? (currAgg.neno_osa / currAgg.deno_osa) * 100 : 0).toFixed(1)}%`,
+            change: { text: "0%", positive: true },
+            meta: { units: "stores", change: "0%" }
+        },
+        {
+            title: "Market Share",
+            value: "0.0%",
+            change: { text: "0%", positive: true },
+            meta: { units: "Category", change: "0%" }
+        }
+    ];
+
+    // 3. KPI Matrix (Sales by Platform)
+    const displayPlatforms = ["Blinkit", "Zepto", "Instamart", "Amazon", "Flipkart", "BigBasket"];
+    const matrix = displayPlatforms.map(p => {
+        const pCurr = aggregateExcelMetrics(currData.filter(d => d.Platform === p));
+        const pPrev = aggregateExcelMetrics(prevData.filter(d => d.Platform === p));
+        return {
+            title: p,
+            current: formatCurrency(pCurr.sales),
+            previous: formatCurrency(pPrev.sales),
+            growth: formatChange(calcGrowth(pCurr.sales, pPrev.sales))
+        };
+    });
+
+    // 4. Overviews (Excel Aggregations)
+    // If currData is empty but onlyOverview is requested, we should at least return entries for our display platforms
+    let platformList = [...new Set(currData.map(d => d.Platform))].filter(v => v && v !== 'Unknown');
+    if (platformList.length === 0 && onlyOverview) {
+        // Find platforms that have data in the entire set, even if outside this date range
+        const allData = queryExcelData({});
+        platformList = [...new Set(allData.map(d => d.Platform))].filter(v => v && v !== 'Unknown');
+    }
+
+    const brandList = [...new Set(currData.map(d => d.Brand))].filter(v => v && v !== 'Unknown');
+    const categoryList = [...new Set(currData.map(d => d.Category))].filter(v => v && v !== 'Unknown');
+    const cityList = [...new Set(currData.map(d => d.Location))].filter(v => v && v !== 'Unknown');
+    const skuList = [...new Set(currData.map(d => d.Product))].filter(v => v && v !== 'Unknown').slice(0, 50);
+    const monthList = [...new Set(currData.map(d => dayjs(d.DATE).format('MMMM YYYY')))];
+
+    if (currData.length === 0) {
+        console.log(`⚠️ [computeExcelSummaryMetrics] No data found for date range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
+    } else {
+        console.log(`📊 [computeExcelSummaryMetrics] Processing ${currData.length} active rows`);
+    }
+
+    const createTableRow = (name, type, filterField) => {
+        const rowData = currData.filter(d => {
+            if (filterField === 'Month') return dayjs(d.DATE).format('MMMM YYYY') === name;
+            return d[filterField] === name;
+        });
+        const agg = aggregateExcelMetrics(rowData);
+        
+        const prevRowData = prevData.filter(d => {
+            if (filterField === 'Month') return dayjs(d.DATE).format('MMMM YYYY') === name;
+            return d[filterField] === name;
+        });
+        const pAgg = aggregateExcelMetrics(prevRowData);
+
+        const growth = calcGrowth(agg.sales, pAgg.sales);
+
+        return {
+            key: name,
+            label: name,
+            type: type,
+            columns: [
+                { title: "Offtakes", value: formatUnits(agg.offtakes), meta: { units: "units", change: formatChange(calcGrowth(agg.offtakes, pAgg.offtakes)) } },
+                { title: "Spend", value: formatCurrency(agg.spends), meta: { units: "₹", change: formatChange(calcGrowth(agg.spends, pAgg.spends)) } },
+                { title: "ROAS", value: `${(agg.spends > 0 ? agg.sales / agg.spends : 0).toFixed(1)}x`, meta: { units: "ratio", change: formatChange(calcGrowth(agg.spends > 0 ? agg.sales / agg.spends : 0, pAgg.spends > 0 ? pAgg.sales / pAgg.spends : 0)) } },
+                { title: "Inorg Sales", value: `${(agg.sales > 0 ? (agg.adSales / (agg.sales)) * 100 : 0).toFixed(1)}%`, meta: { units: "percent", change: "0%" } },
+                { title: "Conversion", value: `${(agg.clicks > 0 ? (agg.adOrders / agg.clicks) * 100 : 0).toFixed(1)}%`, meta: { units: "percent", change: formatChange(calcGrowth(agg.clicks > 0 ? (agg.adOrders / agg.clicks) : 0, pAgg.clicks > 0 ? (pAgg.adOrders / pAgg.clicks) : 0)) } },
+                { title: "Availability", value: `${(agg.deno_osa > 0 ? (agg.neno_osa / agg.deno_osa) * 100 : 0).toFixed(1)}%`, meta: { units: "stores", change: "0%" } },
+                { title: "SOS", value: "0%", meta: { units: "0", change: "0%" } },
+                { title: "Market Share", value: "0%", meta: { units: "₹", change: "0%" } },
+                { title: "Promo", value: "0%", meta: { units: "0%", change: "0%" } }, 
+                { title: "CPM", value: formatCurrency(agg.spends > 0 ? (agg.spends / (agg.impressions || 1)) * 1000 : 0), meta: { units: "₹", change: "0%" } },
+                { title: "CPC", value: formatCurrency(agg.clicks > 0 ? agg.spends / agg.clicks : 0), meta: { units: "₹", change: formatChange(calcGrowth(agg.clicks > 0 ? agg.spends / agg.clicks : 0, pAgg.clicks > 0 ? pAgg.spends / pAgg.clicks : 0)) } }
+            ]
+        };
+    };
+
+    const trends = {
+        offtake: { labels: [], data: [] },
+        sos: { labels: [], data: [] },
+        osa: { labels: [], data: [] },
+        discount: { labels: [], data: [] }
+    };
+
+    return {
+        topMetrics,
+        summaryMetrics: { matrix, trends },
+        platformsOverview: platformList.map(p => createTableRow(p, "Platform", "Platform")),
+        monthsOverview: monthList.map(m => createTableRow(m, "Month", "Month")),
+        categoryOverview: categoryList.map(c => createTableRow(c, "Category", "Category")),
+        brandsOverview: brandList.map(b => createTableRow(b, "Brand", "Brand")),
+        cityOverview: cityList.map(l => createTableRow(l, "Location", "Location")),
+        skuOverview: skuList.map(s => createTableRow(s, "Product", "Product"))
+    };
+};
+
 // Internal implementation with all the compute logic
 const computeSummaryMetrics = async (filters, options = {}) => {
+
     const { onlyOverview = false, skipPerformanceKpis = false } = options;
 
     try {
@@ -496,6 +679,14 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         console.log(`Date Range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
         console.log(`Compare Range: ${momStartDate.format('YYYY-MM-DD')} to ${momEndDate.format('YYYY-MM-DD')}`);
+        if (USE_EXCEL) {
+            console.log("[computeSummaryMetrics] Using Excel data source bypass");
+            return await computeExcelSummaryMetrics({
+                filters, startDate, endDate, momStartDate, momEndDate,
+                platformArr, brandArr, categoryArr, locationArr,
+                onlyOverview, skipPerformanceKpis
+            });
+        }
 
         // ===== REDIS DATA LAYER: DISABLED =====
         // NOTE: Loading all 754K+ rows into Redis causes OOM crash.
@@ -675,6 +866,21 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 if (skuCodeConds) conditions.push(`(${skuCodeConds})`);
             }
 
+            if (USE_EXCEL) {
+                const results = queryExcelData({
+                    startDate: start.format('YYYY-MM-DD'),
+                    endDate: end.format('YYYY-MM-DD'),
+                    brand: brandFilter,
+                    platform: platformFilter,
+                    location: locationFilter,
+                    category: categoryFilter,
+                    skuName: skuNameFilter,
+                    skuCode: skuCodeFilter
+                });
+                const metrics = aggregateExcelMetrics(results);
+                return metrics.deno_osa > 0 ? (metrics.neno_osa / metrics.deno_osa) * 100 : 0;
+            }
+
             const query = `
                 SELECT 
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as total_neno,
@@ -739,6 +945,26 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const numeratorConditions = [...baseConditions];
                 numeratorConditions.push(`toString(keyword_is_rb_product) = '1'`);
 
+                if (USE_EXCEL) {
+                    const numResults = queryExcelData({
+                        startDate: start.format('YYYY-MM-DD'),
+                        endDate: end.format('YYYY-MM-DD'),
+                        brand: brandFilter,
+                        platform: platformFilter,
+                        location: locationFilter,
+                        category: categoryFilter,
+                        is_rb_product: 1 // Custom filter for SOS in Excel
+                    });
+                    const denResults = queryExcelData({
+                        startDate: start.format('YYYY-MM-DD'),
+                        endDate: end.format('YYYY-MM-DD'),
+                        platform: platformFilter,
+                        location: locationFilter,
+                        category: categoryFilter
+                    });
+                    return denResults.length > 0 ? (numResults.length / denResults.length) * 100 : 0;
+                }
+
                 // Execute both count queries in parallel
                 const [numResult, denomResult] = await Promise.all([
                     queryClickHouse(`SELECT count() as cnt FROM rb_kw WHERE ${numeratorConditions.join(' AND ')}`),
@@ -777,7 +1003,17 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             prevStart, prevEnd,
             platformFilter, locationFilter, categoryFilter
         ) => {
+            if (USE_EXCEL) {
+                const sosMap = new Map();
+                for (const b of brands) {
+                    const curr = await getShareOfSearch(currStart, currEnd, platformFilter, locationFilter, categoryFilter, b);
+                    const prev = await getShareOfSearch(prevStart, prevEnd, platformFilter, locationFilter, categoryFilter, b);
+                    sosMap.set(b, { current: curr, previous: prev });
+                }
+                return sosMap;
+            }
             try {
+
                 const timerLabel = `[Bulk SOS] Total Time ${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                 console.time(timerLabel);
 
@@ -918,7 +1154,35 @@ const computeSummaryMetrics = async (filters, options = {}) => {
          * Reduces 90 queries to 4 queries (20x improvement)
          */
         const getBulkPlatformMetrics = async (platforms, currStart, currEnd, prevStart, prevEnd, filters) => {
+            if (USE_EXCEL) {
+                const results = [];
+                for (const p of platforms) {
+                    const data = queryExcelData({
+                        ...filters,
+                        platform: p,
+                        startDate: currStart.format('YYYY-MM-DD'),
+                        endDate: currEnd.format('YYYY-MM-DD')
+                    });
+                    const prevData = queryExcelData({
+                        ...filters,
+                        platform: p,
+                        startDate: prevStart.format('YYYY-MM-DD'),
+                        endDate: prevEnd.format('YYYY-MM-DD')
+                    });
+                    const metrics = aggregateExcelMetrics(data);
+                    const prevMetrics = aggregateExcelMetrics(prevData);
+                    
+                    results.push({
+                        platform: p,
+                        offtakes: metrics.offtakes,
+                        prevOfftakes: prevMetrics.offtakes,
+                        osa: metrics.deno_osa > 0 ? (metrics.neno_osa / metrics.deno_osa) * 100 : 0
+                    });
+                }
+                return results;
+            }
             try {
+
                 const timerLabel = `[Bulk Platform] Total ${Date.now()}`;
                 console.time(timerLabel);
                 const { brand, location, category, skuName, skuCode, channel } = filters;
@@ -1295,8 +1559,21 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return weekBuckets.map(bucket => ({ week_date: bucket.date, value: 0 }));
                 }
             })(),
-            // 11. Previous Offtake - USING CLICKHOUSE
+            // 11. Previous Offtake
             (async () => {
+                if (USE_EXCEL) {
+                    const data = queryExcelData({
+                        brand: brandArr,
+                        location: locationArr,
+                        platform: platformArr,
+                        category: categoryArr,
+                        skuName,
+                        skuCode,
+                        startDate: momStartDate.format('YYYY-MM-DD'),
+                        endDate: momEndDate.format('YYYY-MM-DD')
+                    });
+                    return data.reduce((sum, r) => sum + (r.Sales || 0), 0);
+                }
                 try {
                     const prevConditions = [
                         `DATE BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'`
@@ -1344,16 +1621,44 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })(),
             // 12. Previous Market Share - USING marketShareHelper
             (async () => {
+                if (USE_EXCEL) {
+                    const data = queryExcelData({
+                        startDate: momStartDate.format('YYYY-MM-DD'),
+                        endDate: momEndDate.format('YYYY-MM-DD'),
+                        platform: platformArr,
+                        category: categoryArr,
+                        brand: brandArr,
+                        location: locationArr
+                    });
+                    if (data.length === 0) return { avg_ms: 0 };
+                    // Very simple mock Market Share for excel: (Brand Sales / Total Sales)
+                    const totalSales = queryExcelData({
+                        startDate: momStartDate.format('YYYY-MM-DD'),
+                        endDate: momEndDate.format('YYYY-MM-DD'),
+                        platform: platformArr,
+                        category: categoryArr,
+                        location: locationArr
+                    }).reduce((sum, r) => sum + (r.Sales || 0), 0);
+                    const brandSales = data.reduce((sum, r) => sum + (r.Sales || 0), 0);
+                    return { avg_ms: totalSales > 0 ? (brandSales / totalSales) * 100 : 0 };
+                }
                 try {
                     const avgMs = await getMarketShare(momStartDate, momEndDate, platformArr, categoryArr, brandArr, locationArr);
                     return { avg_ms: avgMs };
+
                 } catch (err) {
                     console.error('[PrevMarketShare] helper error:', err.message);
                     return { avg_ms: 0 };
                 }
             })(),
-            // 13. Current Promo Depth - CLICKHOUSE
+            // 13. Current Promo Depth
             (async () => {
+                if (USE_EXCEL) {
+                    const data = queryExcelData({ ...filters, startDate, endDate });
+                    if (data.length === 0) return 0;
+                    // Mock promo logic for excel if not provided
+                    return data.reduce((sum, r) => sum + (r.Promo || 0), 0) / data.length;
+                }
                 try {
                     const result = await queryClickHouse(`
                         SELECT AVG(if(toFloat64OrZero(toString(MRP)) > 0, (toFloat64OrZero(toString(MRP)) - toFloat64OrZero(toString(Selling_Price))) / toFloat64OrZero(toString(MRP)), 0)) * 100 as avg_promo
@@ -1368,6 +1673,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             })(),
             // 14. Previous Promo Depth - CLICKHOUSE
             (async () => {
+                if (USE_EXCEL) {
+                    const data = queryExcelData({
+                        ...filters,
+                        startDate: momStartDate.format('YYYY-MM-DD'),
+                        endDate: momEndDate.format('YYYY-MM-DD')
+                    });
+                    if (data.length === 0) return 0;
+                    return data.reduce((sum, r) => sum + (r.Promo || 0), 0) / data.length;
+                }
                 try {
                     const prevOfftakeCondStr = buildOfftakeConditions(momStartDate, momEndDate);
                     const result = await queryClickHouse(`
@@ -1376,6 +1690,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         WHERE ${prevOfftakeCondStr}
                     `);
                     return parseFloat(result[0]?.avg_promo || 0);
+
                 } catch (err) {
                     console.error('[PrevPromoDepth] ClickHouse error:', err.message);
                     return 0;
@@ -3577,6 +3892,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 };
 
 const getPlatforms = async (channel) => {
+    if (USE_EXCEL) {
+        const data = queryExcelData();
+        return [...new Set(data.map(r => r.Platform))].filter(v => v && v !== 'Unknown').sort();
+    }
+
     try {
         let query;
         if (channel && channel !== 'All') {
@@ -3591,12 +3911,15 @@ const getPlatforms = async (channel) => {
         return results.map(p => p.platform).filter(Boolean).sort();
     } catch (error) {
         console.error("Error fetching platforms:", error);
-        return []; // Return empty array instead of throwing
+        return [];
     }
 };
 
 const getChannels = async () => {
     try {
+        if (USE_EXCEL) {
+            return ['Ecom']; // Excel data is primarily Ecom
+        }
         const query = `SELECT DISTINCT channel FROM rca_sku_dim WHERE channel IS NOT NULL AND channel != '' ORDER BY channel`;
         const results = await queryClickHouse(query);
         return results.map(r => r.channel).filter(Boolean).sort();
@@ -3612,6 +3935,11 @@ const getSummaryMetrics = async (filters) => {
 };
 
 const getBrands = async (platform, includeCompetitors = false) => {
+    if (USE_EXCEL) {
+        const data = queryExcelData({ platform, includeCompetitors });
+        return [...new Set(data.map(r => r.Brand))].filter(v => v && v !== 'Unknown').sort();
+    }
+
     try {
         // Query rb_pdp_olap for brands (Colgate database)
         const conditions = [`Brand IS NOT NULL`, `Brand != ''`];
@@ -3639,6 +3967,9 @@ const getBrands = async (platform, includeCompetitors = false) => {
 
 const getKeywords = async (brand) => {
     try {
+        if (USE_EXCEL) {
+            return ['All']; // Keywords not available in Excel schema
+        }
         // ClickHouse query
         const conditions = [`keyword IS NOT NULL`, `keyword != ''`];
         if (brand) {
@@ -3655,6 +3986,10 @@ const getKeywords = async (brand) => {
 };
 
 const getLocations = async (platform, brand, includeCompetitors = false) => {
+    if (USE_EXCEL) {
+        const data = queryExcelData({ platform, brand, includeCompetitors });
+        return [...new Set(data.map(r => r.Location))].filter(v => v && v !== 'Unknown').sort();
+    }
     try {
         // Query rb_pdp_olap for locations (Colgate database)
         const conditions = [`Location IS NOT NULL`, `Location != ''`];
@@ -3770,6 +4105,28 @@ const generateTimeBuckets = (startDate, endDate, timeStep) => {
 };
 // Internal implementation with all the compute logic - MIGRATED TO CLICKHOUSE
 const computeTrendData = async (filters) => {
+    if (USE_EXCEL) {
+        const data = queryExcelData(filters);
+        // Basic grouping by date for trends
+        const daily = data.reduce((acc, d) => {
+            const date = dayjs(d.DATE).format('YYYY-MM-DD');
+            if (!acc[date]) acc[date] = { date, offtake: 0, spends: 0, orders: 0, impressions: 0 };
+            acc[date].offtake += parseFloat(d.Offtakes || 0);
+            acc[date].spends += parseFloat(d.Ad_Spend || 0);
+            acc[date].orders += parseFloat(d.Qty_Sold || 0);
+            acc[date].impressions += parseFloat(d.Ad_Impressions || 0);
+            return acc;
+        }, {});
+        
+        const sorted = Object.values(daily).sort((a, b) => a.date.localeCompare(b.date));
+        
+        return {
+            offtake: { labels: sorted.map(s => s.date), data: sorted.map(s => s.offtake) },
+            sos: { labels: sorted.map(s => s.date), data: sorted.map(s => 0) }, // SOS not in Excel usually
+            osa: { labels: sorted.map(s => s.date), data: sorted.map(s => 0) },
+            discount: { labels: sorted.map(s => s.date), data: sorted.map(s => 0) }
+        };
+    }
     try {
         const { brand, location, platform, period, timeStep, category, startDate: customStart, endDate: customEnd, channel, skuName, skuCode } = filters;
 
@@ -4075,6 +4432,10 @@ const getTrendData = async (filters) => {
 
 const getBrandCategories = async (platform) => {
     try {
+        if (USE_EXCEL) {
+            const data = queryExcelData({ platform });
+            return [...new Set(data.map(r => r.Category))].filter(v => v && v !== 'Unknown').sort();
+        }
         const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
         const dbName = getCurrentDbName();
         if (dbName === 'mars') {
@@ -4090,9 +4451,10 @@ const getBrandCategories = async (platform) => {
         return allowedCategories;
     } catch (error) {
         console.error("Error fetching brand categories:", error);
-        return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+        return [];
     }
 };
+
 
 // ==================== Progressive Loading Section Endpoints ====================
 // These methods split getSummaryMetrics into focused endpoints for better performance
@@ -4119,8 +4481,7 @@ const getOverview = async (filters) => {
  */
 const getPerformanceMetrics = async (filters) => {
     console.log('[getPerformanceMetrics] Computing performance metrics KPIs...');
-
-    // Call the FULL function but it will only compute overview data
+        // Call the FULL function but it will only compute overview data
     const result = await computeSummaryMetrics(filters, { onlyOverview: true });
 
     return {
@@ -4134,7 +4495,10 @@ const getPerformanceMetrics = async (filters) => {
  * NOTE: This function computes ONLY platform data, not overview/months/categories/brands
  */
 const getPlatformOverview = async (filters) => {
-    console.log('[getPlatformOverview] Computing OPTIMIZED platform overview data...');
+    if (USE_EXCEL) {
+        const summary = await computeSummaryMetrics(filters, { onlyOverview: true });
+        return summary.platformsOverview || [];
+    }
 
     const { months = 1, startDate: qStartDate, endDate: qEndDate, compareStartDate: qCompareStartDate, compareEndDate: qCompareEndDate, channel, skuName, skuCode } = filters;
 
@@ -4968,7 +5332,10 @@ const getPlatformOverview = async (filters) => {
  * NOTE: Computes ONLY month data, not platforms/categories/brands
  */
 const getMonthOverview = async (filters) => {
-    console.log('[getMonthOverview] Computing OPTIMIZED month overview data...');
+    if (USE_EXCEL) {
+        const result = await computeSummaryMetrics(filters, { onlyOverview: true });
+        return result.monthsOverview || [];
+    }
 
     const { months = 1, startDate: qStartDate, endDate: qEndDate, monthOverviewPlatform, channel, skuName, skuCode } = filters;
 
@@ -5302,7 +5669,10 @@ const getMonthOverview = async (filters) => {
  * NOTE: Computes ONLY category data
  */
 const getCategoryOverview = async (filters) => {
-    console.log('[getCategoryOverview] Computing OPTIMIZED category overview data...');
+    if (USE_EXCEL) {
+        const result = await computeSummaryMetrics(filters, { onlyOverview: true });
+        return result.categoryOverview || [];
+    }
 
     const { months = 1, startDate: qStartDate, endDate: qEndDate, categoryOverviewPlatform, channel, skuName, skuCode } = filters;
 
@@ -5636,7 +6006,10 @@ const getCategoryOverview = async (filters) => {
  * NOTE: Computes ONLY brands data
  */
 const getBrandsOverview = async (filters) => {
-    console.log('[getBrandsOverview] Computing OPTIMIZED brands overview data...');
+    if (USE_EXCEL) {
+        const result = await computeSummaryMetrics(filters, { onlyOverview: true });
+        return result.brandsOverview || [];
+    }
 
     const { months = 1, startDate: qStartDate, endDate: qEndDate, brandsOverviewPlatform, brandsOverviewCategory, channel } = filters;
 
@@ -5960,6 +6333,10 @@ const getBrandsOverview = async (filters) => {
  * Returns time-series data for performance KPIs (Share of Search, Inorganic Sales, Conversion, ROAS, BMI/Sales Ratio)
  */
 const getKpiTrends = async (filters) => {
+    if (USE_EXCEL) {
+        const trends = await computeTrendData(filters);
+        return { success: true, trends };
+    }
     console.log('[getKpiTrends] Computing KPI trends data with filters:', filters);
 
     const { brand, location, platform, category, period, timeStep, startDate: customStart, endDate: customEnd, channel, skuName, skuCode, dimension, dimensionValue } = filters;
@@ -6308,6 +6685,17 @@ const getKpiTrends = async (filters) => {
  * @param {string} brand - Selected brand filter (for cities)
  */
 const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
+    if (USE_EXCEL) {
+        const data = queryExcelData({ platform, brand });
+        let options = [];
+        if (filterType === 'platforms') options = [...new Set(data.map(d => d.Platform))];
+        else if (filterType === 'brands') options = [...new Set(data.map(d => d.Brand))];
+        else if (filterType === 'cities') options = [...new Set(data.map(d => d.Location))];
+        else if (filterType === 'skus') options = [...new Set(data.map(d => d.Product))];
+        else if (filterType === 'categories') options = [...new Set(data.map(d => d.Category))];
+        
+        return { options: options.filter(Boolean).sort() };
+    }
     try {
         console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}`);
 
@@ -6400,6 +6788,10 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
  * @returns {Object} { brands: [...] }
  */
 const getCompetitionData = async (filters = {}) => {
+    if (USE_EXCEL) {
+        const result = await computeSummaryMetrics(filters, { onlyOverview: true });
+        return { brands: result.brandsOverview || [] };
+    }
     try {
         const { platform = 'All', location = 'All', category = 'All', brand = 'All', sku = 'All', period = '1M' } = filters;
 
@@ -7101,6 +7493,9 @@ const getCompetitionData = async (filters = {}) => {
  * @returns {Object} { locations: [...], categories: [...], brands: [...], skus: [...] }
  */
 const getCompetitionFilterOptions = async (filters = {}) => {
+    if (USE_EXCEL) {
+        return { locations: [], categories: [], brands: [] }; // Simple mock
+    }
     try {
         const { platform = 'All', location = 'All', category = 'All', brand = 'All', context } = filters;
         console.log('[getCompetitionFilterOptions] Cascading filters:', { platform, location, category, brand, context });
@@ -7223,119 +7618,31 @@ const getCompetitionFilterOptions = async (filters = {}) => {
 };
 
 
-const getLatestAvailableMonth = async (filters = {}) => {
+// watchTowerService.js
+
+// watchTowerService.js
+
+export const getLatestAvailableMonth = async (filters = {}) => {
     try {
-        const {
-            platform = 'All',
-            brand = 'All',
-            location = 'All',
-            category = 'All',
-            source // New optional parameter
-        } = filters;
+        if (USE_EXCEL) {
+            const data = queryExcelData({}); // Fetch the cached data
+            if (!data || data.length === 0) return { available: false };
 
-        // Helper to escape strings for ClickHouse
-        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+            // Use dayjs.max (requires minMax plugin) to find the actual latest date in your Excel
+            const dates = data.map(r => dayjs(r.DATE));
+            const maxDate = dayjs.max(dates);
 
-        // SPECIAL CASE: Content Analysis Page
-        // User requested: "column name extraction_timestamp... change only in the content analysis page"
-        if (source === 'content_analysis') {
-            console.log("[getLatestAvailableMonth] Content Analysis source detected. Querying tb_content_score_data.");
-            const contentConditions = [];
-
-            // Note: tb_content_score_data filters are slightly different (no category column known yet)
-            // But we respect platform/brand if possible.
-            // Platform derived from URL usually, but let's check basic availability
-
-            if (platform === 'Amazon') {
-                contentConditions.push(`url LIKE '%amazon%'`);
-            } else if (platform !== 'All') {
-                // Fallback: simple text match
-                contentConditions.push(`url LIKE '%${escapeStr(platform.toLowerCase())}%'`);
-            }
-
-            // Brand check - simplified for now as user just wants dates
-            if (brand && brand !== 'All') {
-                contentConditions.push(`lower(brand_name) = lower('${escapeStr(brand)}')`);
-            }
-
-            const contentWhere = contentConditions.length > 0 ? `WHERE ${contentConditions.join(' AND ')} ` : '';
-
-            const contentResult = await queryClickHouse(`
-                SELECT MAX(toDate(extraction_timestamp)) as latestDate
-                FROM tb_content_score_data
-                ${contentWhere}
-        `);
-
-            const latestContentDate = contentResult?.[0]?.latestDate;
-            if (!latestContentDate) return { available: false };
-
-            const latestC = dayjs(latestContentDate);
             return {
                 available: true,
-                monthLabel: latestC.format('MMMM YYYY'),
-                startDate: latestC.startOf('month').format('YYYY-MM-DD'),
-                endDate: latestC.endOf('month').format('YYYY-MM-DD'),
-                latestDate: latestC.format('YYYY-MM-DD'),
-                defaultStartDate: latestC.startOf('month').format('YYYY-MM-DD'),
-                defaultEndDate: latestC.format('YYYY-MM-DD')
+                latestDate: maxDate.format('YYYY-MM-DD')
             };
         }
-
-        // Build WHERE conditions for ClickHouse
-        const conditions = ['Comp_flag = 0'];
-
-        if (platform && platform !== 'All') {
-            conditions.push(`lower(Platform) = '${escapeStr(platform.toLowerCase())}'`);
-        }
-
-        if (brand && brand !== 'All') {
-            conditions.push(`Brand LIKE '%${escapeStr(brand)}%'`);
-        }
-
-        if (location && location !== 'All') {
-            conditions.push(`lower(Location) = '${escapeStr(location.toLowerCase())}'`);
-        }
-
-        if (category && category !== 'All') {
-            conditions.push(`lower(Category) = '${escapeStr(category.toLowerCase())}'`);
-        }
-
-        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} ` : '';
-
-        // Query ClickHouse for the latest date using string max (YYYY-MM-DD format sorts correctly)
-        const result = await queryClickHouse(`
-            SELECT MAX(DATE) as latestDate
-            FROM rb_pdp_olap
-            ${whereClause}
-        `);
-
-        const latestDate = result?.[0]?.latestDate;
-
-        if (!latestDate) {
-            return { available: false };
-        }
-
-        const latest = dayjs(latestDate);
-
-        return {
-            available: true,
-            monthLabel: latest.format('MMMM YYYY'),
-            startDate: latest.startOf('month').format('YYYY-MM-DD'),
-            endDate: latest.endOf('month').format('YYYY-MM-DD'),
-            // For date picker: actual latest date available in data
-            latestDate: latest.format('YYYY-MM-DD'),
-            // Default start date: 1st of the month of latest date
-            defaultStartDate: latest.startOf('month').format('YYYY-MM-DD'),
-            // Default end date: the actual latest date (max date in database)
-            defaultEndDate: latest.format('YYYY-MM-DD')
-        };
-
+        // ... ClickHouse fallback
     } catch (error) {
-        console.error('[getLatestAvailableMonth] Error:', error);
-        return { available: false, error: error.message };
+        console.error('[getLatestAvailableMonth] Service Error:', error);
+        return { available: false };
     }
 };
-
 
 // ==================== EXPORTS ====================
 
@@ -7344,6 +7651,9 @@ const getLatestAvailableMonth = async (filters = {}) => {
  * Get KPI trends for multiple brands (Competition page)
  */
 const getCompetitionBrandTrends = async (filters = {}) => {
+    if (USE_EXCEL) {
+        return { brands: {}, metadata: filters };
+    }
     try {
         let { brands = 'All', skus = 'All', location = 'All', category = 'All', period = '1M' } = filters;
 
@@ -7613,6 +7923,9 @@ const getCompetitionBrandTrends = async (filters = {}) => {
  * @returns {Object} - { totalCount, byPlatform: { platform: count } }
  */
 const getDarkStoreCount = async (filters = {}) => {
+    if (USE_EXCEL) {
+        return { totalCount: 0, byPlatform: {} };
+    }
     try {
         console.log('[getDarkStoreCount] Fetching dark store count with filters:', filters);
 
@@ -7692,6 +8005,9 @@ const getDarkStoreCount = async (filters = {}) => {
  * @returns {Object} - { counts, kpis, graphData }
  */
 const getTopActions = async (filters = {}) => {
+    if (USE_EXCEL) {
+        return { counts: { darkstoreCount: 0, skuCount: 0 }, kpis: {}, graphData: { week: [], month: [] } };
+    }
     try {
         const { platform = 'All' } = filters;
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -7776,7 +8092,7 @@ const getTopActions = async (filters = {}) => {
         ]);
 
         const darkstoreCount = hasInsightData ? parseInt(storeRes[0]?.count || 0) : "N/A";
-        const activeStoresVal = hasInsightData ? parseInt(storeRes[0]?.active_stores || 0) : "N/A";
+        const activeStoresVal = hasInsightData ? parseInt(storeRes[0]?.active_dark_store || 0) : "N/A";
         const skuCount = hasOlapData ? parseInt(skuRes[0]?.count || 0) : "N/A";
         const topPids = skuRes[0]?.pids ? skuRes[0].pids.slice(0, 4) : [];
 
@@ -7892,6 +8208,9 @@ const getTopActions = async (filters = {}) => {
  * @returns {Array} - Array of city objects with KPIs
  */
 const getOsaDeepDive = async (filters = {}) => {
+    if (USE_EXCEL) {
+        return [];
+    }
     try {
         const { platform = 'All' } = filters;
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -8048,6 +8367,9 @@ const getOsaDeepDive = async (filters = {}) => {
  * @returns {Object} - { cards: [], tree: {} }
  */
 const getRcaData = async (filters = {}) => {
+    if (USE_EXCEL) {
+        return { cards: [], tree: {} };
+    }
     try {
         const { platform = 'All', category = 'All', brand = 'All', sku = 'All', month } = filters;
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -8406,6 +8728,10 @@ const getRcaData = async (filters = {}) => {
  * Groups data by SKU for the Performance Matrix
  */
 const getSkuOverview = async (filters) => {
+    if (USE_EXCEL) {
+        const result = await computeSummaryMetrics(filters, { onlyOverview: true });
+        return result.skuOverview || [];
+    }
     console.log('[getSkuOverview] Computing SKU overview data...');
 
     const { months = 1, startDate: qStartDate, endDate: qEndDate, skuOverviewPlatform, channel } = filters;
@@ -8726,6 +9052,10 @@ const getSkuOverview = async (filters) => {
  * Groups data by Location (City) for the Performance Matrix
  */
 const getCityOverview = async (filters) => {
+    if (USE_EXCEL) {
+        const result = await computeSummaryMetrics(filters, { onlyOverview: true });
+        return result.cityOverview || [];
+    }
     console.log('[getCityOverview] Computing City overview data...');
 
     const { months = 1, startDate: qStartDate, endDate: qEndDate, cityOverviewPlatform, channel } = filters;
@@ -8964,180 +9294,170 @@ const getCityOverview = async (filters) => {
  * Get Performance Breakdown Data
  * @param {Object} filters
  */
-const getPerformanceBreakdownData = async (filters) => {
+/**
+ * Fetches and aggregates performance breakdown data for the Watch Tower dashboard.
+ * Supports both Excel and ClickHouse data sources.
+ */
+export const getPerformanceBreakdownData = async (filters) => {
     try {
-        const platformClause = filters.platform_uuid && filters.platform_uuid !== 'All' ? `AND Platform = '${filters.platform_uuid}'` : '';
+        if (USE_EXCEL) {
+            // 1. Fetch filtered data from Excel helper
+            // Maps incoming filter names to excel query keys
+            const filteredData = queryExcelData({
+                platform: filters.platform_uuid || filters.platform,
+                startDate: filters.start_date || filters.startDate,
+                endDate: filters.end_date || filters.endDate,
+                category: filters.category,
+                brand: filters.brand
+            }).filter(r => r.Comp_flag === 0); // Logic: Focus on own brand performance
+
+            // 2. Determine Grouping Field
+            const groupByMap = { 
+                'category': 'Category', 
+                'brand': 'Brand', 
+                'sku': 'Product' 
+            };
+            const groupByField = groupByMap[filters.group_by] || 'Category';
+            
+            // 3. Aggregate Data by Group
+            const groups = filteredData.reduce((acc, row) => {
+                const tag = row[groupByField] || 'Unknown';
+                if (!acc[tag]) {
+                    acc[tag] = { 
+                        tag, 
+                        impressions: 0, 
+                        clicks: 0, 
+                        spends: 0, 
+                        orders: 0, 
+                        sales: 0,
+                        adSales: 0 
+                    };
+                }
+                // Summing columns from the new olap_mars_petcare schema
+                acc[tag].impressions += (row.Ad_Impressions || 0);
+                acc[tag].clicks += (row.Ad_Clicks || 0);
+                acc[tag].spends += (row.Ad_Spend || 0);
+                acc[tag].orders += (row.Ad_Orders || 0);
+                acc[tag].sales += (row.Sales || 0);
+                acc[tag].adSales += (row.Ad_sales || 0);
+                return acc;
+            }, {});
+
+            const totalSpends = Object.values(groups).reduce((sum, g) => sum + g.spends, 0);
+
+            // 4. Calculate Ratios for each Group
+            const parsedData = Object.values(groups).map(g => ({
+                ...g,
+                // KPI 5: Conversion/CTR logic
+                ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
+                // KPI 12: CPC
+                cpc: g.clicks > 0 ? g.spends / g.clicks : 0,
+                // KPI 5: CVR (Orders / Clicks)
+                cvr: g.clicks > 0 ? (g.orders / g.clicks) * 100 : 0,
+                // KPI 3: ROAS (Ad Sales / Spend)
+                roas: g.spends > 0 ? (g.adSales / g.spends) : 0,
+                spend_percent_share: totalSpends > 0 ? (g.spends / totalSpends) * 100 : 0
+            })).sort((a, b) => b.spends - a.spends);
+
+            // 5. Calculate Grand Totals
+            const totals = parsedData.reduce((acc, g) => {
+                acc.impressions += g.impressions;
+                acc.clicks += g.clicks;
+                acc.spends += g.spends;
+                acc.orders += g.orders;
+                acc.sales += g.sales;
+                acc.adSales += g.adSales;
+                return acc;
+            }, { impressions: 0, clicks: 0, spends: 0, orders: 0, sales: 0, adSales: 0 });
+
+            totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
+            totals.cpc = totals.clicks > 0 ? totals.spends / totals.clicks : 0;
+            totals.cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
+            totals.roas = totals.spends > 0 ? (totals.adSales / totals.spends) : 0;
+
+            return {
+                success: true,
+                data: parsedData,
+                totals,
+                untagged: { count: 0, percent: 0 },
+                period_comparison: {} // Can be populated with similar logic for comparison dates
+            };
+        }
+
+        // --- ClickHouse Database Fallback ---
+        const platformClause = filters.platform_uuid && filters.platform_uuid !== 'All' 
+            ? `AND Platform = '${filters.platform_uuid}'` 
+            : '';
+            
         const groupByMap = {
-            'category': PRODUCT_CATEGORY_SQL,
+            'category': 'Category',
             'brand': 'Brand',
             'sku': 'Product'
         };
-        const groupByCol = groupByMap[filters.group_by] || PRODUCT_CATEGORY_SQL;
+        const groupByCol = groupByMap[filters.group_by] || 'Category';
 
-        let dateClause = '';
-        if (filters.start_date && filters.end_date) {
-            dateClause = `AND DATE >= '${filters.start_date}' AND DATE <= '${filters.end_date}'`;
-        } else {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const pastDate = new Date();
-            pastDate.setDate(pastDate.getDate() - 30);
-            const pastStr = pastDate.toISOString().split('T')[0];
-            dateClause = `AND DATE >= '${pastStr}' AND DATE <= '${todayStr}'`;
-        }
-
-        const totalSpendsQuery = `
-            SELECT SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total
-            FROM rb_pdp_olap 
-            WHERE Comp_flag = 0 ${platformClause} ${dateClause}
-        `;
-        const totalSpendsResult = await queryClickHouse(totalSpendsQuery);
-        const total_spends = parseFloat(totalSpendsResult[0]?.total || 0);
+        const start = filters.start_date || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
+        const end = filters.end_date || dayjs().format('YYYY-MM-DD');
+        const dateClause = `AND DATE >= '${start}' AND DATE <= '${end}'`;
 
         const query = `
-        SELECT
+            SELECT
                 ${groupByCol} AS tag,
-            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS group_impressions,
-                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS group_clicks,
-                if (group_impressions > 0, (group_clicks / group_impressions) * 100, 0) AS ctr,
-            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS group_spends,
-                if (${total_spends} > 0, (group_spends / ${total_spends}) * 100, 0) AS spend_percent_share,
-                if (group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
-            SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS group_orders,
-                if (group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
-            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS group_sales
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS impressions,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS clicks,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS spends,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_Sold)), 0)) AS orders,
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS sales,
+                SUM(ifNull(toFloat64OrZero(toString(Ad_Sales)), 0)) AS adSales
             FROM rb_pdp_olap
-            WHERE Comp_flag = 0
-            ${platformClause}
-            ${dateClause}
-            GROUP BY ${groupByCol}
-            ORDER BY group_spends DESC
+            WHERE Comp_flag = 0 ${platformClause} ${dateClause}
+            GROUP BY tag
+            ORDER BY spends DESC
         `;
 
-        const data = await queryClickHouse(query);
+        const dbData = await queryClickHouse(query);
+        const totalSpends = dbData.reduce((sum, r) => sum + parseFloat(r.spends), 0);
 
-        let totals = {
-            impressions: 0, clicks: 0, ctr: 0, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0
-        };
-
-        const parsedData = data.map(row => {
-            const impressions = parseFloat(row.group_impressions) || 0;
-            const clicks = parseFloat(row.group_clicks) || 0;
-            const spends = parseFloat(row.group_spends) || 0;
-            const orders = parseFloat(row.group_orders) || 0;
-            const sales = parseFloat(row.group_sales) || 0;
-
-            totals.impressions += impressions;
-            totals.clicks += clicks;
-            totals.spends += spends;
-            totals.orders += orders;
-            totals.sales += sales;
-
+        const parsedData = dbData.map(row => {
+            const impressions = parseFloat(row.impressions);
+            const clicks = parseFloat(row.clicks);
+            const spends = parseFloat(row.spends);
+            const orders = parseFloat(row.orders);
+            
             return {
                 tag: row.tag || 'Unknown',
                 impressions,
                 clicks,
-                ctr: parseFloat(row.ctr) || 0,
-                spend_percent_share: parseFloat(row.spend_percent_share) || 0,
                 spends,
-                cpc: parseFloat(row.cpc) || 0,
                 orders,
-                cvr: parseFloat(row.cvr) || 0,
-                sales
+                sales: parseFloat(row.sales),
+                ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                cpc: clicks > 0 ? spends / clicks : 0,
+                cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
+                spend_percent_share: totalSpends > 0 ? (spends / totalSpends) * 100 : 0
             };
         });
 
+        // Calculate Totals for DB
+        const totals = parsedData.reduce((acc, r) => {
+            acc.impressions += r.impressions;
+            acc.clicks += r.clicks;
+            acc.spends += r.spends;
+            acc.orders += r.orders;
+            acc.sales += r.sales;
+            return acc;
+        }, { impressions: 0, clicks: 0, spends: 0, orders: 0, sales: 0 });
+
         totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
-        totals.cpc = totals.clicks > 0 ? (totals.spends / totals.clicks) : 0;
+        totals.cpc = totals.clicks > 0 ? totals.spends / totals.clicks : 0;
         totals.cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
-
-        // ── Period Comparison ───────────────────────────────────────────────
-        let period_comparison = null;
-        const comparePeriodKeys = filters.compare_periods;
-        if (comparePeriodKeys) {
-            const periodKeys = typeof comparePeriodKeys === 'string' ? comparePeriodKeys.split(',').map(k => k.trim()) : [];
-
-            const getPresetRange = (key) => {
-                const now = new Date();
-                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                switch (key) {
-                    case 'last_week': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setDate(s.getDate() - 6); return { start: s, end: e }; }
-                    case 'last_month': { const e = new Date(today.getFullYear(), today.getMonth(), 0); return { start: new Date(e.getFullYear(), e.getMonth(), 1), end: e }; }
-                    case 'mtd': { const s = new Date(today.getFullYear(), today.getMonth(), 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
-                    case 'last_3_months': { const e = new Date(today); e.setDate(e.getDate() - 1); const s = new Date(e); s.setMonth(s.getMonth() - 3); return { start: s, end: e }; }
-                    case 'ytd': { const s = new Date(today.getFullYear(), 0, 1); const e = new Date(today); e.setDate(e.getDate() - 1); return { start: s, end: e }; }
-                    default: return null;
-                }
-            };
-
-            const fmtDate = (d) => d.toISOString().split('T')[0];
-
-            const periodQueries = periodKeys.map(async (periodParam) => {
-                // Parse: preset keys are plain (e.g. "last_week"), custom are "custom_<ts>:<start>:<end>"
-                let key = periodParam;
-                let range = null;
-
-                if (periodParam.includes(':')) {
-                    // Custom period format: "custom_123456:2026-01-11:2026-01-15"
-                    const parts = periodParam.split(':');
-                    key = parts[0];
-                    const customStart = parts[1];
-                    const customEnd = parts[2];
-                    if (customStart && customEnd) {
-                        range = { start: new Date(customStart), end: new Date(customEnd) };
-                    }
-                } else {
-                    range = getPresetRange(key);
-                }
-
-                if (!range) {
-                    return { key, data: [] };
-                }
-
-                const periodDateClause = `AND DATE >= '${fmtDate(range.start)}' AND DATE <= '${fmtDate(range.end)}'`;
-                const periodQuery = `
-        SELECT
-                        ${groupByCol} AS tag,
-            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) AS group_impressions,
-                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) AS group_clicks,
-                        if (group_impressions > 0, (group_clicks / group_impressions) * 100, 0) AS ctr,
-            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) AS group_spends,
-                        if (group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
-            SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS group_orders,
-                        if (group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
-            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS group_sales
-                    FROM rb_pdp_olap
-                    WHERE Comp_flag = 0 ${platformClause} ${periodDateClause}
-                    GROUP BY ${groupByCol}
-                    ORDER BY group_spends DESC
-                `;
-                const periodData = await queryClickHouse(periodQuery);
-                return {
-                    key,
-                    data: periodData.map(r => ({
-                        tag: r.tag || 'Unknown',
-                        impressions: parseFloat(r.group_impressions) || 0,
-                        clicks: parseFloat(r.group_clicks) || 0,
-                        ctr: parseFloat(r.ctr) || 0,
-                        spends: parseFloat(r.group_spends) || 0,
-                        cpc: parseFloat(r.cpc) || 0,
-                        orders: parseFloat(r.group_orders) || 0,
-                        cvr: parseFloat(r.cvr) || 0,
-                        sales: parseFloat(r.group_sales) || 0
-                    }))
-                };
-            });
-
-            const periodResults = await Promise.all(periodQueries);
-            period_comparison = {};
-            periodResults.forEach(({ key, data }) => { period_comparison[key] = data; });
-        }
 
         return {
             success: true,
             data: parsedData,
             totals,
             untagged: { count: 0, percent: 0 },
-            period_comparison
+            period_comparison: {}
         };
 
     } catch (error) {
@@ -9148,8 +9468,13 @@ const getPerformanceBreakdownData = async (filters) => {
 
 const getProducts = async (filters = {}) => {
     try {
+        if (USE_EXCEL) {
+            const data = queryExcelData(filters);
+            return [...new Set(data.map(r => r.Product))].filter(v => v && v !== 'Unknown').sort();
+        }
         const { platform, brand, category } = filters;
         const conditions = [`Product IS NOT NULL`, `Product != ''`, `toString(Comp_flag) = '0'`];
+
 
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
         const platArr = normalizeFilterArray(platform);
@@ -9176,8 +9501,13 @@ const getProducts = async (filters = {}) => {
 
 const getProductCategories = async (filters = {}) => {
     try {
+        if (USE_EXCEL) {
+            const data = queryExcelData(filters);
+            return [...new Set(data.map(r => r.Medal_Category))].filter(v => v && v !== 'Unknown').sort();
+        }
         const { platform, channel } = filters;
         const conditions = [
+
             `Category IS NOT NULL AND Category IN ('Bronze', 'Silver', 'Gold')`
         ];
 

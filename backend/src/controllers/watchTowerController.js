@@ -1,4 +1,5 @@
 import watchTowerService from '../services/watchTowerService.js';
+import dayjs from 'dayjs';
 
 
 export const watchTowerOverview = async (req, res) => {
@@ -62,19 +63,20 @@ export const getTrendData = async (req, res) => {
 
 export const getLatestAvailableMonth = async (req, res) => {
     try {
-        const filters = req.query;
-        const latest = await watchTowerService.getLatestAvailableMonth(filters);
+        const latest = await watchTowerService.getLatestAvailableMonth(req.query);
 
         if (!latest?.available) {
-            return res.status(404).json({
-                available: false,
-                message: 'No data months available for the provided filters'
-            });
+            return res.status(404).json({ available: false, message: 'No data available' });
         }
 
-        res.json(latest);
+        // Return the exact keys the FilterContext.jsx useEffect expects
+        res.json({
+            available: true,
+            defaultEndDate: latest.latestDate, 
+            defaultStartDate: dayjs(latest.latestDate).startOf('month').format('YYYY-MM-DD')
+        });
     } catch (error) {
-        console.error('Error fetching latest available month:', error);
+        console.error('[getLatestAvailableMonth] Controller Error:', error);
         res.status(500).json({ available: false, error: 'Internal Server Error' });
     }
 };
@@ -514,5 +516,21 @@ export const getProductCategories = async (req, res) => {
     } catch (error) {
         console.error('[getProductCategories] Error:', error.message, error.stack);
         res.status(500).json({ error: error.message, stack: error.stack });
+    }
+};
+
+export const getLatestDates = async (req, res) => {
+    try {
+        // This calls the service which we will fix next to support Excel
+        const latestDate = await watchTowerService.getLatestAvailableMonth();
+        res.json({ 
+            latestDate: latestDate,
+            // Fallback for range pickers
+            startDate: dayjs(latestDate).subtract(1, 'month').format('YYYY-MM-DD'),
+            endDate: latestDate 
+        });
+    } catch (error) {
+        console.error('[getLatestDates] Error:', error);
+        res.status(500).json({ error: 'Failed to fetch dates' });
     }
 };

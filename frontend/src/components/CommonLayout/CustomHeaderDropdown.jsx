@@ -31,9 +31,11 @@ const CustomHeaderDropdown = ({
 
     const currentSelected = getSelectedList();
 
-    const filteredOptions = options.filter((opt) =>
-        opt.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredOptions = options
+        .filter(opt => opt !== null && opt !== undefined)
+        .filter((opt) =>
+            opt.toString().toLowerCase().includes(searchTerm.toLowerCase())
+        );
 
     const emitChange = (newList) => {
         if (!multiSelect) {

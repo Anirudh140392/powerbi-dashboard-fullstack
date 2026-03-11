@@ -1,5 +1,7 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getChannels, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductCategories } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getChannels, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductCategories } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
+import { getLatestDates } from '../controllers/watchTowerController.js';
+import { getLatestAvailableMonth } from '../controllers/watchTowerController.js';
 
 export default (app) => {
     // Middleware to log Watch Tower API calls
@@ -46,7 +48,8 @@ export default (app) => {
      */
     app.get('/api/watchtower', watchTowerOverview);
     app.get('/api/watchtower/summary-metrics', watchTowerOverview);
-
+    app.get('/api/watchtower/latest-dates', getLatestDates);
+    app.get('/api/watchtower/latest-dates', getLatestDates);
     /**
      * @swagger
      * /api/watchtower/brands:

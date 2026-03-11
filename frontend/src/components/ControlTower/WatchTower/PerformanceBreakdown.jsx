@@ -517,7 +517,7 @@ export function AggregatedViewTable() {
                                                 <span className="font-medium text-sm truncate" title={row.tag}>{row.tag}</span>
                                             </div>
                                         </td>
-                                        {[formatNumber(row.impressions), formatNumber(row.clicks), formatPercent(row.ctr), `${row.spend_percent_share.toFixed(1)}%`, formatCurrency(row.spends), formatCurrency(row.cpc), formatNumber(row.orders), formatPercent(row.cvr), formatCurrency(row.sales)].map((val, ci) => (
+                                        {[formatNumber(row.impressions), formatNumber(row.clicks), formatPercent(row.ctr), `${(row.spend_percent_share || 0).toFixed(1)}%`, formatCurrency(row.spends), formatCurrency(row.cpc), formatNumber(row.orders), formatPercent(row.cvr), formatCurrency(row.sales)].map((val, ci) => (
                                             <td key={ci} className={`px-2 py-3 text-right text-sm ${ci === 3 ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700")}`}>{val}</td>
                                         ))}
                                     </motion.tr>
