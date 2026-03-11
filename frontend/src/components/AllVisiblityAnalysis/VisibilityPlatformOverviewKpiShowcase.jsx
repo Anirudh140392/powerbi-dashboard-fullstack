@@ -338,7 +338,7 @@ const ComingSoonBadge = () => (
     </span>
 );
 
-const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, city }) => {
     const [activeTab, setActiveTab] = useState(
         mode === "brand" ? "category" : "sku"
     );
@@ -359,26 +359,23 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
             setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
             try {
+                // Use watchtower competition-filter-options for ALL tabs
+                // This fetches from rb_pdp_olap so filter values match the competition table data
                 const params = new URLSearchParams();
-                params.append('filterType', activeTab === 'category' ? 'formats' : (activeTab === 'brand' ? 'brands' : 'skus'));
+                if (selectedPlatform && selectedPlatform !== 'All') params.append('platform', selectedPlatform);
+                if (city && city !== 'All India') params.append('location', city);
+                if (value.categories.length > 0) params.append('category', value.categories.join(','));
+                if (value.brands.length > 0) params.append('brand', value.brands.join(','));
 
-                if (value.categories.length > 0) {
-                    params.append('format', value.categories[0]);
-                }
-                if (value.brands.length > 0) {
-                    params.append('brand', value.brands[0]);
-                }
-
-                const response = await axiosInstance.get(`/visibility-analysis/filter-options?${params.toString()}`);
-
+                const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
                 if (response.data) {
-                    const key = activeTab === 'category' ? 'categories' : (activeTab === 'brand' ? 'brands' : 'skus');
-                    setFilterOptions(prev => ({
-                        ...prev,
-                        [key]: (response.data.options || []).filter(o => o && o !== 'All'),
+                    setFilterOptions({
+                        categories: (response.data.categories || []).filter(o => o && o !== 'All'),
+                        brands: (response.data.brands || []).filter(o => o && o !== 'All'),
+                        skus: (response.data.skuNames || response.data.skus || []).filter(o => o && o !== 'All'),
                         loading: false,
                         error: null
-                    }));
+                    });
                 }
             } catch (error) {
                 console.error('[FilterDialog Visibility] Error fetching filter options:', error);
@@ -1080,8 +1077,8 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, se
                 const params = {
                     platform: selectedPlatform || 'All',
                     location: city !== 'All India' ? city : 'All',
-                    format: filters.categories.length > 0 ? filters.categories[0] : 'All',
-                    brand: filters.brands.length > 0 ? filters.brands[0] : 'All',
+                    format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
+                    brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
                     period: period || '1M'
                 };
 
@@ -1195,7 +1192,15 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, se
                 </TabsContent>
             </Tabs>
 
-            <FilterDialog open={filterDialogOpen} onClose={() => setFilterDialogOpen(false)} mode={tab} value={filters} onChange={setFilters} />
+            <FilterDialog 
+                open={filterDialogOpen} 
+                onClose={() => setFilterDialogOpen(false)} 
+                mode={tab} 
+                value={filters} 
+                onChange={setFilters} 
+                selectedPlatform={selectedPlatform}
+                city={city}
+            />
         </div>
     );
 };

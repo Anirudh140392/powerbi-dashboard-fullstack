@@ -3,39 +3,54 @@ import { queryClickHouse } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
+const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
 
 function buildCHCondition(value, column, options = {}) {
-    const { isBrand = false } = options;
-    if (isBrand && (!value || value === 'All' || value === 'All India')) return "toString(keyword_is_rb_product) = '1'";
-    if (!value || value === 'All' || value === 'All India') return "1=1";
+    const { isBrand = false, isCategory = false } = options;
+
+    const isAll = (val) => {
+        if (!val) return true;
+        const lower = String(val).toLowerCase();
+        return lower === 'all' || lower === 'all india';
+    };
+
+    if (isBrand && isAll(value)) return "flag = '1'";
+    if (isAll(value)) return "1=1";
+
     const list = typeof value === 'string'
-        ? value.split(',').map(v => v.trim()).filter(v => v && v !== 'All' && v !== 'All India')
-        : Array.isArray(value) ? value.filter(v => v && v !== 'All' && v !== 'All India') : [value];
-    if (list.length === 0) return isBrand ? "toString(keyword_is_rb_product) = '1'" : "1=1";
+        ? value.split(',').map(v => v.trim()).filter(v => !isAll(v))
+        : Array.isArray(value) ? value.filter(v => !isAll(v)) : [value];
+
+    if (list.length === 0) return isBrand ? "flag = '1'" : "1=1";
+
+    if (isCategory) {
+        return `LOWER(${column}) IN (${list.map(v => `'${escapeCH(String(v).toLowerCase())}'`).join(', ')})`;
+    }
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
 
-const RB_SOS_CONDITION = "toString(keyword_is_rb_product) = '1'";
+const RB_SOS_CONDITION = "flag = '1'";
 
-async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null) {
+async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, category = null) {
     try {
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
-        const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
-        const keywordCondition = (keyword && keyword !== 'All') ? `LOWER(keyword) LIKE LOWER('%${escapeCH(keyword)}%')` : '1=1';
+        const brandSOSCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
+        const keywordCondition = (keyword && String(keyword).toLowerCase() !== 'all') ? `keyword = '${escapeCH(keyword)}'` : '1=1';
+        const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
-        // Single query that calculates ALL SOS types at once - ClickHouse syntax
+        // Single query that calculates ALL SOS types at once - ClickHouse syntax using rb_kw_olap
         const query = `
             SELECT 
-                ROUND(countIf(${RB_SOS_CONDITION}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
-                ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
-                ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
+                ROUND(countIf(overall = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
+                ROUND(countIf(spons = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS sponsored_sos,
+                ROUND(countIf(organic = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS organic_sos
             FROM rb_kw_olap
-            WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
-              AND keyword_search_rank < 11
+            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${locationCondition}
               AND ${keywordCondition}
+              AND ${categoryCondition}
         `;
 
         const result = await queryClickHouse(query);
@@ -58,7 +73,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
  * @param {string|null} platform - Platform filter
  * @returns {Promise<{overall: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
  */
-async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null) {
+async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, category = null) {
     try {
         let startDate, endDate;
         if (customStartDate && customEndDate) {
@@ -74,21 +89,22 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
 
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
-        const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
-        const keywordCondition = (keyword && keyword !== 'All') ? `LOWER(keyword) LIKE LOWER('%${escapeCH(keyword)}%')` : '1=1';
+        const brandSOSCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
+        const keywordCondition = (keyword && String(keyword).toLowerCase() !== 'all') ? `keyword = '${escapeCH(keyword)}'` : '1=1';
+        const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
         const query = `
             SELECT 
-                toDate(created_on) as crawl_date,
-                ROUND(countIf(${RB_SOS_CONDITION}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
-                ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
-                ROUND(countIf(${RB_SOS_CONDITION} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos
+                DATE as crawl_date,
+                ROUND(countIf(overall = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
+                ROUND(countIf(spons = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS sponsored_sos,
+                ROUND(countIf(organic = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS organic_sos
             FROM rb_kw_olap
-            WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
-              AND keyword_search_rank < 11
+            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${locationCondition}
               AND ${keywordCondition}
+              AND ${categoryCondition}
             GROUP BY crawl_date
             ORDER BY crawl_date ASC
         `;
@@ -209,7 +225,7 @@ async function getVisibilityOverviewData(filters = {}) {
         };
 
         console.log('[VisibilityService] Calculating SOS with date ranges:', dateRanges);
-        console.log('[VisibilityService] Using filters:', { platform: filters.platform, startDate: filters.startDate, endDate: filters.endDate });
+        console.log('[VisibilityService] Using filters:', { platform: filters.platform, category: filters.category, startDate: filters.startDate, endDate: filters.endDate });
 
         // OPTIMIZED: Only 3 database queries instead of 9
         // 1. Current period SOS (all 3 types in 1 query)
@@ -218,9 +234,9 @@ async function getVisibilityOverviewData(filters = {}) {
         // OPTIMIZED: Only 3 database queries instead of 9
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
-            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword),
-            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword),
-            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword)
+            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.category || filters.format),
+            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.category || filters.format),
+            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.category || filters.format)
         ]);
 
         // Aggregate daily points into weekly points for "Weekly" aggregation
@@ -345,11 +361,11 @@ const getVisibilityOverviewMockData = () => ({
 // Mock data for Platform KPI Matrix (matching current frontend static data)
 const getPlatformKpiMatrixMockData = () => ({
     platformData: {
-        columns: ["kpi", "Blinkit", "Zepto", "Instamart", "BigBasket"],
+        columns: ["kpi", "Blinkit", "Zepto", "Instamart"],
         rows: [
-            { kpi: "Overall SOS", Blinkit: 19.6, Zepto: 18.2, Instamart: 21.1, BigBasket: 17.8, trend: { Blinkit: 0.5, Zepto: -0.3, Instamart: 1.2, BigBasket: -0.8 }, series: { Blinkit: [18.2, 18.8, 19.1, 19.6], Zepto: [18.5, 18.3, 18.4, 18.2], Instamart: [19.8, 20.2, 20.6, 21.1], BigBasket: [18.6, 18.2, 18.0, 17.8] } },
-            { kpi: "Sponsored SOS", Blinkit: 17.6, Zepto: 16.8, Instamart: 18.9, BigBasket: 15.2, trend: { Blinkit: -0.2, Zepto: 0.4, Instamart: 0.8, BigBasket: -1.1 }, series: { Blinkit: [17.8, 17.7, 17.6, 17.6], Zepto: [16.4, 16.5, 16.7, 16.8], Instamart: [18.1, 18.4, 18.6, 18.9], BigBasket: [16.3, 15.8, 15.5, 15.2] } },
-            { kpi: "Organic SOS", Blinkit: 20.7, Zepto: 19.5, Instamart: 22.3, BigBasket: 18.9, trend: { Blinkit: 1.2, Zepto: 0.8, Instamart: 1.5, BigBasket: 0.3 }, series: { Blinkit: [19.5, 20.0, 20.4, 20.7], Zepto: [18.7, 19.0, 19.2, 19.5], Instamart: [20.8, 21.4, 21.9, 22.3], BigBasket: [18.6, 18.7, 18.8, 18.9] } }
+            { kpi: "Overall SOS", Blinkit: 19.6, Zepto: 18.2, Instamart: 21.1, trend: { Blinkit: 0.5, Zepto: -0.3, Instamart: 1.2 }, series: { Blinkit: [18.2, 18.8, 19.1, 19.6], Zepto: [18.5, 18.3, 18.4, 18.2], Instamart: [19.8, 20.2, 20.6, 21.1] } },
+            { kpi: "Sponsored SOS", Blinkit: 17.6, Zepto: 16.8, Instamart: 18.9, trend: { Blinkit: -0.2, Zepto: 0.4, Instamart: 0.8 }, series: { Blinkit: [17.8, 17.7, 17.6, 17.6], Zepto: [16.4, 16.5, 16.7, 16.8], Instamart: [18.1, 18.4, 18.6, 18.9] } },
+            { kpi: "Organic SOS", Blinkit: 20.7, Zepto: 19.5, Instamart: 22.3, trend: { Blinkit: 1.2, Zepto: 0.8, Instamart: 1.5 }, series: { Blinkit: [19.5, 20.0, 20.4, 20.7], Zepto: [18.7, 19.0, 19.2, 19.5], Instamart: [20.8, 21.4, 21.9, 22.3] } }
         ]
     },
     formatData: {
@@ -382,7 +398,6 @@ const getKeywordsAtGlanceMockData = () => ({
                 Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
                 Zepto: { overallSos: 0.7, adSos: 0.5, orgSos: 0.9, catImpShare: 64.2 },
                 Instamart: { overallSos: 0.9, adSos: 0.7, orgSos: 1.1, catImpShare: 66.3 },
-                BigBasket: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.1 },
             },
             children: [
                 {
@@ -748,13 +763,17 @@ class VisibilityService {
 
                 const replacements = { startDate, endDate };
 
-                // Base WHERE clause
-                let baseWhere = `toDate(created_on) BETWEEN '${startDate}' AND '${endDate}' AND keyword_search_rank < 11`;
+                // Base WHERE clause for rb_kw_olap
+                let baseWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
 
                 // Apply platform filter if provided
                 if (filters.platform && filters.platform !== 'All') {
                     const platCond = buildCHCondition(filters.platform, 'platform_name');
                     baseWhere += ` AND ${platCond}`;
+                } else {
+                    // Always exclude specific platforms from the matrix
+                    const excludedList = EXCLUDED_PLATFORMS.map(p => `'${escapeCH(p)}'`).join(',');
+                    baseWhere += ` AND platform_name NOT IN (${excludedList})`;
                 }
 
                 // Apply location filter if provided
@@ -765,7 +784,14 @@ class VisibilityService {
 
                 // Apply keyword filter if provided
                 if (filters.keyword && filters.keyword !== 'All') {
-                    baseWhere += ` AND LOWER(keyword) LIKE LOWER('%${escapeCH(filters.keyword)}%')`;
+                    baseWhere += ` AND keyword = '${escapeCH(filters.keyword)}'`;
+                }
+
+                // Apply format (category) filter if provided
+                const categoryValue = filters.category || filters.format;
+                if (categoryValue && String(categoryValue).toLowerCase() !== 'all') {
+                    const formatCond = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+                    baseWhere += ` AND ${formatCond}`;
                 }
 
                 // Apply pincode filter if provided
@@ -829,7 +855,7 @@ class VisibilityService {
                 const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
 
                 // Base WHERE for previous period
-                let prevBaseWhere = `toDate(created_on) BETWEEN '${prevStart}' AND '${prevEnd}' AND keyword_search_rank < 11`;
+                let prevBaseWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
                 if (filters.platform && filters.platform !== 'All') {
                     prevBaseWhere += ` AND ${buildCHCondition(filters.platform, 'platform_name')}`;
                 }
@@ -855,13 +881,14 @@ class VisibilityService {
                 // Query builder helper for current/prev/sparkline
                 const getMatrixQueries = (dimColumn, dimAlias, filtersToExclude = []) => {
                     // Build filtered where clauses for this specific matrix
-                    let currentWhere = `toDate(created_on) BETWEEN '${startDate}' AND '${endDate}' AND keyword_search_rank < 11`;
-                    let prevWhere = `toDate(created_on) BETWEEN '${prevStart}' AND '${prevEnd}' AND keyword_search_rank < 11`;
+                    let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
+                    let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
 
                     // Helper to add condition if not excluded
                     const addCond = (val, col, exclusionKeys) => {
                         if (val && val !== 'All' && !exclusionKeys.includes(col)) {
-                            const cond = buildCHCondition(val, col);
+                            const isCat = col === 'keyword_category';
+                            const cond = buildCHCondition(val, col, { isCategory: isCat });
                             currentWhere += ` AND ${cond}`;
                             prevWhere += ` AND ${cond}`;
                         }
@@ -896,10 +923,10 @@ class VisibilityService {
                     const current = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
-                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
-                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
-                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
-                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                            ROUND(countIf(overall = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
+                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(organic = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
+                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
@@ -910,10 +937,10 @@ class VisibilityService {
                     const previous = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
-                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
-                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
-                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
-                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                            ROUND(countIf(overall = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
+                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(organic = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
+                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${prevWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
@@ -922,11 +949,11 @@ class VisibilityService {
                     const sparkline = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
-                            toDate(created_on) as date,
-                            ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 1) AS overall_sos,
-                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 1) AS sponsored_sos,
-                            ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 1) AS organic_sos,
-                            ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1')) * 100.0 / nullIf(count(), 0), 1) AS display_sos
+                            DATE as date,
+                            ROUND(countIf(overall = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
+                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(organic = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
+                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}, date
@@ -1042,45 +1069,54 @@ class VisibilityService {
                     whereConditions.push(platCond);
                 }
                 if (filters.keyword && filters.keyword !== 'All') {
-                    whereConditions.push(`LOWER(keyword) LIKE LOWER('%${escapeCH(filters.keyword)}%')`);
+                    whereConditions.push(`keyword = '${escapeCH(filters.keyword)}'`);
                 }
                 if (filters.location && filters.location !== 'All') {
                     const locCond = buildCHCondition(filters.location, 'location_name');
                     whereConditions.push(locCond);
                 }
+                const categoryValue = filters.category || filters.format;
+                if (categoryValue && String(categoryValue).toLowerCase() !== 'all') {
+                    const catCond = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+                    whereConditions.push(catCond);
+                }
+                if (filters.sku && filters.sku !== 'All') {
+                    whereConditions.push(`keyword_search_product IN (${(Array.isArray(filters.sku) ? filters.sku : [filters.sku]).map(s => `'${escapeCH(s)}'`).join(',')})`);
+                }
+                if (filters.city && filters.city !== 'All') {
+                    whereConditions.push(`location_name IN (${(Array.isArray(filters.city) ? filters.city : [filters.city]).map(c => `'${escapeCH(c)}'`).join(',')})`);
+                }
                 if (filters.startDate && filters.endDate) {
-                    whereConditions.push(`toDate(created_on) BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
+                    whereConditions.push(`DATE BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
                 } else {
                     // Default to latest date using subquery for precision
-                    whereConditions.push("toDate(created_on) = (SELECT MAX(toDate(created_on)) FROM rb_kw_olap)");
+                    whereConditions.push("DATE = (SELECT MAX(DATE) FROM rb_kw_olap)");
                 }
-                whereConditions.push("keyword_search_rank < 11");
+                const baseWhereClause = `WHERE ${whereConditions.join(' AND ')}`;
 
-                const sosBrandCondition = buildCHCondition(filters.brand, 'brand_crawl', { isBrand: true });
+                const sosBrandCondition = buildCHCondition(filters.brand, 'brand_name_th', { isBrand: true });
 
-                // If a specific brand is selected, we filter the results BY that brand(s)
+                // If a specific brand is selected, we filter the TOP keywords BY that brand(s)
                 if (filters.brand && filters.brand !== 'All') {
                     whereConditions.push(sosBrandCondition);
                 }
 
-                const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+                const searchWhereClause = `WHERE ${whereConditions.join(' AND ')}`;
 
                 // Stage 1: Fast fetch of top keywords per type - ClickHouse
                 const topKeywordsQuery = `
-                    SELECT keyword, keyword_type, rb_results
-                    FROM (
+                    SELECT * FROM (
                         SELECT 
                             keyword, 
-                            keyword_type, 
-                            count() as row_count,
+                            keyword_type,
                             countIf(${sosBrandCondition}) as rb_results,
-                            ROW_NUMBER() OVER(PARTITION BY keyword_type ORDER BY countIf(${sosBrandCondition}) DESC, count() DESC) as rnk
+                            dense_rank() OVER(PARTITION BY keyword_type ORDER BY count(*) DESC) as rnk
                         FROM rb_kw_olap
-                        ${whereClause}
+                        ${baseWhereClause}
                         GROUP BY keyword, keyword_type
                     ) t
                     WHERE rnk <= 15
-                    ${filters.brand && filters.brand !== 'All' ? 'AND rb_results > 0' : ''}
+                    ${filters.brand && filters.brand !== 'All' ? `AND rb_results > 0` : ''}
                 `;
 
                 console.log('[VisibilityService] Fetching top keywords (ClickHouse)...');
@@ -1101,20 +1137,21 @@ class VisibilityService {
                     SELECT 
                         keyword_type, 
                         keyword, 
-                        brand_crawl as brand_name, 
+                        brand_name_th as brand_name, 
                         keyword_search_product as sku, 
                         location_name as city, 
                         platform_name,
-                        count() as total,
+                        count(*) as total,
+                        SUM(count(*)) OVER(PARTITION BY keyword) as keyword_market_total,
                         countIf(${sosBrandCondition}) as rbr,
-                        countIf(toString(spons_flag) = '1' AND ${sosBrandCondition}) as rbs,
-                        countIf(toString(spons_flag) != '1' AND ${sosBrandCondition}) as rbo,
-                        avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), toString(spons_flag) = '1' AND ${sosBrandCondition} AND ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as aap,
-                        avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), toString(spons_flag) != '1' AND ${sosBrandCondition} AND ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as aop
+                        countIf(spons = 1 AND ${sosBrandCondition}) as rbs,
+                        countIf(organic = 1 AND ${sosBrandCondition}) as rbo,
+                        avgIf(POSITION, spons = 1 AND ${sosBrandCondition}) as aap,
+                        avgIf(POSITION, organic = 1 AND ${sosBrandCondition}) as aop
                     FROM rb_kw_olap
-                    ${whereClause}
+                    ${baseWhereClause}
                     ${keywordCondition}
-                    GROUP BY keyword_type, keyword, brand_crawl, sku, city, platform_name
+                    GROUP BY keyword_type, keyword, brand_name, sku, city, platform_name
                 `;
 
                 console.log('[VisibilityService] Fetching hierarchy details (ClickHouse)...');
@@ -1133,6 +1170,7 @@ class VisibilityService {
                         sku,
                         city,
                         total,
+                        keyword_market_total,
                         rbr,
                         rbs,
                         rbo,
@@ -1141,6 +1179,10 @@ class VisibilityService {
                     } = row;
 
                     if (!kt || !kw || !brand || !sku || !city) return;
+
+                    // If a specific brand is selected, we filter the BRAND nodes, 
+                    // but we always process the row to ensure ALL brands contribute to Keyword-level metrics
+                    const isTargetBrand = filters.brand === 'All' || filters.brand === brand;
 
                     // Helper to initialize or get level node
                     if (!typeMap.has(kt)) {
@@ -1158,17 +1200,31 @@ class VisibilityService {
                             id: `${kt}-${kw}`.toLowerCase().replace(/\s+/g, '-'),
                             label: kw, level: 'keyword',
                             children: new Map(),
-                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                            metrics: { rb: 0, total: Number(keyword_market_total || 0), rbs: 0, rbo: 0, aap: [], aop: [] }
                         });
                     }
                     const kwNode = ktNode.children.get(kw);
+
+                    // Update metrics for Type and Keyword levels (must include ALL brands for correct Market Total)
+                    [ktNode, kwNode].forEach(node => {
+                        if (node === ktNode) node.metrics.total += Number(total || 0);
+                        // kwNode.metrics.total is already set correctly from keyword_market_total partition
+                        node.metrics.rb += Number(rbr || 0);
+                        node.metrics.rbs += Number(rbs || 0);
+                        node.metrics.rbo += Number(rbo || 0);
+                        if (aap !== null && aap !== undefined && aap > 0) node.metrics.aap.push(Number(aap));
+                        if (aop !== null && aop !== undefined && aop > 0) node.metrics.aop.push(Number(aop));
+                    });
+
+                    // For lower levels (Brand, SKU, City), we only create nodes and aggregate if it's the target brand
+                    if (!isTargetBrand) return;
 
                     if (!kwNode.children.has(brand)) {
                         kwNode.children.set(brand, {
                             id: `${kt}-${kw}-${brand}`.toLowerCase().replace(/\s+/g, '-'),
                             label: brand, level: 'brand',
                             children: new Map(),
-                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                            metrics: { rb: 0, total: Number(keyword_market_total || 0), rbs: 0, rbo: 0, aap: [], aop: [] }
                         });
                     }
                     const brandNode = kwNode.children.get(brand);
@@ -1178,29 +1234,27 @@ class VisibilityService {
                             id: `${kt}-${kw}-${brand}-${sku}`.toLowerCase().replace(/\s+/g, '-'),
                             label: sku, level: 'sku',
                             children: new Map(),
-                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                            metrics: { rb: 0, total: Number(keyword_market_total || 0), rbs: 0, rbo: 0, aap: [], aop: [] }
                         });
                     }
-                    const skuNode = brandNode.children.get(sku);
+                    const brandSkuNode = brandNode.children.get(sku);
 
-                    if (!skuNode.children.has(city)) {
-                        skuNode.children.set(city, {
+                    if (!brandSkuNode.children.has(city)) {
+                        brandSkuNode.children.set(city, {
                             id: `${kt}-${kw}-${brand}-${sku}-${city}`.toLowerCase().replace(/\s+/g, '-'),
                             label: city, level: 'city',
                             children: [],
-                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
+                            metrics: { rb: 0, total: Number(keyword_market_total || 0), rbs: 0, rbo: 0, aap: [], aop: [] }
                         });
                     }
-                    const cityNode = skuNode.children.get(city);
+                    const brandCityNode = brandSkuNode.children.get(city);
 
-                    // Update metrics for all levels in the path
-                    [ktNode, kwNode, brandNode, skuNode, cityNode].forEach(node => {
+                    [brandNode, brandSkuNode, brandCityNode].forEach(node => {
                         node.metrics.rb += Number(rbr || 0);
-                        node.metrics.total += Number(total || 0);
                         node.metrics.rbs += Number(rbs || 0);
                         node.metrics.rbo += Number(rbo || 0);
-                        if (aap !== null && aap !== undefined) node.metrics.aap.push(Number(aap));
-                        if (aop !== null && aop !== undefined) node.metrics.aop.push(Number(aop));
+                        if (aap !== null && aap !== undefined && aap > 0) node.metrics.aap.push(Number(aap));
+                        if (aop !== null && aop !== undefined && aop > 0) node.metrics.aop.push(Number(aop));
                     });
                 });
 
@@ -1218,13 +1272,26 @@ class VisibilityService {
                     node.metrics = finalMetrics;
 
                     if (node.children instanceof Map) {
-                        const childrenArray = Array.from(node.children.values());
-                        node.children = childrenArray.map(finalizeNode).sort((a, b) => b.metrics.overallSos - a.metrics.overallSos);
+                        node.children = Array.from(node.children.values())
+                            .map(finalizeNode)
+                            .sort((a, b) => {
+                                // Primary: Overall SOS (desc)
+                                const sosDiff = b.metrics.overallSos - a.metrics.overallSos;
+                                if (Math.abs(sosDiff) > 0.001) return sosDiff;
+                                // Secondary: Label (asc)
+                                return a.label.localeCompare(b.label);
+                            });
                     }
                     return node;
                 };
 
-                const hierarchy = Array.from(typeMap.values()).map(finalizeNode);
+                const hierarchy = Array.from(typeMap.values())
+                    .map(finalizeNode)
+                    .sort((a, b) => {
+                        const sosDiff = b.metrics.overallSos - a.metrics.overallSos;
+                        if (Math.abs(sosDiff) > 0.001) return sosDiff;
+                        return a.label.localeCompare(b.label);
+                    });
 
                 console.log('[VisibilityService] Built hierarchy tree with', hierarchy.length, 'root types');
                 return { hierarchy };
@@ -1247,14 +1314,14 @@ class VisibilityService {
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
-                const brandFilterCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+                const brandFilterCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
                 const brandSOSCondition = RB_SOS_CONDITION;
 
                 // 1. Get latest date
                 const maxDateRes = await queryClickHouse(`
-                    SELECT MAX(toDate(created_on)) as maxDate
+                    SELECT MAX(DATE) as maxDate
                     FROM rb_kw_olap
-                    WHERE created_on IS NOT NULL
+                    WHERE DATE IS NOT NULL
                 `);
                 const maxDate = maxDateRes[0]?.maxDate;
 
@@ -1271,12 +1338,12 @@ class VisibilityService {
                 const prevStart = start.subtract(durationDays, 'day').format('YYYY-MM-DD');
                 const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
 
-                let dateCondition = `toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`;
-                let prevDateCondition = `toDate(created_on) BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                let dateCondition = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
+                let prevDateCondition = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
 
                 // Add rank filter for current and previous dates
-                dateCondition += ` AND keyword_search_rank < 11`;
-                prevDateCondition += ` AND keyword_search_rank < 11`;
+                dateCondition += ` AND POSITION < 11`;
+                prevDateCondition += ` AND POSITION < 11`;
 
                 // 2. Aggregate metrics for keywords
                 let mappedType = filters.filter;
@@ -1290,36 +1357,36 @@ class VisibilityService {
 
                 // Apply keyword filter if provided
                 const keywordFilter = (filters.keyword && filters.keyword !== 'All')
-                    ? `AND LOWER(keyword) LIKE LOWER('%${escapeCH(filters.keyword)}%')`
+                    ? `AND keyword = '${escapeCH(filters.keyword)}'`
                     : '';
 
                 // Apply category filter if provided
-                const categoryFilter = (filters.category && filters.category !== 'All')
-                    ? `AND LOWER(keyword_category) = LOWER('${escapeCH(filters.category)}')`
-                    : '';
+                const categoryValue = filters.category || filters.format;
+                const categoryFilter = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+                const categoryClause = categoryFilter !== '1=1' ? `AND ${categoryFilter}` : '';
 
                 const metricsQuery = `
                     SELECT 
                         keyword,
                         MAX(keyword_type) as type,
-                        count() as total_results,
+                        count(*) as total_results,
                         countIf(${brandSOSCondition}) as rb_results,
-                        countIf(${brandSOSCondition} AND toString(spons_flag) != '1') as rb_organic,
-                        countIf(${brandSOSCondition} AND toString(spons_flag) = '1') as rb_sponsored,
-                        countIf(${brandFilterCondition}) as brand_filter_results,
-                        avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as avg_overall_pos,
-                        avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), ${brandSOSCondition} AND toString(spons_flag) != '1' AND ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as avg_org_pos,
-                        avgIf(ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0), ${brandSOSCondition} AND toString(spons_flag) = '1' AND ifNull(toFloat64OrZero(toString(keyword_search_rank)), 0) > 0) as avg_ad_pos
+                        countIf(organic = 1 AND ${brandSOSCondition}) as rb_organic,
+                        countIf(spons = 1 AND ${brandSOSCondition}) as rb_sponsored,
+                        countIf(${brandSOSCondition}) as brand_filter_results,
+                        ROUND(AVG(POSITION), 1) as avg_overall_pos,
+                        ROUND(avgIf(POSITION, organic = 1 AND ${brandSOSCondition}), 1) as avg_org_pos,
+                        ROUND(avgIf(POSITION, spons = 1 AND ${brandSOSCondition}), 1) as avg_ad_pos
                     FROM rb_kw_olap
                     WHERE ${dateCondition}
                       AND ${platformCondition}
                       AND ${locationCondition}
                       ${typeFilter}
                       ${keywordFilter}
-                      ${categoryFilter}
+                      ${categoryClause}
                     GROUP BY keyword
                     ${brand && brand !== 'All' ? 'HAVING brand_filter_results > 0' : ''}
-                    ORDER BY (ifNull(toFloat64OrZero(toString(rb_results)), 0) / nullIf(count(), 0)) DESC, total_results DESC
+                    ORDER BY (ifNull(toFloat64OrZero(toString(rb_results)), 0) / nullIf(count(*), 0)) DESC, total_results DESC
                     LIMIT 50
                 `;
 
@@ -1333,16 +1400,16 @@ class VisibilityService {
                 const prevMetricsQuery = `
                     SELECT 
                         keyword,
-                        count() as total_results,
+                        count(*) as total_results,
                         countIf(${brandSOSCondition}) as rb_results,
-                        countIf(${brandSOSCondition} AND toString(spons_flag) != '1') as rb_organic,
-                        countIf(${brandSOSCondition} AND toString(spons_flag) = '1') as rb_sponsored
+                        countIf(organic = 1 AND ${brandSOSCondition}) as rb_organic,
+                        countIf(spons = 1 AND ${brandSOSCondition}) as rb_sponsored
                     FROM rb_kw_olap
                     WHERE ${prevDateCondition}
                       AND ${platformCondition}
                       AND ${locationCondition}
                       AND keyword IN (${keywordList})
-                      ${categoryFilter}
+                      ${categoryClause}
                     GROUP BY keyword
                 `;
                 const prevKeywordMetrics = await queryClickHouse(prevMetricsQuery);
@@ -1361,16 +1428,16 @@ class VisibilityService {
                 const leadingBrandQuery = `
                     SELECT 
                         keyword,
-                        brand_crawl as brand_name,
+                        brand_name_th as brand_name,
                         count() as brand_count
                     FROM rb_kw_olap
                     WHERE ${dateCondition}
                       AND keyword IN (${keywordList})
                       AND ${platformCondition}
                       AND ${locationCondition}
-                      AND brand_crawl IS NOT NULL 
-                      AND brand_crawl != ''
-                    GROUP BY keyword, brand_crawl
+                      AND brand_name_th IS NOT NULL 
+                      AND brand_name_th != ''
+                    GROUP BY keyword, brand_name_th
                     ORDER BY keyword, brand_count DESC
                 `;
 
@@ -1441,9 +1508,9 @@ class VisibilityService {
                 const keyword = escapeCH(filters.keyword);
 
                 // Apply category filter if provided
-                const categoryFilter = (filters.category && filters.category !== 'All')
-                    ? `AND LOWER(keyword_category) = LOWER('${escapeCH(filters.category)}')`
-                    : '';
+                const categoryValue = filters.category || filters.format;
+                const categoryFilter = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+                const categoryClause = categoryFilter !== '1=1' ? `AND ${categoryFilter}` : '';
 
                 // 1. Calculate Period Boundaries (consistent with getTopSearchTerms)
                 const start = dayjs(filters.startDate || dayjs().subtract(7, 'day'));
@@ -1458,24 +1525,24 @@ class VisibilityService {
                 // 2. Fetch aggregate metrics for ALL brands for both periods
                 const drilldownQuery = `
                     SELECT 
-                        brand_crawl as brand_name,
-                        if(toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
+                        brand_name_th as brand_name,
+                        if(DATE BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
                         count() as brand_results,
-                        countIf(toString(spons_flag) != '1') as brand_organic,
-                        countIf(toString(spons_flag) = '1') as brand_sponsored
+                        countIf(organic = 1) as brand_organic,
+                        countIf(spons = 1) as brand_sponsored
                     FROM rb_kw_olap
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
                       AND (
-                          toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}'
-                          OR toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                          DATE BETWEEN '${currStart}' AND '${currEnd}'
+                          OR DATE BETWEEN '${prevStartStr}' AND '${prevEndStr}'
                       )
-                      AND keyword_search_rank < 11
+                      AND POSITION < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
-                      ${categoryFilter}
-                      AND brand_crawl IS NOT NULL 
-                      AND brand_crawl != ''
-                    GROUP BY brand_crawl, period
+                      ${categoryClause}
+                      AND brand_name_th IS NOT NULL 
+                      AND brand_name_th != ''
+                    GROUP BY brand_name_th, period
                 `;
 
                 const results = await queryClickHouse(drilldownQuery);
@@ -1485,18 +1552,18 @@ class VisibilityService {
                 // 3. Get total results per period for SOS normalization
                 const totalsQuery = `
                     SELECT 
-                        if(toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
+                        if(DATE BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
                         count() as total 
                     FROM rb_kw_olap 
                     WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
                       AND (
-                          toDate(created_on) BETWEEN '${currStart}' AND '${currEnd}'
-                          OR toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+                          DATE BETWEEN '${currStart}' AND '${currEnd}'
+                          OR DATE BETWEEN '${prevStartStr}' AND '${prevEndStr}'
                       )
-                      AND keyword_search_rank < 11
+                      AND POSITION < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
-                      ${categoryFilter}
+                      ${categoryClause}
                     GROUP BY period
                 `;
 
@@ -1562,7 +1629,7 @@ class VisibilityService {
      */
     async getVisibilityFilterOptions({ filterType, platform, format, city, brand }) {
         console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
-        const cacheKey = generateCacheKey('visibility_filters', { filterType, platform, format, city, brand });
+        const cacheKey = generateCacheKey('visibility_filters_v2', { filterType, platform, format, city, brand });
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -1574,9 +1641,9 @@ class VisibilityService {
                 const cityFilter = city || null;
 
                 const platformCondition = buildCHCondition(platformFilter, 'platform_name');
-                const formatCondition = buildCHCondition(formatFilter, 'keyword_search_product');
+                const formatCondition = buildCHCondition(formatFilter, 'keyword_category');
                 const cityCondition = buildCHCondition(cityFilter, 'location_name');
-                const brandCondition = buildCHCondition(brand || null, 'brand_crawl');
+                const brandCondition = buildCHCondition(brand || null, 'brand_name_th');
 
                 // PLATFORMS: from rb_kw_olap.platform_name
                 if (filterType === 'platforms') {
@@ -1590,12 +1657,12 @@ class VisibilityService {
                     return { options };
                 }
 
-                // MONTHS: from rb_kw_olap.created_on
+                // MONTHS: from rb_kw_olap.DATE
                 if (filterType === 'months') {
                     const results = await queryClickHouse(`
-                    SELECT DISTINCT toStartOfMonth(toDate(created_on)) as date
+                    SELECT DISTINCT toStartOfMonth(DATE) as date
                     FROM rb_kw_olap
-                    WHERE created_on IS NOT NULL
+                    WHERE DATE IS NOT NULL
                     ORDER BY date DESC
                     LIMIT 12
                 `);
@@ -1606,7 +1673,7 @@ class VisibilityService {
                 // DATES: from rb_kw_olap.created_on (Active Dates)
                 if (filterType === 'dates') {
                     const results = await queryClickHouse(`
-                    SELECT DISTINCT toDate(created_on) as date
+                    SELECT DISTINCT DATE as date
                     FROM rb_kw_olap
                     WHERE created_on IS NOT NULL
                     ORDER BY date DESC
@@ -1616,147 +1683,152 @@ class VisibilityService {
                     return { options };
                 }
 
-                // FORMATS (Category): from rca_sku_dim.category where status = 1
-                if (filterType === 'formats') {
+                // ===========================================================================
+                // UPDATED FILTER LOGIC BASED ON USER REQUEST
+                // Category (formats): rb_kw_olap.keyword_category
+                // Brand: rb_kw_olap.brand_name
+                // SKU: rb_pdp_olap.Product
+                // ===========================================================================
+
+                // DATES (special case, keep as is or from rb_kw_olap)
+                if (filterType === 'dates' || filterType === 'days') {
                     const results = await queryClickHouse(`
-                    SELECT DISTINCT category as format
-                    FROM rca_sku_dim
-                    WHERE toString(status) = '1' AND category IS NOT NULL AND category != ''
-                    ORDER BY category
+                    SELECT DISTINCT DATE as date
+                    FROM rb_kw_olap
+                    WHERE DATE IS NOT NULL
+                    ORDER BY date DESC
+                    LIMIT 30
                 `);
+                    const options = results.map(r => dayjs(r.date).format('YYYY-MM-DD')).filter(Boolean);
+                    return { options };
+                }
+
+                // FORMATS (Category): from rb_kw_olap.keyword_category
+                if (filterType === 'formats') {
+                    let formatWhere = "WHERE keyword_category IS NOT NULL AND keyword_category != ''";
+                    if (platform && platform !== 'All') {
+                        formatWhere += ` AND platform_name = '${escapeCH(platform)}'`;
+                    }
+                    if (city && city !== 'All') {
+                        formatWhere += ` AND location_name = '${escapeCH(city)}'`;
+                    }
+
+                    const results = await queryClickHouse(`
+                        SELECT DISTINCT keyword_category as format
+                        FROM rb_kw_olap
+                        ${formatWhere}
+                        ORDER BY format
+                    `);
                     const options = results.map(r => r.format).filter(Boolean);
                     return { options };
                 }
 
-                // Shared WHERE clause for other filters
-                const whereConditions = ["1=1"];
-                if (platform && platform !== 'All') {
-                    whereConditions.push(platformCondition);
-                }
-                const baseWhere = `WHERE ${whereConditions.join(' AND ')}`;
-
-                // CITIES: from rb_kw_olap.location_name
-                if (filterType === 'cities') {
-                    let cityWhere = baseWhere;
-                    if (format && format !== 'All') {
-                        cityWhere += ` AND ${formatCondition}`;
-                    }
-
-                    const results = await queryClickHouse(`
-                    SELECT DISTINCT location_name as city
-                    FROM rb_kw_olap
-                    ${cityWhere} AND location_name IS NOT NULL AND location_name != ''
-                    ORDER BY location_name
-                `);
-                    const options = results.map(r => r.city).filter(Boolean);
-                    return { options };
-                }
-
-                // DATES: from rb_kw_olap.created_on
-                if (filterType === 'dates') {
-                    const results = await queryClickHouse(`
-                    SELECT DISTINCT toDate(created_on) as date
-                    FROM rb_kw_olap
-                    WHERE created_on IS NOT NULL
-                    ORDER BY date DESC
-                    LIMIT 60
-                `);
-                    const options = results.map(r => r.date).filter(Boolean);
-                    return { options };
-                }
-
-                // ZONES (regions): from rb_location_darkstore.region
-                if (filterType === 'zones') {
-                    const results = await queryClickHouse(`
-                    SELECT DISTINCT region as zone
-                    FROM rb_location_darkstore
-                    WHERE region IS NOT NULL AND region != ''
-                    ORDER BY region
-                `);
-                    const options = results.map(r => r.zone).filter(Boolean);
-                    return { options };
-                }
-
-                // METRO FLAGS: from rb_location_darkstore.tier
-                if (filterType === 'metroFlags') {
-                    const results = await queryClickHouse(`
-                    SELECT DISTINCT tier as metroFlag
-                    FROM rb_location_darkstore
-                    WHERE tier IS NOT NULL AND tier != ''
-                    ORDER BY tier
-                `);
-                    const options = results.map(r => r.metroFlag).filter(Boolean);
-                    return { options };
-                }
-
-                // PINCODES: from rb_kw_olap.pincode (handle type conversion)
-                if (filterType === 'pincodes') {
-                    let pinWhere = baseWhere;
-                    if (city && city !== 'All') {
-                        pinWhere += ` AND ${cityCondition}`;
-                    }
-                    const results = await queryClickHouse(`
-                    SELECT DISTINCT toString(pincode) as pincode_str
-                    FROM rb_kw_olap
-                    ${pinWhere} AND pincode IS NOT NULL AND toString(pincode) != '' AND toString(pincode) != '0'
-                    ORDER BY pincode_str
-                    LIMIT 500
-                `);
-                    const options = results.map(r => r.pincode_str).filter(Boolean);
-                    return { options };
-                }
-
-
-                // PRODUCT NAMES: from rb_kw_olap.keyword
-                if (filterType === 'productName') {
-                    const results = await queryClickHouse(`
-                    SELECT DISTINCT keyword as productName
-                    FROM rb_kw_olap
-                    ${baseWhere} AND keyword IS NOT NULL AND keyword != ''
-                    ORDER BY keyword
-                    LIMIT 200
-                `);
-                    const options = results.map(r => r.productName).filter(Boolean);
-                    return { options };
-                }
-
-                // SKUs: from rb_kw_olap.keyword_search_product
-                if (filterType === 'skus') {
-                    let skuWhere = baseWhere;
-                    if (format && format !== 'All') {
-                        skuWhere += ` AND ${formatCondition}`;
-                    }
-                    if (brand && brand !== 'All') {
-                        skuWhere += ` AND ${brandCondition}`;
-                    }
-                    const results = await queryClickHouse(`
-                    SELECT DISTINCT keyword_search_product as sku
-                    FROM rb_kw_olap
-                    ${skuWhere} AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
-                    ORDER BY keyword_search_product
-                    LIMIT 200
-                `);
-                    const options = results.map(r => r.sku).filter(Boolean);
-                    return { options };
-                }
-
-                // BRANDS: from rb_kw_olap.brand_crawl (competitor brands where is_competitor_product=1)
+                // BRANDS: from rb_kw_olap.brand_name_th
                 if (filterType === 'brands') {
+                    let brandWhere = "WHERE brand_name_th IS NOT NULL AND brand_name_th != ''";
+                    if (platform && platform !== 'All') {
+                        brandWhere += ` AND platform_name = '${escapeCH(platform)}'`;
+                    }
+                    if (city && city !== 'All') {
+                        brandWhere += ` AND location_name = '${escapeCH(city)}'`;
+                    }
+                    if (format && format !== 'All') {
+                        brandWhere += ` AND keyword_category = '${escapeCH(format)}'`;
+                    }
+
                     const results = await queryClickHouse(`
-                    SELECT DISTINCT brand_crawl as brand
-                    FROM rb_kw_olap
-                    ${baseWhere} AND brand_crawl IS NOT NULL AND brand_crawl != '' AND toString(is_competitor_product) = '1'
-                    ORDER BY brand_crawl
-                    LIMIT 200
-                `);
+                        SELECT DISTINCT brand_name_th as brand
+                        FROM rb_kw_olap
+                        ${brandWhere}
+                        ORDER BY brand
+                    `);
                     const options = results.map(r => r.brand).filter(Boolean);
                     return { options };
                 }
 
+                // SKUs: from rb_pdp_olap.Product
+                if (filterType === 'skus') {
+                    let skuWhere = "WHERE Product IS NOT NULL AND Product != ''";
+                    if (platform && platform !== 'All') {
+                        skuWhere += ` AND Platform = '${escapeCH(platform)}'`;
+                    }
+                    if (city && city !== 'All') {
+                        skuWhere += ` AND Location = '${escapeCH(city)}'`;
+                    }
+                    if (format && format !== 'All') {
+                        skuWhere += ` AND Product_Category = '${escapeCH(format)}'`;
+                    }
+                    if (brand && brand !== 'All') {
+                        skuWhere += ` AND Brand = '${escapeCH(brand)}'`;
+                    }
+
+                    const results = await queryClickHouse(`
+                        SELECT DISTINCT Product as sku
+                        FROM rb_pdp_olap
+                        ${skuWhere}
+                        ORDER BY sku
+                    `);
+                    const options = results.map(r => r.sku).filter(Boolean);
+                    return { options };
+                }
+
+                // CITIES: from rb_kw_olap.location_name
+                if (filterType === 'cities') {
+                    let cityWhere = "WHERE location_name IS NOT NULL AND location_name != ''";
+                    if (platform && platform !== 'All') {
+                        cityWhere += ` AND platform_name = '${escapeCH(platform)}'`;
+                    }
+                    if (format && format !== 'All') {
+                        cityWhere += ` AND keyword_category = '${escapeCH(format)}'`;
+                    }
+
+                    const results = await queryClickHouse(`
+                        SELECT DISTINCT location_name as city
+                        FROM rb_kw_olap
+                        ${cityWhere}
+                        ORDER BY city
+                    `);
+                    const options = results.map(r => r.city).filter(Boolean);
+                    return { options };
+                }
+
+                // Default fallbacks for other legacy types
+                if (filterType === 'zones') {
+                    const results = await queryClickHouse(`SELECT DISTINCT region as zone FROM rb_location_darkstore WHERE region != '' ORDER BY zone`);
+                    return { options: results.map(r => r.zone).filter(Boolean) };
+                }
+
+                if (filterType === 'metroFlags') {
+                    const results = await queryClickHouse(`SELECT DISTINCT tier as metroFlag FROM rb_location_darkstore WHERE tier != '' ORDER BY metroFlag`);
+                    return { options: results.map(r => r.metroFlag).filter(Boolean) };
+                }
+
+                if (filterType === 'productName' || filterType === 'keywords') {
+                    let keywordWhere = "WHERE keyword IS NOT NULL AND keyword != ''";
+                    if (platform && platform !== 'All') {
+                        keywordWhere += ` AND platform_name = '${escapeCH(platform)}'`;
+                    }
+                    if (city && city !== 'All') {
+                        keywordWhere += ` AND location_name = '${escapeCH(city)}'`;
+                    }
+                    if (format && format !== 'All') {
+                        keywordWhere += ` AND keyword_category = '${escapeCH(format)}'`;
+                    }
+
+                    const results = await queryClickHouse(`
+                        SELECT DISTINCT keyword
+                        FROM rb_kw_olap
+                        ${keywordWhere}
+                        ORDER BY keyword
+                        LIMIT 1000
+                    `);
+                    return { options: results.map(r => r.keyword).filter(Boolean) };
+                }
+
                 return { options: [] };
             } catch (error) {
-                console.error('[VisibilityService] Error getting filter options (ClickHouse):', error);
-                return { options: [] };
+                console.error('[VisibilityService] getVisibilityFilterOptions error:', error);
+                throw error;
             }
         }, CACHE_TTL.LONG);
     }
@@ -1774,9 +1846,9 @@ class VisibilityService {
 
                 // Get the max date from rb_kw_olap table - ClickHouse
                 const results = await queryClickHouse(`
-                SELECT MAX(toDate(created_on)) as maxDate
+                SELECT MAX(DATE) as maxDate
                 FROM rb_kw_olap
-                WHERE created_on IS NOT NULL
+                WHERE DATE IS NOT NULL
             `);
 
                 const maxDate = results[0]?.maxDate;
@@ -1844,7 +1916,7 @@ class VisibilityService {
                 } else {
                     // Fetch the latest available date from ClickHouse
                     const maxDateRes = await queryClickHouse(`
-                        SELECT MAX(toDate(created_on)) as maxDate
+                        SELECT MAX(DATE) as maxDate
                         FROM rb_kw_olap
                         WHERE created_on IS NOT NULL
                     `);
@@ -1867,9 +1939,11 @@ class VisibilityService {
                 const platform = filters.platform || null;
                 const location = filters.location || null;
                 const brand = filters.brand || null;
+                const categoryValue = filters.category || filters.format || null;
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
+                const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
                 // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
                 const brandSOSCondition = RB_SOS_CONDITION; // Force RB SOS
 
@@ -1879,14 +1953,14 @@ class VisibilityService {
                 const timeStep = filters.timeStep || 'Daily';
 
                 if (timeStep === 'Weekly') {
-                    dateAggregation = 'toStartOfWeek(toDate(created_on), 1)'; // 1 for Monday
+                    dateAggregation = 'toStartOfWeek(DATE, 1)'; // 1 for Monday
                     dateFormat = "DD MMM'YY";
                 } else if (timeStep === 'Monthly') {
-                    dateAggregation = 'toStartOfMonth(toDate(created_on))';
+                    dateAggregation = 'toStartOfMonth(DATE)';
                     dateFormat = "MMM 'YY";
                 } else {
                     // Default to Daily
-                    dateAggregation = 'toDate(created_on)';
+                    dateAggregation = 'DATE';
                     dateFormat = "DD MMM'YY";
                 }
 
@@ -1894,15 +1968,15 @@ class VisibilityService {
                 const query = `
                 SELECT 
                     ${dateAggregation} as crawl_date,
-                    ROUND(countIf(${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
-                    ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) = '1') * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
-                    ROUND(countIf(${brandSOSCondition} AND toString(spons_flag) != '1') * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
-                    ROUND(countIf(${brandSOSCondition} AND (toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1')) * 100.0 / nullIf(count(), 0), 2) AS display_sos
+                    ROUND(countIf(overall = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
+                    ROUND(countIf(spons = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
+                    ROUND(countIf(organic = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
+                    ROUND(countIf(spons = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS display_sos
                 FROM rb_kw_olap
-                WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
-                  AND keyword_search_rank < 11
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
                   AND ${locationCondition}
+                  AND ${formatCondition}
                 GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
@@ -1944,9 +2018,9 @@ class VisibilityService {
             try {
                 // First, get the latest available date from ClickHouse
                 const maxDateRes = await queryClickHouse(`
-                SELECT MAX(toDate(created_on)) as maxDate
+                SELECT MAX(DATE) as maxDate
                 FROM rb_kw_olap
-                WHERE created_on IS NOT NULL
+                WHERE DATE IS NOT NULL
             `);
 
                 const maxDate = maxDateRes[0]?.maxDate;
@@ -1977,15 +2051,15 @@ class VisibilityService {
                 // Build conditions
                 const platform = filters.platform || null;
                 const location = filters.location || null;
-                const format = filters.format || null;
-                const productName = filters.productName || null;
+                const categoryValue = filters.category || filters.format || null;
+                const productName = filters.productName || filters.keyword || null;
                 const brandFilter = filters.brand || null;
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
-                const formatCondition = buildCHCondition(format, 'keyword_search_product');
+                const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
                 const productCondition = buildCHCondition(productName, 'keyword');
-                const brandCondition = buildCHCondition(brandFilter, 'brand_crawl');
+                const brandCondition = buildCHCondition(brandFilter, 'brand_name_th');
 
                 const allFilters = `
                 AND ${platformCondition}
@@ -1998,11 +2072,10 @@ class VisibilityService {
                 // 1. Get total volume for both periods
                 const volumeQuery = `
                 SELECT 
-                    countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}') as current_total,
-                    countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') as prev_total
+                    countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}') as current_total,
+                    countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}') as prev_total
                 FROM rb_kw_olap
-                WHERE (toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
-                  AND keyword_search_rank < 11
+                WHERE (DATE BETWEEN '${dateFrom}' AND '${dateTo}' OR DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
                 ${allFilters}
             `;
 
@@ -2015,21 +2088,20 @@ class VisibilityService {
                 // 2. Query for brand-level competition
                 const brandQuery = `
                 SELECT 
-                    brand_crawl as brand_name,
-                    ROUND(countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currentVolume}, 2) AS current_overall_sos,
-                    ROUND(countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' AND toString(spons_flag) = '1') * 100.0 / ${currentVolume}, 2) AS current_sponsored_sos,
-                    ROUND(countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' AND toString(spons_flag) != '1') * 100.0 / ${currentVolume}, 2) AS current_organic_sos,
-                    ROUND(countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}') * 100.0 / ${prevVolume}, 2) AS prev_overall_sos,
-                    ROUND(countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) = '1') * 100.0 / ${prevVolume}, 2) AS prev_sponsored_sos,
-                    ROUND(countIf(toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND toString(spons_flag) != '1') * 100.0 / ${prevVolume}, 2) AS prev_organic_sos,
-                    countIf(toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}') as impressions
+                    brand_name_th as brand_name,
+                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND overall = 1) * 100.0 / ${currentVolume}, 2) AS current_overall_sos,
+                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND spons = 1) * 100.0 / ${currentVolume}, 2) AS current_sponsored_sos,
+                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND organic = 1) * 100.0 / ${currentVolume}, 2) AS current_organic_sos,
+                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND overall = 1) * 100.0 / ${prevVolume}, 2) AS prev_overall_sos,
+                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND spons = 1) * 100.0 / ${prevVolume}, 2) AS prev_sponsored_sos,
+                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND organic = 1) * 100.0 / ${prevVolume}, 2) AS prev_organic_sos,
+                    countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}') as impressions
                 FROM rb_kw_olap
-                WHERE (toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}' OR toDate(created_on) BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
-                  AND keyword_search_rank < 11
+                WHERE (DATE BETWEEN '${dateFrom}' AND '${dateTo}' OR DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
                   ${allFilters}
-                  AND brand_crawl IS NOT NULL AND brand_crawl != ''
-                  AND toString(is_competitor_product) = '1'
-                GROUP BY brand_crawl
+                  AND brand_name_th IS NOT NULL AND brand_name_th != ''
+                  AND flag = '0'
+                GROUP BY brand_name_th
                 ORDER BY impressions DESC
                 LIMIT 20
             `;
@@ -2053,22 +2125,21 @@ class VisibilityService {
                     display_sos: { value: 0, delta: 0 }
                 }));
 
-                // 3. Query for SKU-level competition
+                // 3. Query for SKU-level competition using rb_kw_olap
                 const skuQuery = `
                 SELECT 
                     keyword_search_product as sku_name,
-                    brand_crawl as brand_name,
-                    ROUND(count() * 100.0 / ${currentVolume}, 2) AS overall_sos,
-                    ROUND(countIf(toString(spons_flag) = '1') * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
-                    ROUND(countIf(toString(spons_flag) != '1') * 100.0 / ${currentVolume}, 2) AS organic_sos,
-                    count() as impressions
+                    brand_name_th as brand_name,
+                    ROUND(countIf(overall = 1) * 100.0 / ${currentVolume}, 2) AS overall_sos,
+                    ROUND(countIf(spons = 1) * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
+                    ROUND(countIf(organic = 1) * 100.0 / ${currentVolume}, 2) AS organic_sos,
+                    count(*) as impressions
                 FROM rb_kw_olap
-                WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
-                  AND keyword_search_rank < 11
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   ${allFilters}
-                  AND keyword_search_product IS NOT NULL AND keyword_search_product != ''
-                  AND toString(is_competitor_product) = '1'
-                GROUP BY keyword_search_product, brand_crawl
+                  AND keyword IS NOT NULL AND keyword != ''
+                  AND flag = '0'
+                GROUP BY sku_name, brand_name
                 ORDER BY impressions DESC
                 LIMIT 20
             `;
@@ -2120,6 +2191,7 @@ class VisibilityService {
 
                 const platform = filters.platform || null;
                 const location = filters.location || null;
+                const categoryValue = filters.category || filters.format || null;
                 const selectedBrands = Array.isArray(filters.brands)
                     ? filters.brands
                     : (filters.brands ? filters.brands.split(',') : []);
@@ -2127,6 +2199,11 @@ class VisibilityService {
                 if (selectedBrands.length === 0) {
                     return { brands: {}, days: [] };
                 }
+
+                const platformCondition = buildCHCondition(platform, 'platform_name');
+                const locationCondition = buildCHCondition(location, 'location_name');
+                const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+                const brandsCondition = `brand_name_th IN (${selectedBrands.map(b => `'${escapeCH(b.trim())}'`).join(',')})`;
 
                 // Determine date range
                 let startDate, endDate;
@@ -2138,9 +2215,9 @@ class VisibilityService {
                 } else {
                     // Fetch the latest available date from ClickHouse
                     const maxDateRes = await queryClickHouse(`
-                        SELECT MAX(toDate(created_on)) as maxDate
+                        SELECT MAX(DATE) as maxDate
                         FROM rb_kw_olap
-                        WHERE created_on IS NOT NULL
+                        WHERE DATE IS NOT NULL
                     `);
                     const maxDate = maxDateRes[0]?.maxDate;
 
@@ -2164,20 +2241,17 @@ class VisibilityService {
                 const timeStep = filters.timeStep || 'Daily';
 
                 if (timeStep === 'Weekly') {
-                    dateAggregation = 'toStartOfWeek(toDate(created_on), 1)'; // 1 for Monday
+                    dateAggregation = 'toStartOfWeek(DATE, 1)'; // 1 for Monday
                     dateFormat = "DD MMM'YY";
                 } else if (timeStep === 'Monthly') {
-                    dateAggregation = 'toStartOfMonth(toDate(created_on))';
+                    dateAggregation = 'toStartOfMonth(DATE)';
                     dateFormat = "MMM 'YY";
                 } else {
                     // Default to Daily
-                    dateAggregation = 'toDate(created_on)';
+                    dateAggregation = 'DATE';
                     dateFormat = "DD MMM'YY";
                 }
 
-                const platformCondition = buildCHCondition(platform, 'platform_name');
-                const locationCondition = buildCHCondition(location, 'location_name');
-                const brandsCondition = buildCHCondition(selectedBrands, 'brand_crawl');
 
                 // 1. Get total volume by date for denominator
                 const volumeQuery = `
@@ -2185,10 +2259,10 @@ class VisibilityService {
                     ${dateAggregation} as crawl_date,
                     count() as total_volume
                 FROM rb_kw_olap
-                WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
-                  AND keyword_search_rank < 11
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
                   AND ${locationCondition}
+                  AND ${formatCondition}
                 GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
@@ -2206,19 +2280,18 @@ class VisibilityService {
                 // 2. Query brand-specific data for all selected brands at once
                 const brandDataQuery = `
                 SELECT 
-                    brand_crawl as brand_name,
+                    brand_name_th as brand_name,
                     ${dateAggregation} as crawl_date,
-                    count() as brand_volume,
-                    countIf(toString(spons_flag) = '1') as sponsored_volume,
-                    countIf(toString(spons_flag) != '1') as organic_volume,
-                    countIf(toDate(created_on) < '2025-01-01' OR toString(spons_flag) = '1') as display_volume
+                    countIf(overall = 1) as brand_volume,
+                    countIf(spons = 1) as sponsored_volume,
+                    countIf(organic = 1) as organic_volume,
+                    countIf(DATE < '2025-01-01' OR spons = 1) as display_volume
                 FROM rb_kw_olap
-                WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
-                  AND keyword_search_rank < 11
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
                   AND ${locationCondition}
+                  AND ${formatCondition}
                   AND ${brandsCondition}
-                  AND toString(is_competitor_product) = '1'
                 GROUP BY brand_name, crawl_date
                 ORDER BY crawl_date ASC
             `;

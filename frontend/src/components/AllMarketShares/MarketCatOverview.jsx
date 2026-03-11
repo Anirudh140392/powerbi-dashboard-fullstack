@@ -288,7 +288,7 @@ const MarketCatOverview = ({
                                                 {kpiLabels[kpi.key] || kpi.label}
                                             </span>
 
-                                            <div className="flex items-center gap-1">
+                                            {/* <div className="flex items-center gap-1">
                                                 <button
                                                     onClick={(evt) => {
                                                         evt.stopPropagation();
@@ -309,7 +309,7 @@ const MarketCatOverview = ({
                                                 >
                                                     <MapPin size={13} className="text-slate-400" />
                                                 </button>
-                                            </div>
+                                            </div> */}
                                         </div>
 
                                         {/* Platform value cards for this KPI */}

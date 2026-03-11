@@ -553,15 +553,21 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
  * Logic: SUM of all sales in rb_ms_olap for the selected category/platform/date range
  */
 
-export const getCategorySize = async (start, end, platformFilter, categoryFilter) => {
+export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
+        const locationArr = normalizeFilterArray(locationFilter);
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
             const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
             platformCond = `AND (${platformConds})`;
+        }
+
+        let locationCond = '';
+        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
+            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -570,18 +576,49 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
             categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
-        const query = `
+        const startStr = start.format('YYYY-MM-DD');
+        const endStr = end.format('YYYY-MM-DD');
+        const periodDays = end.diff(start, 'day');
+        const prevEnd = start.subtract(1, 'day');
+        const prevStart = prevEnd.subtract(periodDays, 'day');
+        const prevStartStr = prevStart.format('YYYY-MM-DD');
+        const prevEndStr = prevEnd.format('YYYY-MM-DD');
+
+        const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
+
+        const currentQuery = `
             SELECT SUM(toFloat64OrZero(toString(sales))) as total_category_size
             FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'
-            ${platformCond}
-            ${categoryCond}
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
         `;
-        const result = await queryClickHouse(query);
-        return parseFloat(result?.[0]?.total_category_size || 0);
+
+        const prevQuery = `
+            SELECT SUM(toFloat64OrZero(toString(sales))) as total_category_size
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            ${baseCond}
+        `;
+
+        const [currentResult, prevResult] = await Promise.all([
+            queryClickHouse(currentQuery),
+            queryClickHouse(prevQuery)
+        ]);
+
+        const size = parseFloat(currentResult?.[0]?.total_category_size || 0);
+        const prevSize = parseFloat(prevResult?.[0]?.total_category_size || 0);
+        const deltaAbs = size - prevSize;
+        const delta = prevSize > 0 ? ((deltaAbs / prevSize) * 100) : 0;
+
+        return {
+            size,
+            prevSize,
+            delta: parseFloat(delta.toFixed(1)),
+            deltaAbs: parseFloat(deltaAbs.toFixed(2))
+        };
     } catch (error) {
         console.error('[CategorySize] Error:', error.message);
-        return 0;
+        return { size: 0, prevSize: 0, delta: 0, deltaAbs: 0 };
     }
 };
 
@@ -731,7 +768,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             return {
                 brand: r.brand,
                 metrics: {
-                    marketShare: { val: parseFloat(ms.toFixed(2)), delta: msDelta, status: getStatus(msDelta) },
+                    marketShare: { val: parseFloat(ms.toFixed(2)), delta: msDelta, prevVal: parseFloat(prev.marketShare.toFixed(2)), status: getStatus(msDelta) },
                     asp: { val: 0, delta: 0, status: 'Watch' }, // Not available in rb_ms_olap
                     overallSov: { val: 0, delta: 0, status: 'Watch' }, // Not available in rb_ms_olap
                     paidSov: { val: 0, delta: 0, status: 'Watch' }
@@ -883,7 +920,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
         const calcDelta = (curr, prev) => {
             const deltaAbs = curr - prev;
             const deltaPct = prev > 0 ? ((deltaAbs / prev) * 100) : 0;
-            return { deltaPct: parseFloat(deltaPct.toFixed(1)), deltaAbs: parseFloat(deltaAbs.toFixed(2)) };
+            return { deltaPct: parseFloat(deltaPct.toFixed(1)), deltaAbs: parseFloat(deltaAbs.toFixed(2)), prevVal: parseFloat(prev.toFixed(2)) };
         };
 
         const buildPlatformData = (platKey) => {
@@ -917,7 +954,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
                     raw: catCurr,
                     value: formatCr(catCurr),
                     delta: {
-                        value: `${catDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(catDelta.deltaPct)}% (${formatCr(Math.abs(catDelta.deltaAbs))})`,
+                        value: `${catDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(catDelta.deltaPct)}% (${formatCr(catDelta.prevVal)})`,
                         dir: catDelta.deltaPct >= 0 ? 'up' : 'down'
                     }
                 },
@@ -925,7 +962,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
                     raw: mwMsCurr,
                     value: `${mwMsCurr.toFixed(2)}%`,
                     delta: {
-                        value: `${mwMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mwMsDelta.deltaPct)}% (${Math.abs(mwMsCurr - mwMsPrev).toFixed(1)}%)`,
+                        value: `${mwMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mwMsDelta.deltaPct)}% (${mwMsDelta.prevVal.toFixed(2)}%)`,
                         dir: mwMsDelta.deltaPct >= 0 ? 'up' : 'down'
                     }
                 },
@@ -933,7 +970,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
                     raw: mwSalesCurr,
                     value: formatCr(mwSalesCurr),
                     delta: {
-                        value: `${mwSalesDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mwSalesDelta.deltaPct)}% (${formatCr(Math.abs(mwSalesDelta.deltaAbs))})`,
+                        value: `${mwSalesDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mwSalesDelta.deltaPct)}% (${formatCr(mwSalesDelta.prevVal)})`,
                         dir: mwSalesDelta.deltaPct >= 0 ? 'up' : 'down'
                     }
                 },
@@ -941,7 +978,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
                     raw: mlMsCurr,
                     value: `${mlMsCurr.toFixed(2)}%`,
                     delta: {
-                        value: `${mlMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mlMsDelta.deltaPct)}% (${Math.abs(mlMsCurr - mlMsPrev).toFixed(1)}%)`,
+                        value: `${mlMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mlMsDelta.deltaPct)}% (${mlMsDelta.prevVal.toFixed(2)}%)`,
                         dir: mlMsDelta.deltaPct >= 0 ? 'up' : 'down'
                     }
                 },
@@ -949,7 +986,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
                     raw: mlSalesCurr,
                     value: formatCr(mlSalesCurr),
                     delta: {
-                        value: `${mlSalesDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mlSalesDelta.deltaPct)}% (${formatCr(Math.abs(mlSalesDelta.deltaAbs))})`,
+                        value: `${mlSalesDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mlSalesDelta.deltaPct)}% (${formatCr(mlSalesDelta.prevVal)})`,
                         dir: mlSalesDelta.deltaPct >= 0 ? 'up' : 'down'
                     }
                 },
@@ -1001,27 +1038,27 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             categorySize: {
                 raw: allCatCurr,
                 value: formatCr(allCatCurr),
-                delta: { value: `${allCatDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allCatDelta.deltaPct)}% (${formatCr(Math.abs(allCatDelta.deltaAbs))})`, dir: allCatDelta.deltaPct >= 0 ? 'up' : 'down' }
+                delta: { value: `${allCatDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allCatDelta.deltaPct)}% (${formatCr(allCatDelta.prevVal)})`, dir: allCatDelta.deltaPct >= 0 ? 'up' : 'down' }
             },
             mwMarketShare: {
                 raw: allMwMsCurr,
                 value: `${allMwMsCurr.toFixed(2)}%`,
-                delta: { value: `${allMwMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMwMsDelta.deltaPct)}% (${Math.abs(allMwMsCurr - allMwMsPrev).toFixed(1)} %)`, dir: allMwMsDelta.deltaPct >= 0 ? 'up' : 'down' }
+                delta: { value: `${allMwMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMwMsDelta.deltaPct)}% (${allMwMsDelta.prevVal.toFixed(2)}%)`, dir: allMwMsDelta.deltaPct >= 0 ? 'up' : 'down' }
             },
             mwSales: {
                 raw: allMwSalesCurr,
                 value: formatCr(allMwSalesCurr),
-                delta: { value: `${allMwSalesDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMwSalesDelta.deltaPct)}% (${formatCr(Math.abs(allMwSalesDelta.deltaAbs))})`, dir: allMwSalesDelta.deltaPct >= 0 ? 'up' : 'down' }
+                delta: { value: `${allMwSalesDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMwSalesDelta.deltaPct)}% (${formatCr(allMwSalesDelta.prevVal)})`, dir: allMwSalesDelta.deltaPct >= 0 ? 'up' : 'down' }
             },
             mlMarketShare: {
                 raw: allMlMsCurr,
                 value: `${allMlMsCurr.toFixed(2)}%`,
-                delta: { value: `${allMlMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMlMsDelta.deltaPct)}% (${Math.abs(allMlMsCurr - allMlMsPrev).toFixed(1)} %)`, dir: allMlMsDelta.deltaPct >= 0 ? 'up' : 'down' }
+                delta: { value: `${allMlMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMlMsDelta.deltaPct)}% (${allMlMsDelta.prevVal.toFixed(2)}%)`, dir: allMlMsDelta.deltaPct >= 0 ? 'up' : 'down' }
             },
             mlSales: {
                 raw: allMlSalesCurr,
                 value: formatCr(allMlSalesCurr),
-                delta: { value: `${allMlSalesDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMlSalesDelta.deltaPct)}% (${formatCr(Math.abs(allMlSalesDelta.deltaAbs))})`, dir: allMlSalesDelta.deltaPct >= 0 ? 'up' : 'down' }
+                delta: { value: `${allMlSalesDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(allMlSalesDelta.deltaPct)}% (${formatCr(allMlSalesDelta.prevVal)})`, dir: allMlSalesDelta.deltaPct >= 0 ? 'up' : 'down' }
             },
             mlBrand: overallMlBrand ? overallMlBrand[0] : 'N/A'
         };
@@ -1697,6 +1734,129 @@ export const getMarketShareCompetitionTrends = async (mode, targets, period, sta
     } catch (error) {
         console.error('[MarketShareCompetitionTrends] Error:', error.message);
         return { dates: [], timeSeriesByTarget: {} };
+    }
+};
+
+/**
+ * Get Market Share Drilldown (Hierarchical)
+ * Hierarchy: group_brand -> brand -> item_name
+ */
+export const getMarketShareDrilldown = async (start, end, platformFilter, categoryFilter, locationFilter) => {
+    try {
+        const platformArr = normalizeFilterArray(platformFilter);
+        const categoryArr = normalizeFilterArray(categoryFilter);
+        const locationArr = normalizeFilterArray(locationFilter);
+
+        let platformCond = '';
+        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
+            platformCond = `AND platform IN (${platformArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        let locationCond = '';
+        if (locationArr && locationArr.length > 0 && !locationArr.includes('All') && !locationArr.includes('All India')) {
+            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        let categoryCond = '';
+        if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+            categoryCond = `AND category IN (${categoryArr.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        const startStr = start.format('YYYY-MM-DD');
+        const endStr = end.format('YYYY-MM-DD');
+
+        const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
+
+        // 1. Query for the full nested data at once
+        const query = `
+            SELECT 
+                group_brand,
+                brand,
+                item_name,
+                AVG(toFloat64OrZero(toString(nation_level_market_share))) as share,
+                AVG(toFloat64OrZero(toString(mrp))) as mrp
+            FROM rb_brand_ms
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
+            AND group_brand != '' AND brand != '' AND item_name != ''
+            GROUP BY group_brand, brand, item_name
+            ORDER BY group_brand, brand, item_name
+        `;
+
+        const results = await queryClickHouse(query);
+
+        // 2. Build hierarchical tree
+        const tree = [];
+        const groupMap = new Map();
+
+        results.forEach(row => {
+            const groupKey = row.group_brand;
+            const brandKey = row.brand;
+
+            if (!groupMap.has(groupKey)) {
+                groupMap.set(groupKey, {
+                    id: `group-${groupKey}`,
+                    label: groupKey,
+                    level: 'Brand',
+                    metrics: { share: 0, mrp: 0, count: 0 },
+                    children: new Map()
+                });
+                tree.push(groupMap.get(groupKey));
+            }
+
+            const group = groupMap.get(groupKey);
+            if (!group.children.has(brandKey)) {
+                group.children.set(brandKey, {
+                    id: `brand-${groupKey}-${brandKey}`,
+                    label: brandKey,
+                    level: 'Sub Brand',
+                    metrics: { share: 0, mrp: 0, count: 0 },
+                    children: []
+                });
+            }
+
+            const brand = group.children.get(brandKey);
+            const sku = {
+                id: `sku-${row.item_name}-${row.brand}`,
+                label: row.item_name,
+                level: 'SKU',
+                metrics: {
+                    share: parseFloat(parseFloat(row.share || 0).toFixed(1)),
+                    mrp: parseFloat(parseFloat(row.mrp || 0).toFixed(1))
+                }
+            };
+
+            brand.children.push(sku);
+
+            // Aggregate values for averages
+            brand.metrics.share += parseFloat(row.share || 0);
+            brand.metrics.mrp += parseFloat(row.mrp || 0);
+            brand.metrics.count += 1;
+
+            group.metrics.share += parseFloat(row.share || 0);
+            group.metrics.mrp += parseFloat(row.mrp || 0);
+            group.metrics.count += 1;
+        });
+
+        // 3. Finalize averages
+        return tree.map(group => {
+            group.metrics.share = parseFloat((group.metrics.share / group.metrics.count).toFixed(1));
+            group.metrics.mrp = parseFloat((group.metrics.mrp / group.metrics.count).toFixed(1));
+            delete group.metrics.count;
+
+            group.children = Array.from(group.children.values()).map(brand => {
+                brand.metrics.share = parseFloat((brand.metrics.share / brand.metrics.count).toFixed(1));
+                brand.metrics.mrp = parseFloat((brand.metrics.mrp / brand.metrics.count).toFixed(1));
+                delete brand.metrics.count;
+                return brand;
+            });
+
+            return group;
+        });
+
+    } catch (error) {
+        console.error('[MarketShareDrilldown] Error:', error.message);
+        return [];
     }
 };
 
