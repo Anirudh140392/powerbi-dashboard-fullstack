@@ -197,6 +197,7 @@ export default function DateRangeComparePicker({
     timeEnd,
     compareStart: initialCompareStart,
     compareEnd: initialCompareEnd,
+    maxDate,
     onApply
 }) {
     const today = useMemo(() => new Date(), []);
@@ -249,11 +250,20 @@ export default function DateRangeComparePicker({
     const handleOpen = (event) => setAnchorEl(event.currentTarget);
     const handleClose = () => setAnchorEl(null);
     const open = Boolean(anchorEl);
+    const maxDateStr = useMemo(() => maxDate ? toKey(maxDate.toDate()) : toKey(today), [maxDate, today]);
 
     function applyQuick(key) {
         const item = quickRanges.find((x) => x.key === key);
         if (!item) return;
-        const [s, e] = item.range();
+        let [s, e] = item.range();
+
+        // Clamp to maxDate if provided
+        if (maxDate) {
+            const mx = maxDate.toDate();
+            if (e.getTime() > mx.getTime()) e = new Date(mx);
+            if (s.getTime() > mx.getTime()) s = new Date(mx);
+        }
+
         const [cs, ce] = clampRange(s, e);
         setStart(cs);
         setEnd(ce);
@@ -278,7 +288,10 @@ export default function DateRangeComparePicker({
     }
 
     function onPrimaryStartChange(v) {
-        const ns = fromKey(v);
+        let ns = fromKey(v);
+        if (maxDate && ns.getTime() > maxDate.toDate().getTime()) {
+            ns = maxDate.toDate();
+        }
         const [cs, ce] = clampRange(ns, end);
         setStart(cs);
         setEnd(ce);
@@ -290,7 +303,10 @@ export default function DateRangeComparePicker({
     }
 
     function onPrimaryEndChange(v) {
-        const ne = fromKey(v);
+        let ne = fromKey(v);
+        if (maxDate && ne.getTime() > maxDate.toDate().getTime()) {
+            ne = maxDate.toDate();
+        }
         const [cs, ce] = clampRange(start, ne);
         setStart(cs);
         setEnd(ce);
@@ -380,6 +396,7 @@ export default function DateRangeComparePicker({
                                         type="date"
                                         value={toKey(start)}
                                         onChange={(e) => onPrimaryStartChange(e.target.value)}
+                                        max={maxDateStr}
                                         style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
                                     />
                                 </Box>
@@ -391,6 +408,7 @@ export default function DateRangeComparePicker({
                                         type="date"
                                         value={toKey(end)}
                                         onChange={(e) => onPrimaryEndChange(e.target.value)}
+                                        max={maxDateStr}
                                         style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
                                     />
                                 </Box>
@@ -430,6 +448,7 @@ export default function DateRangeComparePicker({
                                                     setCompareMode("custom");
                                                     setCustomCompareStart(fromKey(e.target.value));
                                                 }}
+                                                max={maxDateStr}
                                                 style={{
                                                     border: 'none', outline: 'none', width: '100%', fontSize: '11px',
                                                     color: compareMode === 'custom' ? '#0f172a' : '#94a3b8'
@@ -447,6 +466,7 @@ export default function DateRangeComparePicker({
                                                     setCompareMode("custom");
                                                     setCustomCompareEnd(fromKey(e.target.value));
                                                 }}
+                                                max={maxDateStr}
                                                 style={{
                                                     border: 'none', outline: 'none', width: '100%', fontSize: '11px',
                                                     color: compareMode === 'custom' ? '#0f172a' : '#94a3b8'

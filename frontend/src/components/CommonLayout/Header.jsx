@@ -63,6 +63,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
     productCategories,
     selectedProductCategory,
     setSelectedProductCategory,
+    maxDate,
   } = React.useContext(FilterContext);
 
   const [darkStoreData, setDarkStoreData] = React.useState({ totalCount: 0, byPlatform: {} });
@@ -327,6 +328,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                   timeEnd={timeEnd}
                   compareStart={compareStart}
                   compareEnd={compareEnd}
+                  maxDate={maxDate}
                   onApply={(start, end, cStart, cEnd, compareOn, label) => {
                     setTimeStart(start);
                     setTimeEnd(end);

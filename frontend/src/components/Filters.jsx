@@ -7,6 +7,8 @@ import {
   TextField,
 } from "@mui/material";
 import DateRangeComparePicker from "./CommonLayout/DateRangeComparePicker";
+import { useContext } from "react";
+import { FilterContext } from "../utils/FilterContext";
 
 export default function DashboardHeadersFilters({
   filters,
@@ -18,6 +20,7 @@ export default function DashboardHeadersFilters({
   msls = [],
   premiums = [],
 }) {
+  const { maxDate } = useContext(FilterContext);
   const handleChange = (key) => (e) =>
     setFilters((prev) => ({ ...prev, [key]: e.target.value }));
 
@@ -143,6 +146,7 @@ export default function DashboardHeadersFilters({
             startDate: filters.startDate || "",
             endDate: filters.endDate || "",
           }}
+          maxDate={maxDate}
           onDateRangeChange={(range) => {
             setFilters((prev) => ({
               ...prev,
