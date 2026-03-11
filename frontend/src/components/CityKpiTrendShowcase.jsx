@@ -39,8 +39,6 @@ const KPI_CONFIG = [
   { key: "osa", label: "OSA" },
   { key: "doi", label: "DOI" },
   { key: "fillrate", label: "Fillrate" },
-  { key: "fillrate", label: "Fillrate" },
-  { key: "assortment", label: "Assortment" },
   { key: "psl", label: "PSL" },
 ];
 
@@ -154,11 +152,7 @@ function formatKpiValue(kpi, value) {
     return isNaN(num) ? value : `${num.toFixed(1)}L`;
   }
 
-  // Assortment should be a whole number
-  if (k.includes("assortment")) {
-    const num = Number(value);
-    return isNaN(num) ? value : Math.round(num).toString();
-  }
+
 
   return value.toString();
 }

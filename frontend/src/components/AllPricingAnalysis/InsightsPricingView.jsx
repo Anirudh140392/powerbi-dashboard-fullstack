@@ -395,10 +395,6 @@ function CardMinimal({ item, tabKey }) {
                     ))}
                 </div>
             </div>
-
-            <button className="mt-3 w-full rounded-xl border border-slate-200 bg-white py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Know more →
-            </button>
         </div>
     );
 }

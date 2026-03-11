@@ -31,7 +31,7 @@ export const FilterProvider = ({ children }) => {
 
     // Brand state
     const [brands, setBrands] = useState(FALLBACK_BRANDS);
-    const [selectedBrand, setSelectedBrand] = useState("Colgate");
+    const [selectedBrand, setSelectedBrand] = useState("All");
 
     // Location state
     const [locations, setLocations] = useState(FALLBACK_LOCATIONS);

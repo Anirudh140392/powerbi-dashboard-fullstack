@@ -25,11 +25,11 @@ const getVariance = (seedStr, pointSeed = "") => {
 // ── Per-Entity KPI Data (keys are lowercase) ─────────────────
 const ENTITY_DATA = {
   // ── PLATFORMS ───────────────────────────────────────────────
-  blinkit: { offtakes: 4.51, spend: 0.87, roas: 6.0, categorySize: 6.0, conversion: 15.2, availability: 90.6, sos: 32.4, marketShare: 22.91, inorgSales: 14.2, dspSales: 8.5, promoMyBrand: 22.1, promoCompete: 18.4, cpm: 165, cpc: 14.2, osa: 90.6, doi: 38, fillrate: 86.5, assortment: 156, psl: 1.45, promo: 7.2, market: 22.91, inorg: 14.2 },
-  instamart: { offtakes: 4.51, spend: 0.78, roas: 5.1, categorySize: 5.1, conversion: 16.2, availability: 82.85, sos: 29.5, marketShare: 20.73, inorgSales: 12.8, dspSales: 7.2, promoMyBrand: 19.8, promoCompete: 16.2, cpm: 152, cpc: 15.8, osa: 82.85, doi: 42, fillrate: 85.8, assortment: 142, psl: 1.28, promo: 6.4, market: 20.73, inorg: 12.8 },
-  zepto: { offtakes: 3.68, spend: 0.74, roas: 5.8, categorySize: 5.8, conversion: 17.2, availability: 87.53, sos: 26.8, marketShare: 25.37, inorgSales: 11.5, dspSales: 6.8, promoMyBrand: 17.5, promoCompete: 14.8, cpm: 138, cpc: 16.5, osa: 87.53, doi: 44, fillrate: 85.2, assortment: 134, psl: 1.12, promo: 5.8, market: 25.37, inorg: 11.5 },
-  flipkart: { offtakes: 2.63, spend: 0.65, roas: 6.1, categorySize: 6.1, conversion: 18.2, availability: 88.19, sos: 24.2, marketShare: 23.75, inorgSales: 10.2, dspSales: 5.5, promoMyBrand: 15.2, promoCompete: 12.5, cpm: 178, cpc: 19.2, osa: 88.19, doi: 48, fillrate: 84.5, assortment: 128, psl: 0.98, promo: 5.2, market: 23.75, inorg: 10.2 },
-  amazon: { offtakes: 2.62, spend: 0.72, roas: 5.3, categorySize: 5.3, conversion: 19.2, availability: 83.76, sos: 25.5, marketShare: 18.01, inorgSales: 10.8, dspSales: 6.2, promoMyBrand: 16.4, promoCompete: 13.8, cpm: 185, cpc: 18.5, osa: 83.76, doi: 46, fillrate: 86.2, assortment: 132, psl: 1.05, promo: 5.5, market: 18.01, inorg: 10.8 },
+  blinkit: { osa: 90.6, doi: 38, fillrate: 86.5, psl: 1.45 },
+  instamart: { osa: 82.85, doi: 42, fillrate: 85.8, psl: 1.28 },
+  zepto: { osa: 87.53, doi: 44, fillrate: 85.2, psl: 1.12 },
+  flipkart: { osa: 88.19, doi: 48, fillrate: 84.5, psl: 0.98 },
+  amazon: { osa: 83.76, doi: 46, fillrate: 86.2, psl: 1.05 },
 
   // ── ICE CREAM BRANDS / KW Competitors ──────────────────────
   "kwality walls": { offtakes: 5.6, spend: 0.95, roas: 5.9, categorySize: 21.2, conversion: 3.5, availability: 88.2, sos: 38.2, marketShare: 32.4, inorgSales: 16.5, dspSales: 9.8, promoMyBrand: 26.2, promoCompete: 22.5, cpm: 135, cpc: 12.8, osa: 88.2, doi: 34, fillrate: 89.5, assortment: 168, psl: 1.65, promo: 8.2, market: 32.4, inorg: 16.5 },
@@ -80,7 +80,7 @@ const ENTITY_DATA = {
 };
 
 // ── Fallback baseline ────────────────────────────────────────
-const BASELINE = { offtakes: 2.5, spend: 0.40, roas: 5.8, categorySize: 10.0, conversion: 2.0, availability: 82.0, sos: 25.0, marketShare: 20.0, inorgSales: 10.0, dspSales: 6.0, promoMyBrand: 15.0, promoCompete: 12.0, cpm: 155, cpc: 17.0, osa: 82.0, doi: 42, fillrate: 84.0, assortment: 130, psl: 1.2, promo: 5.5, market: 20.0, inorg: 10.0 };
+const BASELINE = { osa: 82.0, doi: 42, fillrate: 84.0, psl: 1.2 };
 
 // ── KPI Alias Map ────────────────────────────────────────────
 const KPI_ALIASES = {
@@ -98,7 +98,7 @@ const KPI_ALIASES = {
   promocompete: 'promoCompete',
   cpm: 'cpm', cpc: 'cpc',
   doi: 'doi', fillrate: 'fillrate',
-  assortment: 'assortment', psl: 'psl',
+  psl: 'psl',
   asp: 'asp',
 };
 
@@ -174,7 +174,7 @@ function getLogicalKpiValue(kpi, filters = {}) {
   const vFactor = Math.abs(h % 100) / 100; // 0.00 to 0.99
 
   const isPercentage = ['osa', 'availability', 'fillrate', 'market', 'sos', 'conversion', 'promo', 'inorg'].includes(rawKey);
-  const isTotalizing = ['offtaking', 'offtake', 'offtakes', 'spend', 'inorgsales', 'dspsales', 'categorysize', 'psl', 'assortment'].includes(rawKey);
+  const isTotalizing = ['offtaking', 'offtake', 'offtakes', 'spend', 'inorgsales', 'dspsales', 'categorysize', 'psl'].includes(rawKey);
   const isAsp = rawKey === 'asp';
 
   // Variance range: 0.80 to 1.20
@@ -632,13 +632,7 @@ const FORMAT_MATRIX_ABSOLUTE = {
       },
       trend: generateTrendMulti(85)
     },
-    {
-      kpi: "Assortment",
-      values: {
-        Blinkit: 142, Instamart: 138, Zepto: 122, Flipkart: 135, Amazon: 128
-      },
-      trend: generateTrendMulti(66)
-    },
+
     {
       kpi: "PSL",
       values: {
@@ -676,14 +670,7 @@ const FORMAT_MATRIX_ABSOLUTE = {
       },
       trend: generateTrendMulti(95)
     },
-    {
-      kpi: "Assortment",
-      values: {
-        Cassata: 72, "Core Tub": 96, Cornetto: 82, Magnum: 91,
-        "KW Sticks": 94, "Premium Tub": 88, Sandwich: 55
-      },
-      trend: generateTrendMulti(85)
-    },
+
     {
       kpi: "PSL",
       values: {
@@ -728,16 +715,7 @@ const FORMAT_MATRIX_ABSOLUTE = {
       },
       trend: generateTrendMulti(88)
     },
-    {
-      kpi: "Assortment",
-      values: {
-        Ajmer: 73, Amritsar: 69, Bathinda: 71, Bhopal: 82,
-        Chandigarh: 80, Gwalior: 63, Indore: 87, Jaipur: 78,
-        Lucknow: 75, Patna: 70, Ranchi: 72, Varanasi: 68,
-        Kanpur: 77, Meerut: 73, Agra: 76, Noida: 80
-      },
-      trend: generateTrendMulti(76)
-    },
+
     {
       kpi: "PSL",
       values: {
