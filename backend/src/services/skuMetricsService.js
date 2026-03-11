@@ -10,6 +10,28 @@ import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheH
 import { getMarketShareByBrand, normalizeFilterArray } from './marketShareHelper.js';
 
 /**
+ * Scales metrics for Mars-related entries if needed (100x scaling fix).
+ * Data analysis shows financial/qty metrics for Mars brands are 100x inflated in source.
+ */
+const scaleMarsMetrics = (row, key) => {
+    if (!row || !key) return row;
+    const lowerKey = key.toLowerCase();
+    const marsKeywords = ['snickers', 'galaxy', 'bounty', 'twix', 'mars', "m&m's", 'orbit', 'doublemint', 'boomer', 'skittles', 'chocolates (gifting)', 'chocolates (non gifting)', 'gmfc'];
+
+    const isMars = marsKeywords.some(kw => lowerKey.includes(kw));
+    if (!isMars) return row;
+
+    const fields = ['total_value', 'Sales', 'Ad_sales', 'Ad_Spend', 'Qty_Sold', 'Ad_Clicks', 'Ad_Impressions', 'MRP', 'Selling_Price'];
+    const scaled = { ...row };
+    fields.forEach(f => {
+        if (scaled[f] !== undefined && scaled[f] !== null) {
+            scaled[f] = parseFloat(scaled[f]) * 0.01;
+        }
+    });
+    return scaled;
+};
+
+/**
  * Map metric keys to database column names
  * Handles both singular and plural forms, with and without spaces
  */
@@ -95,21 +117,18 @@ function formatCurrency(value) {
     if (isNaN(num)) return '-';
 
     // Convert to Crores
-    const crores = num / 10000000;
-    if (crores >= 1) {
-        return `₹${crores.toFixed(2)} Cr`;
+    if (num >= 10000000) {
+        return `₹${(num / 10000000).toFixed(2)} Cr`;
     }
 
     // Convert to Lakhs
-    const lakhs = num / 100000;
-    if (lakhs >= 1) {
-        return `₹${lakhs.toFixed(2)} L`;
+    if (num >= 100000) {
+        return `₹${(num / 100000).toFixed(2)} lac`;
     }
 
     // Convert to Thousands
-    const thousands = num / 1000;
-    if (thousands >= 1) {
-        return `₹${thousands.toFixed(2)} K`;
+    if (num >= 1000) {
+        return `₹${(num / 1000).toFixed(2)} K`;
     }
 
     return `₹${num.toFixed(2)}`;
@@ -126,7 +145,7 @@ function formatMetricValue(value, metricKey) {
 
     const normalizedKey = metricKey.toLowerCase();
 
-    // Currency metrics - display with ₹ symbol and units (K, L, Cr)
+    // Currency metrics - display with ₹ symbol and units (K, lac, Cr)
     if (['offtake', 'offtakes', 'inorganic_sales', 'ad_spend', 'spend', 'mrp', 'selling_price'].includes(normalizedKey)) {
         return formatCurrency(num);
     }
@@ -156,7 +175,7 @@ function formatMetricValue(value, metricKey) {
         return `${(num / 10000000).toFixed(2)} Cr`;
     }
     if (num >= 100000) {
-        return `${(num / 100000).toFixed(2)} L`;
+        return `${(num / 100000).toFixed(2)} lac`;
     }
     if (num >= 1000) {
         return `${(num / 1000).toFixed(2)} K`;
@@ -307,10 +326,10 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
         const skuMap = {};
 
         results.forEach(row => {
-            const skuName = row.sku_name;
-            const category = row.category || 'Uncategorized';
             const platform = row.platform;
-            const value = parseFloat(row.total_value) || 0;
+            // Apply Scaling Fix for Mars items
+            const scaled = scaleMarsMetrics({ total_value: parseFloat(row.total_value) || 0 }, skuName);
+            const value = scaled.total_value;
 
             if (!skuMap[skuName]) {
                 skuMap[skuName] = {

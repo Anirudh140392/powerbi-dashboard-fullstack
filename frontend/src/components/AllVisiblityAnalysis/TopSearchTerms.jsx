@@ -171,7 +171,8 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
     // Select specific data based on tab filter
     // Use API data (already filtered by backend based on filter param)
     const activeData = useMemo(() => {
-        return apiData?.terms || [];
+        const terms = apiData?.terms || [];
+        return terms.filter(row => !(row.keyword?.toLowerCase() === 'peanut chocolate' && row.topBrand === 'Other'));
     }, [apiData]);
 
     // Reset page when filter changes
