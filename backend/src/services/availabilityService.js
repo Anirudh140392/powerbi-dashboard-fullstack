@@ -935,7 +935,6 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                      AND Comp_flag = 1
                       ${baseFilter}
                     GROUP BY Brand
                     ORDER BY total_deno DESC
@@ -1836,7 +1835,6 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                         argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_inv
                     FROM rb_pdp_olap
                     WHERE ${whereClause}
-                      AND Comp_flag = 1
                     GROUP BY Brand, Web_Pid
                 )
                 SELECT 
@@ -1850,7 +1848,6 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 LEFT JOIN latest_skus ON rb_pdp_olap.Web_Pid = latest_skus.Web_Pid AND rb_pdp_olap.Brand = latest_skus.Brand
                 WHERE ${whereClause}
                   AND Brand IS NOT NULL AND Brand != ''
-                  AND Comp_flag = 1
                 GROUP BY Brand
                 ORDER BY total_deno DESC
                 LIMIT 10
@@ -1930,7 +1927,6 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND Product IS NOT NULL AND Product != ''
-                  AND Comp_flag = 1
                 GROUP BY Product, Brand
                 ORDER BY total_deno DESC
                 LIMIT 8
@@ -1981,26 +1977,23 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
 
         // 1. Build base condition (Platform and Location)
         const baseWhere = buildAvailabilityWhereClause({ platform, location, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
-        const baseConds = baseWhere !== '1=1' ? [baseWhere] : [];
-        baseConds.push('Comp_flag = 1');
+        const baseCondsStr = baseWhere !== '1=1' ? `${baseWhere} AND ` : '';
 
         // 2. Build Category conditions (filtered by Platform/Location/Advanced)
-        const catQuery = `SELECT DISTINCT Product_Category as value FROM rb_pdp_olap WHERE ${baseConds.join(' AND ')} AND Product_Category IS NOT NULL AND Product_Category != '' ORDER BY Product_Category`;
+        const catQuery = `SELECT DISTINCT Product_Category as value FROM rb_pdp_olap WHERE ${baseCondsStr}Product_Category IS NOT NULL AND Product_Category != '' ORDER BY Product_Category`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
         const brandWhere = buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
-        const brandConds = brandWhere !== '1=1' ? [brandWhere] : [];
-        brandConds.push('Comp_flag = 1');
-        const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandConds.join(' AND ')} AND Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
+        const brandCondsStr = brandWhere !== '1=1' ? `${brandWhere} AND ` : '';
+        const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandCondsStr}Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
 
         // 4. Build SKU conditions (filtered by Platform/Location/Advanced/Category/Brand)
         const skuWhere = buildAvailabilityWhereClause({ platform, location, category, brand, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
-        const skuConds = skuWhere !== '1=1' ? [skuWhere] : [];
-        skuConds.push('Comp_flag = 1');
-        const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuConds.join(' AND ')} AND Product IS NOT NULL AND Product != '' ORDER BY Product LIMIT 200`;
+        const skuCondsStr = skuWhere !== '1=1' ? `${skuWhere} AND ` : '';
+        const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuCondsStr}Product IS NOT NULL AND Product != '' ORDER BY Product LIMIT 200`;
 
         const [locationResults, categoryResults, brandResults, skuResults] = await Promise.all([
-            queryClickHouse(`SELECT DISTINCT Location as value FROM rb_pdp_olap WHERE Comp_flag = 1 AND Location IS NOT NULL AND Location != '' ORDER BY Location`),
+            queryClickHouse(`SELECT DISTINCT Location as value FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' ORDER BY Location`),
             queryClickHouse(catQuery),
             queryClickHouse(brandQuery),
             queryClickHouse(skuQuery)
@@ -2064,7 +2057,6 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     COUNT(DISTINCT Web_Pid) as assortment_count
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
-                  AND Comp_flag = 1
                 GROUP BY Brand, DATE
                 ORDER BY DATE ASC
             `;

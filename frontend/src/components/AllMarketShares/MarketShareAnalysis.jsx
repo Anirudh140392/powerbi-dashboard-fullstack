@@ -367,13 +367,29 @@ export default function MarketShareAnalysis() {
           setKpis(prev => prev.map(k => {
             // Category Size KPI
             if (k.id === "ms-category-size" && response.data.categorySize !== undefined) {
-              const val = response.data.categorySize;
+              const catData = response.data.categorySize;
+              const val = catData.size || 0;
               const formattedValue = val > 10000000
                 ? `₹ ${(val / 10000000).toFixed(2)} Cr`
                 : val > 100000
                   ? `₹ ${(val / 100000).toFixed(2)} L`
                   : `₹ ${val.toFixed(2)}`;
-              return { ...k, value: formattedValue };
+
+              const prevValueCr = catData.prevSize > 10000000
+                ? `₹${(catData.prevSize / 10000000).toFixed(2)} Cr`
+                : catData.prevSize > 100000
+                  ? `₹${(catData.prevSize / 100000).toFixed(2)} L`
+                  : `₹${catData.prevSize.toFixed(2)}`;
+
+              const arrow = catData.delta >= 0 ? '▲' : '▼';
+
+              return {
+                ...k,
+                value: formattedValue,
+                delta: catData.delta,
+                deltaLabel: `${arrow} ${Math.abs(catData.delta)}% (${prevValueCr})`,
+                extraChangeColor: catData.delta >= 0 ? "green" : "red",
+              };
             }
 
             // Market Leader Sales KPI
@@ -386,11 +402,11 @@ export default function MarketShareAnalysis() {
                   ? `₹ ${(val / 100000).toFixed(2)} L`
                   : `₹ ${val.toFixed(2)}`;
 
-              const deltaAbsCr = Math.abs(leader.deltaAbs) > 10000000
-                ? `₹${(Math.abs(leader.deltaAbs) / 10000000).toFixed(2)} Cr`
-                : Math.abs(leader.deltaAbs) > 100000
-                  ? `₹${(Math.abs(leader.deltaAbs) / 100000).toFixed(2)} L`
-                  : `₹${Math.abs(leader.deltaAbs).toFixed(2)}`;
+              const prevValueCr = leader.prevSales > 10000000
+                ? `₹${(leader.prevSales / 10000000).toFixed(2)} Cr`
+                : leader.prevSales > 100000
+                  ? `₹${(leader.prevSales / 100000).toFixed(2)} L`
+                  : `₹${leader.prevSales.toFixed(2)}`;
 
               const arrow = leader.delta >= 0 ? '▲' : '▼';
               return {
@@ -398,7 +414,7 @@ export default function MarketShareAnalysis() {
                 value: formattedValue,
                 brand: leader.brand,
                 delta: leader.delta,
-                deltaLabel: `${arrow} ${Math.abs(leader.delta)}% (${deltaAbsCr})`,
+                deltaLabel: `${arrow} ${Math.abs(leader.delta)}% (${prevValueCr})`,
                 extraChangeColor: leader.delta >= 0 ? "green" : "red",
               };
             }
@@ -413,18 +429,18 @@ export default function MarketShareAnalysis() {
                   ? `₹ ${(val / 100000).toFixed(2)} L`
                   : `₹ ${val.toFixed(2)}`;
 
-              const deltaAbsCr = Math.abs(mars.deltaAbs) > 10000000
-                ? `₹${(Math.abs(mars.deltaAbs) / 10000000).toFixed(2)} Cr`
-                : Math.abs(mars.deltaAbs) > 100000
-                  ? `₹${(Math.abs(mars.deltaAbs) / 100000).toFixed(2)} L`
-                  : `₹${Math.abs(mars.deltaAbs).toFixed(2)}`;
+              const prevValueCr = mars.prevSales > 10000000
+                ? `₹${(mars.prevSales / 10000000).toFixed(2)} Cr`
+                : mars.prevSales > 100000
+                  ? `₹${(mars.prevSales / 100000).toFixed(2)} L`
+                  : `₹${mars.prevSales.toFixed(2)}`;
 
               const arrow = mars.delta >= 0 ? '▲' : '▼';
               return {
                 ...k,
                 value: formattedValue,
                 delta: mars.delta,
-                deltaLabel: `${arrow} ${Math.abs(mars.delta)}% (${deltaAbsCr})`,
+                deltaLabel: `${arrow} ${Math.abs(mars.delta)}% (${prevValueCr})`,
                 extraChangeColor: mars.delta >= 0 ? "green" : "red",
               };
             }
@@ -467,7 +483,7 @@ export default function MarketShareAnalysis() {
       />
 
       {/* <MarketShareDrilldown loading={loading} /> */}
-      {/* <SubCategoryMarket loading={loading} /> */}
+      <SubCategoryMarket loading={loading} />
 
       {/* <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
         <div className="text-sm font-semibold">
@@ -500,10 +516,10 @@ export default function MarketShareAnalysis() {
                     key={option.key}
                     type="button"
                     onClick={() => setMarketMode(option.key)}
-                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${marketMode === option.key
+                    className={\`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors \${marketMode === option.key
                       ? "text-slate-900"
                       : "text-slate-500 hover:text-slate-700"
-                      }`}
+                      }\`}
                     aria-pressed={marketMode === option.key}
                   >
                     {option.label}
@@ -527,12 +543,12 @@ export default function MarketShareAnalysis() {
         </div>
       </div> */}
 
-      <button
+      {/* <button
         onClick={() => setShowFilters(true)}
         className="fixed bottom-4 right-4 md:bottom-8 md:right-8 h-12 w-12 md:h-14 md:w-14 rounded-full bg-emerald-500 text-white shadow-[0_18px_40px_rgba(16,185,129,0.45)] flex items-center justify-center text-xl font-bold z-40"
       >
         ⋮
-      </button>
+      </button> */}
 
       {showFilters && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex justify-end">

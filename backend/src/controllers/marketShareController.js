@@ -1,4 +1,4 @@
-import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareCompetitionTrends } from '../services/marketShareHelper.js';
+import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown } from '../services/marketShareHelper.js';
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
@@ -12,7 +12,7 @@ export const Platform = async (req, res) => {
 
         // Fetch all KPIs in parallel
         const [categorySize, leaderData, marsData] = await Promise.all([
-            getCategorySize(start, end, platform, category),
+            getCategorySize(start, end, platform, category, location),
             getMarketLeaderSales(start, end, platform, category, location),
             getMarsWrigleySales(start, end, platform, category, location)
         ]);
@@ -144,6 +144,28 @@ export const MarketShareCompetitionTrends = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in Market Share Competition Trends:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const MarketShareDrilldown = async (req, res) => {
+    try {
+        const { platform, category, location, startDate, endDate } = req.query;
+        console.log("Market Share Drilldown request received:", { platform, category, location, startDate, endDate });
+
+        const start = startDate ? dayjs(startDate) : dayjs().subtract(30, 'day');
+        const end = endDate ? dayjs(endDate) : dayjs();
+
+        const result = await getMarketShareDrilldown(start, end, platform, category, location);
+
+        console.log(`Market Share Drilldown result items: ${result.length}`);
+
+        res.json({
+            message: "Market Share Drilldown fetched successfully",
+            drilldownData: result
+        });
+    } catch (error) {
+        console.error('Error in Market Share Drilldown:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };

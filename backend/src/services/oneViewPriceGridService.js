@@ -76,9 +76,9 @@ async function getOneViewPriceGrid(filters = {}) {
         if (filters.skuType) {
             if (filters.skuType.toLowerCase() === 'own') {
                 filterClauses.push('p.Comp_flag = 0');
-            } else if (filters.skuType.toLowerCase() === 'competition') {
-                filterClauses.push('p.Comp_flag = 1');
-            }
+             } //else if (filters.skuType.toLowerCase() === 'competition') {
+            //     filterClauses.push('p.Comp_flag = 1');
+            // }
         }
 
         // Format (Category) filter

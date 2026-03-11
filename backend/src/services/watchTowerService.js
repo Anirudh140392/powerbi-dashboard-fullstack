@@ -887,7 +887,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             brands,
             currStart, currEnd,
             prevStart, prevEnd,
-            platformFilter, locationFilter, categoryFilter
+            platformFilter, locationFilter, categoryFilter, channel
         ) => {
             try {
                 const timerLabel = `[Bulk SOS] Total Time ${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
@@ -3567,7 +3567,7 @@ const getKeywords = async (brand) => {
         // ClickHouse query
         const conditions = [`keyword IS NOT NULL`, `keyword != ''`];
         if (brand) {
-            conditions.push(`brand_name = '${brand.replace(/'/g, "''")}'`);
+            conditions.push(`brand_name_th = '${brand.replace(/'/g, "''")}'`);
         }
 
         const query = `SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${conditions.join(' AND ')} ORDER BY keyword`;
@@ -6482,7 +6482,7 @@ const getCompetitionData = async (filters = {}) => {
 
         // Build SOS conditions for rb_kw_olap
         const buildKwConds = (startDt, endDt) => {
-            const conds = [`toDate(created_on) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
+            const conds = [`toDate(DATE) BETWEEN '${startDt.format('YYYY-MM-DD')}' AND '${endDt.format('YYYY-MM-DD')}'`];
             if (platArr && platArr.length > 0) {
                 conds.push(`lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
@@ -6495,7 +6495,6 @@ const getCompetitionData = async (filters = {}) => {
             if (catArrNorm && catArrNorm.length > 0) {
                 conds.push(`lower(keyword_category) IN (${catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
-
 
             return conds.join(' AND ');
         };
@@ -6888,7 +6887,9 @@ const getCompetitionData = async (filters = {}) => {
                 Price: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(1)) },
                 CategoryShare: { value: parseFloat(categoryShare.toFixed(1)), delta: parseFloat(categoryShareDelta.toFixed(1)) },
                 MarketShare: { value: parseFloat(marketShare.toFixed(1)), delta: parseFloat(marketShareDelta.toFixed(1)) },
-                ListingPercent: { value: parseFloat(listingPercent.toFixed(1)), delta: parseFloat(listingPercentDelta.toFixed(1)) }
+                ListingPercent: { value: parseFloat(listingPercent.toFixed(1)), delta: parseFloat(listingPercentDelta.toFixed(1)) },
+                Assortment: { value: parseInt(brand.assortment || 0), delta: 0 },
+                Listing: { value: parseFloat(listingPercent.toFixed(1)), delta: parseFloat(listingPercentDelta.toFixed(1)) }
             };
         });
 
@@ -7098,7 +7099,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             // Fetch distinct locations from dynamic source
             queryClickHouse(`SELECT DISTINCT ${src.f.location} as location FROM ${src.table} WHERE ${src.f.location} IS NOT NULL AND ${src.f.location} != '' ORDER BY location`),
 
-            // Fetch distinct categories filtered by platform/location
+            // Fetch distinct product categories filtered by platform/location
             (() => {
                 const conds = [];
                 const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
@@ -7147,12 +7148,10 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                     const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
                     if (locArr.length > 0) conds.push(`${src.f.location} IN(${locArr.map(l => `'${escapeStr(l)}'`).join(',')})`);
                 }
-                const catArr = category.split(',').map(c => c.trim()).filter(c => c && c !== 'All');
                 if (catArr.length > 0) {
                     const catCol = src.f.category;
                     conds.push(`${catCol} IN(${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
                 }
-                const bndArr = brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All');
                 if (bndArr.length > 0) {
                     conds.push(`${src.f.brand} IN(${bndArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
                 }
@@ -7172,26 +7171,29 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         const skuNames = skuResults.map(s => s.skuName).filter(Boolean);
         const skuCodes = skuResults.map(s => s.skuCode).filter(Boolean);
 
-        // Ensure uniqueness for codes if multiple names share same code or vice versa
+        // Ensure uniqueness
         const uniqueSkuNames = [...new Set(skuNames)];
         const uniqueSkuCodes = [...new Set(skuCodes)];
 
+        console.log(`[getCompetitionFilterOptions] Found ${locations.length} locations, ${categories.length} categories, ${brands.length} brands, ${uniqueSkuNames.length} SKUs`);
+
         return {
             locations: ['All India', ...locations],
-            categories: ['All', ...categories],
-            brands: ['All', ...brands],
-            skuNames: ['All', ...uniqueSkuNames],
-            skuCodes: ['All', ...uniqueSkuCodes]
+            categories,
+            brands,
+            skuNames: uniqueSkuNames,
+            skuCodes: uniqueSkuCodes,
+            skus: uniqueSkuNames
         };
 
     } catch (error) {
         console.error('[getCompetitionFilterOptions] Error:', error);
         return {
             locations: ['All India'],
-            categories: ['All'],
-            brands: ['All'],
-            skuNames: ['All'],
-            skuCodes: ['All']
+            categories: [],
+            brands: [],
+            skuNames: [],
+            skuCodes: []
         };
     }
 };

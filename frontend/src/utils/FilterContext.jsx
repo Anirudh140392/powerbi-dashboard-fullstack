@@ -350,7 +350,11 @@ export const FilterProvider = ({ children }) => {
         const fetchKeywords = async () => {
             if (!isAuthenticated) return;
             try {
-                const res = await axiosInstance.get("/watchtower/keywords");
+                const params = {};
+                if (selectedBrand && selectedBrand !== "All") {
+                    params.brand = Array.isArray(selectedBrand) ? selectedBrand[0] : selectedBrand;
+                }
+                const res = await axiosInstance.get("/watchtower/keywords", { params });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched keywords from DB:", res.data.length, "keywords");
                     setKeywords(res.data);
@@ -367,7 +371,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchKeywords();
-    }, []);
+    }, [isAuthenticated, selectedBrand]);
 
     return (
         <FilterContext.Provider value={{

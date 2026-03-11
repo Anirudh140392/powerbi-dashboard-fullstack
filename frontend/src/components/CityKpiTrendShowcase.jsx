@@ -658,7 +658,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel = "KPI", onFilterChange }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, filterApiUrl = "/api/availability-analysis/filter-options", filterSections, firstColLabel = "KPI", onFilterChange }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -692,14 +692,13 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   const [appliedSectionValues, setAppliedSectionValues] = useState({});
 
   // Define which filter types to fetch from backend (maps to filterType param)
-  const FILTER_SECTIONS = React.useMemo(() => [
+  const FILTER_SECTIONS = React.useMemo(() => filterSections || [
     { id: "platforms", label: "Platform", apiType: "platforms" },
     { id: "categories", label: "Format / Category", apiType: "categories" },
     { id: "cities", label: "City", apiType: "cities" },
     { id: "brands", label: "Brand", apiType: "brands" },
-    { id: "kpis", label: "KPI", apiType: "kpis" },
     { id: "months", label: "Month", apiType: "months" },
-  ], []);
+  ], [filterSections]);
 
   // Fetch dynamic filter options from backend when modal opens
   // Use section IDs as cache key to force re-fetch only if sections change
@@ -716,7 +715,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     Promise.all(
       FILTER_SECTIONS.map(async (section) => {
         try {
-          const res = await fetch(`/api/availability-analysis/filter-options?filterType=${section.apiType}`, {
+          const res = await fetch(`${filterApiUrl}?filterType=${section.apiType}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (!res.ok) return { ...section, options: [] };
@@ -1471,12 +1470,34 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
 // // --- Main showcase ----------------------------------------------------------
 
-export default function CityKpiTrendShowcase({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, firstColLabel, onFilterChange }) {
+export default function CityKpiTrendShowcase({
+  dynamicKey,
+  data,
+  title,
+  showPagination = true,
+  kpiFilterOptions,
+  filterApiUrl,
+  filterSections,
+  firstColLabel,
+  onFilterChange
+}) {
   console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
   }
-  return <MatrixVariant dynamicKey={dynamicKey} data={data} title={title} showPagination={showPagination} kpiFilterOptions={kpiFilterOptions} firstColLabel={firstColLabel} onFilterChange={onFilterChange} />;
+  return (
+    <MatrixVariant
+      dynamicKey={dynamicKey}
+      data={data}
+      title={title}
+      showPagination={showPagination}
+      kpiFilterOptions={kpiFilterOptions}
+      filterApiUrl={filterApiUrl}
+      filterSections={filterSections}
+      firstColLabel={firstColLabel}
+      onFilterChange={onFilterChange}
+    />
+  );
 }
 
