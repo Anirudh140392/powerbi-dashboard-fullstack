@@ -428,29 +428,6 @@ const LatestOverivewCatCity = ({
                                             >
                                                 {e.name}
                                             </span>
-
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    onClick={(evt) => {
-                                                        evt.stopPropagation();
-                                                        onViewTrends(e.name, dimensionData[dimension].label, dimension);
-                                                    }}
-                                                    className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                    title={`View ${e.name} Trend`}
-                                                >
-                                                    <LineChart size={13} className="text-slate-400" />
-                                                </button>
-                                                <button
-                                                    onClick={(evt) => {
-                                                        evt.stopPropagation();
-                                                        // onViewRca(e.name);
-                                                    }}
-                                                    className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                    title={`View ${e.name} RCA`}
-                                                >
-                                                    <MapPin size={13} className="text-slate-400" />
-                                                </button>
-                                            </div>
                                         </div>
 
                                         {/* KPI Cards */}
