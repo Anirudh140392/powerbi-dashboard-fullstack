@@ -283,14 +283,16 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 />
               )}
 
-              <CustomHeaderDropdown
-                label="LOCATION"
-                options={locations}
-                value={selectedLocation}
-                onChange={(newValue) => setSelectedLocation(newValue)}
-                width={{ xs: "calc(50% - 6px)", sm: 115 }}
-                multiSelect={true}
-              />
+              {title !== "Business Overview" && (
+                <CustomHeaderDropdown
+                  label="LOCATION"
+                  options={locations}
+                  value={selectedLocation}
+                  onChange={(newValue) => setSelectedLocation(newValue)}
+                  width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                  multiSelect={true}
+                />
+              )}
 
               {location.pathname === "/visibility-anlysis" && (
                 <CustomHeaderDropdown

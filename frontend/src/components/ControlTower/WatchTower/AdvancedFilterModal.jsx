@@ -73,7 +73,6 @@ const kpiOptions = [
     { key: 'ad_sov', label: 'Ad SOV' },
     { key: 'organic_sov', label: 'Organic SOV' },
     { key: 'marketShare', label: 'Market share' },
-    { key: 'promoMyBrand', label: 'Promo (My)' },
     { key: 'cpm', label: 'CPM' },
     { key: 'cpc', label: 'CPC' },
 ]
