@@ -35,7 +35,7 @@ const PRODUCT_CATEGORY_SQL = `if(Product_Category IS NOT NULL AND Product_Catego
     Product_Category, 
     multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
-                if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%' OR LOWER(toString(Product)) LIKE '%minis%', 
+                if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 
                    'Chocolates (Gifting)', 
                    'Chocolates (Non Gifting)'), 
             'Others')

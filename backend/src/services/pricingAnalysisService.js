@@ -13,7 +13,7 @@ const PRODUCT_CATEGORY_SQL = `if(Product_Category IS NOT NULL AND Product_Catego
     Product_Category, 
     multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
-                if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%' OR LOWER(toString(Product)) LIKE '%minis%', 
+                if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 
                    'Chocolates (Gifting)', 
                    'Chocolates (Non Gifting)'), 
             'Others')
@@ -564,7 +564,8 @@ async function getPricingInsights(filters = {}) {
     console.log('[PricingAnalysisService] getPricingInsights called with filters:', filters);
     const cacheKey = generateCacheKey('pricing_insights', filters);
 
-    return await getCachedOrCompute(cacheKey, async () => {
+    // return await getCachedOrCompute(cacheKey, async () => {
+    return await (async () => {
         try {
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
             const startDate = filters.startDate || dayjs().subtract(15, 'days').format('YYYY-MM-DD');
@@ -652,36 +653,84 @@ async function getPricingInsights(filters = {}) {
 
             // Price Drop = delta < 0 (price decreased / discount increased)
             // Price Hike = delta > 0 (price increased / discount decreased)
-            const my_skus_drop = processed.filter(r => r.isMySku && r.delta < 0).slice(0, 10);
-            const my_skus_hike = processed.filter(r => r.isMySku && r.delta > 0).slice(0, 10);
-            const comp_skus_drop = processed.filter(r => !r.isMySku && r.delta < 0).slice(0, 10);
-            const comp_skus_hike = processed.filter(r => !r.isMySku && r.delta > 0).slice(0, 10);
+            // Limit to top 5 as requested
+            const my_skus_drop = processed.filter(r => r.isMySku && r.delta < 0).slice(0, 5);
+            const my_skus_hike = processed.filter(r => r.isMySku && r.delta > 0).slice(0, 5);
+            const comp_skus_drop = processed.filter(r => !r.isMySku && r.delta < 0).slice(0, 5);
+            const comp_skus_hike = processed.filter(r => !r.isMySku && r.delta > 0).slice(0, 5);
 
-            // Mocking cities payload format to match UI requirement without doing 4 extra heavy queries
-            const addCities = (skus) => skus.map((s, i) => ({
+            const allTopSkus = [...my_skus_drop, ...my_skus_hike, ...comp_skus_drop, ...comp_skus_hike];
+            const productsList = allTopSkus.map(s => s.title);
+
+            let cityDataMap = {};
+            if (productsList.length > 0) {
+                const productEscaped = productsList.map(p => `'${escapeStr(p)}'`).join(',');
+                const cityQuery = `
+                    SELECT
+                        p.Product as product,
+                        p.Location as city,
+                        AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
+                            THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
+                            ELSE NULL END) AS discount_curr,
+                        AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
+                            THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
+                            ELSE NULL END) AS discount_prev
+                    FROM rb_pdp_olap p
+                    WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
+                      AND p.Product IN (${productEscaped})
+                      ${platforms ? `AND ${buildInClause('p.Platform', platforms)}` : ''}
+                      ${locations ? `AND ${buildInClause('p.Location', locations)}` : ''}
+                      ${channels ? `AND ${buildInClause(channelCol, channels)}` : ''}
+                      ${categories ? `AND ${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
+                    GROUP BY p.Product, p.Location
+                    HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
+                `;
+
+                const cityResults = await queryClickHouse(cityQuery);
+                cityResults.forEach(r => {
+                    const product = r.product;
+                    const dc = parseFloat(r.discount_curr) || 0;
+                    const dp = parseFloat(r.discount_prev) || 0;
+                    const delta = dp - dc; // delta represents price change
+
+                    if (!cityDataMap[product]) cityDataMap[product] = [];
+                    cityDataMap[product].push({
+                        name: r.city,
+                        discount: parseFloat(dc.toFixed(2)),
+                        change: parseFloat(delta.toFixed(2))
+                    });
+                });
+
+                // For each product, sort cities by the magnitude of delta and pick the top one
+                Object.keys(cityDataMap).forEach(product => {
+                    cityDataMap[product].sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+                });
+            }
+
+            const enrichSku = (skus, label) => skus.map((s, i) => ({
                 ...s,
-                id: `${s.brand}_${i}`,
-                badge: s.delta < 0 ? `Drop ${i + 1}` : `Hike ${i + 1}`,
+                id: `${s.brand}_${label}_${i}`,
+                badge: `${label} ${i + 1}`,
                 size: "Mixed",
-                cities: [
-                    { name: "Top City 1", discount: s.discount, change: s.delta }
+                cities: cityDataMap[s.title] ? cityDataMap[s.title].slice(0, 1) : [
+                    { name: "Global Avg", discount: s.discount, change: s.delta }
                 ]
             }));
 
             return {
                 success: true,
                 data: {
-                    pd_my: addCities(my_skus_drop),
-                    pi_my: addCities(my_skus_hike),
-                    pd_comp: addCities(comp_skus_drop),
-                    pi_comp: addCities(comp_skus_hike)
+                    pd_my: enrichSku(my_skus_drop, "Drop"),
+                    pi_my: enrichSku(my_skus_hike, "Hike"),
+                    pd_comp: enrichSku(comp_skus_drop, "Drop"),
+                    pi_comp: enrichSku(comp_skus_hike, "Hike")
                 }
             };
         } catch (error) {
             console.error('[PricingAnalysisService] Error in getPricingInsights:', error);
             return { success: false, error: error.message };
         }
-    }, CACHE_TTL.ONE_HOUR);
+    })();
 }
 
 /**
