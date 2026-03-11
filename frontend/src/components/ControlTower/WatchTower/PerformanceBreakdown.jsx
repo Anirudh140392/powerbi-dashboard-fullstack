@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useContext, createCont
 import { motion, AnimatePresence } from "framer-motion";
 import { Layers, ChevronDown, ChevronRight, Download, LayoutGrid, Sparkles, Calendar, Info, Filter, X, Check, Target, FolderTree, Plus } from "lucide-react";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
+import { FilterContext } from "../../../utils/FilterContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 const AUTH_TOKEN_KEY = "token";
@@ -203,6 +204,9 @@ function PeriodComparisonPanel({ selectedPeriods, onPeriodsChange, isOpen, onTog
     const [customStartDate, setCustomStartDate] = useState("");
     const [customEndDate, setCustomEndDate] = useState("");
 
+    const { maxDate } = useContext(FilterContext);
+    const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
+
     useEffect(() => {
         const handleClickOutside = (e) => { if (panelRef.current && !panelRef.current.contains(e.target) && isOpen) onToggle(); };
         if (isOpen) { const t = setTimeout(() => document.addEventListener("mousedown", handleClickOutside), 100); return () => { clearTimeout(t); document.removeEventListener("mousedown", handleClickOutside); }; }
@@ -282,11 +286,11 @@ function PeriodComparisonPanel({ selectedPeriods, onPeriodsChange, isOpen, onTog
                                                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                                                     <div className="flex-1">
                                                         <label className={`text-[10px] sm:text-xs font-medium ${darkMode ? "text-slate-400" : "text-slate-600"}`}>Start Date</label>
-                                                        <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className={`w-full mt-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`} />
+                                                        <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} max={maxDateStr} className={`w-full mt-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`} />
                                                     </div>
                                                     <div className="flex-1">
                                                         <label className={`text-[10px] sm:text-xs font-medium ${darkMode ? "text-slate-400" : "text-slate-600"}`}>End Date</label>
-                                                        <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className={`w-full mt-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`} />
+                                                        <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} max={maxDateStr} className={`w-full mt-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`} />
                                                     </div>
                                                 </div>
                                                 <div className="flex justify-end gap-2">

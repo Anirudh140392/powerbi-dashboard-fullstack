@@ -23,6 +23,8 @@ import {
 import { ChevronLeft, ChevronRight, X, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
+import { FilterContext } from "../../utils/FilterContext";
+import { useContext } from "react";
 
 /**
  * ---------------------------------------------------------------------------
@@ -189,6 +191,9 @@ export default function SalesTrendsDrawer({
     category,
 }) {
     // 1. All Hooks at the top
+    const { maxDate } = useContext(FilterContext);
+    const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
+
     const [trendData, setTrendData] = useState([]);
     const [fetching, setFetching] = useState(false);
     const [options, setOptions] = useState({ platforms: [], brands: [], categories: [], locations: [] });
@@ -452,6 +457,7 @@ export default function SalesTrendsDrawer({
                                             type="date"
                                             value={customStartDate}
                                             onChange={(e) => setCustomStartDate(e.target.value)}
+                                            max={maxDateStr}
                                             style={{
                                                 padding: '4px 8px',
                                                 border: '1px solid #E5E7EB',
@@ -466,6 +472,7 @@ export default function SalesTrendsDrawer({
                                             type="date"
                                             value={customEndDate}
                                             onChange={(e) => setCustomEndDate(e.target.value)}
+                                            max={maxDateStr}
                                             style={{
                                                 padding: '4px 8px',
                                                 border: '1px solid #E5E7EB',

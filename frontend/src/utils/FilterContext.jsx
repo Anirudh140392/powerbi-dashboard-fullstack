@@ -57,6 +57,7 @@ export const FilterProvider = ({ children }) => {
     const [compareStart, setCompareStart] = useState(dayjs().subtract(1, 'month').startOf('month'));
     const [compareEnd, setCompareEnd] = useState(dayjs().subtract(1, 'month'));
     const [comparisonLabel, setComparisonLabel] = useState("VS PREV. PERIOD");
+    const [maxDate, setMaxDate] = useState(dayjs());
 
     // Tracks if async data is loaded
     const [datesFetched, setDatesFetched] = useState(false);
@@ -78,6 +79,7 @@ export const FilterProvider = ({ children }) => {
 
                     setTimeEnd(lEnd);
                     setTimeStart(lStart);
+                    setMaxDate(lEnd);
 
                     // Simple Previous period comparison
                     setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
@@ -442,6 +444,7 @@ export const FilterProvider = ({ children }) => {
             setProductCategories,
             selectedProductCategory,
             setSelectedProductCategory,
+            maxDate,
             datesInitialized,
             datesFetched,
             platformsFetched,

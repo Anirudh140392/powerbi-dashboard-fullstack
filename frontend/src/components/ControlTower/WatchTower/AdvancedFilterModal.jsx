@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useContext, useMemo } from 'react'
+import { FilterContext } from '../../../utils/FilterContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     X,
@@ -246,6 +247,9 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         filterLogic: 'OR',
     })
 
+    const { maxDate } = useContext(FilterContext)
+    const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate])
+
     // Sync with parent filters when modal opens
     useEffect(() => {
         if (isOpen && filters) {
@@ -435,6 +439,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 type="date"
                                                 value={localFilters.dateFrom}
                                                 onChange={(e) => updateFilter('dateFrom', e.target.value)}
+                                                max={maxDateStr}
                                                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
                                             />
                                         </div>
@@ -444,6 +449,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 type="date"
                                                 value={localFilters.dateTo}
                                                 onChange={(e) => updateFilter('dateTo', e.target.value)}
+                                                max={maxDateStr}
                                                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
                                             />
                                         </div>

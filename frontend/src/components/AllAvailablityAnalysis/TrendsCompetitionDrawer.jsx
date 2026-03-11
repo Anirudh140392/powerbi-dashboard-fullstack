@@ -37,6 +37,7 @@ import PlatformOverviewKpiShowcase from "../ControlTower/WatchTower/PlatformOver
 import { AvailabilityCompetitionKpiShowcase } from "./AvailabilityCompetitionKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../CommonLayout/ErrorRetryOverlay";
+import { FilterContext } from "../../utils/FilterContext";
 
 /**
  * ---------------------------------------------------------------------------
@@ -430,6 +431,9 @@ export default function TrendsCompetitionDrawer({
       audience: "Platform", // default value
     },
   });
+
+  const { maxDate } = React.useContext(FilterContext);
+  const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
   const [view, setView] = useState("Trends");
   const [range, setRange] = useState("1M");
@@ -2187,6 +2191,7 @@ export default function TrendsCompetitionDrawer({
                       type="date"
                       value={customStart}
                       onChange={(e) => setCustomStart(e.target.value)}
+                      max={maxDateStr}
                       style={{ border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 8px', outline: 'none', fontSize: '12px' }}
                     />
                     <Typography variant="body2" color="#64748b" sx={{ fontSize: '12px' }}>to</Typography>
@@ -2194,6 +2199,7 @@ export default function TrendsCompetitionDrawer({
                       type="date"
                       value={customEnd}
                       onChange={(e) => setCustomEnd(e.target.value)}
+                      max={maxDateStr}
                       style={{ border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 8px', outline: 'none', fontSize: '12px' }}
                     />
                   </Box>
