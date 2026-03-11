@@ -1110,6 +1110,30 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
 
         const baseCond = `${locationCond} ${categoryCond} ${platformCond} ${brandCond}`;
 
+        // Denominator condition: category size should NOT include brand filter
+        // Market Share denominator = total sales for the ENTIRE category, not just the selected brand
+        let denomCond = `${locationCond} ${platformCond}`;
+        let denomCategoryCond = categoryCond;
+        if ((!categoryArr || categoryArr.length === 0 || categoryArr.includes('All')) &&
+            brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            // Find categories the selected brands belong to
+            const catLookupQuery = `
+                SELECT DISTINCT category
+                FROM rb_ms_olap
+                WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                ${platformCond}
+                ${locationCond}
+                AND brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})
+                AND category IS NOT NULL AND category != ''
+            `;
+            const catLookupResult = await queryClickHouse(catLookupQuery);
+            const brandCategories = catLookupResult.map(r => r.category).filter(Boolean);
+            if (brandCategories.length > 0) {
+                denomCategoryCond = `AND category IN (${brandCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            }
+        }
+        denomCond = `${denomCond} ${denomCategoryCond}`;
+
         const marsFilter = `(
             lower(group_brand) LIKE '%mars%'
             OR lower(group_brand) LIKE '%wrigley%'
@@ -1124,14 +1148,14 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             OR lower(group_brand) LIKE '%doublemint%'
         )`;
 
-        // Query 1: Category Size per period = SUM(sales) for all brands in selection
+        // Query 1: Category Size per period = SUM(sales) for all brands in the category (denominator)
         const catSizeQuery = `
             SELECT
                 ${dateGroupPart} as d,
                 SUM(toFloat64OrZero(toString(sales))) as category_size
             FROM rb_ms_olap
             WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
-            ${baseCond}
+            ${denomCond}
             GROUP BY d
             ORDER BY d ASC
         `;
@@ -1319,6 +1343,35 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
 
         const baseCond = `${locationCond} ${categoryCond} ${platformCond} ${brandCond}`;
 
+        // Denominator condition: category size should NOT include brand filter
+        // Market Share = brand_sales / total_category_sales * 100
+        // The denominator must be total sales for the ENTIRE category, not just the selected brand.
+        let denomCond = `${locationCond} ${platformCond}`;
+
+        // If a category filter is provided, use it directly for the denominator.
+        // If NOT, but a brand filter IS provided, look up which categories the brand belongs to
+        // so the denominator is scoped to those categories.
+        let denomCategoryCond = categoryCond;
+        if ((!categoryArr || categoryArr.length === 0 || categoryArr.includes('All')) &&
+            brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            // Find categories the selected brands belong to
+            const catLookupQuery = `
+                SELECT DISTINCT category
+                FROM rb_ms_olap
+                WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+                ${platformCond}
+                ${locationCond}
+                AND group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})
+                AND category IS NOT NULL AND category != ''
+            `;
+            const catLookupResult = await queryClickHouse(catLookupQuery);
+            const brandCategories = catLookupResult.map(r => r.category).filter(Boolean);
+            if (brandCategories.length > 0) {
+                denomCategoryCond = `AND category IN (${brandCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+            }
+        }
+        denomCond = `${denomCond} ${denomCategoryCond}`;
+
         // Get current period data
         const currentQuery = `
             SELECT 
@@ -1342,12 +1395,13 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
             GROUP BY group_brand
         `;
 
-        // Also get Category size for the current period (so we can return it as an extra KPI)
+        // Category size denominator: total sales for the category scope, WITHOUT brand filter
+        // This ensures Market Share = brand_sales / total_category_sales * 100
         const catSizeQuery = `
             SELECT SUM(toFloat64OrZero(toString(sales))) as total_category_size
             FROM rb_ms_olap
             WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
-            ${baseCond}
+            ${denomCond}
         `;
 
         // Get current period sku data

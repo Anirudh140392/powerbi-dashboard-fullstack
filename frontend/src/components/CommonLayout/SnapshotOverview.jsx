@@ -517,12 +517,27 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                 </div>
 
                 <div className="space-y-3 border-t border-slate-50 pt-3">
-                    {kpi.brand && (
-                        <div className="flex items-baseline gap-1.5 mb-0.5">
-                            <span className="text-[12px] text-slate-400 font-semibold uppercase tracking-wider leading-none">Market Leader brand -</span>
-                            <span className="text-[12px] font-bold text-slate-600 leading-none">{kpi.brand}</span>
-                        </div>
-                    )}
+                    {kpi.brand && (() => {
+                        const myBrands = ['snickers', 'galaxy', 'bounty', 'twix', 'mars', "m&m's", 'orbit', 'skittles', 'boomer', 'doublemint', 'mars wrigley'];
+                        const isMyBrand = myBrands.some(b => kpi.brand.toLowerCase().includes(b));
+                        return (
+                            <div className={`flex items-baseline gap-1.5 mb-0.5 px-2 py-1 rounded-lg ${isMyBrand ? 'bg-amber-50 border border-amber-200' : ''}`}
+                                style={isMyBrand ? { animation: 'mwBrandPulse 2s ease-in-out infinite' } : {}}
+                            >
+                                <style>{`
+                                    @keyframes mwBrandPulse {
+                                        0%, 100% { box-shadow: 0 0 0px rgba(245, 158, 11, 0); background-color: rgb(255 251 235); }
+                                        50% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.35); background-color: rgb(254 243 199); }
+                                    }
+                                `}</style>
+                                <span className="text-[12px] text-slate-400 font-semibold uppercase tracking-wider leading-none">Market Leader brand -</span>
+                                <span className={`text-[12px] font-bold leading-none ${isMyBrand ? 'text-amber-700' : 'text-slate-600'}`}>
+                                    {kpi.brand}
+                                    {isMyBrand && <span className="ml-1.5 text-[9px] font-bold text-amber-500 uppercase tracking-wider">⭐ My Brand</span>}
+                                </span>
+                            </div>
+                        );
+                    })()}
                     <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
                         <span className={`text-xs font-bold ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100`}>
                             {kpi.deltaLabel ? (
