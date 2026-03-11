@@ -159,7 +159,7 @@ const PlatformOverviewNew = ({
         { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
-        { key: 'shareOfVolume', label: 'Share of Volume' },
+        { key: 'shareOfVolume', label: 'Share of Search' },
         { key: 'ad_sov', label: 'Ad SOV' },
         { key: 'organic_sov', label: 'Organic SOV' },
         { key: 'cpm', label: 'CPM' },
@@ -172,10 +172,20 @@ const PlatformOverviewNew = ({
     const [dimension, setDimension] = useState('platform')
 
     // Filter out unwanted KPIs
-    const filteredKpis = kpis;
-    const defaultKpiKeys = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
+    const filteredKpis = useMemo(() => {
+        if (dimension === 'sku') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'shareOfVolume' && k.key !== 'ad_sov' && k.key !== 'organic_sov');
+        if (dimension === 'brand') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
+        return kpis;
+    }, [dimension, kpis]);
 
-    const [glanceKpis, setGlanceKpis] = useState(defaultKpiKeys)
+    const defaultKpiKeys = useMemo(() => {
+        const base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
+        if (dimension === 'sku') return base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov');
+        if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
+        return base;
+    }, [dimension]);
+
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const [apiData, setApiData] = useState({})
     const [apiLoading, setApiLoading] = useState(false)
@@ -198,7 +208,16 @@ const PlatformOverviewNew = ({
 
     // Re-sync glanceKpis when dimension changes
     useEffect(() => {
-        // We can add logic here if specific KPIs need to be removed for certain dimensions
+        if (dimension === 'sku') {
+            setGlanceKpis(prev => prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume'));
+        } else if (dimension === 'brand') {
+            setGlanceKpis(prev => prev.filter(k => k !== 'categorySize' && k !== 'marketShare'));
+        } else if (dimension === 'platform') {
+            setGlanceKpis(prev => {
+                if (!prev.includes('categorySize')) return [...prev, 'categorySize'];
+                return prev;
+            });
+        }
     }, [dimension]);
 
     // Static dimension metadata (icons, logos for known platforms)

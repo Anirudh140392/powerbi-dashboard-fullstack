@@ -322,6 +322,28 @@ const formatChange = (val, isPP = false) => {
 /**
  * Shared Multi-unit currency formatter
  */
+/**
+ * Scales metrics for Mars-related entries if needed (100x scaling fix).
+ * Data analysis shows financial/qty metrics for Mars brands are 100x inflated in source.
+ */
+const scaleMarsMetrics = (row, key) => {
+    if (!row || !key) return row;
+    const lowerKey = key.toLowerCase();
+    const marsKeywords = ['snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m', 'orbit', 'doublemint', 'boomer', 'skittles', 'chocolates (gifting)', 'chocolates (non gifting)', 'gmfc'];
+
+    const isMars = marsKeywords.some(kw => lowerKey.includes(kw));
+    if (!isMars) return row;
+
+    const fields = ['total_sales', 'total_qty', 'total_spend', 'total_ad_sales', 'total_ad_spend', 'total_ad_orders', 'total_ad_clicks', 'total_ad_impressions', 'my_mrp_val', 'my_actual_sales', 'comp_mrp_val', 'comp_actual_sales', 'cat_size', 'our_sales', 'sales', 'total_orders', 'orders', 'total_clicks', 'clicks', 'total_impressions', 'impressions', 'group_impressions', 'group_clicks', 'group_spends', 'group_orders', 'group_sales'];
+    const scaled = { ...row };
+    fields.forEach(f => {
+        if (scaled[f] !== undefined && scaled[f] !== null) {
+            scaled[f] = parseFloat(scaled[f]) * 0.01;
+        }
+    });
+    return scaled;
+};
+
 const formatCurrency = (value) => {
     const val = parseFloat(value);
     if (isNaN(val)) return "₹0";
@@ -364,7 +386,7 @@ const generateKpiColumns = ({
         { title: "Inorg Sales", value: formatCurrency(inorgSales), change: { text: formatChange(inorgSalesChange), positive: inorgSalesChange >= 0 }, meta: { units: `${formatUnits(inorgUnits)} units`, change: formatChange(inorgSalesChange) } },
         { title: "Conversion", value: `${conversion.toFixed(1)}%`, change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "Orders / Clicks", change: formatChange(conversionChange, true) } },
         { title: "Availability", value: `${availability.toFixed(1)}%`, change: { text: formatChange(availabilityChange, true), positive: availabilityChange >= 0 }, meta: { units: "stores", change: formatChange(availabilityChange, true) } },
-        { title: "SOS", value: `${sos.toFixed(1)}%`, change: { text: formatChange(sosChange, true), positive: sosChange >= 0 }, meta: { units: "index", change: formatChange(sosChange, true) } },
+        { title: "Share of Search", value: `${sos.toFixed(1)}%`, change: { text: formatChange(sosChange, true), positive: sosChange >= 0 }, meta: { units: "index", change: formatChange(sosChange, true) } },
         { title: "Ad SOV", value: `${adSov.toFixed(1)}%`, change: { text: formatChange(adSovChange, true), positive: adSovChange >= 0 }, meta: { units: "sponsored", change: formatChange(adSovChange, true) } },
         { title: "Organic SOV", value: `${organicSov.toFixed(1)}%`, change: { text: formatChange(organicSovChange, true), positive: organicSovChange >= 0 }, meta: { units: "organic", change: formatChange(organicSovChange, true) } },
         { title: "Market Share", value: `${(parseFloat(marketShare) || 0).toFixed(1)}%`, change: { text: formatChange(marketShareChange, true), positive: marketShareChange >= 0 }, meta: { units: "Category", change: formatChange(marketShareChange, true) } },
@@ -5556,8 +5578,12 @@ const getCategoryOverview = async (filters) => {
 
     const categoryOverviewPromises = categories.map(async (catName) => {
         const catKey = catName?.toLowerCase();
-        const curr = currCatMap.get(catKey) || {};
-        const prev = prevCatMap.get(catKey) || {};
+        let currRaw = currCatMap.get(catKey) || {};
+        let prevRaw = prevCatMap.get(catKey) || {};
+
+        // Scale Mars metrics
+        const curr = scaleMarsMetrics(currRaw, catName);
+        const prev = scaleMarsMetrics(prevRaw, catName);
 
         const offtake = parseFloat(curr.total_sales || 0);
         const offtakeUnits = parseFloat(curr.total_qty || 0);
@@ -5878,8 +5904,12 @@ const getBrandsOverview = async (filters) => {
 
     const brandsOverview = brands.map(brandName => {
         const brandKey = brandName.toLowerCase();
-        const curr = currMetricMap.get(brandKey) || {};
-        const prev = prevMetricMap.get(brandKey) || {};
+        let currRaw = currMetricMap.get(brandKey) || {};
+        let prevRaw = prevMetricMap.get(brandKey) || {};
+
+        // Scale Mars metrics
+        const curr = scaleMarsMetrics(currRaw, brandName);
+        const prev = scaleMarsMetrics(prevRaw, brandName);
 
         const offtake = parseFloat(curr.total_sales || 0);
         const spend = parseFloat(curr.total_spend || 0);
@@ -6220,7 +6250,8 @@ const getKpiTrends = async (filters) => {
     const buckets = generateTimeBuckets(startDate, endDate, timeStep);
 
     const timeSeries = buckets.map((bucket, bucketIndex) => {
-        const row = kpiResults.find(r => String(r.date_group) === String(bucket.groupKey)) || {};
+        const rowRaw = kpiResults.find(r => String(r.date_group) === String(bucket.groupKey)) || {};
+        const row = scaleMarsMetrics(rowRaw, brand || category || skuName || dimensionValue);
 
         // Extract values
         const totalSales = parseFloat(row.total_sales || 0);
@@ -8770,9 +8801,11 @@ const getSkuOverview = async (filters) => {
     const prevOrgSovNumSkuMap = buildSkuKwMap(prevOrgSovNumSku);
     const prevOrgSovDenomSkuMap = buildSkuKwMap(prevOrgSovDenomSku);
 
-    const skuOverview = currSkuMetrics.map((data, idx) => {
-        const skuName = (data.Product || 'Unknown').trim().replace(/\s+/g, ' ');
-        const prevData = prevSkuMap.get(skuName) || {};
+    const skuOverview = currSkuMetrics.map((dataRaw, idx) => {
+        const skuName = (dataRaw.Product || 'Unknown').trim().replace(/\s+/g, ' ');
+        const data = scaleMarsMetrics(dataRaw, skuName);
+        const prevDataRaw = prevSkuMap.get(skuName) || {};
+        const prevData = scaleMarsMetrics(prevDataRaw, skuName);
 
         // Current Metrics
         const offtake = parseFloat(data.total_sales || 0);
@@ -9167,11 +9200,12 @@ const getPerformanceBreakdownData = async (filters) => {
         };
 
         const parsedData = data.map(row => {
-            const impressions = parseFloat(row.group_impressions) || 0;
-            const clicks = parseFloat(row.group_clicks) || 0;
-            const spends = parseFloat(row.group_spends) || 0;
-            const orders = parseFloat(row.group_orders) || 0;
-            const sales = parseFloat(row.group_sales) || 0;
+            const scaled = scaleMarsMetrics(row, row.tag);
+            const impressions = parseFloat(scaled.group_impressions) || 0;
+            const clicks = parseFloat(scaled.group_clicks) || 0;
+            const spends = parseFloat(scaled.group_spends) || 0;
+            const orders = parseFloat(scaled.group_orders) || 0;
+            const sales = parseFloat(scaled.group_sales) || 0;
 
             totals.impressions += impressions;
             totals.clicks += clicks;
@@ -9180,17 +9214,21 @@ const getPerformanceBreakdownData = async (filters) => {
             totals.sales += sales;
 
             return {
-                tag: row.tag || 'Unknown',
+                tag: scaled.tag || 'Unknown',
                 impressions,
                 clicks,
-                ctr: parseFloat(row.ctr) || 0,
-                spend_percent_share: parseFloat(row.spend_percent_share) || 0,
+                ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
                 spends,
-                cpc: parseFloat(row.cpc) || 0,
+                cpc: clicks > 0 ? spends / clicks : 0,
                 orders,
-                cvr: parseFloat(row.cvr) || 0,
+                cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
                 sales
             };
+        });
+
+        // Add spend_percent_share after totals are calculated
+        parsedData.forEach(item => {
+            item.spend_percent_share = totals.spends > 0 ? (item.spends / totals.spends) * 100 : 0;
         });
 
         totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
@@ -9260,17 +9298,20 @@ const getPerformanceBreakdownData = async (filters) => {
                 const periodData = await queryClickHouse(periodQuery);
                 return {
                     key,
-                    data: periodData.map(r => ({
-                        tag: r.tag || 'Unknown',
-                        impressions: parseFloat(r.group_impressions) || 0,
-                        clicks: parseFloat(r.group_clicks) || 0,
-                        ctr: parseFloat(r.ctr) || 0,
-                        spends: parseFloat(r.group_spends) || 0,
-                        cpc: parseFloat(r.cpc) || 0,
-                        orders: parseFloat(r.group_orders) || 0,
-                        cvr: parseFloat(r.cvr) || 0,
-                        sales: parseFloat(r.group_sales) || 0
-                    }))
+                    data: periodData.map(r => {
+                        const scaled = scaleMarsMetrics(r, r.tag);
+                        return {
+                            tag: scaled.tag || 'Unknown',
+                            impressions: parseFloat(scaled.group_impressions) || 0,
+                            clicks: parseFloat(scaled.group_clicks) || 0,
+                            ctr: parseFloat(scaled.ctr) || 0, // ClickHouse calculated, but let's re-calculate to be safe if desired? Actually CTR is ratio, doesn't change if both scaled.
+                            spends: parseFloat(scaled.group_spends) || 0,
+                            cpc: parseFloat(scaled.cpc) || 0,
+                            orders: parseFloat(scaled.group_orders) || 0,
+                            cvr: parseFloat(scaled.cvr) || 0,
+                            sales: parseFloat(scaled.group_sales) || 0
+                        };
+                    })
                 };
             });
 

@@ -70,7 +70,7 @@ const kpiOptions = [
     { key: 'inorgSales', label: 'Inorg Sales' },
     { key: 'conversion', label: 'Conversion' },
     { key: 'availability', label: 'Availability' },
-    { key: 'shareOfVolume', label: 'Share of Volume' },
+    { key: 'shareOfVolume', label: 'Share of Search' },
     { key: 'ad_sov', label: 'Ad SOV' },
     { key: 'organic_sov', label: 'Organic SOV' },
     { key: 'marketShare', label: 'Market share' },
@@ -243,7 +243,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         skuCode: '',
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'],
+        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
+            if (currentDimension === 'sku') return k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov';
+            if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
+            return true;
+        }),
         filterLogic: 'OR',
     })
 
@@ -280,7 +284,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             skus: [],
             skuName: '',
             skuCode: '',
-            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'],
+            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
+                if (currentDimension === 'sku') return k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov';
+                if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
+                return true;
+            }),
             filterLogic: 'OR',
         })
     }
