@@ -993,7 +993,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const VisibilityPlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlatform, period, timeStep }) => {
+const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep }) => {
     const [tab, setTab] = useState("brand");
     const [city, setCity] = useState("All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1192,12 +1192,12 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, se
                 </TabsContent>
             </Tabs>
 
-            <FilterDialog 
-                open={filterDialogOpen} 
-                onClose={() => setFilterDialogOpen(false)} 
-                mode={tab} 
-                value={filters} 
-                onChange={setFilters} 
+            <FilterDialog
+                open={filterDialogOpen}
+                onClose={() => setFilterDialogOpen(false)}
+                mode={tab}
+                value={filters}
+                onChange={setFilters}
                 selectedPlatform={selectedPlatform}
                 city={city}
             />
