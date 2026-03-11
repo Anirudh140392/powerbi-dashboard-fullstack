@@ -7084,6 +7084,8 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         const platArr = platform && platform !== 'All' ? platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All') : [];
         const locArr = location && location !== 'All' && location !== 'All India' ? location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India') : [];
         const catArr = category && category !== 'All' ? category.split(',').map(c => c.trim()).filter(c => c && c !== 'All') : [];
+        const brandArr = brand && brand !== 'All' ? brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All') : [];
+        const bndArr = brandArr; // Alias for compatibility with existing code below
 
         // Build base condition for rca_sku_dim
         const buildBaseConds = () => {
