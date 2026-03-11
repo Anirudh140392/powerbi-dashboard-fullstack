@@ -166,7 +166,6 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
 
     const kpiColumns = [
         { id: 'marketShare', label: 'Market Share %' },
-        { id: 'asp', label: 'Average Selling Price' },
         { id: 'overallSov', label: 'Overall Share of Visibility' },
         { id: 'paidSov', label: 'Paid Share of Visibility' }
     ];
@@ -181,7 +180,6 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
     };
 
     const formatValue = (val, id) => {
-        if (id === 'asp') return val.toLocaleString();
         return `${val.toFixed(2)}%`;
     };
 
@@ -296,12 +294,11 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                                     <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
                                     <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
                                     <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
-                                    <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
                                 </tr>
                             ))
                         ) : brandsData.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="px-8 py-12 text-center text-slate-400 text-sm">
+                                <td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm">
                                     No data available for the selected filters.
                                 </td>
                             </tr>

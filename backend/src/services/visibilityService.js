@@ -14,7 +14,14 @@ function buildCHCondition(value, column, options = {}) {
         return lower === 'all' || lower === 'all india';
     };
 
-    if (isBrand && isAll(value)) return "flag = '1'";
+    const isOurBrand = (val) => {
+        if (!val) return false;
+        const lower = String(val).toLowerCase();
+        return lower.includes('mars') || lower.includes('wrigley');
+    };
+
+    // If "All" brands or our main brand is selected, we want our brand's data (flag=1)
+    if (isBrand && (isAll(value) || isOurBrand(value))) return "flag = '1'";
     if (isAll(value)) return "1=1";
 
     const list = typeof value === 'string'
@@ -36,15 +43,15 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
-        const keywordCondition = (keyword && String(keyword).toLowerCase() !== 'all') ? `keyword = '${escapeCH(keyword)}'` : '1=1';
+        const keywordCondition = buildCHCondition(keyword, 'keyword');
         const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
         // Single query that calculates ALL SOS types at once - ClickHouse syntax using rb_kw_olap
         const query = `
             SELECT 
-                ROUND(countIf(overall = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
-                ROUND(countIf(spons = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS sponsored_sos,
-                ROUND(countIf(organic = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS organic_sos
+                ROUND(countIf(overall = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
+                ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 2) AS sponsored_sos,
+                ROUND(countIf(organic = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
@@ -90,15 +97,15 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
-        const keywordCondition = (keyword && String(keyword).toLowerCase() !== 'all') ? `keyword = '${escapeCH(keyword)}'` : '1=1';
+        const keywordCondition = buildCHCondition(keyword, 'keyword');
         const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
         const query = `
             SELECT 
                 DATE as crawl_date,
-                ROUND(countIf(overall = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
-                ROUND(countIf(spons = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS sponsored_sos,
-                ROUND(countIf(organic = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(*), 0), 2) AS organic_sos
+                ROUND(countIf(overall = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
+                ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 2) AS sponsored_sos,
+                ROUND(countIf(organic = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
@@ -784,7 +791,7 @@ class VisibilityService {
 
                 // Apply keyword filter if provided
                 if (filters.keyword && filters.keyword !== 'All') {
-                    baseWhere += ` AND keyword = '${escapeCH(filters.keyword)}'`;
+                    baseWhere += ` AND ${buildCHCondition(filters.keyword, 'keyword')}`;
                 }
 
                 // Apply format (category) filter if provided
@@ -923,10 +930,10 @@ class VisibilityService {
                     const current = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
-                            ROUND(countIf(overall = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
-                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
-                            ROUND(countIf(organic = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
-                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
+                            ROUND(countIf(overall = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
+                            ROUND(countIf(spons = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(organic = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
+                            ROUND(countIf(spons = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
@@ -937,10 +944,10 @@ class VisibilityService {
                     const previous = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
-                            ROUND(countIf(overall = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
-                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
-                            ROUND(countIf(organic = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
-                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
+                            ROUND(countIf(overall = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
+                            ROUND(countIf(spons = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(organic = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
+                            ROUND(countIf(spons = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${prevWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
@@ -950,10 +957,10 @@ class VisibilityService {
                         SELECT 
                             ${dimColumn} as ${dimAlias},
                             DATE as date,
-                            ROUND(countIf(overall = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
-                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
-                            ROUND(countIf(organic = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
-                            ROUND(countIf(spons = 1 AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
+                            ROUND(countIf(overall = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS overall_sos,
+                            ROUND(countIf(spons = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS sponsored_sos,
+                            ROUND(countIf(organic = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS organic_sos,
+                            ROUND(countIf(spons = '1' AND flag = '1') * 100.0 / nullIf(count(*), 0), 1) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}, date
@@ -1069,7 +1076,7 @@ class VisibilityService {
                     whereConditions.push(platCond);
                 }
                 if (filters.keyword && filters.keyword !== 'All') {
-                    whereConditions.push(`keyword = '${escapeCH(filters.keyword)}'`);
+                    whereConditions.push(buildCHCondition(filters.keyword, 'keyword'));
                 }
                 if (filters.location && filters.location !== 'All') {
                     const locCond = buildCHCondition(filters.location, 'location_name');
@@ -1144,10 +1151,10 @@ class VisibilityService {
                         count(*) as total,
                         SUM(count(*)) OVER(PARTITION BY keyword) as keyword_market_total,
                         countIf(${sosBrandCondition}) as rbr,
-                        countIf(spons = 1 AND ${sosBrandCondition}) as rbs,
-                        countIf(organic = 1 AND ${sosBrandCondition}) as rbo,
-                        avgIf(POSITION, spons = 1 AND ${sosBrandCondition}) as aap,
-                        avgIf(POSITION, organic = 1 AND ${sosBrandCondition}) as aop
+                        countIf(spons = '1' AND ${sosBrandCondition}) as rbs,
+                        countIf(organic = '1' AND ${sosBrandCondition}) as rbo,
+                        avgIf(POSITION, spons = '1' AND ${sosBrandCondition}) as aap,
+                        avgIf(POSITION, organic = '1' AND ${sosBrandCondition}) as aop
                     FROM rb_kw_olap
                     ${baseWhereClause}
                     ${keywordCondition}
@@ -1357,7 +1364,7 @@ class VisibilityService {
 
                 // Apply keyword filter if provided
                 const keywordFilter = (filters.keyword && filters.keyword !== 'All')
-                    ? `AND keyword = '${escapeCH(filters.keyword)}'`
+                    ? `AND ${buildCHCondition(filters.keyword, 'keyword')}`
                     : '';
 
                 // Apply category filter if provided
@@ -1371,12 +1378,12 @@ class VisibilityService {
                         MAX(keyword_type) as type,
                         count(*) as total_results,
                         countIf(${brandSOSCondition}) as rb_results,
-                        countIf(organic = 1 AND ${brandSOSCondition}) as rb_organic,
-                        countIf(spons = 1 AND ${brandSOSCondition}) as rb_sponsored,
+                        countIf(organic = '1' AND ${brandSOSCondition}) as rb_organic,
+                        countIf(spons = '1' AND ${brandSOSCondition}) as rb_sponsored,
                         countIf(${brandSOSCondition}) as brand_filter_results,
                         ROUND(AVG(POSITION), 1) as avg_overall_pos,
-                        ROUND(avgIf(POSITION, organic = 1 AND ${brandSOSCondition}), 1) as avg_org_pos,
-                        ROUND(avgIf(POSITION, spons = 1 AND ${brandSOSCondition}), 1) as avg_ad_pos
+                        ROUND(avgIf(POSITION, organic = '1' AND ${brandSOSCondition}), 1) as avg_org_pos,
+                        ROUND(avgIf(POSITION, spons = '1' AND ${brandSOSCondition}), 1) as avg_ad_pos
                     FROM rb_kw_olap
                     WHERE ${dateCondition}
                       AND ${platformCondition}
@@ -1402,8 +1409,8 @@ class VisibilityService {
                         keyword,
                         count(*) as total_results,
                         countIf(${brandSOSCondition}) as rb_results,
-                        countIf(organic = 1 AND ${brandSOSCondition}) as rb_organic,
-                        countIf(spons = 1 AND ${brandSOSCondition}) as rb_sponsored
+                        countIf(organic = '1' AND ${brandSOSCondition}) as rb_organic,
+                        countIf(spons = '1' AND ${brandSOSCondition}) as rb_sponsored
                     FROM rb_kw_olap
                     WHERE ${prevDateCondition}
                       AND ${platformCondition}
@@ -1528,10 +1535,10 @@ class VisibilityService {
                         brand_name_th as brand_name,
                         if(DATE BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
                         count() as brand_results,
-                        countIf(organic = 1) as brand_organic,
-                        countIf(spons = 1) as brand_sponsored
+                        countIf(organic = '1') as brand_organic,
+                        countIf(spons = '1') as brand_sponsored
                     FROM rb_kw_olap
-                    WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
+                    WHERE ${buildCHCondition(filters.keyword, 'keyword')}
                       AND (
                           DATE BETWEEN '${currStart}' AND '${currEnd}'
                           OR DATE BETWEEN '${prevStartStr}' AND '${prevEndStr}'
@@ -1555,7 +1562,7 @@ class VisibilityService {
                         if(DATE BETWEEN '${currStart}' AND '${currEnd}', 'current', 'previous') as period,
                         count() as total 
                     FROM rb_kw_olap 
-                    WHERE lower(trim(keyword)) = lower(trim('${keyword}'))
+                    WHERE ${buildCHCondition(filters.keyword, 'keyword')}
                       AND (
                           DATE BETWEEN '${currStart}' AND '${currEnd}'
                           OR DATE BETWEEN '${prevStartStr}' AND '${prevEndStr}'
@@ -1968,10 +1975,10 @@ class VisibilityService {
                 const query = `
                 SELECT 
                     ${dateAggregation} as crawl_date,
-                    ROUND(countIf(overall = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
-                    ROUND(countIf(spons = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
-                    ROUND(countIf(organic = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
-                    ROUND(countIf(spons = 1 AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS display_sos
+                    ROUND(countIf(overall = '1' AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS overall_sos,
+                    ROUND(countIf(spons = '1' AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS sponsored_sos,
+                    ROUND(countIf(organic = '1' AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS organic_sos,
+                    ROUND(countIf(spons = '1' AND ${brandSOSCondition}) * 100.0 / nullIf(count(), 0), 2) AS display_sos
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -2089,17 +2096,18 @@ class VisibilityService {
                 const brandQuery = `
                 SELECT 
                     brand_name_th as brand_name,
-                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND overall = 1) * 100.0 / ${currentVolume}, 2) AS current_overall_sos,
-                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND spons = 1) * 100.0 / ${currentVolume}, 2) AS current_sponsored_sos,
-                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND organic = 1) * 100.0 / ${currentVolume}, 2) AS current_organic_sos,
-                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND overall = 1) * 100.0 / ${prevVolume}, 2) AS prev_overall_sos,
-                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND spons = 1) * 100.0 / ${prevVolume}, 2) AS prev_sponsored_sos,
-                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND organic = 1) * 100.0 / ${prevVolume}, 2) AS prev_organic_sos,
+                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND overall = '1') * 100.0 / ${currentVolume}, 2) AS current_overall_sos,
+                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND spons = '1') * 100.0 / ${currentVolume}, 2) AS current_sponsored_sos,
+                    ROUND(countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND organic = '1') * 100.0 / ${currentVolume}, 2) AS current_organic_sos,
+                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND overall = '1') * 100.0 / ${prevVolume}, 2) AS prev_overall_sos,
+                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND spons = '1') * 100.0 / ${prevVolume}, 2) AS prev_sponsored_sos,
+                    ROUND(countIf(DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}' AND organic = '1') * 100.0 / ${prevVolume}, 2) AS prev_organic_sos,
                     countIf(DATE BETWEEN '${dateFrom}' AND '${dateTo}') as impressions
                 FROM rb_kw_olap
                 WHERE (DATE BETWEEN '${dateFrom}' AND '${dateTo}' OR DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
                   ${allFilters}
                   AND brand_name_th IS NOT NULL AND brand_name_th != ''
+                  AND lower(brand_name_th) != 'other'
                   AND flag = '0'
                 GROUP BY brand_name_th
                 ORDER BY impressions DESC
@@ -2130,14 +2138,15 @@ class VisibilityService {
                 SELECT 
                     keyword_search_product as sku_name,
                     brand_name_th as brand_name,
-                    ROUND(countIf(overall = 1) * 100.0 / ${currentVolume}, 2) AS overall_sos,
-                    ROUND(countIf(spons = 1) * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
-                    ROUND(countIf(organic = 1) * 100.0 / ${currentVolume}, 2) AS organic_sos,
+                    ROUND(countIf(overall = '1') * 100.0 / ${currentVolume}, 2) AS overall_sos,
+                    ROUND(countIf(spons = '1') * 100.0 / ${currentVolume}, 2) AS sponsored_sos,
+                    ROUND(countIf(organic = '1') * 100.0 / ${currentVolume}, 2) AS organic_sos,
                     count(*) as impressions
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   ${allFilters}
                   AND keyword IS NOT NULL AND keyword != ''
+                  AND lower(brand_name_th) != 'other'
                   AND flag = '0'
                 GROUP BY sku_name, brand_name
                 ORDER BY impressions DESC
@@ -2192,9 +2201,12 @@ class VisibilityService {
                 const platform = filters.platform || null;
                 const location = filters.location || null;
                 const categoryValue = filters.category || filters.format || null;
-                const selectedBrands = Array.isArray(filters.brands)
+                let selectedBrands = Array.isArray(filters.brands)
                     ? filters.brands
                     : (filters.brands ? filters.brands.split(',') : []);
+
+                // [FIX] Remove 'Other' brand from comparison as requested
+                selectedBrands = selectedBrands.filter(b => b && b.trim().toLowerCase() !== 'other');
 
                 if (selectedBrands.length === 0) {
                     return { brands: {}, days: [] };
@@ -2282,10 +2294,10 @@ class VisibilityService {
                 SELECT 
                     brand_name_th as brand_name,
                     ${dateAggregation} as crawl_date,
-                    countIf(overall = 1) as brand_volume,
-                    countIf(spons = 1) as sponsored_volume,
-                    countIf(organic = 1) as organic_volume,
-                    countIf(DATE < '2025-01-01' OR spons = 1) as display_volume
+                    countIf(overall = '1') as brand_volume,
+                    countIf(spons = '1') as sponsored_volume,
+                    countIf(organic = '1') as organic_volume,
+                    countIf(DATE < '2025-01-01' OR spons = '1') as display_volume
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -2343,6 +2355,65 @@ class VisibilityService {
                 return { brands: {}, days: [] };
             }
         }, CACHE_TTL.ONE_HOUR);
+    }
+
+    /**
+     * Get dynamic categories specifically for Visibility Analysis using keyword_category
+     */
+    async getVisibilityCategories(platform) {
+        try {
+            let conds = [`keyword_category IS NOT NULL`, `keyword_category != ''`];
+            const platformCond = buildCHCondition(platform, 'platform_name');
+            if (platformCond !== '1=1') {
+                conds.push(platformCond);
+            }
+
+            const query = `
+                SELECT DISTINCT keyword_category as category 
+                FROM rb_kw_olap 
+                WHERE ${conds.join(' AND ')} 
+                ORDER BY category ASC
+            `;
+
+            const results = await queryClickHouse(query);
+            return results.map(r => r.category).filter(Boolean);
+        } catch (error) {
+            console.error('[VisibilityService] Error getting categories:', error);
+            return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+        }
+    }
+
+    /**
+     * Get dynamic keywords specifically for Visibility Analysis
+     */
+    async getVisibilityKeywords(platform, category, brand) {
+        try {
+            let conds = [`keyword IS NOT NULL`, `keyword != ''`];
+
+            const platformCond = buildCHCondition(platform, 'platform_name');
+            if (platformCond !== '1=1') conds.push(platformCond);
+
+            const categoryCond = buildCHCondition(category, 'keyword_category', { isCategory: true });
+            if (categoryCond !== '1=1') conds.push(categoryCond);
+
+            if (brand && brand !== 'All') {
+                const brandArr = Array.isArray(brand) ? brand : brand.split(',').map(b => b.trim()).filter(Boolean);
+                conds.push(`brand_name_th IN (${brandArr.map(b => `'${escapeCH(b)}'`).join(',')})`);
+            }
+
+            const query = `
+                SELECT DISTINCT keyword 
+                FROM rb_kw_olap 
+                WHERE ${conds.join(' AND ')} 
+                ORDER BY keyword ASC
+            `;
+
+            const results = await queryClickHouse(query);
+            return results.map(k => k.keyword).filter(Boolean);
+        } catch (error) {
+            console.error('[VisibilityService] Error getting keywords:', error);
+            return [];
+        }
     }
 }
 

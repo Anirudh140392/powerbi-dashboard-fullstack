@@ -65,8 +65,8 @@ const MS_BRANDS_SQL = MS_BRANDS.map(b => `'${escapeStr(b)}'`).join(', ');
 
 const MS_LOCATIONS = [
     'Delhi', 'Ahmedabad', 'Bengaluru', 'Chandigarh', 'Chennai',
-    'Faridabad', 'Gurgaon', 'Hyderabad', 'Kolkata', 'Lucknow',
-    'Mumbai', 'Pune'
+    'Faridabad', 'Gurugram', 'Gurgaon', 'Hyderabad', 'Kolkata', 'Lucknow',
+    'Mumbai', 'Pune', 'Bengalore', 'Bangalore'
 ];
 const MS_LOCATIONS_SQL = MS_LOCATIONS.map(l => `'${escapeStr(l)}'`).join(', ');
 
@@ -189,30 +189,36 @@ const getMapIntellectData = async (filters) => {
         // Use the LATEST available date's SUM(market_share) per city
         // This gives the most current snapshot instead of averaging across the range
         const msQueryBase = (sDate, eDate) => `
-            SELECT t.location, t.mars_city_ms AS avg_market_share
-            FROM (
-                SELECT
-                    toDate(created_on) AS dt,
-                    location,
-                    SUM(market_share)  AS mars_city_ms
-                FROM rb_brand_ms
-                WHERE ${buildMsConds(sDate, eDate)}
-                  AND brand    IN (${MS_BRANDS_SQL})
-                  AND location IN (${MS_LOCATIONS_SQL})
-                GROUP BY dt, location
-            ) t
-            INNER JOIN (
-                SELECT location, MAX(dt) AS max_dt
-                FROM (
-                    SELECT toDate(created_on) AS dt, location
-                    FROM rb_brand_ms
-                    WHERE ${buildMsConds(sDate, eDate)}
-                      AND brand    IN (${MS_BRANDS_SQL})
-                      AND location IN (${MS_LOCATIONS_SQL})
-                    GROUP BY dt, location
-                )
-                GROUP BY location
-            ) m ON t.location = m.location AND t.dt = m.max_dt
+            SELECT 
+                location,
+                ROUND(
+                    (
+                        SUM(
+                            CASE WHEN 
+                                lower(group_brand) LIKE '%mars%' OR 
+                                lower(group_brand) LIKE '%snickers%' OR 
+                                lower(group_brand) LIKE '%galaxy%' OR 
+                                lower(group_brand) LIKE '%bounty%' OR 
+                                lower(group_brand) LIKE '%twix%' OR 
+                                lower(group_brand) LIKE '%m&m%' OR 
+                                lower(group_brand) LIKE '%orbit%' OR 
+                                lower(group_brand) LIKE '%skittles%' OR 
+                                lower(group_brand) LIKE '%boomer%' OR 
+                                lower(group_brand) LIKE '%doublemint%' OR 
+                                lower(group_brand) LIKE '%pedigree%' OR 
+                                lower(group_brand) LIKE '%extra%' 
+                            THEN toFloat64OrZero(toString(sales)) 
+                            ELSE 0 
+                            END
+                        ) / NULLIF(SUM(toFloat64OrZero(toString(sales))), 0)
+                    ) * 100, 
+                2) AS avg_market_share
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
+              AND location IN (${MS_LOCATIONS_SQL})
+            ${platform && platform !== 'All' ? `  AND platform LIKE '%${escapeStr(platform)}%'` : ''}
+              AND location IS NOT NULL AND location != ''
+            GROUP BY location
         `;
 
         [currMsData, prevMsData] = await Promise.all([
@@ -236,7 +242,10 @@ const getMapIntellectData = async (filters) => {
     if (isMarketShareOnly) {
         // Market Share view — iterate over the 12 rb_brand_ms locations
         cities = currMsData.map(data => {
-            const cityName = (data.location || '').trim();
+            let cityName = (data.location || '').trim();
+            if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
+            if (cityName === 'Gurgaon') cityName = 'Gurugram';
+
             const cityKey = cityName.toLowerCase();
             if (!cityName || cityName.toLowerCase() === 'unknown' || cityName.toLowerCase() === 'other') return null;
 
@@ -258,7 +267,10 @@ const getMapIntellectData = async (filters) => {
     } else {
         // PDP metrics — iterate over ALL rb_pdp_olap locations
         cities = currCityData.map(data => {
-            const cityName = (data.Location || '').trim();
+            let cityName = (data.Location || '').trim();
+            if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
+            if (cityName === 'Gurgaon') cityName = 'Gurugram';
+
             const cityKey = cityName.toLowerCase();
             if (!cityName || cityName.toLowerCase() === 'unknown' || cityName.toLowerCase() === 'other') return null;
 

@@ -9,7 +9,9 @@ import {
     getVisibilityLatestAvailableDates,
     getVisibilityKpiTrends,
     getVisibilityCompetition,
-    getBrandComparisonTrends
+    getBrandComparisonTrends,
+    getVisibilityCategories,
+    getVisibilityKeywords
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
@@ -311,5 +313,9 @@ export default (app) => {
     // Alias routes for frontend compatibility
     app.get('/api/visibility-analysis/visibility-signals', getSalesVisibilitySignals);
     app.get('/api/visibility-analysis/visibility-signals/city-details', getSalesVisibilitySignalCityDetails);
+
+    // Dynamic dropdown routes for Visibility Analysis
+    app.get('/api/visibility-analysis/categories', getVisibilityCategories);
+    app.get('/api/visibility-analysis/keywords', getVisibilityKeywords);
 };
 
