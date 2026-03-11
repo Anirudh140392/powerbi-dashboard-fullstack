@@ -70,7 +70,10 @@ const MarketCatOverview = ({
         selectedCategory,
         selectedLocation,
         timeStart,
-        timeEnd
+        timeEnd,
+        categories: contextCategories,
+        locations: contextLocations,
+        brands: contextBrands,
     } = useContext(FilterContext);
 
     const [glanceKpis, setGlanceKpis] = useState([
@@ -98,11 +101,13 @@ const MarketCatOverview = ({
             try {
                 const selectedCities = advancedFilters.cities?.length > 0 ? advancedFilters.cities : (selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation : [selectedLocation]));
                 const selectedCats = advancedFilters.categories?.length > 0 ? advancedFilters.categories : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory : [selectedCategory]));
+                const selectedBrands = advancedFilters.brands?.length > 0 ? advancedFilters.brands : undefined;
 
                 const params = {
                     platform: globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(",") : globalPlatform),
                     category: selectedCats ? (Array.isArray(selectedCats) ? selectedCats.join(",") : selectedCats) : undefined,
                     location: selectedCities ? (Array.isArray(selectedCities) ? selectedCities.join(",") : selectedCities) : undefined,
+                    brand: selectedBrands ? selectedBrands.join(",") : undefined,
                     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
                 };
@@ -210,30 +215,6 @@ const MarketCatOverview = ({
                     chip={`${platformEntities.length} Platforms × ${kpiCount} KPIs`}
                     headerRight={
                         <div className="flex items-center gap-3">
-                            {/* Filters */}
-                            <motion.button
-                                onClick={() => setIsFilterModalOpen(true)}
-                                className={cn(
-                                    'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border',
-                                    activeDimensionFilters > 0
-                                        ? 'bg-slate-900 text-white border-slate-900 shadow-md'
-                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:shadow-sm'
-                                )}
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                            >
-                                <SlidersHorizontal size={14} />
-                                <span>Filters</span>
-                                {activeDimensionFilters > 0 && (
-                                    <span className="bg-emerald-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                                        {activeDimensionFilters}
-                                    </span>
-                                )}
-                                <span className="bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-full">
-                                    {kpiCount} KPIs
-                                </span>
-                            </motion.button>
-
                             {/* Legend */}
                             <div className="flex items-center gap-2">
                                 <span className="flex items-center gap-1.5 text-[9px] text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full font-bold border border-emerald-100/50 uppercase tracking-tight">
@@ -392,8 +373,15 @@ const MarketCatOverview = ({
 
             {/* AdvancedFilterModal */}
             {(() => {
-                const categoryOptions = []
-                const cityOptions = []
+                // Build dynamic {id, name} arrays from FilterContext values
+                const toOpts = (arr) =>
+                    (arr || [])
+                        .filter(v => v && v !== 'All')
+                        .map(v => ({ id: v, name: v }));
+
+                const categoryOptions = toOpts(contextCategories);
+                const cityOptions = toOpts(contextLocations);
+                const brandOptions = toOpts(contextBrands);
 
                 return (
                     <AdvancedFilterModal
@@ -402,7 +390,7 @@ const MarketCatOverview = ({
                         filters={advancedFilters}
                         onApply={handleApplyFilters}
                         currentDimension={'platform'}
-                        brands={[]}
+                        brands={brandOptions}
                         categories={categoryOptions}
                         platforms={[]}
                         skus={[]}

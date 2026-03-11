@@ -57,6 +57,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
     setCompareEnd,
     setComparisonLabel,
     categories,
+    visibilityCategories,
     selectedCategory,
     setSelectedCategory,
     productCategories,
@@ -264,7 +265,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
               {/* CATEGORY SELECTION */}
               <CustomHeaderDropdown
                 label="CATEGORY"
-                options={categories}
+                options={location.pathname.includes("visibility") ? visibilityCategories : categories}
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
@@ -283,7 +284,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 />
               )}
 
-              {title !== "Business Overview" && (
+              {title !== "Business Overview" && !location.pathname.includes("market-share") && (
                 <CustomHeaderDropdown
                   label="LOCATION"
                   options={locations}
@@ -294,7 +295,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 />
               )}
 
-              {location.pathname === "/visibility-anlysis" && (
+              {location.pathname.includes("visibility") && (
                 <CustomHeaderDropdown
                   label="KEYWORD"
                   options={keywords}

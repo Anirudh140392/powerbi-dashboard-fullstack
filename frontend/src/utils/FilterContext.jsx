@@ -43,6 +43,7 @@ export const FilterProvider = ({ children }) => {
 
     // Category state (from rca_sku_dim)
     const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
+    const [visibilityCategories, setVisibilityCategories] = useState(FALLBACK_CATEGORIES);
     const [selectedCategory, setSelectedCategory] = useState("All");
 
     // Product Category state (from rb_pdp_olap)
@@ -214,6 +215,7 @@ export const FilterProvider = ({ children }) => {
                     setSelectedCategory(prevCat => {
                         if (prevCat !== "All") {
                             const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
+                            // Relaxing category reset for Visibility which has identical categories but different source
                             const validList = currentList.filter(c => cats.includes(c));
                             if (validList.length === 0) return "All";
                             if (validList.length === cats.length) return "All";
@@ -229,7 +231,27 @@ export const FilterProvider = ({ children }) => {
                 setCategories(FALLBACK_CATEGORIES);
             }
         };
+
+        const fetchVisibilityCategories = async () => {
+            if (!isAuthenticated) return;
+            try {
+                const res = await axiosInstance.get("/visibility-analysis/categories", {
+                    params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
+                });
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    const cats = [...res.data.filter(c => c !== "All")];
+                    setVisibilityCategories(cats);
+                } else {
+                    setVisibilityCategories(FALLBACK_CATEGORIES);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch visibility categories:", err.message);
+                setVisibilityCategories(FALLBACK_CATEGORIES);
+            }
+        };
+
         fetchCategories();
+        fetchVisibilityCategories();
     }, [platform, isAuthenticated]);
 
     // ====== FETCH PRODUCT CATEGORIES FROM DB (when platform or brand changes) ======
@@ -351,10 +373,16 @@ export const FilterProvider = ({ children }) => {
             if (!isAuthenticated) return;
             try {
                 const params = {};
-                if (selectedBrand && selectedBrand !== "All") {
-                    params.brand = Array.isArray(selectedBrand) ? selectedBrand[0] : selectedBrand;
+                // Do NOT filter by brand — keywords in rb_kw_olap should be listed
+                // regardless of brand_name_th, since users pick keywords before brand
+                if (platform && platform !== "All") {
+                    params.platform = Array.isArray(platform) ? platform.join(',') : platform;
                 }
-                const res = await axiosInstance.get("/watchtower/keywords", { params });
+                if (selectedCategory && selectedCategory !== "All") {
+                    params.category = Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory;
+                }
+
+                const res = await axiosInstance.get("/visibility-analysis/keywords", { params });
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched keywords from DB:", res.data.length, "keywords");
                     setKeywords(res.data);
@@ -371,7 +399,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchKeywords();
-    }, [isAuthenticated, selectedBrand]);
+    }, [isAuthenticated, platform, selectedCategory]);
 
     return (
         <FilterContext.Provider value={{
@@ -406,6 +434,7 @@ export const FilterProvider = ({ children }) => {
             comparisonLabel,
             setComparisonLabel,
             categories,
+            visibilityCategories,
             setCategories,
             selectedCategory,
             setSelectedCategory,

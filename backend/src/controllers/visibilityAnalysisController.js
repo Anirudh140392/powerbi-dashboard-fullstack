@@ -418,3 +418,31 @@ export const getBrandComparisonTrends = async (req, res) => {
     }
 };
 
+/**
+ * Get dynamic categories specifically for Visibility Analysis
+ */
+export const getVisibilityCategories = async (req, res) => {
+    try {
+        const { platform } = req.query;
+        const categories = await visibilityService.getVisibilityCategories(platform);
+        res.json(categories);
+    } catch (error) {
+        console.error('[ERROR] Visibility Categories:', error);
+        res.status(500).json({ error: 'Internal Server Error', categories: [] });
+    }
+};
+
+/**
+ * Get dynamic keywords specifically for Visibility Analysis
+ */
+export const getVisibilityKeywords = async (req, res) => {
+    try {
+        const { platform, category, brand } = req.query;
+        const keywords = await visibilityService.getVisibilityKeywords(platform, category, brand);
+        res.json(keywords);
+    } catch (error) {
+        console.error('[ERROR] Visibility Keywords:', error);
+        res.status(500).json({ error: 'Internal Server Error', keywords: [] });
+    }
+};
+

@@ -105,6 +105,7 @@ export const queryClickHouse = async (query, params = {}) => {
         });
         const data = await result.json();
         // console.log(`[ClickHouse] DB: ${dbName} | Result: ${data.length} rows`);
+        console.log(data)
         return data;
     } catch (err) {
         console.error('[ClickHouse] Query failed:', err.message);

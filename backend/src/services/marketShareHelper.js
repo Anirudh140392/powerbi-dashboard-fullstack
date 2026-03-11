@@ -440,7 +440,7 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
             brand: leaderBrand,
             sales: leaderSales,
             prevSales,
-            delta: parseFloat(delta.toFixed(1)),
+            delta: parseFloat(delta.toFixed(2)),
             deltaAbs: parseFloat(deltaAbs.toFixed(2))
         };
     } catch (error) {
@@ -539,7 +539,7 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
         return {
             sales,
             prevSales,
-            delta: parseFloat(delta.toFixed(1)),
+            delta: parseFloat(delta.toFixed(2)),
             deltaAbs: parseFloat(deltaAbs.toFixed(2))
         };
     } catch (error) {
@@ -613,7 +613,7 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
         return {
             size,
             prevSize,
-            delta: parseFloat(delta.toFixed(1)),
+            delta: parseFloat(delta.toFixed(2)),
             deltaAbs: parseFloat(deltaAbs.toFixed(2))
         };
     } catch (error) {
@@ -743,6 +743,53 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         const totalCatSales = parseFloat(totalSalesResult?.[0]?.total_sales || 0);
         const prevTotalCatSales = parseFloat(prevTotalSalesResult?.[0]?.total_sales || 0);
 
+        // 4a. SOS queries: countIf(overall='1')/count(*) and countIf(spons='1')/count(*) per brand
+        const currentSOSQuery = `
+            SELECT group_brand as brand,
+                   ROUND(countIf(toString(overall) = '1') * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
+                   ROUND(countIf(toString(spons) = '1') * 100.0 / nullIf(count(*), 0), 2) AS paid_sos
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
+            ${subCatCond}
+            AND group_brand IS NOT NULL AND group_brand != ''
+            GROUP BY group_brand
+        `;
+
+        const prevSOSQuery = `
+            SELECT group_brand as brand,
+                   ROUND(countIf(toString(overall) = '1') * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
+                   ROUND(countIf(toString(spons) = '1') * 100.0 / nullIf(count(*), 0), 2) AS paid_sos
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            ${baseCond}
+            ${subCatCond}
+            AND group_brand IS NOT NULL AND group_brand != ''
+            GROUP BY group_brand
+        `;
+
+        const [currentSOSResults, prevSOSResults] = await Promise.all([
+            queryClickHouse(currentSOSQuery),
+            queryClickHouse(prevSOSQuery)
+        ]);
+
+        // Build SOS lookups
+        const currentSOSMap = new Map();
+        currentSOSResults.forEach(r => {
+            currentSOSMap.set(r.brand, {
+                overallSov: parseFloat(r.overall_sos || 0),
+                paidSov: parseFloat(r.paid_sos || 0)
+            });
+        });
+
+        const prevSOSMap = new Map();
+        prevSOSResults.forEach(r => {
+            prevSOSMap.set(r.brand, {
+                overallSov: parseFloat(r.overall_sos || 0),
+                paidSov: parseFloat(r.paid_sos || 0)
+            });
+        });
+
         // Build previous-period lookup
         const prevMap = new Map();
         prevResults.forEach(r => {
@@ -757,21 +804,25 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             return 'Action';
         };
 
-        // 4. Build brands array with deltas
+        // 5. Build brands array with deltas (including SOS)
         const brands = currentResults.map(r => {
             const brandSales = parseFloat(r.total_sales || 0);
             const ms = totalCatSales > 0 ? (brandSales / totalCatSales) * 100 : 0;
 
             const prev = prevMap.get(r.brand) || { marketShare: 0 };
-            const msDelta = parseFloat((ms - prev.marketShare).toFixed(1));
+            const msDelta = parseFloat((ms - prev.marketShare).toFixed(2));
+
+            const curSOS = currentSOSMap.get(r.brand) || { overallSov: 0, paidSov: 0 };
+            const prSOS = prevSOSMap.get(r.brand) || { overallSov: 0, paidSov: 0 };
+            const overallSovDelta = parseFloat((curSOS.overallSov - prSOS.overallSov).toFixed(2));
+            const paidSovDelta = parseFloat((curSOS.paidSov - prSOS.paidSov).toFixed(2));
 
             return {
                 brand: r.brand,
                 metrics: {
                     marketShare: { val: parseFloat(ms.toFixed(2)), delta: msDelta, prevVal: parseFloat(prev.marketShare.toFixed(2)), status: getStatus(msDelta) },
-                    asp: { val: 0, delta: 0, status: 'Watch' }, // Not available in rb_ms_olap
-                    overallSov: { val: 0, delta: 0, status: 'Watch' }, // Not available in rb_ms_olap
-                    paidSov: { val: 0, delta: 0, status: 'Watch' }
+                    overallSov: { val: parseFloat(curSOS.overallSov.toFixed(2)), delta: overallSovDelta, status: getStatus(overallSovDelta) },
+                    paidSov: { val: parseFloat(curSOS.paidSov.toFixed(2)), delta: paidSovDelta, status: getStatus(paidSovDelta) }
                 }
             };
         });
@@ -788,10 +839,11 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
  * Returns per-platform data for: categorySize, mwMarketShare, mwSales, mlMarketShare, mlSales
  * Platforms: Blinkit, Instamart, Zepto + ODD Overall (aggregate)
  */
-export const getCrossPlatformOverview = async (start, end, platformFilter, categoryFilter, locationFilter = null) => {
+export const getCrossPlatformOverview = async (start, end, platformFilter, categoryFilter, locationFilter = null, brandFilter = null) => {
     try {
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
+        const brandArr = normalizeFilterArray(brandFilter);
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
@@ -808,6 +860,11 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
+        let brandCond = '';
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            brandCond = `AND group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
         const startStr = start.format('YYYY-MM-DD');
         const endStr = end.format('YYYY-MM-DD');
         const periodDays = end.diff(start, 'day');
@@ -816,7 +873,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
         const prevStartStr = prevStart.format('YYYY-MM-DD');
         const prevEndStr = prevEnd.format('YYYY-MM-DD');
 
-        const baseCond = `${locationCond} ${categoryCond}`;
+        const baseCond = `${locationCond} ${categoryCond} ${brandCond}`;
 
         const marsFilter = `(
             lower(group_brand) LIKE '%mars%'
@@ -920,7 +977,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
         const calcDelta = (curr, prev) => {
             const deltaAbs = curr - prev;
             const deltaPct = prev > 0 ? ((deltaAbs / prev) * 100) : 0;
-            return { deltaPct: parseFloat(deltaPct.toFixed(1)), deltaAbs: parseFloat(deltaAbs.toFixed(2)), prevVal: parseFloat(prev.toFixed(2)) };
+            return { deltaPct: parseFloat(deltaPct.toFixed(2)), deltaAbs: parseFloat(deltaAbs.toFixed(2)), prevVal: parseFloat(prev.toFixed(2)) };
         };
 
         const buildPlatformData = (platKey) => {
@@ -938,6 +995,10 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             const mwSalesCurr = mwSalesCurrVal;
             const mwSalesPrev = mwSalesPrevVal;
             const mwSalesDelta = calcDelta(mwSalesCurr, mwSalesPrev);
+
+            if (platKey.toLowerCase() === 'blinkit') {
+                console.log('[DEBUG] Blinkit MW Sales -> raw:', mwSalesCurrVal, 'formatted:', formatCr(mwSalesCurrVal));
+            }
 
             const mlRow = mlCurrMap[platKey];
             const mlPrevRow = mlPrevMap[platKey];

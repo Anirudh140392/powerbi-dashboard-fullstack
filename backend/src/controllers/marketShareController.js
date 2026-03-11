@@ -55,13 +55,13 @@ export const SubCategoryKpi = async (req, res) => {
 
 export const CrossPlatformOverview = async (req, res) => {
     try {
-        const { platform, category, location, startDate, endDate } = req.query;
+        const { platform, category, location, brand, startDate, endDate } = req.query;
         console.log("Cross Platform Overview request received:", req.query);
 
         const start = startDate ? dayjs(startDate) : dayjs().subtract(30, 'day');
         const end = endDate ? dayjs(endDate) : dayjs();
 
-        const result = await getCrossPlatformOverview(start, end, platform, category, location);
+        const result = await getCrossPlatformOverview(start, end, platform, category, location, brand);
 
         res.json({
             message: "Cross Platform Overview fetched successfully",
