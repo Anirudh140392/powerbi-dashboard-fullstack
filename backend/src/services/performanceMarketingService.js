@@ -44,7 +44,7 @@ const performanceMarketingService = {
                 const startStr = startDate.format('YYYY-MM-DD');
                 const endStr = endDate.format('YYYY-MM-DD');
 
-                let whereConditions = [`Date BETWEEN '${startStr}' AND '${endStr}'`];
+                let whereConditions = [`DATE BETWEEN '${startStr}' AND '${endStr}'`];
 
                 // Filters
                 if (filters.platform && filters.platform !== 'All') {
@@ -67,9 +67,9 @@ const performanceMarketingService = {
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                        whereConditions.push(`toDayOfWeek(Date) IN (6, 7)`);
+                        whereConditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                        whereConditions.push(`toDayOfWeek(Date) NOT IN (6, 7)`);
+                        whereConditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
                     }
                 }
 
@@ -80,7 +80,7 @@ const performanceMarketingService = {
                     SELECT 
                         keyword as keyword_name, 
                         category as keyword_category, 
-                        formatDateTime(Date, '%M') as month, 
+                        formatDateTime(DATE, '%M') as month, 
                         SUM(impressions) as impressions, 
                         SUM(ad_spend) as spend, 
                         SUM(ad_sales) as revenue, 
@@ -211,9 +211,9 @@ const performanceMarketingService = {
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                        baseConditions.push(`toDayOfWeek(Date) IN (6, 7)`);
+                        baseConditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                        baseConditions.push(`toDayOfWeek(Date) NOT IN (6, 7)`);
+                        baseConditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
                     }
                 }
 
@@ -222,7 +222,7 @@ const performanceMarketingService = {
                 const getMetrics = async (start, end) => {
                     const s = start.format('YYYY-MM-DD');
                     const e = end.format('YYYY-MM-DD');
-                    const conditions = [...baseConditions, `Date BETWEEN '${s}' AND '${e}'`];
+                    const conditions = [...baseConditions, `DATE BETWEEN '${s}' AND '${e}'`];
                     const whereSql = conditions.join(' AND ');
 
                     const query = `
@@ -252,12 +252,12 @@ const performanceMarketingService = {
                 const getTrendData = async (start, end) => {
                     const s = start.format('YYYY-MM-DD');
                     const e = end.format('YYYY-MM-DD');
-                    const conditions = [...baseConditions, `Date BETWEEN '${s}' AND '${e}'`];
+                    const conditions = [...baseConditions, `DATE BETWEEN '${s}' AND '${e}'`];
                     const whereSql = conditions.join(' AND ');
 
                     const query = `
                         SELECT 
-                            Date as date,
+                            DATE as date,
                             SUM(impressions) as impressions,
                             SUM(ad_spend) as spend,
                             SUM(ad_sales) as ad_sales,
@@ -411,7 +411,7 @@ const performanceMarketingService = {
                 if (startDate && endDate) {
                     const s = dayjs(startDate).startOf('day').format('YYYY-MM-DD');
                     const e = dayjs(endDate).endOf('day').format('YYYY-MM-DD');
-                    conditions.push(`Date BETWEEN '${s}' AND '${e}'`);
+                    conditions.push(`DATE BETWEEN '${s}' AND '${e}'`);
                 }
 
                 // Brand Filter
@@ -431,9 +431,9 @@ const performanceMarketingService = {
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                        conditions.push(`toDayOfWeek(Date) IN (6, 7)`);
+                        conditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                        conditions.push(`toDayOfWeek(Date) NOT IN (6, 7)`);
+                        conditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
                     }
                 }
 
@@ -459,7 +459,7 @@ const performanceMarketingService = {
                 const queryDaily = `
                     SELECT 
                         category as Category,
-                        formatDateTime(Date, '%Y-%m-%d') as date,
+                        formatDateTime(DATE, '%Y-%m-%d') as date,
                         SUM(ad_spend) as spend,
                         SUM(impressions) as impressions,
                         SUM(ad_click) as clicks,
@@ -659,16 +659,16 @@ const performanceMarketingService = {
                 if (filters.startDate && filters.endDate) {
                     const s = dayjs(filters.startDate).startOf('day').format('YYYY-MM-DD');
                     const e = dayjs(filters.endDate).endOf('day').format('YYYY-MM-DD');
-                    conditions.push(`Date BETWEEN '${s}' AND '${e}'`);
+                    conditions.push(`DATE BETWEEN '${s}' AND '${e}'`);
                 }
 
                 // Weekend Flag
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                        conditions.push(`toDayOfWeek(Date) IN (6, 7)`);
+                        conditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                        conditions.push(`toDayOfWeek(Date) NOT IN (6, 7)`);
+                        conditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
                     }
                 }
 
@@ -719,12 +719,12 @@ const performanceMarketingService = {
                     const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
                     l2mConditions.push(`category IN (${cats})`);
                 }
-                l2mConditions.push(`Date BETWEEN '${startDateL2M}' AND '${endDateL2M}'`);
+                l2mConditions.push(`DATE BETWEEN '${startDateL2M}' AND '${endDateL2M}'`);
                 // Weekend Flag applies to baseline as well for contextual averages
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
-                    if (flags.includes('Weekend') && !flags.includes('Weekday')) l2mConditions.push(`toDayOfWeek(Date) IN (6, 7)`);
-                    else if (flags.includes('Weekday') && !flags.includes('Weekend')) l2mConditions.push(`toDayOfWeek(Date) NOT IN (6, 7)`);
+                    if (flags.includes('Weekend') && !flags.includes('Weekday')) l2mConditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
+                    else if (flags.includes('Weekday') && !flags.includes('Weekend')) l2mConditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
                 }
 
                 const l2mWhereSql = l2mConditions.length > 0 ? l2mConditions.join(' AND ') : '1=1';
@@ -860,10 +860,10 @@ const performanceMarketingService = {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
                         console.log("🎯 [Service] Filtering for Weekends");
-                        baseConditions.push(`toDayOfWeek(Date) IN (6, 7)`);
+                        baseConditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
                         console.log("🎯 [Service] Filtering for Weekdays");
-                        baseConditions.push(`toDayOfWeek(Date) NOT IN (6, 7)`);
+                        baseConditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
                     }
                 }
 
@@ -876,7 +876,7 @@ const performanceMarketingService = {
                     // 1. Calculate the Strict L2M baselines BEFORE the selected period per keyword
                     const endDateL2M = startDate.subtract(1, 'day').endOf('day').format('YYYY-MM-DD');
                     const startDateL2M = dayjs(endDateL2M).subtract(60, 'day').startOf('day').format('YYYY-MM-DD');
-                    const l2mWhereSql = [...baseConditions, `Date BETWEEN '${startDateL2M}' AND '${endDateL2M}'`].join(' AND ');
+                    const l2mWhereSql = [...baseConditions, `DATE BETWEEN '${startDateL2M}' AND '${endDateL2M}'`].join(' AND ');
 
                     const l2mQuery = `
                         SELECT 
@@ -900,7 +900,7 @@ const performanceMarketingService = {
                     });
 
                     // 2. Fetch all keywords in the CURRENT period so we can math them out
-                    const currentWhereSql = [...baseConditions, `Date BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`].join(' AND ');
+                    const currentWhereSql = [...baseConditions, `DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`].join(' AND ');
                     const kwQuery = `
                         SELECT keyword, SUM(ad_spend) as spend, if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
                         FROM mars.rca_pm_olap
@@ -949,7 +949,7 @@ const performanceMarketingService = {
                 const getKeywordTypeData = async (start, end) => {
                     const s = start.format('YYYY-MM-DD');
                     const e = end.format('YYYY-MM-DD');
-                    const conditions = [...baseConditions, `Date BETWEEN '${s}' AND '${e}'`];
+                    const conditions = [...baseConditions, `DATE BETWEEN '${s}' AND '${e}'`];
                     const whereSql = conditions.join(' AND ');
 
                     const query = `
@@ -990,7 +990,7 @@ const performanceMarketingService = {
                 const e = endDate.format('YYYY-MM-DD');
                 const keywordConditions = [...baseConditions,
                     `keyword IS NOT NULL`,
-                `Date BETWEEN '${s}' AND '${e}'`
+                `DATE BETWEEN '${s}' AND '${e}'`
                 ];
                 const keywordWhereSql = keywordConditions.join(' AND ');
 

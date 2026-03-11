@@ -180,17 +180,19 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       // Convert array elements
       const mappedRows = [];
       if (Array.isArray(origRowsArray)) {
-        const kpiNames = ["OSA", "DOI", "Assortment", "PSL"];
+        const kpiNames = ["OSA", "DOI", "PSL"];
         origRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
           const newRow = { ...rowData };
 
           // Default mapping (adjusting for backend array order vs frontend display)
-          // Backend order was originally [osa, doi, fillrate, assortment, psl]
-          // Since Fillrate is removed, we map accordingly:
+          // Backend order: [osa, doi, fillrate, psl]
+          // Index 0: OSA, Index 1: DOI, Index 2: FILLRATE (skipped in UI), Index 3: PSL
           let kpiIdx = idx;
           if (idx === 2) return; // Skip Fillrate row entirely
-          if (idx > 2) kpiIdx = idx - 1; // Shift assortment/psl down
+          if (idx > 2) kpiIdx = idx - 1; // Shift PSL down
+
+          if (kpiIdx >= kpiNames.length) return; // Safety check
 
           newRow.kpi = kpiNames[kpiIdx] || 'Unknown';
 
@@ -210,7 +212,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       // Fallback to mock data
       platformData = {
         columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
-        rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns, context),
+        rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData.filter(d => d.kpi !== 'Assortment'), FORMAT_MATRIX[olaMode].PlatformColumns, context),
       };
     }
 
@@ -221,7 +223,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       const fNormalizedColumns = fOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const fMappedRows = [];
       if (Array.isArray(fOrigRowsArray)) {
-        const kpiNames = ["OSA", "DOI", "Assortment", "PSL"];
+        const kpiNames = ["OSA", "DOI", "PSL"];
         fOrigRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
           const newRow = { ...rowData };
@@ -229,6 +231,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
           let kpiIdx = idx;
           if (idx === 2) return;
           if (idx > 2) kpiIdx = idx - 1;
+
+          if (kpiIdx >= kpiNames.length) return;
 
           newRow.kpi = kpiNames[kpiIdx] || 'Unknown';
           if (!newRow.trend) newRow.trend = {};
@@ -240,7 +244,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
     } else {
       formatData = {
         columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
-        rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns, context),
+        rows: buildRows(FORMAT_MATRIX[olaMode].FormatData.filter(d => d.kpi !== 'Assortment'), FORMAT_MATRIX[olaMode].formatColumns, context),
       };
     }
 
@@ -251,7 +255,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       const cNormalizedColumns = cOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const cMappedRows = [];
       if (Array.isArray(cOrigRowsArray)) {
-        const kpiNames = ["OSA", "DOI", "Assortment", "PSL"];
+        const kpiNames = ["OSA", "DOI", "PSL"];
         cOrigRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
           const newRow = { ...rowData };
@@ -259,6 +263,8 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
           let kpiIdx = idx;
           if (idx === 2) return;
           if (idx > 2) kpiIdx = idx - 1;
+
+          if (kpiIdx >= kpiNames.length) return;
 
           newRow.kpi = kpiNames[kpiIdx] || 'Unknown';
           if (!newRow.trend) newRow.trend = {};
@@ -270,7 +276,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
     } else {
       cityData = {
         columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
-        rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns, context),
+        rows: buildRows(FORMAT_MATRIX[olaMode].CityData.filter(d => d.kpi !== 'Assortment'), FORMAT_MATRIX[olaMode].CityColumns, context),
       };
     }
 

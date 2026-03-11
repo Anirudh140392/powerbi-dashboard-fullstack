@@ -806,7 +806,8 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
     timeStart,
     timeEnd,
     compareStart,
-    compareEnd
+    compareEnd,
+    selectedKeyword
   } = useContext(FilterContext);
 
   // Fetch visibility signals from API
@@ -824,7 +825,8 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
           startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
           endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
           compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : '',
-          compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : ''
+          compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : '',
+          keyword: selectedKeyword && selectedKeyword !== 'All' ? selectedKeyword : ''
         });
 
         console.log('[VisibilityLayoutOne] Fetching signals with params:', queryParams.toString());
@@ -852,7 +854,7 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
     };
 
     fetchSignals();
-  }, [signalType, level, platform, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
+  }, [signalType, level, platform, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedKeyword]);
 
   return (
     <div className="w-full">

@@ -921,8 +921,8 @@ const VisiblityAnalysisData = ({
         ) : !apiData?.keywords?.hierarchy || apiData?.keywords?.hierarchy?.length === 0 ? (
           <NoDataAvailable title="No keywords data available" />
         ) : (
-          <VisibilityDrilldownTable 
-            data={apiData?.keywords?.hierarchy} 
+          <VisibilityDrilldownTable
+            data={apiData?.keywords?.hierarchy}
             filters={parentFilters}
             onFiltersChange={onFiltersChange}
           />
@@ -954,10 +954,10 @@ const VisiblityAnalysisData = ({
           <TopSearchTerms filter={topSearchFilter} apiData={apiData?.searchTerms} />
         )}
       </div>
-      {/* <SignalLabVisibility type="visibility" /> */}
-      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <VisibilityLayoutOne />
-        </div> */}
+      <SignalLabVisibility type="visibility" />
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <VisibilityLayoutOne />
+      </div>
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
           <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">

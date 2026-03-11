@@ -395,7 +395,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
             <CardHeader className="flex items-start justify-between border-b pb-3">
                 <div className="space-y-2">
                     <Box display="flex" gap={1} flexWrap="wrap">
-                        {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'Sos')).map((m) => (
+                        {(isBrandMode ? KPI_KEYS.filter(m => m.key !== 'Sos' && m.key !== 'Fillrate') : KPI_KEYS.filter(m => m.key !== 'Sos')).map((m) => (
                             <MetricChip
                                 key={m.key}
                                 label={m.label}
@@ -507,7 +507,7 @@ const BrandTable = ({ rows, loading }) => {
                             <tr>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
-                                <th className="px-3 py-2 text-center">Fillrate</th>
+                                <th className="px-3 py-2 text-center">Listing %</th>
                                 <th className="px-3 py-2 text-center">Assortment</th>
                                 <th className="px-3 py-2 text-center">PSL</th>
                             </tr>
@@ -539,8 +539,8 @@ const BrandTable = ({ rows, loading }) => {
                                         </span>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-medium text-slate-400 italic">
-                                            Coming Soon
+                                        <span className="font-semibold text-slate-700">
+                                            {(row.listing || 0).toFixed(1)}%
                                         </span>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
@@ -589,7 +589,7 @@ const SkuTable = ({ rows, loading }) => {
                                 <th className="px-3 py-2 text-left">SKU</th>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
-                                <th className="px-3 py-2 text-center">Fillrate</th>
+                                <th className="px-3 py-2 text-center">Listing %</th>
                                 <th className="px-3 py-2 text-center">Assortment</th>
                                 <th className="px-3 py-2 text-center">PSL</th>
                             </tr>
@@ -622,8 +622,8 @@ const SkuTable = ({ rows, loading }) => {
                                         </span>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-medium text-slate-400 italic">
-                                            Coming Soon
+                                        <span className="font-semibold text-slate-700">
+                                            {(row.listing || 0).toFixed(1)}%
                                         </span>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
@@ -919,15 +919,17 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 const response = await axiosInstance.get('/availability-analysis/competition', { params });
                 if (response.data) {
                     setCompetitionData(response.data);
-                }
 
-                // Also fetch trend data if viewMode is trend
-                if (viewMode === 'trend') {
-                    const trendResponse = await axiosInstance.get('/availability-analysis/competition-brand-trends', {
-                        params: { ...params, brands: params.brand }
-                    });
-                    if (trendResponse.data) {
-                        setTrendData(trendResponse.data);
+                    // Fetch trend data using actual brand names from competition results
+                    if (viewMode === 'trend') {
+                        const brandNames = (response.data.brands || []).map(b => b.brand).filter(Boolean);
+                        const trendBrands = brandNames.length > 0 ? brandNames.slice(0, 5).join(',') : 'All';
+                        const trendResponse = await axiosInstance.get('/availability-analysis/competition-brand-trends', {
+                            params: { ...params, brands: trendBrands }
+                        });
+                        if (trendResponse.data) {
+                            setTrendData(trendResponse.data);
+                        }
                     }
                 }
             } catch (error) {
@@ -947,6 +949,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             id: b.brand || `brand-${idx}`,
             name: b.brand || 'Unknown',
             osa: b.osa || 0,
+            listing: b.listing || 0,
             doi: b.doi || 0,
             fillrate: b.fillrate || 0,
             assortment: b.assortment || 0,
@@ -960,6 +963,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             name: s.sku_name || 'Unknown',
             brandName: s.brand_name || 'Unknown',
             osa: s.osa || 0,
+            listing: s.listing || 0,
             doi: s.doi || 0,
             fillrate: s.fillrate || 0,
             assortment: s.assortment || 0,

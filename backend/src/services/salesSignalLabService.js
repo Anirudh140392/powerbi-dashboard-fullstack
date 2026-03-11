@@ -52,6 +52,10 @@ async function getVisibilitySignals(filters = {}) {
             whereConditions.push(`lower(location_name) = lower('${escapeCH(location)}')`);
         }
 
+        if (filters.keyword && filters.keyword !== 'All') {
+            whereConditions.push(`lower(keyword) = lower('${escapeCH(filters.keyword)}')`);
+        }
+
         const whereClause = whereConditions.join(' AND ');
 
         // Group by column based on level

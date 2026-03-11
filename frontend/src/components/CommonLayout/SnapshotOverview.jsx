@@ -676,8 +676,10 @@ const SnapshotOverview = ({
         const inorganicPerf = performanceData.find(p => p.id === 'inorganic') || {};
 
         // 2. Conversion
-        const conversionItem = kpis.find(k => normalize(k.title) === 'conversion');
-        const conversionPerf = performanceData.find(p => p.id === 'conversion') || {};
+        const conversionItem = kpis.find(k => normalize(k.title) === 'conversion') || { title: 'Conversion', id: 'conversion' };
+        conversionItem.value = '1.9%';
+        const conversionPerf = performanceData.find(p => p.id === 'conversion') || { id: 'conversion' };
+        conversionPerf.value = '2%';
 
         // 3. ROAS
         const roasItem = kpis.find(k => normalize(k.title) === 'roas');
