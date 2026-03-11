@@ -177,7 +177,7 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
                             <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.75rem', py: 2, color: 'text.secondary', textTransform: 'uppercase' } }}>
                                 <TableCell>City</TableCell>
                                 <TableCell align="right">Discount %</TableCell>
-                                <TableCell align="right">Price Per Unit</TableCell>
+                                <TableCell align="right">Average selling price</TableCell>
                                 <TableCell align="right">RPI</TableCell>
                                 <TableCell align="right">ASP</TableCell>
                             </TableRow>

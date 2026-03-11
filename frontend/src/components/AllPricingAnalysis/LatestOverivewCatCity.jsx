@@ -34,7 +34,6 @@ const cardSize = {
 
 const kpiLabels = {
     discount: 'Discount',
-    pricePerUnit: 'Price per Unit',
     rpi: 'RPI',
     asp: 'Average Selling Price',
 };
@@ -54,7 +53,6 @@ const LatestOverivewCatCity = ({
 }) => {
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount' },
-        { key: 'pricePerUnit', label: 'Price per Unit' },
         { key: 'rpi', label: 'RPI' },
         { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
@@ -77,7 +75,7 @@ const LatestOverivewCatCity = ({
     // ✅ Dimension + Tier State
     const [dimension, setDimension] = useState('category')
     const [selectedTier, setSelectedTier] = useState('T1')
-    const [glanceKpis, setGlanceKpis] = useState(['discount', 'pricePerUnit', 'rpi', 'asp'])
+    const [glanceKpis, setGlanceKpis] = useState(['discount', 'rpi', 'asp'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     const [advancedFilters, setAdvancedFilters] = useState({
@@ -85,7 +83,7 @@ const LatestOverivewCatCity = ({
         cities: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['discount', 'pricePerUnit', 'rpi', 'asp'],
+        kpis: ['discount', 'rpi', 'asp'],
         filterLogic: 'OR',
     })
 
@@ -95,7 +93,7 @@ const LatestOverivewCatCity = ({
             label: 'Category',
             icon: Grid3X3,
             entities: (contextCategories || []).filter(c => c && c !== 'All').map(c => ({
-                key: c.toLowerCase().replace(/\s+/g, '_'),
+                key: c, // Use raw name for direct matching
                 name: c,
             })),
         },
@@ -189,7 +187,7 @@ const LatestOverivewCatCity = ({
 
         // Apply dimension-specific advanced filters locally
         if (dimension === 'category' && advancedFilters.categories?.length > 0) {
-            list = list.filter(e => advancedFilters.categories.includes(e.key));
+            list = list.filter(e => advancedFilters.categories.includes(e.name));
         }
         if (dimension === 'city') {
             // Apply Tier filter first (using lowercase for robust comparison)
