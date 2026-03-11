@@ -929,17 +929,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
 
                 // Build WHERE conditions for ClickHouse
-                const buildConditions = (dateStart, dateEnd) => {
+                const buildConditions = (dateStart, dateEnd, isPm = false) => {
                     const conditions = [`DATE BETWEEN '${dateStart}' AND '${dateEnd}'`];
 
                     const brandCondArr = normalizeFilterArray(brand);
                     if (brandCondArr && brandCondArr.length > 0) {
-                        const brandConds = brandCondArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
-                        conditions.push(`(${brandConds})`);
+                        if (isPm) {
+                            const brandConds = brandCondArr.map(b => `'${escapeStr(b).toLowerCase()}'`).join(',');
+                            conditions.push(`lower(category) IN (${brandConds})`);
+                        } else {
+                            const brandConds = brandCondArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
+                            conditions.push(`(${brandConds})`);
+                        }
                     }
 
                     const locationArr = normalizeFilterArray(location);
-                    if (locationArr && locationArr.length > 0) {
+                    if (!isPm && locationArr && locationArr.length > 0) {
                         if (locationArr.length === 1) {
                             conditions.push(`Location = '${escapeStr(locationArr[0])}'`);
                         } else {
@@ -953,38 +958,42 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         conditions.push(platformCond);
                     }
 
-                    // Apply Product_Category filter for rb_pdp_olap
+                    // Apply Product_Category filter
                     const catArrLocal = normalizeFilterArray(category);
                     if (catArrLocal && catArrLocal.length > 0) {
-                        conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                        if (isPm) {
+                            conditions.push(`category IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                        } else {
+                            conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                        }
                     }
-                    const skuArr = normalizeFilterArray(skuName);
-                    if (skuArr && skuArr.length > 0) {
-                        const skuConds = skuArr.map(s => `Product LIKE '%${escapeStr(s)}%'`).join(' OR ');
-                        conditions.push(`(${skuConds})`);
-                    }
-                    const skuCodeArr = normalizeFilterArray(skuCode);
-                    if (skuCodeArr && skuCodeArr.length > 0) {
-                        const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
-                        conditions.push(`(${skuCodeConds})`);
+                    if (!isPm) {
+                        const skuArr = normalizeFilterArray(skuName);
+                        if (skuArr && skuArr.length > 0) {
+                            const skuConds = skuArr.map(s => `Product LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                            conditions.push(`(${skuConds})`);
+                        }
+                        const skuCodeArr = normalizeFilterArray(skuCode);
+                        if (skuCodeArr && skuCodeArr.length > 0) {
+                            const skuCodeConds = skuCodeArr.map(s => `toString(Web_Pid) LIKE '%${escapeStr(s)}%'`).join(' OR ');
+                            conditions.push(`(${skuCodeConds})`);
+                        }
                     }
                     return conditions.join(' AND ');
                 };
 
-                const currConditions = buildConditions(currStart.format('YYYY-MM-DD'), currEnd.format('YYYY-MM-DD'));
-                const prevConditions = buildConditions(prevStart.format('YYYY-MM-DD'), prevEnd.format('YYYY-MM-DD'));
+                const currConditions = buildConditions(currStart.format('YYYY-MM-DD'), currEnd.format('YYYY-MM-DD'), false);
+                const prevConditions = buildConditions(prevStart.format('YYYY-MM-DD'), prevEnd.format('YYYY-MM-DD'), false);
+                const currPmConditions = buildConditions(currStart.format('YYYY-MM-DD'), currEnd.format('YYYY-MM-DD'), true);
+                const prevPmConditions = buildConditions(prevStart.format('YYYY-MM-DD'), prevEnd.format('YYYY-MM-DD'), true);
 
-                // Execute 4 queries in parallel using ClickHouse
-                const [currData, currMs, prevData, prevMs] = await Promise.all([
+                // Execute queries in parallel using ClickHouse
+                const [currData, currMs, currPmData, prevData, prevMs, prevPmData] = await Promise.all([
                     // Query 1: Current period offtake metrics for all platforms
                     queryClickHouse(`
                         SELECT 
                             Platform,
                             SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as ad_sales,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
                             SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
                             SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno
                         FROM rb_pdp_olap
@@ -1029,15 +1038,24 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         `;
                         return await queryClickHouse(query);
                     })(),
-                    // Query 3: Previous period offtake metrics for all platforms
+                    // Query 3: Current PM Metrics
+                    queryClickHouse(`
+                        SELECT 
+                            Platform,
+                            SUM(ad_spend) as spend,
+                            SUM(ad_sales) as ad_sales,
+                            SUM(ad_click) as clicks,
+                            SUM(impressions) as impressions,
+                            SUM(ad_quantity_sold) as orders
+                        FROM mars.rca_pm_olap
+                        WHERE ${currPmConditions}
+                        GROUP BY Platform
+                    `),
+                    // Query 4: Previous period offtake metrics for all platforms
                     queryClickHouse(`
                         SELECT 
                             Platform,
                             SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as ad_sales,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
                             SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as neno,
                             SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as deno
                         FROM rb_pdp_olap
@@ -1081,10 +1099,23 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             GROUP BY Platform
                         `;
                         return await queryClickHouse(query);
-                    })()
+                    })(),
+                    // Query 6: Previous PM Metrics
+                    queryClickHouse(`
+                        SELECT 
+                            Platform,
+                            SUM(ad_spend) as spend,
+                            SUM(ad_sales) as ad_sales,
+                            SUM(ad_click) as clicks,
+                            SUM(impressions) as impressions,
+                            SUM(ad_quantity_sold) as orders
+                        FROM mars.rca_pm_olap
+                        WHERE ${prevPmConditions}
+                        GROUP BY Platform
+                    `)
                 ]);
 
-                console.log(`[Bulk Platform] Processed ${platforms.length} platforms with 4 queries (vs ${platforms.length * 15} individual queries)`);
+                console.log(`[Bulk Platform] Processed ${platforms.length} platforms with combined queries`);
 
                 // Build result map
                 const map = new Map();
@@ -1093,6 +1124,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const key = p.toLowerCase();
                     const c = currData.find(d => d.Platform && d.Platform.toLowerCase() === key);
                     const pv = prevData.find(d => d.Platform && d.Platform.toLowerCase() === key);
+                    
+                    const cPm = currPmData.find(d => d.Platform && d.Platform.toLowerCase() === key);
+                    const pvPm = prevPmData.find(d => d.Platform && d.Platform.toLowerCase() === key);
 
                     const currMsRow = currMs.find(d => d.platform_name && d.platform_name.toLowerCase() === key);
                     const prevMsRow = prevMs.find(d => d.platform_name && d.platform_name.toLowerCase() === key);
@@ -1100,20 +1134,22 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     map.set(p, {
                         curr: {
                             sales: parseFloat(c?.sales || 0),
-                            spend: parseFloat(c?.spend || 0),
-                            adSales: parseFloat(c?.ad_sales || 0),
-                            clicks: parseFloat(c?.clicks || 0),
-                            impressions: parseFloat(c?.impressions || 0),
+                            spend: parseFloat(cPm?.spend || 0),
+                            adSales: parseFloat(cPm?.ad_sales || 0),
+                            clicks: parseFloat(cPm?.clicks || 0),
+                            impressions: parseFloat(cPm?.impressions || 0),
+                            orders: parseFloat(cPm?.orders || 0),
                             neno: parseFloat(c?.neno || 0),
                             deno: parseFloat(c?.deno || 0),
                             ms: parseFloat(currMsRow?.ms || 0)
                         },
                         prev: {
                             sales: parseFloat(pv?.sales || 0),
-                            spend: parseFloat(pv?.spend || 0),
-                            adSales: parseFloat(pv?.ad_sales || 0),
-                            clicks: parseFloat(pv?.clicks || 0),
-                            impressions: parseFloat(pv?.impressions || 0),
+                            spend: parseFloat(pvPm?.spend || 0),
+                            adSales: parseFloat(pvPm?.ad_sales || 0),
+                            clicks: parseFloat(pvPm?.clicks || 0),
+                            impressions: parseFloat(pvPm?.impressions || 0),
+                            orders: parseFloat(pvPm?.orders || 0),
                             neno: parseFloat(pv?.neno || 0),
                             deno: parseFloat(pv?.deno || 0),
                             ms: parseFloat(prevMsRow?.ms || 0)
@@ -1476,18 +1512,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Helper to fetch PRECISE totals for summary cards (non-grouped)
                 const getPrecisePerformanceMetrics = async (start, end, filters) => {
-                    const { brand, platform, location, channel } = filters;
+                    const { brand, platform, location, channel, category } = filters;
                     const escapeStrLocal = (str) => str ? str.replace(/'/g, "''") : '';
 
                     const conditions = [
-                        `toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`,
-                        "Comp_flag = 0"
+                        `DATE BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`
                     ];
-
-                    const locArr = normalizeFilterArray(location);
-                    if (locArr && locArr.length > 0) {
-                        conditions.push(`Location IN (${locArr.map(l => `'${escapeStrLocal(l)}'`).join(', ')})`);
-                    }
 
                     const platArr = normalizeFilterArray(platform);
                     if (platArr && platArr.length > 0) {
@@ -1499,19 +1529,25 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     const brandArrLocal = normalizeFilterArray(brand);
                     if (brandArrLocal && brandArrLocal.length > 0) {
-                        const brandConds = brandArrLocal.map(b => `Brand LIKE '%${escapeStrLocal(b)}%'`).join(' OR ');
-                        conditions.push(`(${brandConds})`);
+                        const brandConds = brandArrLocal.map(b => `'${escapeStrLocal(b).toLowerCase()}'`).join(',');
+                        conditions.push(`lower(category) IN (${brandConds})`);
+                    }
+
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        const catConds = catArrLocal.map(c => `'${escapeStrLocal(c)}'`).join(',');
+                        conditions.push(`category IN (${catConds})`);
                     }
 
                     const query = `
                         SELECT 
-                            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as adSales,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as orders,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as clicks,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as impressions,
-                            SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as spend
-                        FROM rb_pdp_olap
+                            0 as sales,
+                            SUM(ad_sales) as adSales,
+                            SUM(ad_quantity_sold) as orders,
+                            SUM(ad_click) as clicks,
+                            SUM(impressions) as impressions,
+                            SUM(ad_spend) as spend
+                        FROM mars.rca_pm_olap
                         WHERE ${conditions.join(' AND ')}
                     `;
 
@@ -1533,7 +1569,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // ⚡ MEGA OPTIMIZATION: Pre-computed monthly KPI cache with Redis fallback
                 const getBulkPerformanceMetrics = async (startRange, endRange, filters) => {
-                    const { brand, platform, location, channel } = filters;
+                    const { brand, platform, location, channel, category } = filters;
 
                     // Generate list of months in range
                     const months = [];
@@ -1546,111 +1582,71 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
 
                     // ===== TRY BRAND PRE-AGGREGATED DATA (INSTANT LOOKUP) =====
-                    // This uses data pre-computed during Redis load - no row fetching needed!
-                    if (brand && brand !== 'All' && platform && platform !== 'All') {
-                        const brandPreAggData = await getBrandMonthlyData(platform, brand, months);
-                        if (brandPreAggData && brandPreAggData.size > 0) {
-                            return brandPreAggData;
-                        }
-                    }
+                    // NOTE: Skipping pre-aggregated pdp Redis caches since we need pm metrics
                     // ===== END BRAND PRE-AGGREGATION CHECK =====
 
                     // Cache miss - compute aggregations (FALLBACK)
                     let dataByMonth = new Map();
 
-                    // Try Redis raw data first
-                    const redisResult = await getRowsFromRedisOrDb(platform, {
-                        brand: brand,
-                        location: location,
-                        startDate: startRange.format('YYYY-MM-DD'),
-                        endDate: endRange.format('YYYY-MM-DD')
-                    });
+                    // Fallback to ClickHouse database query - MULTI-VALUE SUPPORT
+                    // Helper to escape strings
+                    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
-                    if (redisResult.source === 'redis' && redisResult.rows) {
-                        // Aggregate in-memory by month
-                        redisResult.rows.forEach(row => {
-                            const monthKey = dayjs(row.DATE).format('YYYY-MM-01');
+                    // Build WHERE conditions - use DATE directly
+                    const conditions = [
+                        `DATE BETWEEN '${startRange.format('YYYY-MM-DD')}' AND '${endRange.format('YYYY-MM-DD')}'`
+                    ];
 
-                            if (!dataByMonth.has(monthKey)) {
-                                dataByMonth.set(monthKey, {
-                                    sales: 0, adSales: 0, orders: 0, clicks: 0, impressions: 0, spend: 0
-                                });
-                            }
-
-                            const data = dataByMonth.get(monthKey);
-                            data.sales += parseFloat(row.Sales || 0);
-                            data.adSales += parseFloat(row.Ad_sales || 0);
-                            data.orders += parseFloat(row.Ad_Quanity_sold || 0);
-                            data.clicks += parseFloat(row.Ad_Clicks || 0);
-                            data.impressions += parseFloat(row.Ad_Impressions || 0);
-                            data.spend += parseFloat(row.Ad_Spend || 0);
-                        });
-
-                        console.log(`📊 [Redis] Aggregated ${redisResult.rows.length} rows into ${dataByMonth.size} months`);
+                    // Add platform filter (multi-value support)
+                    const platArr = normalizeFilterArray(platform);
+                    if (platArr && platArr.length > 0) {
+                        conditions.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                     } else {
-                        // Fallback to ClickHouse database query - MULTI-VALUE SUPPORT
-                        // Helper to escape strings
-                        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-
-                        // Build WHERE conditions - use toDate(DATE) since DATE is String
-                        const conditions = [
-                            `toDate(DATE) BETWEEN '${startRange.format('YYYY-MM-DD')}' AND '${endRange.format('YYYY-MM-DD')}'`,
-                            "Comp_flag = 0"
-                        ];
-
-                        // Add location filter (multi-value support)
-                        const locArr = normalizeFilterArray(location);
-                        if (locArr && locArr.length > 0) {
-                            conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                        // Handle All platform based on channel
+                        const platformCond = buildPlatformChannelCond(null, channel);
+                        if (platformCond) {
+                            conditions.push(platformCond);
                         }
-
-                        // Add platform filter (multi-value support)
-                        const platArr = normalizeFilterArray(platform);
-                        if (platArr && platArr.length > 0) {
-                            conditions.push(`Platform IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-                        } else {
-                            // Handle All platform based on channel
-                            const platformCond = buildPlatformChannelCond(null, channel);
-                            if (platformCond) {
-                                conditions.push(platformCond);
-                            }
-                        }
-
-                        // Add brand filter (multi-value support with LIKE)
-                        const brandArrLocal = normalizeFilterArray(brand);
-                        if (brandArrLocal && brandArrLocal.length > 0) {
-                            const brandConds = brandArrLocal.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
-                            conditions.push(`(${brandConds})`);
-                        }
-
-                        const results = await queryClickHouse(`
-                            SELECT 
-                                formatDateTime(toDate(DATE), '%Y-%m-01') as month,
-                                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
-                                SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
-                                SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) as total_orders,
-                                SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
-                                SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions,
-                                SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend
-                            FROM rb_pdp_olap
-                            WHERE ${conditions.join(' AND ')}
-                            GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
-                            ORDER BY month ASC
-                        `);
-
-                        results.forEach(row => {
-                            dataByMonth.set(row.month, {
-                                sales: parseFloat(row.total_sales || 0),
-                                adSales: parseFloat(row.total_ad_sales || 0),
-                                orders: parseFloat(row.total_orders || 0),
-                                clicks: parseFloat(row.total_clicks || 0),
-                                impressions: parseFloat(row.total_impressions || 0),
-                                spend: parseFloat(row.total_spend || 0)
-                            });
-                        });
                     }
 
+                    // Add brand filter (mapped to category for mars.rca_pm_olap)
+                    const brandArrLocal = normalizeFilterArray(brand);
+                    if (brandArrLocal && brandArrLocal.length > 0) {
+                        const brandConds = brandArrLocal.map(b => `'${escapeStr(b).toLowerCase()}'`).join(',');
+                        conditions.push(`lower(category) IN (${brandConds})`);
+                    }
 
+                    const catArrLocal = normalizeFilterArray(category);
+                    if (catArrLocal && catArrLocal.length > 0) {
+                        const catConds = catArrLocal.map(c => `'${escapeStr(c)}'`).join(',');
+                        conditions.push(`category IN (${catConds})`);
+                    }
+
+                    const results = await queryClickHouse(`
+                        SELECT 
+                            formatDateTime(DATE, '%Y-%m-01') as month,
+                            0 as total_sales,
+                            SUM(ad_sales) as total_ad_sales,
+                            SUM(ad_quantity_sold) as total_orders,
+                            SUM(ad_click) as total_clicks,
+                            SUM(impressions) as total_impressions,
+                            SUM(ad_spend) as total_spend
+                        FROM mars.rca_pm_olap
+                        WHERE ${conditions.join(' AND ')}
+                        GROUP BY formatDateTime(DATE, '%Y-%m-01')
+                        ORDER BY month ASC
+                    `);
+
+                    results.forEach(row => {
+                        dataByMonth.set(row.month, {
+                            sales: parseFloat(row.total_sales || 0),
+                            adSales: parseFloat(row.total_ad_sales || 0),
+                            orders: parseFloat(row.total_orders || 0),
+                            clicks: parseFloat(row.total_clicks || 0),
+                            impressions: parseFloat(row.total_impressions || 0),
+                            spend: parseFloat(row.total_spend || 0)
+                        });
+                    });
 
                     return dataByMonth;
                 };
@@ -1670,7 +1666,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 let bulkData;
                 try {
                     bulkData = await coalesceRequest(coalesceKey, async () =>
-                        await getBulkPerformanceMetrics(earliestDate, endDate, { brand, platform, location, channel })
+                        await getBulkPerformanceMetrics(earliestDate, endDate, { brand, platform, location, channel, category: filters.category })
                     );
                 } catch (err) {
                     console.error('[Bulk Performance KPIs] Error:', err.message);
@@ -1728,8 +1724,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Extract data for current and MoM periods using precise fetch for exact date range accuracy
                 const [currentData, momData] = await Promise.all([
-                    getPrecisePerformanceMetrics(startDate, endDate, { brand, platform, location, channel }),
-                    getPrecisePerformanceMetrics(momStartDate, momEndDate, { brand, platform, location, channel })
+                    getPrecisePerformanceMetrics(startDate, endDate, { brand, platform, location, channel, category: filters.category }),
+                    getPrecisePerformanceMetrics(momStartDate, momEndDate, { brand, platform, location, channel, category: filters.category })
                 ]);
 
                 // Calculate trend data for all KPIs from bulk results
@@ -2290,24 +2286,34 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
         try {
             // Build ClickHouse conditions for current period
-            const buildAllConditions = (startDt, endDt) => {
+            // Build ClickHouse conditions for current period
+            const buildAllConditions = (startDt, endDt, isPm = false) => {
                 const conditions = [`DATE BETWEEN '${startDt}' AND '${endDt}'`];
                 if (brandArr && brandArr.length > 0) {
-                    const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
-                    conditions.push(`(${brandConds})`);
+                    if (isPm) {
+                        const brandConds = brandArr.map(b => `'${escapeStr(b).toLowerCase()}'`).join(',');
+                        conditions.push(`lower(category) IN (${brandConds})`);
+                    } else {
+                        const brandConds = brandArr.map(b => `Brand LIKE '%${escapeStr(b)}%'`).join(' OR ');
+                        conditions.push(`(${brandConds})`);
+                    }
                 }
                 const locArr = normalizeFilterArray(location);
-                if (locArr && locArr.length > 0) {
+                if (!isPm && locArr && locArr.length > 0) {
                     if (locArr.length === 1) {
                         conditions.push(`Location = '${escapeStr(locArr[0])}'`);
                     } else {
                         conditions.push(`Location IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                     }
                 }
-                // Apply Product_Category filter for rb_pdp_olap
+                // Apply Product_Category filter
                 const catArrLocal = normalizeFilterArray(filters.category);
                 if (catArrLocal && catArrLocal.length > 0) {
-                    conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    if (isPm) {
+                        conditions.push(`category IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`${PRODUCT_CATEGORY_SQL} IN (${catArrLocal.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    }
                 }
 
                 // Apply channel-based platform filter (matching Watch Tower Overview logic)
@@ -2321,40 +2327,56 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 return conditions.join(' AND ');
             };
-            const currConditions = buildAllConditions(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'));
-            const prevConditions = buildAllConditions(allMomStart.format('YYYY-MM-DD'), allMomEnd.format('YYYY-MM-DD'));
+            const currConditions = buildAllConditions(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'), false);
+            const prevConditions = buildAllConditions(allMomStart.format('YYYY-MM-DD'), allMomEnd.format('YYYY-MM-DD'), false);
+            const currPmConditions = buildAllConditions(startDate.format('YYYY-MM-DD'), endDate.format('YYYY-MM-DD'), true);
+            const prevPmConditions = buildAllConditions(allMomStart.format('YYYY-MM-DD'), allMomEnd.format('YYYY-MM-DD'), true);
 
             // Fetch current and previous period metrics in parallel using ClickHouse
-            const [allMetricsResult, prevAllMetricsResult] = await Promise.all([
+            const [allMetricsResult, prevAllMetricsResult, allPmMetricsResult, prevAllPmMetricsResult] = await Promise.all([
                 queryClickHouse(`
                     SELECT 
-                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales
                     FROM rb_pdp_olap
                     WHERE ${currConditions}
                 `),
                 queryClickHouse(`
                     SELECT 
-                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0)) as total_spend,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_sales)), 0)) as total_ad_sales,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0)) as total_clicks,
-                        SUM(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0)) as total_impressions
+                        SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as total_sales
                     FROM rb_pdp_olap
                     WHERE ${prevConditions}
+                `),
+                queryClickHouse(`
+                    SELECT 
+                        SUM(ad_spend) as total_spend,
+                        SUM(ad_sales) as total_ad_sales,
+                        SUM(ad_click) as total_clicks,
+                        SUM(impressions) as total_impressions,
+                        SUM(ad_quantity_sold) as total_orders
+                    FROM mars.rca_pm_olap
+                    WHERE ${currPmConditions}
+                `),
+                queryClickHouse(`
+                    SELECT 
+                        SUM(ad_spend) as total_spend,
+                        SUM(ad_sales) as total_ad_sales,
+                        SUM(ad_click) as total_clicks,
+                        SUM(impressions) as total_impressions,
+                        SUM(ad_quantity_sold) as total_orders
+                    FROM mars.rca_pm_olap
+                    WHERE ${prevPmConditions}
                 `)
             ]);
 
             // Current period values (ClickHouse returns array)
             const currMetrics = allMetricsResult[0] || {};
+            const currPmMetrics = allPmMetricsResult[0] || {};
             allOfftake = parseFloat(currMetrics.total_sales || 0);
-            allSpend = parseFloat(currMetrics.total_spend || 0);
-            allAdSales = parseFloat(currMetrics.total_ad_sales || 0);
-            const allClicks = parseFloat(currMetrics.total_clicks || 0);
-            const allImpressions = parseFloat(currMetrics.total_impressions || 0);
+            allSpend = parseFloat(currPmMetrics.total_spend || 0);
+            allAdSales = parseFloat(currPmMetrics.total_ad_sales || 0);
+            const allClicks = parseFloat(currPmMetrics.total_clicks || 0);
+            const allImpressions = parseFloat(currPmMetrics.total_impressions || 0);
+            const allOrders = parseFloat(currPmMetrics.total_orders || 0);
 
             console.log("ALL COLUMN OFFTAKE VALUES:", {
                 allOfftake, currMetrics_totalSales: currMetrics.total_sales, currConditions
@@ -2362,21 +2384,23 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             // Previous period values (ClickHouse returns array)
             const prevMetrics = prevAllMetricsResult[0] || {};
+            const prevPmMetrics = prevAllPmMetricsResult[0] || {};
             prevAllOfftake = parseFloat(prevMetrics.total_sales || 0);
-            prevAllSpend = parseFloat(prevMetrics.total_spend || 0);
-            prevAllAdSales = parseFloat(prevMetrics.total_ad_sales || 0);
-            const prevAllClicks = parseFloat(prevMetrics.total_clicks || 0);
-            const prevAllImpressions = parseFloat(prevMetrics.total_impressions || 0);
+            prevAllSpend = parseFloat(prevPmMetrics.total_spend || 0);
+            prevAllAdSales = parseFloat(prevPmMetrics.total_ad_sales || 0);
+            const prevAllClicks = parseFloat(prevPmMetrics.total_clicks || 0);
+            const prevAllImpressions = parseFloat(prevPmMetrics.total_impressions || 0);
+            const prevAllOrders = parseFloat(prevPmMetrics.total_orders || 0);
 
             // Calculate derived KPIs - Current
             allRoas = allSpend > 0 ? allAdSales / allSpend : 0;
-            allConversion = allImpressions > 0 ? (allClicks / allImpressions) * 100 : 0;
+            allConversion = allClicks > 0 ? (allOrders / allClicks) * 100 : 0;
             allCpm = allImpressions > 0 ? (allSpend / allImpressions) * 1000 : 0;
             allCpc = allClicks > 0 ? allSpend / allClicks : 0;
 
             // Calculate derived KPIs - Previous
             prevAllRoas = prevAllSpend > 0 ? prevAllAdSales / prevAllSpend : 0;
-            prevAllConversion = prevAllImpressions > 0 ? (prevAllClicks / prevAllImpressions) * 100 : 0;
+            prevAllConversion = prevAllClicks > 0 ? (prevAllOrders / prevAllClicks) * 100 : 0;
             prevAllCpm = prevAllImpressions > 0 ? (prevAllSpend / prevAllImpressions) * 1000 : 0;
             prevAllCpc = prevAllClicks > 0 ? prevAllSpend / prevAllClicks : 0;
 
@@ -2504,11 +2528,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     ? (metrics.curr.neno / metrics.curr.deno) * 100
                     : 0;
 
+                const totalOrders = metrics.curr.orders;
+
                 // Calculate ROAS: Total Ad Sales / Total Spend
                 const roas = totalSpend > 0 ? totalAdSales / totalSpend : 0;
 
-                // Calculate Conversion: (Total Ad Clicks / Total Ad Impressions) * 100
-                const conversion = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+                // Calculate Conversion: (Total Orders / Total Clicks) * 100
+                const conversion = totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0;
 
                 // Calculate CPM: (Total Ad Spend / Total Ad Impressions) * 1000
                 const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
@@ -2540,7 +2566,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Calculate previous period derived metrics from bulk data
                 const prevClicks = metrics.prev.clicks;
-                const prevConversion = prevImpressions > 0 ? (prevClicks / prevImpressions) * 100 : 0;
+                const prevOrders = metrics.prev.orders;
+                const prevConversion = prevClicks > 0 ? (prevOrders / prevClicks) * 100 : 0;
                 const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
                 const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 

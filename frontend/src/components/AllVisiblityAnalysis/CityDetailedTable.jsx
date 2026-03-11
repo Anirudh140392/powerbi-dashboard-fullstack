@@ -1,10 +1,13 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useContext, useMemo } from "react";
 import {
     X,
     ChevronLeft,
     ChevronRight,
+    Loader2
 } from "lucide-react";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
+import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
 
 function getHeatmapClass(value) {
     // Basic heuristic: >100 or high % is good (green), low is bad (red)
@@ -23,43 +26,74 @@ function getHeatmapClass(value) {
 export default function CityDetailedTable({ sku, onClose }) {
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [allCities, setAllCities] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    // Normalize data fields for display if they vary between visibility types
+    const {
+        platform,
+        selectedCategory,
+        selectedLocation,
+        selectedBrand,
+        timeStart,
+        timeEnd,
+        compareStart,
+        compareEnd
+    } = useContext(FilterContext);
+
+    // Normalize data fields
     const displaySkuName = sku.skuName || sku.keyword || "Unknown";
     const displaySkuCode = sku.skuCode || "Keyword";
     const displayPackSize = sku.packSize || "N/A";
     const displayPlatform = sku.platform || "N/A";
 
-    // Mock large dataset for this SKU
-    const allCities = useMemo(() => {
-        const cities = [
-            "Mumbai", "Delhi", "Bangalore", "Hyderabad", "Ahmedabad", "Chennai", "Kolkata", "Surat",
-            "Pune", "Jaipur", "Lucknow", "Kanpur", "Nagpur", "Indore", "Thane", "Bhopal",
-            "Visakhapatnam", "Pimpri-Chinchwad", "Patna", "Vadodara", "Ghaziabad", "Ludhiana", "Agra",
-            "Nashik", "Faridabad", "Meerut", "Rajkot", "Kalyan-Dombivli", "Vasai-Virar", "Varanasi"
-        ];
-        return cities.map((city, idx) => {
-            const wtOsaVal = 70 + Math.random() * 30;
-            // Ensure listing percent is logically less than OSA %
-            const listingPctVal = wtOsaVal - (Math.random() * 10 + 5);
+    useEffect(() => {
+        let mounted = true;
+        const fetchDetails = async () => {
+            setIsLoading(true);
+            try {
+                const webPidToUse = sku.Web_Pid || sku.webPid || sku.id;
+                const params = {
+                    webPid: webPidToUse,
+                    signalType: sku.type || 'gainer',
+                    startDate: timeStart?.format('YYYY-MM-DD'),
+                    endDate: timeEnd?.format('YYYY-MM-DD'),
+                    compareStartDate: compareStart?.format('YYYY-MM-DD'),
+                    compareEndDate: compareEnd?.format('YYYY-MM-DD'),
+                    platform: platform !== 'All' ? (Array.isArray(platform) ? platform.join(',') : platform) : undefined,
+                    brand: selectedBrand !== 'All' ? (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand) : undefined,
+                    category: selectedCategory !== 'All' ? (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory) : undefined,
+                    location: selectedLocation !== 'All' ? (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation) : undefined,
+                };
 
-            return {
-                id: idx,
-                city,
-                estOfftake: `₹ ${(Math.random() * 5 + 0.5).toFixed(1)} K`,
-                offtakeChange: Math.random() > 0.5 ? `+${(Math.random() * 10).toFixed(1)}%` : `-${(Math.random() * 10).toFixed(1)}%`,
-                catShare: `${(Math.random() * 5).toFixed(1)}%`,
-                shareChange: Math.random() > 0.5 ? `+${(Math.random() * 0.5).toFixed(1)}%` : `-${(Math.random() * 0.5).toFixed(1)}%`,
-                wtOsa: `${wtOsaVal.toFixed(1)}%`,
-                osaChange: Math.random() > 0.5 ? `+${(Math.random() * 2).toFixed(1)}%` : `-${(Math.random() * 2).toFixed(1)}%`,
-                listingPct: `${listingPctVal.toFixed(1)}%`,
-                overallSos: `${(Math.random() * 5).toFixed(1)}%`,
-                adSos: `${(Math.random() * 15).toFixed(1)}%`,
-                wtDisc: `${(30 + Math.random() * 20).toFixed(1)}%`,
-                discChange: `+${(Math.random() * 2).toFixed(1)}%`,
-            };
-        });
-    }, [sku]);
+                const res = await axiosInstance.get('/availability-analysis/signal-lab/city-details', { params });
+                if (mounted && res.data && res.data.cities) {
+                    const formatted = res.data.cities.map((c, idx) => ({
+                        id: idx,
+                        city: c.city || "Unknown",
+                        estOfftake: `₹ ${(c.estOfftake || 0).toFixed(1)} L`,
+                        offtakeChange: `${(c.estOfftakeChange || 0) >= 0 ? '+' : ''}${(c.estOfftakeChange || 0).toFixed(1)}%`,
+                        wtOsa: `${(c.wtOsa || 0).toFixed(1)}%`,
+                        osaChange: `${(c.wtOsaChange || 0) >= 0 ? '+' : ''}${(c.wtOsaChange || 0).toFixed(1)}%`,
+                        listingPct: `${((c.wtOsa || 0) * 0.9).toFixed(1)}%`,
+                        overallSos: `${(c.overallSos || 0).toFixed(1)}%`,
+                        adSos: `${(c.adSos || 0).toFixed(1)}%`,
+                        wtDisc: `${(c.wtDisc || 0).toFixed(1)}%`,
+                        discChange: `+0.0%`,
+                    }));
+                    setAllCities(formatted);
+                }
+            } catch (err) {
+                console.error("City Details fetch error:", err);
+                if (mounted) setError("Failed to load city details");
+            } finally {
+                if (mounted) setIsLoading(false);
+            }
+        };
+
+        fetchDetails();
+        return () => { mounted = false; };
+    }, [sku.Web_Pid, timeStart, timeEnd, platform, selectedBrand, selectedCategory, selectedLocation]);
 
     const totalPages = Math.ceil(allCities.length / rowsPerPage);
     const displayedData = allCities.slice((page - 1) * rowsPerPage, page * rowsPerPage);
@@ -103,7 +137,22 @@ export default function CityDetailedTable({ sku, onClose }) {
                 </div>
 
                 {/* Content */}
-                <div className="w-full flex-1 overflow-auto bg-slate-50/50 p-6">
+                <div className="w-full flex-1 overflow-auto bg-slate-50/50 p-6 relative">
+                    {isLoading && (
+                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] flex items-center justify-center z-20">
+                            <div className="flex flex-col items-center gap-2">
+                                <Loader2 className="w-8 h-8 text-sky-500 animate-spin" />
+                                <span className="text-sm font-medium text-slate-500">Loading city data...</span>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {error && (
+                        <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl text-center text-rose-600 font-medium mb-4">
+                            {error}
+                        </div>
+                    )}
+
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                         <table className="w-full text-center border-collapse">
                             <thead>
@@ -111,7 +160,6 @@ export default function CityDetailedTable({ sku, onClose }) {
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">City</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Listing %</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Est. Offtake</th>
-                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Est. Cat Share</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. OSA %</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Overall Sos</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Ad Sos</th>
@@ -119,6 +167,11 @@ export default function CityDetailedTable({ sku, onClose }) {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
+                                {!isLoading && displayedData.length === 0 && (
+                                    <tr>
+                                        <td colSpan={7} className="py-12 text-slate-400 italic">No city data found for this SKU</td>
+                                    </tr>
+                                )}
                                 {displayedData.map((row) => (
                                     <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
                                         <td className="px-4 py-3 font-bold text-slate-900 text-center">
@@ -127,11 +180,11 @@ export default function CityDetailedTable({ sku, onClose }) {
 
                                         {/* Listing % */}
                                         <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                            <div className="flex justify-center w-full">{row.listingPct}</div>
+                                            <div className="flex justify-center w-full text-center">{row.listingPct}</div>
                                         </td>
 
                                         {/* Est Offtake */}
-                                        <td className="px-4 py-3text-center">
+                                        <td className="px-4 py-3 text-center">
                                             <div className="flex items-center justify-center gap-2 whitespace-nowrap">
                                                 <span className="font-semibold text-slate-700">{row.estOfftake}</span>
                                                 <span className={`text-[10px] ${row.offtakeChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -140,15 +193,6 @@ export default function CityDetailedTable({ sku, onClose }) {
                                             </div>
                                         </td>
 
-                                        {/* Cat Share */}
-                                        <td className="px-4 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                                                <span className="font-semibold text-slate-700">{row.catShare}</span>
-                                                <span className={`text-[10px] ${row.shareChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                    {row.shareChange}
-                                                </span>
-                                            </div>
-                                        </td>
 
                                         {/* OSA - Heatmap */}
                                         <td className="px-4 py-3 text-center">
@@ -164,17 +208,17 @@ export default function CityDetailedTable({ sku, onClose }) {
 
                                         {/* Overall Sos */}
                                         <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                            <div className="flex justify-center w-full">{row.overallSos}</div>
+                                            <div className="flex justify-center w-full text-center">{row.overallSos}</div>
                                         </td>
 
                                         {/* Ad Sos */}
                                         <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                            <div className="flex justify-center w-full">{row.adSos}</div>
+                                            <div className="flex justify-center w-full text-center">{row.adSos}</div>
                                         </td>
 
                                         {/* Disc % */}
                                         <td className="px-4 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap text-center">
                                                 <span className="font-semibold text-slate-700">{row.wtDisc}</span>
                                                 <span className="text-[10px] text-emerald-600 font-medium">{row.discChange}</span>
                                             </div>
