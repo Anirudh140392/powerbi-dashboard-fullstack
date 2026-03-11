@@ -2493,7 +2493,7 @@ export default function PricingAnalysisData() {
       return [
         { id: 'vis-0', title: 'Discount', value: '-', subtitle: 'Loading...', icon: icons[0], gradient: gradients[0] },
         { id: 'vis-1', title: 'Weighted Discount', value: '-', subtitle: 'Loading...', icon: icons[1], gradient: gradients[1] },
-        { id: 'vis-2', title: 'Price Per Unit', value: '-', subtitle: 'Loading...', icon: icons[2], gradient: gradients[2] },
+        { id: 'vis-2', title: 'Average selling price', value: '-', subtitle: 'Loading...', icon: icons[2], gradient: gradients[2] },
         { id: 'vis-3', title: 'RPI', value: '-', subtitle: 'Loading...', icon: icons[3], gradient: gradients[3] },
       ];
     }
@@ -2527,9 +2527,9 @@ export default function PricingAnalysisData() {
       },
       {
         id: 'vis-2',
-        title: 'Price Per Unit',
+        title: 'Average selling price',
         value: `₹${(d.pricePerUnit?.value || 0).toFixed(2)}`,
-        subtitle: 'Average price per unit (gram)',
+        subtitle: 'Average selling price of SKUs',
         delta: Math.abs(d.pricePerUnit?.change || 0),
         deltaLabel: `${(d.pricePerUnit?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.pricePerUnit?.change || 0).toFixed(1)}%`,
         icon: icons[2],

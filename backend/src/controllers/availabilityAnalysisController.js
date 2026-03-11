@@ -544,7 +544,8 @@ export const getSignalLabData = async (req, res) => {
                         conditions.push(`Brand LIKE '%${escapeStr(brandFilter)}%'`);
                     }
                 } else {
-                    conditions.push(`toString(Comp_flag) = '0'`);
+                    // For my brand only
+                    conditions.push(`(Comp_flag = 0 OR Comp_flag = '0')`);
                 }
 
                 return conditions.join(' AND ');
@@ -563,7 +564,7 @@ export const getSignalLabData = async (req, res) => {
             // We use OSA change as the sort metric for ALL availability signal lab tabs (as per user request)
             const sortMetric = osaMetricExpr;
 
-            const threshold = 5; // User requested "drastic" changes, e.g., > 5%
+            const threshold = 2; // Reduced threshold to show more signals
             const havingClause = signalType === 'gainer'
                 ? `HAVING ${sortMetric} > ${threshold}`
                 : `HAVING ${sortMetric} < -${threshold}`;

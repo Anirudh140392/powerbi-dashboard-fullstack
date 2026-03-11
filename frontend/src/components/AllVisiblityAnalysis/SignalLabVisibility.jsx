@@ -53,7 +53,6 @@ const visibilityKpiOrder = [
 ];
 
 const availabilityKpiOrder = [
-    "assortment",
     "soh",
     "doi",
     "stockoutRisk",

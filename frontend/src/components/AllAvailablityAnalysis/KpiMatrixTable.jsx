@@ -29,7 +29,6 @@ const kpis = [
     { key: "osa", label: "OSA" },
     { key: "fillrate", label: "FILLRATE" },
     { key: "doi", label: "DOI" },
-    { key: "assortment", label: "ASSORTMENT" },
     { key: "psl", label: "PSL" },
 ];
 
