@@ -189,7 +189,7 @@ const PlatformOverviewNew = ({
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const [apiData, setApiData] = useState({})
-    const [apiLoading, setApiLoading] = useState(false)
+    const [apiLoading, setApiLoading] = useState(true)
     const [apiError, setApiError] = useState(null)
     const [isRetrying, setIsRetrying] = useState(false)
     const [productOptions, setProductOptions] = useState([])
@@ -628,8 +628,8 @@ const PlatformOverviewNew = ({
                                 )}
                             </button>
                         </div>
-                    ) : entities.length === 0 ? (
-                        /* No data state */
+                    ) : entities.length === 0 && apiData[dimension] !== undefined ? (
+                        /* No data state - only show if fetch completed and returned nothing */
                         <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center min-h-[150px] gap-2">
                             <p className="text-sm text-slate-400 font-medium">No data available for the current selection</p>
                         </div>
