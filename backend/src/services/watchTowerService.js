@@ -849,7 +849,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // For brand filter: filter by flag=0 (our brands) or by specific brand name
                 const brandArr = normalizeFilterArray(brandFilter);
-                let numCondition = 'toInt32(overall) >= 1';
+                let numCondition = 'toInt32(overall) = 1';
 
                 if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
                     const brandConds = brandArr.map(b => `lower(brand_name_th) LIKE lower('%${escapeStr(b)}%')`).join(' OR ');
@@ -862,7 +862,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Simple SOS: COUNT(overall=1) / COUNT(*) × 100
                 const sql = `
                     SELECT 
-                        sumIf(toInt32(overall), ${numCondition}) as num,
+                        countIf(${numCondition}) as num,
                         count() as den
                     FROM rb_kw_olap
                     WHERE ${baseConditions.join(' AND ')}
@@ -941,7 +941,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const sql = `
                         SELECT 
                             lower(brand_name_th) as brand,
-                            countIf(toInt32(overall) = 1) as num,
+                            sumIf(toInt32(overall) >= 1) as num,
                             count() as den
                         FROM rb_kw_olap
                         WHERE ${baseConds.join(' AND ')}
@@ -1883,7 +1883,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     // 2 queries: numerator uses countIf(overall=1), denominator uses count()
                     const [sosNumByMonth, sosDenomByMonth] = await Promise.all([
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sumIf(toInt32(overall), toInt32(overall) >= 1) as count
+                            SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, countIf(toInt32(overall) = 1) as count
                             FROM rb_kw_olap WHERE ${sosNumConds.join(' AND ')}
                             GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
                         `),
@@ -2834,7 +2834,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                         const [numByMonth, denomByMonth] = await Promise.all([
                             queryClickHouse(`
-                                SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sumIf(toInt32(overall), toInt32(overall) >= 1) as count
+                                SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, countIf(toInt32(overall) = 1) as count
                                 FROM rb_kw_olap WHERE ${sosNumConds.join(' AND ')}
                                 GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
                             `),
@@ -3990,7 +3990,7 @@ const computeTrendData = async (filters) => {
         // Numerator: Our brands using flag=0 and countIf(overall=1)
         const sosNumConds = buildSosConds();
         const sosNumerator = await queryClickHouse(`
-            SELECT ${groupExpressionKw} as date_group, sumIf(toInt32(overall), toInt32(overall) >= 1) as count
+            SELECT ${groupExpressionKw} as date_group, countIf(toInt32(overall) = 1) as count
             FROM rb_kw_olap
             WHERE ${sosNumConds} AND toString(flag) = '1'
             GROUP BY ${groupExpressionKw}
@@ -6215,7 +6215,7 @@ const getKpiTrends = async (filters) => {
     const [sosNumerator, sosDenominator, msTimeSeriesMap, masterResult] = await Promise.all([
         // SOS Numerator (countIf overall=1)
         queryClickHouse(`
-                SELECT ${groupExpressionKw} as date_group, sumIf(toInt32(overall), toInt32(overall) >= 1) as count
+                SELECT ${groupExpressionKw} as date_group, countIf(toInt32(overall) = 1) as count
                 FROM rb_kw_olap
                 WHERE ${sosNumConds.join(' AND ')}
                 GROUP BY ${groupExpressionKw}
@@ -6664,7 +6664,7 @@ const getCompetitionData = async (filters = {}) => {
             `),
             // Query 9: SOS Neno (Per Brand) from rb_kw_olap - Current Period (countIf overall=1)
             queryClickHouse(`
-                SELECT brand_name_th, sumIf(toInt32(overall), toInt32(overall) >= 1) AS overall_neno
+                SELECT brand_name_th, countIf(toInt32(overall) = 1) AS overall_neno
                 FROM rb_kw_olap
                 WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
@@ -6683,7 +6683,7 @@ const getCompetitionData = async (filters = {}) => {
             `),
             // Query 11: SOS Neno (Per Brand) from rb_kw_olap - MoM Period (countIf overall=1)
             queryClickHouse(`
-                SELECT brand_name_th, sumIf(toInt32(overall), toInt32(overall) >= 1) AS overall_neno
+                SELECT brand_name_th, countIf(toInt32(overall) = 1) AS overall_neno
                 FROM rb_kw_olap
                 WHERE toDate(DATE) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
@@ -6693,7 +6693,7 @@ const getCompetitionData = async (filters = {}) => {
             `),
             // Query 12: SKU SOS Neno (Per Product) from rb_kw_olap - Current Period (countIf overall=1)
             queryClickHouse(`
-                SELECT keyword_search_product AS Product, sumIf(toInt32(overall), toInt32(overall) >= 1) AS overall_neno
+                SELECT keyword_search_product AS Product, countIf(toInt32(overall) = 1) AS overall_neno
                 FROM rb_kw_olap
                 WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
@@ -6703,7 +6703,7 @@ const getCompetitionData = async (filters = {}) => {
             `),
             // Query 13: SKU SOS Neno (Per Product) from rb_kw_olap - MoM Period (countIf overall=1)
             queryClickHouse(`
-                SELECT keyword_search_product AS Product, sumIf(toInt32(overall), toInt32(overall) >= 1) AS overall_neno
+                SELECT keyword_search_product AS Product, countIf(toInt32(overall) = 1) AS overall_neno
                 FROM rb_kw_olap
                 WHERE toDate(DATE) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
