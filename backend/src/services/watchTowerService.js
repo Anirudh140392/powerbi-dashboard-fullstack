@@ -38,7 +38,7 @@ const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Cat
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 
                    'Chocolates (Gifting)', 
                    'Chocolates (Non Gifting)'), 
-            'GMFC')
+            'Others')
 )`;
 
 // 🔹 Materialized View Fallback Logic
@@ -88,7 +88,7 @@ async function getWatchtowerSource() {
                 platform: 'platform',
                 brand: 'brand',
                 location: 'location',
-                category: 'category',
+                category: PRODUCT_CATEGORY_SQL,
                 compFlag: 'comp_flag',
                 compFlagMapping: 'comp_flag',
                 mrp: 'mrp',
@@ -4140,12 +4140,15 @@ const getBrandCategories = async (platform) => {
         const dbName = getCurrentDbName();
         if (dbName === 'mars') {
             const src = await getWatchtowerSource();
-            const catCol = src.f.category;
-            const conditions = [`${catCol} IN (${allowedCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(',')})`];
+            const catCol = src.f.category; // This is now just the expression
+
+            // Note: catCol might be PRODUCT_CATEGORY_SQL which is a complex if()
+            const conditions = [`(${catCol}) IN (${allowedCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(',')})`];
             const platArr = normalizeFilterArray(platform);
             if (platArr && platArr.length > 0) {
                 conditions.push(`${src.f.platform} IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(',')})`);
             }
+
             const query = `SELECT DISTINCT ${catCol} as category FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY category ASC`;
             const rows = await queryClickHouse(query);
             return rows.map(r => r.category);
@@ -9425,9 +9428,9 @@ const getProductCategories = async (filters = {}) => {
     try {
         const { platform, channel } = filters;
         const query = `
-            SELECT DISTINCT Category as category
+            SELECT DISTINCT Product_type as category
             FROM rb_pdp_olap
-            WHERE Category IS NOT NULL AND Category != ''
+            WHERE Product_type IS NOT NULL AND Product_type != ''
             ${platform ? `AND Platform = '${escapeStr(platform)}'` : ''}
             ORDER BY category
         `;

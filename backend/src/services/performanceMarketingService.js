@@ -16,7 +16,7 @@ const performanceMarketingService = {
             const dbName = getCurrentDbName();
 
             if (dbName === 'mars') {
-                const query = `SELECT DISTINCT Product_Category as category FROM rb_pdp_olap WHERE Product_Category IS NOT NULL ORDER BY category ASC`;
+                const query = `SELECT DISTINCT category FROM mars.rca_pm_olap WHERE category IS NOT NULL AND category != '' ORDER BY category ASC`;
                 const rows = await queryClickHouse(query);
                 return rows.map(r => r.category);
             }
@@ -52,15 +52,19 @@ const performanceMarketingService = {
                     whereConditions.push(`Platform IN (${platforms})`);
                 }
                 if (filters.brand && filters.brand !== 'All') {
-                    const dbName = getCurrentDbName();
-                    const filterColumn = dbName === 'mars' ? 'category' : 'brand';
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    whereConditions.push(`lower(${filterColumn}) IN (${values})`);
+                    whereConditions.push(`lower(brand) IN (${values})`);
                 }
+
+                if (filters.category && filters.category !== 'All') {
+                    const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
+                    whereConditions.push(`category IN (${cats})`);
+                }
+
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
-                    const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
-                    whereConditions.push(`category IN (${cats})`);
+                    const values = filters.productCategory.split(',').map(b => `'${b.trim()}'`).join(',');
+                    whereConditions.push(`category IN (${values})`);
                 }
 
                 // Weekend Flag
@@ -198,9 +202,16 @@ const performanceMarketingService = {
 
                 // Brand filter
                 if (filters.brand && filters.brand !== 'All') {
-                    const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    const dbName = getCurrentDbName(); const filterColumn = dbName === 'mars' ? 'category' : 'brand'; const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(','); baseConditions.push(`lower(${filterColumn}) IN (${values})`);
+                    const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
+                    baseConditions.push(`lower(brand) IN (${values})`);
                 }
+
+                // Category filter
+                if (filters.category && filters.category !== 'All') {
+                    const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
+                    baseConditions.push(`category IN (${cats})`);
+                }
+
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
                     const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
@@ -642,13 +653,18 @@ const performanceMarketingService = {
                     conditions.push(`lower(Platform) IN (${platforms})`);
                 }
 
-                // Brand filter (used as category in Mars context for PM)
+                // Brand filter
                 if (filters.brand && filters.brand !== 'All') {
-                    const dbName = getCurrentDbName();
-                    const filterColumn = dbName === 'mars' ? 'category' : 'brand';
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    conditions.push(`lower(${filterColumn}) IN (${values})`);
+                    conditions.push(`lower(brand) IN (${values})`);
                 }
+
+                // Category filter
+                if (filters.category && filters.category !== 'All') {
+                    const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
+                    conditions.push(`category IN (${cats})`);
+                }
+
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
                     const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
@@ -709,10 +725,12 @@ const performanceMarketingService = {
                     l2mConditions.push(`lower(Platform) IN (${platforms})`);
                 }
                 if (filters.brand && filters.brand !== 'All') {
-                    const dbName = getCurrentDbName();
-                    const filterColumn = dbName === 'mars' ? 'category' : 'brand';
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    l2mConditions.push(`lower(${filterColumn}) IN (${values})`);
+                    l2mConditions.push(`lower(brand) IN (${values})`);
+                }
+                if (filters.category && filters.category !== 'All') {
+                    const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
+                    l2mConditions.push(`category IN (${cats})`);
                 }
                 // Product Category filter for L2M baseline
                 if (filters.productCategory && filters.productCategory !== 'All') {
@@ -844,8 +862,15 @@ const performanceMarketingService = {
                 // Brand filter
                 if (filters.brand && filters.brand !== 'All') {
                     const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    const dbName = getCurrentDbName(); const filterColumn = dbName === 'mars' ? 'category' : 'brand'; const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(','); baseConditions.push(`lower(${filterColumn}) IN (${values})`);
+                    baseConditions.push(`lower(brand) IN (${brands})`);
                 }
+
+                // Category filter
+                if (filters.category && filters.category !== 'All') {
+                    const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
+                    baseConditions.push(`category IN (${cats})`);
+                }
+
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
                     const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
