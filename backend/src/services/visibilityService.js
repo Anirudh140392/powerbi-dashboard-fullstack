@@ -1772,7 +1772,7 @@ class VisibilityService {
                         skuWhere += ` AND Location = '${escapeCH(city)}'`;
                     }
                     if (format && format !== 'All') {
-                        skuWhere += ` AND Product_Category = '${escapeCH(format)}'`;
+                        skuWhere += ` AND Category = '${escapeCH(format)}'`;
                     }
                     if (brand && brand !== 'All') {
                         skuWhere += ` AND Brand = '${escapeCH(brand)}'`;

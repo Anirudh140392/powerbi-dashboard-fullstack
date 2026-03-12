@@ -19,7 +19,7 @@ const getColumnMapping = (dbName) => {
         },
         rb_sku_platform: {
             brand_name: (dbName === 'mars') ? 'brand' : 'brand_name',
-            brand_category: (dbName === 'mars') ? 'product_category' : (dbName === 'zydus' ? 'category' : 'brand_category')
+            brand_category: (dbName === 'mars') ? 'Category' : (dbName === 'zydus' ? 'category' : 'brand_category')
         }
     };
     return mapping;
@@ -48,10 +48,10 @@ const buildWhereConditions = (filters, includeDate = true) => {
         conditions.push(`Location = '${location}'`);
     }
     if (category && category !== 'All') {
-        conditions.push(`Product_Category = '${category}'`);
+        conditions.push(`Product_type = '${category}'`);
     }
     if (productCategory && productCategory !== 'All') {
-        conditions.push(`Category = '${productCategory}'`);
+        conditions.push(`Product_type = '${productCategory}'`);
     }
 
     return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -181,7 +181,7 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (cArr.length > 0) {
         const uniqueCArr = [...new Set(cArr)];
-        conditions.push(`lower(replace(${prefix}Product_Category, ' ', '_')) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        conditions.push(`lower(replace(${prefix}Product_type, ' ', '_')) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
 
     // Product Category filter
@@ -205,7 +205,7 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (pcArr.length > 0) {
         const uniquePcArr = [...new Set(pcArr)];
-        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        conditions.push(`lower(replace(${prefix}Product_type, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
 
     // SKU filter
@@ -519,7 +519,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
             // Determine group column based on viewMode
-            const groupColumn = viewMode === 'Format' ? 'Product_Category' :
+            const groupColumn = viewMode === 'Format' ? 'Product_type' :
                 viewMode === 'City' ? 'Location' : 'Platform';
 
             // Build base filter conditions using the helper (excluding date as it's handled separately for current/prev)
@@ -996,7 +996,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     Web_Pid as sku,
                     Location as city,
                     Platform as platform,
-                    Category as category_name,
+                    Product_type as category_name,
                     DATE,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
@@ -1005,7 +1005,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                   AND Product != '0'
                   AND Product != ''
                   AND length(trim(Product)) > 0
-                GROUP BY Product, Web_Pid, Location, Platform, Category, DATE
+                GROUP BY Product, Web_Pid, Location, Platform, Product_type, DATE
                 ORDER BY Product, Web_Pid, Location, DATE
             `;
 
@@ -1401,9 +1401,9 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
     if (filterType === 'categories' || filterType === 'formats') {
         try {
             const query = `
-                        SELECT DISTINCT Category as value 
+                        SELECT DISTINCT Product_type as value 
                         FROM rb_pdp_olap
-                        WHERE Category IS NOT NULL AND Category != ''
+                        WHERE Product_type IS NOT NULL AND Product_type != ''
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1417,9 +1417,9 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
     if (filterType === 'productCategories') {
         try {
             const query = `
-                        SELECT DISTINCT Product_Category as value 
+                        SELECT DISTINCT Product_type as value 
                         FROM rb_pdp_olap
-                        WHERE Product_Category IS NOT NULL AND Product_Category != ''
+                        WHERE Product_type IS NOT NULL AND Product_type != ''
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1471,8 +1471,8 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 const cityConditions = [];
                 if (platform && platform !== 'All') cityConditions.push(buildInClause('Platform', platform));
                 if (brand && brand !== 'All') cityConditions.push(buildInClause('Brand', brand));
-                if (category && category !== 'All') cityConditions.push(buildInClause('Product_Category', category));
-                if (productCategory && productCategory !== 'All') cityConditions.push(buildInClause('Category', productCategory));
+                if (category && category !== 'All') cityConditions.push(buildInClause('Product_type', category));
+                if (productCategory && productCategory !== 'All') cityConditions.push(buildInClause('Product_type', productCategory));
 
                 if (metroFlag && metroFlag !== 'All') {
                     const tierArr = Array.isArray(metroFlag) ? metroFlag : [metroFlag];
@@ -1498,8 +1498,8 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 const brandConditions = [];
                 if (platform && platform !== 'All') brandConditions.push(buildInClause('Platform', platform));
                 if (city && city !== 'All') brandConditions.push(buildInClause('Location', city));
-                if (category && category !== 'All') brandConditions.push(buildInClause('Product_Category', category));
-                if (productCategory && productCategory !== 'All') brandConditions.push(buildInClause('Category', productCategory));
+                if (category && category !== 'All') brandConditions.push(buildInClause('Product_type', category));
+                if (productCategory && productCategory !== 'All') brandConditions.push(buildInClause('Product_type', productCategory));
 
                 brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
                 const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
@@ -1576,7 +1576,7 @@ const getOsaDetailByCategory = async (filters) => {
                 JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
                     AND lower(t1.Location) = lower(t2.location) 
                     AND lower(t1.Brand) = lower(t2.brand_name) 
-                    AND lower(t1.Product_Category) = lower(t2.category)
+                    AND lower(t1.Product_type) = lower(t2.category)
                 WHERE ${whereClause}
                   AND t2.status = 1
                 GROUP BY t1.Product, t1.Web_Pid, t1.DATE
@@ -1808,7 +1808,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
             const query = `
                 WITH latest_skus AS (
-                    SELECT 
+                    SELECT
                         Brand,
                         Web_Pid,
                         argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_inv
@@ -1816,7 +1816,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     WHERE ${whereClause}
                     GROUP BY Brand, Web_Pid
                 )
-                SELECT 
+                SELECT
                     Brand as brand_name,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
@@ -1846,7 +1846,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 if (category && category !== 'All') {
                     const cArr = Array.isArray(category) ? category : category.split(',').map(c => c.trim());
                     const catListStr = cArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ');
-                    masterConds.push(`lower(product_category) IN (${catListStr})`);
+                    masterConds.push(`lower(category) IN (${catListStr})`);
                 }
 
                 const masterQuery = `
@@ -1961,7 +1961,7 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const baseCondsStr = baseWhere !== '1=1' ? `${baseWhere} AND ` : '';
 
         // 2. Build Category conditions (filtered by Platform/Location/Advanced)
-        const catQuery = `SELECT DISTINCT Product_Category as value FROM rb_pdp_olap WHERE ${baseCondsStr}Product_Category IS NOT NULL AND Product_Category != '' ORDER BY Product_Category`;
+        const catQuery = `SELECT DISTINCT Product_type as value FROM rb_pdp_olap WHERE ${baseCondsStr}Product_type IS NOT NULL AND Product_type != '' ORDER BY Product_type`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
         const brandWhere = buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
@@ -2081,7 +2081,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                 if (category && category !== 'All') {
                     const cArr = Array.isArray(category) ? category : category.split(',').map(c => c.trim());
                     const catListStr = cArr.map(c => `'${escapeStr(c)}'`).join(', ');
-                    masterConds.push(`product_category IN (${catListStr})`);
+                    masterConds.push(`category IN (${catListStr})`);
                 }
 
                 const masterQuery = `
