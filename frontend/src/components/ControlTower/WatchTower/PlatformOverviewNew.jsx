@@ -332,7 +332,7 @@ const PlatformOverviewNew = ({
         const debounceTimer = setTimeout(() => {
             if (currentFetchId !== fetchIdRef.current) return;
             fetchDimensionData(currentFetchId)
-        }, 800);
+        }, 1000);
 
         return () => clearTimeout(debounceTimer);
     }, [filterKey, datesFetched, platformsFetched, fetchDimensionData])
