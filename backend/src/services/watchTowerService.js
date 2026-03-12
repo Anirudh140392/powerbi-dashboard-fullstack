@@ -941,7 +941,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const sql = `
                         SELECT 
                             lower(brand_name_th) as brand,
-                            sumIf(toInt32(overall) >= 1) as num,
+                            countIf(toInt32(overall) = 1) as num,
                             count() as den
                         FROM rb_kw_olap
                         WHERE ${baseConds.join(' AND ')}
