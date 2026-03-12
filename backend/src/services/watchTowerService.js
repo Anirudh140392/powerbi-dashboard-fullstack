@@ -6199,15 +6199,15 @@ const getKpiTrends = async (filters) => {
 
     // Calculate master assortment from rb_sku_platform for Listing %
     const masterAssortmentConds = [`status = 1`];
-    if (catArr && catArr.length > 0) masterAssortmentConds.push(`lower(brand_category_id) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
-    if (brandArr && brandArr.length > 0) masterAssortmentConds.push(`lower(brand_name) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+    if (catArr && catArr.length > 0) masterAssortmentConds.push(`lower(product_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+    if (brandArr && brandArr.length > 0) masterAssortmentConds.push(`lower(brand) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
 
     // Dimension-specific master count (e.g. when opening a specific category row trend)
     if (dimension && dimensionValue && dimensionValue !== 'All') {
         const dimKey = dimension.toLowerCase();
         const val = dimensionValue.toLowerCase();
-        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(brand_category_id) = '${escapeStr(val)}'`);
-        else if (dimKey === 'brand') masterAssortmentConds.push(`lower(brand_name) = '${escapeStr(val)}'`);
+        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(product_category) = '${escapeStr(val)}'`);
+        else if (dimKey === 'brand') masterAssortmentConds.push(`lower(brand) = '${escapeStr(val)}'`);
     }
 
     const masterQuery = `SELECT count(DISTINCT web_pid) as total_master FROM rb_sku_platform WHERE ${masterAssortmentConds.join(' AND ')}`;
@@ -6389,10 +6389,10 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
             const conditions = [
                 `${catCol} IS NOT NULL`,
                 `${catCol} != ''`,
-                `${catCol} IN (${allowedCategories.map(c => `'${escapeStrMain(c)}'`).join(',')})`
+                `${catCol} IN (${allowedCategories.map(c => `'${escapeStr(c)}'`).join(',')})`
             ];
             if (platArr && platArr.length > 0) {
-                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStrMain(p.toLowerCase())}'`).join(',')})`);
+                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT ${catCol} as category FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY category`;
@@ -6405,7 +6405,7 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
             // Fetch unique brands
             const conditions = [`${src.f.brand} IS NOT NULL`, `${src.f.brand} != ''`];
             if (platArr && platArr.length > 0) {
-                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStrMain(p.toLowerCase())}'`).join(',')})`);
+                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY brand`;
@@ -6418,10 +6418,10 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
             // Fetch unique cities (Location)
             const conditions = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`];
             if (platArr && platArr.length > 0) {
-                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStrMain(p.toLowerCase())}'`).join(',')})`);
+                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
             if (brandArr && brandArr.length > 0) {
-                conditions.push(`${src.f.brand} IN (${brandArr.map(b => `'${escapeStrMain(b)}'`).join(',')})`);
+                conditions.push(`${src.f.brand} IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT ${src.f.location} as city FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY city`;
@@ -6434,10 +6434,10 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
             // Fetch unique products
             const conditions = [`${src.f.product} IS NOT NULL`, `${src.f.product} != ''`];
             if (platArr && platArr.length > 0) {
-                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStrMain(p.toLowerCase())}'`).join(',')})`);
+                conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
             if (brandArr && brandArr.length > 0) {
-                conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStrMain(b.toLowerCase())}'`).join(',')})`);
+                conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT ${src.f.product} as sku FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY sku LIMIT 1000`;
