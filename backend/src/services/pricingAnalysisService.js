@@ -9,8 +9,8 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 // Global SQL snippet to resolve the Product_Category from Brand if the column is empty
 // For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
 // Gifting (gift, tin pack, minis) from Non-Gifting
-const PRODUCT_CATEGORY_SQL = `if(Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0', 
-    Product_Category, 
+const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
+    Category, 
     multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 

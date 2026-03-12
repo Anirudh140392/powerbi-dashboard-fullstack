@@ -31,14 +31,14 @@ import { normalizeFilterArray, getMarketShare, getMarketShareByMonth, getMarketS
 // Global SQL snippet to resolve the Product_Category from Brand if the column is empty
 // For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
 // Gifting (gift, tin pack, minis) from Non-Gifting
-const PRODUCT_CATEGORY_SQL = `if(Product_Category IS NOT NULL AND Product_Category != '' AND Product_Category != '0', 
-    Product_Category, 
+const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
+    Category, 
     multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
             LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
                 if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 
                    'Chocolates (Gifting)', 
                    'Chocolates (Non Gifting)'), 
-            'Others')
+            'GMFC')
 )`;
 
 // 🔹 Materialized View Fallback Logic
@@ -907,7 +907,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
                 const validBrands = brands.filter(b => b && b.trim());
-                if (validBrands.length === 0) return new Map();
+                if (validBrands.length === 0) {
+                    console.log("[Bulk SOS] No valid brands provided");
+                    return new Map();
+                }
+
+                console.log(`[Bulk SOS] Calculating SOS for ${validBrands.length} brands. Platform: ${platformFilter}, Category: ${categoryFilter}, Channel: ${channel}`);
+
 
                 const buildConditions = (start, end) => {
                     const conds = [`toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
@@ -935,10 +941,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 const executeSOSQuery = async (start, end) => {
                     const baseConds = buildConditions(start, end);
-                    const brandClause = validBrands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
-
-                    // Numerator: count of overall/spons/organic for specifically these brands
-                    // Denominator: total count of overall/spons/organic for ALL results (market base)
+                    // Query directly with flag = '1' to get our brands' data reliably
                     const [numResult, denResult] = await Promise.all([
                         queryClickHouse(`
                             SELECT 
@@ -947,7 +950,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                                 sum(toInt32(spons)) as num_spons,
                                 sum(toInt32(organic)) as num_organic
                             FROM rb_kw_olap
-                            WHERE ${baseConds.join(' AND ')} AND lower(brand_name_th) IN (${brandClause})
+                            WHERE ${baseConds.join(' AND ')} AND toString(flag) = '1'
                             GROUP BY brand
                         `),
                         queryClickHouse(`
@@ -966,9 +969,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     return numResult.map(r => ({
                         brand: r.brand,
-                        overall: denO > 0 ? (parseFloat(r.num_overall) / denO) * 100 : 0,
-                        spons: denS > 0 ? (parseFloat(r.num_spons) / denS) * 100 : 0,
-                        organic: denOrg > 0 ? (parseFloat(r.num_organic) / denOrg) * 100 : 0
+                        num_overall: parseFloat(r.num_overall || 0),
+                        num_spons: parseFloat(r.num_spons || 0),
+                        num_organic: parseFloat(r.num_organic || 0),
+                        den_overall: denO,
+                        den_spons: denS,
+                        den_organic: denOrg
                     }));
                 };
 
@@ -977,15 +983,30 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     executeSOSQuery(prevStart, prevEnd)
                 ]);
 
-                const currMap = new Map(currResult.map(r => [r.brand, { overall: r.overall, spons: r.spons, organic: r.organic }]));
-                const prevMap = new Map(prevResult.map(r => [r.brand, { overall: r.overall, spons: r.spons, organic: r.organic }]));
+                // Helper for fuzzy matching SOS results
+                const getSosFromResults = (results, targetBrand) => {
+                    const lowerTarget = targetBrand.toLowerCase();
+                    // Exact match
+                    let match = results.find(r => r.brand === lowerTarget);
+                    // Fuzzy match
+                    if (!match) {
+                        match = results.find(r => r.brand.includes(lowerTarget) || lowerTarget.includes(r.brand));
+                    }
+
+                    if (!match) return { overall: 0, spons: 0, organic: 0 };
+
+                    return {
+                        overall: match.den_overall > 0 ? (match.num_overall / match.den_overall) * 100 : 0,
+                        spons: match.den_spons > 0 ? (match.num_spons / match.den_spons) * 100 : 0,
+                        organic: match.den_organic > 0 ? (match.num_organic / match.den_organic) * 100 : 0
+                    };
+                };
 
                 const sosMap = new Map();
                 validBrands.forEach(brand => {
-                    const key = brand.toLowerCase();
                     sosMap.set(brand, {
-                        current: currMap.get(key) || { overall: 0, spons: 0, organic: 0 },
-                        previous: prevMap.get(key) || { overall: 0, spons: 0, organic: 0 }
+                        current: getSosFromResults(currResult, brand),
+                        previous: getSosFromResults(prevResult, brand)
                     });
                 });
 
@@ -3437,8 +3458,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const brandsSosTimerLabel = `[Brands Overview] Bulk SOS Calculation ${Date.now()}`;
         console.time(brandsSosTimerLabel);
 
-        // Generate coalesce key for SOS calculation
-        const sosCoalesceKey = `bulk-sos:${platform || 'All'}:${startDate.format('YYYY-MM-DD')}:${endDate.format('YYYY-MM-DD')}:${location || 'All'}:${category || 'All'}`;
+        // Generate coalesce key for SOS calculation - include channel for accuracy
+        const sosCoalesceKey = `bulk-sos:${brandsOverviewPlatform}:${startDate.format('YYYY-MM-DD')}:${endDate.format('YYYY-MM-DD')}:${location || 'All'}:${rawBrandsOverviewCategory}:${channel || 'All'}`;
 
         let bulkSosMap;
         try {
@@ -3447,7 +3468,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     boBrands,
                     startDate, endDate,           // Current period
                     boPrevStartDate, boPrevEndDate, // Previous period
-                    platform, location, category
+                    brandsOverviewPlatform, location, rawBrandsOverviewCategory, channel
                 )
             );
         } catch (err) {

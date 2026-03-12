@@ -605,7 +605,7 @@ export const getSalesFilterOptions = async (req, res) => {
             const [platforms, brands, categories, locations] = await Promise.all([
                 queryClickHouse(`SELECT DISTINCT Platform FROM rb_pdp_olap WHERE Platform != '' ORDER BY Platform`),
                 queryClickHouse(`SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '' AND toString(Comp_flag) = '0' ORDER BY Brand`),
-                queryClickHouse(`SELECT DISTINCT Category FROM rb_pdp_olap WHERE Category != '' AND toString(Comp_flag) = '0' ORDER BY Category`),
+                queryClickHouse(`SELECT DISTINCT Product_type FROM rb_pdp_olap WHERE Product_type != '' AND toString(Comp_flag) = '0' ORDER BY Product_type`),
                 queryClickHouse(`SELECT DISTINCT Location FROM rb_pdp_olap WHERE Location != '' ORDER BY Location`),
             ]);
 
