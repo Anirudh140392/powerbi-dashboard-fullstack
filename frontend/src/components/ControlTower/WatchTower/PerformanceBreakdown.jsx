@@ -427,7 +427,7 @@ export function AggregatedViewTable() {
         fetchData();
     }, [fetchData]);
 
-    const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)}Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)} lac`; if (num >= 1000) return `${(num / 1000).toFixed(1)}K`; return num.toLocaleString("en-IN"); };
+    const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)} Lac`; if (num >= 1000) return `${(num / 1000).toFixed(1)} K`; return num.toLocaleString("en-IN"); };
     const formatCurrency = (num) => (num === null || num === undefined ? "—" : `₹${formatNumber(num)}`);
     const getPeriodData = (tag, periodKey) => { if (!periodComparison || !periodComparison[periodKey]) return null; return periodComparison[periodKey].find((d) => d.tag === tag) || null; };
     const thCls = (dm) => `px-2 py-3 text-right text-xs font-semibold uppercase tracking-wider ${dm ? "text-slate-400" : "text-slate-500"}`;

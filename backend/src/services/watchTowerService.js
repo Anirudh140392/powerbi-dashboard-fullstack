@@ -142,7 +142,7 @@ const formatUnits = (val) => {
     const v = parseFloat(val);
     if (isNaN(v)) return "0";
     if (v >= 10000000) return `${(v / 10000000).toFixed(2)} Cr`;
-    if (v >= 100000) return `${(v / 100000).toFixed(2)} lac`;
+    if (v >= 100000) return `${(v / 100000).toFixed(2)} Lac`;
     if (v >= 1000) return `${(v / 1000).toFixed(2)} K`;
     return Math.round(v).toLocaleString('en-IN');
 };
@@ -323,25 +323,14 @@ const formatChange = (val, isPP = false) => {
  * Shared Multi-unit currency formatter
  */
 /**
- * Scales metrics for Mars-related entries if needed (100x scaling fix).
- * Data analysis shows financial/qty metrics for Mars brands are 100x inflated in source.
+ * scaleMarsMetrics - DISABLED
+ * Previously scaled Mars-related entries by 0.01, but the source data is NOT inflated.
+ * User-verified: SQL query `SELECT SUM(Sales) FROM rb_pdp_olap WHERE Product_Category='GMFC'`
+ * returns correct values (e.g., 7,642,409 = ₹76.42 Lac) without any scaling needed.
+ * Keeping the function signature as a no-op so all callers continue to work.
  */
 const scaleMarsMetrics = (row, key) => {
-    if (!row || !key) return row;
-    const lowerKey = key.toLowerCase();
-    const marsKeywords = ['snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m', 'orbit', 'doublemint', 'boomer', 'skittles', 'chocolates (gifting)', 'chocolates (non gifting)', 'gmfc'];
-
-    const isMars = marsKeywords.some(kw => lowerKey.includes(kw));
-    if (!isMars) return row;
-
-    const fields = ['total_sales', 'total_qty', 'total_spend', 'total_ad_sales', 'total_ad_spend', 'total_ad_orders', 'total_ad_clicks', 'total_ad_impressions', 'my_mrp_val', 'my_actual_sales', 'comp_mrp_val', 'comp_actual_sales', 'cat_size', 'our_sales', 'sales', 'total_orders', 'orders', 'total_clicks', 'clicks', 'total_impressions', 'impressions', 'group_impressions', 'group_clicks', 'group_spends', 'group_orders', 'group_sales'];
-    const scaled = { ...row };
-    fields.forEach(f => {
-        if (scaled[f] !== undefined && scaled[f] !== null) {
-            scaled[f] = parseFloat(scaled[f]) * 0.01;
-        }
-    });
-    return scaled;
+    return row;
 };
 
 const formatCurrency = (value) => {
@@ -349,7 +338,7 @@ const formatCurrency = (value) => {
     if (isNaN(val)) return "₹0";
     if (val < 0.01 && val > -0.01) return "₹0";
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} lac`;
+    if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
     if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
     return `₹${val.toFixed(2)}`;
 };
@@ -4191,7 +4180,7 @@ const getPlatformOverview = async (filters) => {
         if (isNaN(val)) return "₹0";
         if (val < 0.01 && val > -0.01) return "₹0";
         if (val >= 10000000) return `₹${(val / 10000000).toFixed(2)} Cr`;
-        if (val >= 100000) return `₹${(val / 100000).toFixed(2)} lac`;
+        if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
         if (val >= 1000) return `₹${(val / 1000).toFixed(2)} K`;
         return `₹${val.toFixed(2)}`;
     };
@@ -6210,14 +6199,14 @@ const getKpiTrends = async (filters) => {
 
     // Calculate master assortment from rb_sku_platform for Listing %
     const masterAssortmentConds = [`status = 1`];
-    if (catArr && catArr.length > 0) masterAssortmentConds.push(`lower(brand_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+    if (catArr && catArr.length > 0) masterAssortmentConds.push(`lower(brand_category_id) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
     if (brandArr && brandArr.length > 0) masterAssortmentConds.push(`lower(brand_name) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
 
     // Dimension-specific master count (e.g. when opening a specific category row trend)
     if (dimension && dimensionValue && dimensionValue !== 'All') {
         const dimKey = dimension.toLowerCase();
         const val = dimensionValue.toLowerCase();
-        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(brand_category) = '${escapeStr(val)}'`);
+        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(brand_category_id) = '${escapeStr(val)}'`);
         else if (dimKey === 'brand') masterAssortmentConds.push(`lower(brand_name) = '${escapeStr(val)}'`);
     }
 
