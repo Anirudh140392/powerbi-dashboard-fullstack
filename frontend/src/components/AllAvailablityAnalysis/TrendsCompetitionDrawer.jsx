@@ -2091,7 +2091,7 @@ export default function TrendsCompetitionDrawer({
               </Typography>
 
               {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1}>
+              <Box display="flex" alignItems="center" gap={1} sx={{ flex: 1, minWidth: 0, pr: 2 }}>
                 <Select
                   size="small"
                   value={allTrendMeta.context.audience}
@@ -2162,7 +2162,30 @@ export default function TrendsCompetitionDrawer({
                   const visibleOptions = allOptions;
 
                   return (
-                    <Box display="flex" gap={0.5} flexWrap="wrap" alignItems="center">
+                    <Box
+                      display="flex"
+                      gap={0.5}
+                      flexWrap="nowrap"
+                      alignItems="center"
+                      sx={{
+                        overflowX: "auto",
+                        pb: 0.5, // Add a little padding for scrollbar
+                        "&::-webkit-scrollbar": {
+                          height: "4px",
+                        },
+                        "&::-webkit-scrollbar-track": {
+                          background: "#f1f1f1",
+                          borderRadius: "4px",
+                        },
+                        "&::-webkit-scrollbar-thumb": {
+                          background: "#cbd5e1",
+                          borderRadius: "4px",
+                        },
+                        "&::-webkit-scrollbar-thumb:hover": {
+                          background: "#94a3b8",
+                        },
+                      }}
+                    >
                       {visibleOptions.map((p) => (
                         <Box
                           key={p}
