@@ -186,8 +186,17 @@ export default function WatchTower() {
     selectedLocation,
     selectedChannel,
     datesFetched,
-    platformsFetched
+    platformsFetched,
+    refreshFilters
   } = React.useContext(FilterContext);
+
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
 
   // --- DETERMINISTIC JITTER FOR FRONTEND-ONLY VARIATION ---
   const getJitter = (baseVal, kpiKey) => {

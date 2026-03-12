@@ -4,8 +4,20 @@ import dayjs from "dayjs";
 import { ScheduledReport } from "@/components/Reports/ScheduledReport";
 import { saveAs } from 'file-saver';
 import { fetchReportFilterOptions, downloadReport } from "../../api/reportsService";
+import { FilterContext } from "../../utils/FilterContext";
+import { useContext } from "react";
 
 export default function ScheduledReports() {
+    const { refreshFilters } = useContext(FilterContext);
+
+    // Restore comprehensive platform list from rca_sku_dim on mount
+    // (Prevents subsetting from other pages like Performance Marketing)
+    useEffect(() => {
+        if (typeof refreshFilters === 'function') {
+            refreshFilters();
+        }
+    }, [refreshFilters]);
+
     const [filters, setFilters] = useState({
         platform: "Blinkit",
     });

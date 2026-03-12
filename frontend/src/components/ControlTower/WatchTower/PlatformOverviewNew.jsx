@@ -322,12 +322,21 @@ const PlatformOverviewNew = ({
         }
     }, [dimension, filterKey, compareStart, compareEnd]);
 
+    // Sync loading state with filterKey changes to prevent flicker
+    const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+    if (prevFilterKey !== filterKey) {
+        setPrevFilterKey(filterKey);
+        setApiLoading(true);
+        setApiError(null);
+    }
+
     useEffect(() => {
         // Wait for essential context data
         if (!datesFetched || !platformsFetched) return;
 
         const currentFetchId = ++fetchIdRef.current;
-        setApiLoading(true);
+        // The synchronous state update above handles the initial setApiLoading(true)
+        // without waiting for the useEffect/paint cycle.
 
         const debounceTimer = setTimeout(() => {
             if (currentFetchId !== fetchIdRef.current) return;
@@ -335,7 +344,7 @@ const PlatformOverviewNew = ({
         }, 1000);
 
         return () => clearTimeout(debounceTimer);
-    }, [filterKey, datesFetched, platformsFetched, fetchDimensionData])
+    }, [filterKey, datesFetched, platformsFetched, fetchDimensionData]);
 
     // Fetch product/SKU options from DB for the filter dropdown
     useEffect(() => {

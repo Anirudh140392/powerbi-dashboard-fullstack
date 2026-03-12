@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { Container, Box, useTheme } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import { FilterContext } from "../../utils/FilterContext";
 
 function TabButton({ label, active, onClick }) {
     const theme = useTheme();
@@ -46,7 +47,17 @@ import {
 import PortfoliosAnalysis from "../../components/Analytics/PortfoliosAnalysis/PortfoliosAnalysis";
 import PricePerPack from "../../components/Analytics/PortfoliosAnalysis/PricePerPack";
 
-export default function WatchTower() {
+export default function PricePerPackPage() {
+    const { refreshFilters } = useContext(FilterContext);
+
+    // Restore comprehensive platform list from rca_sku_dim on mount
+    // (Prevents subsetting from other pages like Performance Marketing)
+    useEffect(() => {
+        if (typeof refreshFilters === 'function') {
+            refreshFilters();
+        }
+    }, [refreshFilters]);
+
     const [showTrends, setShowTrends] = useState(false);
 
     const [filters, setFilters] = useState({
