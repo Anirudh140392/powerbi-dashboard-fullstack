@@ -512,7 +512,7 @@ export default function TrendsCompetitionDrawer({
     "Swiggy",
     "Amazon",
   ];
-  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Cassata", "Core Tubs", "Premium"];
+  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : [];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
   const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"]);
 
@@ -2123,6 +2123,33 @@ export default function TrendsCompetitionDrawer({
 
                 {/* DYNAMIC PILLS */}
                 {showPlatformPills && (() => {
+                  // Show skeleton loader while filter options are loading
+                  if (filterOptions.loading) {
+                    return (
+                      <Box display="flex" gap={0.5} flexWrap="wrap" alignItems="center">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Box
+                            key={`skeleton-${i}`}
+                            sx={{
+                              px: 1.5,
+                              py: 0.7,
+                              borderRadius: "999px",
+                              border: "1px solid #E5E7EB",
+                              backgroundColor: "#F1F5F9",
+                              width: `${50 + i * 12}px`,
+                              height: "28px",
+                              animation: "pulse 1.5s ease-in-out infinite",
+                              "@keyframes pulse": {
+                                "0%, 100%": { opacity: 0.4 },
+                                "50%": { opacity: 1 },
+                              },
+                            }}
+                          />
+                        ))}
+                      </Box>
+                    );
+                  }
+
                   const allOptions = allTrendMeta.context.audience === "Platform"
                     ? PLATFORM_OPTIONS
                     : allTrendMeta.context.audience === "Format"

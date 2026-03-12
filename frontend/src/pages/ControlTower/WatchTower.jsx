@@ -309,14 +309,15 @@ export default function WatchTower() {
         const getColVal = (title) => {
           const col = cat.columns?.find(c => c.title.toLowerCase().includes(title.toLowerCase()));
           if (!col || !col.value) return 0;
-          const strVal = String(col.value).replace(/,/g, '');
+          const strVal = String(col.value).replace(/,/g, '').replace(/₹/g, '').trim();
           const numMatch = strVal.match(/-?[\d.]+/);
           let val = numMatch ? parseFloat(numMatch[0]) : 0;
 
-          // Normalize currency values to a common base (Lakhs) for proper scaling
-          if (strVal.includes('Cr')) val *= 100;
-          else if (strVal.includes('K')) val /= 100;
-          // If it has 'lac' or no unit, we treat it as unscaled (Lakhs or raw value)
+          // Reverse-parse backend formatted strings back to raw numbers
+          if (strVal.toLowerCase().includes('cr')) val *= 10000000;
+          else if (strVal.toLowerCase().includes('lac') || strVal.toLowerCase().includes('lak')) val *= 100000;
+          else if (strVal.toLowerCase().includes('k')) val *= 1000;
+          // If no suffix, treat as raw number
 
           return val;
         };
@@ -758,9 +759,11 @@ const FormatPerformanceStudio = ({ rows }) => {
 
   const formatCurrencyShort = (val) => {
     if (!Number.isFinite(val) || val === 0) return "0";
-    if (Math.abs(val) >= 100) return `${(val / 100).toFixed(2)} Cr`;
-    if (Math.abs(val) >= 1) return `${val.toFixed(2)} lac`;
-    return `${(val * 100).toFixed(1)} K`;
+    const absVal = Math.abs(val);
+    if (absVal >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
+    if (absVal >= 100000) return `${(val / 100000).toFixed(2)} Lac`;
+    if (absVal >= 1000) return `${(val / 1000).toFixed(2)} K`;
+    return val.toFixed(2);
   };
 
   const kpiBands = [
@@ -769,15 +772,15 @@ const FormatPerformanceStudio = ({ rows }) => {
       label: "Offtakes",
       activeValue: active.offtakes,
       compareValue: compare?.offtakes ?? null,
-      max: 10000,
-      format: (v) => formatCurrencyShort(v),
+      max: 100000000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "spend",
       label: "Spend",
       activeValue: active.spend,
       compareValue: compare?.spend ?? null,
-      max: 20,
+      max: 2000000,
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
@@ -817,17 +820,16 @@ const FormatPerformanceStudio = ({ rows }) => {
       label: "CPM",
       activeValue: active.cpm,
       compareValue: compare?.cpm ?? null,
-      max: 800,
-      format: (v) => `${v}`,
+      max: 800000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "cpc",
       label: "CPC",
       activeValue: active.cpc,
       compareValue: compare?.cpc ?? null,
-      max: 5000,
-      format: (v) =>
-        Number.isFinite(v) ? v.toLocaleString("en-IN") : "Infinity",
+      max: 5000000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
   ];
   return (
@@ -912,7 +914,7 @@ const FormatPerformanceStudio = ({ rows }) => {
                         fontSize: "0.75rem",
                       }}
                     >
-                      Offtakes {formatCurrencyShort(f.offtakes)} · ROAS {f.roas.toFixed(1)}x
+                      Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {f.roas.toFixed(1)}x
                     </div>
                   </div>
                 </div>
@@ -966,7 +968,7 @@ const FormatPerformanceStudio = ({ rows }) => {
               <div className="flex flex-col items-end gap-1 text-right">
                 <div className="text-[10px] text-slate-500">Offtakes</div>
                 <div className="text-lg font-semibold">
-                  {formatCurrencyShort(active.offtakes)}
+                  ₹{formatCurrencyShort(active.offtakes)}
                 </div>
                 <div className="mt-1 text-[10px] text-slate-500">
                   Market share
