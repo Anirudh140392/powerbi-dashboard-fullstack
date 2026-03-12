@@ -5656,7 +5656,8 @@ const getCategoryOverview = async (filters) => {
 
     const categoryOverview = await Promise.all(categoryOverviewPromises);
 
-    console.log(`[getCategoryOverview] OPTIMIZED: Returning ${categoryOverview.length} categories`);
+    console.error('[getCategoryOverview] CRASH:', error.message, error.stack);
+    throw error;
     return categoryOverview;
 };
 

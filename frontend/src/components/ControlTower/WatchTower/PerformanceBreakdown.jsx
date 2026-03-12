@@ -104,7 +104,7 @@ function MultiSlicerBar({ onFiltersChange, className = "" }) {
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
-            if (globalFilters.platform.length > 0 && !globalFilters.platform.includes("all")) params.set("platform_uuid", globalFilters.platform[0]);
+            if (globalFilters.platform.length > 0 && !globalFilters.filters.platform.some(p => p.toLowerCase() === "all")) params.set("platform_uuid", globalFilters.platform[0]);
             params.set("dimension", dimension);
             const res = await authGet(`/api/aggregated-view/filter-options?${params.toString()}`);
             if (res.success && res.data?.success) {

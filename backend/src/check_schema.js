@@ -1,29 +1,40 @@
-import dotenv from 'dotenv';
-dotenv.config({ path: '../.env' });
-import fs from 'fs';
+import { createClient } from '@clickhouse/client';
+import 'dotenv/config';
 
-async function checkSchema() {
+const client = createClient({
+    url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
+    username: process.env.CLICKHOUSE_USER || 'default',
+    password: process.env.CLICKHOUSE_PASSWORD || '',
+    database: process.env.CLICKHOUSE_DB || 'mars',
+});
+
+async function getSchema() {
     try {
-        const { queryClickHouse } = await import('./config/clickhouse.js');
-        let output = '';
+        console.log('--- rb_pdp_olap schema ---');
+        const result1 = await client.query({
+            query: 'DESCRIBE TABLE rb_pdp_olap',
+            format: 'JSONEachRow',
+        });
+        const data1 = await result1.json();
+        console.log(JSON.stringify(data1, null, 2));
 
-        output += '--- rb_sku_platform ---\n';
-        const schema = await queryClickHouse('DESCRIBE rb_sku_platform');
-        output += JSON.stringify(schema, null, 2) + '\n\n';
+        console.log('\n--- watchtower_agg_daily schema ---');
+        try {
+            const result2 = await client.query({
+                query: 'DESCRIBE TABLE watchtower_agg_daily',
+                format: 'JSONEachRow',
+            });
+            const data2 = await result2.json();
+            console.log(JSON.stringify(data2, null, 2));
+        } catch (e) {
+            console.log('watchtower_agg_daily table not found');
+        }
 
-        output += '--- rb_pdp_olap ---\n';
-        const schema2 = await queryClickHouse('DESCRIBE rb_pdp_olap');
-        output += JSON.stringify(schema2, null, 2) + '\n\n';
-
-        output += '--- rca_sku_dim ---\n';
-        const schema3 = await queryClickHouse('DESCRIBE rca_sku_dim');
-        output += JSON.stringify(schema3, null, 2) + '\n\n';
-
-        fs.writeFileSync('schema_output.txt', output);
-        console.log('Schema written to schema_output.txt');
-    } catch (error) {
-        console.error('Error checking schema:', error);
+    } catch (err) {
+        console.error('Error:', err.message);
+    } finally {
+        await client.close();
     }
 }
 
-checkSchema();
+getSchema();
