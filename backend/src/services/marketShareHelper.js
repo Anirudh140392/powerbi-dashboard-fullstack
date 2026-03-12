@@ -1882,8 +1882,8 @@ export const getMarketShareDrilldown = async (start, end, platformFilter, catego
                 label: row.item_name,
                 level: 'SKU',
                 metrics: {
-                    share: parseFloat(parseFloat(row.share || 0).toFixed(1)),
-                    mrp: parseFloat(parseFloat(row.mrp || 0).toFixed(1))
+                    share: parseFloat(parseFloat(row.share || 0).toFixed(2)),
+                    mrp: parseFloat(parseFloat(row.mrp || 0).toFixed(2))
                 }
             };
 
@@ -1901,13 +1901,13 @@ export const getMarketShareDrilldown = async (start, end, platformFilter, catego
 
         // 3. Finalize averages
         return tree.map(group => {
-            group.metrics.share = parseFloat((group.metrics.share / group.metrics.count).toFixed(1));
-            group.metrics.mrp = parseFloat((group.metrics.mrp / group.metrics.count).toFixed(1));
+            group.metrics.share = parseFloat((group.metrics.share / group.metrics.count).toFixed(2));
+            group.metrics.mrp = parseFloat((group.metrics.mrp / group.metrics.count).toFixed(2));
             delete group.metrics.count;
 
             group.children = Array.from(group.children.values()).map(brand => {
-                brand.metrics.share = parseFloat((brand.metrics.share / brand.metrics.count).toFixed(1));
-                brand.metrics.mrp = parseFloat((brand.metrics.mrp / brand.metrics.count).toFixed(1));
+                brand.metrics.share = parseFloat((brand.metrics.share / brand.metrics.count).toFixed(2));
+                brand.metrics.mrp = parseFloat((brand.metrics.mrp / brand.metrics.count).toFixed(2));
                 delete brand.metrics.count;
                 return brand;
             });
