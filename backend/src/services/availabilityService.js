@@ -19,7 +19,8 @@ const getColumnMapping = (dbName) => {
         },
         rb_sku_platform: {
             brand_name: (dbName === 'mars') ? 'brand' : 'brand_name',
-            brand_category: (dbName === 'mars') ? 'Category' : (dbName === 'zydus' ? 'category' : 'brand_category')
+            category: (dbName === 'mars') ? 'Category' : 'Product_type',
+            format: (dbName === 'mars') ? 'Product_type' : 'Category'
         }
     };
     return mapping;
@@ -47,11 +48,14 @@ const buildWhereConditions = (filters, includeDate = true) => {
     if (location && location !== 'All') {
         conditions.push(`Location = '${location}'`);
     }
+    const isMars = getCurrentDbName() === 'mars';
     if (category && category !== 'All') {
-        conditions.push(`Product_type = '${category}'`);
+        const catCol = isMars ? 'Category' : 'Product_type';
+        conditions.push(`${catCol} = '${category}'`);
     }
     if (productCategory && productCategory !== 'All') {
-        conditions.push(`Product_type = '${productCategory}'`);
+        const pcCol = isMars ? 'Product_type' : 'Category';
+        conditions.push(`${pcCol} = '${productCategory}'`);
     }
 
     return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -179,9 +183,12 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
         }
     }
 
+    const isMars = getCurrentDbName() === 'mars';
+
     if (cArr.length > 0) {
         const uniqueCArr = [...new Set(cArr)];
-        conditions.push(`lower(replace(${prefix}Product_type, ' ', '_')) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        const catCol = 'Category';
+        conditions.push(`lower(${prefix}${catCol}) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
     }
 
     // Product Category filter
@@ -205,7 +212,8 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (pcArr.length > 0) {
         const uniquePcArr = [...new Set(pcArr)];
-        conditions.push(`lower(replace(${prefix}Product_type, ' ', '_')) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        const pcCol = 'Product_type';
+        conditions.push(`lower(${prefix}${pcCol}) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
     }
 
     // SKU filter
@@ -519,9 +527,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
             // Determine group column based on viewMode
-            const groupColumn = viewMode === 'Format' ? 'Product_type' :
-                viewMode === 'City' ? 'Location' : 'Platform';
-
+            const isMars = getCurrentDbName() === 'mars';
+            const groupColumn = viewMode === 'Format' ? (isMars ? 'Product_type' : 'Category') :
+                viewMode === 'Category' ? (isMars ? 'Category' : 'Product_type') :
+                    'Location';
             // Build base filter conditions using the helper (excluding date as it's handled separately for current/prev)
             const baseFilterParams = { ...filters };
             delete baseFilterParams.startDate;
@@ -990,13 +999,18 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
         try {
             const whereClause = buildAvailabilityWhereClause(effectiveFilters);
 
+            const isMars = getCurrentDbName() === 'mars';
+            const catCol = isMars ? 'Category' : 'Product_type';
+            const pcCol = isMars ? 'Product_type' : 'Category';
+
             const query = `
                 SELECT 
                     Product as name,
                     Web_Pid as sku,
                     Location as city,
                     Platform as platform,
-                    Product_type as category_name,
+                    ${catCol} as category_name,
+                    ${pcCol} as product_category_name,
                     DATE,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
@@ -1005,7 +1019,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                   AND Product != '0'
                   AND Product != ''
                   AND length(trim(Product)) > 0
-                GROUP BY Product, Web_Pid, Location, Platform, Product_type, DATE
+                GROUP BY Product, Web_Pid, Location, Platform, ${catCol}, ${pcCol}, DATE
                 ORDER BY Product, Web_Pid, Location, DATE
             `;
 
@@ -1056,6 +1070,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                         sku: row.sku,
                         platform: row.platform,
                         category_name: row.category_name,
+                        product_category_name: row.product_category_name,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
                     };
@@ -1128,6 +1143,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     sku: item.sku,
                     platform: item.platform,
                     format: item.category_name,
+                    productCategory: item.product_category_name,
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
@@ -1400,10 +1416,12 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     if (filterType === 'categories' || filterType === 'formats') {
         try {
+            const isMars = getCurrentDbName() === 'mars';
+            const catColForOptions = 'Category';
             const query = `
-                        SELECT DISTINCT Product_type as value 
+                        SELECT DISTINCT ${catColForOptions} as value 
                         FROM rb_pdp_olap
-                        WHERE Product_type IS NOT NULL AND Product_type != ''
+                        WHERE ${catColForOptions} IS NOT NULL AND ${catColForOptions} != ''
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1416,10 +1434,12 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     if (filterType === 'productCategories') {
         try {
+            const isMars = getCurrentDbName() === 'mars';
+            const pcColForOptions = 'Product_type';
             const query = `
-                        SELECT DISTINCT Product_type as value 
+                        SELECT DISTINCT ${pcColForOptions} as value 
                         FROM rb_pdp_olap
-                        WHERE Product_type IS NOT NULL AND Product_type != ''
+                        WHERE ${pcColForOptions} IS NOT NULL AND ${pcColForOptions} != ''
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1471,8 +1491,16 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 const cityConditions = [];
                 if (platform && platform !== 'All') cityConditions.push(buildInClause('Platform', platform));
                 if (brand && brand !== 'All') cityConditions.push(buildInClause('Brand', brand));
-                if (category && category !== 'All') cityConditions.push(buildInClause('Product_type', category));
-                if (productCategory && productCategory !== 'All') cityConditions.push(buildInClause('Product_type', productCategory));
+
+                const isMars = getCurrentDbName() === 'mars';
+                if (category && category !== 'All') {
+                    const catCol = isMars ? 'Category' : 'Product_type';
+                    cityConditions.push(buildInClause(catCol, category));
+                }
+                if (productCategory && productCategory !== 'All') {
+                    const pcCol = isMars ? 'Product_type' : 'Category';
+                    cityConditions.push(buildInClause(pcCol, productCategory));
+                }
 
                 if (metroFlag && metroFlag !== 'All') {
                     const tierArr = Array.isArray(metroFlag) ? metroFlag : [metroFlag];
@@ -1498,8 +1526,16 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 const brandConditions = [];
                 if (platform && platform !== 'All') brandConditions.push(buildInClause('Platform', platform));
                 if (city && city !== 'All') brandConditions.push(buildInClause('Location', city));
-                if (category && category !== 'All') brandConditions.push(buildInClause('Product_type', category));
-                if (productCategory && productCategory !== 'All') brandConditions.push(buildInClause('Product_type', productCategory));
+
+                const isMars = getCurrentDbName() === 'mars';
+                if (category && category !== 'All') {
+                    const catCol = isMars ? 'Category' : 'Product_type';
+                    brandConditions.push(buildInClause(catCol, category));
+                }
+                if (productCategory && productCategory !== 'All') {
+                    const pcCol = isMars ? 'Product_type' : 'Category';
+                    brandConditions.push(buildInClause(pcCol, productCategory));
+                }
 
                 brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
                 const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
@@ -1561,6 +1597,9 @@ const getOsaDetailByCategory = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
+            const isMars = getCurrentDbName() === 'mars';
+            const catCol = isMars ? 'Category' : 'Product_type';
+            const pcCol = isMars ? 'Product_type' : 'Category';
             const whereClause = buildAvailabilityWhereClause(effectiveFilters, 't1');
 
             // Query SKU-level data joined with rca_sku_dim to filter by active segments (status=1)
@@ -1576,7 +1615,7 @@ const getOsaDetailByCategory = async (filters) => {
                 JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
                     AND lower(t1.Location) = lower(t2.location) 
                     AND lower(t1.Brand) = lower(t2.brand_name) 
-                    AND lower(t1.Product_type) = lower(t2.category)
+                    AND lower(t1.${catCol}) = lower(t2.category)
                 WHERE ${whereClause}
                   AND t2.status = 1
                 GROUP BY t1.Product, t1.Web_Pid, t1.DATE
@@ -1730,7 +1769,7 @@ const getAvailabilityKpiTrends = async (filters) => {
             const dbName = getCurrentDbName();
             const colMap = getColumnMapping(dbName);
             const masterBrandNameCol = colMap.rb_sku_platform.brand_name;
-            const masterCategoryCol = colMap.rb_sku_platform.brand_category;
+            const masterCategoryCol = colMap.rb_sku_platform.category;
 
             // Get total active assortment from rb_sku_platform for Listing % calculation
             // Note: rb_sku_platform only has brand_name, brand_category, web_pid, status (no platform column)
@@ -1961,7 +2000,9 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const baseCondsStr = baseWhere !== '1=1' ? `${baseWhere} AND ` : '';
 
         // 2. Build Category conditions (filtered by Platform/Location/Advanced)
-        const catQuery = `SELECT DISTINCT Product_type as value FROM rb_pdp_olap WHERE ${baseCondsStr}Product_type IS NOT NULL AND Product_type != '' ORDER BY Product_type`;
+        const isMars = getCurrentDbName() === 'mars';
+        const catCol = isMars ? 'Category' : 'Product_type';
+        const catQuery = `SELECT DISTINCT ${catCol} as value FROM rb_pdp_olap WHERE ${baseCondsStr}${catCol} IS NOT NULL AND ${catCol} != '' ORDER BY value`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
         const brandWhere = buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });

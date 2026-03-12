@@ -301,16 +301,16 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
         }
 
         // Use raw SQL query to fetch SKU data directly from rb_pdp_olap
-        // Use Product column as SKU name, and Category for grouping
+        // Use Product column as SKU name, and Product_type for grouping
         const query = `
             SELECT 
                 olap.Product AS sku_name,
-                olap.Category AS category,
+                olap.Product_type AS category,
                 olap.Platform AS platform,
                 ${aggregationExpr} AS total_value
             FROM rb_pdp_olap AS olap
             ${whereClause}
-            GROUP BY olap.Product, olap.Category, olap.Platform
+            GROUP BY olap.Product, olap.Product_type, olap.Platform
             ORDER BY total_value DESC
             LIMIT 100
         `;
@@ -327,6 +327,8 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
 
         results.forEach(row => {
             const platform = row.platform;
+            const skuName = row.sku_name;
+            const category = row.category;
             // Apply Scaling Fix for Mars items
             const scaled = scaleMarsMetrics({ total_value: parseFloat(row.total_value) || 0 }, skuName);
             const value = scaled.total_value;

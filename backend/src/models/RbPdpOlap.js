@@ -8,6 +8,9 @@ const RbPdpOlap = sequelize.define('rb_pdp_olap', {
   Brand_id: {
     type: DataTypes.INTEGER,
   },
+  Product_type: {
+    type: DataTypes.STRING,
+  },
   Category: {
     type: DataTypes.STRING,
   },
