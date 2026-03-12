@@ -43,7 +43,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
-        const keywordCondition = buildCHCondition(keyword, 'keyword');
+        const keywordCondition = buildCHCondition(keyword, 'keyword_category', { isCategory: true });
         const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
         // Single query that calculates ALL SOS types at once - ClickHouse syntax using rb_kw_olap
@@ -97,7 +97,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
-        const keywordCondition = buildCHCondition(keyword, 'keyword');
+        const keywordCondition = buildCHCondition(keyword, 'keyword_category', { isCategory: true });
         const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
         const query = `
@@ -903,7 +903,8 @@ class VisibilityService {
 
                     addCond(filters.platform, 'platform_name', filtersToExclude);
                     addCond(filters.location, 'location_name', filtersToExclude);
-                    // Add format/category if present in global filters (Visibility global filter often has categories/formats)
+                    // Add keyword/category/format - all map to keyword_category for Visibility page
+                    addCond(filters.keyword, 'keyword_category', filtersToExclude);
                     addCond(filters.format || filters.category, 'keyword_category', filtersToExclude);
 
                     // Pincode (use toString to match ClickHouse type if necessary)
@@ -1076,7 +1077,7 @@ class VisibilityService {
                     whereConditions.push(platCond);
                 }
                 if (filters.keyword && filters.keyword !== 'All') {
-                    whereConditions.push(buildCHCondition(filters.keyword, 'keyword'));
+                    whereConditions.push(buildCHCondition(filters.keyword, 'keyword_category', { isCategory: true }));
                 }
                 if (filters.location && filters.location !== 'All') {
                     const locCond = buildCHCondition(filters.location, 'location_name');
@@ -1362,9 +1363,9 @@ class VisibilityService {
                     ? `AND keyword_type = '${escapeCH(mappedType)}'`
                     : '';
 
-                // Apply keyword filter if provided
+                // Apply keyword filter if provided (maps to keyword_category)
                 const keywordFilter = (filters.keyword && filters.keyword !== 'All')
-                    ? `AND ${buildCHCondition(filters.keyword, 'keyword')}`
+                    ? `AND ${buildCHCondition(filters.keyword, 'keyword_category', { isCategory: true })}`
                     : '';
 
                 // Apply category filter if provided
@@ -2388,7 +2389,7 @@ class VisibilityService {
      */
     async getVisibilityKeywords(platform, category, brand) {
         try {
-            let conds = [`keyword IS NOT NULL`, `keyword != ''`];
+            let conds = [`keyword_category IS NOT NULL`, `keyword_category != ''`];
 
             const platformCond = buildCHCondition(platform, 'platform_name');
             if (platformCond !== '1=1') conds.push(platformCond);
@@ -2402,7 +2403,7 @@ class VisibilityService {
             }
 
             const query = `
-                SELECT DISTINCT keyword 
+                SELECT DISTINCT keyword_category as keyword 
                 FROM rb_kw_olap 
                 WHERE ${conds.join(' AND ')} 
                 ORDER BY keyword ASC
