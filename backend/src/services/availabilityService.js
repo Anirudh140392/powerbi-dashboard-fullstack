@@ -1416,12 +1416,10 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     if (filterType === 'categories' || filterType === 'formats') {
         try {
-            const isMars = getCurrentDbName() === 'mars';
-            const catColForOptions = 'Category';
             const query = `
-                        SELECT DISTINCT ${catColForOptions} as value 
-                        FROM rb_pdp_olap
-                        WHERE ${catColForOptions} IS NOT NULL AND ${catColForOptions} != ''
+                        SELECT DISTINCT category as value 
+                        FROM rca_sku_dim
+                        WHERE category IS NOT NULL AND category != ''
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1455,7 +1453,7 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
 
             if (filterType === 'platforms') {
-                const query = `SELECT DISTINCT Platform as value FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform`;
+                const query = `SELECT DISTINCT platform as value FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
@@ -1489,57 +1487,35 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
             if (filterType === 'cities') {
                 const cityConditions = [];
-                if (platform && platform !== 'All') cityConditions.push(buildInClause('Platform', platform));
-                if (brand && brand !== 'All') cityConditions.push(buildInClause('Brand', brand));
+                if (platform && platform !== 'All') cityConditions.push(buildInClause('platform', platform));
+                if (brand && brand !== 'All') cityConditions.push(buildInClause('brand_name', brand));
 
-                const isMars = getCurrentDbName() === 'mars';
                 if (category && category !== 'All') {
-                    const catCol = isMars ? 'Category' : 'Product_type';
-                    cityConditions.push(buildInClause(catCol, category));
-                }
-                if (productCategory && productCategory !== 'All') {
-                    const pcCol = isMars ? 'Product_type' : 'Category';
-                    cityConditions.push(buildInClause(pcCol, productCategory));
+                    cityConditions.push(buildInClause('category', category));
                 }
 
-                if (metroFlag && metroFlag !== 'All') {
-                    const tierArr = Array.isArray(metroFlag) ? metroFlag : [metroFlag];
-                    const metroCitiesQuery = `SELECT DISTINCT location FROM rb_location_darkstore WHERE tier IN (${tierArr.map(t => `'${escapeStr(t)}'`).join(',')})`;
-                    const metroCitiesResult = await queryClickHouse(metroCitiesQuery);
-                    const metroCities = metroCitiesResult.map(r => r.location).filter(Boolean);
+                cityConditions.push(`location IS NOT NULL AND location != ''`);
+                cityConditions.push(`comp_flag = 0`);
 
-                    if (metroCities.length > 0) {
-                        cityConditions.push(`Location IN (${metroCities.map(c => `'${escapeStr(c)}'`).join(',')})`);
-                    } else {
-                        return { options: [] };
-                    }
-                }
-
-                cityConditions.push(`Location IS NOT NULL AND Location != ''`);
                 const whereClause = cityConditions.length > 0 ? `WHERE ${cityConditions.join(' AND ')}` : '';
-                const query = `SELECT DISTINCT Location as value FROM rb_pdp_olap ${whereClause} ORDER BY Location`;
+                const query = `SELECT DISTINCT location as value FROM rca_sku_dim ${whereClause} ORDER BY location`;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
 
             if (filterType === 'brands') {
                 const brandConditions = [];
-                if (platform && platform !== 'All') brandConditions.push(buildInClause('Platform', platform));
-                if (city && city !== 'All') brandConditions.push(buildInClause('Location', city));
+                if (platform && platform !== 'All') brandConditions.push(buildInClause('platform', platform));
+                if (city && city !== 'All') brandConditions.push(buildInClause('location', city));
 
-                const isMars = getCurrentDbName() === 'mars';
                 if (category && category !== 'All') {
-                    const catCol = isMars ? 'Category' : 'Product_type';
-                    brandConditions.push(buildInClause(catCol, category));
-                }
-                if (productCategory && productCategory !== 'All') {
-                    const pcCol = isMars ? 'Product_type' : 'Category';
-                    brandConditions.push(buildInClause(pcCol, productCategory));
+                    brandConditions.push(buildInClause('category', category));
                 }
 
-                brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
+                brandConditions.push(`brand_name IS NOT NULL AND brand_name != ''`);
+                brandConditions.push(`comp_flag = 0`);
                 const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
-                const query = `SELECT DISTINCT Brand as value FROM rb_pdp_olap ${whereClause} ORDER BY Brand`;
+                const query = `SELECT DISTINCT brand_name as value FROM rca_sku_dim ${whereClause} ORDER BY value`;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
