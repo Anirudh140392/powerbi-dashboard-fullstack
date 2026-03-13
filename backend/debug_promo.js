@@ -53,7 +53,7 @@ async function debugPromo() {
         // 3. Check Inorg Sales (Ad Sales)
         console.log("\n3. Checking Inorg Sales (Ad_sales)...");
         const adSales = await RbPdpOlap.findOne({
-            attributes: [[Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales']],
+            attributes: [[Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales']],
             where: {
                 DATE: { [Op.between]: [startDate, endDate] },
                 Brand: { [Op.like]: `%${brand}%` }

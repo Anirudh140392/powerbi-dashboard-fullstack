@@ -290,7 +290,7 @@ WHERE Comp_flag = 0
 | **Filter Column** | `Comp_flag = 0` (own brand) |
 | **Aggregation** | AVG |
 | **Data Type** | String (requires CAST to DECIMAL) |
-| **Result Format** | Percentage |
+| **Result Format** | Percentage |Promo
 
 ### SQL Example
 ```sql

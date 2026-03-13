@@ -239,7 +239,7 @@ const performanceMarketingService = {
                         SELECT 
                             SUM(impressions) as impressions,
                             SUM(spend) as spend,
-                            SUM(revenue) as ad_sales,
+                            SUM(revenue) as Ad_sales,
                             SUM(clicks) as clicks,
                             SUM(orders) as orders
                         FROM tb_pm_keyword_rca
@@ -252,7 +252,7 @@ const performanceMarketingService = {
                     return {
                         impressions: parseFloat(result.impressions || 0),
                         spend: parseFloat(result.spend || 0),
-                        adSales: parseFloat(result.ad_sales || 0),
+                        adSales: parseFloat(result.Ad_sales || 0),
                         clicks: parseFloat(result.clicks || 0),
                         orders: parseFloat(result.orders || 0)
                     };
@@ -270,7 +270,7 @@ const performanceMarketingService = {
                             date,
                             SUM(impressions) as impressions,
                             SUM(spend) as spend,
-                            SUM(revenue) as ad_sales,
+                            SUM(revenue) as Ad_sales,
                             SUM(clicks) as clicks,
                             SUM(orders) as orders
                         FROM tb_pm_keyword_rca
@@ -284,7 +284,7 @@ const performanceMarketingService = {
                     return results.map(row => {
                         const imp = parseFloat(row.impressions || 0);
                         const sp = parseFloat(row.spend || 0);
-                        const rev = parseFloat(row.ad_sales || 0);
+                        const rev = parseFloat(row.Ad_sales || 0);
                         const clk = parseFloat(row.clicks || 0);
                         const ord = parseFloat(row.orders || 0);
 

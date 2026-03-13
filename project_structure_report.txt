@@ -27,9 +27,9 @@ Hierarchical Project Structure:
      - Table: rb_brand_ms
      - Columns: sales, category, created_on
    - KPI: Inorg Sales (Inorganic Sales)
-     - Formula: SUM(Ad_Sales)
+     - Formula: SUM(Ad_sales)
      - Table: rb_pdp_olap
-     - Columns: Ad_Sales, DATE
+     - Columns: Ad_sales, DATE
    - KPI: DSP Sales
      - Formula: Placeholder (Currently set to 0 in backend logic)
      - Table: N/A

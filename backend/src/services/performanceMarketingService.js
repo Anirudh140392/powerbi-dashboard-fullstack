@@ -87,9 +87,9 @@ const performanceMarketingService = {
                         formatDateTime(DATE, '%M') as month, 
                         SUM(impressions) as impressions, 
                         SUM(ad_spend) as spend, 
-                        SUM(ad_sales) as revenue, 
+                        SUM(Ad_sales) as revenue, 
                         SUM(ad_click) as clicks, 
-                        SUM(ad_quantity_sold) as orders 
+                        SUM(Ad_Quantity_sold) as orders 
                     FROM rca_pm_olap 
                     WHERE ${whereSql}
                     GROUP BY keyword, category, month
@@ -240,9 +240,9 @@ const performanceMarketingService = {
                         SELECT 
                             SUM(impressions) as impressions,
                             SUM(ad_spend) as spend,
-                            SUM(ad_sales) as ad_sales,
+                            SUM(Ad_sales) as Ad_sales,
                             SUM(ad_click) as clicks,
-                            SUM(ad_quantity_sold) as orders
+                            SUM(Ad_Quantity_sold) as orders
                         FROM rca_pm_olap
                         WHERE ${whereSql}
                     `;
@@ -253,7 +253,7 @@ const performanceMarketingService = {
                     return {
                         impressions: parseFloat(result.impressions || 0),
                         spend: parseFloat(result.spend || 0),
-                        adSales: parseFloat(result.ad_sales || 0),
+                        adSales: parseFloat(result.Ad_sales || 0),
                         clicks: parseFloat(result.clicks || 0),
                         orders: parseFloat(result.orders || 0)
                     };
@@ -271,9 +271,9 @@ const performanceMarketingService = {
                             DATE as date,
                             SUM(impressions) as impressions,
                             SUM(ad_spend) as spend,
-                            SUM(ad_sales) as ad_sales,
+                            SUM(Ad_sales) as Ad_sales,
                             SUM(ad_click) as clicks,
-                            SUM(ad_quantity_sold) as orders
+                            SUM(Ad_Quantity_sold) as orders
                         FROM rca_pm_olap
                         WHERE ${whereSql}
                         GROUP BY date
@@ -285,7 +285,7 @@ const performanceMarketingService = {
                     return results.map(row => {
                         const imp = parseFloat(row.impressions || 0);
                         const sp = parseFloat(row.spend || 0);
-                        const rev = parseFloat(row.ad_sales || 0);
+                        const rev = parseFloat(row.Ad_sales || 0);
                         const clk = parseFloat(row.clicks || 0);
                         const ord = parseFloat(row.orders || 0);
 
@@ -474,9 +474,9 @@ const performanceMarketingService = {
                         SUM(ad_spend) as spend,
                         SUM(impressions) as impressions,
                         SUM(ad_click) as clicks,
-                        SUM(ad_quantity_sold) as orders,
-                        SUM(ad_sales) as sales,
-                        SUM(ad_sales) as total_sales
+                        SUM(Ad_Quantity_sold) as orders,
+                        SUM(Ad_sales) as sales,
+                        SUM(Ad_sales) as total_sales
                     FROM rca_pm_olap
                     WHERE ${whereSql}
                     GROUP BY category, date
@@ -694,10 +694,10 @@ const performanceMarketingService = {
                     SELECT 
                         keyword,
                         SUM(ad_spend) as spend,
-                        SUM(ad_sales) as revenue,
-                        if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+                        SUM(Ad_sales) as revenue,
+                        if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
                     FROM rca_pm_olap
-                    WHERE ${whereSql} AND (ad_spend > 0 OR ad_sales > 0)
+                    WHERE ${whereSql} AND (ad_spend > 0 OR Ad_sales > 0)
                     GROUP BY keyword
                     HAVING spend > 0
                 `;
@@ -752,10 +752,10 @@ const performanceMarketingService = {
                     SELECT 
                         keyword,
                         SUM(ad_spend) as spend,
-                        SUM(ad_sales) as revenue,
-                        if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+                        SUM(Ad_sales) as revenue,
+                        if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
                     FROM rca_pm_olap
-                    WHERE ${l2mWhereSql} AND (ad_spend > 0 OR ad_sales > 0)
+                    WHERE ${l2mWhereSql} AND (ad_spend > 0 OR Ad_sales > 0)
                     GROUP BY keyword
                     HAVING spend > 0
                 `;
@@ -907,10 +907,10 @@ const performanceMarketingService = {
                         SELECT 
                             keyword,
                             SUM(ad_spend) as spend, 
-                            SUM(ad_sales) as revenue, 
-                            if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+                            SUM(Ad_sales) as revenue, 
+                            if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
                         FROM rca_pm_olap
-                        WHERE ${l2mWhereSql} AND (ad_spend > 0 OR ad_sales > 0)
+                        WHERE ${l2mWhereSql} AND (ad_spend > 0 OR Ad_sales > 0)
                         GROUP BY keyword
                         HAVING spend > 0
                     `;
@@ -927,9 +927,9 @@ const performanceMarketingService = {
                     // 2. Fetch all keywords in the CURRENT period so we can math them out
                     const currentWhereSql = [...baseConditions, `DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`].join(' AND ');
                     const kwQuery = `
-                        SELECT keyword, SUM(ad_spend) as spend, if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+                        SELECT keyword, SUM(ad_spend) as spend, if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
                         FROM rca_pm_olap
-                        WHERE ${currentWhereSql} AND (ad_spend > 0 OR ad_sales > 0)
+                        WHERE ${currentWhereSql} AND (ad_spend > 0 OR Ad_sales > 0)
                         GROUP BY keyword HAVING spend > 0
                     `;
                     const currentKws = await queryClickHouse(kwQuery);
@@ -983,8 +983,8 @@ const performanceMarketingService = {
                         SUM(ad_spend) as spend,
                         SUM(impressions) as impressions,
                         SUM(ad_click) as clicks,
-                        SUM(ad_quantity_sold) as orders,
-                        SUM(ad_sales) as revenue
+                        SUM(Ad_Quantity_sold) as orders,
+                        SUM(Ad_sales) as revenue
                     FROM rca_pm_olap
                     WHERE ${whereSql}
                     GROUP BY keyword_type
@@ -1026,8 +1026,8 @@ const performanceMarketingService = {
                     SUM(ad_spend) as spend,
                     SUM(impressions) as impressions,
                     SUM(ad_click) as clicks,
-                    SUM(ad_quantity_sold) as orders,
-                    SUM(ad_sales) as revenue
+                    SUM(Ad_Quantity_sold) as orders,
+                    SUM(Ad_sales) as revenue
                 FROM rca_pm_olap
                 WHERE ${keywordWhereSql}
                 GROUP BY keyword_type, keyword

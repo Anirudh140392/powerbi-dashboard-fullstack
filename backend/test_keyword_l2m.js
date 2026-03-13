@@ -19,10 +19,10 @@ async function testKeywordBaseline() {
         SELECT 
             keyword,
             SUM(ad_spend) as spend,
-            if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+            if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
         FROM mars.rca_pm_olap
         WHERE Date BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
-          AND (ad_spend > 0 OR ad_sales > 0)
+          AND (ad_spend > 0 OR Ad_sales > 0)
         GROUP BY keyword
         HAVING spend > 0
     `;
@@ -33,10 +33,10 @@ async function testKeywordBaseline() {
         SELECT 
             keyword,
             SUM(ad_spend) as spend,
-            if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+            if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
         FROM mars.rca_pm_olap
         WHERE Date BETWEEN '${startDateL2M.format('YYYY-MM-DD')}' AND '${endDateL2M.format('YYYY-MM-DD')}'
-          AND (ad_spend > 0 OR ad_sales > 0)
+          AND (ad_spend > 0 OR Ad_sales > 0)
         GROUP BY keyword
         HAVING spend > 0
     `;

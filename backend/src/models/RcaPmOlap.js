@@ -23,7 +23,7 @@ const RcaPmOlap = sequelize.define('rca_pm_olap', {
         type: DataTypes.DECIMAL(15, 2),
         defaultValue: 0.00
     },
-    ad_sales: {
+    Ad_sales: {
         type: DataTypes.DECIMAL(15, 2),
         defaultValue: 0.00
     },

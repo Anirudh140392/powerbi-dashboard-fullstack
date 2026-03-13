@@ -18,7 +18,7 @@ async function verifyCleaningEssentials() {
             attributes: [
                 [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                 [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales'],
                 [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
                 [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
             ],
@@ -33,7 +33,7 @@ async function verifyCleaningEssentials() {
 
         const totalSales = parseFloat(metrics.total_sales || 0);
         const totalSpend = parseFloat(metrics.total_spend || 0);
-        const totalAdSales = parseFloat(metrics.total_ad_sales || 0);
+        const totalAdSales = parseFloat(metrics.total_Ad_sales || 0);
         const totalClicks = parseFloat(metrics.total_clicks || 0);
         const totalImpressions = parseFloat(metrics.total_impressions || 0);
 
