@@ -122,38 +122,40 @@ export const FilterProvider = ({ children }) => {
         fetchChannels();
     }, [isAuthenticated]);
 
-    // ====== FETCH PLATFORMS FROM DB (on mount) ======
+    // ====== FETCH PLATFORMS FROM DB (based on channel) ======
     const fetchPlatformsFromDb = useCallback(async () => {
         if (!isAuthenticated) return;
 
         setPlatformsFetched(false);
         try {
-            const res = await axiosInstance.get("/watchtower/platforms");
+            const params = {};
+            if (selectedChannel && selectedChannel !== "All") {
+                params.channel = selectedChannel;
+            }
+            const res = await axiosInstance.get("/watchtower/platforms", { params });
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                 console.log("[FilterContext] Fetched platforms from DB:", res.data);
                 setPlatforms(res.data);
                 // Keep "All" or current selection if it's still valid
                 setPlatform(prevPlatform => {
-                    if (prevPlatform !== "All") {
-                        const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
-                        const validPlatforms = currentList.filter(p => res.data.includes(p));
-                        if (validPlatforms.length === 0) {
-                            return "All";
-                        } else if (validPlatforms.length === res.data.length) {
-                            return "All";
-                        } else {
-                            return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
-                        }
-                    }
-                    return prevPlatform;
+                    if (prevPlatform === "All") return "All";
+                    const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
+                    const validPlatforms = currentList.filter(p => res.data.includes(p));
+                    if (validPlatforms.length === 0) return "All";
+                    if (validPlatforms.length === res.data.length) return "All";
+                    return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
                 });
+            } else {
+                setPlatforms(FALLBACK_PLATFORMS);
+                setPlatform("All");
             }
         } catch (err) {
             console.warn("[FilterContext] Failed to fetch platforms, using fallback:", err.message);
+            setPlatforms(FALLBACK_PLATFORMS);
         } finally {
             setPlatformsFetched(true);
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, selectedChannel]);
 
     useEffect(() => {
         fetchPlatformsFromDb();
@@ -164,44 +166,7 @@ export const FilterProvider = ({ children }) => {
         fetchPlatformsFromDb();
     }, [fetchPlatformsFromDb]);
 
-    // Update platforms list when channel changes (fetch from rca_sku_dim filtered by channel)
-    useEffect(() => {
-        const filterPlatformsByChannel = async () => {
-            if (!isAuthenticated) return;
-            try {
-                const params = {};
-                if (selectedChannel && selectedChannel !== "All") {
-                    params.channel = selectedChannel;
-                }
-                const res = await axiosInstance.get("/watchtower/platforms", { params });
-                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                    setPlatforms(res.data);
-                    // If current platform selection isn't in the new list, reset to All
-                    if (platform !== "All") {
-                        const currentList = Array.isArray(platform) ? platform : [platform];
-                        const validPlatforms = currentList.filter(p => res.data.includes(p));
-                        if (validPlatforms.length === 0) {
-                            setPlatform("All");
-                        } else if (validPlatforms.length === res.data.length) {
-                            setPlatform("All");
-                        } else {
-                            setPlatform(validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms);
-                        }
-                    }
-                } else {
-                    setPlatforms(FALLBACK_PLATFORMS);
-                    setPlatform("All");
-                }
-            } catch (err) {
-                console.warn("[FilterContext] Failed to fetch platforms on channel change:", err.message);
-                setPlatforms(FALLBACK_PLATFORMS);
-                setPlatform("All");
-            }
-        };
-        filterPlatformsByChannel();
-    }, [selectedChannel, isAuthenticated]);
-
-    // ====== FETCH CATEGORIES FROM DB (when platform changes) ======
+    // ====== FETCH CATEGORIES & BRANDS FROM DB (when platform changes) ======
     useEffect(() => {
         const fetchCategories = async () => {
             if (!isAuthenticated) return;
@@ -215,15 +180,12 @@ export const FilterProvider = ({ children }) => {
                     setCategories(cats);
                     // Keep current selection if still valid, otherwise reset to "All"
                     setSelectedCategory(prevCat => {
-                        if (prevCat !== "All") {
-                            const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
-                            // Relaxing category reset for Visibility which has identical categories but different source
-                            const validList = currentList.filter(c => cats.includes(c));
-                            if (validList.length === 0) return "All";
-                            if (validList.length === cats.length) return "All";
-                            return validList.length === 1 ? validList[0] : validList;
-                        }
-                        return prevCat;
+                        if (prevCat === "All") return "All";
+                        const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
+                        const validList = currentList.filter(c => cats.includes(c));
+                        if (validList.length === 0) return "All";
+                        if (validList.length === cats.length) return "All";
+                        return validList.length === 1 ? validList[0] : validList;
                     });
                 } else {
                     setCategories(FALLBACK_CATEGORIES);

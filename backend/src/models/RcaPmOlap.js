@@ -3,7 +3,7 @@ import sequelize from '../config/db.js';
 
 /**
  * RcaPmOlap Model
- * Maps to the mars.rca_pm_olap table for Performance Marketing metrics.
+ * Maps to the rca_pm_olap table for Performance Marketing metrics.
  * Primary source for Conversion, ROAS, Spend, and Ad Sales.
  */
 const RcaPmOlap = sequelize.define('rca_pm_olap', {

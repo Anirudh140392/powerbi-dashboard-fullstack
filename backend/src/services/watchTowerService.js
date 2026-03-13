@@ -344,6 +344,115 @@ const formatCurrency = (value) => {
 };
 
 /**
+ * Fetch Conversion KPI from rca_pm_olap
+ * Conversion = (SUM(ad_quantity_sold) / SUM(impressions)) * 100
+ */
+const getPmConversion = async (start, end, platformFilter, locationFilter, categoryFilter, brandFilter, channel) => {
+    try {
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+        const conds = [`DATE BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
+
+        const platArr = normalizeFilterArray(platformFilter);
+        if (platArr && platArr.length > 0) {
+            const pCond = buildPlatformChannelCond(platArr, channel, 'lower(Platform)', true);
+            if (pCond) conds.push(pCond);
+        } else {
+            const pCond = buildPlatformChannelCond(null, channel, 'lower(Platform)', true);
+            if (pCond) conds.push(pCond);
+        }
+
+        const locArr = normalizeFilterArray(locationFilter);
+        if (locArr && locArr.length > 0) {
+            conds.push(`lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        }
+
+        const catArr = normalizeFilterArray(categoryFilter);
+        if (catArr && catArr.length > 0) {
+            conds.push(`lower(category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+        }
+
+        const brandArr = normalizeFilterArray(brandFilter);
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            conds.push(`lower(brand) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+        }
+
+        const sql = `
+            SELECT 
+                SUM(ad_quantity_sold) as orders,
+                SUM(impressions) as impressions
+            FROM rca_pm_olap
+            WHERE ${conds.join(' AND ')}
+        `;
+
+        const result = await queryClickHouse(sql);
+        const orders = parseFloat(result[0]?.orders || 0);
+        const impressions = parseFloat(result[0]?.impressions || 0);
+
+        return impressions > 0 ? (orders / impressions) * 100 : 0;
+    } catch (err) {
+        console.error("Error fetching PM Conversion:", err);
+        return 0;
+    }
+};
+
+/**
+ * Fetch Bulk Conversion KPI from rca_pm_olap grouped by a specific field
+ */
+const getPmConversionBulk = async (start, end, platformFilter, locationFilter, categoryFilter, brandFilter, channel, groupByField = 'Platform') => {
+    try {
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+        const conds = [`DATE BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
+
+        const platArr = normalizeFilterArray(platformFilter);
+        if (platArr && platArr.length > 0) {
+            const pCond = buildPlatformChannelCond(platArr, channel, 'lower(Platform)', true);
+            if (pCond) conds.push(pCond);
+        } else {
+            const pCond = buildPlatformChannelCond(null, channel, 'lower(Platform)', true);
+            if (pCond) conds.push(pCond);
+        }
+
+        const locArr = normalizeFilterArray(locationFilter);
+        if (locArr && locArr.length > 0) {
+            conds.push(`lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        }
+
+        const catArr = normalizeFilterArray(categoryFilter);
+        if (catArr && catArr.length > 0) {
+            conds.push(`lower(category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+        }
+
+        const brandArr = normalizeFilterArray(brandFilter);
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            conds.push(`lower(brand) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+        }
+
+        const sql = `
+            SELECT 
+                ${groupByField} as group_key,
+                SUM(ad_quantity_sold) as orders,
+                SUM(impressions) as impressions
+            FROM rca_pm_olap
+            WHERE ${conds.join(' AND ')}
+            GROUP BY ${groupByField}
+        `;
+
+        const result = await queryClickHouse(sql);
+        const map = new Map();
+        result.forEach(row => {
+            const orders = parseFloat(row.orders || 0);
+            const impressions = parseFloat(row.impressions || 0);
+            const conv = impressions > 0 ? (orders / impressions) * 100 : 0;
+            map.set(row.group_key, conv);
+        });
+        return map;
+    } catch (err) {
+        console.error("Error fetching Bulk PM Conversion:", err);
+        return new Map();
+    }
+};
+
+/**
  * Shared KPI column generator with change calculations
  */
 const generateKpiColumns = ({
@@ -373,7 +482,7 @@ const generateKpiColumns = ({
         { title: "Spend", value: formatCurrency(spend), change: { text: formatChange(spendChange), positive: spendChange >= 0 }, meta: { units: "spend", change: formatChange(spendChange) } },
         { title: "ROAS", value: `${roas.toFixed(2)}x`, change: { text: formatChange(roasChange), positive: roasChange >= 0 }, meta: { units: "return", change: formatChange(roasChange) } },
         { title: "Inorg Sales", value: formatCurrency(inorgSales), change: { text: formatChange(inorgSalesChange), positive: inorgSalesChange >= 0 }, meta: { units: `${formatUnits(inorgUnits)} units`, change: formatChange(inorgSalesChange) } },
-        { title: "Conversion", value: `${conversion.toFixed(2)}%`, change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "Orders / Clicks", change: formatChange(conversionChange, true) } },
+        { title: "Conversion", value: `${conversion.toFixed(2)}%`, change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 }, meta: { units: "Orders / Impressions", change: formatChange(conversionChange, true) } },
         { title: "Availability", value: `${availability.toFixed(2)}%`, change: { text: formatChange(availabilityChange, true), positive: availabilityChange >= 0 }, meta: { units: "stores", change: formatChange(availabilityChange, true) } },
         { title: "Share of Search", value: `${sos.toFixed(2)}%`, change: { text: formatChange(sosChange, true), positive: sosChange >= 0 }, meta: { units: "index", change: formatChange(sosChange, true) } },
         { title: "Ad SOV", value: `${adSov.toFixed(2)}%`, change: { text: formatChange(adSovChange, true), positive: adSovChange >= 0 }, meta: { units: "sponsored", change: formatChange(adSovChange, true) } },
@@ -852,7 +961,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 let numCondition = 'toInt32(overall) = 1';
 
                 if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
-                    const brandConds = brandArr.map(b => `lower(brand_name_th) LIKE lower('%${escapeStr(b)}%')`).join(' OR ');
+                    const brandConds = brandArr.map(b => `lower(brand) LIKE lower('%${escapeStr(b)}%')`).join(' OR ');
                     numCondition += ` AND (${brandConds})`;
                 } else {
                     // When brand is "All", filter for our brands using flag=1
@@ -945,7 +1054,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const [numResult, denResult] = await Promise.all([
                         queryClickHouse(`
                             SELECT 
-                                lower(brand_name_th) as brand, 
+                                lower(brand) as brand, 
                                 sum(toInt32(overall)) as num_overall,
                                 sum(toInt32(spons)) as num_spons,
                                 sum(toInt32(organic)) as num_organic
@@ -1153,7 +1262,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             SUM(ad_click) as clicks,
                             SUM(impressions) as impressions,
                             SUM(ad_quantity_sold) as orders
-                        FROM mars.rca_pm_olap
+                        FROM rca_pm_olap
                         WHERE ${currPmConditions}
                         GROUP BY Platform
                     `),
@@ -1222,7 +1331,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             SUM(ad_click) as clicks,
                             SUM(impressions) as impressions,
                             SUM(ad_quantity_sold) as orders
-                        FROM mars.rca_pm_olap
+                        FROM rca_pm_olap
                         WHERE ${prevPmConditions}
                         GROUP BY Platform
                     `)
@@ -1595,16 +1704,16 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                     const platArr = normalizeFilterArray(platform);
                     if (platArr && platArr.length > 0) {
-                        conditions.push(`${src.f.platform} IN (${platArr.map(p => `'${escapeStrLocal(p)}'`).join(', ')})`);
+                        conditions.push(`Platform IN (${platArr.map(p => `'${escapeStrLocal(p)}'`).join(', ')})`);
                     } else {
-                        const platformCond = buildPlatformChannelCond(null, channel, src.f.platform);
+                        const platformCond = buildPlatformChannelCond(null, channel, 'Platform');
                         if (platformCond) conditions.push(platformCond);
                     }
 
                     const brandArrLocal = normalizeFilterArray(brand);
                     if (brandArrLocal && brandArrLocal.length > 0) {
                         const brandConds = brandArrLocal.map(b => `'${escapeStrLocal(b).toLowerCase()}'`).join(',');
-                        conditions.push(`lower(category) IN (${brandConds})`);
+                        conditions.push(`lower(brand) IN (${brandConds})`);
                     }
 
                     const catArrLocal = normalizeFilterArray(category);
@@ -1621,7 +1730,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             SUM(ad_click) as clicks,
                             SUM(impressions) as impressions,
                             SUM(ad_spend) as spend
-                        FROM mars.rca_pm_olap
+                        FROM rca_pm_olap
                         WHERE ${conditions.join(' AND ')}
                     `;
 
@@ -1732,11 +1841,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         });
                     }
 
-                    // Add brand filter (mapped to category for mars.rca_pm_olap)
+                    // Add brand filter (mapped to brand for rca_pm_olap)
                     const brandArrLocal = normalizeFilterArray(brand);
                     if (brandArrLocal && brandArrLocal.length > 0) {
                         const brandConds = brandArrLocal.map(b => `'${escapeStr(b).toLowerCase()}'`).join(',');
-                        conditions.push(`lower(category) IN (${brandConds})`);
+                        conditions.push(`lower(brand) IN (${brandConds})`);
                     }
 
                     const catArrLocal = normalizeFilterArray(category);
@@ -1754,7 +1863,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             SUM(ad_click) as total_clicks,
                             SUM(impressions) as total_impressions,
                             SUM(ad_spend) as total_spend
-                        FROM mars.rca_pm_olap
+                        FROM rca_pm_olap
                         WHERE ${conditions.join(' AND ')}
                         GROUP BY formatDateTime(DATE, '%Y-%m-01')
                         ORDER BY month ASC
@@ -1834,7 +1943,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 };
 
                 const calculateConversion = (data) => {
-                    return data.clicks > 0 ? (data.orders / data.clicks) * 100 : 0; // Orders / Clicks * 100
+                    return data.impressions > 0 ? (data.orders / data.impressions) * 100 : 0; // Orders / Impressions * 100
                 };
 
                 const calculateRoas = (data) => {
@@ -1917,7 +2026,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const sosNumConds = [...sosBaseConds];
                     const brandArrLocal = normalizeFilterArray(brand);
                     if (brandArrLocal && brandArrLocal.length > 0) {
-                        sosNumConds.push(`brand_name_th IN (${brandArrLocal.map(b => `'${sosEscapeStr(b)}'`).join(', ')})`);
+                        sosNumConds.push(`brand IN (${brandArrLocal.map(b => `'${sosEscapeStr(b)}'`).join(', ')})`);
                     } else {
                         sosNumConds.push(`toString(flag) = '1'`);
                     }
@@ -2062,7 +2171,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     unit: "",
                     tag: `${convChange >= 0 ? '+' : ''}${convChange.toFixed(2)}%`,
                     tagTone: convChange >= 0 ? "positive" : "warning",
-                    footer: "Orders / Clicks",
+                    footer: "Orders / Impressions",
                     trendTitle: "Conversion Trend",
                     trendSubtitle: "Last 7 periods",
                     trendData: convTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
@@ -2267,7 +2376,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     title: "Conversion",
                     value: `${conversion.toFixed(2)}%`,
                     change: { text: formatChange(conversionChange, true), positive: conversionChange >= 0 },
-                    meta: { units: "Orders / Clicks", change: formatChange(conversionChange, true) }
+                    meta: { units: "Orders / Impressions", change: formatChange(conversionChange, true) }
                 },
                 {
                     title: "Availability",
@@ -2465,7 +2574,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         SUM(ad_click) as total_clicks,
                         SUM(impressions) as total_impressions,
                         SUM(ad_quantity_sold) as total_orders
-                    FROM mars.rca_pm_olap
+                    FROM rca_pm_olap
                     WHERE ${currPmConditions}
                 `),
                 queryClickHouse(`
@@ -2475,7 +2584,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         SUM(ad_click) as total_clicks,
                         SUM(impressions) as total_impressions,
                         SUM(ad_quantity_sold) as total_orders
-                    FROM mars.rca_pm_olap
+                    FROM rca_pm_olap
                     WHERE ${prevPmConditions}
                 `)
             ]);
@@ -2506,13 +2615,13 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
             // Calculate derived KPIs - Current
             allRoas = allSpend > 0 ? allAdSales / allSpend : 0;
-            allConversion = allClicks > 0 ? (allOrders / allClicks) * 100 : 0;
+            allConversion = allImpressions > 0 ? (allOrders / allImpressions) * 100 : 0;
             allCpm = allImpressions > 0 ? (allSpend / allImpressions) * 1000 : 0;
             allCpc = allClicks > 0 ? allSpend / allClicks : 0;
 
             // Calculate derived KPIs - Previous
             prevAllRoas = prevAllSpend > 0 ? prevAllAdSales / prevAllSpend : 0;
-            prevAllConversion = prevAllClicks > 0 ? (prevAllOrders / prevAllClicks) * 100 : 0;
+            prevAllConversion = prevAllImpressions > 0 ? (prevAllOrders / prevAllImpressions) * 100 : 0;
             prevAllCpm = prevAllImpressions > 0 ? (prevAllSpend / prevAllImpressions) * 1000 : 0;
             prevAllCpc = prevAllClicks > 0 ? prevAllSpend / prevAllClicks : 0;
 
@@ -2645,8 +2754,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Calculate ROAS: Total Ad Sales / Total Spend
                 const roas = totalSpend > 0 ? totalAdSales / totalSpend : 0;
 
-                // Calculate Conversion: (Total Orders / Total Clicks) * 100
-                const conversion = totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0;
+                // Calculate Conversion: (Total Orders / Total Impressions) * 100
+                const conversion = totalImpressions > 0 ? (totalOrders / totalImpressions) * 100 : 0;
 
                 // Calculate CPM: (Total Ad Spend / Total Ad Impressions) * 1000
                 const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
@@ -2679,7 +2788,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 // Calculate previous period derived metrics from bulk data
                 const prevClicks = metrics.prev.clicks;
                 const prevOrders = metrics.prev.orders;
-                const prevConversion = prevClicks > 0 ? (prevOrders / prevClicks) * 100 : 0;
+                const prevConversion = prevImpressions > 0 ? (prevOrders / prevImpressions) * 100 : 0;
                 const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
                 const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
@@ -2816,8 +2925,27 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const dateRangeCondition = `${dateCol} BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`;
 
             try {
-                // Execute 4 bulk queries in parallel (instead of 28 individual queries)
-                const [offtakeByMonth, availByMonth, sosByMonth, msByMonth] = await Promise.all([
+                // Build PM conditions for month overview (rca_pm_olap uses Platform, brand, category, location_name directly)
+                const pmMoConds = [
+                    `DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`
+                ];
+                if (moPlatform) {
+                    pmMoConds.push(`Platform = '${escapeStrMain(moPlatform)}'`);
+                }
+                if (brandArr && brandArr.length > 0) {
+                    const bConds = brandArr.map(b => `lower(brand) LIKE lower('%${escapeStrMain(b)}%')`).join(' OR ');
+                    if (bConds) pmMoConds.push(`(${bConds})`);
+                }
+                if (locationArr && locationArr.length > 0) {
+                    pmMoConds.push(`lower(location_name) IN (${locationArr.map(l => `'${escapeStrMain(l.toLowerCase())}'`).join(', ')})`);
+                }
+                const catArrMo = normalizeFilterArray(category);
+                if (catArrMo && catArrMo.length > 0) {
+                    pmMoConds.push(`lower(category) IN (${catArrMo.map(c => `'${escapeStrMain(c.toLowerCase())}'`).join(', ')})`);
+                }
+
+                // Execute 5 bulk queries in parallel (instead of 28 individual queries)
+                const [offtakeByMonth, availByMonth, sosByMonth, msByMonth, pmByMonth] = await Promise.all([
                     // Query 1: Offtake metrics grouped by month
                     queryClickHouse(`
                         SELECT 
@@ -2866,9 +2994,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const sosNumConds = [...sosBaseConds];
                         if (brandArr && brandArr.length > 0) {
                             if (brandArr.length === 1) {
-                                sosNumConds.push(`brand_name_th = '${escapeStrMo(brandArr[0])}'`);
+                                sosNumConds.push(`brand = '${escapeStrMo(brandArr[0])}'`);
                             } else {
-                                sosNumConds.push(`brand_name_th IN (${brandArr.map(b => `'${escapeStrMo(b)}'`).join(', ')})`);
+                                sosNumConds.push(`brand IN (${brandArr.map(b => `'${escapeStrMo(b)}'`).join(', ')})`);
                             }
                         } else {
                             sosNumConds.push(`toString(flag) = '1'`);
@@ -2934,7 +3062,18 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                                 avg_ms: totalSales > 0 ? (ourSales / totalSales) * 100 : 0
                             };
                         });
-                    })()
+                    })(),
+                    // Query 5: PM metrics (orders/clicks) grouped by month from rca_pm_olap
+                    queryClickHouse(`
+                        SELECT 
+                            formatDateTime(DATE, '%Y-%m-01') as month,
+                            SUM(ad_quantity_sold) as total_orders,
+                            SUM(impressions) as total_impressions,
+                            SUM(ad_click) as total_clicks
+                        FROM rca_pm_olap
+                        WHERE ${pmMoConds.join(' AND ')}
+                        GROUP BY month
+                    `)
                 ]);
 
                 // Build lookup maps
@@ -2943,6 +3082,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const sosNumMap = new Map(sosByMonth.num.map(r => [r.month, parseInt(r.count)]));
                 const sosDenomMap = new Map(sosByMonth.denom.map(r => [r.month, parseInt(r.count)]));
                 const msMap = new Map(msByMonth.map(r => [r.month, parseFloat(r.avg_ms || 0)]));
+                const pmMap = new Map(pmByMonth.map(r => [r.month, r]));
 
                 // Generate month overview from bulk data
                 monthOverview = monthBuckets.map(bucket => {
@@ -2952,13 +3092,18 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const moOfftake = parseFloat(off.total_sales || 0);
                     const moSpend = parseFloat(off.total_spend || 0);
                     const moAdSales = parseFloat(off.total_ad_sales || 0);
-                    const moClicks = parseFloat(off.total_clicks || 0);
-                    const moImpressions = parseFloat(off.total_impressions || 0);
+                    const moImpressions = parseFloat(pm.total_impressions || 0);
+
+                    // Get PM data for proper Conversion calculation
+                    const pm = pmMap.get(monthKey) || {};
+                    const moOrders = parseFloat(pm.total_orders || 0);
+                    const moPmClicks = parseFloat(pm.total_clicks || 0);
 
                     const moRoas = moSpend > 0 ? moAdSales / moSpend : 0;
-                    const moConversion = moImpressions > 0 ? (moClicks / moImpressions) * 100 : 0;
+                    // Conversion = (Orders / Impressions) * 100 from rca_pm_olap
+                    const moConversion = moImpressions > 0 ? (moOrders / moImpressions) * 100 : 0;
                     const moCpm = moImpressions > 0 ? (moSpend / moImpressions) * 1000 : 0;
-                    const moCpc = moClicks > 0 ? moSpend / moClicks : 0;
+                    const moCpc = moPmClicks > 0 ? moSpend / moPmClicks : 0;
 
                     const avail = availMap.get(monthKey) || {};
                     const neno = parseFloat(avail.total_neno || 0);
@@ -2981,7 +3126,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     };
                 });
 
-                console.log(`[Month Overview] OPTIMIZED: Processed ${monthBuckets.length} months with 4 bulk queries (vs ${monthBuckets.length * 4} individual queries)`);
+                console.log(`[Month Overview] OPTIMIZED: Processed ${monthBuckets.length} months with 5 bulk queries (vs ${monthBuckets.length * 5} individual queries)`);
 
             } catch (err) {
                 console.error('[Month Overview] Error in bulk query:', err);
@@ -3067,7 +3212,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     catSos,
                     catMsResult,
                     catPromoMyBrandResult,
-                    catPromoCompeteResult
+                    catPromoCompeteResult,
+                    catPmResult
                 ] = await Promise.all([
                     // Offtake (Sales) & Ad Metrics
                     queryClickHouse(`
@@ -3099,7 +3245,32 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         SELECT AVG(CASE WHEN ${src.f.mrp} > 0 THEN (${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp} ELSE 0 END) as avg_promo_depth
                         FROM ${src.table} 
                         WHERE ${catCondStr} AND ${src.f.compFlag} = '1'
-                    `).then(r => r[0] || {})
+                    `).then(r => r[0] || {}),
+                    // PM Metrics (orders/clicks) from rca_pm_olap for Conversion
+                    (async () => {
+                        const pmCatConds = [
+                            `DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
+                            `lower(category) = '${escapeStrMain(catName.toLowerCase())}'`
+                        ];
+                        const catBrandArrPm = normalizeFilterArray(brand);
+                        if (catBrandArrPm && catBrandArrPm.length > 0) {
+                            const bConds = catBrandArrPm.map(b => `lower(brand) LIKE lower('%${escapeStrMain(b)}%')`).join(' OR ');
+                            if (bConds) pmCatConds.push(`(${bConds})`);
+                        }
+                        const locArrPm = normalizeFilterArray(location);
+                        if (locArrPm && locArrPm.length > 0) {
+                            pmCatConds.push(`lower(location_name) IN (${locArrPm.map(l => `'${escapeStrMain(l.toLowerCase())}'`).join(', ')})`);
+                        }
+                        if (categoryOverviewPlatform && categoryOverviewPlatform !== 'All') {
+                            pmCatConds.push(`Platform = '${escapeStrMain(categoryOverviewPlatform)}'`);
+                        }
+                        const pmResult = await queryClickHouse(`
+                            SELECT SUM(ad_quantity_sold) as total_orders, SUM(impressions) as total_impressions, SUM(ad_click) as total_clicks
+                            FROM rca_pm_olap
+                            WHERE ${pmCatConds.join(' AND ')}
+                        `);
+                        return pmResult[0] || {};
+                    })()
                 ]);
 
                 const catOfftake = parseFloat(catOfftakeResult?.total_sales || 0);
@@ -3120,9 +3291,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
                 // Calculate Metrics
                 const catRoas = catSpend > 0 ? catAdSales / catSpend : 0;
-                const catConversion = catImpressions > 0 ? (catClicks / catImpressions) * 100 : 0;
+                const catPmOrders = parseFloat(catPmResult?.total_orders || 0);
+                const catPmImpressions = parseFloat(catPmResult?.total_impressions || 0);
+                const catPmClicks = parseFloat(catPmResult?.total_clicks || 0);
+                const catConversion = catPmImpressions > 0 ? (catPmOrders / catPmImpressions) * 100 : 0;
                 const catCpm = catImpressions > 0 ? (catSpend / catImpressions) * 1000 : 0;
-                const catCpc = catClicks > 0 ? catSpend / catClicks : 0;
+                const catCpc = catPmClicks > 0 ? catSpend / catPmClicks : 0;
 
 
 
@@ -3160,7 +3334,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             title: "Conversion",
                             value: `${catConversion.toFixed(2)}%`,
                             change: { text: "▲0.0%", positive: true },
-                            meta: { units: "Orders / Clicks", change: "▲0.0%" }
+                            meta: { units: "Orders / Impressions", change: "▲0.0%" }
                         },
                         {
                             title: "Availability",
@@ -3507,10 +3681,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // Conversion
             const currOrders = findMetric(boOfftakeMap, brandName, 'total_ad_orders');
             const prevOrders = findMetric(boPrevOfftakeMap, brandName, 'total_ad_orders');
-            const currClicks = findMetric(boOfftakeMap, brandName, 'total_ad_clicks');
-            const prevClicks = findMetric(boPrevOfftakeMap, brandName, 'total_ad_clicks');
-            const currConv = currClicks > 0 ? (currOrders / currClicks) * 100 : 0;
-            const prevConv = prevClicks > 0 ? (prevOrders / prevClicks) * 100 : 0;
+            const currConv = currImp > 0 ? (currOrders / currImp) * 100 : 0;
+            const prevConv = prevImp > 0 ? (prevOrders / prevImp) * 100 : 0;
             const convTrend = calcTrendPp(currConv, prevConv);
 
             // Availability
@@ -3632,15 +3804,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
 
 const getPlatforms = async (channel) => {
     try {
-        const src = await getWatchtowerSource();
         let query;
         if (channel && channel !== 'All') {
-            // When channel is specified, get platforms from rca_sku_dim for that channel
             const escapedChannel = channel.replace(/'/g, "''");
             query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' AND channel = '${escapedChannel}' ORDER BY platform`;
         } else {
-            // No channel filter — get all platforms from dynamic source
-            query = `SELECT DISTINCT ${src.f.platform} as platform FROM ${src.table} WHERE ${src.f.platform} IS NOT NULL AND ${src.f.platform} != '' ORDER BY platform`;
+            query = `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
         }
         const results = await queryClickHouse(query);
         return results.map(p => p.platform).filter(Boolean).sort();
@@ -3668,23 +3837,20 @@ const getSummaryMetrics = async (filters) => {
 
 const getBrands = async (platform, includeCompetitors = false) => {
     try {
-        const src = await getWatchtowerSource();
-        // Query appropriate source for brands
-        const conditions = [`${src.f.brand} IS NOT NULL`, `${src.f.brand} != ''`];
+        const conditions = [`brand_name IS NOT NULL`, `brand_name != ''`];
         if (platform && platform !== 'All') {
-            // Support multi-value: comma-separated string or array
-            const platArr = Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()).filter(Boolean);
+            const platArr = normalizeFilterArray(platform);
             if (platArr.length === 1) {
-                conditions.push(`${src.f.platform} = '${platArr[0].replace(/'/g, "''")}'`);
+                conditions.push(`platform = '${platArr[0].replace(/'/g, "''")}'`);
             } else if (platArr.length > 1) {
-                conditions.push(`${src.f.platform} IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`);
+                conditions.push(`platform IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`);
             }
         }
         if (!includeCompetitors) {
-            conditions.push(`toString(${src.f.compFlag}) = '0'`);
+            conditions.push(`comp_flag = 0`);
         }
 
-        const query = `SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY brand`;
+        const query = `SELECT DISTINCT brand_name as brand FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY brand`;
         const results = await queryClickHouse(query);
         return results.map(r => r.brand).filter(Boolean);
     } catch (error) {
@@ -3697,8 +3863,8 @@ const getKeywords = async (brand) => {
     try {
         // ClickHouse query
         const conditions = [`keyword IS NOT NULL`, `keyword != ''`];
-        if (brand) {
-            conditions.push(`brand_name_th = '${brand.replace(/'/g, "''")}'`);
+        if (brand && brand !== 'All') {
+            conditions.push(`brand = '${brand.replace(/'/g, "''")}'`);
         }
 
         const query = `SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${conditions.join(' AND ')} ORDER BY keyword`;
@@ -3712,32 +3878,28 @@ const getKeywords = async (brand) => {
 
 const getLocations = async (platform, brand, includeCompetitors = false) => {
     try {
-        const src = await getWatchtowerSource();
-        // Query appropriate source for locations
-        const conditions = [`${src.f.location} IS NOT NULL`, `${src.f.location} != ''`];
+        const conditions = [`location IS NOT NULL`, `location != ''`];
         if (platform && platform !== 'All') {
-            // Support multi-value: comma-separated string or array
-            const platArr = Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()).filter(Boolean);
+            const platArr = normalizeFilterArray(platform);
             if (platArr.length === 1) {
-                conditions.push(`${src.f.platform} = '${platArr[0].replace(/'/g, "''")}'`);
+                conditions.push(`platform = '${platArr[0].replace(/'/g, "''")}'`);
             } else if (platArr.length > 1) {
-                conditions.push(`${src.f.platform} IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`);
+                conditions.push(`platform IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`);
             }
         }
         if (brand && brand !== 'All') {
-            // Support multi-value brand
-            const brandArr = Array.isArray(brand) ? brand : brand.split(',').map(b => b.trim()).filter(Boolean);
+            const brandArr = normalizeFilterArray(brand);
             if (brandArr.length === 1) {
-                conditions.push(`${src.f.brand} LIKE '%${brandArr[0].replace(/'/g, "''")}'`);
+                conditions.push(`brand_name = '${brandArr[0].replace(/'/g, "''")}'`);
             } else if (brandArr.length > 1) {
-                conditions.push(`(${brandArr.map(b => `${src.f.brand} LIKE '%${b.replace(/'/g, "''")}'`).join(' OR ')})`);
+                conditions.push(`brand_name IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`);
             }
         }
         if (!includeCompetitors) {
-            conditions.push(`toString(${src.f.compFlag}) = '0'`);
+            conditions.push(`comp_flag = 0`);
         }
 
-        const query = `SELECT DISTINCT ${src.f.location} as location FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY location`;
+        const query = `SELECT DISTINCT location FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY location`;
         const results = await queryClickHouse(query);
         return results.map(l => l.location).filter(Boolean);
     } catch (error) {
@@ -4136,27 +4298,22 @@ const getTrendData = async (filters) => {
 
 const getBrandCategories = async (platform) => {
     try {
-        const allowedCategories = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
         const dbName = getCurrentDbName();
         if (dbName === 'mars') {
-            const src = await getWatchtowerSource();
-            const catCol = src.f.category; // This is now just the expression
-
-            // Note: catCol might be PRODUCT_CATEGORY_SQL which is a complex if()
-            const conditions = [`(${catCol}) IN (${allowedCategories.map(c => `'${c.replace(/'/g, "''")}'`).join(',')})`];
+            const conditions = [`category IS NOT NULL`, `category != ''`];
             const platArr = normalizeFilterArray(platform);
             if (platArr && platArr.length > 0) {
-                conditions.push(`${src.f.platform} IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(',')})`);
+                conditions.push(`platform IN (${platArr.map(p => `'${p.replace(/'/g, "''")}'`).join(',')})`);
             }
 
-            const query = `SELECT DISTINCT ${catCol} as category FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY category ASC`;
+            const query = `SELECT DISTINCT category FROM rca_sku_dim WHERE ${conditions.join(' AND ')} ORDER BY category ASC`;
             const rows = await queryClickHouse(query);
             return rows.map(r => r.category);
         }
-        return allowedCategories;
+        return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
     } catch (error) {
         console.error("Error fetching brand categories:", error);
-        return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+        return ["None"];
     }
 };
 
@@ -4365,9 +4522,9 @@ const getPlatformOverview = async (filters) => {
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`lower(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
         }
-        // Apply brand filter (rb_kw_olap uses brand_name_th column)
+        // Apply brand filter (rb_kw_olap uses brand column)
         if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `lower(brand_name_th) LIKE lower('%${escapeStr(b)}%')`).join(' OR ')})`);
+            conds.push(`(${brandArr.map(b => `lower(brand) LIKE lower('%${escapeStr(b)}%')`).join(' OR ')})`);
         }
 
         // Apply platform filter (rb_kw_olap uses platform_name column)
@@ -4651,6 +4808,12 @@ const getPlatformOverview = async (filters) => {
     // Helper to calculate SOS percentage
     const calcSos = (ourCount, totalCount) => totalCount > 0 ? (ourCount / totalCount) * 100 : 0;
 
+    // Fetch Bulk PM Conversion Maps
+    const [currPmConvMap, prevPmConvMap] = await Promise.all([
+        getPmConversionBulk(startDate, endDate, platformArr, locationArr, rawCategory, brandArr, channel, 'lower(Platform)'),
+        getPmConversionBulk(momStart, momEnd, platformArr, locationArr, rawCategory, brandArr, channel, 'lower(Platform)')
+    ]);
+
     // Build bulk platform metrics map
     const bulkPlatformMap = new Map();
     platformDefinitions.forEach(p => {
@@ -4683,6 +4846,7 @@ const getPlatformOverview = async (filters) => {
                 clicks: parseFloat(c?.clicks || 0),
                 impressions: parseFloat(c?.impressions || 0),
                 orders: parseFloat(c?.orders || 0),
+                conversion: currPmConvMap.get(key) || 0,
                 neno: parseFloat(c?.neno || 0),
                 deno: parseFloat(c?.deno || 0),
                 ms: currMsValue,
@@ -4703,6 +4867,7 @@ const getPlatformOverview = async (filters) => {
                 clicks: parseFloat(pv?.clicks || 0),
                 impressions: parseFloat(pv?.impressions || 0),
                 orders: parseFloat(pv?.orders || 0),
+                conversion: prevPmConvMap.get(key) || 0,
                 neno: parseFloat(pv?.neno || 0),
                 deno: parseFloat(pv?.deno || 0),
                 ms: prevMsValue,
@@ -4780,8 +4945,8 @@ const getPlatformOverview = async (filters) => {
 
     const allAvailability = allDeno > 0 ? (allNeno / allDeno) * 100 : 0;
     const allRoas = allSpend > 0 ? allAdSales / allSpend : 0;
-    // Conversion = (Orders / Clicks) * 100 (Standard percentage)
-    const allConversion = allClicks > 0 ? (allOrders / allClicks) * 100 : 0;
+    // Conversion = fetched from rca_pm_olap
+    const allConversion = await getPmConversion(startDate, endDate, platformArr, locationArr, rawCategory, brandArr, channel);
     const allCpm = allImpressions > 0 ? (allSpend / allImpressions) * 1000 : 0;
     const allCpc = allClicks > 0 ? allSpend / allClicks : 0;
     const allInorgSales = allAdSales; // Absolute value in currency
@@ -4815,7 +4980,7 @@ const getPlatformOverview = async (filters) => {
 
     const prevAllAvailability = prevAllDeno > 0 ? (prevAllNeno / prevAllDeno) * 100 : 0;
     const prevAllRoas = prevAllSpend > 0 ? prevAllAdSales / prevAllSpend : 0;
-    const prevAllConversion = prevAllClicks > 0 ? (prevAllOrders / prevAllClicks) * 100 : 0;
+    const prevAllConversion = await getPmConversion(momStart, momEnd, platformArr, locationArr, rawCategory, brandArr, channel);
     const prevAllCpm = prevAllImpressions > 0 ? (prevAllSpend / prevAllImpressions) * 1000 : 0;
     const prevAllCpc = prevAllClicks > 0 ? prevAllSpend / prevAllClicks : 0;
     const prevAllInorgSales = prevAllAdSales;
@@ -4968,8 +5133,8 @@ const getPlatformOverview = async (filters) => {
 
         const availability = metrics.curr.deno > 0 ? (metrics.curr.neno / metrics.curr.deno) * 100 : 0;
         const roas = totalSpend > 0 ? totalAdSales / totalSpend : 0;
-        // Conversion = (Orders / Clicks) * 100
-        const conversion = totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0;
+        // Conversion from PM Map
+        const conversion = metrics.curr.conversion || 0;
         const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
         const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
         const inorgSales = totalAdSales;
@@ -4996,8 +5161,8 @@ const getPlatformOverview = async (filters) => {
         const prevOrders = metrics.prev.orders || 0;
         const prevAvailability = metrics.prev.deno > 0 ? (metrics.prev.neno / metrics.prev.deno) * 100 : 0;
         const prevRoas = prevSpend > 0 ? prevAdSales / prevSpend : 0;
-        // Conversion = (Orders / Clicks) * 100
-        const prevConversion = prevClicks > 0 ? (prevOrders / prevClicks) * 100 : 0;
+        // Conversion from PM Map
+        const prevConversion = metrics.prev.conversion || 0;
         const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
         const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
         const prevInorgSales = prevAdSales;
@@ -5277,7 +5442,7 @@ const getMonthOverview = async (filters) => {
 
         const availability = deno > 0 ? (neno / deno) * 100 : 0;
         const roas = spend > 0 ? adSales / spend : 0;
-        const conversion = clicks > 0 ? (orders / clicks) * 100 : 0;
+        const conversion = impressions > 0 ? (orders / impressions) * 100 : 0;
         const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
         const cpc = clicks > 0 ? spend / clicks : 0;
 
@@ -5457,7 +5622,7 @@ const getCategoryOverview = async (filters) => {
             conds.push(`location_name IN (${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (brandArr && brandArr.length > 0) {
-            conds.push(`LOWER(brand_name_th) IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+            conds.push(`LOWER(brand) IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`LOWER(keyword_category) IN (${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
@@ -5625,6 +5790,12 @@ const getCategoryOverview = async (filters) => {
     const totalCurrCatSize = currCatSizeByCat.reduce((sum, row) => sum + parseFloat(row.cat_size || 0), 0);
     const totalPrevCatSize = prevCatSizeByCat.reduce((sum, row) => sum + parseFloat(row.cat_size || 0), 0);
 
+    // Fetch Bulk PM Conversion Maps by Category
+    const [currPmConvMap, prevPmConvMap] = await Promise.all([
+        getPmConversionBulk(startDate, endDate, catPlatform === 'All' ? null : catPlatform, locationArr, categoryArr, brandArr, channel, 'lower(category)'),
+        getPmConversionBulk(momStart, momEnd, catPlatform === 'All' ? null : catPlatform, locationArr, categoryArr, brandArr, channel, 'lower(category)')
+    ]);
+
     const categoryOverviewPromises = categories.map(async (catName) => {
         const catKey = catName?.toLowerCase();
         let currRaw = currCatMap.get(catKey) || {};
@@ -5643,7 +5814,7 @@ const getCategoryOverview = async (filters) => {
         const orders = parseFloat(curr.total_orders || 0);
         const availability = curr.total_deno > 0 ? (curr.total_neno / curr.total_deno) * 100 : 0;
         const roas = spend > 0 ? adSales / spend : 0;
-        const conversion = clicks > 0 ? (orders / clicks) * 100 : 0;
+        const conversion = currPmConvMap.get(catKey) || 0;
         const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
         const cpc = clicks > 0 ? spend / clicks : 0;
 
@@ -5664,7 +5835,7 @@ const getCategoryOverview = async (filters) => {
         const prevImpressions = parseFloat(prev.total_impressions || 0);
         const prevAvailability = prev.total_deno > 0 ? (prev.total_neno / prev.total_deno) * 100 : 0;
         const prevRoas = prevSpend > 0 ? prevAdSales / prevSpend : 0;
-        const prevConversion = prevClicks > 0 ? (prevOrders / prevClicks) * 100 : 0;
+        const prevConversion = prevPmConvMap.get(catKey) || 0;
         const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
         const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
@@ -5895,46 +6066,72 @@ const getBrandsOverview = async (filters) => {
                 `)
     ]);
 
-    // SOS Current - Simple sumIf(overall) per brand
-    const currSosData = await queryClickHouse(`
-        SELECT brand_name_th as brand_name, sumIf(toInt32(overall), toString(flag) = '1') as num, sum(toInt32(overall)) as den
-        FROM rb_kw_olap
-        WHERE ${currSosConds}
-        GROUP BY brand_name_th
-    `);
-    const prevSosData = await queryClickHouse(`
-        SELECT brand_name_th as brand_name, sumIf(toInt32(overall), toString(flag) = '1') as num, sum(toInt32(overall)) as den
-        FROM rb_kw_olap
-        WHERE ${prevSosConds}
-        GROUP BY brand_name_th
-    `);
-    // Spons SOS (Ad SOV) Current - sumIf(spons) per brand
-    const currAdSovData = await queryClickHouse(`
-        SELECT brand_name_th as brand_name, sumIf(toInt32(spons), toString(flag) = '1') as num, sum(toInt32(spons)) as den
-        FROM rb_kw_olap
-        WHERE ${currSosConds}
-        GROUP BY brand_name_th
-    `);
-    const prevAdSovData = await queryClickHouse(`
-        SELECT brand_name_th as brand_name, sumIf(toInt32(spons), toString(flag) = '1') as num, sum(toInt32(spons)) as den
-        FROM rb_kw_olap
-        WHERE ${prevSosConds}
-        GROUP BY brand_name_th
-    `);
+    // SOS Fix: Denominator must be total across ALL rows (not grouped by brand)
+    // Numerator is per-brand (flag='1' = our brand rows)
 
-    // Organic SOS Current - sumIf(organic) per brand
-    const currOrgSovData = await queryClickHouse(`
-        SELECT brand_name_th as brand_name, sumIf(toInt32(organic), toString(flag) = '1') as num, sum(toInt32(organic)) as den
-        FROM rb_kw_olap
-        WHERE ${currSosConds}
-        GROUP BY brand_name_th
-    `);
-    const prevOrgSovData = await queryClickHouse(`
-        SELECT brand_name_th as brand_name, sumIf(toInt32(organic), toString(flag) = '1') as num, sum(toInt32(organic)) as den
-        FROM rb_kw_olap
-        WHERE ${prevSosConds}
-        GROUP BY brand_name_th
-    `);
+    // Denominators: total sums across all rows for selected filters (no GROUP BY brand)
+    const [currDenomData, prevDenomData] = await Promise.all([
+        queryClickHouse(`
+            SELECT sum(toInt32(overall)) as total_overall, sum(toInt32(spons)) as total_spons, sum(toInt32(organic)) as total_organic
+            FROM rb_kw_olap
+            WHERE ${currSosConds}
+        `),
+        queryClickHouse(`
+            SELECT sum(toInt32(overall)) as total_overall, sum(toInt32(spons)) as total_spons, sum(toInt32(organic)) as total_organic
+            FROM rb_kw_olap
+            WHERE ${prevSosConds}
+        `)
+    ]);
+
+    const currTotalOverall = parseInt(currDenomData[0]?.total_overall || 0);
+    const currTotalSpons = parseInt(currDenomData[0]?.total_spons || 0);
+    const currTotalOrganic = parseInt(currDenomData[0]?.total_organic || 0);
+    const prevTotalOverall = parseInt(prevDenomData[0]?.total_overall || 0);
+    const prevTotalSpons = parseInt(prevDenomData[0]?.total_spons || 0);
+    const prevTotalOrganic = parseInt(prevDenomData[0]?.total_organic || 0);
+
+    // Numerators: per-brand sums where flag='1' (our brand)
+    const [currSosData, prevSosData, currAdSovData, prevAdSovData, currOrgSovData, prevOrgSovData] = await Promise.all([
+        // Overall SOS per brand
+        queryClickHouse(`
+            SELECT brand as brand_name, sum(toInt32(overall)) as num
+            FROM rb_kw_olap
+            WHERE ${currSosConds} AND toString(flag) = '1'
+            GROUP BY brand
+        `),
+        queryClickHouse(`
+            SELECT brand as brand_name, sum(toInt32(overall)) as num
+            FROM rb_kw_olap
+            WHERE ${prevSosConds} AND toString(flag) = '1'
+            GROUP BY brand
+        `),
+        // Spons SOS (Ad SOV) per brand
+        queryClickHouse(`
+            SELECT brand as brand_name, sum(toInt32(spons)) as num
+            FROM rb_kw_olap
+            WHERE ${currSosConds} AND toString(flag) = '1'
+            GROUP BY brand
+        `),
+        queryClickHouse(`
+            SELECT brand as brand_name, sum(toInt32(spons)) as num
+            FROM rb_kw_olap
+            WHERE ${prevSosConds} AND toString(flag) = '1'
+            GROUP BY brand
+        `),
+        // Organic SOS per brand
+        queryClickHouse(`
+            SELECT brand as brand_name, sum(toInt32(organic)) as num
+            FROM rb_kw_olap
+            WHERE ${currSosConds} AND toString(flag) = '1'
+            GROUP BY brand
+        `),
+        queryClickHouse(`
+            SELECT brand as brand_name, sum(toInt32(organic)) as num
+            FROM rb_kw_olap
+            WHERE ${prevSosConds} AND toString(flag) = '1'
+            GROUP BY brand
+        `)
+    ]);
 
     const brands = brandsData.map(d => d.brand_name).filter(Boolean);
     const currBrandCatSize = parseFloat(currCatSizeTotal[0]?.cat_size || 0);
@@ -5944,16 +6141,16 @@ const getBrandsOverview = async (filters) => {
     const currMetricMap = new Map(currBrandsMetrics.map(d => [d.Brand?.toLowerCase(), d]));
     const prevMetricMap = new Map(prevBrandsMetrics.map(d => [d.Brand?.toLowerCase(), d]));
 
-    const buildSosMap = (data) => new Map(data.map(r => [r.brand_name?.toLowerCase(), { num: parseInt(r.num), den: parseInt(r.den) }]));
+    const buildSosNumMap = (data) => new Map(data.map(r => [r.brand_name?.toLowerCase(), parseInt(r.num || 0)]));
 
-    const currSosMap = buildSosMap(currSosData);
-    const prevSosMap = buildSosMap(prevSosData);
+    const currSosMap = buildSosNumMap(currSosData);
+    const prevSosMap = buildSosNumMap(prevSosData);
 
     // Ad SOV and Organic SOV maps
-    const currAdSovMap = buildSosMap(currAdSovData);
-    const prevAdSovMap = buildSosMap(prevAdSovData);
-    const currOrgSovMap = buildSosMap(currOrgSovData);
-    const prevOrgSovMap = buildSosMap(prevOrgSovData);
+    const currAdSovMap = buildSosNumMap(currAdSovData);
+    const prevAdSovMap = buildSosNumMap(prevAdSovData);
+    const currOrgSovMap = buildSosNumMap(currOrgSovData);
+    const prevOrgSovMap = buildSosNumMap(prevOrgSovData);
 
 
     const brandsOverview = brands.map(brandName => {
@@ -5973,7 +6170,7 @@ const getBrandsOverview = async (filters) => {
         const impressions = parseFloat(curr.total_impressions || 0);
         const availability = curr.total_deno > 0 ? (curr.total_neno / curr.total_deno) * 100 : 0;
         const roas = spend > 0 ? adSales / spend : 0;
-        const conversion = clicks > 0 ? (orders / clicks) * 100 : 0;
+        const conversion = impressions > 0 ? (orders / impressions) * 100 : 0;
         const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
         const cpc = clicks > 0 ? spend / clicks : 0;
 
@@ -5984,8 +6181,8 @@ const getBrandsOverview = async (filters) => {
             ? ((parseFloat(curr.comp_mrp_val) - parseFloat(curr.comp_actual_sales)) / parseFloat(curr.comp_mrp_val)) * 100
             : 0;
 
-        const sosDataObj = currSosMap.get(brandKey) || { num: 0, den: 0 };
-        const sos = sosDataObj.den > 0 ? (sosDataObj.num / sosDataObj.den) * 100 : 0;
+        const sosNum = currSosMap.get(brandKey) || 0;
+        const sos = currTotalOverall > 0 ? (sosNum / currTotalOverall) * 100 : 0;
 
         const marketShare = currMsMap.get(brandKey) || 0;
 
@@ -6009,22 +6206,22 @@ const getBrandsOverview = async (filters) => {
             ? ((parseFloat(prev.comp_mrp_val) - parseFloat(prev.comp_actual_sales)) / parseFloat(prev.comp_mrp_val)) * 100
             : 0;
 
-        const prevSosDataObj = prevSosMap.get(brandKey) || { num: 0, den: 0 };
-        const prevSos = prevSosDataObj.den > 0 ? (prevSosDataObj.num / prevSosDataObj.den) * 100 : 0;
+        const prevSosNum = prevSosMap.get(brandKey) || 0;
+        const prevSos = prevTotalOverall > 0 ? (prevSosNum / prevTotalOverall) * 100 : 0;
 
         const prevMarketShare = prevMsMap.get(brandKey) || 0;
 
-        // Ad SOV (spons_flag=1)
-        const adSovDataObj = currAdSovMap.get(brandKey) || { num: 0, den: 0 };
-        const adSov = adSovDataObj.den > 0 ? (adSovDataObj.num / adSovDataObj.den) * 100 : 0;
-        const prevAdSovDataObj = prevAdSovMap.get(brandKey) || { num: 0, den: 0 };
-        const prevAdSov = prevAdSovDataObj.den > 0 ? (prevAdSovDataObj.num / prevAdSovDataObj.den) * 100 : 0;
+        // Ad SOV (spons)
+        const adSovNum = currAdSovMap.get(brandKey) || 0;
+        const adSov = currTotalSpons > 0 ? (adSovNum / currTotalSpons) * 100 : 0;
+        const prevAdSovNum = prevAdSovMap.get(brandKey) || 0;
+        const prevAdSov = prevTotalSpons > 0 ? (prevAdSovNum / prevTotalSpons) * 100 : 0;
 
-        // Organic SOV (spons_flag=0)
-        const orgSovDataObj = currOrgSovMap.get(brandKey) || { num: 0, den: 0 };
-        const organicSov = orgSovDataObj.den > 0 ? (orgSovDataObj.num / orgSovDataObj.den) * 100 : 0;
-        const prevOrgSovDataObj = prevOrgSovMap.get(brandKey) || { num: 0, den: 0 };
-        const prevOrganicSov = prevOrgSovDataObj.den > 0 ? (prevOrgSovDataObj.num / prevOrgSovDataObj.den) * 100 : 0;
+        // Organic SOV (organic)
+        const orgSovNum = currOrgSovMap.get(brandKey) || 0;
+        const organicSov = currTotalOrganic > 0 ? (orgSovNum / currTotalOrganic) * 100 : 0;
+        const prevOrgSovNum = prevOrgSovMap.get(brandKey) || 0;
+        const prevOrganicSov = prevTotalOrganic > 0 ? (prevOrgSovNum / prevTotalOrganic) * 100 : 0;
 
         return {
             key: brandKey.replace(/\s+/g, '_'),
@@ -6312,6 +6509,7 @@ const getKpiTrends = async (filters) => {
         const adSales = parseFloat(row.total_ad_sales || 0);
         const adSpend = parseFloat(row.total_ad_spend || 0);
         const adOrders = parseFloat(row.total_ad_orders || 0);
+        const adImpressions = parseFloat(row.total_ad_impressions || 0);
         const adClicks = parseFloat(row.total_ad_clicks || 0);
 
         // Calculate Pricing KPIs
@@ -6345,8 +6543,8 @@ const getKpiTrends = async (filters) => {
         // 2. Inorganic Sales (Ad Sales / Total Sales * 100)
         const inorganicSales = totalSales > 0 ? (adSales / totalSales) * 100 : 0;
 
-        // 3. Conversion (Orders / Clicks * 100)
-        const conversion = adClicks > 0 ? (adOrders / adClicks) * 100 : 0;
+        // 3. Conversion (Orders / Impressions * 100)
+        const conversion = adImpressions > 0 ? (adOrders / adImpressions) * 100 : 0;
 
         // 4. ROAS (Ad Sales / Ad Spend)
         const roas = adSpend > 0 ? adSales / adSpend : 0;
@@ -6361,7 +6559,6 @@ const getKpiTrends = async (filters) => {
         const spend = adSpend;
 
         // 8. CPM (Cost Per Thousand Impressions)
-        const adImpressions = parseFloat(row.total_ad_impressions || 0);
         const cpm = adImpressions > 0 ? (adSpend / adImpressions) * 1000 : 0;
 
         // 9. CPC (Cost Per Click)
@@ -6729,13 +6926,13 @@ const getCompetitionData = async (filters = {}) => {
             `),
             // Query 9: SOS Neno (Per Brand) from rb_kw_olap - Current Period (countIf overall=1)
             queryClickHouse(`
-                SELECT brand_name_th, sum(toInt32(overall)) AS overall_neno
+                SELECT brand, sum(toInt32(overall)) AS overall_neno
                 FROM rb_kw_olap
                 WHERE toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
-                GROUP BY brand_name_th
+                GROUP BY brand
             `),
             // Query 10: SOS Deno (Overall) from rb_kw_olap - MoM Period
             queryClickHouse(`
@@ -6746,15 +6943,15 @@ const getCompetitionData = async (filters = {}) => {
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
             `),
-            // Query 11: SOS Neno (Per Brand) from rb_kw_olap - MoM Period (countIf overall=1)
+            // Query 11: SOS Neno (Per Brand) from rb_kw_olap - MoM Period (sumIf overall=1)
             queryClickHouse(`
-                SELECT brand_name_th, sum(toInt32(overall)) AS overall_neno
+                SELECT brand, sum(toInt32(overall)) AS overall_neno
                 FROM rb_kw_olap
                 WHERE toDate(DATE) BETWEEN '${momStartDate.format('YYYY-MM-DD')}' AND '${momEndDate.format('YYYY-MM-DD')}'
                   ${platArr && platArr.length > 0 ? `AND lower(platform_name) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : ''}
                   ${locArr && locArr.length > 0 ? `AND lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})` : ''}
                   ${catArr && catArr.length > 0 ? `AND lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})` : ''}
-                GROUP BY brand_name_th
+                GROUP BY brand
             `),
             // Query 12: SKU SOS Neno (Per Product) from rb_kw_olap - Current Period (countIf overall=1)
             queryClickHouse(`
@@ -6787,9 +6984,9 @@ const getCompetitionData = async (filters = {}) => {
 
         // Extract SOS values from Query 8-13
         const sosDeno = parseFloat(sosDenoData[0]?.overall_deno || 0);
-        const sosNenoMap = new Map(sosNenoData.map(r => [r.brand_name_th?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
+        const sosNenoMap = new Map(sosNenoData.map(r => [r.brand?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
         const sosDenoPrev = parseFloat(sosDenoDataPrev[0]?.overall_deno || 0);
-        const sosNenoMapPrev = new Map(sosNenoDataPrev.map(r => [r.brand_name_th?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
+        const sosNenoMapPrev = new Map(sosNenoDataPrev.map(r => [r.brand?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
 
         const skuSosNenoMap = new Map(skuSosNenoData.map(r => [r.Product?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
         const skuSosNenoMapPrev = new Map(skuSosNenoDataPrev.map(r => [r.Product?.toLowerCase(), parseFloat(r.overall_neno || 0)]));
@@ -7677,7 +7874,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             } else {
                 targetMsConds = [...msBaseConds, `lower(group_brand) = '${targetEscaped}'`];
                 // For brands, search both the brand column AND the product name to handle parent brands (e.g. Snickers vs Mars)
-                targetKwConds = [...kwBaseConds, `(lower(brand_name_th) = '${targetEscaped}' OR lower(keyword_search_product) LIKE '%${targetEscaped}%')`];
+                targetKwConds = [...kwBaseConds, `(lower(brand) = '${targetEscaped}' OR lower(keyword_search_product) LIKE '%${targetEscaped}%')`];
             }
 
             // Parallel queries: main metrics from dynamic source and sales from rb_brand_ms
@@ -8375,7 +8572,7 @@ const getRcaData = async (filters = {}) => {
                     sum(toInt32(spons)) as ad_rb_neno,
                     sum(toInt32(organic)) as organic_rb_neno,
                     SUM(CASE WHEN flag = '0' THEN 0 ELSE toInt32(overall) END) as comp_neno,
-                    COUNT(DISTINCT store_addr) as store_count
+                    COUNT(DISTINCT location_name) as store_count
                     FROM rb_kw_olap
                     WHERE ${baseConditions.join(' AND ')} AND toString(flag) = '1'
             ),
@@ -8384,7 +8581,7 @@ const getRcaData = async (filters = {}) => {
                     sum(toInt32(overall)) as deno,
                     sum(toInt32(spons)) as ad_deno,
                     sum(toInt32(organic)) as organic_deno,
-                    COUNT(DISTINCT store_addr) as total_store_count
+                    COUNT(DISTINCT location_name) as total_store_count
                     FROM rb_kw_olap
                     WHERE ${baseConditions.join(' AND ')}
             )
@@ -8741,7 +8938,7 @@ const getSkuOverview = async (filters) => {
         const pCond = buildPlatformChannelCond(skuPlatform, channel, 'platform_name');
         if (pCond) conds.push(pCond);
         if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `brand_name_th LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+            conds.push(`(${brandArr.map(b => `brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
         }
         if (locationArr && locationArr.length > 0) {
             conds.push(`location_name IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
@@ -8880,7 +9077,7 @@ const getSkuOverview = async (filters) => {
 
         const availability = deno > 0 ? (neno / deno) * 100 : 0;
         const roas = spend > 0 ? adSales / spend : 0;
-        const conversion = clicks > 0 ? (orders / clicks) * 100 : 0;
+        const conversion = impressions > 0 ? (orders / impressions) * 100 : 0;
         const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
         const cpc = clicks > 0 ? spend / clicks : 0;
 
@@ -9132,7 +9329,7 @@ const getCityOverview = async (filters) => {
 
         const availability = deno > 0 ? (neno / deno) * 100 : 0;
         const roas = spend > 0 ? adSales / spend : 0;
-        const conversion = clicks > 0 ? (orders / clicks) * 100 : 0;
+        const conversion = impressions > 0 ? (orders / impressions) * 100 : 0;
         const cpm = impressions > 0 ? (spend / impressions) * 1000 : 0;
         const cpc = clicks > 0 ? spend / clicks : 0;
 
@@ -9156,7 +9353,7 @@ const getCityOverview = async (filters) => {
 
         const prevAvailability = prevDeno > 0 ? (prevNeno / prevDeno) * 100 : 0;
         const prevRoas = prevSpend > 0 ? prevAdSales / prevSpend : 0;
-        const prevConversion = prevClicks > 0 ? (prevOrders / prevClicks) * 100 : 0;
+        const prevConversion = prevImpressions > 0 ? (prevOrders / prevImpressions) * 100 : 0;
         const prevCpm = prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : 0;
         const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
 
@@ -9243,7 +9440,7 @@ const getPerformanceBreakdownData = async (filters) => {
                 if (${total_spends} > 0, (group_spends / ${total_spends}) * 100, 0) AS spend_percent_share,
                 if (group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
             SUM(${src.f.quantitySold}) AS group_orders,
-                if (group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
+                if (group_impressions > 0, (group_orders / group_impressions) * 100, 0) AS cvr,
             SUM(${src.f.sales}) AS group_sales
             FROM ${src.table}
             WHERE ${compFlagCol} = 0
@@ -9281,7 +9478,7 @@ const getPerformanceBreakdownData = async (filters) => {
                 spends,
                 cpc: clicks > 0 ? spends / clicks : 0,
                 orders,
-                cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
+                cvr: impressions > 0 ? (orders / impressions) * 100 : 0,
                 sales
             };
         });
@@ -9293,7 +9490,7 @@ const getPerformanceBreakdownData = async (filters) => {
 
         totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
         totals.cpc = totals.clicks > 0 ? (totals.spends / totals.clicks) : 0;
-        totals.cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
+        totals.cvr = totals.impressions > 0 ? (totals.orders / totals.impressions) * 100 : 0;
 
         // ── Period Comparison ───────────────────────────────────────────────
         let period_comparison = null;
