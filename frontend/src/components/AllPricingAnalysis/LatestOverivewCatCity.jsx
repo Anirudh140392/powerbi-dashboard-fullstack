@@ -26,10 +26,10 @@ const copy = (title, value) => {
 };
 
 const cardSize = {
-    minW: 'min-w-[155px]',
-    py: 'py-2.5',
-    text: 'text-[15px]',
-    delta: 'text-[10px]'
+    minW: 'min-w-[100px] sm:min-w-[125px]',
+    py: 'py-2.5 sm:py-3',
+    text: 'text-sm sm:text-lg',
+    delta: 'text-[10px] sm:text-[11px]'
 };
 
 const kpiLabels = {
@@ -79,8 +79,10 @@ const LatestOverivewCatCity = ({
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     const [advancedFilters, setAdvancedFilters] = useState({
+        brands: [],
         categories: [],
-        cities: [],
+        platforms: [],
+        skus: [],
         dateFrom: '',
         dateTo: '',
         kpis: ['discount', 'rpi', 'asp'],
@@ -128,33 +130,47 @@ const LatestOverivewCatCity = ({
     useEffect(() => {
         if (!datesInitialized) return;
         let isMounted = true;
+        
         const toParam = (val) => {
             if (!val) return null;
             if (Array.isArray(val)) return val.length > 0 ? val.join(',') : null;
-            return val; // already a string
+            return val;
         };
+
         const fetchData = async () => {
             setIsLoading(true);
             try {
                 const params = new URLSearchParams();
-                // Note: skip channel filter - rb_pdp_olap.CHANNEL values differ from global filter values
-                const pl = toParam(globalPlatform); if (pl) params.append('platform', pl);
-                const br = toParam(selectedBrand); if (br) params.append('brand', br);
-                const ca = toParam(selectedCategory); if (ca) params.append('category', ca);
-                const lo = toParam(selectedLocation); if (lo) params.append('location', lo);
-                const ch = toParam(selectedChannel); if (ch) params.append('channel', ch);
+                
+                // Use advanced filters if sets, otherwise fall back to global context filters
+                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : globalPlatform); 
+                if (pl) params.append('platform', pl);
+                
+                const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
+                if (br) params.append('brand', br);
+                
+                const ca = toParam(advancedFilters.categories?.length > 0 ? advancedFilters.categories : selectedCategory); 
+                if (ca) params.append('category', ca);
+                
+                const lo = toParam(selectedLocation); 
+                if (lo) params.append('location', lo);
+                
+                const ch = toParam(selectedChannel); 
+                if (ch) params.append('channel', ch);
 
                 params.append('dimension', dimension);
-                if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
-                if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
+                
+                // Date overrides from advanced filters
+                const start = advancedFilters.dateFrom || (typeof timeStart === 'string' ? timeStart : timeStart?.format('YYYY-MM-DD'));
+                const end = advancedFilters.dateTo || (typeof timeEnd === 'string' ? timeEnd : timeEnd?.format('YYYY-MM-DD'));
+                
+                if (start) params.append('startDate', start);
+                if (end) params.append('endDate', end);
 
                 const url = `/pricing-analysis/dimension-overview?${params.toString()}`;
                 console.log('[CategoryOverview] Fetching:', url);
                 const response = await axiosInstance.get(url);
-                console.log('[CategoryOverview] Response:', response.data?.success, 'rows:', response.data?.data?.length);
-                if (response.data?.data?.length > 0) {
-                    console.log('[CategoryOverview] First row:', response.data.data[0]);
-                }
+                
                 if (isMounted && response.data?.success) {
                     setApiData(response.data.data);
                 }
@@ -166,7 +182,7 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized]);
+    }, [dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
 
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
@@ -174,8 +190,12 @@ const LatestOverivewCatCity = ({
     }
 
     const activeDimensionFilters = [
+        advancedFilters.brands?.length > 0,
         advancedFilters.categories?.length > 0,
-        advancedFilters.cities?.length > 0,
+        advancedFilters.platforms?.length > 0,
+        advancedFilters.skus?.length > 0,
+        advancedFilters.dateFrom !== '',
+        advancedFilters.dateTo !== '',
     ].filter(Boolean).length
 
     const currentDimension = dimensionData[dimension]
@@ -186,17 +206,17 @@ const LatestOverivewCatCity = ({
         let list = [...apiData];
 
         // Apply dimension-specific advanced filters locally
-        if (dimension === 'category' && advancedFilters.categories?.length > 0) {
-            list = list.filter(e => advancedFilters.categories.includes(e.name));
+        if (dimension === 'category' && advancedFilters.skus?.length > 0) {
+            list = list.filter(e => advancedFilters.skus.includes(e.key));
         }
         if (dimension === 'city') {
             // Apply Tier filter first (using lowercase for robust comparison)
             const tierCities = CITY_TIERS[selectedTier] || [];
             list = list.filter(e => tierCities.includes(e.key));
 
-            // Then apply advanced filters if any
-            if (advancedFilters.cities?.length > 0) {
-                list = list.filter(e => advancedFilters.cities.includes(e.key));
+            // Then apply advanced filters if any (City Filter uses 'skus' key in modal)
+            if (advancedFilters.skus?.length > 0) {
+                list = list.filter(e => advancedFilters.skus.includes(e.key));
             }
         }
 
@@ -415,7 +435,7 @@ const LatestOverivewCatCity = ({
                                 ) : entities.map((e) => (
                                     <motion.div
                                         key={e.key}
-                                        className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
+                                        className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50/50 transition-colors group"
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ duration: 0.3 }}
@@ -428,6 +448,25 @@ const LatestOverivewCatCity = ({
                                             >
                                                 {e.name}
                                             </span>
+
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        onViewTrends(e.name, currentDimension.label, dimension);
+                                                    }}
+                                                    className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                                                    title="View Trends"
+                                                >
+                                                    <LineChart size={14} />
+                                                </button>
+                                                <div
+                                                    className="p-1 text-slate-300 cursor-default"
+                                                    title="Map Analysis (Coming Soon)"
+                                                >
+                                                    <MapPin size={14} />
+                                                </div>
+                                            </div>
                                         </div>
 
                                         {/* KPI Cards */}
@@ -458,7 +497,7 @@ const LatestOverivewCatCity = ({
                                                         'absolute inset-0 opacity-10 rounded-xl',
                                                         isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
                                                     )} />
-                                                    <div className={cn('font-bold text-slate-900 tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                                    <div className={cn('font-black text-black tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
                                                         {cell?.value}
                                                     </div>
                                                     <div className={cn('font-bold flex items-center justify-center gap-0.5 mt-0.5 relative z-10', textColor, cardSize.delta)}>
