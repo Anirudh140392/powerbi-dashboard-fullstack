@@ -122,6 +122,14 @@ export default function VisibilityAnalysis() {
     });
   }, [platform, selectedBrand, selectedLocation, selectedKeyword, selectedCategory, timeStart, timeEnd]);
 
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
+
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Weekly",

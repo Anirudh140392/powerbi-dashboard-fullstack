@@ -141,7 +141,7 @@ const filterTree = (node, search, minImp, categoryFilter, activeFilters) => {
   const matchesImp = !minImp || node.agg.impressions >= minImp;
 
   // existing single-select category filter
-  const matchesCategorySelect = !categoryFilter || categoryFilter === "All" || node.category === categoryFilter;
+  const matchesCategorySelect = !categoryFilter || node.category === categoryFilter;
 
   // new multi-select filters from modal
   const matchesMultiCategory =
@@ -193,7 +193,7 @@ export default function KeywordAnalysisTable() {
   const [expandedNodes, setExpandedNodes] = useState({});
   const [search, setSearch] = useState("");
   const [monthFilter, setMonthFilter] = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [minImpressions, setMinImpressions] = useState("");
   const [backendCategories, setBackendCategories] = useState([]);
   const [apiData, setApiData] = useState([]);
@@ -620,9 +620,6 @@ export default function KeywordAnalysisTable() {
                 },
               }}
             >
-              <MenuItem value="All" sx={{ fontSize: 12, fontWeight: 500 }}>
-                All Categories
-              </MenuItem>
               {filterOptions.categories.map((c) => (
                 <MenuItem key={c.label} value={c.label} sx={{ fontSize: 12 }}>
                   {c.label}

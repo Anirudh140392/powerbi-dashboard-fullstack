@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
-import { Container, Box, useTheme } from "@mui/material";
+import { Container, Box, useTheme, Skeleton } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -186,8 +186,17 @@ export default function WatchTower() {
     selectedLocation,
     selectedChannel,
     datesFetched,
-    platformsFetched
+    platformsFetched,
+    refreshFilters
   } = React.useContext(FilterContext);
+
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
 
   // --- DETERMINISTIC JITTER FOR FRONTEND-ONLY VARIATION ---
   const getJitter = (baseVal, kpiKey) => {
@@ -373,6 +382,18 @@ export default function WatchTower() {
     }));
   }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
+  // Sync loading state with filter changes to prevent one-frame flicker
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
+
+  if (prevFilterKey !== currentFilterKey) {
+    setPrevFilterKey(currentFilterKey);
+    setLoading(true);
+    setCategoryDataLoading(true);
+    setPerformanceLoading(true);
+    setFetchError(null);
+  }
+
   // Single debounced data-fetch effect — reads context directly, no intermediate state
   useEffect(() => {
     if (!datesFetched || !platformsFetched) {
@@ -382,17 +403,13 @@ export default function WatchTower() {
 
     const currentFetchId = ++fetchIdRef.current;
 
-    setLoading(true);
-    setFetchError(null);
-    setCategoryDataLoading(true);
-    setPerformanceLoading(true);
-
     const debounceTimer = setTimeout(async () => {
       // If another update arrived while we were waiting, skip this one
       if (currentFetchId !== fetchIdRef.current) return;
 
       const params = {
         platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+        brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
         location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
         keyword: selectedKeyword || undefined,
@@ -455,10 +472,10 @@ export default function WatchTower() {
           setPerformanceLoading(false);
         });
 
-    }, 800);
+    }, 1000);
 
     return () => clearTimeout(debounceTimer);
-  }, [platform, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd, compareStart, compareEnd, datesFetched, platformsFetched]);
+  }, [platform, selectedBrand, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd, compareStart, compareEnd, datesFetched, platformsFetched]);
 
   // Memoize the PerformanceBreakdownProvider filters to prevent child re-renders
   const perfBreakdownFilters = useMemo(() => ({
@@ -679,7 +696,7 @@ export default function WatchTower() {
             />
           </Box> */}
 
-          <FormatPerformanceStudio rows={FORMAT_ROWS} />
+          <FormatPerformanceStudio rows={FORMAT_ROWS} loading={categoryDataLoading} />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -725,7 +742,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows }) => {
+const FormatPerformanceStudio = ({ rows, loading }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -867,241 +884,266 @@ const FormatPerformanceStudio = ({ rows }) => {
         </div>
 
         <div className="space-y-2 max-h-150 overflow-y-auto pr-1 ">
-          {rows.map((f, index) => {
-            const isActive = f.name === activeName;
+          {loading ? (
+            Array.from(new Array(5)).map((_, index) => (
+              <Box key={`skeleton-row-${index}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, mb: 1, border: '1px solid', borderColor: 'grey.200', borderRadius: 4 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Skeleton variant="circular" width={32} height={24} sx={{ borderRadius: 4 }} />
+                  <Box>
+                    <Skeleton variant="text" width={120} height={20} />
+                    <Skeleton variant="text" width={180} height={14} />
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <Skeleton variant="text" width={60} height={14} />
+                  <Skeleton variant="text" width={50} height={14} />
+                </Box>
+              </Box>
+            ))
+          ) : (
+            rows.map((f, index) => {
+              const isActive = f.name === activeName;
 
-            return (
-              <motion.button
-                key={f.name}
-                onMouseEnter={() => setActiveName(f.name)}
-                onClick={() => setActiveName(f.name)}
-                className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
-                  ? "border-sky-400 bg-sky-50 shadow-sm"
-                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                  }`}
-                whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
-                transition={{ type: "spring", stiffness: 260, damping: 20 }}
-              >
-                {/* LEFT SIDE */}
-                <div className="flex items-center gap-2">
-                  {/* NUMBER BADGE */}
-                  <div
-                    className="px-3 h-6 rounded-full bg-slate-100 text-gray-500
-             text-[11px] font-semibold flex items-center justify-center
-             transition-colors duration-100
-             group-hover:bg-sky-500 group-hover:text-white"
-                  >
-                    #{index + 1}
-                  </div>
-
-                  {/* TEXT */}
-                  <div className="text-left">
-                    <div
-                      className="font-medium"
-                      style={{
-                        fontFamily: "Roboto, sans-serif",
-                        fontWeight: 700,
-                        fontSize: "0.95rem",
-                      }}
-                    >
-                      {f.name}
-                    </div>
-                    <div
-                      className="text-[10px] text-slate-500"
-                      style={{
-                        fontFamily: "Roboto, sans-serif",
-                        fontWeight: 400,
-                        fontSize: "0.75rem",
-                      }}
-                    >
-                      Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {f.roas.toFixed(1)}x
-                    </div>
-                  </div>
-                </div>
-
-                {/* RIGHT SIDE */}
-                <div
-                  className="flex flex-col items-end text-[10px] text-slate-500"
-                  style={{
-                    fontFamily: "Roboto, sans-serif",
-                    fontWeight: 500,
-                    fontSize: "0.75rem",
-                  }}
+              return (
+                <motion.button
+                  key={f.name}
+                  onMouseEnter={() => setActiveName(f.name)}
+                  onClick={() => setActiveName(f.name)}
+                  className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
+                    ? "border-sky-400 bg-sky-50 shadow-sm"
+                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                    }`}
+                  whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
+                  transition={{ type: "spring", stiffness: 260, damping: 20 }}
                 >
-                  <span>MS {f.marketSharePct}%</span>
-                  <span>Conv {f.conversionPct}%</span>
-                </div>
-              </motion.button>
-            );
-          })}
+                  {/* LEFT SIDE */}
+                  <div className="flex items-center gap-2">
+                    {/* NUMBER BADGE */}
+                    <div
+                      className="px-3 h-6 rounded-full bg-slate-100 text-gray-500
+               text-[11px] font-semibold flex items-center justify-center
+               transition-colors duration-100
+               group-hover:bg-sky-500 group-hover:text-white"
+                    >
+                      #{index + 1}
+                    </div>
+
+                    {/* TEXT */}
+                    <div className="text-left">
+                      <div
+                        className="font-medium"
+                        style={{
+                          fontFamily: "Roboto, sans-serif",
+                          fontWeight: 700,
+                          fontSize: "0.95rem",
+                        }}
+                      >
+                        {f.name}
+                      </div>
+                      <div
+                        className="text-[10px] text-slate-500"
+                        style={{
+                          fontFamily: "Roboto, sans-serif",
+                          fontWeight: 400,
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {f.roas.toFixed(1)}x
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RIGHT SIDE */}
+                  <div
+                    className="flex flex-col items-end text-[10px] text-slate-500"
+                    style={{
+                      fontFamily: "Roboto, sans-serif",
+                      fontWeight: 500,
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    <span>MS {f.marketSharePct}%</span>
+                    <span>Conv {f.conversionPct}%</span>
+                  </div>
+                </motion.button>
+              );
+            })
+          )}
         </div>
       </div>
 
       <div className="md:col-span-3 relative">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={active.name + (compare?.name ?? "")}
-            className="h-full rounded-3xl bg-gradient-to-br bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.35 }}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
-                  {compare ? "Focus format · VS mode" : "Focus format"}
+        {loading ? (
+          <Box className="h-full rounded-3xl bg-gradient-to-br bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4 items-center justify-center">
+            <Skeleton variant="circular" width={160} height={160} />
+            <Skeleton variant="text" width={200} height={30} sx={{ mt: 2 }} />
+            <Skeleton variant="rectangular" width="100%" height={100} sx={{ mt: 2, borderRadius: 2 }} />
+          </Box>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={active.name + (compare?.name ?? "")}
+              className="h-full rounded-3xl bg-gradient-to-br bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.35 }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
+                    {compare ? "Focus format · VS mode" : "Focus format"}
+                  </div>
+                  <div className="text-xl font-semibold">
+                    {active.name}
+                    {compare && (
+                      <span className="text-sm font-normal text-slate-500">
+                        {" "}
+                        vs {compare.name}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Offtakes, ROAS, conversion and share in one view.
+                  </p>
                 </div>
-                <div className="text-xl font-semibold">
-                  {active.name}
+                <div className="flex flex-col items-end gap-1 text-right">
+                  <div className="text-[10px] text-slate-500">Offtakes</div>
+                  <div className="text-lg font-semibold">
+                    ₹{formatCurrencyShort(active.offtakes)}
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-500">
+                    Market share
+                  </div>
+                  <div className="text-sm font-medium">
+                    {active.marketSharePct}%
+                  </div>
                   {compare && (
-                    <span className="text-sm font-normal text-slate-500">
-                      {" "}
-                      vs {compare.name}
-                    </span>
+                    <div className="mt-1 text-[10px] text-rose-500">
+                      Delta ROAS{" "}
+                      {Number.isFinite(compare.roas)
+                        ? (active.roas - compare.roas).toFixed(1)
+                        : "-"}
+                      x vs {compare.name}
+                    </div>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Offtakes, ROAS, conversion and share in one view.
-                </p>
               </div>
-              <div className="flex flex-col items-end gap-1 text-right">
-                <div className="text-[10px] text-slate-500">Offtakes</div>
-                <div className="text-lg font-semibold">
-                  ₹{formatCurrencyShort(active.offtakes)}
-                </div>
-                <div className="mt-1 text-[10px] text-slate-500">
-                  Market share
-                </div>
-                <div className="text-sm font-medium">
-                  {active.marketSharePct}%
-                </div>
-                {compare && (
-                  <div className="mt-1 text-[10px] text-rose-500">
-                    Delta ROAS{" "}
-                    {Number.isFinite(compare.roas)
-                      ? (active.roas - compare.roas).toFixed(1)
-                      : "-"}
-                    x vs {compare.name}
-                  </div>
-                )}
-              </div>
-            </div>
 
-            <div className="flex gap-4">
-              <div className="relative h-24 w-24">
-                <svg viewBox="0 0 100 100" className="h-full w-full">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="38"
-                    stroke="rgba(148,163,184,0.25)"
-                    strokeWidth="8"
-                    fill="none"
-                  />
-                  {compare && Number.isFinite(compare.roas) && (
+              <div className="flex gap-4">
+                <div className="relative h-24 w-24">
+                  <svg viewBox="0 0 100 100" className="h-full w-full">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="38"
+                      stroke="rgba(148,163,184,0.25)"
+                      strokeWidth="8"
+                      fill="none"
+                    />
+                    {compare && Number.isFinite(compare.roas) && (
+                      <motion.circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        stroke="#a855f7"
+                        strokeWidth="4"
+                        fill="none"
+                        strokeLinecap="round"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: clamp01(compare.roas / 12) }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                        style={{ transformOrigin: "50% 50%", rotate: "-90deg" }}
+                        opacity={0.6}
+                      />
+                    )}
                     <motion.circle
                       cx="50"
                       cy="50"
                       r="38"
-                      stroke="#a855f7"
-                      strokeWidth="4"
+                      stroke="url(#roasGradient)"
+                      strokeWidth="8"
                       fill="none"
                       strokeLinecap="round"
                       initial={{ pathLength: 0 }}
-                      animate={{ pathLength: clamp01(compare.roas / 12) }}
+                      animate={{ pathLength: clamp01(active.roas / 12) }}
                       transition={{ duration: 0.6, ease: "easeOut" }}
                       style={{ transformOrigin: "50% 50%", rotate: "-90deg" }}
-                      opacity={0.6}
                     />
-                  )}
-                  <motion.circle
-                    cx="50"
-                    cy="50"
-                    r="38"
-                    stroke="url(#roasGradient)"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeLinecap="round"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: clamp01(active.roas / 12) }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    style={{ transformOrigin: "50% 50%", rotate: "-90deg" }}
-                  />
-                  <defs>
-                    <linearGradient
-                      id="roasGradient"
-                      x1="0"
-                      x2="1"
-                      y1="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor="#0ea5e9" />
-                      <stop offset="100%" stopColor="#6366f1" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
-                  <div className="text-[10px] text-slate-500">ROAS</div>
-                  <div className="text-lg font-semibold">
-                    {active.roas.toFixed(1)}x
-                  </div>
-                  {compare && (
-                    <div className="text-[9px] text-violet-600 mt-0.5">
-                      vs {compare.roas.toFixed(1)}x
+                    <defs>
+                      <linearGradient
+                        id="roasGradient"
+                        x1="0"
+                        x2="1"
+                        y1="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#0ea5e9" />
+                        <stop offset="100%" stopColor="#6366f1" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
+                    <div className="text-[10px] text-slate-500">ROAS</div>
+                    <div className="text-lg font-semibold">
+                      {active.roas.toFixed(1)}x
                     </div>
-                  )}
+                    {compare && (
+                      <div className="text-[9px] text-violet-600 mt-0.5">
+                        vs {compare.roas.toFixed(1)}x
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  {kpiBands.map((k) => {
+                    const activeRatio = clamp01(k.activeValue / k.max);
+                    const compareRatio =
+                      k.compareValue != null
+                        ? clamp01(k.compareValue / k.max)
+                        : null;
+                    return (
+                      <div key={k.key} className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-600">{k.label}</span>
+                          <div className="flex items-center gap-2">
+                            {compareRatio != null &&
+                              Number.isFinite(k.compareValue) && (
+                                <span className="text-[10px] text-violet-600">
+                                  {k.format(k.compareValue)}
+                                </span>
+                              )}
+                            <span className="font-medium">
+                              {Number.isFinite(k.activeValue)
+                                ? k.format(k.activeValue)
+                                : "NaN"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">
+                          {compareRatio != null && (
+                            <motion.div
+                              className="absolute inset-y-[3px] left-0 rounded-full bg-violet-300/70"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${compareRatio * 100}%` }}
+                              transition={{ duration: 0.45, ease: "easeOut" }}
+                            />
+                          )}
+                          <motion.div
+                            className="relative h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${activeRatio * 100}%` }}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="flex-1 space-y-2">
-                {kpiBands.map((k) => {
-                  const activeRatio = clamp01(k.activeValue / k.max);
-                  const compareRatio =
-                    k.compareValue != null
-                      ? clamp01(k.compareValue / k.max)
-                      : null;
-                  return (
-                    <div key={k.key} className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-600">{k.label}</span>
-                        <div className="flex items-center gap-2">
-                          {compareRatio != null &&
-                            Number.isFinite(k.compareValue) && (
-                              <span className="text-[10px] text-violet-600">
-                                {k.format(k.compareValue)}
-                              </span>
-                            )}
-                          <span className="font-medium">
-                            {Number.isFinite(k.activeValue)
-                              ? k.format(k.activeValue)
-                              : "NaN"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">
-                        {compareRatio != null && (
-                          <motion.div
-                            className="absolute inset-y-[3px] left-0 rounded-full bg-violet-300/70"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${compareRatio * 100}%` }}
-                            transition={{ duration: 0.45, ease: "easeOut" }}
-                          />
-                        )}
-                        <motion.div
-                          className="relative h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${activeRatio * 100}%` }}
-                          transition={{ duration: 0.5, ease: "easeOut" }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* <div className="mt-2 flex flex-wrap gap-2 justify-center">
+              {/* <div className="mt-2 flex flex-wrap gap-2 justify-center">
               {FORMAT_ROWS.map((f) => {
                 const weight = clamp01(f.roas / 12);
                 const isCompare = compareName === f.name;
@@ -1140,77 +1182,78 @@ const FormatPerformanceStudio = ({ rows }) => {
                 );
               })}
             </div> */}
-            <div className="mt-2 flex flex-wrap gap-2 justify-center">
-              {/* PILLS */}
-              {visibleItems.map((f) => {
-                const weight = clamp01(f.roas / 12);
-                const isCompare = compareName === f.name;
-                const isActive = activeName === f.name;
+              <div className="mt-2 flex flex-wrap gap-2 justify-center">
+                {/* PILLS */}
+                {visibleItems.map((f) => {
+                  const weight = clamp01(f.roas / 12);
+                  const isCompare = compareName === f.name;
+                  const isActive = activeName === f.name;
 
-                return (
-                  <motion.button
-                    key={f.name}
-                    onClick={() =>
-                      setCompareName((prev) =>
-                        prev === f.name ? null : f.name
-                      )
-                    }
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
-                      ? "border-violet-500 bg-violet-50 shadow-sm"
-                      : "border-slate-200 bg-white/80 hover:bg-slate-50"
-                      }`}
-                    whileHover={{ y: -2 }}
-                  >
-                    <div
-                      className="h-2 w-10 rounded-full"
-                      style={{
-                        background: `linear-gradient(to right,
+                  return (
+                    <motion.button
+                      key={f.name}
+                      onClick={() =>
+                        setCompareName((prev) =>
+                          prev === f.name ? null : f.name
+                        )
+                      }
+                      className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
+                        ? "border-violet-500 bg-violet-50 shadow-sm"
+                        : "border-slate-200 bg-white/80 hover:bg-slate-50"
+                        }`}
+                      whileHover={{ y: -2 }}
+                    >
+                      <div
+                        className="h-2 w-10 rounded-full"
+                        style={{
+                          background: `linear-gradient(to right,
                 rgba(14,165,233,${0.3 + weight * 0.4}),
                 rgba(99,102,241,${0.2 + weight * 0.5})
               )`,
-                      }}
-                    />
+                        }}
+                      />
 
-                    <span
-                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
-                        }`}
-                    >
-                      {f.name}
-                    </span>
+                      <span
+                        className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                          }`}
+                      >
+                        {f.name}
+                      </span>
 
-                    {isCompare && (
-                      <span className="text-[9px] text-violet-600">VS</span>
-                    )}
-                  </motion.button>
-                );
-              })}
+                      {isCompare && (
+                        <span className="text-[9px] text-violet-600">VS</span>
+                      )}
+                    </motion.button>
+                  );
+                })}
 
-              {/* ------------------------------- */}
-              {/*        ADD MORE & SHOW LESS     */}
-              {/* ------------------------------- */}
+                {/* ------------------------------- */}
+                {/*        ADD MORE & SHOW LESS     */}
+                {/* ------------------------------- */}
 
-              {/* ADD MORE (only if not all shown) */}
-              {visibleCount < total && (
-                <button
-                  onClick={() => setVisibleCount((prev) => prev + 7)}
-                  className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
-                >
-                  + Add more
-                </button>
-              )}
+                {/* ADD MORE (only if not all shown) */}
+                {visibleCount < total && (
+                  <button
+                    onClick={() => setVisibleCount((prev) => prev + 7)}
+                    className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
+                  >
+                    + Add more
+                  </button>
+                )}
 
-              {/* SHOW LESS (only when all are visible) */}
-              {visibleCount >= total && total > 7 && (
-                <button
-                  onClick={() => setVisibleCount(7)}
-                  className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
-                >
-                  Show less
-                </button>
-              )}
-            </div>
-          </motion.div>
-        </AnimatePresence>
+                {/* SHOW LESS (only when all are visible) */}
+                {visibleCount >= total && total > 7 && (
+                  <button
+                    onClick={() => setVisibleCount(7)}
+                    className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
+                  >
+                    Show less
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        )}
       </div>
     </motion.div>
   );

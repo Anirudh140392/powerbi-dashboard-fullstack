@@ -1,4 +1,4 @@
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
@@ -7,27 +7,36 @@ const UNITS_PER_BOX = 24; // Units per box for replenishment calculation
 // const RESTRICTED_CATEGORIES = ['Bath & Body', 'Detergent', 'Hair Care', 'Fragrance & talc']; // Removed to allow all categories
 
 const getFilterMetadata = async (whereClause, params) => {
-    const query = `
-        SELECT 
+    try {
+        const dbName = getCurrentDbName();
+        // Top-level Category is now always 'Category' in both Mars and Default PDP tables
+        const catCol = 'Category';
+
+        const query = `
+        SELECT
             Platform as platform,
             Brand as brand,
-            Category as category,
+            ${catCol} as category,
             Product as sku,
             Location as city
         FROM rb_pdp_olap
         WHERE ${whereClause}
-        GROUP BY Platform, Brand, Category, Product, Location
+        GROUP BY Platform, Brand, ${catCol}, Product, Location
     `;
 
-    const results = await queryClickHouse(query, params);
+        const results = await queryClickHouse(query, params);
 
-    return {
-        platforms: [...new Set(results.map(r => r.platform))].filter(Boolean).sort(),
-        brands: [...new Set(results.map(r => r.brand))].filter(Boolean).sort(),
-        categories: [...new Set(results.map(r => r.category))].filter(Boolean).sort(),
-        skus: [...new Set(results.map(r => r.sku))].filter(Boolean).sort(),
-        cities: [...new Set(results.map(r => r.city))].filter(Boolean).sort()
-    };
+        return {
+            platforms: [...new Set(results.map(r => r.platform))].filter(Boolean).sort(),
+            brands: [...new Set(results.map(r => r.brand))].filter(Boolean).sort(),
+            categories: [...new Set(results.map(r => r.category))].filter(Boolean).sort(),
+            skus: [...new Set(results.map(r => r.sku))].filter(Boolean).sort(),
+            cities: [...new Set(results.map(r => r.city))].filter(Boolean).sort()
+        };
+    } catch (error) {
+        console.error("❌ [InventoryAnalysis] Error fetching filter metadata:", error);
+        throw error;
+    }
 };
 
 
@@ -42,7 +51,7 @@ const inventoryAnalysisService = {
      * Get Inventory Overview with DOH, DRR, and Total Boxes Required
      * @param {Object} filters - Filter parameters
      * @param {string} filters.platform - Platform filter
-     * @param {string} filters.brand - Brand filter  
+     * @param {string} filters.brand - Brand filter
      * @param {string} filters.location - Location/City filter
      * @param {string} filters.startDate - Start date for current period
      * @param {string} filters.endDate - End date for current period
@@ -81,8 +90,10 @@ const inventoryAnalysisService = {
 
                     // RESTRICTED_CATEGORIES logic removed to allow all categories
                     if (filters.category && filters.category !== 'All') {
+                        // Category column is now standardized to 'Category'
+                        const catCol = 'Category';
                         const requested = filters.category.split(',').map(c => c.trim());
-                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
+                        where += ` AND ${catCol} IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
 
                     return where;
@@ -93,14 +104,14 @@ const inventoryAnalysisService = {
                     const where = buildSqlWhere(start, end);
                     const periodDays = end.diff(start, 'day') + 1;
                     return `
-                        SELECT 
+                        SELECT
                             sum(drr) as totalDrr,
                             sum(inventory) as totalInventory,
                             sum(poQty) as totalPoQty,
                             count() as pairCount
                         FROM (
-                            SELECT 
-                                Product, 
+                            SELECT
+                                Product,
                                 Location,
                                 argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE) as inventory,
                                 sum(ifNull(Qty_Sold, 0)) / ${periodDays} as drr,
@@ -135,13 +146,13 @@ const inventoryAnalysisService = {
 
                 // 3. Fetch Trend Data for Sparklines
                 const trendQuery = `
-                    SELECT 
+                    SELECT
                         toDate(DATE) as date,
                         sum(inventory) as inventory,
                         sum(qtySold) as qtySold,
                         sum(poQty) as poQty
                     FROM (
-                        SELECT 
+                        SELECT
                             DATE,
                             Product,
                             Location,
@@ -323,11 +334,16 @@ const inventoryAnalysisService = {
 
                     // RESTRICTED_CATEGORIES removed
                     if (filters.category && filters.category !== 'All') {
+                        const isMars = getCurrentDbName() === 'mars';
+                        const catCol = isMars ? 'Category' : 'Product_type';
                         const requested = filters.category.split(',').map(c => c.trim());
-                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
+                        where += ` AND ${catCol} IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
                     return where;
                 };
+
+                const isMars = getCurrentDbName() === 'mars';
+                const catCol = isMars ? 'Category' : 'Product_type';
 
                 let sqlWhere = buildSqlWhere(startDate, endDate);
                 const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`);
@@ -337,17 +353,19 @@ const inventoryAnalysisService = {
                         Product as sku,
                         Location as city,
                         Brand as brand,
-                        Category as category,
-                        sum(inventory) as inventory
+                        ${catCol} as category,
+                        sum(offtakeValue) as offtake_qty,
+                        argMax(Inventory, DATE) as current_inventory
                     FROM (
                         SELECT 
-                            Product, Location, Brand, Category, Platform,
-                            argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE) as inventory
+                            Product, Location, Brand, ${catCol}, Platform, DATE,
+                            Qty_Sold as offtakeValue,
+                            Inventory
                         FROM rb_pdp_olap
                         WHERE ${sqlWhere}
-                        GROUP BY Product, Location, Brand, Category, Platform
+                        GROUP BY Product, Location, Brand, ${catCol}, Platform, DATE, Qty_Sold, Inventory
                     )
-                    GROUP BY Product, Location, Brand, Category
+                    GROUP BY Product, Location, Brand, ${catCol}
                 `;
 
                 const results = await queryClickHouse(matrixQuery);
@@ -389,11 +407,16 @@ const inventoryAnalysisService = {
 
                     // RESTRICTED_CATEGORIES removed
                     if (filters.category && filters.category !== 'All') {
+                        const isMars = getCurrentDbName() === 'mars';
+                        const catCol = isMars ? 'Category' : 'Product_type';
                         const requested = filters.category.split(',').map(c => c.trim());
-                        where += ` AND Category IN (${requested.map(c => `'${c}'`).join(',')})`;
+                        where += ` AND ${catCol} IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
                     return where;
                 };
+
+                const isMars = getCurrentDbName() === 'mars';
+                const catCol = isMars ? 'Category' : 'Product_type';
 
                 let sqlWhere = buildSqlWhere(startDate, endDate);
                 const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`);
@@ -403,22 +426,22 @@ const inventoryAnalysisService = {
                         Product as sku,
                         Location as city,
                         Brand as brand,
-                        Category as category,
+                        ${catCol} as category,
                         ifNull(sum(drr), 0) as drr_qty,
                         ifNull(sum(latestStock), 0) as current_inventory,
                         ifNull(sum(poQty), 0) as req_po_qty
                     FROM (
                         SELECT 
-                            Product, Location, Brand, Category, Platform,
+                            Product, Location, Brand, ${catCol}, Platform,
                             ifNull(argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE), 0) as latestStock,
                             if(isNaN(sum(ifNull(Qty_Sold, 0)) / ${periodDays}), 0, sum(ifNull(Qty_Sold, 0)) / ${periodDays}) as drr,
                             if(isNaN(if(drr > 0, latestStock / drr, 0)), 0, if(drr > 0, latestStock / drr, 0)) as doh,
                             if(isNaN(if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)), 0, if(${THRESHOLD_DOH} > doh, (${THRESHOLD_DOH} - doh) * drr, 0)) as poQty
                         FROM rb_pdp_olap
                         WHERE ${sqlWhere}
-                        GROUP BY Product, Location, Brand, Category, Platform
+                        GROUP BY Product, Location, Brand, ${catCol}, Platform
                     )
-                    GROUP BY Product, Location, Brand, Category
+                    GROUP BY Product, Location, Brand, ${catCol}
                 `;
 
                 console.log("🔍 [InventoryAnalysis] Executing Matrix Query:", matrixQuery.substring(0, 500));

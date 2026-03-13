@@ -189,7 +189,7 @@ const PlatformOverviewNew = ({
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const [apiData, setApiData] = useState({})
-    const [apiLoading, setApiLoading] = useState(false)
+    const [apiLoading, setApiLoading] = useState(true)
     const [apiError, setApiError] = useState(null)
     const [isRetrying, setIsRetrying] = useState(false)
     const [productOptions, setProductOptions] = useState([])
@@ -322,20 +322,29 @@ const PlatformOverviewNew = ({
         }
     }, [dimension, filterKey, compareStart, compareEnd]);
 
+    // Sync loading state with filterKey changes to prevent flicker
+    const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+    if (prevFilterKey !== filterKey) {
+        setPrevFilterKey(filterKey);
+        setApiLoading(true);
+        setApiError(null);
+    }
+
     useEffect(() => {
         // Wait for essential context data
         if (!datesFetched || !platformsFetched) return;
 
         const currentFetchId = ++fetchIdRef.current;
-        setApiLoading(true);
+        // The synchronous state update above handles the initial setApiLoading(true)
+        // without waiting for the useEffect/paint cycle.
 
         const debounceTimer = setTimeout(() => {
             if (currentFetchId !== fetchIdRef.current) return;
             fetchDimensionData(currentFetchId)
-        }, 800);
+        }, 1000);
 
         return () => clearTimeout(debounceTimer);
-    }, [filterKey, datesFetched, platformsFetched, fetchDimensionData])
+    }, [filterKey, datesFetched, platformsFetched, fetchDimensionData]);
 
     // Fetch product/SKU options from DB for the filter dropdown
     useEffect(() => {
@@ -619,8 +628,8 @@ const PlatformOverviewNew = ({
                                 )}
                             </button>
                         </div>
-                    ) : entities.length === 0 ? (
-                        /* No data state */
+                    ) : entities.length === 0 && apiData[dimension] !== undefined ? (
+                        /* No data state - only show if fetch completed and returned nothing */
                         <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center min-h-[150px] gap-2">
                             <p className="text-sm text-slate-400 font-medium">No data available for the current selection</p>
                         </div>

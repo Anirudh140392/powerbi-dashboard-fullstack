@@ -127,6 +127,14 @@ export default function SalesMainPage() {
     fetchSalesOverview();
   }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, fetchSalesOverview]);
 
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
+
   return (
     <CommonContainer
       title="Sales"

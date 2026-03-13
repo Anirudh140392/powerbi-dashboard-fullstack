@@ -4,7 +4,7 @@
  * For the Discount Trend drilldown table on Pricing Analysis page
  */
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
@@ -49,9 +49,12 @@ async function getDiscountByCategory(filters = {}) {
         const platforms = await getAvailablePlatforms(replacements);
         console.log('[DiscountTrendService] Available platforms:', platforms);
 
+        const isMars = getCurrentDbName() === 'mars';
+        const catCol = isMars ? 'Product_type' : 'Category';
+
         const query = `
         SELECT
-            p.Category,
+            p.${catCol} AS Category,
             p.Platform,
             ROUND(AVG(CASE WHEN p.Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(p.Discount)), 0) ELSE NULL END), 1) AS avgDiscount,
             ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)), 1) AS avgEcp,
@@ -61,13 +64,13 @@ async function getDiscountByCategory(filters = {}) {
             SELECT DISTINCT category
             FROM rca_sku_dim
             WHERE status = 1 AND category IS NOT NULL AND category != ''
-        ) d ON p.Category = d.category
+        ) d ON p.${catCol} = d.category
         WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
-          AND p.Category IS NOT NULL
-          AND p.Category != ''
+          AND p.${catCol} IS NOT NULL
+          AND p.${catCol} != ''
           AND p.Platform IS NOT NULL
-        GROUP BY p.Category, p.Platform
-        ORDER BY p.Category, p.Platform
+        GROUP BY p.${catCol}, p.Platform
+        ORDER BY p.${catCol}, p.Platform
         `;
 
         console.log('[DiscountTrendService] Executing discount by category query...');
@@ -127,9 +130,12 @@ async function getDiscountByBrand(filters = {}) {
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
+        const isMars = getCurrentDbName() === 'mars';
+        const catCol = isMars ? 'Product_type' : 'Category';
+
         const platformQuery = `
             SELECT DISTINCT Platform FROM rb_pdp_olap
-            WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND Category = '${category}' AND Platform IS NOT NULL
+            WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND ${catCol} = '${category}' AND Platform IS NOT NULL
             ORDER BY Platform
         `;
         const platformResults = await queryClickHouse(platformQuery);
@@ -142,7 +148,7 @@ async function getDiscountByBrand(filters = {}) {
             ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)), 1) AS avgEcp,
             ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / NULLIF(AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)), 0), 2) AS avgRpi
         FROM rb_pdp_olap
-        WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND Category = '${category}' AND Brand IS NOT NULL AND Platform IS NOT NULL
+        WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND ${catCol} = '${category}' AND Brand IS NOT NULL AND Platform IS NOT NULL
         GROUP BY Brand, Platform
         ORDER BY Brand, Platform
         `;
