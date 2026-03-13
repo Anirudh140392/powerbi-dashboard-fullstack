@@ -682,13 +682,20 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         const subCategories = subCatResults.map(r => r.sub_category).filter(Boolean);
 
         // Determine which category to fetch brand data for
-        const targetSubCat = subCategoryFilter || (subCategories.length > 0 ? subCategories[0] : null);
+        const targetSubCats = normalizeFilterArray(subCategoryFilter);
+        const hasTargetSubCats = targetSubCats.length > 0;
+        const targetSubCat = hasTargetSubCats ? targetSubCats[0] : (subCategories.length > 0 ? subCategories[0] : null);
 
-        if (!targetSubCat) {
+        if (!targetSubCat && !hasTargetSubCats) {
             return { subCategories: [], brands: [], selectedSubCategory: null };
         }
 
-        const subCatCond = `AND category = '${targetSubCat.replace(/'/g, "''")}'`;
+        let subCatCond = '';
+        if (hasTargetSubCats) {
+            subCatCond = `AND category IN (${targetSubCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        } else {
+            subCatCond = `AND category = '${targetSubCat.replace(/'/g, "''")}'`;
+        }
 
         // Get total category sales for denominator
         const totalSalesQuery = `
@@ -827,7 +834,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             };
         });
 
-        return { subCategories, brands, selectedSubCategory: targetSubCat };
+        return { subCategories, brands, selectedSubCategory: hasTargetSubCats ? targetSubCats : targetSubCat };
     } catch (error) {
         console.error('[SubCategoryKpi] Error:', error.message);
         return { subCategories: [], brands: [], selectedSubCategory: null };

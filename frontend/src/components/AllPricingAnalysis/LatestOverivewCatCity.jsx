@@ -28,14 +28,15 @@ const copy = (title, value) => {
 const cardSize = {
     minW: 'min-w-[100px] sm:min-w-[125px]',
     py: 'py-2.5 sm:py-3',
-    text: 'text-sm sm:text-lg',
+    text: 'text-sm sm:text-base',
     delta: 'text-[10px] sm:text-[11px]'
 };
 
 const kpiLabels = {
-    discount: 'Discount',
+    discount: 'MW discount',
     rpi: 'RPI',
-    asp: 'Average Selling Price',
+    asp: 'MW Average Selling Price',
+    offtake: 'Offtake',
 };
 
 const CITY_TIERS = {
@@ -52,9 +53,10 @@ const LatestOverivewCatCity = ({
     loading = false,
 }) => {
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
-        { key: 'discount', label: 'Discount' },
+        { key: 'discount', label: 'MW discount' },
         { key: 'rpi', label: 'RPI' },
-        { key: 'asp', label: 'Average Selling Price' },
+        { key: 'asp', label: 'MW Average Selling Price' },
+        { key: 'offtake', label: 'Offtake' },
     ], [propKpis]);
 
     const {
@@ -75,7 +77,7 @@ const LatestOverivewCatCity = ({
     // ✅ Dimension + Tier State
     const [dimension, setDimension] = useState('category')
     const [selectedTier, setSelectedTier] = useState('T1')
-    const [glanceKpis, setGlanceKpis] = useState(['discount', 'rpi', 'asp'])
+    const [glanceKpis, setGlanceKpis] = useState(['discount', 'rpi', 'asp', 'offtake'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     const [advancedFilters, setAdvancedFilters] = useState({
@@ -85,7 +87,7 @@ const LatestOverivewCatCity = ({
         skus: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['discount', 'rpi', 'asp'],
+        kpis: ['discount', 'rpi', 'asp', 'offtake'],
         filterLogic: 'OR',
     })
 
@@ -236,6 +238,11 @@ const LatestOverivewCatCity = ({
                     } else if (kpi.key === 'rpi') {
                         valStr = `${cell.value.toFixed(1)}`;
                         deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%`;
+                    } else if (kpi.key === 'offtake') {
+                        // Large number formatting for offtake
+                        if (cell.value >= 1000000) valStr = `${(cell.value / 1000000).toFixed(1)}M`;
+                        else if (cell.value >= 1000) valStr = `${(cell.value / 1000).toFixed(1)}K`;
+                        else valStr = cell.value.toFixed(0);
                     } else {
                         valStr = cell.value.toFixed(2);
                     }
@@ -443,7 +450,7 @@ const LatestOverivewCatCity = ({
                                         {/* ✅ Entity TEXT ONLY (no logo) */}
                                         <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
                                             <span
-                                                className="text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap"
+                                                className="text-[12px] font-medium text-slate-700 flex-1 whitespace-nowrap"
                                                 style={{ fontFamily: 'Roboto, sans-serif' }}
                                             >
                                                 {e.name}
@@ -497,7 +504,7 @@ const LatestOverivewCatCity = ({
                                                         'absolute inset-0 opacity-10 rounded-xl',
                                                         isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
                                                     )} />
-                                                    <div className={cn('font-black text-black tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                                    <div className={cn('font-bold text-black tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
                                                         {cell?.value}
                                                     </div>
                                                     <div className={cn('font-bold flex items-center justify-center gap-0.5 mt-0.5 relative z-10', textColor, cardSize.delta)}>

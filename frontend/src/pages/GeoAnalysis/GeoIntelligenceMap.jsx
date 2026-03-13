@@ -141,11 +141,10 @@ export default function GeoIntelligenceMap() {
                     else if (value > 45) color = COLORS.Orange;
                 } else if (metric === "Market Share") {
                     value = city.marketShare || 0;
-                    // Realistic thresholds for Mars market share (typically 2-30%)
-                    if (value > 15) color = COLORS.Green;       // Leader (e.g. Delhi, Mumbai)
-                    else if (value > 10) color = COLORS.Blue;   // Strong
-                    else if (value > 5) color = COLORS.Orange;  // Moderate
-                    // else Red (< 5%)
+                    // User-defined thresholds for Market Share
+                    if (value >= 5) color = COLORS.Green;        // MS ≥ 5% → Green
+                    else if (value >= 4) color = COLORS.Orange;  // 4% ≤ MS < 5% → Yellow/Orange
+                    // else Red (MS < 4%)
                 } else if (metric === "Sales") {
                     value = city.sales || 0;
                     const ratio = (value / maxSales) * 100;
@@ -431,6 +430,57 @@ export default function GeoIntelligenceMap() {
                         border: "1px solid #e2e8f0"
                     }}>
                         <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
+
+                        {/* Skeleton Loader Overlay */}
+                        {loading && (
+                            <div style={{
+                                position: "absolute", inset: 0, zIndex: 50,
+                                background: "rgba(248, 250, 252, 0.85)",
+                                backdropFilter: "blur(4px)",
+                                display: "flex", flexDirection: "column",
+                                alignItems: "center", justifyContent: "center",
+                                gap: "24px", borderRadius: "32px"
+                            }}>
+                                {/* Pulsing map pin placeholders */}
+                                <div style={{ display: "flex", gap: "32px", alignItems: "flex-end" }}>
+                                    {[36, 48, 40, 44, 38].map((h, i) => (
+                                        <div key={i} style={{
+                                            width: "28px", height: `${h}px`,
+                                            borderRadius: "50% 50% 50% 0",
+                                            background: `linear-gradient(135deg, #e2e8f0, #cbd5e1)`,
+                                            animation: `pulse 1.5s ease-in-out ${i * 0.2}s infinite`,
+                                            opacity: 0.6
+                                        }} />
+                                    ))}
+                                </div>
+                                {/* Loading text */}
+                                <div style={{
+                                    display: "flex", flexDirection: "column",
+                                    alignItems: "center", gap: "8px"
+                                }}>
+                                    <div style={{
+                                        width: "32px", height: "32px",
+                                        border: "3px solid #e2e8f0",
+                                        borderTop: "3px solid #3b82f6",
+                                        borderRadius: "50%",
+                                        animation: "spin 0.8s linear infinite"
+                                    }} />
+                                    <span style={{
+                                        fontSize: "13px", fontWeight: 700,
+                                        color: "#64748b", letterSpacing: "0.5px"
+                                    }}>Loading map data...</span>
+                                </div>
+                                <style>{`
+                                    @keyframes pulse {
+                                        0%, 100% { transform: scale(1); opacity: 0.4; }
+                                        50% { transform: scale(1.15); opacity: 0.8; }
+                                    }
+                                    @keyframes spin {
+                                        to { transform: rotate(360deg); }
+                                    }
+                                `}</style>
+                            </div>
+                        )}
 
                         {/* Floating Control: Focus Area */}
                         <div style={{ position: "absolute", top: "20px", left: "20px", background: "white", padding: "12px 16px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)", display: "flex", gap: "24px", alignItems: "center" }}>

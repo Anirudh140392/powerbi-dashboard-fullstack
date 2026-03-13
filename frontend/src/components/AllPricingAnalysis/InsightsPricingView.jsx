@@ -132,8 +132,8 @@ function CardMinimal({ item, tabKey, onSelected }) {
                         <Pill tone="neutral">Cat: {item.cat}</Pill>
                     </div>
 
-                    <div className="mt-1 text-[12px] font-bold text-slate-600">{item.brand}</div>
-                    <div className="mt-1 line-clamp-1 text-[16px] font-black text-black">
+                    <div className="mt-1 text-[12px] font-semibold text-slate-600">{item.brand}</div>
+                    <div className="mt-1 line-clamp-1 text-[16px] font-bold text-black">
                         {item.title}
                     </div>
 

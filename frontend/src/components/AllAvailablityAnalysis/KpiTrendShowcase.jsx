@@ -1012,7 +1012,7 @@ const KPI_KEYS = [
 const PRICING_KPI_KEYS = [
   {
     key: "Discount",
-    label: "Discount %",
+    label: "MW discount %",
     color: "#6366F1",
     unit: "%",
     fmt: (v) => `${v.toFixed(1)}%`,
@@ -1032,10 +1032,20 @@ const PRICING_KPI_KEYS = [
   },
   {
     key: "ASP",
-    label: "Avg Selling Price",
+    label: "MW Average Selling Price",
     color: "#8B5CF6",
     prefix: "₹",
     fmt: (v) => `₹${v.toFixed(0)}`,
+  },
+  {
+    key: "Offtake",
+    label: "Offtake",
+    color: "#F59E0B",
+    fmt: (v) => {
+      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+      return v.toFixed(0);
+    },
   },
 ];
 
@@ -1535,6 +1545,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         PricePerUnit: typeof b.PricePerUnit === 'number' ? b.PricePerUnit : (b.PricePerUnit?.value ?? parseFloat(b.pricePerUnit ?? b.PricePerUnit) ?? 0),
         RPI: typeof b.RPI === 'number' ? b.RPI : (b.RPI?.value ?? parseFloat(b.rpi ?? b.RPI) ?? 0),
         ASP: typeof b.ASP === 'number' ? b.ASP : (b.ASP?.value ?? parseFloat(b.asp ?? b.ASP) ?? 0),
+        Offtake: typeof b.Offtake === 'number' ? b.Offtake : (b.Offtake?.value ?? parseFloat(b.offtake ?? b.Offtake) ?? 0),
       };
     });
   }, [competitionData.brands, filters.brands]);
@@ -1592,6 +1603,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         PricePerUnit: typeof s.PricePerUnit === 'number' ? s.PricePerUnit : (s.PricePerUnit?.value ?? parseFloat(s.pricePerUnit ?? s.PricePerUnit) ?? 0),
         RPI: typeof s.RPI === 'number' ? s.RPI : (s.RPI?.value ?? parseFloat(s.rpi ?? s.RPI) ?? 0),
         ASP: typeof s.ASP === 'number' ? s.ASP : (s.ASP?.value ?? parseFloat(s.asp ?? s.ASP) ?? 0),
+        Offtake: typeof s.Offtake === 'number' ? s.Offtake : (s.Offtake?.value ?? parseFloat(s.offtake ?? s.Offtake) ?? 0),
       };
     });
   }, [competitionData.skus, filters.brands, filters.skus]);

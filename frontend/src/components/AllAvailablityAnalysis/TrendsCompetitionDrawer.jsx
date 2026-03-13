@@ -476,13 +476,34 @@ export default function TrendsCompetitionDrawer({
           Format: "All",
         }));
       } else {
-        setSelectedPlatform(selectedColumn);
+        // Map selectedLevel to drawer layout "audience" (Platform, Format, City, Brand)
+        const audienceMap = {
+          platform: "Platform",
+          format: "Format",
+          city: "City",
+          brand: "Brand"
+        };
+        const activeAudience = audienceMap[selectedLevel] || (allTrendMeta?.context?.audience || "Platform");
 
-        // Initialize ONLY the current audience type filter
-        const currentAudience = allTrendMeta.context.audience;
+        // For platforms, we set the pill. For others, we default to Blinkit.
+        if (activeAudience === "Platform") {
+          setSelectedPlatform(selectedColumn);
+        } else {
+          setSelectedPlatform("Blinkit");
+        }
+
         setDrawerFilters(prev => ({
           ...prev,
-          [currentAudience]: selectedColumn
+          Platform: activeAudience === "Platform" ? selectedColumn : "All",
+          Format: activeAudience === "Format" ? selectedColumn : "All",
+          City: activeAudience === "City" ? selectedColumn : "All",
+          Brand: activeAudience === "Brand" ? selectedColumn : "All"
+        }));
+
+        // Update the context audience so logic downstream knows the level
+        allSetTrendMeta(prev => ({
+          ...prev,
+          context: { ...prev.context, audience: activeAudience }
         }));
       }
     }
@@ -1168,6 +1189,13 @@ export default function TrendsCompetitionDrawer({
               axis: "left",
               default: false,
             },
+            {
+              id: "Offtake",
+              label: "Offtake",
+              color: "#F97316",
+              axis: "left",
+              default: false,
+            },
           ],
           points: [
             { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, RPI: 3.8, ASP: 190 },
@@ -1197,6 +1225,7 @@ export default function TrendsCompetitionDrawer({
             { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
             { id: "RPI", label: "RPI", color: "#F43F5E", default: false },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
+            { id: "Offtake", label: "Offtake", color: "#F97316", default: false },
           ],
           x: COMPARE_X,
           trendsBySku: {
@@ -1216,6 +1245,7 @@ export default function TrendsCompetitionDrawer({
             { id: "PricePerUnit", label: "Price/Unit", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
+            { id: "Offtake", label: "Offtake", type: "metric" },
           ],
           brands: BRAND_OPTIONS.map((b, i) => ({
             brand: b,
@@ -1751,10 +1781,16 @@ export default function TrendsCompetitionDrawer({
     if (DASHBOARD_DATA.trends?.defaultTimeStep && timeStep === "Daily") {
       setTimeStep(DASHBOARD_DATA.trends.defaultTimeStep);
     }
-    if (DASHBOARD_DATA.trends?.metrics && activeMetrics.length === 0) {
-      setActiveMetrics(DASHBOARD_DATA.trends.metrics.filter(m => m.default).map(m => m.id));
+    
+    // Set default active metrics based on dynamicKey and the DASHBOARD_DATA config
+    if (activeMetrics.length === 0) {
+      if (dynamicKey === 'availability') {
+        setActiveMetrics(['Osa', 'Listing']);
+      } else if (DASHBOARD_DATA.trends?.metrics) {
+        setActiveMetrics(DASHBOARD_DATA.trends.metrics.filter(m => m.default).map(m => m.id));
+      }
     }
-  }, [DASHBOARD_DATA]);
+  }, [DASHBOARD_DATA, dynamicKey, open]);
 
   const platformRef = useRef(null);
 

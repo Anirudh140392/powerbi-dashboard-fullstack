@@ -812,7 +812,6 @@ const getDimensionOverview = async (filters = {}) => {
             if (channels) whereConditions.push(buildInClause(channelCol, channels));
 
             const whereClause = whereConditions.join(' AND ');
-
             const query = `
             SELECT
                 ${groupByExpr} AS dimension_name,
@@ -846,7 +845,11 @@ const getDimensionOverview = async (filters = {}) => {
                 AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND toFloat64OrZero(toString(p.MRP)) > 0 
                     THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP)) ELSE NULL END) AS rpi_prev,
                 
-                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.Selling_Price)) ELSE NULL END) AS asp_prev
+                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.Selling_Price)) ELSE NULL END) AS asp_prev,
+
+                -- Offtakes
+                SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.Sales)) ELSE 0 END) AS offtake_curr,
+                SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.Sales)) ELSE 0 END) AS offtake_prev
 
             FROM rb_pdp_olap p
             WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
@@ -886,7 +889,8 @@ const getDimensionOverview = async (filters = {}) => {
                         weightedDiscount: mapMetric('weighted_discount_curr', 'weighted_discount_prev'),
                         pricePerUnit: mapMetric('price_per_unit_curr', 'price_per_unit_prev'),
                         rpi: mapMetric('rpi_curr', 'rpi_prev'),
-                        asp: mapMetric('asp_curr', 'asp_prev')
+                        asp: mapMetric('asp_curr', 'asp_prev'),
+                        offtake: mapMetric('offtake_curr', 'offtake_prev')
                     }
                 };
             });
@@ -978,7 +982,8 @@ const getDimensionTrends = async (filters) => {
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
                 ELSE NULL END) AS rpi,
-            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp
+            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp,
+            SUM(toFloat64OrZero(toString(p.Sales))) AS offtake
         FROM rb_pdp_olap p
         WHERE ${whereClause}
           AND ${groupByExpr} IS NOT NULL
@@ -997,6 +1002,7 @@ const getDimensionTrends = async (filters) => {
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
             RPI: parseFloat(r.rpi) || 0,
             ASP: parseFloat(r.asp) || 0,
+            Offtake: parseFloat(r.offtake) || 0,
         }));
 
         return { success: true, timeSeries };
@@ -1079,7 +1085,8 @@ const getPricingCompetitionTrends = async (filters) => {
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
                 ELSE NULL END) AS rpi,
-            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp
+            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp,
+            SUM(toFloat64OrZero(toString(p.Sales))) AS offtake
         FROM rb_pdp_olap p
         WHERE ${whereClause}
         GROUP BY p.DATE, p.${targetColumn}
@@ -1108,6 +1115,7 @@ const getPricingCompetitionTrends = async (filters) => {
                 PricePerUnit: parseFloat(r.price_per_unit) || 0,
                 RPI: parseFloat(r.rpi) || 0,
                 ASP: parseFloat(r.asp) || 0,
+                Offtake: parseFloat(r.offtake) || 0,
             };
         });
 
@@ -1190,7 +1198,8 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
                 ELSE NULL END) AS rpi,
-            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp
+            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp,
+            SUM(toFloat64OrZero(toString(p.Sales))) AS offtake
         FROM rb_pdp_olap p
         WHERE ${whereClause}
         GROUP BY brand_name
@@ -1213,7 +1222,8 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
                 THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
                 ELSE NULL END) AS rpi,
-            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp
+            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp,
+            SUM(toFloat64OrZero(toString(p.Sales))) AS offtake
         FROM rb_pdp_olap p
         WHERE ${whereClause}
           AND p.Product IS NOT NULL
@@ -1236,6 +1246,7 @@ const getPricingCompetition = async (filters) => {
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
             RPI: parseFloat(r.rpi) || 0,
             ASP: parseFloat(r.asp) || 0,
+            Offtake: parseFloat(r.offtake) || 0,
         }));
 
         const skuRows = (skuResults || []).map(r => ({
@@ -1245,6 +1256,7 @@ const getPricingCompetition = async (filters) => {
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
             RPI: parseFloat(r.rpi) || 0,
             ASP: parseFloat(r.asp) || 0,
+            Offtake: parseFloat(r.offtake) || 0,
         }));
 
         return { success: true, brands: brandRows, skus: skuRows };

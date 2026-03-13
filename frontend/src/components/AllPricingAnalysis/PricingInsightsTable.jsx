@@ -39,7 +39,7 @@ function TrendPill({ value }) {
     const isDown = value < 0;
     return (
         <div className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium border whitespace-nowrap transition-all duration-300",
+            "flex items-center gap-1.5 px-1.5 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap transition-all duration-300",
             isDown 
                 ? "bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100" 
                 : "bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100"
@@ -131,12 +131,12 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
         }}>
             {/* Header Redesign - Minimalist & Compact */}
             <Box sx={{ 
-                px: 3, py: 2, 
+                px: 2, py: 1.5, 
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 borderBottom: '1px solid #f1f5f9'
             }}>
                 <Box>
-                    <Typography sx={{ fontSize: '18px', fontWeight: 600, color: '#1e293b', letterSpacing: '-0.01em' }}>
+                    <Typography sx={{ fontSize: '16px', fontWeight: 600, color: '#1e293b', letterSpacing: '-0.01em' }}>
                         City Impacts for <span style={{ color: '#3b82f6' }}>"{sku?.title}"</span>
                     </Typography>
                 </Box>
@@ -171,7 +171,7 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
 
             {/* Table Area - Now Scrollable */}
             <Box sx={{ 
-                flex: 1, px: 3, py: 1, 
+                flex: 1, px: 2, py: 0.5, 
                 overflow: 'hidden', 
                 display: 'flex', flexDirection: 'column' 
             }}>
@@ -183,17 +183,14 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
                 }}>
                     <Table stickyHeader>
                         <TableHead>
-                            <TableRow sx={{ '& th': { borderBottom: '1px solid #f1f5f9', py: 1.5, px: 1, bgcolor: 'white' } }}>
-                                <TableCell sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                            <TableRow sx={{ '& th': { borderBottom: '1px solid #f1f5f9', py: 1, px: 1, bgcolor: 'white' } }}>
+                                <TableCell sx={{ fontSize: '9px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                                     <TableSortLabel active={sortConfig.key === 'name'} direction={sortConfig.direction} onClick={() => handleSort('name')}>
                                         City
                                     </TableSortLabel>
                                 </TableCell>
                                 <TableCell align="center" sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                                     Current Discount %
-                                </TableCell>
-                                <TableCell align="center" sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                                    Change %
                                 </TableCell>
                                 <TableCell align="center" sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                                     OSA %
@@ -215,30 +212,30 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
                                 </TableRow>
                             ) : (
                                 paginatedData.map((row) => (
-                                    <TableRow key={row.name} hover sx={{ '& td': { borderBottom: '1px solid #f8fafc', py: 1.5, px: 1 } }}>
+                                    <TableRow key={row.name} hover sx={{ '& td': { borderBottom: '1px solid #f8fafc', py: 0.8, px: 1 } }}>
                                         <TableCell>
-                                            <Typography sx={{ fontSize: '13px', fontWeight: 400, color: '#475569' }}>{row.name}</Typography>
+                                            <Typography sx={{ fontSize: '12px', fontWeight: 500, color: '#475569' }}>{row.name}</Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#1e293b' }}>{row.discount.toFixed(1)}%</Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                                            <Stack direction="row" spacing={0.8} alignItems="center" justifyContent="center">
+                                                <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
+                                                    {row.discount.toFixed(1)}%
+                                                </Typography>
                                                 <TrendPill value={row.change} />
-                                            </Box>
+                                            </Stack>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#1e293b' }}>
+                                            <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
                                                 {(row.osa || 0).toFixed(1)}%
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#1e293b' }}>
+                                            <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
                                                 {(row.listing || 0).toFixed(1)}%
                                             </Typography>
                                         </TableCell>
                                         <TableCell align="center">
-                                            <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#1e293b' }}>
+                                            <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
                                                 {formatNumberToIndianUnits(row.offtakes)}
                                             </Typography>
                                         </TableCell>
@@ -252,7 +249,7 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
 
             {/* Pagination Footer - Minimalist & Compact */}
             <Box sx={{ 
-                px: 3, py: 1.5, 
+                px: 2, py: 1, 
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 borderTop: '1px solid #f1f5f9', bgcolor: '#fafafa'
             }}>

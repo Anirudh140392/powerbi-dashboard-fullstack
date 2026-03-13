@@ -310,7 +310,14 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} loading={loading} onFilterChange={onFiltersChange} />
+      <CityKpiTrendShowcase 
+        dynamicKey='availability' 
+        data={active.data} 
+        title={active.label} 
+        loading={loading} 
+        onFilterChange={onFiltersChange} 
+        selectedLevel={activeTab} 
+      />
     </div>
   );
 };
@@ -1287,90 +1294,71 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
   }, [apiData?.kpiTrends]);
 
   const availabilityKpis = useMemo(() => {
-    // Determine if we have real API data to use
-    if (apiData?.overview && apiData?.doi && apiData?.metroCity) {
-      const overview = apiData.overview;
-      const doiData = apiData.doi;
-      const metroData = apiData.metroCity;
+    // Icons and gradients for the cards
+    const icons = [Layers, Package, MapPin];
+    const gradients = [
+      ['#6366f1', '#8b5cf6'],
+      ['#14b8a6', '#06b6d4'],
+      ['#8b5cf6', '#a855f7']
+    ];
 
-      // Safe number extraction with fallbacks
-      const safeNum = (v) => (v != null && !isNaN(v)) ? Number(v) : 0;
+    // Determine the source for each card individually
+    const osaCardData = apiData?.overview ? {
+      value: `${Number(apiData.overview.stockAvailability || 0).toFixed(2)}%`,
+      delta: Number(apiData.overview.stockAvailability || 0) - Number(apiData.overview.prevStockAvailability || 0),
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
+    } : null;
 
-      const stockAvail = safeNum(overview.stockAvailability);
-      const prevStockAvail = safeNum(overview.prevStockAvailability);
-      const doi = safeNum(doiData.doi);
-      const prevDoi = safeNum(doiData.prevDoi);
-      const metroStock = safeNum(metroData.stockAvailability);
-      const prevMetroStock = safeNum(metroData.prevStockAvailability);
+    const doiCardData = apiData?.doi ? {
+      value: Number(apiData.doi.doi || 0).toFixed(1),
+      delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || [] // Use OSA trend as proxy if DOI trend missing
+    } : null;
 
-      const deltaStock = stockAvail - prevStockAvail;
-      const deltaDoi = doi - prevDoi;
-      const deltaMetro = metroStock - prevMetroStock;
+    const metroCardData = apiData?.metroCity ? {
+      value: apiData.metroCity.isMetroCity === false ? "N/A" : `${Number(apiData.metroCity.stockAvailability || 0).toFixed(2)}%`,
+      delta: apiData.metroCity.isMetroCity === false ? 0 : Number(apiData.metroCity.stockAvailability || 0) - Number(apiData.metroCity.prevStockAvailability || 0),
+      isNotMetro: apiData.metroCity.isMetroCity === false,
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
+    } : null;
 
-      // Use real OSA trend if available, otherwise fallback to mock trend
-      const osaTrend = trendSeriesMap.osa || getLogicalKpiTrend('osa', platformContext);
+    // Fallback mock logic for single KPI if API missing
+    const getMock = (kpi) => {
+      const val = getLogicalKpiValue(kpi, platformContext);
+      const isUp = getLogicalKpiValue(kpi + 'dir', platformContext) > 50;
+      const delta = (getLogicalKpiValue(kpi + 'delta', platformContext) / 20).toFixed(1);
+      return {
+        value: kpi === 'doi' ? val.toFixed(1) : `${val.toFixed(2)}%`,
+        delta: parseFloat(delta) * (isUp ? 1 : -1),
+        trend: getLogicalKpiTrend(kpi, platformContext)
+      };
+    };
 
-      return [
-        {
-          id: `avail-api-osa`,
-          title: "Stock Availability",
-          value: `${stockAvail.toFixed(2)}%`,
-          subtitle: "MTD on-shelf coverage",
-          delta: parseFloat(deltaStock.toFixed(1)),
-          deltaLabel: `${deltaStock >= 0 ? '▲' : '▼'} ${Math.abs(deltaStock).toFixed(1)}%`,
-          icon: Layers,
-          gradient: ['#6366f1', '#8b5cf6'],
-          trend: osaTrend,
-          trendSeries: osaTrend,
-          prevText: "vs Previous Period"
-        },
-        {
-          id: `avail-api-doi`,
-          title: "Days of Inventory (DOI)",
-          value: doi.toFixed(1),
-          subtitle: "Network average days of cover",
-          delta: parseFloat(deltaDoi.toFixed(1)),
-          deltaLabel: `${deltaDoi >= 0 ? '▲' : '▼'} ${Math.abs(deltaDoi).toFixed(1)} days`,
-          icon: Package,
-          gradient: ['#14b8a6', '#06b6d4'],
-          trend: osaTrend,
-          trendSeries: osaTrend,
-          prevText: "vs Previous Period"
-        },
-        metroData.isMetroCity === false
-          ? {
-            id: `avail-api-metro`,
-            title: "Metro City Stock Availability",
-            isNotMetro: true,
-            notMetroLocation: metroData.filters?.location || selectedLocation,
-            value: "N/A",
-            subtitle: "Selected location is not a metro city",
-            delta: 0,
-            deltaLabel: "",
-            icon: MapPin,
-            gradient: ['#8b5cf6', '#a855f7'],
-            trend: [],
-            trendSeries: [],
-            prevText: ""
-          }
-          : {
-            id: `avail-api-metro`,
-            title: "Metro City Stock Availability",
-            value: `${metroStock.toFixed(2)}%`,
-            subtitle: "MTD availability across metro cities",
-            delta: parseFloat(deltaMetro.toFixed(1)),
-            deltaLabel: `${deltaMetro >= 0 ? '▲' : '▼'} ${Math.abs(deltaMetro).toFixed(1)}%`,
-            icon: MapPin,
-            gradient: ['#8b5cf6', '#a855f7'],
-            trend: osaTrend,
-            trendSeries: osaTrend,
-            prevText: "vs Previous Period"
-          }
-      ];
-    }
+    const cards_config = [
+      { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData },
+      { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData },
+      { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData }
+    ];
 
-    // Fallback to mock data if API data is missing
-    return getAvailabilityKpis(availability, platformContext);
+    return cards_config.map((cfg, idx) => {
+      const data = cfg.api || getMock(cfg.key);
+      const delta = Number(data.delta || 0);
+
+      return {
+        id: `avail-card-${cfg.key}`,
+        title: cfg.title,
+        value: data.value,
+        subtitle: data.isNotMetro ? `Selected location is not a metro city` : cfg.sub,
+        delta: parseFloat(delta.toFixed(1)),
+        deltaLabel: data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}${cfg.key === 'doi' ? ' days' : '%'}`,
+        icon: icons[idx],
+        gradient: gradients[idx],
+        trend: data.trend || [],
+        trendSeries: data.trend || [],
+        prevText: data.isNotMetro ? "" : "vs Previous Period",
+        isNotMetro: data.isNotMetro
+      };
+    });
   }, [availability, globalPlatform, apiData, trendSeriesMap]);
 
   return (
