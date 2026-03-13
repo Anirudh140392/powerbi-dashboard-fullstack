@@ -618,6 +618,12 @@ async function getPricingInsights(filters = {}) {
                          AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
                     THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
                     ELSE NULL END) AS discount_curr,
+                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}'
+                    THEN toFloat64OrZero(toString(p.listing_percent))
+                    ELSE NULL END) AS listing_curr,
+                (SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.neno_osa)), 0) ELSE 0 END) / 
+                 NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.deno_osa)), 0) ELSE 0 END), 0)) * 100 AS osa_curr,
+                SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) AS offtakes_curr,
                 AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
                     THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
@@ -644,7 +650,10 @@ async function getPricingInsights(filters = {}) {
                     cat: r.Category || "Uncategorized",
                     isMySku: parseInt(r.Comp_flag) === 0,
                     discount: dc,
-                    delta: parseFloat(delta.toFixed(2))
+                    delta: parseFloat(delta.toFixed(2)),
+                    listing: parseFloat(parseFloat(r.listing_curr || 0).toFixed(1)),
+                    osa: parseFloat(parseFloat(r.osa_curr || 0).toFixed(1)),
+                    offtakes: parseFloat(parseFloat(r.offtakes_curr || 0).toFixed(0))
                 };
             }).filter(r => Math.abs(r.delta) >= 0.1); // Only significant changes
 
@@ -663,6 +672,8 @@ async function getPricingInsights(filters = {}) {
             const productsList = allTopSkus.map(s => s.title);
 
             let cityDataMap = {};
+            // Initialize cityDataMap for all products to prevent crashes
+            allTopSkus.forEach(s => { cityDataMap[s.title] = []; });
             if (productsList.length > 0) {
                 const productEscaped = productsList.map(p => `'${escapeStr(p)}'`).join(',');
                 const cityQuery = `
@@ -672,6 +683,12 @@ async function getPricingInsights(filters = {}) {
                         AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
                             THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
                             ELSE NULL END) AS discount_curr,
+                        AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}'
+                            THEN toFloat64OrZero(toString(p.listing_percent))
+                            ELSE NULL END) AS listing_curr,
+                        (SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.neno_osa)), 0) ELSE 0 END) / 
+                         NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.deno_osa)), 0) ELSE 0 END), 0)) * 100 AS osa_curr,
+                        SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) AS offtakes_curr,
                         AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
                             THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
                             ELSE NULL END) AS discount_prev
@@ -693,11 +710,13 @@ async function getPricingInsights(filters = {}) {
                     const dp = parseFloat(r.discount_prev) || 0;
                     const delta = dp - dc; // delta represents price change
 
-                    if (!cityDataMap[product]) cityDataMap[product] = [];
                     cityDataMap[product].push({
                         name: r.city,
                         discount: parseFloat(dc.toFixed(2)),
-                        change: parseFloat(delta.toFixed(2))
+                        change: parseFloat(delta.toFixed(2)),
+                        listing: parseFloat(parseFloat(r.listing_curr || 0).toFixed(1)),
+                        osa: parseFloat(parseFloat(r.osa_curr || 0).toFixed(1)),
+                        offtakes: parseFloat(parseFloat(r.offtakes_curr || 0).toFixed(0))
                     });
                 });
 
@@ -712,7 +731,7 @@ async function getPricingInsights(filters = {}) {
                 id: `${s.brand}_${label}_${i}`,
                 badge: `${label} ${i + 1}`,
                 size: "Mixed",
-                cities: cityDataMap[s.title] ? cityDataMap[s.title].slice(0, 1) : [
+                cities: cityDataMap[s.title] ? cityDataMap[s.title].slice(0, 20) : [
                     { name: "Global Avg", discount: s.discount, change: s.delta }
                 ]
             }));
