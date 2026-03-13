@@ -50,42 +50,44 @@ export default function MainPerformanceMarketings() {
     fetchPlatforms();
   }, [setPlatforms, setPlatform]);
 
-  // Fetch PM-specific Brands when platform changes
+  // Fetch PM-specific Categories when platform changes
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        console.log("🚀 [MainPerformanceMarketing] Fetching PM brands for platform:", platform);
-        const response = await axiosInstance.get("/performance-marketing/brands", {
+        console.log("🚀 [MainPerformanceMarketing] Fetching PM categories for platform:", platform);
+        const response = await axiosInstance.get("/performance-marketing/categories", {
           params: { platform: Array.isArray(platform) ? platform.join(',') : platform }
         });
-        console.log("✅ [MainPerformanceMarketing] PM Brands:", response.data);
+        console.log("✅ [MainPerformanceMarketing] PM Categories:", response.data);
 
         if (response.data && response.data.length > 0) {
-          const brandList = ["All", ...response.data];
-          setCategories(brandList);
-          if (!brandList.includes(selectedCategory)) {
-            setSelectedCategory("All");
+          const catList = [...response.data];
+          setCategories(catList);
+
+          // If current selection is "All" or not in the new list, select the first category
+          if (selectedCategory === "All" || !catList.includes(selectedCategory)) {
+            setSelectedCategory(catList[0]);
           }
         } else {
-          setCategories(["All"]);
-          setSelectedCategory("All");
+          setCategories([]);
+          setSelectedCategory("");
         }
       } catch (error) {
-        console.error("❌ [MainPerformanceMarketing] Error fetching PM brands:", error);
-        setCategories(["All"]);
+        console.error("❌ [MainPerformanceMarketing] Error fetching PM categories:", error);
+        setCategories([]);
       }
     };
     fetchCategories();
   }, [platform, setCategories, setSelectedCategory]);
 
-  // Fetch Zones when brand changes (Performance Marketing page specific)
+  // Fetch Zones when category changes (Performance Marketing page specific)
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const brandParam = Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory;
-        console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", brandParam);
+        const catParam = Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory;
+        console.log("🚀 [MainPerformanceMarketing] Fetching zones for category:", catParam);
         const response = await axiosInstance.get("/performance-marketing/zones", {
-          params: { brand: brandParam }
+          params: { brand: catParam } // Zones API still expects 'brand' param naming in current implementation, but we'll send it category values
         });
         console.log("✅ [MainPerformanceMarketing] Zones API Response:", response.data);
 
@@ -139,15 +141,16 @@ export default function MainPerformanceMarketings() {
     const fetchPerformanceData = async () => {
       setLoading(true); // Start loading
       try {
+        const params = {
+          platform: Array.isArray(platform) ? platform.join(',') : (platform || 'All'),
+          category: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+          zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+          productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
+          startDate: timeStart?.format("YYYY-MM-DD"),
+          endDate: timeEnd?.format("YYYY-MM-DD")
+        }
         const response = await axiosInstance.get("/performance-marketing", {
-          params: {
-            platform: Array.isArray(platform) ? platform.join(',') : platform,
-            brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
-            zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
-            productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
-            startDate: timeStart?.format("YYYY-MM-DD"),
-            endDate: timeEnd?.format("YYYY-MM-DD")
-          }
+          params
         });
         console.log("Performance Marketing Data:", response.data);
 

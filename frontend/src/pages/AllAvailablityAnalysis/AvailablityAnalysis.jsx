@@ -109,6 +109,14 @@ export default function AvailablityAnalysis() {
     }));
   }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
 
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
+
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",

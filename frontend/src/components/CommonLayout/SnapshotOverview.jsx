@@ -790,7 +790,7 @@ const SnapshotOverview = ({
                             ) : (
                                 topKpis.map((kpi, idx) => (
                                     <motion.div
-                                        key={kpi.id + seed}
+                                        key={kpi.id}
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.05, duration: 0.3 }}
@@ -816,7 +816,7 @@ const SnapshotOverview = ({
                                     ) : (
                                         bottomKpis.map((kpi, idx) => (
                                             <motion.div
-                                                key={kpi.id + seed}
+                                                key={kpi.id}
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: (idx + 5) * 0.05, duration: 0.3 }}

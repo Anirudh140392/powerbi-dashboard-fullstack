@@ -1,6 +1,6 @@
 import availabilityService from '../services/availabilityService.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 /**
@@ -532,10 +532,12 @@ export const getSignalLabData = async (req, res) => {
                 }
 
                 if (categoryFilter) {
+                    const isMars = getCurrentDbName() === 'mars';
+                    const catCol = isMars ? 'Category' : 'Product_type';
                     if (Array.isArray(categoryFilter)) {
-                        conditions.push(`Category IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                        conditions.push(`${catCol} IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
                     } else {
-                        conditions.push(`Category = '${escapeStr(categoryFilter)}'`);
+                        conditions.push(`${catCol} = '${escapeStr(categoryFilter)}'`);
                     }
                 }
 
@@ -848,8 +850,10 @@ export const getCityDetailsForProduct = async (req, res) => {
                     else conds.push(`Brand LIKE '%${escapeStr(brandFilter)}%'`);
                 }
                 if (categoryFilter) {
-                    if (Array.isArray(categoryFilter)) conds.push(`Category IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-                    else conds.push(`Category = '${escapeStr(categoryFilter)}'`);
+                    const isMars = getCurrentDbName() === 'mars';
+                    const catCol = isMars ? 'Product_type' : 'Category';
+                    if (Array.isArray(categoryFilter)) conds.push(`${catCol} IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                    else conds.push(`${catCol} = '${escapeStr(categoryFilter)}'`);
                 }
                 return conds.join(' AND ');
             };
