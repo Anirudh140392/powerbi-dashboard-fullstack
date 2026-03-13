@@ -458,8 +458,7 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
  */
 export const getSignalLabData = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab', req.query);
-
+        const cacheKey = generateCacheKey('signal_lab_v3', req.query);
         const data = await getCachedOrCompute(cacheKey, async () => {
             const {
                 platform,
@@ -599,7 +598,15 @@ export const getSignalLabData = async (req, res) => {
             // Ordered list of PIDs
             const webPids = skuRows.map(r => r.Web_Pid);
 
-            /* ================= STEP 4: GET TOTAL COUNT ================= */
+            /* ================= STEP 4: GET TOTAL CONTEXT SALES & COUNT ================= */
+            const totalContextSalesQuery = `
+                SELECT sum(toFloat64(Sales)) as totalSales
+                FROM rb_pdp_olap
+                WHERE ${buildWhereClause(false)}
+            `;
+            const totalSalesResult = await queryClickHouse(totalContextSalesQuery);
+            const totalContextSales = Number(totalSalesResult?.[0]?.totalSales || 0);
+
             const countQuery = `
                 SELECT count() as count FROM (
                     SELECT Web_Pid
@@ -622,6 +629,7 @@ export const getSignalLabData = async (req, res) => {
                     any(Product) as Product, 
                     any(Category) as Category, 
                     any(Platform) as Platform, 
+                    any(Item_Id) as Item_Id,
                     '' as Weight, 
                     any(Brand) as Brand,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) AS totalNeno,
@@ -656,7 +664,8 @@ export const getSignalLabData = async (req, res) => {
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) as clicks,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) as impressions,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) as inventory,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) as citySales
                 FROM rb_pdp_olap
                 WHERE Web_Pid IN (${webPidsStr})
                     AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
@@ -737,11 +746,15 @@ export const getSignalLabData = async (req, res) => {
                     return signalType === 'drainer' ? diffA - diffB : diffB - diffA;
                 });
 
-                const topCities = sortedByImpact.slice(0, 2).map((c, idx) => {
+                // Get top contributing cities (increased to 10 to support "More cities" drilldown)
+                const topCities = sortedByImpact.slice(0, 10).map((c, idx) => {
                     const cityOsaNow = Number(c.osa || 0);
                     const cityOsaWas = Number(c.prev_osa || 0);
                     const cityOsaChange = cityOsaNow - cityOsaWas;
                     const impactSign = cityOsaChange >= 0 ? '+' : '';
+                    
+                    const citySales = Number(c.citySales || 0);
+                    const salesWeightage = currSalesVal > 0 ? (citySales / currSalesVal) * 100 : 0;
 
                     if (metricType === 'inventory') {
                         const cityQty = Number(c.qtySold || 0);
@@ -751,7 +764,8 @@ export const getSignalLabData = async (req, res) => {
                         return {
                             city: c.Location,
                             metric: idx === 0 ? `DOI ${cityDoi.toFixed(1)}` : `DRR ${Math.round(cityDrr)}`,
-                            change: `${impactSign}${cityOsaChange.toFixed(1)}%`
+                            change: `${impactSign}${cityOsaChange.toFixed(1)}%`,
+                            weightage: salesWeightage.toFixed(1) + '%'
                         };
                     }
 
@@ -760,21 +774,23 @@ export const getSignalLabData = async (req, res) => {
                         return {
                             city: c.Location,
                             metric: idx === 0 ? `ROAS ${Number(c.roas || 0).toFixed(1)}x` : `Clicks ${cityClicks > 1000 ? (cityClicks / 1000).toFixed(1) + 'k' : cityClicks}`,
-                            change: `${impactSign}${cityOsaChange.toFixed(1)}%`
+                            change: `${impactSign}${cityOsaChange.toFixed(1)}%`,
+                            weightage: salesWeightage.toFixed(1) + '%'
                         };
                     }
 
                     return {
                         city: c.Location,
                         metric: `OSA ${cityOsaNow.toFixed(1)}%`,
-                        change: `${impactSign}${cityOsaChange.toFixed(1)}%`
+                        change: `${impactSign}${cityOsaChange.toFixed(1)}%`,
+                        weightage: salesWeightage.toFixed(1) + '%'
                     };
                 });
 
                 return {
                     id: `${metricType.substring(0, 3).toUpperCase()}-${(pageNum - 1) * limitNum + i + 1}`,
                     webPid: item.Web_Pid,
-                    skuCode: '-',
+                    skuCode: item.Item_Id || '-',
                     skuName: item.Product,
                     packSize: item.Weight,
                     platform: item.Platform,
@@ -782,6 +798,7 @@ export const getSignalLabData = async (req, res) => {
                     type: signalType,
                     metricType,
                     offtakeValue: metricType === 'inventory' ? doi.toFixed(1) : `₹${(revenue / 100000).toFixed(1)} lac`,
+                    offtakeShare: totalContextSales > 0 ? ((revenue / totalContextSales) * 100).toFixed(2) + '%' : '0.00%',
                     impact: `${metricChange >= 0 ? '+' : ''}${metricChange.toFixed(1)}%`,
                     kpis,
                     topCities
@@ -807,7 +824,7 @@ export const getSignalLabData = async (req, res) => {
  */
 export const getCityDetailsForProduct = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_city_details', req.query);
+        const cacheKey = generateCacheKey('signal_lab_city_details_v2', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer' } = req.query;
@@ -819,13 +836,14 @@ export const getCityDetailsForProduct = async (req, res) => {
             const compStart = compareStartDate || '2025-11-01';
             const compEnd = compareEndDate || '2025-11-30';
 
-            // Build WHERE clause with filters
             const processFilter = (val) => {
                 if (!val || val === 'All') return null;
                 if (typeof val === 'string' && val.includes(',')) return val.split(',').map(v => v.trim());
                 return val;
             };
 
+            const platformFilter = processFilter(req.query.platform);
+            const brandFilter = processFilter(req.query.brand);
             const locationFilter = processFilter(req.query.location);
             const categoryFilter = processFilter(req.query.category);
 

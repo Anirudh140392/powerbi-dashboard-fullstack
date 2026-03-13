@@ -96,6 +96,7 @@ const KPI_LABELS = {
     weightedOsa: "Weighted OSA",
     potentialSalesLoss: "Potential Sales Loss",
     fillrate: "Fillrate",
+    offtakeShare: "MS (Offtake Share)",
 
     orders: "Orders",
     asp: "ASP",
@@ -595,12 +596,12 @@ const SAMPLE_SKUS = [
             weightedOsa: "96.8%",
         },
         topCities: [
-            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
-            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
-            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
-            { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
-
+            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%", weightage: "18.2%" },
+            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%", weightage: "12.4%" },
+            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%", weightage: "15.1%" },
+            { city: "Pune", metric: "OSA 97.5%", change: "+1.5%", weightage: "10.8%" },
         ],
+        offtakeShare: "8.4%",
     },
     {
         id: "AVL-G04",
@@ -1237,7 +1238,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                     <div className="text-xs text-slate-500">{sku.packSize}</div>
                 </div>
 
-                <div className="mt-3 flex justify-between text-xs">
+                <div className="mt-3 flex justify-between items-end text-xs">
                     <div>
                         <div className="text-slate-400">
                             {metricType === "inventory" ? "DOI" : "Offtakes"}
@@ -1263,24 +1264,42 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                             </div>
                         ) : null
                     )}
+
+                    {sku.offtakeShare && (
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-50 border border-sky-100 text-[10px]">
+                            <span className="text-sky-600 font-medium">Offtake Share (MS):</span>
+                            <span className="text-sky-700 font-bold">{sku.offtakeShare}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
             <div className="mt-4 pt-3 border-t">
                 <div className="text-[11px] font-semibold mb-2">
-                    Top impacted cities
+                    Top Impacted Cities
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    {citiesToShow.map((c) => (
-                        <div key={c.city} className="p-2 border rounded-xl bg-slate-50 flex flex-col items-center text-center">
-                            <div className="font-medium">{c.city}</div>
-                            <div className="text-[10px] text-slate-500">{c.metric?.toString().replace("%", "")}</div>
+                    {sku.topCities?.slice(0, 2).map((c) => (
+                        <div key={c.city} className="p-1.5 border rounded-xl bg-slate-50/50 flex flex-col items-center text-center">
+                            <div className="font-semibold text-slate-700 text-[10px] truncate w-full px-1" title={c.city}>
+                                {c.city}
+                            </div>
+                            <div className="text-[9px] text-slate-500 my-0.5 leading-tight">
+                                {c.metric?.toString().replace("%", "")}
+                            </div>
                             <ImpactPill value={c.change} />
                         </div>
                     ))}
                 </div>
 
-
+                <div className="mt-3 flex items-center justify-end">
+                    <button
+                        onClick={onShowDetails}
+                        className="text-[10px] font-bold text-sky-600 hover:text-sky-700 underline underline-offset-2 flex items-center gap-0.5 transition-all active:scale-95"
+                    >
+                        More cities
+                    </button>
+                </div>
             </div>
         </div>
     );

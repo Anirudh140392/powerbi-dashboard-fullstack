@@ -11,6 +11,11 @@ const formatNumber = (v, decimals = null) => {
     if (!Number.isFinite(num)) return "—";
 
     if (decimals !== null) return num.toFixed(decimals);
+
+    if (Math.abs(num) >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`;
+    if (Math.abs(num) >= 100000) return `${(num / 100000).toFixed(2)} Lacs`;
+    if (Math.abs(num) >= 1000) return `${(num / 1000).toFixed(1)}K`;
+
     if (Math.abs(num) >= 100) return Math.round(num).toString();
     return num.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 };
@@ -370,10 +375,10 @@ export default function CitySkuInventoryDrill() {
                                                 {row.level === "sku" ? row.sku : ""}
                                             </td>
                                         )}
-                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.drr_qty, 0)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.drr_qty)}</td>
                                         <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.current_doh, 2)}</td>
-                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.req_po_qty, 0)}</td>
-                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.req_boxes, 0)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.req_po_qty)}</td>
+                                        <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.req_boxes)}</td>
                                         <td className="px-3 py-3 text-right font-medium">{formatNumber(row.metrics.threshold_doh, 2)}</td>
                                     </tr>
                                 ))
