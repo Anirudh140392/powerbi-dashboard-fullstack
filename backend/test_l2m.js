@@ -7,10 +7,10 @@ async function testL2M() {
         SELECT 
             keyword,
             SUM(ad_spend) as spend,
-            SUM(ad_sales) as revenue,
-            if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+            SUM(Ad_sales) as revenue,
+            if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
         FROM mars.rca_pm_olap
-        WHERE ad_spend > 0 OR ad_sales > 0
+        WHERE ad_spend > 0 OR Ad_sales > 0
         GROUP BY keyword
         HAVING spend > 0
     `;
@@ -20,7 +20,7 @@ async function testL2M() {
     const l2mQuery = `
         SELECT 
             SUM(ad_spend) / COUNT(DISTINCT keyword) as avg_spend_l2m,
-            SUM(ad_sales) / SUM(ad_spend) as overall_roas_l2m,
+            SUM(Ad_sales) / SUM(ad_spend) as overall_roas_l2m,
             AVG(total_roas) as avg_total_roas_col
         FROM mars.rca_pm_olap
         WHERE Date >= subtractDays(now(), 60)

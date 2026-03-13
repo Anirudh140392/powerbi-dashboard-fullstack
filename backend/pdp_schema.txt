@@ -307,7 +307,7 @@
     "ttl_expression": ""
   },
   {
-    "name": "Ad_Quanity_sold",
+    "name": "Ad_Quantity_sold",
     "type": "Nullable(String)",
     "default_type": "",
     "default_expression": "",

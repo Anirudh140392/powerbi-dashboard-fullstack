@@ -92,7 +92,7 @@ const kpiModes = {
   },
   inorganic: {
     label: 'Inorganic Sales',
-    description: 'Ad Sales (Sum of Ad_Sales)',
+    description: 'Ad Sales (Sum of Ad_sales)',
     formatter: (v) => formatIndianNumber(v),
     heat: () => 'bg-white text-slate-700',
   },

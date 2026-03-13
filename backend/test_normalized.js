@@ -9,8 +9,8 @@ async function testNormalized() {
     SELECT 
         keyword,
         SUM(ad_spend) as spend,
-        SUM(ad_sales) as revenue,
-        if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+        SUM(Ad_sales) as revenue,
+        if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
     FROM mars.rca_pm_olap
     WHERE Date >= subtractDays(now(), ${selectedDays})
     GROUP BY keyword
@@ -23,8 +23,8 @@ async function testNormalized() {
     SELECT 
         keyword,
         SUM(ad_spend) as spend,
-        SUM(ad_sales) as revenue,
-        if(SUM(ad_spend) > 0, SUM(ad_sales)/SUM(ad_spend), 0) as roas
+        SUM(Ad_sales) as revenue,
+        if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
     FROM mars.rca_pm_olap
     WHERE Date >= subtractDays(now(), 60)
     GROUP BY keyword

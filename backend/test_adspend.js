@@ -7,7 +7,7 @@ const client = createClient({
 });
 async function run() {
     const rs = await client.query({
-        query: "SELECT Brand, sum(toFloat64OrZero(replaceRegexpAll(toString(Ad_Spend), '[^0-9.-]', ''))) as Spend, sum(toFloat64OrZero(replaceRegexpAll(toString(Ad_sales), '[^0-9.-]', ''))) as Ad_Sales FROM rb_pdp_olap GROUP BY Brand LIMIT 20",
+        query: "SELECT Brand, sum(toFloat64OrZero(replaceRegexpAll(toString(Ad_Spend), '[^0-9.-]', ''))) as Spend, sum(toFloat64OrZero(replaceRegexpAll(toString(Ad_sales), '[^0-9.-]', ''))) as Ad_sales FROM rb_pdp_olap GROUP BY Brand LIMIT 20",
         format: 'JSONEachRow'
     });
     console.log(await rs.json());

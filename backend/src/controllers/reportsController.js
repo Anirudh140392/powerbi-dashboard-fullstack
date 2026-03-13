@@ -275,7 +275,7 @@ export const downloadReport = async (req, res) => {
                     SUM(toFloat64(Ad_Clicks)) as Clicks,
                     SUM(toFloat64(Ad_Spend)) as Spend,
                     round(SUM(toFloat64(Ad_sales)) / nullIf(SUM(toFloat64(Ad_Spend)), 0), 2) as ROAS,
-                    round((SUM(toFloat64(Ad_Quanity_sold)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0)) * 100, 2) as Conversion_Rate,
+                    round((SUM(toFloat64(Ad_Quantity_sold)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0)) * 100, 2) as Conversion_Rate,
                     round((SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Impressions)), 0)) * 1000, 2) as CPM,
                     round(SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0), 2) as CPC
                 FROM rb_pdp_olap
@@ -355,7 +355,7 @@ export const downloadReport = async (req, res) => {
                     SUM(toFloat64(Ad_sales)) as Inorganic_Sales,
                     SUM(toFloat64(Ad_Spend)) as Spend,
                     round(SUM(toFloat64(Ad_sales)) / nullIf(SUM(toFloat64(Ad_Spend)), 0), 2) as ROAS,
-                    round((SUM(toFloat64(Ad_Quanity_sold)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0)) * 100, 2) as Conversion,
+                    round((SUM(toFloat64(Ad_Quantity_sold)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0)) * 100, 2) as Conversion,
                     round((SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Impressions)), 0)) * 1000, 2) as CPM,
                     round(SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0), 2) as CPC,
                     

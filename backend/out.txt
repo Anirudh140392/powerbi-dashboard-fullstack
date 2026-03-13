@@ -43,7 +43,7 @@ Brands (Top 5): [ 'Boomer', 'Bounty', 'Cancelled', 'DP', 'Doublemint' ]
                         formatDateTime(Date, '%M') as month, 
                         SUM(impressions) as impressions, 
                         SUM(ad_spend) as spend, 
-                        SUM(ad_sales) as revenue, 
+                        SUM(Ad_sales) as revenue, 
                         SUM(ad_click) as clicks, 
                         SUM(ad_quantity_sold) as orders 
                     FROM mars.rca_pm_olap 
@@ -89,8 +89,8 @@ KPI Cards: [
                         SUM(impressions) as impressions,
                         SUM(ad_click) as clicks,
                         SUM(ad_quantity_sold) as orders,
-                        SUM(ad_sales) as sales,
-                        SUM(ad_sales) as total_sales
+                        SUM(Ad_sales) as sales,
+                        SUM(Ad_sales) as total_sales
                     FROM mars.rca_pm_olap
                     WHERE 1=1
                     GROUP BY category, date

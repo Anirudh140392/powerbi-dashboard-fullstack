@@ -48,7 +48,7 @@ async function verifyCategoryOverview() {
             attributes: [
                 [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                 [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales'],
                 [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
                 [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
             ],

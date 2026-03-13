@@ -35,7 +35,7 @@ const TbZeptoAdsKeywordData = sequelize.define('tb_zepto_ads_keyword_data', {
     revenue: { // Ad Sales
         type: DataTypes.DECIMAL(10, 2),
         defaultValue: 0.00,
-        field: 'revenue' // Verify if column is named 'sales', 'ad_sales' or 'revenue'
+        field: 'revenue' // Verify if column is named 'sales', 'Ad_sales' or 'revenue'
     },
     orders: {
         type: DataTypes.INTEGER,
