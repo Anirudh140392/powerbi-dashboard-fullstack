@@ -5,27 +5,51 @@
  * - Market Share          → rb_brand_ms   (Platform + Date + hardcoded brand/city lists)
  */
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
-// ── Cached max date (shared light cache) ─────────────────────────
-let cachedMaxDate = { date: null, timestamp: 0 };
+// ── Database-Scoped Cache ─────────────────────────────────────
+const dbScopedCaches = new Map();
+
+const getDbCache = () => {
+    const dbName = getCurrentDbName();
+    if (!dbScopedCaches.has(dbName)) {
+        dbScopedCaches.set(dbName, {
+            maxDate: { date: null, timestamp: 0, promise: null }
+        });
+    }
+    return dbScopedCaches.get(dbName);
+};
+
 const MAX_DATE_TTL = 10 * 60 * 1000; // 10 min
 
 const getCachedMaxDate = async () => {
-    if (cachedMaxDate.date && (Date.now() - cachedMaxDate.timestamp) < MAX_DATE_TTL) {
-        return cachedMaxDate.date;
+    const dbCache = getDbCache();
+    if (dbCache.maxDate.date && (Date.now() - dbCache.maxDate.timestamp) < MAX_DATE_TTL) {
+        return dbCache.maxDate.date;
     }
-    try {
-        const result = await queryClickHouse(`SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap`);
-        const maxDateStr = result?.[0]?.maxDate;
-        const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
-        cachedMaxDate = { date: maxDate, timestamp: Date.now() };
-        return maxDate;
-    } catch (error) {
-        console.error('[MapIntellect] Error fetching max date:', error);
-        return dayjs().endOf('day');
+
+    if (dbCache.maxDate.promise) {
+        return dbCache.maxDate.promise;
     }
+
+    dbCache.maxDate.promise = (async () => {
+        try {
+            const result = await queryClickHouse(`SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap`);
+            const maxDateStr = result?.[0]?.maxDate;
+            const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
+            dbCache.maxDate = { date: maxDate, timestamp: Date.now(), promise: null };
+            console.log(`🎯 [MaxDate][MapIntellect][${getCurrentDbName()}] Latest date: ${maxDate.format('YYYY-MM-DD')}`);
+            return maxDate;
+        } catch (error) {
+            console.error('[MapIntellect] Error fetching max date:', error);
+            return dayjs().endOf('day');
+        } finally {
+            dbCache.maxDate.promise = null;
+        }
+    })();
+
+    return dbCache.maxDate.promise;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -80,23 +104,27 @@ const MS_LOCATIONS_SQL = MS_LOCATIONS.map(l => `'${escapeStr(l)}'`).join(', ');
 const getMapIntellectData = async (filters) => {
     console.log('[MapIntellect] Computing city-level data with filters:', JSON.stringify(filters));
 
-    const { months = 1, startDate: qStartDate, endDate: qEndDate, metric = 'all' } = filters;
+    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all' } = filters;
     const platform = filters.platform || 'All';
-
-    const monthsBack = parseInt(months, 10) || 1;
 
     // Date range
     let endDate = await getCachedMaxDate();
-    let startDate = endDate.subtract(monthsBack, 'month').startOf('day');
+    let startDate;
+
     if (qStartDate && qEndDate) {
         startDate = dayjs(qStartDate).startOf('day');
         endDate = dayjs(qEndDate).endOf('day');
+    } else if (days) {
+        const daysBack = parseInt(days, 10) || 7;
+        startDate = endDate.subtract(daysBack - 1, 'day').startOf('day');
+    } else {
+        const monthsBack = parseInt(months, 10) || 1;
+        startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     }
 
-    // Previous period (same duration)
-    const diff = endDate.diff(startDate, 'day') + 1;
-    const prevEndDate = startDate.subtract(1, 'day').endOf('day');
-    const prevStartDate = prevEndDate.subtract(diff - 1, 'day').startOf('day');
+    // Previous period (same days in previous month)
+    const prevStartDate = startDate.subtract(1, 'month').startOf('day');
+    const prevEndDate = endDate.subtract(1, 'month').endOf('day');
 
     // ── Platform condition for rb_pdp_olap (uses "Platform" column) ──
     const buildPdpPlatformCond = () => {

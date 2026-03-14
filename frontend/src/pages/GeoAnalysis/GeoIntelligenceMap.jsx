@@ -4,6 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { STATES, CITIES } from "./indiaData"; // Assuming we can use these coords
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import axiosInstance from "../../api/axiosInstance";
+import dayjs from "dayjs";
 
 // --- Constants & Types ---
 const INDIA_BOUNDS = [
@@ -38,6 +39,7 @@ export default function GeoIntelligenceMap() {
     const [timePeriod, setTimePeriod] = useState("MTD");
     const [markers, setMarkers] = useState([]);
     const [apiData, setApiData] = useState([]);
+    const [selectedPeriod, setSelectedPeriod] = useState({ startDate: "", endDate: "" });
     const [loading, setLoading] = useState(false);
     const [platforms, setPlatforms] = useState([]);
 
@@ -86,27 +88,28 @@ export default function GeoIntelligenceMap() {
                 if (timePeriod === "MTD") {
                     params += `&months=1`;
                 } else if (timePeriod === "7D") {
-                    const end = new Date();
-                    const start = new Date();
-                    start.setDate(end.getDate() - 7);
-                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                    params += `&days=7`;
                 } else if (timePeriod === "14D") {
-                    const end = new Date();
-                    const start = new Date();
-                    start.setDate(end.getDate() - 14);
-                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                    params += `&days=14`;
                 } else if (timePeriod === "31D") {
-                    const end = new Date();
-                    const start = new Date();
-                    start.setDate(end.getDate() - 31);
-                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                    params += `&days=31`;
                 }
 
                 const res = await axiosInstance.get('/map-intellect/data', { params: Object.fromEntries(new URLSearchParams(params)) });
-                setApiData(res.data?.cities || []);
+                if (res.data && res.data.cities) {
+                    setApiData(res.data.cities);
+                } else {
+                    setApiData([]);
+                }
+                if (res.data && res.data.period) {
+                    setSelectedPeriod(res.data.period);
+                } else {
+                    setSelectedPeriod({ startDate: "", endDate: "" });
+                }
             } catch (error) {
                 console.error('[MapIntellect] Failed to fetch data:', error);
                 setApiData([]);
+                setSelectedPeriod({ startDate: "", endDate: "" });
             } finally {
                 setLoading(false);
             }
@@ -148,16 +151,10 @@ export default function GeoIntelligenceMap() {
                     // else Red (< 5%)
                 } else if (metric === "Sales") {
                     value = city.sales || 0;
-                    const ratio = (value / maxSales) * 100;
-                    if (ratio > 75) color = COLORS.Green;
-                    else if (ratio > 40) color = COLORS.Blue;
-                    else if (ratio > 20) color = COLORS.Orange;
+                    color = (city.salesChange || 0) >= 0 ? COLORS.Green : COLORS.Red;
                 } else if (metric === "Orders") {
                     value = city.orders || 0;
-                    const ratio = (value / maxOrders) * 100;
-                    if (ratio > 75) color = COLORS.Green;
-                    else if (ratio > 40) color = COLORS.Blue;
-                    else if (ratio > 20) color = COLORS.Orange;
+                    color = (city.ordersChange || 0) >= 0 ? COLORS.Green : COLORS.Red;
                 }
 
                 return {
@@ -251,9 +248,14 @@ export default function GeoIntelligenceMap() {
         // Filter logic mapping based on markers assigned color
         const filteredData = mapData.filter(d => {
             if (importanceFilter === "All") return true;
-            if (importanceFilter === "High") return d.color === COLORS.Green;
-            if (importanceFilter === "Medium") return d.color === COLORS.Blue || d.color === COLORS.Orange;
-            if (importanceFilter === "Low") return d.color === COLORS.Red;
+            if (metric === "Sales" || metric === "Orders") {
+                if (importanceFilter === "Growth") return d.color === COLORS.Green;
+                if (importanceFilter === "Degrowth") return d.color === COLORS.Red;
+            } else {
+                if (importanceFilter === "High") return d.color === COLORS.Green;
+                if (importanceFilter === "Medium") return d.color === COLORS.Blue || d.color === COLORS.Orange;
+                if (importanceFilter === "Low") return d.color === COLORS.Red;
+            }
             return true;
         });
 
@@ -396,26 +398,45 @@ export default function GeoIntelligenceMap() {
 
                             <div style={{ height: "24px", width: "1px", background: "#e2e8f0" }}></div>
 
-                            <div style={{ display: "flex", gap: "4px" }}>
-                                {["MTD", "7D", "14D", "31D"].map(tp => (
-                                    <button
-                                        key={tp}
-                                        onClick={() => setTimePeriod(tp)}
-                                        style={{
-                                            width: "36px",
-                                            height: "32px",
-                                            borderRadius: "8px",
-                                            fontSize: "11px",
-                                            fontWeight: "700",
-                                            border: tp === timePeriod ? "none" : "1px solid #e2e8f0",
-                                            cursor: "pointer",
-                                            background: tp === timePeriod ? "#1e293b" : "white",
-                                            color: tp === timePeriod ? "white" : "#64748b",
-                                        }}
-                                    >
-                                        {tp}
-                                    </button>
-                                ))}
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                <div style={{ display: "flex", gap: "4px" }}>
+                                    {["MTD", "7D", "14D", "31D"].map(tp => (
+                                        <button
+                                            key={tp}
+                                            onClick={() => setTimePeriod(tp)}
+                                            style={{
+                                                width: "36px",
+                                                height: "32px",
+                                                borderRadius: "8px",
+                                                fontSize: "11px",
+                                                fontWeight: "700",
+                                                border: tp === timePeriod ? "none" : "1px solid #e2e8f0",
+                                                cursor: "pointer",
+                                                background: tp === timePeriod ? "#1e293b" : "white",
+                                                color: tp === timePeriod ? "white" : "#64748b",
+                                            }}
+                                        >
+                                            {tp}
+                                        </button>
+                                    ))}
+                                </div>
+                                {selectedPeriod.startDate && (
+                                    <div style={{
+                                        fontSize: "12px",
+                                        fontWeight: "700",
+                                        color: "#475569",
+                                        background: "#f1f5f9",
+                                        padding: "6px 12px",
+                                        borderRadius: "20px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        border: "1px solid #e2e8f0"
+                                    }}>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                                        {dayjs(selectedPeriod.startDate).format("DD MMM")} - {dayjs(selectedPeriod.endDate).format("DD MMM, YYYY")}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -464,14 +485,23 @@ export default function GeoIntelligenceMap() {
                             <div style={{ marginBottom: "24px" }}>
                                 <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px", marginBottom: "16px" }}>Intensity Prism</div>
                                 <div style={{ display: "flex", alignItems: "flex-end", gap: "6px", height: "40px" }}>
-                                    <div style={{ flex: 1, height: "40%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
-                                    <div style={{ flex: 1, height: "60%", background: COLORS.Orange, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Orange}33` }}></div>
-                                    <div style={{ flex: 1, height: "80%", background: COLORS.Blue, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Blue}33` }}></div>
-                                    <div style={{ flex: 1, height: "100%", background: COLORS.Green, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Green}33` }}></div>
+                                    {(metric === "Sales" || metric === "Orders") ? (
+                                        <>
+                                            <div style={{ flex: 1, height: "50%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
+                                            <div style={{ flex: 1, height: "100%", background: COLORS.Green, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Green}33` }}></div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div style={{ flex: 1, height: "40%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
+                                            <div style={{ flex: 1, height: "60%", background: COLORS.Orange, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Orange}33` }}></div>
+                                            <div style={{ flex: 1, height: "80%", background: COLORS.Blue, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Blue}33` }}></div>
+                                            <div style={{ flex: 1, height: "100%", background: COLORS.Green, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Green}33` }}></div>
+                                        </>
+                                    )}
                                 </div>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px", fontSize: "10px", fontWeight: "700", color: "#94a3b8" }}>
-                                    <span>CRITICAL</span>
-                                    <span>LEADER</span>
+                                    <span>{(metric === "Sales" || metric === "Orders") ? "DEGROWTH" : "CRITICAL"}</span>
+                                    <span>{(metric === "Sales" || metric === "Orders") ? "GROWTH" : "LEADER"}</span>
                                 </div>
                             </div>
 
@@ -479,9 +509,12 @@ export default function GeoIntelligenceMap() {
                             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                 <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px" }}>Focus Filter</div>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                                    {["All", "High", "Medium", "Low"].map(f => {
+                                    {((metric === "Sales" || metric === "Orders") ? ["All", "Growth", "Degrowth"] : ["All", "High", "Medium", "Low"]).map(f => {
                                         const active = importanceFilter === f;
-                                        const dotColor = f === "High" ? COLORS.Green : f === "Medium" ? COLORS.Blue : f === "Low" ? COLORS.Red : "#94a3b8";
+                                        let dotColor = "#94a3b8";
+                                        if (f === "High" || f === "Growth") dotColor = COLORS.Green;
+                                        else if (f === "Medium") dotColor = COLORS.Blue;
+                                        else if (f === "Low" || f === "Degrowth") dotColor = COLORS.Red;
 
                                         return (
                                             <button
