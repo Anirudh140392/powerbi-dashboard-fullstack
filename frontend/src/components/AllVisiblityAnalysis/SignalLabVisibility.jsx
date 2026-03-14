@@ -1174,7 +1174,7 @@ const SAMPLE_SKUS = [
 -------------------------------------------------------*/
 // Skeleton card for loading state
 const SkeletonCard = () => (
-    <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white shadow-sm px-4 py-3 w-full animate-pulse">
+    <div className="flex-none flex flex-col justify-between rounded-2xl border border-slate-100 bg-white shadow-sm px-4 py-3 w-[260px] animate-pulse">
         <div className="flex justify-between items-start">
             <div className="w-full">
                 <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
@@ -1219,7 +1219,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
 
     return (
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 w-full capitalize">
+        <div className="flex-none flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 w-[260px] capitalize">
             <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
                     <div className="flex items-center gap-2">
@@ -1266,9 +1266,9 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                     )}
 
                     {sku.offtakeShare && (
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-50 border border-sky-100 text-[10px]">
-                            <span className="text-sky-600 font-medium">Offtake Share (MS):</span>
-                            <span className="text-sky-700 font-bold">{sku.offtakeShare}</span>
+                        <div className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-slate-50 border rounded-full">
+                            <span className="text-slate-500">Offtake Share (MS):</span>
+                            <span className="font-semibold text-slate-800 text-[11px]">{sku.offtakeShare}</span>
                         </div>
                     )}
                 </div>
@@ -1326,7 +1326,7 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
         selectedKeyword
     } = useContext(FilterContext);
 
-    const [rowsPerPage, setRowsPerPage] = useState(4);
+    const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
 
     // State for real API data
@@ -1525,22 +1525,23 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
 
             <div className="mt-5 min-h-[400px]">
                 {isLoading ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
-                        {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+                    <div className="flex overflow-x-auto gap-4 items-start pb-4 snap-x">
+                        {[1, 2, 3, 4, 5].map((i) => <div key={i} className="snap-start"><SkeletonCard /></div>)}
                     </div>
                 ) : apiError ? (
                     <ErrorWithRefresh onRetry={() => {
                         setRetryCount(c => c + 1);
                     }} message={apiError} />
                 ) : filtered.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+                    <div className="flex overflow-x-auto gap-4 items-stretch border-b border-t py-4 snap-x custom-scrollbar">
                         {pageRows.map((s) => (
-                            <SignalCard
-                                key={s.id}
-                                sku={s}
-                                metricType={metricType}
-                                onShowDetails={() => setSelectedSkuForDetails(s)}
-                            />
+                            <div key={s.id} className="snap-start">
+                                <SignalCard
+                                    sku={s}
+                                    metricType={metricType}
+                                    onShowDetails={() => setSelectedSkuForDetails(s)}
+                                />
+                            </div>
                         ))}
                     </div>
                 ) : (
@@ -1589,9 +1590,9 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
                                 }}
                                 className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
                             >
-                                <option value={4}>4</option>
-                                <option value={8}>8</option>
-                                <option value={12}>12</option>
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
                                 <option value={20}>20</option>
                             </select>
                         </div>
