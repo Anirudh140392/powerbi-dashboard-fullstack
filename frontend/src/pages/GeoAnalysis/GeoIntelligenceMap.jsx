@@ -137,26 +137,28 @@ export default function GeoIntelligenceMap() {
                 if (metric === "Wt. OSA %") {
                     value = city.osa || 0;
                     if (value > 80) color = COLORS.Green;
-                    else if (value > 65) color = COLORS.Blue; // Adjusted thresholds for better distribution
+                    else if (value > 65) color = COLORS.Blue; 
                     else if (value > 45) color = COLORS.Orange;
+                    else color = COLORS.Red;
                 } else if (metric === "Market Share") {
                     value = city.marketShare || 0;
                     // User-defined thresholds for Market Share
-                    if (value >= 5) color = COLORS.Green;        // MS ≥ 5% → Green
-                    else if (value >= 4) color = COLORS.Orange;  // 4% ≤ MS < 5% → Yellow/Orange
-                    // else Red (MS < 4%)
+                    if (value > 4.9) color = COLORS.Green;
+                    else color = COLORS.Red;
                 } else if (metric === "Sales") {
                     value = city.sales || 0;
                     const ratio = (value / maxSales) * 100;
                     if (ratio > 75) color = COLORS.Green;
                     else if (ratio > 40) color = COLORS.Blue;
                     else if (ratio > 20) color = COLORS.Orange;
+                    else color = COLORS.Red;
                 } else if (metric === "Orders") {
                     value = city.orders || 0;
                     const ratio = (value / maxOrders) * 100;
                     if (ratio > 75) color = COLORS.Green;
                     else if (ratio > 40) color = COLORS.Blue;
                     else if (ratio > 20) color = COLORS.Orange;
+                    else color = COLORS.Red;
                 }
 
                 return {
@@ -514,9 +516,9 @@ export default function GeoIntelligenceMap() {
                             <div style={{ marginBottom: "24px" }}>
                                 <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px", marginBottom: "16px" }}>Intensity Prism</div>
                                 <div style={{ display: "flex", alignItems: "flex-end", gap: "6px", height: "40px" }}>
-                                    <div style={{ flex: 1, height: "40%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
-                                    <div style={{ flex: 1, height: "60%", background: COLORS.Orange, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Orange}33` }}></div>
-                                    <div style={{ flex: 1, height: "80%", background: COLORS.Blue, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Blue}33` }}></div>
+                                    <div style={{ flex: 1, height: metric === "Market Share" ? "60%" : "40%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
+                                    {metric !== "Market Share" && <div style={{ flex: 1, height: "60%", background: COLORS.Orange, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Orange}33` }}></div>}
+                                    {metric !== "Market Share" && <div style={{ flex: 1, height: "80%", background: COLORS.Blue, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Blue}33` }}></div>}
                                     <div style={{ flex: 1, height: "100%", background: COLORS.Green, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Green}33` }}></div>
                                 </div>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px", fontSize: "10px", fontWeight: "700", color: "#94a3b8" }}>
@@ -529,7 +531,7 @@ export default function GeoIntelligenceMap() {
                             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                 <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px" }}>Focus Filter</div>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                                    {["All", "High", "Medium", "Low"].map(f => {
+                                    {(metric === "Market Share" ? ["All", "High", "Low"] : ["All", "High", "Medium", "Low"]).map(f => {
                                         const active = importanceFilter === f;
                                         const dotColor = f === "High" ? COLORS.Green : f === "Medium" ? COLORS.Blue : f === "Low" ? COLORS.Red : "#94a3b8";
 

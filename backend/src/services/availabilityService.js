@@ -1026,6 +1026,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 SELECT 
                     Product as name,
                     Web_Pid as sku,
+                    Brand as brand,
                     Location as city,
                     Platform as platform,
                     ${catCol} as category_name,
@@ -1038,8 +1039,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                   AND Product != '0'
                   AND Product != ''
                   AND length(trim(Product)) > 0
-                GROUP BY Product, Web_Pid, Location, Platform, ${catCol}, ${pcCol}, DATE
-                ORDER BY Product, Web_Pid, Location, DATE
+                GROUP BY Product, Web_Pid, Brand, Location, Platform, ${catCol}, ${pcCol}, DATE
+                ORDER BY Product, Web_Pid, Brand, Location, DATE
             `;
 
             const results = await queryClickHouse(query);
@@ -1087,6 +1088,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     skuMap[skuId] = {
                         name: row.name,
                         sku: row.sku,
+                        brand: row.brand,
                         platform: row.platform,
                         category_name: row.category_name,
                         product_category_name: row.product_category_name,
@@ -1160,6 +1162,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 return {
                     name: item.name,
                     sku: item.sku,
+                    brand: item.brand,
                     platform: item.platform,
                     format: item.category_name,
                     productCategory: item.product_category_name,
