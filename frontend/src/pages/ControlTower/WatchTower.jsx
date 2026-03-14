@@ -170,9 +170,9 @@ export default function WatchTower() {
     performanceMetricsKpis: [],
   });
 
-  const [categoryDataLoading, setCategoryDataLoading] = useState(false);
+  const [categoryDataLoading, setCategoryDataLoading] = useState(true);
   const [categoryOverview, setCategoryOverview] = useState([]);
-  const [performanceLoading, setPerformanceLoading] = useState(false);
+  const [performanceLoading, setPerformanceLoading] = useState(true);
 
   const {
     selectedBrand,
