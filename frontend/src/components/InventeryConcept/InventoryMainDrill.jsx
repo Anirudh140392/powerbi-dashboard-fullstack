@@ -6,10 +6,16 @@ import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
 
 const formatNumber = (v) => {
-    if (v === undefined || v === null) return "—"; // Handle null/undefined explicitly
-    if (!Number.isFinite(v)) return "—";
-    if (Math.abs(v) >= 100) return v.toFixed(0);
-    return v.toFixed(2);
+    if (v === undefined || v === null || isNaN(v)) return "—";
+    const num = parseFloat(v);
+    if (!Number.isFinite(num)) return "—";
+    
+    if (Math.abs(num) >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`;
+    if (Math.abs(num) >= 100000) return `${(num / 100000).toFixed(2)} Lacs`;
+    if (Math.abs(num) >= 1000) return `${(num / 1000).toFixed(1)}K`;
+    
+    if (Math.abs(num) >= 100) return num.toFixed(0);
+    return num.toFixed(2);
 };
 
 // ---------------------------------------------------------------------------

@@ -1216,7 +1216,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false,
             {
                 showFilterPanel && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
-                        <div className="relative w-full max-w-lg md:max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[85vh] md:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="relative w-full max-w-lg md:max-w-4xl rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" style={{ height: "600px", maxHeight: "85vh", marginBottom: "40px" }}>
                             {/* Modal Header */}
                             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                                 <div>
@@ -1237,6 +1237,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false,
                                 <KpiFilterPanel
                                     sectionConfig={filterOptions}
                                     keywords={keywordOptions}
+                                    brands={brandOptions}
                                     onKeywordChange={(vals) => setPopupFilters(prev => ({ ...prev, keyword: vals[0] ?? null }))}
                                     onSectionChange={(sectionId, vals) => {
                                         setPopupFilters(prev => ({

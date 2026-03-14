@@ -331,16 +331,26 @@ const Sidebar = ({
         bgcolor: isCollapsed ? "transparent" : "rgba(248, 250, 252, 0.5)"
       }}>
         {isCollapsed ? (
-          <Typography
-            sx={{
-              fontSize: '9px',
-              fontWeight: 700,
-              color: 'rgba(0, 0, 0, 0.15)',
-              letterSpacing: '1px'
-            }}
-          >
-            TR
-          </Typography>
+          <Tooltip title="Sign Out" placement="right">
+            <IconButton
+              onClick={() => {
+                logout();
+                localStorage.clear();
+                navigate('/login');
+              }}
+              sx={{
+                color: "#ef4444",
+                bgcolor: "rgba(239, 68, 68, 0.05)",
+                "&:hover": {
+                  bgcolor: "#ef4444",
+                  color: "#fff",
+                },
+                transition: "all 0.2s ease",
+              }}
+            >
+              <LogoutIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Typography
@@ -366,21 +376,10 @@ const Sidebar = ({
             <Button
               variant="outlined"
               size="small"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                // 1. Update React state
+              onClick={() => {
                 logout();
-                // 2. Clear all auth data
                 localStorage.clear();
-                // 3. Absolute hash-based redirect
-                window.location.hash = "/login";
-                // 4. Fallback: Force reload if redirect doesn't trigger re-render
-                setTimeout(() => {
-                  if (window.location.hash.includes("login")) {
-                    window.location.reload();
-                  }
-                }, 100);
+                navigate('/login');
               }}
               startIcon={<LogoutIcon sx={{ fontSize: "1rem" }} />}
               sx={{
@@ -390,21 +389,17 @@ const Sidebar = ({
                 borderColor: "rgba(239, 68, 68, 0.2)",
                 textTransform: "none",
                 fontSize: "0.65rem",
+                px: 1.5,
                 fontWeight: 600,
                 borderRadius: "8px",
-                px: 1,
-                py: 0.2,
-                bgcolor: "rgba(239, 68, 68, 0.02)",
-                zIndex: 9999,
-                pointerEvents: "auto",
+                transition: "all 0.2s ease",
                 "&:hover": {
-                  bgcolor: "#ef4444 !important",
-                  color: "#fff !important",
-                  borderColor: "#ef4444 !important",
+                  bgcolor: "#ef4444",
+                  color: "#fff",
+                  borderColor: "#ef4444",
                   transform: "translateY(-1px)",
                   boxShadow: "0 2px 8px rgba(239, 68, 68, 0.2)",
                 },
-                transition: "all 0.2s ease",
               }}
             >
               SignOut

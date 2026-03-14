@@ -64,13 +64,13 @@ export default function MainPerformanceMarketings() {
           const catList = [...response.data];
           setCategories(catList);
 
-          // If current selection is "All" or not in the new list, select the first category
-          if (selectedCategory === "All" || !catList.includes(selectedCategory)) {
-            setSelectedCategory(catList[0]);
+          // Keep current selection if valid, otherwise default to "All" (which is the SELECT ALL state)
+          if (selectedCategory !== "All" && !catList.includes(selectedCategory)) {
+            setSelectedCategory("All");
           }
         } else {
-          setCategories([]);
-          setSelectedCategory("");
+          setCategories([]); // No categories found
+          setSelectedCategory("All");
         }
       } catch (error) {
         console.error("❌ [MainPerformanceMarketing] Error fetching PM categories:", error);

@@ -93,7 +93,7 @@ const SparklineCell = ({ data, kpiId, children }) => {
 
 const SubCategoryMarket = ({ loading: parentLoading }) => {
     const [colsPerPage, setColsPerPage] = useState(5);
-    const [selectedSubCat, setSelectedSubCat] = useState('');
+    const [selectedSubCat, setSelectedSubCat] = useState([]); // Array for multi-select
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
 
@@ -133,7 +133,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
                     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
-                    subCategory: selectedSubCat || undefined,
+                    subCategory: selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined,
                 };
 
                 const response = await axiosInstance.get('/market-share/sub-category-kpi', { params });
@@ -147,9 +147,9 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     if (brands) {
                         setBrandsData(brands);
                     }
-                    // Set default selected sub-category on first load
-                    if (!selectedSubCat && selectedSubCategory) {
-                        setSelectedSubCat(selectedSubCategory);
+                    // Set default selected sub-category on first load if none selected
+                    if (selectedSubCat.length === 0 && selectedSubCategory) {
+                        setSelectedSubCat(Array.isArray(selectedSubCategory) ? selectedSubCategory : [selectedSubCategory]);
                     }
                 }
             } catch (error) {
@@ -183,6 +183,17 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         return `${val.toFixed(2)}%`;
     };
 
+    // Toggle multi-select category
+    const toggleCategory = (cat) => {
+        setSelectedSubCat(prev => {
+            if (prev.includes(cat)) {
+                return prev.filter(c => c !== cat);
+            } else {
+                return [...prev, cat];
+            }
+        });
+    };
+
     return (
         <motion.div
             className="bg-white rounded-3xl shadow-sm border border-slate-200 mt-6 overflow-hidden"
@@ -206,8 +217,12 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                                     : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:shadow-md"
                             )}
                         >
-                            <span className="text-[10px] font-semibold uppercase tracking-wider opacity-60">Sub-Category:</span>
-                            <span>{selectedSubCat || 'Select'}</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider opacity-60">Category:</span>
+                            <span className="max-w-[150px] truncate">
+                                {selectedSubCat.length === 0 ? 'Select' : 
+                                 selectedSubCat.length === 1 ? selectedSubCat[0] : 
+                                 `${selectedSubCat[0]} +${selectedSubCat.length - 1}`}
+                            </span>
                             <ChevronDown
                                 size={14}
                                 className={cn(
@@ -231,18 +246,17 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                                             <button
                                                 key={cat}
                                                 onClick={() => {
-                                                    setSelectedSubCat(cat);
-                                                    setIsDropdownOpen(false);
+                                                    toggleCategory(cat);
                                                 }}
                                                 className={cn(
                                                     "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[12px] font-semibold transition-all duration-150",
-                                                    selectedSubCat === cat
+                                                    selectedSubCat.includes(cat)
                                                         ? "bg-slate-900 text-white"
                                                         : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                                                 )}
                                             >
                                                 <span>{cat}</span>
-                                                {selectedSubCat === cat && (
+                                                {selectedSubCat.includes(cat) && (
                                                     <Check size={14} className="text-emerald-400" />
                                                 )}
                                             </button>

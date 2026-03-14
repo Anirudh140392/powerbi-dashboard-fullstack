@@ -1,25 +1,14 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
+import 'dotenv/config';
 import performanceMarketingService from './src/services/performanceMarketingService.js';
-
-async function testFormat() {
-    try {
-        const filters = {
-            platform: 'All',
-            brand: 'All',
-            zone: 'All',
-            startDate: '2026-03-01',
-            endDate: '2026-03-07'
-        };
-        console.log("Testing getFormatPerformance...");
-        const data = await performanceMarketingService.getFormatPerformance(filters);
-        console.log("Success getFormatPerformance");
-    } catch (e) {
-        console.error("Error in getFormatPerformance:");
-        console.error(e.stack);
-    }
+async function test() {
+  try {
+    const data = await performanceMarketingService.getFormatPerformance({ platform: 'All' });
+    console.log("Returned sample:", data[0]);
+    console.log("Keys:", Object.keys(data[0]));
     process.exit(0);
+  } catch(e) {
+    console.error(e);
+    process.exit(1);
+  }
 }
-
-testFormat();
+test();

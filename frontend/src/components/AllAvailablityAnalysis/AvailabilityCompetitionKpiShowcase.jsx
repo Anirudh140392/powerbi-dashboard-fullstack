@@ -395,7 +395,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
             <CardHeader className="flex items-start justify-between border-b pb-3">
                 <div className="space-y-2">
                     <Box display="flex" gap={1} flexWrap="wrap">
-                        {(isBrandMode ? KPI_KEYS.filter(m => m.key !== 'Sos' && m.key !== 'Fillrate') : KPI_KEYS.filter(m => m.key !== 'Sos')).map((m) => (
+                        {(isBrandMode ? KPI_KEYS.filter(m => m.key !== 'Sos' && m.key !== 'Fillrate') : KPI_KEYS.filter(m => m.key !== 'Sos' && m.key !== 'Fillrate')).map((m) => (
                             <MetricChip
                                 key={m.key}
                                 label={m.label}
@@ -475,15 +475,9 @@ const KPI_KEYS = [
         unit: "%",
     },
     {
-        key: "Assortment",
-        label: "Assortment",
-        color: "#3B82F6",
-        unit: "",
-    },
-    {
-        key: "Psl",
-        label: "PSL",
-        color: "#EC4899",
+        key: "Listing",
+        label: "Listing %",
+        color: "#0EA5E9",
         unit: "%",
     }
 ];
@@ -508,16 +502,12 @@ const BrandTable = ({ rows, loading }) => {
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
                                 <th className="px-3 py-2 text-center">Listing %</th>
-                                <th className="px-3 py-2 text-center">Assortment</th>
-                                <th className="px-3 py-2 text-center">PSL</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && Array.from({ length: 5 }).map((_, idx) => (
                                 <tr key={`skeleton-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                 </tr>
@@ -543,22 +533,12 @@ const BrandTable = ({ rows, loading }) => {
                                             {(row.listing || 0).toFixed(1)}%
                                         </span>
                                     </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700">
-                                            {(row.assortment || 0)}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">
-                                            {(row.psl || 0).toFixed(1)}%
-                                        </span>
-                                    </td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={3}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
                                         No brands matching current filters.
@@ -590,14 +570,12 @@ const SkuTable = ({ rows, loading }) => {
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
                                 <th className="px-3 py-2 text-center">Listing %</th>
-                                <th className="px-3 py-2 text-center">Assortment</th>
-                                <th className="px-3 py-2 text-center">PSL</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={6} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={4} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
@@ -626,22 +604,12 @@ const SkuTable = ({ rows, loading }) => {
                                             {(row.listing || 0).toFixed(1)}%
                                         </span>
                                     </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700">
-                                            {(row.assortment || 0)}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">
-                                            {(row.psl || 0).toFixed(1)}%
-                                        </span>
-                                    </td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={7}
+                                        colSpan={4}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
                                         No SKUs matching current filters.

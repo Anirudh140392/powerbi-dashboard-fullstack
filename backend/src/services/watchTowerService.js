@@ -14,6 +14,7 @@ import dayjs from 'dayjs';
 import isoWeek from 'dayjs/plugin/isoWeek.js';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import customParseFormat from 'dayjs/plugin/customParseFormat.js';
+import { getTableColumns, resolveColumn, columnExists } from '../utils/schemaHelper.js';
 
 dayjs.extend(isoWeek);
 dayjs.extend(weekOfYear);
@@ -65,76 +66,8 @@ async function getAggTableStatus() {
 
 // =====================================================
 // DYNAMIC COLUMN DISCOVERY SYSTEM
-// Queries DESCRIBE TABLE to discover actual column names per DB
-// Handles case-sensitivity and missing columns across databases
+// Moved to ../utils/schemaHelper.js
 // =====================================================
-const tableColumnsCache = new Map(); // key: `${dbName}:${tableName}` → { columns: Map<lowercase, actualName>, timestamp }
-const TABLE_COLUMNS_TTL = 10 * 60 * 1000; // 10 minutes
-
-/**
- * Get actual column names for a table in the current DB.
- * Returns a Map of lowercased column name → actual column name.
- */
-async function getTableColumns(tableName) {
-    const dbName = getCurrentDbName();
-    const cacheKey = `${dbName}:${tableName}`;
-    const cached = tableColumnsCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < TABLE_COLUMNS_TTL) {
-        return cached.columns;
-    }
-
-    try {
-        const result = await queryClickHouse(`DESCRIBE TABLE ${tableName}`);
-        const columns = new Map();
-        for (const row of result) {
-            const colName = row.name || row.Name;
-            if (colName) {
-                columns.set(colName.toLowerCase(), colName);
-            }
-        }
-        tableColumnsCache.set(cacheKey, { columns, timestamp: Date.now() });
-        console.log(`🔍 [ColumnDiscovery] DB=${dbName}, Table=${tableName}: ${columns.size} columns discovered`);
-        return columns;
-    } catch (error) {
-        console.error(`[ColumnDiscovery] Failed to describe ${tableName}:`, error.message);
-        return new Map();
-    }
-}
-
-/**
- * Resolve a column name case-insensitively using the discovered columns.
- * Falls back to the original name if not found.
- * @param {Map} columnsMap - Map from getTableColumns()
- * @param {string} expectedName - The expected column name (any case)
- * @param {string} fallback - Optional fallback if column doesn't exist at all
- * @returns {string} The actual column name as it exists in the DB
- */
-function resolveColumn(columnsMap, expectedName, fallback = null) {
-    if (!columnsMap || columnsMap.size === 0) return fallback || expectedName;
-
-    // Direct match first
-    if (columnsMap.has(expectedName.toLowerCase())) {
-        return columnsMap.get(expectedName.toLowerCase());
-    }
-
-    // Try without underscores/spaces
-    const normalized = expectedName.toLowerCase().replace(/[_\s]/g, '');
-    for (const [key, actual] of columnsMap) {
-        if (key.replace(/[_\s]/g, '') === normalized) {
-            return actual;
-        }
-    }
-
-    return fallback || expectedName;
-}
-
-/**
- * Check if a column exists in the table (case-insensitive)
- */
-function columnExists(columnsMap, columnName) {
-    if (!columnsMap || columnsMap.size === 0) return true; // Assume exists if we can't check
-    return columnsMap.has(columnName.toLowerCase());
-}
 
 /**
  * Returns the appropriate SQL fields and table name based on data source availability.

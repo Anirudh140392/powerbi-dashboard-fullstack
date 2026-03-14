@@ -2,8 +2,37 @@ import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
+import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 
 dayjs.extend(weekOfYear);
+
+/**
+ * Helper to resolve column names and wrap them with null/NaN safety
+ * for rca_pm_olap table.
+ */
+async function getPmSource() {
+    const tableName = 'rca_pm_olap';
+    const cols = await getTableColumns(tableName);
+    const r = (name) => resolveColumn(cols, name);
+    const wrap = (col) => `ifNull(toFloat64OrZero(toString(${col})), 0)`;
+
+    return {
+        table: tableName,
+        r,
+        f: {
+            impressions: wrap(r('impressions')),
+            ad_spend: wrap(r('ad_spend')),
+            ad_sales: wrap(r('Ad_sales')),
+            ad_click: wrap(r('ad_click')),
+            ad_quantity_sold: wrap(r('Ad_Quantity_sold')),
+            platform: r('Platform'),
+            brand: r('brand'),
+            category: r('category'),
+            date: r('DATE'),
+            keyword_type: r('keyword_type')
+        }
+    };
+}
 
 /**
  * Performance Marketing Service
@@ -13,14 +42,10 @@ const performanceMarketingService = {
 
     async getCategories() {
         try {
-            const dbName = getCurrentDbName();
-
-            if (dbName === 'mars') {
-                const query = `SELECT DISTINCT category FROM rca_pm_olap WHERE category IS NOT NULL AND category != '' ORDER BY category ASC`;
-                const rows = await queryClickHouse(query);
-                return rows.map(r => r.category);
-            }
-            return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
+            const pmSource = await getPmSource();
+            const query = `SELECT DISTINCT ${pmSource.f.category} as category FROM ${pmSource.table} WHERE category IS NOT NULL AND category != '' ORDER BY category ASC`;
+            const rows = await queryClickHouse(query);
+            return rows.map(r => r.category);
         } catch (error) {
             console.error("Error fetching categories in performanceMarketingService:", error);
             return ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
@@ -38,62 +63,73 @@ const performanceMarketingService = {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const pmSource = await getPmSource();
+                const f = pmSource.f;
+                const r = pmSource.r;
+
                 const endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
                 const startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(29, 'days');
 
                 const startStr = startDate.format('YYYY-MM-DD');
                 const endStr = endDate.format('YYYY-MM-DD');
 
-                let whereConditions = [`DATE BETWEEN '${startStr}' AND '${endStr}'`];
+                let whereConditions = [`${f.date} BETWEEN '${startStr}' AND '${endStr}'`];
 
                 // Filters
                 if (filters.platform && filters.platform !== 'All') {
                     const platforms = filters.platform.split(',').map(p => `'${p.trim()}'`).join(',');
-                    whereConditions.push(`Platform IN (${platforms})`);
+                    whereConditions.push(`${f.platform} IN (${platforms})`);
                 }
                 if (filters.brand && filters.brand !== 'All') {
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    whereConditions.push(`lower(brand) IN (${values})`);
+                    whereConditions.push(`lower(${f.brand}) IN (${values})`);
                 }
 
                 if (filters.category && filters.category !== 'All') {
                     const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
-                    whereConditions.push(`category IN (${cats})`);
+                    whereConditions.push(`${f.category} IN (${cats})`);
                 }
 
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
                     const values = filters.productCategory.split(',').map(b => `'${b.trim()}'`).join(',');
-                    whereConditions.push(`category IN (${values})`);
+                    whereConditions.push(`${f.category} IN (${values})`);
                 }
 
                 // Weekend Flag
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                        whereConditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
+                        whereConditions.push(`toDayOfWeek(${f.date}) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                        whereConditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
+                        whereConditions.push(`toDayOfWeek(${f.date}) NOT IN (6, 7)`);
                     }
                 }
+
+                // Exclude rows where keyword IS a keyword_type value (Branded, Competition, Generic)
+                // These are aggregate/summary rows, not actual keywords
+                const keywordTypeCol = r('keyword_type');
+                whereConditions.push(`keyword IS NOT NULL AND keyword != ''`);
+                whereConditions.push(`keyword != ${keywordTypeCol}`);
+                whereConditions.push(`lower(keyword) NOT IN ('branded', 'competition', 'generic')`);
 
                 const whereSql = whereConditions.join(' AND ');
                 console.log("🔍 [Service] getKeywordAnalysis whereSql:", whereSql);
 
                 const query = `
-                    SELECT 
-                        keyword as keyword_name, 
-                        category as keyword_category, 
-                        formatDateTime(DATE, '%M') as month, 
-                        SUM(impressions) as impressions, 
-                        SUM(ad_spend) as spend, 
-                        SUM(Ad_sales) as revenue, 
-                        SUM(ad_click) as clicks, 
-                        SUM(Ad_Quantity_sold) as orders 
-                    FROM rca_pm_olap 
-                    WHERE ${whereSql}
-                    GROUP BY keyword, category, month
-                `;
+                SELECT 
+                    keyword as keyword_name, 
+                    ${f.category} as keyword_category, 
+                    formatDateTime(${f.date}, '%M') as month, 
+                    SUM(impressions) as impressions, 
+                    SUM(ad_spend) as spend, 
+                    SUM(${r('Ad_sales')}) as revenue, 
+                    SUM(ad_click) as clicks, 
+                    SUM(${r('Ad_Quantity_sold')}) as orders 
+                FROM ${pmSource.table}
+                WHERE ${whereSql}
+                GROUP BY keyword_name, keyword_category, month
+            `;
                 console.log("🔍 [Service] getKeywordAnalysis Query:\n", query);
                 const results = await queryClickHouse(query);
                 console.log("✅ [Service] getKeywordAnalysis Results:", results.length);
@@ -108,6 +144,7 @@ const performanceMarketingService = {
                     if (!keywordMap.has(kw)) {
                         keywordMap.set(kw, {
                             keyword: kw,
+                            isKeyword: true,
                             category: cat,
                             months: [],
                             children: new Map()
@@ -154,21 +191,22 @@ const performanceMarketingService = {
                 });
 
                 // Build final tree structure with 3 levels
-                return Array.from(keywordMap.values()).map(kw => ({
-                    ...kw,
-                    children: Array.from(kw.children.values()).map(catNode => ({
-                        ...catNode,
-                        children: Array.from(catNode.children.values())
-                    }))
-                }));
+                const finalTree = Array.from(keywordMap.values()).map(kwNode => {
+                    const categories = Array.from(kwNode.children.values()).map(catNode => {
+                        const months = Array.from(catNode.children.values());
+                        return { ...catNode, months, children: months };
+                    });
+                    return { ...kwNode, children: categories };
+                });
+
+                return finalTree;
 
             } catch (error) {
                 console.error('Error in getKeywordAnalysis:', error);
                 throw error;
             }
         }, CACHE_TTL.ONE_HOUR);
-    }
-    ,
+    },
 
     /**
      * Get KPIs Overview (Impressions, Spend, ROAS, Conversion)
@@ -191,40 +229,44 @@ const performanceMarketingService = {
                 const prevStartDate = prevEndDate.subtract(duration - 1, 'day');
                 const prevDuration = duration;
 
+                const pmSource = await getPmSource();
+                const f = pmSource.f;
+                const r = pmSource.r;
+
                 // 2. Build Query Conditions (Base)
                 let baseConditions = [];
 
                 // Platform filter
                 if (filters.platform && filters.platform !== 'All') {
                     const platforms = filters.platform.split(',').map(p => `'${p.trim()}'`).join(',');
-                    baseConditions.push(`Platform IN (${platforms})`);
+                    baseConditions.push(`${f.platform} IN (${platforms})`);
                 }
 
                 // Brand filter
                 if (filters.brand && filters.brand !== 'All') {
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    baseConditions.push(`lower(brand) IN (${values})`);
+                    baseConditions.push(`lower(${f.brand}) IN (${values})`);
                 }
 
                 // Category filter
                 if (filters.category && filters.category !== 'All') {
                     const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
-                    baseConditions.push(`category IN (${cats})`);
+                    baseConditions.push(`${f.category} IN (${cats})`);
                 }
 
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
                     const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
-                    baseConditions.push(`category IN (${cats})`);
+                    baseConditions.push(`${f.category} IN (${cats})`);
                 }
 
                 // Weekend Flag
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                        baseConditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
+                        baseConditions.push(`toDayOfWeek(${f.date}) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                        baseConditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
+                        baseConditions.push(`toDayOfWeek(${f.date}) NOT IN (6, 7)`);
                     }
                 }
 
@@ -233,17 +275,17 @@ const performanceMarketingService = {
                 const getMetrics = async (start, end) => {
                     const s = start.format('YYYY-MM-DD');
                     const e = end.format('YYYY-MM-DD');
-                    const conditions = [...baseConditions, `DATE BETWEEN '${s}' AND '${e}'`];
+                    const conditions = [...baseConditions, `${f.date} BETWEEN '${s}' AND '${e}'`];
                     const whereSql = conditions.join(' AND ');
 
                     const query = `
                         SELECT 
                             SUM(impressions) as impressions,
                             SUM(ad_spend) as spend,
-                            SUM(Ad_sales) as Ad_sales,
+                            SUM(${r('Ad_sales')}) as Ad_sales,
                             SUM(ad_click) as clicks,
-                            SUM(Ad_Quantity_sold) as orders
-                        FROM rca_pm_olap
+                            SUM(${r('Ad_Quantity_sold')}) as orders
+                        FROM ${pmSource.table}
                         WHERE ${whereSql}
                     `;
 
@@ -263,18 +305,18 @@ const performanceMarketingService = {
                 const getTrendData = async (start, end) => {
                     const s = start.format('YYYY-MM-DD');
                     const e = end.format('YYYY-MM-DD');
-                    const conditions = [...baseConditions, `DATE BETWEEN '${s}' AND '${e}'`];
+                    const conditions = [...baseConditions, `${f.date} BETWEEN '${s}' AND '${e}'`];
                     const whereSql = conditions.join(' AND ');
 
                     const query = `
                         SELECT 
-                            DATE as date,
+                            ${f.date} as date,
                             SUM(impressions) as impressions,
                             SUM(ad_spend) as spend,
-                            SUM(Ad_sales) as Ad_sales,
+                            SUM(${r('Ad_sales')}) as Ad_sales,
                             SUM(ad_click) as clicks,
-                            SUM(Ad_Quantity_sold) as orders
-                        FROM rca_pm_olap
+                            SUM(${r('Ad_Quantity_sold')}) as orders
+                        FROM ${pmSource.table}
                         WHERE ${whereSql}
                         GROUP BY date
                         ORDER BY date ASC
@@ -409,42 +451,44 @@ const performanceMarketingService = {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const pmSource = await getPmSource();
+                const f = pmSource.f;
+                const r = pmSource.r;
+
                 const { platform, brand, zone, startDate, endDate } = filters;
                 let conditions = [];
 
                 // Platform Filter
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
-                    conditions.push(`lower(Platform) IN (${platforms})`);
+                    conditions.push(`lower(${f.platform}) IN (${platforms})`);
                 }
 
                 // Date Range Filter
                 if (startDate && endDate) {
                     const s = dayjs(startDate).startOf('day').format('YYYY-MM-DD');
                     const e = dayjs(endDate).endOf('day').format('YYYY-MM-DD');
-                    conditions.push(`DATE BETWEEN '${s}' AND '${e}'`);
+                    conditions.push(`${f.date} BETWEEN '${s}' AND '${e}'`);
                 }
 
                 // Brand Filter
                 if (brand && brand !== 'All') {
-                    const dbName = getCurrentDbName();
-                    const filterColumn = dbName === 'mars' ? 'category' : 'brand';
                     const values = brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    conditions.push(`lower(${filterColumn}) IN (${values})`);
+                    conditions.push(`lower(${f.brand}) IN (${values})`);
                 }
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
                     const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
-                    conditions.push(`category IN (${cats})`);
+                    conditions.push(`${f.category} IN (${cats})`);
                 }
 
                 // Weekend Flag
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                        conditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
+                        conditions.push(`toDayOfWeek(${f.date}) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                        conditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
+                        conditions.push(`toDayOfWeek(${f.date}) NOT IN (6, 7)`);
                     }
                 }
 
@@ -452,7 +496,7 @@ const performanceMarketingService = {
                 if (filters.category && filters.category !== 'All') {
                     const selectedCats = filters.category.split(',').map(c => c.trim().toLowerCase());
                     if (selectedCats.length > 0) {
-                        conditions.push(`lower(category) IN (${selectedCats.map(c => `'${c}'`).join(',')})`);
+                        conditions.push(`lower(${f.category}) IN (${selectedCats.map(c => `'${c}'`).join(',')})`);
                     }
                 }
 
@@ -469,18 +513,21 @@ const performanceMarketingService = {
                 // Group by category -> Date
                 const queryDaily = `
                     SELECT 
-                        category as Category,
-                        formatDateTime(DATE, '%Y-%m-%d') as date,
+                        ifNull(${f.keyword_type}, 'Generic') as KeywordType,
+                        ifNull(keyword, 'N/A') as Keyword,
+                        'N/A' as City,
+                        ${f.category} as Category,
+                        formatDateTime(${f.date}, '%Y-%m-%d') as date,
                         SUM(ad_spend) as spend,
                         SUM(impressions) as impressions,
                         SUM(ad_click) as clicks,
-                        SUM(Ad_Quantity_sold) as orders,
-                        SUM(Ad_sales) as sales,
-                        SUM(Ad_sales) as total_sales
-                    FROM rca_pm_olap
+                        SUM(${r('Ad_Quantity_sold')}) as orders,
+                        SUM(${r('Ad_sales')}) as sales,
+                        SUM(${r('Ad_sales')}) as total_sales
+                    FROM ${pmSource.table}
                     WHERE ${whereSql}
-                    GROUP BY category, date
-                    ORDER BY category ASC, date ASC
+                    GROUP BY KeywordType, Keyword, City, Category, date
+                    ORDER BY KeywordType ASC, Keyword ASC, Category ASC, date ASC
                 `;
                 console.log("🔍 [Service] getFormatPerformance Query:\n", queryDaily);
                 const dailyData = await queryClickHouse(queryDaily);
@@ -577,14 +624,15 @@ const performanceMarketingService = {
     /**
      * Get distinct platforms from rca_pm_olap for PM page
      */
-    getPlatforms: async () => {
+    async getPlatforms() {
         const cacheKey = 'pm_platforms';
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const pmSource = await getPmSource();
                 console.error("🔍 [Service] Fetching PM platforms...");
                 const query = `
-                    SELECT DISTINCT Platform 
-                    FROM rca_pm_olap 
+                    SELECT DISTINCT ${pmSource.f.platform} as Platform 
+                    FROM ${pmSource.table}
                     WHERE Platform IS NOT NULL
                     ORDER BY Platform ASC
                 `;
@@ -603,21 +651,23 @@ const performanceMarketingService = {
      * Get distinct brands from rca_pm_olap, optionally filtered by platform
      * @param {string} platform - Platform to filter by (optional)
      */
-    getBrands: async (platform) => {
+    async getBrands(platform) {
         const cacheKey = generateCacheKey('pm_brands', { platform });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const pmSource = await getPmSource();
+                const f = pmSource.f;
                 console.error("🔍 [Service] Fetching PM brands for platform:", platform);
-                let whereConditions = ['brand IS NOT NULL AND brand != \'\''];
+                let whereConditions = [`${f.brand} IS NOT NULL AND ${f.brand} != ''`];
 
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => `'${p.trim()}'`).join(',');
-                    whereConditions.push(`Platform IN (${platforms})`);
+                    whereConditions.push(`${f.platform} IN (${platforms})`);
                 }
 
                 const query = `
-                    SELECT DISTINCT brand as brand_name 
-                    FROM rca_pm_olap 
+                    SELECT DISTINCT ${f.brand} as brand_name 
+                    FROM ${pmSource.table}
                     WHERE ${whereConditions.join(' AND ')}
                     ORDER BY brand_name ASC
                 `;
@@ -645,46 +695,50 @@ const performanceMarketingService = {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
+                const pmSource = await getPmSource();
+                const f = pmSource.f;
+                const r = pmSource.r;
+
                 let conditions = [];
 
                 // Platform filter
                 if (filters.platform && filters.platform !== 'All') {
                     const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
-                    conditions.push(`lower(Platform) IN (${platforms})`);
+                    conditions.push(`lower(${f.platform}) IN (${platforms})`);
                 }
 
                 // Brand filter
                 if (filters.brand && filters.brand !== 'All') {
                     const values = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    conditions.push(`lower(brand) IN (${values})`);
+                    conditions.push(`lower(${f.brand}) IN (${values})`);
                 }
 
                 // Category filter
                 if (filters.category && filters.category !== 'All') {
                     const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
-                    conditions.push(`category IN (${cats})`);
+                    conditions.push(`${f.category} IN (${cats})`);
                 }
 
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
                     const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
-                    conditions.push(`category IN (${cats})`);
+                    conditions.push(`${f.category} IN (${cats})`);
                 }
 
                 // Date filter
                 if (filters.startDate && filters.endDate) {
                     const s = dayjs(filters.startDate).startOf('day').format('YYYY-MM-DD');
                     const e = dayjs(filters.endDate).endOf('day').format('YYYY-MM-DD');
-                    conditions.push(`DATE BETWEEN '${s}' AND '${e}'`);
+                    conditions.push(`${f.date} BETWEEN '${s}' AND '${e}'`);
                 }
 
                 // Weekend Flag
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
-                        conditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
+                        conditions.push(`toDayOfWeek(${f.date}) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
-                        conditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
+                        conditions.push(`toDayOfWeek(${f.date}) NOT IN (6, 7)`);
                     }
                 }
 
@@ -694,10 +748,10 @@ const performanceMarketingService = {
                     SELECT 
                         keyword,
                         SUM(ad_spend) as spend,
-                        SUM(Ad_sales) as revenue,
-                        if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
-                    FROM rca_pm_olap
-                    WHERE ${whereSql} AND (ad_spend > 0 OR Ad_sales > 0)
+                        SUM(${r('Ad_sales')}) as revenue,
+                        if(SUM(ad_spend) > 0, SUM(${r('Ad_sales')})/SUM(ad_spend), 0) as roas
+                    FROM ${pmSource.table}
+                    WHERE ${whereSql} AND (ad_spend > 0 OR ${r('Ad_sales')} > 0)
                     GROUP BY keyword
                     HAVING spend > 0
                 `;
@@ -752,10 +806,10 @@ const performanceMarketingService = {
                     SELECT 
                         keyword,
                         SUM(ad_spend) as spend,
-                        SUM(Ad_sales) as revenue,
-                        if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
-                    FROM rca_pm_olap
-                    WHERE ${l2mWhereSql} AND (ad_spend > 0 OR Ad_sales > 0)
+                        SUM(${r('Ad_sales')}) as revenue,
+                        if(SUM(ad_spend) > 0, SUM(${r('Ad_sales')})/SUM(ad_spend), 0) as roas
+                    FROM ${pmSource.table}
+                    WHERE ${l2mWhereSql} AND (ad_spend > 0 OR ${r('Ad_sales')} > 0)
                     GROUP BY keyword
                     HAVING spend > 0
                 `;
@@ -850,45 +904,50 @@ const performanceMarketingService = {
                     duration: `${duration} days`
                 });
 
+                const pmSource = await getPmSource();
+                const f = pmSource.f;
+                const r = pmSource.r;
+
                 // Build base conditions (without date)
                 let baseConditions = [];
 
                 // Platform filter
                 if (filters.platform && filters.platform !== 'All') {
                     const platforms = filters.platform.split(',').map(p => `'${p.trim().toLowerCase()}'`).join(',');
-                    baseConditions.push(`lower(Platform) IN (${platforms})`);
+                    baseConditions.push(`lower(${f.platform}) IN (${platforms})`);
                 }
 
                 // Brand filter
                 if (filters.brand && filters.brand !== 'All') {
                     const brands = filters.brand.split(',').map(b => `'${b.trim().toLowerCase()}'`).join(',');
-                    baseConditions.push(`lower(brand) IN (${brands})`);
+                    baseConditions.push(`lower(${f.brand}) IN (${brands})`);
                 }
 
                 // Category filter
                 if (filters.category && filters.category !== 'All') {
                     const cats = filters.category.split(',').map(c => `'${c.trim()}'`).join(',');
-                    baseConditions.push(`category IN (${cats})`);
+                    baseConditions.push(`${f.category} IN (${cats})`);
                 }
 
                 // Product Category filter (from rb_pdp_olap.Product_Category)
                 if (filters.productCategory && filters.productCategory !== 'All') {
                     const cats = filters.productCategory.split(',').map(c => `'${c.trim()}'`).join(',');
-                    baseConditions.push(`category IN (${cats})`);
+                    baseConditions.push(`${f.category} IN (${cats})`);
                 }
 
                 // Filter out null keyword_type
-                baseConditions.push(`keyword_type IS NOT NULL`);
+                const keywordTypeCol = r('keyword_type');
+                baseConditions.push(`${keywordTypeCol} IS NOT NULL`);
 
                 // Weekend Flag filter
                 if (filters.weekendFlag) {
                     const flags = Array.isArray(filters.weekendFlag) ? filters.weekendFlag : String(filters.weekendFlag).split(',');
                     if (flags.includes('Weekend') && !flags.includes('Weekday')) {
                         console.log("🎯 [Service] Filtering for Weekends");
-                        baseConditions.push(`toDayOfWeek(DATE) IN (6, 7)`);
+                        baseConditions.push(`toDayOfWeek(${f.date}) IN (6, 7)`);
                     } else if (flags.includes('Weekday') && !flags.includes('Weekend')) {
                         console.log("🎯 [Service] Filtering for Weekdays");
-                        baseConditions.push(`toDayOfWeek(DATE) NOT IN (6, 7)`);
+                        baseConditions.push(`toDayOfWeek(${f.date}) NOT IN (6, 7)`);
                     }
                 }
 
@@ -901,16 +960,16 @@ const performanceMarketingService = {
                     // 1. Calculate the Strict L2M baselines BEFORE the selected period per keyword
                     const endDateL2M = startDate.subtract(1, 'day').endOf('day').format('YYYY-MM-DD');
                     const startDateL2M = dayjs(endDateL2M).subtract(60, 'day').startOf('day').format('YYYY-MM-DD');
-                    const l2mWhereSql = [...baseConditions, `DATE BETWEEN '${startDateL2M}' AND '${endDateL2M}'`].join(' AND ');
+                    const l2mWhereSql = [...baseConditions, `${f.date} BETWEEN '${startDateL2M}' AND '${endDateL2M}'`].join(' AND ');
 
                     const l2mQuery = `
                         SELECT 
                             keyword,
                             SUM(ad_spend) as spend, 
-                            SUM(Ad_sales) as revenue, 
-                            if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
-                        FROM rca_pm_olap
-                        WHERE ${l2mWhereSql} AND (ad_spend > 0 OR Ad_sales > 0)
+                            SUM(${r('Ad_sales')}) as revenue, 
+                            if(SUM(ad_spend) > 0, SUM(${r('Ad_sales')})/SUM(ad_spend), 0) as roas
+                        FROM ${pmSource.table}
+                        WHERE ${l2mWhereSql} AND (ad_spend > 0 OR ${r('Ad_sales')} > 0)
                         GROUP BY keyword
                         HAVING spend > 0
                     `;
@@ -925,11 +984,11 @@ const performanceMarketingService = {
                     });
 
                     // 2. Fetch all keywords in the CURRENT period so we can math them out
-                    const currentWhereSql = [...baseConditions, `DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`].join(' AND ');
+                    const currentWhereSql = [...baseConditions, `${f.date} BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`].join(' AND ');
                     const kwQuery = `
-                        SELECT keyword, SUM(ad_spend) as spend, if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
-                        FROM rca_pm_olap
-                        WHERE ${currentWhereSql} AND (ad_spend > 0 OR Ad_sales > 0)
+                        SELECT keyword, SUM(ad_spend) as spend, if(SUM(ad_spend) > 0, SUM(${r('Ad_sales')})/SUM(ad_spend), 0) as roas
+                        FROM ${pmSource.table}
+                        WHERE ${currentWhereSql} AND (ad_spend > 0 OR ${r('Ad_sales')} > 0)
                         GROUP BY keyword HAVING spend > 0
                     `;
                     const currentKws = await queryClickHouse(kwQuery);
@@ -979,13 +1038,13 @@ const performanceMarketingService = {
 
                     const query = `
                     SELECT 
-                        keyword_type,
+                        ${keywordTypeCol} as keyword_type,
                         SUM(ad_spend) as spend,
                         SUM(impressions) as impressions,
                         SUM(ad_click) as clicks,
-                        SUM(Ad_Quantity_sold) as orders,
-                        SUM(Ad_sales) as revenue
-                    FROM rca_pm_olap
+                        SUM(${r('Ad_Quantity_sold')}) as orders,
+                        SUM(${r('Ad_sales')}) as revenue
+                    FROM ${pmSource.table}
                     WHERE ${whereSql}
                     GROUP BY keyword_type
                     ORDER BY keyword_type ASC
@@ -1015,22 +1074,22 @@ const performanceMarketingService = {
                 const e = endDate.format('YYYY-MM-DD');
                 const keywordConditions = [...baseConditions,
                     `keyword IS NOT NULL`,
-                `DATE BETWEEN '${s}' AND '${e}'`
+                `${f.date} BETWEEN '${s}' AND '${e}'`
                 ];
                 const keywordWhereSql = keywordConditions.join(' AND ');
 
                 const keywordQuery = `
                 SELECT 
-                    keyword_type,
+                    ${keywordTypeCol} as keyword_type,
                     keyword as keyword_name,
                     SUM(ad_spend) as spend,
                     SUM(impressions) as impressions,
                     SUM(ad_click) as clicks,
-                    SUM(Ad_Quantity_sold) as orders,
-                    SUM(Ad_sales) as revenue
-                FROM rca_pm_olap
+                    SUM(${r('Ad_Quantity_sold')}) as orders,
+                    SUM(${r('Ad_sales')}) as revenue
+                FROM ${pmSource.table}
                 WHERE ${keywordWhereSql}
-                GROUP BY keyword_type, keyword
+                GROUP BY keyword_type, keyword_name
                 ORDER BY keyword_type ASC, spend DESC
             `;
                 const keywordResults = await queryClickHouse(keywordQuery);
@@ -1132,7 +1191,7 @@ const performanceMarketingService = {
                     });
 
                     return {
-                        label: row.keyword_type,
+                        label: row.keyword_type || 'Generic',
                         values: [
                             Math.round(spend),
                             m1Spend,

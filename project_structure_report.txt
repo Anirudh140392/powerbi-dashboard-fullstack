@@ -35,9 +35,9 @@ Hierarchical Project Structure:
      - Table: N/A
      - Columns: N/A
    - KPI: Conversion
-     - Formula: (SUM(Ad_Quanity_sold) / SUM(Ad_Clicks)) * 100
+     - Formula: (SUM(Ad_Quantity_sold) / SUM(Ad_Clicks)) * 100
      - Table: rb_pdp_olap
-     - Columns: Ad_Quanity_sold, Ad_Clicks, DATE
+     - Columns: Ad_Quantity_sold, Ad_Clicks, DATE
    - KPI: Availability (OSA)
      - Formula: (SUM(neno_osa) / SUM(deno_osa)) * 100
      - Table: rb_pdp_olap
@@ -105,9 +105,9 @@ Hierarchical Project Structure:
      - Table: rb_pdp_olap
      - Columns: Ad_sales, Ad_Spend
    - KPI: Conversion Rate
-     - Formula: (SUM(Ad_Quanity_sold) / SUM(Ad_Clicks)) * 100
+     - Formula: (SUM(Ad_Quantity_sold) / SUM(Ad_Clicks)) * 100
      - Table: rb_pdp_olap
-     - Columns: Ad_Quanity_sold, Ad_Clicks
+     - Columns: Ad_Quantity_sold, Ad_Clicks
    - KPI: CPM
      - Formula: (SUM(Ad_Spend) / SUM(Ad_Impressions)) * 1000
      - Table: rb_pdp_olap
