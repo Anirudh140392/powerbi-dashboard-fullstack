@@ -1,5 +1,6 @@
 import React from "react";
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { formatNumber } from "@/utils/formatters";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -146,13 +147,18 @@ function formatKpiValue(kpi, value) {
 
   if (k.includes("osa") || k.includes("fillrate") || k.includes("sos") || k.includes("share")) return `${value}%`;
 
-  // PSL should be in Lakhs (e.g. 1.7L)
+  // PSL should be in currency format
   if (k.includes("psl")) {
     const num = Number(value);
-    return isNaN(num) ? value : `${num.toFixed(1)}L`;
+    if (isNaN(num)) return value;
+    return `₹${formatNumber(num, 1)}`;
   }
 
-
+  // DOI should show 1 decimal
+  if (k.includes("doi")) {
+    const num = Number(value);
+    return isNaN(num) ? value : num.toFixed(1);
+  }
 
   return value.toString();
 }
@@ -652,7 +658,7 @@ function TrendIcon({ trend }) {
 //     </Card>
 //   );
 // }
-function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, filterApiUrl = "/api/availability-analysis/filter-options", filterSections, firstColLabel = "KPI", onFilterChange }) {
+function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, filterApiUrl = "/api/availability-analysis/filter-options", filterSections, firstColLabel = "KPI", onFilterChange, selectedLevel }) {
   console.log("dynamicKey", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -1054,18 +1060,16 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                     >
                       <div className="flex items-center justify-center gap-2">
                         <span>{col}</span>
-                        {dynamicKey !== "availability" && (
-                          <span
-                            className="cursor-pointer text-slate-600 hover:text-indigo-600 transition-colors trend-icon"
-                            onClick={() => {
-                              setSelectedColumn(col);
-                              setCompMetaForDrawer(buildCompMeta(col));
-                              setOpenTrend(true);
-                            }}
-                          >
-                            <LineChartIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
-                          </span>
-                        )}
+                        <span
+                          className="cursor-pointer text-slate-600 hover:text-indigo-600 transition-colors trend-icon"
+                          onClick={() => {
+                            setSelectedColumn(col);
+                            setCompMetaForDrawer(buildCompMeta(col));
+                            setOpenTrend(true);
+                          }}
+                        >
+                          <LineChartIcon className="h-3.5 w-3.5" strokeWidth={2.5} />
+                        </span>
                       </div>
                     </th>
                   ))}
@@ -1180,6 +1184,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           onClose={() => setOpenTrend(false)}
           compMeta={compMetaForDrawer}
           selectedColumn={selectedColumn}
+          selectedLevel={selectedLevel}
           dynamicKey={dynamicKey}
         />
       ) : dynamicKey === 'sales_category_table' ? (
@@ -1474,10 +1479,10 @@ export default function CityKpiTrendShowcase({
   kpiFilterOptions,
   filterApiUrl,
   filterSections,
-  firstColLabel,
-  onFilterChange
+  onFilterChange,
+  selectedLevel,
+  firstColLabel
 }) {
-  console.log("eee")
   if (!data || !data.columns || !data.rows) {
     console.warn("MatrixVariant blocked render because data invalid:", data);
     return null; // Prevents crash
@@ -1493,6 +1498,7 @@ export default function CityKpiTrendShowcase({
       filterSections={filterSections}
       firstColLabel={firstColLabel}
       onFilterChange={onFilterChange}
+      selectedLevel={selectedLevel}
     />
   );
 }

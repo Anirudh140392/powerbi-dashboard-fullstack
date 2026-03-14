@@ -186,7 +186,7 @@ const inventoryAnalysisService = {
 
                 const formatNumber = (num) => {
                     if (num >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`;
-                    if (num >= 100000) return `${(num / 100000).toFixed(2)} L`;
+                    if (num >= 100000) return `${(num / 100000).toFixed(2)} Lacs`;
                     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
                     return Math.round(num).toString();
                 };
@@ -203,8 +203,8 @@ const inventoryAnalysisService = {
                             labels: trendLabels.length > 0 ? trendLabels : [startDate.format('MMM DD')]
                         },
                         drr: {
-                            value: Math.round(currentMetrics.drr),
-                            previousValue: Math.round(compareMetrics.drr),
+                            value: formatNumber(currentMetrics.drr),
+                            previousValue: formatNumber(compareMetrics.drr),
                             change: drrChange.toFixed(1),
                             isPositive: drrChange >= 0,
                             sparkline: drrSparkline.length > 0 ? drrSparkline : [0],
@@ -334,16 +334,15 @@ const inventoryAnalysisService = {
 
                     // RESTRICTED_CATEGORIES removed
                     if (filters.category && filters.category !== 'All') {
-                        const isMars = getCurrentDbName() === 'mars';
-                        const catCol = isMars ? 'Category' : 'Product_type';
+                        const catCol = 'Category';
                         const requested = filters.category.split(',').map(c => c.trim());
                         where += ` AND ${catCol} IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
                     return where;
                 };
 
-                const isMars = getCurrentDbName() === 'mars';
-                const catCol = isMars ? 'Category' : 'Product_type';
+                // Standardize category column
+                const catCol = 'Category';
 
                 let sqlWhere = buildSqlWhere(startDate, endDate);
                 const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`);
@@ -355,7 +354,7 @@ const inventoryAnalysisService = {
                         Brand as brand,
                         ${catCol} as category,
                         sum(offtakeValue) as offtake_qty,
-                        argMax(Inventory, DATE) as current_inventory
+                        argMax(Inventory, DATE) as inventory
                     FROM (
                         SELECT 
                             Product, Location, Brand, ${catCol}, Platform, DATE,
@@ -407,16 +406,14 @@ const inventoryAnalysisService = {
 
                     // RESTRICTED_CATEGORIES removed
                     if (filters.category && filters.category !== 'All') {
-                        const isMars = getCurrentDbName() === 'mars';
-                        const catCol = isMars ? 'Category' : 'Product_type';
+                        const catCol = 'Category';
                         const requested = filters.category.split(',').map(c => c.trim());
                         where += ` AND ${catCol} IN (${requested.map(c => `'${c}'`).join(',')})`;
                     }
                     return where;
                 };
 
-                const isMars = getCurrentDbName() === 'mars';
-                const catCol = isMars ? 'Category' : 'Product_type';
+                const catCol = 'Category';
 
                 let sqlWhere = buildSqlWhere(startDate, endDate);
                 const metadata = await getFilterMetadata(`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`);

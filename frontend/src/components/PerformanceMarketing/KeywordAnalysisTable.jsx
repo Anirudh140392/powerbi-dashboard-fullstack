@@ -107,8 +107,8 @@ const aggregateForMonthFilter = (keywordObj, monthFilter) => {
 
   const count = months.length;
 
-  // Real conversion = Total Orders / Total Clicks
-  const accurateConversion = sum.rawClicks > 0 ? (sum.rawOrders / sum.rawClicks) * 100 : 0;
+  // Standardized to match Performance Overview: Conversion = Clicks / Impressions
+  const accurateConversion = sum.impressions > 0 ? (sum.rawClicks / sum.impressions) * 100 : 0;
 
   return {
     impressions: sum.impressions,
@@ -137,20 +137,21 @@ const buildAggTree = (node, monthFilter) => {
 
 const filterTree = (node, search, minImp, categoryFilter, activeFilters) => {
   const matchesSearch =
-    !search || node.keyword.toLowerCase().includes(search.toLowerCase());
-  const matchesImp = !minImp || node.agg.impressions >= minImp;
+    !search || (node.keyword && node.keyword.toLowerCase().includes(search.toLowerCase()));
+  const matchesImp = !minImp || (node.agg?.impressions || 0) >= minImp;
 
-  // existing single-select category filter
+  // matchesCategory depends on level. For Keyword or Month nodes, we might need different logic.
+  // But usually category is part of the node data.
   const matchesCategorySelect = !categoryFilter || node.category === categoryFilter;
 
-  // new multi-select filters from modal
   const matchesMultiCategory =
     !activeFilters?.categories?.length ||
-    activeFilters.categories.includes(node.category);
+    (node.category && activeFilters.categories.includes(node.category)) ||
+    (node.isKeyword); // Keywords match automatically to show children
 
   const matchesMultiKeyword =
     !activeFilters?.keywords?.length ||
-    activeFilters.keywords.includes(node.keyword);
+    (node.isKeyword ? activeFilters.keywords.includes(node.keyword) : true);
 
   // Combine matches
   const isMatch = matchesSearch && matchesImp && matchesCategorySelect && matchesMultiCategory && matchesMultiKeyword;
@@ -288,7 +289,12 @@ export default function KeywordAnalysisTable() {
 
     const traverse = (nodes) => {
       nodes.forEach((node) => {
-        opts.keywords.set(node.keyword, { id: node.keyword, label: node.keyword, value: 0 });
+        if (node.isKeyword) {
+          opts.keywords.set(node.keyword, { id: node.keyword, label: node.keyword, value: 0 });
+        }
+        if (node.category) {
+          opts.categories.set(node.category, { id: node.category, label: node.category, value: 0 });
+        }
         if (node.months) {
           node.months.forEach(m => {
             opts.months.set(m.month, { id: m.month, label: m.month, value: 0 });
@@ -373,7 +379,7 @@ export default function KeywordAnalysisTable() {
 
   const visibleHierarchyCols = Math.max(
     1,
-    Math.min(expandedDepth + 1, maxDepth + 1)
+    Math.min(expandedDepth + 1, maxDepth)
   );
 
   const LEVEL_TITLES = ["Keyword", "Category", "Month"];
@@ -410,7 +416,7 @@ export default function KeywordAnalysisTable() {
   const renderNode = (node, level = 0, path = "") => {
     const key = path || node.keyword;
     const isOpen = expandedNodes[key];
-    const heat = getHeatColor(node.agg.conversion);
+    const heat = node.agg ? getHeatColor(node.agg.conversion) : { bg: "transparent", color: "inherit" };
 
     const hasChildren = node.children && node.children.length > 0;
 
@@ -479,27 +485,29 @@ export default function KeywordAnalysisTable() {
           })}
 
 
-          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.impressions)}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg ? formatIndianNumber(node.agg.impressions) : "–"}</TableCell>
 
           <TableCell align="center">
-            <Box
-              sx={{
-                px: 1,
-                py: "2px",
-                borderRadius: 1,
-                background: heat.bg,
-                color: heat.color,
-                fontSize: 11,
-                fontWeight: 600,
-                display: "inline-flex",
-              }}
-            >
-              {node.agg.conversion.toFixed(1)}%
-            </Box>
+            {node.agg ? (
+              <Box
+                sx={{
+                  px: 1,
+                  py: "2px",
+                  borderRadius: 1,
+                  background: heat.bg,
+                  color: heat.color,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  display: "inline-flex",
+                }}
+              >
+                {node.agg.conversion.toFixed(1)}%
+              </Box>
+            ) : "–"}
           </TableCell>
-          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.spend)}</TableCell>
-          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.cpm)}</TableCell>
-          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.roas.toFixed(1)}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg ? formatIndianNumber(node.agg.spend) : "–"}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg ? formatIndianNumber(node.agg.cpm) : "–"}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg ? node.agg.roas.toFixed(1) : "–"}</TableCell>
         </TableRow>
 
         {isOpen &&
@@ -589,43 +597,6 @@ export default function KeywordAnalysisTable() {
             <Typography sx={{ fontSize: { xs: 16, md: 18 }, fontWeight: 700, color: "#0f172a" }}>
               Keyword Analysis
             </Typography>
-            <Select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              displayEmpty
-              variant="standard"
-              disableUnderline
-              sx={{
-                fontSize: { xs: 11, md: 12 },
-                borderRadius: 999,
-                px: { xs: 1.2, md: 1.5 },
-                height: { xs: 30, md: 32 },
-                width: { xs: "100%", sm: "auto" },
-                backgroundColor: "#f1f5f9",
-                color: "#334155",
-                border: "1px solid #e2e8f0",
-                cursor: "pointer",
-                "&:hover": { backgroundColor: "#e2e8f0" },
-                "& .MuiSelect-select": {
-                  paddingRight: "24px !important",
-                  py: 0.5,
-                  display: "flex",
-                  alignItems: "center",
-                },
-                minWidth: { xs: "100%", sm: 120 },
-              }}
-              MenuProps={{
-                PaperProps: {
-                  sx: { borderRadius: 2, mt: 1 },
-                },
-              }}
-            >
-              {filterOptions.categories.map((c) => (
-                <MenuItem key={c.label} value={c.label} sx={{ fontSize: 12 }}>
-                  {c.label}
-                </MenuItem>
-              ))}
-            </Select>
           </Box>
           <Typography sx={{ fontSize: { xs: 10, md: 11 }, color: "#94a3b8", mt: { xs: 0.5, md: 0 } }}>
             Keyword → Category → Month

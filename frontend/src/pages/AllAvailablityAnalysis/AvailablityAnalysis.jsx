@@ -346,11 +346,12 @@ export default function AvailablityAnalysis() {
     const queryParams = buildQueryParams();
     const osaDetailParams = new URLSearchParams({
       platform: 'All',
-      brand: 'All',
+      brand: filters.brand || 'All',
       location: 'All',
       startDate: filters.startDate,
       endDate: filters.endDate,
-      productCategory: filters.productCategory
+      productCategory: filters.productCategory,
+      ownBrandsOnly: 'true'
     }).toString();
 
     switch (segmentKey) {
@@ -413,11 +414,12 @@ export default function AvailablityAnalysis() {
         // OSA Detail uses only date range (shows ALL products regardless of brand/platform filter)
         const osaDetailParams = new URLSearchParams({
           platform: 'All',
-          brand: 'All',
+          brand: filters.brand || 'All',
           location: 'All',
           startDate: filters.startDate,
           endDate: filters.endDate,
-          productCategory: filters.productCategory
+          productCategory: filters.productCategory,
+          ownBrandsOnly: 'true'
         }).toString();
 
         // Fetch all segments (errors are tracked per-segment)

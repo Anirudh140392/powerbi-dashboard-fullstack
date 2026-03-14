@@ -318,6 +318,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         brand: 'Brand',
         category: 'Category',
         sku: 'SKU',
+        city: 'City',
         month: 'Month'
     }
 
@@ -418,16 +419,16 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                         <div className="flex items-center gap-2 mb-3">
                                             <Package size={14} className="text-slate-400" />
                                             <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
-                                                SKU Filter
+                                                {dimensionLabels[currentDimension] || 'SKU'} Filter
                                             </span>
                                         </div>
                                         <MultiSelectDropdown
-                                            label="SKU"
+                                            label={dimensionLabels[currentDimension] || 'SKU'}
                                             icon={Package}
                                             options={skus && skus.length ? skus : mockSkus}
                                             selected={localFilters.skus}
                                             onChange={(val) => updateFilter('skus', val)}
-                                            placeholder="All SKUs"
+                                            placeholder={`All ${dimensionLabels[currentDimension] === 'Category' ? 'Categories' : (dimensionLabels[currentDimension] === 'City' ? 'Cities' : (dimensionLabels[currentDimension] || 'SKU') + 's')}`}
                                         />
                                     </div>
                                 )}

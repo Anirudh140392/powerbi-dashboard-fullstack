@@ -26,29 +26,27 @@ const LoginPage = () => {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    const { login } = useAuth();
+    const { login, isLoggedIn } = useAuth();
     const navigate = useNavigate();
+
+    // Auto-redirect if already logged in
+    useEffect(() => {
+        if (isLoggedIn) {
+            navigate("/watch-tower", { replace: true });
+        }
+    }, [isLoggedIn, navigate]);
 
     const handleLogin = async (e) => {
         if (e) e.preventDefault();
         setError("");
         setLoading(true);
 
-        const timer = new Promise((resolve) => setTimeout(resolve, 2000));
         const result = await login({ email, password });
 
         if (result.success) {
-            await timer;
-
-            // 🔥 NUCLEAR REDIRECT: Force a hard browser reload to ensure absolute state cleanup
-            // 1. Replace the current history entry to the dashboard hash
-            window.location.replace('/#/watch-tower');
-            // 2. Clear out any residual React rendering queue
-            // 3. Force the browser to bypass cache and completely reload the frame
-            setTimeout(() => {
-                window.location.reload();
-            }, 50);
-
+            // No more timer or nuclear reload - AuthContext update will trigger isLoggedIn change
+            // which the useEffect above will catch and navigate smoothly.
+            navigate("/watch-tower", { replace: true });
         } else {
             setError(result.error || "Invalid email or password");
             setLoading(false);

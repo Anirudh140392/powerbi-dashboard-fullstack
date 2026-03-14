@@ -25,15 +25,15 @@ const getVariance = (seedStr, pointSeed = "") => {
 // ── Per-Entity KPI Data (keys are lowercase) ─────────────────
 const ENTITY_DATA = {
   // ── PLATFORMS ───────────────────────────────────────────────
-  blinkit: { osa: 90.6, doi: 38, fillrate: 86.5, psl: 1.45 },
-  instamart: { osa: 82.85, doi: 42, fillrate: 85.8, psl: 1.28 },
-  zepto: { osa: 87.53, doi: 44, fillrate: 85.2, psl: 1.12 },
-  flipkart: { osa: 88.19, doi: 48, fillrate: 84.5, psl: 0.98 },
-  amazon: { osa: 83.76, doi: 46, fillrate: 86.2, psl: 1.05 },
+  blinkit: { osa: 90.6, doi: 38, fillrate: 86.5 },
+  instamart: { osa: 82.85, doi: 42, fillrate: 85.8 },
+  zepto: { osa: 87.53, doi: 44, fillrate: 85.2 },
+  flipkart: { osa: 88.19, doi: 48, fillrate: 84.5 },
+  amazon: { osa: 83.76, doi: 46, fillrate: 86.2 },
 
   // ── ICE CREAM BRANDS / KW Competitors ──────────────────────
-  "kwality walls": { offtakes: 5.6, spend: 0.95, roas: 5.9, categorySize: 21.2, conversion: 3.5, availability: 88.2, sos: 38.2, marketShare: 32.4, inorgSales: 16.5, dspSales: 9.8, promoMyBrand: 26.2, promoCompete: 22.5, cpm: 135, cpc: 12.8, osa: 88.2, doi: 34, fillrate: 89.5, assortment: 168, psl: 1.65, promo: 8.2, market: 32.4, inorg: 16.5 },
-  amul: { offtakes: 4.25, spend: 0.75, roas: 6.0, categorySize: 6.0, conversion: 2.8, availability: 75.0, sos: 33.3, marketShare: 20.0, price: 85.0, inorgSales: 14.2, dspSales: 8.2, promoMyBrand: 22.5, promoCompete: 19.2, cpm: 148, cpc: 14.5, osa: 75.0, doi: 39, fillrate: 86.8, assortment: 155, psl: 1.42, promo: 7.2, market: 20.0, inorg: 14.2 },
+  "kwality walls": { offtakes: 5.6, spend: 0.95, roas: 5.9, categorySize: 21.2, conversion: 3.5, availability: 88.2, sos: 38.2, marketShare: 32.4, inorgSales: 16.5, dspSales: 9.8, promoMyBrand: 26.2, promoCompete: 22.5, cpm: 135, cpc: 12.8, osa: 88.2, doi: 34, fillrate: 89.5, assortment: 168, promo: 8.2, market: 32.4, inorg: 16.5 },
+  amul: { offtakes: 4.25, spend: 0.75, roas: 6.0, categorySize: 6.0, conversion: 2.8, availability: 75.0, sos: 33.3, marketShare: 20.0, price: 85.0, inorgSales: 14.2, dspSales: 8.2, promoMyBrand: 22.5, promoCompete: 19.2, cpm: 148, cpc: 14.5, osa: 75.0, doi: 39, fillrate: 86.8, assortment: 155, promo: 7.2, market: 20.0, inorg: 14.2 },
   "mother dairy": { offtakes: 0.52, spend: 0.52, roas: 1.0, categorySize: 1.0, conversion: 2.2, availability: 75.8, sos: 1.8, marketShare: 1.0, price: 371.0, inorgSales: 9.8, dspSales: 5.5, promoMyBrand: 14.8, promoCompete: 12.2, cpm: 162, cpc: 17.5, osa: 75.8, doi: 45, fillrate: 85.5, assortment: 132, psl: 0.98, promo: 5.2, market: 1.0, inorg: 9.8 },
   vadilal: { offtakes: 0.48, spend: 0.38, roas: 1.0, categorySize: 1.0, conversion: 1.8, availability: 76.6, sos: 1.8, marketShare: 1.0, price: 37.0, inorgSales: 8.5, dspSales: 4.8, promoMyBrand: 12.5, promoCompete: 10.8, cpm: 172, cpc: 19.2, osa: 76.6, doi: 48, fillrate: 81.2, assortment: 118, psl: 0.85, promo: 4.5, market: 1.0, inorg: 8.5 },
   havmor: { offtakes: 1.42, spend: 0.32, roas: 7.0, categorySize: 7.0, conversion: 1.5, availability: 77.4, sos: 5.2, marketShare: 7.0, price: 88.0, inorgSales: 7.2, dspSales: 4.2, promoMyBrand: 10.2, promoCompete: 8.5, cpm: 195, cpc: 22.5, osa: 77.4, doi: 52, fillrate: 80.8, assortment: 98, psl: 0.72, promo: 3.8, market: 7.0, inorg: 7.2 },
@@ -80,7 +80,7 @@ const ENTITY_DATA = {
 };
 
 // ── Fallback baseline ────────────────────────────────────────
-const BASELINE = { osa: 82.0, doi: 42, fillrate: 84.0, psl: 1.2 };
+const BASELINE = { osa: 82.0, doi: 42, fillrate: 84.0 };
 
 // ── KPI Alias Map ────────────────────────────────────────────
 const KPI_ALIASES = {
@@ -631,14 +631,6 @@ const FORMAT_MATRIX_ABSOLUTE = {
         Blinkit: 91, Instamart: 84, Zepto: 79, Flipkart: 86, Amazon: 81
       },
       trend: generateTrendMulti(85)
-    },
-
-    {
-      kpi: "PSL",
-      values: {
-        Blinkit: 18, Instamart: 12, Zepto: 25, Flipkart: 11, Amazon: 20
-      },
-      trend: generateTrendMulti(15)
     }
   ],
 
@@ -669,15 +661,6 @@ const FORMAT_MATRIX_ABSOLUTE = {
         "KW Sticks": 100, "Premium Tub": 99, Sandwich: 100
       },
       trend: generateTrendMulti(95)
-    },
-
-    {
-      kpi: "PSL",
-      values: {
-        Cassata: 28, "Core Tub": 4, Cornetto: 10, Magnum: 9,
-        "KW Sticks": 6, "Premium Tub": 12, Sandwich: 45
-      },
-      trend: generateTrendMulti(20)
     }
   ],
 
@@ -714,17 +697,6 @@ const FORMAT_MATRIX_ABSOLUTE = {
         Kanpur: 88, Meerut: 84, Agra: 86, Noida: 90
       },
       trend: generateTrendMulti(88)
-    },
-
-    {
-      kpi: "PSL",
-      values: {
-        Ajmer: 27, Amritsar: 15, Bathinda: 21, Bhopal: 12,
-        Chandigarh: 19, Gwalior: 37, Indore: 8, Jaipur: 22,
-        Lucknow: 18, Patna: 25, Ranchi: 20, Varanasi: 30,
-        Kanpur: 15, Meerut: 22, Agra: 19, Noida: 10
-      },
-      trend: generateTrendMulti(25)
     }
   ]
 };

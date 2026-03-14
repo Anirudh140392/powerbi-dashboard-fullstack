@@ -66,7 +66,9 @@ export default function CityDetailedTable({ sku, onClose }) {
                     location: selectedLocation !== 'All' ? (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation) : undefined,
                 };
 
+                console.log("[CityDetailedTable] WebPid:", webPidToUse, "params:", params);
                 const res = await axiosInstance.get('/availability-analysis/signal-lab/city-details', { params });
+                console.log("[CityDetailedTable] Response:", res.data);
                 if (mounted && res.data && res.data.cities) {
                     const formatted = res.data.cities.map((c, idx) => ({
                         id: idx,
@@ -85,6 +87,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                 }
             } catch (err) {
                 console.error("City Details fetch error:", err);
+                console.error("Error response data:", err.response?.data);
                 if (mounted) setError("Failed to load city details");
             } finally {
                 if (mounted) setIsLoading(false);

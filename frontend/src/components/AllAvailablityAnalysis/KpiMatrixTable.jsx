@@ -5,6 +5,7 @@ import { KpiFilterPanel } from "@/components/KpiFilterPanel";
 import { Badge } from "@/components/ui/badge";
 import TrendsCompetitionDrawer from "./TrendsCompetitionDrawer";
 import { PlatformKpiMatrixSkeleton } from "./AvailabilitySkeletons";
+import { formatNumber } from "../../utils/formatters";
 
 function cn(...classes) {
     return classes.filter(Boolean).join(" ");
@@ -27,13 +28,12 @@ const drillDownOptions = [
 
 const kpis = [
     { key: "osa", label: "OSA" },
-    { key: "fillrate", label: "FILLRATE" },
     { key: "doi", label: "DOI" },
     { key: "psl", label: "PSL" },
 ];
 
 // ✅ Only OSA can drill down when competitors is selected, otherwise all KPIs can drill
-const DRILLDOWN_ENABLED_KPIS = new Set(["osa"]);
+const DRILLDOWN_ENABLED_KPIS = new Set(["osa", "psl"]);
 
 // Filter options are fetched dynamically from the backend API
 
@@ -643,7 +643,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                             )}
                                                             whileHover={{ scale: 1.01 }}
                                                         >
-                                                            <span className="text-sm font-semibold text-slate-800">{cell.value}{['doi', 'assortment', 'psl'].includes(kpi.key) ? '' : '%'}</span>
+                                                            <span className="text-sm font-semibold text-slate-800">{kpi.key === 'psl' ? `₹${formatNumber(cell.value)}` : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}</span>
                                                             <span
                                                                 className={cn(
                                                                     "text-xs font-medium",
@@ -708,7 +708,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                                                             <span className="text-slate-400" title={item}>
                                                                                                 {item.includes('Zone') ? item.split(' ')[0] : (item.length > 8 ? item.substring(0, 8) + '..' : item)}
                                                                                             </span>
-                                                                                            <span className="ml-1 font-medium text-slate-700">{drillData.value}{['doi', 'assortment', 'psl'].includes(kpi.key) ? '' : '%'}</span>
+                                                                                            <span className="ml-1 font-medium text-slate-700">{kpi.key === 'psl' ? `₹${formatNumber(drillData.value)}` : `${drillData.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}</span>
                                                                                         </div>
                                                                                     );
                                                                                 })

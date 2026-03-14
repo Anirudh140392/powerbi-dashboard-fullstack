@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
 import axiosInstance from "../../api/axiosInstance";
+import { formatNumber } from "../../utils/formatters";
 import { FilterContext } from "../../utils/FilterContext";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import {
@@ -397,7 +398,6 @@ const buildDataModel = () => {
         Doi: 40 + brandIdx * 1.3 + cityIdx * 0.6,
         Fillrate: 70 + brandIdx * 0.9 + cityIdx * 0.4,
         Assortment: 18 + brandIdx * 0.5 + cityIdx * 0.3,
-        PSL: 15 + brandIdx * 0.4 + cityIdx * 0.2,
 
         // PRICING KPI FIELDS
         Discount: 8 + brandIdx * 1.5 + cityIdx * 0.4,
@@ -429,7 +429,6 @@ const buildDataModel = () => {
         Doi: 42 + skuIdx * 1.0 + cityIdx * 0.4,
         Fillrate: 68 + skuIdx * 0.9 + cityIdx * 0.3,
         Assortment: 16 + skuIdx * 0.6 + cityIdx * 0.3,
-        PSL: 12 + skuIdx * 0.5 + cityIdx * 0.2,
 
         // PRICING KPI FIELDS
         Discount: 7 + skuIdx * 1.2 + cityIdx * 0.3,
@@ -459,7 +458,6 @@ const buildDataModel = () => {
         Doi: 40 + brandIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 68 + brandIdx * 1.1 + Math.sin(idx / 6) * 1.8,
         Assortment: 20 + brandIdx * 0.8 + Math.cos(idx / 4) * 1.2,
-        PSL: 14 + brandIdx * 0.6 + Math.sin(idx / 5) * 1.0,
 
         // PRICING KPI TREND LINES
         Discount: 8 + brandIdx * 1.5 + Math.sin(idx / 4) * 1.2,
@@ -489,7 +487,6 @@ const buildDataModel = () => {
         Doi: 41 + skuIdx * 1.0 + Math.cos(idx / 5) * 1.5,
         Fillrate: 67 + skuIdx * 1.2 + Math.sin(idx / 6) * 1.7,
         Assortment: 18 + skuIdx * 0.7 + Math.cos(idx / 4) * 1.3,
-        PSL: 11 + skuIdx * 0.5 + Math.cos(idx / 3) * 1.1,
 
         // PRICING KPI TREND LINES
         Discount: 7 + skuIdx * 1.2 + Math.sin(idx / 4) * 1.0,
@@ -874,6 +871,8 @@ const TrendView = ({
   }, [trendData, selectedIds, activeMetric]);
 
   const formatValue = (v) => {
+    if (v === null || v === undefined) return "–";
+    if (metricMeta.isCurrency) return formatNumber(v);
     if (metricMeta.unit) return `${v}${metricMeta.unit}`;
     if (metricMeta.prefix) return `${metricMeta.prefix}${v}`;
     if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
@@ -1008,17 +1007,24 @@ const KPI_KEYS = [
     unit: "%",
   },
   {
-    key: "Promo-My",
-    label: "Promo-My %",
-    color: "#06B6D4",
+    key: "Discount",
+    label: "MW discount %",
+    color: "#6366F1",
     unit: "%",
+  },
+  {
+    key: "Psl",
+    label: "PSL",
+    color: "#8B5CF6",
+    prefix: "₹",
+    isCurrency: true
   },
 ];
 
 const PRICING_KPI_KEYS = [
   {
-    key: "Promo-My",
-    label: "Promo-My %",
+    key: "Discount",
+    label: "MW discount %",
     color: "#6366F1",
     unit: "%",
     fmt: (v) => `${v.toFixed(1)}%`,
@@ -1038,10 +1044,20 @@ const PRICING_KPI_KEYS = [
   },
   {
     key: "ASP",
-    label: "Avg Selling Price",
+    label: "MW Average Selling Price",
     color: "#8B5CF6",
     prefix: "₹",
     fmt: (v) => `₹${v.toFixed(0)}`,
+  },
+  {
+    key: "Offtake",
+    label: "Offtake",
+    color: "#F59E0B",
+    fmt: (v) => {
+      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+      return v.toFixed(0);
+    },
   },
 ];
 
@@ -1133,14 +1149,16 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, kpiKeys = KPI_KEYS
                   <YAxis
                     tickLine={false}
                     fontSize={10}
-                    width={32}
+                    width={45}
                     tickFormatter={(v) => {
+                      if (kpi.isCurrency) return formatNumber(v);
                       if (kpi.unit) return `${v}${kpi.unit}`;
                       if (kpi.prefix) return `${kpi.prefix}${v}`;
                       return v;
                     }}
                   />
                   <Tooltip formatter={(v) => {
+                    if (kpi.isCurrency) return formatNumber(v);
                     if (kpi.unit) return `${v}${kpi.unit}`;
                     if (kpi.prefix) return `${kpi.prefix}${v}`;
                     return v;
@@ -1541,6 +1559,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         PricePerUnit: typeof b.PricePerUnit === 'number' ? b.PricePerUnit : (b.PricePerUnit?.value ?? parseFloat(b.pricePerUnit ?? b.PricePerUnit) ?? 0),
         RPI: typeof b.RPI === 'number' ? b.RPI : (b.RPI?.value ?? parseFloat(b.rpi ?? b.RPI) ?? 0),
         ASP: typeof b.ASP === 'number' ? b.ASP : (b.ASP?.value ?? parseFloat(b.asp ?? b.ASP) ?? 0),
+        Offtake: typeof b.Offtake === 'number' ? b.Offtake : (b.Offtake?.value ?? parseFloat(b.offtake ?? b.Offtake) ?? 0),
       };
     });
   }, [competitionData.brands, filters.brands]);
@@ -1598,6 +1617,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         PricePerUnit: typeof s.PricePerUnit === 'number' ? s.PricePerUnit : (s.PricePerUnit?.value ?? parseFloat(s.pricePerUnit ?? s.PricePerUnit) ?? 0),
         RPI: typeof s.RPI === 'number' ? s.RPI : (s.RPI?.value ?? parseFloat(s.rpi ?? s.RPI) ?? 0),
         ASP: typeof s.ASP === 'number' ? s.ASP : (s.ASP?.value ?? parseFloat(s.asp ?? s.ASP) ?? 0),
+        Offtake: typeof s.Offtake === 'number' ? s.Offtake : (s.Offtake?.value ?? parseFloat(s.offtake ?? s.Offtake) ?? 0),
       };
     });
   }, [competitionData.skus, filters.brands, filters.skus]);
@@ -1703,7 +1723,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
                   Osa: pt.osa?.value ?? pt.osa ?? 0,
                   Sos: pt.sos?.value ?? pt.sos ?? 0,
                   Listing: pt.listing?.value ?? pt.listing ?? 0,
-                  Assortment: pt.assortment?.value ?? pt.assortment ?? 0
+                  Assortment: pt.assortment?.value ?? pt.assortment ?? 0,
+                  Psl: pt.psl?.value ?? pt.psl ?? pt.Psl ?? 0
                 };
               });
             });

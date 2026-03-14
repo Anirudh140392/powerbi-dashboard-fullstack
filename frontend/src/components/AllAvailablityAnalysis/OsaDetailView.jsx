@@ -92,11 +92,15 @@ export default function OsaDetailTableLight({ apiData, loading }) {
         const formats = Array.from(new Set(apiData.osaDetail.map(r => r.format).filter(Boolean)))
             .map(p => ({ id: p, label: p }));
 
+        const brands = Array.from(new Set(apiData.osaDetail.map(r => r.brand).filter(Boolean)))
+            .map(p => ({ id: p, label: p }));
+
         const cities = Array.from(new Set(apiData.osaDetail.flatMap(r => r.cities?.map(c => c.name) || []).filter(Boolean)))
             .map(p => ({ id: p, label: p }));
 
         return [
             { id: "platform", label: "Platform", options: platforms },
+            { id: "brand", label: "Brand", options: brands },
             { id: "productName", label: "Product Name", options: products },
             { id: "format", label: "Category", options: formats },
             { id: "city", label: "City", options: cities },
@@ -111,6 +115,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
             return {
                 name: row.name || row.productName || "Unknown Product",
                 sku: row.sku || "N/A",
+                brand: row.brand,
                 platform: row.platform,
                 format: row.format,
                 values: values,
@@ -134,6 +139,8 @@ export default function OsaDetailTableLight({ apiData, loading }) {
             if (values && values.length > 0) {
                 if (key === 'platform') {
                     res = res.filter(r => values.includes(r.platform));
+                } else if (key === 'brand') {
+                    res = res.filter(r => values.includes(r.brand));
                 } else if (key === 'productName') {
                     res = res.filter(r => values.includes(r.name));
                 } else if (key === 'format') {
@@ -469,8 +476,8 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                     </div>
                     {/* ------------------ KPI FILTER MODAL ------------------ */}
                     {showFilterPanel && (
-                        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-4 pt-52 pl-40 transition-all backdrop-blur-sm">
-                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-[600px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 px-4 pb-12 pt-12 md:pt-40 md:pl-40 transition-all backdrop-blur-sm shadow-2xl overflow-y-auto">
+                            <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200 mt-0 mb-auto" style={{ maxHeight: "85vh" }}>
                                 {/* Modal Header */}
                                 <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                                     <div>
