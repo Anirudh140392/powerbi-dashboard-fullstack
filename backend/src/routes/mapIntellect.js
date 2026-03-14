@@ -35,6 +35,11 @@ export default (app) => {
      *         schema:
      *           type: integer
      *         description: Number of months to look back (default 1)
+     *       - in: query
+     *         name: days
+     *         schema:
+     *           type: integer
+     *         description: Number of days to look back (used for 7D, 14D, 31D)
      *     responses:
      *       200:
      *         description: Successful response with city-level map data

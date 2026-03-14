@@ -65,6 +65,30 @@ export const FilterProvider = ({ children }) => {
 
     const datesInitialized = Boolean(timeStart && timeEnd);
 
+    // ====== RESET STATE ON LOGOUT ======
+    useEffect(() => {
+        if (!isAuthenticated) {
+            console.log("[FilterContext] Resetting state due to logout");
+            setChannels(FALLBACK_CHANNELS);
+            setSelectedChannel("All");
+            setPlatforms(FALLBACK_PLATFORMS);
+            setPlatform("All");
+            setBrands(FALLBACK_BRANDS);
+            setSelectedBrand("All");
+            setLocations(FALLBACK_LOCATIONS);
+            setSelectedLocation("All");
+            setKeywords([]);
+            setSelectedKeyword("All");
+            setCategories(FALLBACK_CATEGORIES);
+            setVisibilityCategories(FALLBACK_CATEGORIES);
+            setSelectedCategory("All");
+            setProductCategories([]);
+            setSelectedProductCategory("All");
+            setDatesFetched(false);
+            setPlatformsFetched(false);
+        }
+    }, [isAuthenticated]);
+
     // ====== FETCH LATEST DATES FROM DB (on mount) ======
     useEffect(() => {
         const fetchDates = async () => {

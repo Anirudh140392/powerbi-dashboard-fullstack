@@ -39,8 +39,16 @@ const LoginPage = () => {
 
         if (result.success) {
             await timer;
-            window.location.href = "#/watch-tower";
-            window.location.reload();
+
+            // 🔥 NUCLEAR REDIRECT: Force a hard browser reload to ensure absolute state cleanup
+            // 1. Replace the current history entry to the dashboard hash
+            window.location.replace('/#/watch-tower');
+            // 2. Clear out any residual React rendering queue
+            // 3. Force the browser to bypass cache and completely reload the frame
+            setTimeout(() => {
+                window.location.reload();
+            }, 50);
+
         } else {
             setError(result.error || "Invalid email or password");
             setLoading(false);

@@ -398,9 +398,9 @@ const Sidebar = ({
                 zIndex: 9999,
                 pointerEvents: "auto",
                 "&:hover": {
-                  bgcolor: "#ef4444",
-                  color: "#fff",
-                  borderColor: "#ef4444",
+                  bgcolor: "#ef4444 !important",
+                  color: "#fff !important",
+                  borderColor: "#ef4444 !important",
                   transform: "translateY(-1px)",
                   boxShadow: "0 2px 8px rgba(239, 68, 68, 0.2)",
                 },
