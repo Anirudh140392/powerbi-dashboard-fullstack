@@ -27,12 +27,12 @@ const drillDownOptions = [
 
 const kpis = [
     { key: "osa", label: "OSA" },
-    { key: "fillrate", label: "FILLRATE" },
     { key: "doi", label: "DOI" },
+    { key: "psl", label: "PSL" },
 ];
 
 // ✅ Only OSA can drill down when competitors is selected, otherwise all KPIs can drill
-const DRILLDOWN_ENABLED_KPIS = new Set(["osa"]);
+const DRILLDOWN_ENABLED_KPIS = new Set(["osa", "psl"]);
 
 // Filter options are fetched dynamically from the backend API
 

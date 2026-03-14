@@ -658,8 +658,30 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+      } else if (dynamicKey === "availability") {
+        // Use availability-specific API (includes PSL)
+        const params = {
+          period: range,
+          timeStep: timeStep,
+          dimension: selectedLevel?.toLowerCase(),
+          dimensionValue: shouldSendDimensionValue ? (selectedColumn || undefined) : undefined,
+          startDate: range === "Custom" && customStart ? customStart : undefined,
+          endDate: range === "Custom" && customEnd ? customEnd : undefined,
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
+          category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+        };
+
+        const response = await axiosInstance.get('/availability-analysis/kpi-trends', { params });
+
+        if (response.data?.timeSeries?.length > 0) {
+          setChartData(response.data.timeSeries);
+        } else {
+          setChartData([]);
+        }
       } else {
-        // Use watchtower API for availability/visibility/performance
+        // Use watchtower API for visibility/performance
         const params = {
           period: range,
           timeStep: timeStep,
@@ -1017,6 +1039,13 @@ export default function TrendsCompetitionDrawer({
               id: "Assortment",
               label: "Assortment",
               color: "#22C55E",
+              axis: "right",
+              default: false,
+            },
+            {
+              id: "Psl",
+              label: "PSL %",
+              color: "#8B5CF6",
               axis: "right",
               default: false,
             },
