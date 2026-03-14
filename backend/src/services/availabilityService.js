@@ -102,7 +102,7 @@ const buildPlatformChannelCond = (platform, channel, prefix = '') => {
 const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     const {
         platform, brand, location, startDate, endDate, dates, months,
-        cities, categories, formats, zones, metroFlags, pincodes, productCategory, sku, skus
+        cities, categories, formats, zones, metroFlags, pincodes, productCategory, sku, skus, ownBrandsOnly
     } = filters;
     const conditions = [];
 
@@ -270,6 +270,10 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     if (pincodes && pincodes !== 'All') {
         const pArr = Array.isArray(pincodes) ? pincodes : [pincodes];
         conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE toString(pincode) IN (${pArr.map(p => `'${escapeStr(p)}'`).join(',')}))`);
+    }
+
+    if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
+        conditions.push(`${prefix}Comp_flag = 0`);
     }
 
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
@@ -1420,7 +1424,7 @@ const getMetroCityStockAvailability = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, productCategory, city, location, months, metroFlag }) => {
+const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, productCategory, city, location, months, metroFlag, ownBrandsOnly }) => {
     const pKey = Array.isArray(platform) ? platform.join(',') : (platform || 'all');
     const bKey = Array.isArray(brand) ? brand.join(',') : (brand || 'all');
     const cKey = Array.isArray(category) ? category.join(',') : (category || 'all');
@@ -1428,8 +1432,9 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
     const ctKey = Array.isArray(city) ? city.join(',') : (city || 'all');
     const mKey = Array.isArray(months) ? months.join(',') : (months || 'all');
     const mfKey = Array.isArray(metroFlag) ? metroFlag.join(',') : (metroFlag || 'all');
+    const obKey = ownBrandsOnly ? 'own' : 'all';
 
-    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${pcKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}`;
+    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${pcKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}:${obKey}`;
 
     // Helper to build IN clause or equality
     const buildInClause = (col, val) => {
@@ -1559,6 +1564,10 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 if (productCategory && productCategory !== 'All') {
                     const pcCol = isMars ? 'Product_type' : 'Category';
                     brandConditions.push(buildInClause(pcCol, productCategory));
+                }
+
+                if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
+                    brandConditions.push(`Comp_flag = 0`);
                 }
 
                 brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);

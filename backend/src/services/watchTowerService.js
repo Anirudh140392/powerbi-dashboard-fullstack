@@ -113,7 +113,7 @@ async function getWatchtowerSource() {
             neno: 'ifNull(toFloat64OrZero(toString(neno_osa)), 0)',
             deno: 'ifNull(toFloat64OrZero(toString(deno_osa)), 0)',
             qty: 'ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)',
-            orders: 'ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)',
+            orders: 'ifNull(toFloat64OrZero(toString(Ad_Quantity_sold)), 0)',
             mrpVal: 'ifNull(toFloat64OrZero(toString(MRP)), 0)',
             actualSales: 'ifNull(toFloat64OrZero(toString(Sales)), 0)',
             date: 'DATE',
@@ -2083,7 +2083,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     trendData: roasTrendData.map((val, idx) => ({ period: last7Months[idx].label, value: val }))
                 });
 
-                // 5. Orders (Using actual 'orders' property calculated from Ad_Quanity_sold previously)
+                // 5. Orders (Using actual 'orders' property calculated from Ad_Quantity_sold previously)
                 const ordersTrendData = last7Months.map(m => getDataForRange(m.start, m.end).orders);
                 const formatter = Intl.NumberFormat('en', { notation: 'compact' });
                 performanceMetricsKpis.push({
