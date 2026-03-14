@@ -141,7 +141,7 @@ const getMapIntellectData = async (filters) => {
                     Location,
                     SUM(ifNull(toFloat64OrZero(toString(Sales)), 0))          AS total_sales,
                     SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0))        AS total_qty,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_orders,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quantity_sold)), 0)) AS total_orders,
                     (
                         SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
                         NULLIF(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)
@@ -159,7 +159,7 @@ const getMapIntellectData = async (filters) => {
                     Location,
                     SUM(ifNull(toFloat64OrZero(toString(Sales)), 0))          AS total_sales,
                     SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0))        AS total_qty,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quanity_sold)), 0)) AS total_orders,
+                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quantity_sold)), 0)) AS total_orders,
                     (
                         SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
                         NULLIF(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)

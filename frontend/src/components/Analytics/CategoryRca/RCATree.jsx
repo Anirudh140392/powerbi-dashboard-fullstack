@@ -11,8 +11,8 @@ import ReactFlow, {
   MarkerType,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { motion, useSpring, useMotionValue } from "framer-motion";
-import { Plus, Minus, Activity, Zap } from "lucide-react";
+import { motion, useSpring, useMotionValue, AnimatePresence } from "framer-motion";
+import { Plus, Minus, Activity, Zap, LineChart } from "lucide-react";
 import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import {
@@ -25,12 +25,19 @@ import {
   Paper,
   Divider,
   Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from "@mui/material";
 
 // --- Layout & Typography Tokens ---
 const CARD_WIDTH = 380;
-const HORIZONTAL_GAP = 70;
-const VERTICAL_STEP = 340;
+const CARD_HEIGHT = 220; // Estimated height for vertical centering
+const VERTICAL_GAP = 50;
+const HORIZONTAL_STEP = 520;
 
 const TYPO = {
   primary: "#0f172a",
@@ -128,28 +135,229 @@ const AiInsightBadge = ({ text }) => (
     transition={{ duration: 2, repeat: Infinity }}
     style={{
       position: "absolute",
-      top: -14,
-      right: 20,
+      top: -24,
+      left: "50%",
+      transform: "translateX(-50%)",
       backgroundColor: "#8b5cf6",
       color: "white",
-      padding: "6px 14px",
-      borderRadius: "14px",
-      fontSize: "10px",
+      padding: "8px 18px",
+      borderRadius: "16px",
+      fontSize: "12px",
       fontWeight: 900,
+      whiteSpace: "nowrap",
       textTransform: "uppercase",
       letterSpacing: "1.2px",
       display: "flex",
       alignItems: "center",
       gap: "6px",
-      zIndex: 11,
-      boxShadow: "0 8px 20px rgba(139, 92, 246, 0.4)",
-      border: "1.5px solid rgba(255, 255, 255, 0.4)",
+      zIndex: 50,
+      boxShadow: "0 12px 24px rgba(139, 92, 246, 0.5)",
+      border: "1.5px solid rgba(255, 255, 255, 0.45)",
     }}
   >
     <Zap size={11} fill="white" strokeWidth={3} />
     {text}
   </motion.div>
 );
+// --- Trend Button (Purple Flickering) ---
+const TrendButton = ({ onClick }) => (
+  <motion.div
+    animate={{
+      boxShadow: [
+        "0 0 0px rgba(124, 58, 237, 0)",
+        "0 0 15px rgba(124, 58, 237, 0.6)",
+        "0 0 0px rgba(124, 58, 237, 0)",
+      ],
+      scale: [1, 1.05, 1],
+    }}
+    transition={{ duration: 2, repeat: Infinity }}
+    style={{
+      position: "absolute",
+      top: 10,
+      right: 15,
+      zIndex: 15,
+    }}
+  >
+    <IconButton
+      size="small"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      sx={{
+        bgcolor: "#7c3aed",
+        color: "white",
+        width: 34,
+        height: 34,
+        borderRadius: "12.5px",
+        "&:hover": { bgcolor: "#6d28d9", transform: "scale(1.1)" },
+        boxShadow: "0 8px 16px rgba(124, 58, 237, 0.3)",
+        border: "1.5px solid rgba(255, 255, 255, 0.4)",
+        transition: "all 0.2s ease"
+      }}
+    >
+      <LineChart size={18} strokeWidth={3.5} />
+    </IconButton>
+  </motion.div>
+);
+
+// --- Dark Hover Intelligence Popup (Table View) ---
+// --- Dark Hover Intelligence Popup (Unified) ---
+const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false }) => {
+  const isBottom = position === "bottom";
+  
+  if (isOrganic) {
+    const displayMetrics = [
+      { metric: 'Organic Impressions', current: '16.2 lac', previous: '18.2 lac', change: '-11.3%', delta: '2.1 lac', isPos: false },
+      { metric: 'Organic SOV', current: '3.3%', previous: '4.0%', change: '-16.3%', delta: '-0.6%', isPos: false },
+    ];
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
+        style={{
+          position: "absolute",
+          ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 1300, // Increased size for Organic card
+          backgroundColor: "rgba(10, 15, 28, 0.98)",
+          backdropFilter: "blur(30px) saturate(180%)",
+          borderRadius: "36px",
+          padding: "48px",
+          zIndex: 100000,
+          boxShadow: "0 60px 120px rgba(0,0,0,0.85), 0 0 100px rgba(79, 70, 229, 0.15)",
+          border: "2px solid rgba(255, 255, 255, 0.18)",
+          pointerEvents: "none",
+          overflow: "hidden"
+        }}
+      >
+        <Typography sx={{ color: "rgba(255,255,255,0.6)", fontSize: "20px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "3px", mb: 4 }}>
+            Diagnostic Intelligence: Organic Pull
+        </Typography>
+        <Table size="medium">
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ color: "rgba(255,255,255,0.45)", fontWeight: 800, border: "none", fontSize: "20px", pb: 2 }}>Metric</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.45)", fontWeight: 800, border: "none", fontSize: "20px", pb: 2 }}>Current</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.45)", fontWeight: 800, border: "none", fontSize: "20px", pb: 2 }}>Previous</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.45)", fontWeight: 800, border: "none", fontSize: "20px", pb: 2 }}>Change (Magnitude)</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {displayMetrics.map((row, idx) => (
+              <TableRow key={idx}>
+                <TableCell sx={{ color: "#fff", fontWeight: 900, border: "none", fontSize: "26px", py: 2 }}>{row.metric}</TableCell>
+                <TableCell sx={{ color: "#fff", fontWeight: 900, border: "none", fontSize: "26px", py: 2 }}>{row.current}</TableCell>
+                <TableCell sx={{ color: "#fff", fontWeight: 900, border: "none", fontSize: "26px", py: 2 }}>{row.previous}</TableCell>
+                <TableCell sx={{ color: row.isPos ? "#10b981" : "#f43f5e", fontWeight: 900, border: "none", fontSize: "26px", py: 2 }}>
+                  {row.change} <span style={{ fontSize: "18px", opacity: 0.8 }}>({row.delta})</span>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </motion.div>
+    );
+  }
+
+  // Restoration of the Previous Black Card (Brand Intelligence)
+  const displayMetrics = Array.isArray(metrics) && metrics.length > 0 ? metrics : [
+    { brand: 'Snickers', asp: '₹66.6', discount: '7.1%', ppu: '₹122.3', deltaAsp: '-₹1.4', deltaDisc: '6.7%', deltaPpu: '-₹7.5' },
+    { brand: 'Galaxy', asp: '₹101.1', discount: '9.8%', ppu: '₹183.5', deltaAsp: '-₹8.4', deltaDisc: '8.5%', deltaPpu: '-₹1.8' },
+    { brand: 'Bounty', asp: '₹119.7', discount: '11.7%', ppu: '₹144.3', deltaAsp: '-₹9.8', deltaDisc: '9.7%', deltaPpu: '-₹14.7' },
+    { brand: 'Twix', asp: '₹117.9', discount: '5.0%', ppu: '₹175.1', deltaAsp: '-₹2.8', deltaDisc: '4.4%', deltaPpu: '-₹7' },
+    { brand: 'Mars', asp: '₹92.8', discount: '4.1%', ppu: '₹182.1', deltaAsp: '-₹2.1', deltaDisc: '3.8%', deltaPpu: '-₹4.1' },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
+      style={{
+        position: "absolute",
+        ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: 1400,
+        backgroundColor: "rgba(10, 15, 28, 0.97)",
+        backdropFilter: "blur(40px) saturate(200%)",
+        borderRadius: "44px",
+        padding: "0",
+        zIndex: 100000,
+        boxShadow: "0 100px 200px -40px rgba(0, 0, 0, 0.95), 0 0 120px rgba(79, 70, 229, 0.2)",
+        border: "2px solid rgba(255, 255, 255, 0.18)",
+        pointerEvents: "none",
+        overflow: "hidden"
+      }}
+    >
+      <Box sx={{ px: 6, py: 5, borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "rgba(255,255,255,0.01)" }}>
+        <Box>
+            <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: "28px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "5px", mb: 0.5 }}>
+            Market Intelligence Trace
+            </Typography>
+            <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: "14px", fontWeight: 700, letterSpacing: "1px" }}>
+            PRO INTELLIGENCE PIPELINE V2.0 • REAL-TIME DATA STREAM
+            </Typography>
+        </Box>
+        <Box sx={{ display: "flex", gap: 2 }}>
+          {["HK", "AK", "SH"].map((initial, i) => (
+             <Box key={i} sx={{ width: 56, height: 56, borderRadius: "50%", bgcolor: ["#10b981", "#f59e0b", "#6366f1"][i], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", fontWeight: 900, border: "3px solid rgba(15,23,42,0.98)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}>
+               {initial}
+             </Box>
+          ))}
+        </Box>
+      </Box>
+
+      <TableContainer sx={{ overflow: "visible" }}>
+        <Table size="medium" sx={{ "& td, & th": { border: "none", py: 4, px: 6 } }}>
+          <TableHead>
+            <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Brand Identity</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Avg. Selling Price</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Wt. Discount</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Wt. PPU (x100)</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {displayMetrics.map((row, idx) => (
+              <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
+                <TableCell sx={{ color: "#fff", fontSize: "26px", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.brand}</TableCell>
+                <TableCell>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <Typography sx={{ color: "#fff", fontSize: "26px", fontWeight: 900 }}>{row.asp}</Typography>
+                    <Typography sx={{ color: row.deltaAsp?.startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "18px", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
+                      {row.deltaAsp}
+                    </Typography>
+                  </Box>
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <Typography sx={{ color: "#fff", fontSize: "26px", fontWeight: 900 }}>{row.discount}</Typography>
+                    <Typography sx={{ color: "#00ff99", fontSize: "18px", fontWeight: 900, bgcolor: "rgba(0,255,153,0.1)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
+                        {row.deltaDisc}
+                    </Typography>
+                  </Box>
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <Typography sx={{ color: "#fff", fontSize: "26px", fontWeight: 900 }}>{row.ppu}</Typography>
+                    <Typography sx={{ color: row.deltaPpu?.startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "18px", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
+                      {row.deltaPpu}
+                    </Typography>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </motion.div>
+  );
+};
 
 const StatusDot = ({ status = "healthy" }) => {
   const color = status === "healthy" ? "#10b981" : status === "warning" ? "#f59e0b" : "#f43f5e";
@@ -222,38 +430,40 @@ const KpiNode = ({ data }) => {
     isDimmed = false,
     importance = "driver", // "outcome" | "primary" | "driver"
     onHover,
+    onViewTrends,
+    metrics,
+    hoveredNodeId, // Single source of truth for global hover
   } = data;
+
+  const [localHover, setLocalHover] = useState(false);
 
   const accentColor = COLORS[category] || COLORS.impressions;
 
   const isOutcome = importance === "outcome";
   const isPrimary = importance === "primary";
 
-  const targetScale = isSelected ? 1.10 : 1;
-  const targetLift = isSelected ? -10 : 0;
+  const targetScale = isSelected ? 1.08 : localHover && !isDimmed ? 1.03 : 1;
+  const targetLift = isSelected ? -5 : 0;
 
   const baseBorder = isOutcome ? `2.5px solid ${accentColor}` : isPrimary ? "2px solid #cbd5e1" : "2px solid #cbd5e1";
   const baseShadow = isOutcome
-    ? "0 18px 44px -10px rgba(15, 23, 42, 0.22), 0 10px 22px -10px rgba(15, 23, 42, 0.14)"
-    : "0 12px 32px -6px rgba(15, 23, 42, 0.18), 0 6px 16px -6px rgba(15, 23, 42, 0.12)";
+    ? "0 18px 44px -10px rgba(15, 23, 42, 0.22)"
+    : "0 12px 32px -6px rgba(15, 23, 42, 0.18)";
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.92, y: 18 }}
       animate={{
-        opacity: isDimmed ? 0.28 : 1,
+        opacity: isDimmed ? 0.35 : 1,
         scale: targetScale,
         y: targetLift,
-        filter: isDimmed ? "grayscale(0.25) blur(0.15px)" : "none",
+        filter: isDimmed ? "grayscale(0.4) blur(0.2px)" : "none",
       }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
       whileHover={{
-        y: -18,
-        scale: isDimmed ? 1 : 1.04,
         boxShadow: isDimmed
           ? baseShadow
-          : `0 30px 60px -12px rgba(0, 0, 0, 0.15),
-             0 18px 36px -18px rgba(0, 0, 0, 0.2),
-             0 10px 20px -10px rgba(0, 0, 0, 0.1)`,
+          : `0 35px 70px -15px rgba(0, 0, 0, 0.18)`,
         border: isDimmed ? baseBorder : `2.5px solid ${accentColor}`,
       }}
       transition={{ type: "spring", damping: 12, stiffness: 70 }}
@@ -267,17 +477,39 @@ const KpiNode = ({ data }) => {
         cursor: "pointer",
         position: "relative",
         boxShadow: baseShadow,
-        zIndex: isSelected ? 30 : 10,
+        zIndex: "auto", // Allow parent React Flow wrapper to control stacking order
         transformOrigin: "center",
       }}
-      onMouseEnter={() => onHover?.(data.id)}
-      onMouseLeave={() => onHover?.(null)}
+      onMouseEnter={(e) => {
+        e.stopPropagation();
+        setLocalHover(true);
+        // Use a small timeout to prevent rapid state switching (flickering)
+        if (window.hoverTimeout) clearTimeout(window.hoverTimeout);
+        onHover?.(data.id);
+      }}
+      onMouseLeave={(e) => {
+        e.stopPropagation();
+        setLocalHover(false);
+        window.hoverTimeout = setTimeout(() => {
+            onHover?.(null);
+        }, 100);
+      }}
       onClick={(e) => {
         if (e.target.closest(".toggle-btn")) return;
         onClickDetail(data);
       }}
     >
-      <Handle type="target" position={Position.Top} style={{ background: "transparent", border: "none", width: 0, height: 0, top: -8 }} />
+      <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none", width: 0, height: 0, left: -8, top: "50%" }} />
+      
+      <AnimatePresence>
+        {localHover && hoveredNodeId === data.id && !isDimmed && (
+          <HoverMetricsPopup 
+            metrics={metrics} 
+            position={data.popupPosition} 
+            isOrganic={label === "Organic Impressions" || label === "Organic GVs"} 
+          />
+        )}
+      </AnimatePresence>
 
       {/* Top accent strip */}
       <Box
@@ -294,6 +526,7 @@ const KpiNode = ({ data }) => {
       />
 
       {insight && <AiInsightBadge text={insight} />}
+      <TrendButton onClick={() => onViewTrends(label)} />
 
       <Box
         sx={{
@@ -397,9 +630,9 @@ const KpiNode = ({ data }) => {
           }}
           style={{
             position: "absolute",
-            bottom: -20,
-            left: "50%",
-            marginLeft: -20,
+            right: -28, // Centered on the source handle at right: -8
+            top: "50%",
+            marginTop: -20,
             width: 40,
             height: 40,
             borderRadius: "50%",
@@ -418,7 +651,7 @@ const KpiNode = ({ data }) => {
         </motion.div>
       )}
 
-      <Handle type="source" position={Position.Bottom} style={{ background: "transparent", border: "none", width: 0, height: 0, bottom: -8 }} />
+      <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none", width: 0, height: 0, right: -8 }} />
     </motion.div>
   );
 };
@@ -512,6 +745,13 @@ const getDynamicRcaTreeData = (context) => {
       category: "offtake",
       importance: "outcome",
       insight: rootChange.isPos ? "Portfolio Growth" : "Market Pressure",
+      metrics: [
+        { brand: 'Snickers', asp: '₹66.6', discount: '7.1%', ppu: '₹122.3', deltaAsp: '-₹1.4', deltaDisc: '6.7%', deltaPpu: '-₹7.5' },
+        { brand: 'Galaxy', asp: '₹101.1', discount: '9.8%', ppu: '₹183.5', deltaAsp: '-₹8.4', deltaDisc: '8.5%', deltaPpu: '-₹1.8' },
+        { brand: 'Bounty', asp: '₹119.7', discount: '11.7%', ppu: '₹144.3', deltaAsp: '-₹9.8', deltaDisc: '9.7%', deltaPpu: '-₹14.7' },
+        { brand: 'Twix', asp: '₹117.9', discount: '5.0%', ppu: '₹175.1', deltaAsp: '-₹2.8', deltaDisc: '4.4%', deltaPpu: '-₹7' },
+        { brand: 'Mars', asp: '₹92.8', discount: '4.1%', ppu: '₹182.1', deltaAsp: '-₹2.1', deltaDisc: '3.8%', deltaPpu: '-₹4.1' },
+      ],
       children: [
         {
           id: "gvs",
@@ -521,6 +761,10 @@ const getDynamicRcaTreeData = (context) => {
           isPositive: getChange("gvs").isPos,
           category: "impressions",
           importance: "primary",
+          metrics: [
+            { brand: 'Snickers', asp: '₹64.2', discount: '8.4%', ppu: '₹118.5', deltaAsp: '+₹2.1', deltaDisc: '7.8%', deltaPpu: '+₹4.2' },
+            { brand: 'Galaxy', asp: '₹98.5', discount: '10.2%', ppu: '₹179.2', deltaAsp: '-₹1.5', deltaDisc: '9.1%', deltaPpu: '-₹2.3' },
+          ],
           meta: [{ label: "GV Share", value: "100.0%", change: "0.00", isPositive: true }],
           children: [
             {
@@ -530,6 +774,7 @@ const getDynamicRcaTreeData = (context) => {
               change: getChange("org_gv").val,
               isPositive: getChange("org_gv").isPos,
               category: "organic",
+              metrics: { discount: "8.1%", ppu: "₹ 245", asp: "₹ 210" },
               meta: [
                 { label: "Organic Share of Search", value: getVal(45.5, true, "osas", 10) },
                 { label: "Organic GV%", value: getVal(55.0, true, "ogvp", 10) }
@@ -745,6 +990,13 @@ const getDynamicRcaTreeData = (context) => {
     category: "offtake",
     importance: "outcome",
     insight: rootChange.isPos ? "Volume Growth" : "Critical Decline",
+    metrics: [
+        { brand: 'Snickers', asp: '₹66.6', discount: '7.1%', ppu: '₹122.3', deltaAsp: '-₹1.4', deltaDisc: '6.7%', deltaPpu: '-₹7.5' },
+        { brand: 'Galaxy', asp: '₹101.1', discount: '9.8%', ppu: '₹183.5', deltaAsp: '-₹8.4', deltaDisc: '8.5%', deltaPpu: '-₹1.8' },
+        { brand: 'Bounty', asp: '₹119.7', discount: '11.7%', ppu: '₹144.3', deltaAsp: '-₹9.8', deltaDisc: '9.7%', deltaPpu: '-₹14.7' },
+        { brand: 'Twix', asp: '₹117.9', discount: '5.0%', ppu: '₹175.1', deltaAsp: '-₹2.8', deltaDisc: '4.4%', deltaPpu: '-₹7' },
+        { brand: 'Mars', asp: '₹92.8', discount: '4.1%', ppu: '₹182.1', deltaAsp: '-₹2.1', deltaDisc: '3.8%', deltaPpu: '-₹4.1' },
+    ],
     meta: [{ label: "Est. Category Share", value: getVal(5.1, true, seed + "catshare", 15), change: getChange("meta1").val, isPositive: getChange("meta1").isPos }],
     children: [
       {
@@ -874,20 +1126,20 @@ const collectDescendants = (id, childMap) => {
 };
 
 // --- Layout Engine ---
-const computeSubtreeWidth = (node, collapsedNodes) => {
-  if (!node.children || node.children.length === 0 || collapsedNodes.has(node.id)) return CARD_WIDTH;
-  const childWidths = node.children.map((child) => computeSubtreeWidth(child, collapsedNodes));
-  return childWidths.reduce((sum, w, idx) => sum + w + (idx > 0 ? HORIZONTAL_GAP : 0), 0);
+const computeSubtreeHeight = (node, collapsedNodes) => {
+  if (!node.children || node.children.length === 0 || collapsedNodes.has(node.id)) return CARD_HEIGHT;
+  const childHeights = node.children.map((child) => computeSubtreeHeight(child, collapsedNodes));
+  return childHeights.reduce((sum, h, idx) => sum + h + (idx > 0 ? VERTICAL_GAP : 0), 0);
 };
 
-const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
+const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends) => {
   const isCollapsed = collapsedNodes.has(node.id);
-  const subtreeWidth = computeSubtreeWidth(node, collapsedNodes);
+  const subtreeHeight = computeSubtreeHeight(node, collapsedNodes);
 
   results.nodes.push({
     id: node.id,
     type: "kpi",
-    position: { x: x + subtreeWidth / 2 - CARD_WIDTH / 2, y },
+    position: { x, y: y + subtreeHeight / 2 - CARD_HEIGHT / 2 },
     data: {
       ...node,
       hasChildren: node.children?.length > 0,
@@ -895,22 +1147,22 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
       onToggle: () => { },
       onClickDetail: () => { },
       onHover: () => { },
-      isSelected: false,
       isDimmed: false,
+      onViewTrends,
     },
   });
 
   if (node.children && !isCollapsed) {
-    let currentChildX = x;
+    let currentChildY = y;
     node.children.forEach((child) => {
-      const childWidth = computeSubtreeWidth(child, collapsedNodes);
+      const childHeight = computeSubtreeHeight(child, collapsedNodes);
 
       results.edges.push({
         id: `${node.id}-${child.id}`,
         source: node.id,
         target: child.id,
         type: ConnectionLineType.Step,
-        animated: false, // only animate focus path
+        animated: false,
         style: {
           stroke: "rgba(15,23,42,0.35)",
           strokeWidth: 2.2,
@@ -924,8 +1176,8 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
         },
       });
 
-      layoutTreeNodes(child, currentChildX, y + VERTICAL_STEP, collapsedNodes, results);
-      currentChildX += childWidth + HORIZONTAL_GAP;
+      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends);
+      currentChildY += childHeight + VERTICAL_GAP;
     });
   }
 };
@@ -1041,7 +1293,7 @@ const NodeDetailPopup = ({ open, onClose, nodeData }) => {
 };
 
 // --- Internal RCATree Component ---
-const RcaTreeInner = ({ context, title }) => {
+const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -1123,49 +1375,62 @@ const RcaTreeInner = ({ context, title }) => {
 
   const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
     const results = { nodes: [], edges: [] };
-    const rootWidth = computeSubtreeWidth(currentTreeData, collapsedNodes);
-    layoutTreeNodes(currentTreeData, -rootWidth / 2, 0, collapsedNodes, results);
+    const rootHeight = computeSubtreeHeight(currentTreeData, collapsedNodes);
+    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends);
 
-    const nodes = results.nodes.map((n) => {
-      const isFocused = focusSet ? focusSet.has(n.id) : true;
-      const dim = focusSet ? !isFocused : false;
+      const nodesList = results.nodes.map((n) => {
+        const isFocused = focusSet ? focusSet.has(n.id) : true;
+        const isNearTop = n.position.y < -150;
 
-      return {
-        ...n,
-        data: {
-          ...n.data,
-          onToggle: () => onToggleNode(n.id),
-          onClickDetail: handleCardClick,
-          onHover,
-          isSelected: selectedNodeId === n.id,
-          isDimmed: dim,
-        },
-        style: { zIndex: selectedNodeId === n.id ? 30 : 3 },
-      };
-    });
+        return {
+          ...n,
+          zIndex: (hoveredNodeId === n.id || selectedNodeId === n.id) ? 1000000 : 100,
+          data: {
+            ...n.data,
+            onToggle: () => onToggleNode(n.id),
+            onClickDetail: handleCardClick,
+            onHover,
+            isSelected: selectedNodeId === n.id,
+            isDimmed: false, 
+            popupPosition: isNearTop ? "bottom" : "top",
+            hoveredNodeId: hoveredNodeId, // Pass global state to individual node
+          },
+          style: { ...n.style },
+        };
+      });
+
+      // KEY FIX: Sort nodes so that hovered or selected nodes come LAST in the array.
+      // In React Flow, nodes later in the array are rendered on top of previous ones.
+      const sortedNodes = [...nodesList].sort((a, b) => {
+        if (a.id === hoveredNodeId || a.id === selectedNodeId) return 1;
+        if (b.id === hoveredNodeId || b.id === selectedNodeId) return -1;
+        return 0;
+      });
 
     const edges = results.edges.map((e) => {
-      const inFocus = focusSet ? focusSet.has(e.source) && focusSet.has(e.target) : true;
       return {
         ...e,
-        animated: inFocus && !!focusSet, // animate only when focused
+        animated: false,
+        zoomable: false,
         style: {
           ...(e.style || {}),
-          stroke: inFocus ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.18)",
-          strokeWidth: inFocus ? 3.3 : 2.0,
-          strokeDasharray: inFocus ? "6,6" : "4,8",
+          stroke: "rgba(10, 15, 28, 0.8)", // Constant solid stroke
+          strokeWidth: 3.5,
+          strokeDasharray: "0", // Always solid
+          pointerEvents: "none",
+          transition: "stroke 0.3s ease",
         },
         markerEnd: {
           ...(e.markerEnd || {}),
-          color: inFocus ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.35)",
-          width: inFocus ? 16 : 12,
-          height: inFocus ? 16 : 12,
+          color: "rgba(15, 23, 42, 0.6)",
+          width: 18,
+          height: 18,
         },
       };
     });
 
-    return { nodes, edges };
-  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover]);
+    return { nodes: sortedNodes, edges };
+  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover, hoveredNodeId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
@@ -1176,12 +1441,12 @@ const RcaTreeInner = ({ context, title }) => {
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
   useEffect(() => {
-    reactFlowInstance.fitView?.({ padding: 0.22, duration: 350 });
+    // Zoom to 85% (0.85) to match the visual scale in the reference image
+    reactFlowInstance.setViewport({ x: 100, y: 0, zoom: 0.85 }, { duration: 400 });
 
     const t = setTimeout(() => {
-      const current = reactFlowInstance.getZoom ? reactFlowInstance.getZoom() : 1;
-      reactFlowInstance.zoomTo?.(Math.min(1.12, current * 1.03), { duration: 240 });
-    }, 360);
+      reactFlowInstance.zoomTo?.(0.85, { duration: 300 });
+    }, 450);
     return () => clearTimeout(t);
   }, [reactFlowInstance]);
 
@@ -1227,33 +1492,47 @@ const RcaTreeInner = ({ context, title }) => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        fitView
         minZoom={0.2}
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
+        elevateNodesOnSelect={true}
       >
         <Controls
+          position="bottom-left"
           showInteractive={false}
           style={{
-            borderRadius: "20px",
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            borderRadius: "16px",
             overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.8)",
-            background: "rgba(255,255,255,0.7)",
-            backdropFilter: "blur(12px)",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(15, 23, 42, 0.1)",
+            background: "rgba(255,255,255,0.9)",
+            backdropFilter: "blur(20px)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
+            padding: '4px',
+            left: '20px',
+            bottom: '20px'
           }}
         />
       </ReactFlow>
 
-      <NodeDetailPopup open={detailOpen} onClose={() => setDetailOpen(false)} nodeData={selectedNode} />
+      <NodeDetailPopup
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false);
+          reactFlowInstance.fitView({ padding: 0.22, duration: 350 });
+        }}
+        nodeData={selectedNode}
+      />
     </div>
   );
 };
 
-export default function RCATree({ context, title }) {
+export default function RCATree({ context, title, onViewTrends }) {
   return (
     <ReactFlowProvider>
-      <RcaTreeInner context={context} title={title} />
+      <RcaTreeInner context={context} title={title} onViewTrends={onViewTrends} />
     </ReactFlowProvider>
   );
 }
