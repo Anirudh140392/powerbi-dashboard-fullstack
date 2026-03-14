@@ -367,9 +367,20 @@ const Sidebar = ({
               variant="outlined"
               size="small"
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
+                // 1. Update React state
                 logout();
-                navigate("/login");
+                // 2. Clear all auth data
+                localStorage.clear();
+                // 3. Absolute hash-based redirect
+                window.location.hash = "/login";
+                // 4. Fallback: Force reload if redirect doesn't trigger re-render
+                setTimeout(() => {
+                  if (window.location.hash.includes("login")) {
+                    window.location.reload();
+                  }
+                }, 100);
               }}
               startIcon={<LogoutIcon sx={{ fontSize: "1rem" }} />}
               sx={{
@@ -384,6 +395,8 @@ const Sidebar = ({
                 px: 1,
                 py: 0.2,
                 bgcolor: "rgba(239, 68, 68, 0.02)",
+                zIndex: 9999,
+                pointerEvents: "auto",
                 "&:hover": {
                   bgcolor: "#ef4444",
                   color: "#fff",

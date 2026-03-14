@@ -1007,12 +1007,18 @@ const KPI_KEYS = [
     color: "#22C55E",
     unit: "%",
   },
+  {
+    key: "Promo-My",
+    label: "Promo-My %",
+    color: "#06B6D4",
+    unit: "%",
+  },
 ];
 
 const PRICING_KPI_KEYS = [
   {
-    key: "Discount",
-    label: "Discount %",
+    key: "Promo-My",
+    label: "Promo-My %",
     color: "#6366F1",
     unit: "%",
     fmt: (v) => `${v.toFixed(1)}%`,
