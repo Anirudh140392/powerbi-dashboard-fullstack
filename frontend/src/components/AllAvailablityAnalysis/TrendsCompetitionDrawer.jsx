@@ -1141,8 +1141,8 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             {
-              id: "Discount",
-              label: "Discount %",
+              id: "Promo-My",
+              label: "Promo-My %",
               color: "#6366F1",
               axis: "right",
               default: true,
@@ -1179,7 +1179,7 @@ export default function TrendsCompetitionDrawer({
             { date: "04 Oct'25", Discount: 12.4, PricePerUnit: 185, RPI: 4.8, ASP: 198 },
           ].map((p, idx) => ({
             ...p,
-            Discount: applyVar(p.Discount, idx),
+            'Promo-My': applyVar(p.Discount, idx),
             PricePerUnit: applyVar(p.PricePerUnit, idx),
             RPI: applyVar(p.RPI, idx),
             ASP: applyVar(p.ASP, idx),
@@ -1193,16 +1193,16 @@ export default function TrendsCompetitionDrawer({
           timeSteps: ["Daily", "Weekly", "Monthly"],
           defaultTimeStep: "Daily",
           metrics: [
-            { id: "Discount", label: "Discount %", color: "#6366F1", default: true },
+            { id: "Promo-My", label: "Promo-My %", color: "#6366F1", default: true },
             { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
             { id: "RPI", label: "RPI", color: "#F43F5E", default: false },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
           ],
           x: COMPARE_X,
           trendsBySku: {
-            1: COMPARE_X.map(x => ({ x, Discount: applyVar(12, x), PricePerUnit: applyVar(180, x), RPI: applyVar(4.2, x), ASP: applyVar(195, x) })),
-            2: COMPARE_X.map(x => ({ x, Discount: applyVar(14, x), PricePerUnit: applyVar(172, x), RPI: applyVar(3.9, x), ASP: applyVar(188, x) })),
-            3: COMPARE_X.map(x => ({ x, Discount: applyVar(10, x), PricePerUnit: applyVar(190, x), RPI: applyVar(4.6, x), ASP: applyVar(200, x) })),
+            1: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(12, x), PricePerUnit: applyVar(180, x), RPI: applyVar(4.2, x), ASP: applyVar(195, x) })),
+            2: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(14, x), PricePerUnit: applyVar(172, x), RPI: applyVar(3.9, x), ASP: applyVar(188, x) })),
+            3: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(10, x), PricePerUnit: applyVar(190, x), RPI: applyVar(4.6, x), ASP: applyVar(200, x) })),
           },
         },
 
@@ -1212,14 +1212,14 @@ export default function TrendsCompetitionDrawer({
           periodToggle: { primary: "MTD", compare: "Previous Month" },
           columns: [
             { id: "brand", label: "Brand", type: "text" },
-            { id: "Discount", label: "Discount %", type: "metric" },
+            { id: "Promo-My", label: "Promo-My %", type: "metric" },
             { id: "PricePerUnit", label: "Price/Unit", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
           ],
           brands: BRAND_OPTIONS.map((b, i) => ({
             brand: b,
-            Discount: { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
+            'Promo-My': { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
             PricePerUnit: { value: applyVar(175 + i * 5), delta: i % 2 === 0 ? 2.5 : -3.0 },
             RPI: { value: applyVar(4.0 + i * 0.2), delta: 0.1 },
             ASP: { value: applyVar(190 + i * 8), delta: i % 2 === 0 ? 3.5 : -2.1 },
@@ -1384,6 +1384,7 @@ export default function TrendsCompetitionDrawer({
             },
             { id: "SOS", label: "SOS", color: "#A855F7", axis: "right" },
             { id: "MarketShare", label: "Market Share", color: "#9333EA", axis: "right" },
+            { id: "Promo-My", label: "Promo-My %", color: "#06B6D4", axis: "right" },
             { id: "CPM", label: "CPM", color: "#64748B", axis: "left" },
             { id: "CPC", label: "CPC", color: "#475569", axis: "left" },
           ],
@@ -1582,6 +1583,7 @@ export default function TrendsCompetitionDrawer({
             { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
             { id: "CategoryShare", label: "Category Share", color: "#EC4899" },
             { id: "MarketShare", label: "Market Share", color: "#9333EA" },
+            { id: "Promo-My", label: "Promo-My %", color: "#06B6D4" },
             { id: "Conversion", label: "Conversion", color: "#F97316" },
           ],
 
@@ -1659,7 +1661,7 @@ export default function TrendsCompetitionDrawer({
             { id: "CategoryShare", label: "Category Share", type: "metric" },
             { id: "MarketShare", label: "Market Share", type: "metric" },
             { id: "OSA", label: "OSA", type: "metric" },
-            { id: "Discount", label: "Discount", type: "metric" },
+            { id: "Promo-My", label: "Promo-My %", type: "metric" },
             { id: "PricePerUnit", label: "Price Per Unit", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
@@ -1671,7 +1673,7 @@ export default function TrendsCompetitionDrawer({
             CategoryShare: { value: applyVar(20 + i, b), delta: 1.2 },
             MarketShare: { value: applyVar(15 + i, b), delta: 0.8 },
             OSA: { value: applyVar(85 + i * 0.5, b), delta: 0.3 },
-            Discount: { value: applyVar(10 + i * 0.2, b), delta: -0.5 },
+            'Promo-My': { value: applyVar(10 + i * 0.2, b), delta: -0.5 },
             PricePerUnit: { value: applyVar(50 + i * 2, b), delta: 1.0 },
             ASP: { value: applyVar(45 + i * 1.5, b), delta: 0.8 },
             RPI: { value: applyVar(1.2 + i * 0.05, b), delta: 0.02 },
@@ -1696,8 +1698,8 @@ export default function TrendsCompetitionDrawer({
 
           metrics: [
             {
-              id: "Discount",
-              label: "Discount %",
+              id: "Promo-My",
+              label: "Promo-My %",
               color: "#6366f1",
               axis: "right",
               default: true,
@@ -1814,21 +1816,24 @@ export default function TrendsCompetitionDrawer({
     const xData = dataSource.map((p) => p.date);
 
     const metrics = trendMeta.metrics || [];
-    const series = metrics
+    const series = [];
+    metrics
       .filter((m) => activeMetrics.includes(m.id))
-      .map((m) => ({
-        name: m.label,
-        type: "line",
-        smooth: true,
-        symbol: "circle",
-        symbolSize: 6,
-        showSymbol: true,
-        yAxisIndex: m.axis === "right" ? 1 : 0,
-        lineStyle: { width: 2 },
-        emphasis: { focus: "series" },
-        data: dataSource.map((p) => p[m.id] ?? null),
-        itemStyle: { color: m.color },
-      }));
+      .forEach((m) => {
+        series.push({
+          name: m.label,
+          type: "line",
+          smooth: true,
+          symbol: "circle",
+          symbolSize: 6,
+          showSymbol: true,
+          yAxisIndex: m.axis === "right" ? 1 : 0,
+          lineStyle: { width: 2 },
+          emphasis: { focus: "series" },
+          data: dataSource.map((p) => p[m.id] ?? null),
+          itemStyle: { color: m.color },
+        });
+      });
 
     return {
       grid: { left: 60, right: 80, top: 32, bottom: 40 },
@@ -1893,7 +1898,7 @@ export default function TrendsCompetitionDrawer({
             symbolSize: 6,
             lineStyle: { width: 1 },
             itemStyle: { color: m.color },
-            data: trend[m.id] || [],
+            data: trend.map((pt) => pt[m.id]) || [],
           });
         });
     });

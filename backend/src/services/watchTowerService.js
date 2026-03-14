@@ -281,24 +281,36 @@ const formatUnits = (val) => {
 };
 
 // =====================================================
-// IN-MEMORY CACHE FOR DISTINCT VALUES
-// Reduces redundant database queries for lookup data
+// DATABASE-SCOPED IN-MEMORY CACHE
+// Ensures data isolation between different dashboard profiles (Mars, Petcare, etc.)
 // =====================================================
-const DISTINCT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const dbScopedCaches = new Map(); // key: dbName, value: cache object
 
-const distinctValuesCache = {
-    platforms: { data: null, timestamp: 0 },
-    brands: new Map(), // key: platform, value: { data, timestamp }
-    categories: new Map(), // key: platform, value: { data, timestamp }
-    locations: new Map(), // key: platform, value: { data, timestamp }
-    ourBrands: { data: null, timestamp: 0 }, // Global cache for our brands (Comp_flag=0)
+const getDbCache = () => {
+    const dbName = getCurrentDbName();
+    if (!dbScopedCaches.has(dbName)) {
+        dbScopedCaches.set(dbName, {
+            distinctValues: {
+                platforms: { data: null, timestamp: 0 },
+                brands: new Map(),
+                categories: new Map(),
+                locations: new Map(),
+                ourBrands: { data: null, timestamp: 0 },
+            },
+            maxDate: { date: null, timestamp: 0, promise: null },
+            validBrandNames: { data: null, timestamp: 0, promise: null }
+        });
+    }
+    return dbScopedCaches.get(dbName);
 };
+
+const DISTINCT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Get cached our brands list (Comp_flag=0) - Global module-level cache
  */
 const getGlobalOurBrandsList = async () => {
-    const cache = distinctValuesCache.ourBrands;
+    const cache = getDbCache().distinctValues.ourBrands;
     if (cache.data && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
         return cache.data;
     }
@@ -309,8 +321,8 @@ const getGlobalOurBrandsList = async () => {
         const query = `SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table} WHERE toString(${src.f.compFlag}) = '0' AND ${src.f.brand} IS NOT NULL AND ${src.f.brand} != '' ORDER BY brand`;
         const results = await queryClickHouse(query);
         const result = results.map(b => b.brand).filter(b => b);
-        distinctValuesCache.ourBrands = { data: result, timestamp: Date.now() };
-        console.log(`[Global] Cached ${result.length} OUR brands (Comp_flag=0)`);
+        getDbCache().distinctValues.ourBrands = { data: result, timestamp: Date.now() };
+        console.log(`[${getCurrentDbName()}] Cached ${result.length} OUR brands (Comp_flag=0)`);
         return result;
     } catch (error) {
         console.error('Error fetching our brands list:', error);
@@ -322,7 +334,6 @@ const getGlobalOurBrandsList = async () => {
 // DYNAMIC END DATE HELPER
 // Gets the latest date available in the primary table
 // =====================================================
-let cachedMaxDate = { date: null, timestamp: 0 };
 const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
@@ -358,21 +369,21 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
     return null;
 };
 
-let cachedMaxDatePromise = null;
 
 /**
  * Get the latest available date in rb_pdp_olap
  */
 const getCachedMaxDate = async () => {
-    if (cachedMaxDate.date && (Date.now() - cachedMaxDate.timestamp) < MAX_DATE_TTL) {
-        return cachedMaxDate.date;
+    const dbCache = getDbCache();
+    if (dbCache.maxDate.date && (Date.now() - dbCache.maxDate.timestamp) < MAX_DATE_TTL) {
+        return dbCache.maxDate.date;
     }
 
-    if (cachedMaxDatePromise) {
-        return cachedMaxDatePromise;
+    if (dbCache.maxDate.promise) {
+        return dbCache.maxDate.promise;
     }
 
-    cachedMaxDatePromise = (async () => {
+    dbCache.maxDate.promise = (async () => {
         try {
             const src = await getWatchtowerSource();
             const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
@@ -380,55 +391,53 @@ const getCachedMaxDate = async () => {
             const maxDateStr = result?.[0]?.maxDate;
             const maxDate = maxDateStr ? dayjs(maxDateStr).endOf('day') : dayjs().endOf('day');
 
-            cachedMaxDate = { date: maxDate, timestamp: Date.now() };
-            console.log(`🎯 [MaxDate] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
+            dbCache.maxDate = { date: maxDate, timestamp: Date.now(), promise: null };
+            console.log(`🎯 [MaxDate][${getCurrentDbName()}] Latest available date detected and cached: ${maxDate.format('YYYY-MM-DD')}`);
             return maxDate;
         } catch (error) {
             console.error('Error fetching max date:', error);
             return dayjs().endOf('day'); // Fallback to today
         } finally {
-            cachedMaxDatePromise = null;
+            dbCache.maxDate.promise = null;
         }
     })();
 
-    return cachedMaxDatePromise;
+    return dbCache.maxDate.promise;
 };
 
-// Cache for RcaSkuDim valid brand names (comp_flag=0)
-let cachedValidBrandNames = { data: null, timestamp: 0 };
-let cachedValidBrandNamesPromise = null;
 
 /**
  * Get cached valid brand names from RcaSkuDim (comp_flag=0)
  * Used across multiple functions to avoid redundant DB queries
  */
 const getCachedValidBrandNames = async () => {
-    if (cachedValidBrandNames.data && (Date.now() - cachedValidBrandNames.timestamp) < DISTINCT_CACHE_TTL) {
-        return cachedValidBrandNames.data;
+    const dbCache = getDbCache();
+    if (dbCache.validBrandNames.data && (Date.now() - dbCache.validBrandNames.timestamp) < DISTINCT_CACHE_TTL) {
+        return dbCache.validBrandNames.data;
     }
 
-    if (cachedValidBrandNamesPromise) {
-        return cachedValidBrandNamesPromise;
+    if (dbCache.validBrandNames.promise) {
+        return dbCache.validBrandNames.promise;
     }
 
-    cachedValidBrandNamesPromise = (async () => {
+    dbCache.validBrandNames.promise = (async () => {
         try {
             // ClickHouse query
             const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != '' ORDER BY brand_name`;
             const results = await queryClickHouse(query);
             const result = results.map(b => b.brand_name).filter(Boolean);
-            cachedValidBrandNames = { data: result, timestamp: Date.now() };
-            console.log(`⚡ [Cache] Cached ${result.length} valid brand names from RcaSkuDim`);
+            dbCache.validBrandNames = { data: result, timestamp: Date.now(), promise: null };
+            console.log(`[ValidBrands][${getCurrentDbName()}] Cached ${result.length} valid brand names from RcaSkuDim`);
             return result;
         } catch (error) {
             console.error('Error fetching valid brand names:', error);
             return [];
         } finally {
-            cachedValidBrandNamesPromise = null;
+            dbCache.validBrandNames.promise = null;
         }
     })();
 
-    return cachedValidBrandNamesPromise;
+    return dbCache.validBrandNames.promise;
 };
 
 // =====================================================
@@ -630,6 +639,7 @@ const generateKpiColumns = ({
         { title: "Ad SOV", value: `${adSov.toFixed(2)}%`, change: { text: formatChange(adSovChange, true), positive: adSovChange >= 0 }, meta: { units: "sponsored", change: formatChange(adSovChange, true) } },
         { title: "Organic SOV", value: `${organicSov.toFixed(2)}%`, change: { text: formatChange(organicSovChange, true), positive: organicSovChange >= 0 }, meta: { units: "organic", change: formatChange(organicSovChange, true) } },
         { title: "Market Share", value: `${(parseFloat(marketShare) || 0).toFixed(2)}%`, change: { text: formatChange(marketShareChange, true), positive: marketShareChange >= 0 }, meta: { units: "Category", change: formatChange(marketShareChange, true) } },
+        { title: "Promo-My", value: `${promoMyBrand.toFixed(2)}%`, change: { text: formatChange(promoMyBrandChange, true), positive: promoMyBrandChange >= 0 }, meta: { units: "Depth", change: formatChange(promoMyBrandChange, true) } },
         { title: "Promo Compete", value: `${promoCompete.toFixed(2)}%`, change: { text: formatChange(promoCompeteChange, true), positive: promoCompeteChange >= 0 }, meta: { units: "Depth", change: formatChange(promoCompeteChange, true) } },
         { title: "CPM", value: `₹${cpm.toFixed(2)}`, change: { text: formatChange(cpmChange), positive: cpmChange >= 0 }, meta: { units: "impressions", change: formatChange(cpmChange) } },
         { title: "CPC", value: `₹${cpc.toFixed(2)}`, change: { text: formatChange(cpcChange), positive: cpcChange >= 0 }, meta: { units: "clicks", change: formatChange(cpcChange) } }
@@ -664,9 +674,9 @@ const buildBrandLikeCondition = (values) => {
  * Get cached distinct platforms or fetch from DB
  */
 const getCachedDistinctPlatforms = async () => {
-    const cache = distinctValuesCache.platforms;
+    const cache = getDbCache().distinctValues.platforms;
     if (cache.data && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
-        console.log('⚡ [Cache Hit] Distinct platforms from memory');
+        console.log(`⚡ [Cache Hit][${getCurrentDbName()}] Distinct platforms from memory`);
         return cache.data;
     }
     return null; // Cache miss
@@ -676,8 +686,8 @@ const getCachedDistinctPlatforms = async () => {
  * Cache distinct platforms
  */
 const cacheDistinctPlatforms = (data) => {
-    distinctValuesCache.platforms = { data, timestamp: Date.now() };
-    console.log(`📦 [Cache Set] Distinct platforms (${data.length} items)`);
+    getDbCache().distinctValues.platforms = { data, timestamp: Date.now() };
+    console.log(`📦 [Cache Set][${getCurrentDbName()}] Distinct platforms (${data.length} items)`);
 };
 
 /**
@@ -685,9 +695,9 @@ const cacheDistinctPlatforms = (data) => {
  */
 const getCachedDistinctBrands = (platform) => {
     const key = (platform || 'all').toLowerCase();
-    const cache = distinctValuesCache.brands.get(key);
+    const cache = getDbCache().distinctValues.brands.get(key);
     if (cache && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
-        console.log(`⚡ [Cache Hit] Distinct brands for ${platform}`);
+        console.log(`⚡ [Cache Hit][${getCurrentDbName()}] Distinct brands for ${platform}`);
         return cache.data;
     }
     return null;
@@ -698,8 +708,8 @@ const getCachedDistinctBrands = (platform) => {
  */
 const cacheDistinctBrands = (platform, data) => {
     const key = (platform || 'all').toLowerCase();
-    distinctValuesCache.brands.set(key, { data, timestamp: Date.now() });
-    console.log(`📦 [Cache Set] Distinct brands for ${platform} (${data.length} items)`);
+    getDbCache().distinctValues.brands.set(key, { data, timestamp: Date.now() });
+    console.log(`📦 [Cache Set][${getCurrentDbName()}] Distinct brands for ${platform} (${data.length} items)`);
 };
 
 /**
@@ -707,9 +717,9 @@ const cacheDistinctBrands = (platform, data) => {
  */
 const getCachedDistinctCategories = (platform) => {
     const key = (platform || 'all').toLowerCase();
-    const cache = distinctValuesCache.categories.get(key);
+    const cache = getDbCache().distinctValues.categories.get(key);
     if (cache && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
-        console.log(`⚡ [Cache Hit] Distinct categories for ${platform}`);
+        console.log(`⚡ [Cache Hit][${getCurrentDbName()}] Distinct categories for ${platform}`);
         return cache.data;
     }
     return null;
@@ -720,8 +730,8 @@ const getCachedDistinctCategories = (platform) => {
  */
 const cacheDistinctCategories = (platform, data) => {
     const key = (platform || 'all').toLowerCase();
-    distinctValuesCache.categories.set(key, { data, timestamp: Date.now() });
-    console.log(`📦 [Cache Set] Distinct categories for ${platform} (${data.length} items)`);
+    getDbCache().distinctValues.categories.set(key, { data, timestamp: Date.now() });
+    console.log(`📦 [Cache Set][${getCurrentDbName()}] Distinct categories for ${platform} (${data.length} items)`);
 };
 
 /**
@@ -729,9 +739,9 @@ const cacheDistinctCategories = (platform, data) => {
  */
 const getCachedDistinctLocations = (platform) => {
     const key = (platform || 'all').toLowerCase();
-    const cache = distinctValuesCache.locations.get(key);
+    const cache = getDbCache().distinctValues.locations.get(key);
     if (cache && (Date.now() - cache.timestamp) < DISTINCT_CACHE_TTL) {
-        console.log(`⚡ [Cache Hit] Distinct locations for ${platform}`);
+        console.log(`⚡ [Cache Hit][${getCurrentDbName()}] Distinct locations for ${platform}`);
         return cache.data;
     }
     return null;
@@ -742,8 +752,8 @@ const getCachedDistinctLocations = (platform) => {
  */
 const cacheDistinctLocations = (platform, data) => {
     const key = (platform || 'all').toLowerCase();
-    distinctValuesCache.locations.set(key, { data, timestamp: Date.now() });
-    console.log(`📦 [Cache Set] Distinct locations for ${platform} (${data.length} items)`);
+    getDbCache().distinctValues.locations.set(key, { data, timestamp: Date.now() });
+    console.log(`📦 [Cache Set][${getCurrentDbName()}] Distinct locations for ${platform} (${data.length} items)`);
 };
 
 /**
@@ -4720,10 +4730,8 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.orders} ELSE 0 END) as orders,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as neno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as deno,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as my_mrp_val,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as comp_mrp_val,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
+                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
+                        AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount
                     FROM ${src.table}
                     WHERE ${currOfftakeConds}
                     GROUP BY Platform
@@ -4740,10 +4748,8 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.orders} ELSE 0 END) as orders,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as neno,
                         SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as deno,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as my_mrp_val,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as comp_mrp_val,
-                        SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
+                        AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
+                        AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount
                     FROM ${src.table}
                     WHERE ${prevOfftakeConds}
                     GROUP BY Platform
@@ -4976,10 +4982,8 @@ const getPlatformOverview = async (filters) => {
                 adSov: currAdSovValue,
                 organicSov: currOrgSovValue,
                 denomMS: currMsDenomMap.get(key) || 0,
-                myMrpVal: parseFloat(c?.my_mrp_val || 0),
-                myActualSales: parseFloat(c?.my_actual_sales || 0),
-                compMrpVal: parseFloat(c?.comp_mrp_val || 0),
-                compActualSales: parseFloat(c?.comp_actual_sales || 0)
+                myAvgDiscount: parseFloat(c?.my_avg_discount || 0),
+                compAvgDiscount: parseFloat(c?.comp_avg_discount || 0)
             },
             prev: {
                 sales: parseFloat(pv?.sales || 0),
@@ -4997,10 +5001,8 @@ const getPlatformOverview = async (filters) => {
                 adSov: prevAdSovValue,
                 organicSov: prevOrgSovValue,
                 denomMS: prevMsDenomMap.get(key) || 0,
-                myMrpVal: parseFloat(pv?.my_mrp_val || 0),
-                myActualSales: parseFloat(pv?.my_actual_sales || 0),
-                compMrpVal: parseFloat(pv?.comp_mrp_val || 0),
-                compActualSales: parseFloat(pv?.comp_actual_sales || 0)
+                myAvgDiscount: parseFloat(pv?.my_avg_discount || 0),
+                compAvgDiscount: parseFloat(pv?.comp_avg_discount || 0)
             }
         });
     });
@@ -5026,10 +5028,8 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.orders} ELSE 0 END) as total_inorg_qty,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 AND ${src.f.mrp} > 0 THEN ${src.f.mrp} * ${src.f.quantitySold} ELSE 0 END) as my_mrp_val,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 AND ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} * ${src.f.quantitySold} ELSE 0 END) as my_actual_sales,
-                        SUM(CASE WHEN ${src.f.compFlag} = 1 AND ${src.f.mrp} > 0 THEN ${src.f.mrp} * ${src.f.quantitySold} ELSE 0 END) as comp_mrp_val,
-                        SUM(CASE WHEN ${src.f.compFlag} = 1 AND ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} * ${src.f.quantitySold} ELSE 0 END) as comp_actual_sales
+                        AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
+                        AVG(if(${src.f.compFlag} = 1, ${src.f.discount}, NULL)) as comp_avg_discount
                     FROM ${src.table}
                     WHERE ${allConds}
                 `),
@@ -5044,10 +5044,8 @@ const getPlatformOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.orders} ELSE 0 END) as total_inorg_qty,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                         SUM(CASE WHEN ${src.f.compFlag} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 AND ${src.f.mrp} > 0 THEN ${src.f.mrp} * ${src.f.quantitySold} ELSE 0 END) as my_mrp_val,
-                        SUM(CASE WHEN ${src.f.compFlag} = 0 AND ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} * ${src.f.quantitySold} ELSE 0 END) as my_actual_sales,
-                        SUM(CASE WHEN ${src.f.compFlag} = 1 AND ${src.f.mrp} > 0 THEN ${src.f.mrp} * ${src.f.quantitySold} ELSE 0 END) as comp_mrp_val,
-                        SUM(CASE WHEN ${src.f.compFlag} = 1 AND ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} * ${src.f.quantitySold} ELSE 0 END) as comp_actual_sales
+                        AVG(if(${src.f.compFlag} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
+                        AVG(if(${src.f.compFlag} = 1, ${src.f.discount}, NULL)) as comp_avg_discount
                     FROM ${src.table}
                     WHERE ${prevAllConds}
                 `)
@@ -5073,12 +5071,8 @@ const getPlatformOverview = async (filters) => {
     const allCpc = allClicks > 0 ? allSpend / allClicks : 0;
     const allInorgSales = allAdSales; // Absolute value in currency
 
-    const allPromoMyBrand = parseFloat(allMetrics.my_mrp_val || 0) > 0
-        ? ((parseFloat(allMetrics.my_mrp_val) - parseFloat(allMetrics.my_actual_sales)) / parseFloat(allMetrics.my_mrp_val)) * 100
-        : 0;
-    const allPromoCompete = parseFloat(allMetrics.comp_mrp_val || 0) > 0
-        ? ((parseFloat(allMetrics.comp_mrp_val) - parseFloat(allMetrics.comp_actual_sales)) / parseFloat(allMetrics.comp_mrp_val)) * 100
-        : 0;
+    const allPromoMyBrand = parseFloat(allMetrics.my_avg_discount || 0);
+    const allPromoCompete = parseFloat(allMetrics.comp_avg_discount || 0);
 
     // Previous period for "All" row
     const prevAllMetrics = prevAllMetricsResult[0] || {};
@@ -5093,12 +5087,8 @@ const getPlatformOverview = async (filters) => {
     const prevAllNeno = parseFloat(prevAllMetrics.total_neno || 0);
     const prevAllDeno = parseFloat(prevAllMetrics.total_deno || 0);
 
-    const prevAllPromoMyBrand = parseFloat(prevAllMetrics.my_mrp_val || 0) > 0
-        ? ((parseFloat(prevAllMetrics.my_mrp_val) - parseFloat(prevAllMetrics.my_actual_sales)) / parseFloat(prevAllMetrics.my_mrp_val)) * 100
-        : 0;
-    const prevAllPromoCompete = parseFloat(prevAllMetrics.comp_mrp_val || 0) > 0
-        ? ((parseFloat(prevAllMetrics.comp_mrp_val) - parseFloat(prevAllMetrics.comp_actual_sales)) / parseFloat(prevAllMetrics.comp_mrp_val)) * 100
-        : 0;
+    const prevAllPromoMyBrand = parseFloat(prevAllMetrics.my_avg_discount || 0);
+    const prevAllPromoCompete = parseFloat(prevAllMetrics.comp_avg_discount || 0);
 
     const prevAllAvailability = prevAllDeno > 0 ? (prevAllNeno / prevAllDeno) * 100 : 0;
     const prevAllRoas = prevAllSpend > 0 ? prevAllAdSales / prevAllSpend : 0;
@@ -5261,12 +5251,8 @@ const getPlatformOverview = async (filters) => {
         const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
         const inorgSales = totalAdSales;
 
-        const promoMyBrand = (metrics.curr.myMrpVal || 0) > 0
-            ? ((metrics.curr.myMrpVal - metrics.curr.myActualSales) / metrics.curr.myMrpVal) * 100
-            : 0;
-        const promoCompete = (metrics.curr.compMrpVal || 0) > 0
-            ? ((metrics.curr.compMrpVal - metrics.curr.compActualSales) / metrics.curr.compMrpVal) * 100
-            : 0;
+        const promoMyBrand = metrics.curr.myAvgDiscount || 0;
+        const promoCompete = metrics.curr.compAvgDiscount || 0;
 
         // Previous period
         const prevOfftake = metrics.prev.sales || 0;
@@ -5289,12 +5275,8 @@ const getPlatformOverview = async (filters) => {
         const prevCpc = prevClicks > 0 ? prevSpend / prevClicks : 0;
         const prevInorgSales = prevAdSales;
 
-        const prevPromoMyBrand = (metrics.prev.myMrpVal || 0) > 0
-            ? ((metrics.prev.myMrpVal - metrics.prev.myActualSales) / metrics.prev.myMrpVal) * 100
-            : 0;
-        const prevPromoCompete = (metrics.prev.compMrpVal || 0) > 0
-            ? ((metrics.prev.compMrpVal - metrics.prev.compActualSales) / metrics.prev.compMrpVal) * 100
-            : 0;
+        const prevPromoMyBrand = metrics.prev.myAvgDiscount || 0;
+        const prevPromoCompete = metrics.prev.compAvgDiscount || 0;
 
         // Fuzzy match category size from the maps
         const fuzzyGet = (map, label) => {
@@ -6516,6 +6498,8 @@ const getKpiTrends = async (filters) => {
                 AVG(${src.f.sellingPrice}) as avg_selling_price,
                 AVG(${src.f.mrp}) as avg_mrp,
                 AVG(${src.f.discount}) as avg_discount,
+                SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
+                SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid,
                 SUM(${src.f.sellingPrice}) as sum_selling_price,
                 0 as sum_weight
             FROM ${src.table}
@@ -6641,7 +6625,7 @@ const getKpiTrends = async (filters) => {
         const sumSellingPrice = parseFloat(row.sum_selling_price || 0);
         const sumWeight = parseFloat(row.sum_weight || 0);
 
-        const discount = avgDiscount;
+        const discount = Math.max(0, Math.min(100, avgDiscount));
         const pricePerUnit = sumWeight > 0 ? sumSellingPrice / sumWeight : 0;
         const asp = avgSellingPrice;
         const rpi = avgMrp > 0 ? (avgSellingPrice / avgMrp) : 0; // Relative Price Index baseline
@@ -6708,7 +6692,7 @@ const getKpiTrends = async (filters) => {
             CPM: parseFloat(cpm.toFixed(2)),
             CPC: parseFloat(cpc.toFixed(2)),
             // Pricing KPIs
-            Discount: parseFloat(discount.toFixed(2)),
+            'Promo-My': parseFloat(discount.toFixed(2)),
             PricePerUnit: parseFloat(pricePerUnit.toFixed(2)),
             ASP: parseFloat(asp.toFixed(2)),
             RPI: parseFloat(rpi.toFixed(2)),
@@ -6729,8 +6713,7 @@ const getKpiTrends = async (filters) => {
 
     });
 
-
-
+    // Ensure discount and pricing KPIs are actually returned inside the metrics block
     return {
         timeSeries,
         metrics: {
@@ -6738,7 +6721,8 @@ const getKpiTrends = async (filters) => {
             InorganicSales: { enabled: true },
             Conversion: { enabled: true },
             Roas: { enabled: true },
-            BmiSalesRatio: { enabled: true }
+            BmiSalesRatio: { enabled: true },
+            Discount: { enabled: true }
         }
     };
 };
@@ -6894,7 +6878,7 @@ const getCompetitionData = async (filters = {}) => {
                 conds.push(`lower(${src.f.product}) IN (${skuArr.map(s => `'${escapeStr(s.toLowerCase())}'`).join(', ')})`);
             }
 
-            conds.push(`toString(${src.f.compFlag}) = '1'`);
+            // conds.push(`toString(${src.f.compFlag}) = '1'`); // Show both our brands and competitors
 
             return conds.join(' AND ');
         };
@@ -7998,7 +7982,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
 
             // Parallel queries: main metrics from dynamic source and sales from rb_brand_ms
             const [rawData, targetSalesData, targetKwData] = await Promise.all([
-                // Query main metrics (OSA, SOS numerator, Price)
+                // Query main metrics (OSA, SOS numerator, Price, Discount components)
                 queryClickHouse(`
         SELECT
         toDate(${src.f.date}) as date_key,
@@ -8008,7 +7992,9 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
             SUM(${src.f.impressions}) as Impressions,
-            AVG(${src.f.mrp}) as avg_price
+            AVG(${src.f.mrp}) as avg_price,
+            SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
+            SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid
                     FROM ${src.table}
                     WHERE ${conds.join(' AND ')}
                     GROUP BY date_key
@@ -8067,6 +8053,10 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 // Calculate OSA
                 const osa = denoOsa > 0 ? ((nenoOsa / denoOsa) * 100) : 0;
 
+                // Calculate Discount
+                const avgDiscount = parseFloat(row.avg_discount || 0);
+                let discount = Math.max(0, Math.min(100, avgDiscount));
+
                 // Get totals for this date (use String() for consistent key format)
                 const dateKey = String(row.date_key);
                 const totals = totalsMap.get(dateKey) || { total_impressions: 0 };
@@ -8107,10 +8097,14 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                     sos: parseFloat(sos.toFixed(2)),
                     Price: parseFloat(avgPrice.toFixed(0)),
                     price: parseFloat(avgPrice.toFixed(0)),
+                    'Promo-My': parseFloat(discount.toFixed(2)),
+                    'promo-my': parseFloat(discount.toFixed(2)),
                     CategoryShare: parseFloat(categoryShare.toFixed(2)),
                     categoryShare: parseFloat(categoryShare.toFixed(2)),
                     MarketShare: parseFloat(marketShare.toFixed(2)),
-                    marketShare: parseFloat(marketShare.toFixed(2))
+                    marketShare: parseFloat(marketShare.toFixed(2)),
+                    Offtakes: parseFloat(row.Offtakes || 0),
+                    offtakes: parseFloat(row.Offtakes || 0)
                 };
             });
         }

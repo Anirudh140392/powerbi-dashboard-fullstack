@@ -1629,6 +1629,18 @@ const KPI_KEYS = [
     unit: "%",
   },
   {
+    key: "offtakes",
+    label: "Offtakes",
+    color: "#7C3AED", // violet
+    unit: "",
+  },
+  {
+    key: "promo-my",
+    label: "Promo-My %",
+    color: "#06B6D4", // cyan
+    unit: "%",
+  },
+  {
     key: "sos",
     label: "SOS",
     color: "#F97316", // orange

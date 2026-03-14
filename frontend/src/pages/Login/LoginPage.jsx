@@ -39,7 +39,8 @@ const LoginPage = () => {
 
         if (result.success) {
             await timer;
-            navigate("/watch-tower", { replace: true });
+            window.location.href = "#/watch-tower";
+            window.location.reload();
         } else {
             setError(result.error || "Invalid email or password");
             setLoading(false);

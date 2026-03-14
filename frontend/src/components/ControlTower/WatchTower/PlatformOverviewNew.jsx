@@ -77,7 +77,8 @@ const kpiLabels = {
     inorgSales: 'Inorganic Sales',
     dspSales: 'DSP Sales',
     asp: 'ASP',
-    categorySize: 'Category Size'
+    categorySize: 'Category Size',
+    discount: 'Promo'
 };
 
 // Map backend KPI title → frontend kpiKey
@@ -96,6 +97,7 @@ const BACKEND_TITLE_TO_KEY = {
     'Category Size': 'categorySize',
     'CPM': 'cpm',
     'CPC': 'cpc',
+    'Promo': 'discount'
 }
 
 // Map backend API response entity → frontend entity format

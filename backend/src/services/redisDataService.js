@@ -17,6 +17,7 @@
  */
 
 import redisClient from '../config/redis.js';
+import { getCurrentDbName } from '../config/clickhouse.js';
 import RbPdpOlap from '../models/RbPdpOlap.js';
 import dayjs from 'dayjs';
 
@@ -36,17 +37,20 @@ const inFlightRequests = new Map();
  * Generate cache keys for a platform
  */
 const getKeys = (platform) => {
+    const dbName = getCurrentDbName();
     const p = platform.toLowerCase();
+    const prefix = `${KEY_PREFIX}:${dbName}:${p}`;
     return {
-        data: `${KEY_PREFIX}:${p}:data`,
-        meta: `${KEY_PREFIX}:${p}:meta`,
-        monthlyAgg: `${KEY_PREFIX}:${p}:agg:monthly`, // Pre-aggregated monthly totals
-        brandMonthAgg: `${KEY_PREFIX}:${p}:agg:brand:monthly`, // Pre-aggregated brand+month totals
-        brandIndex: (brand) => `${KEY_PREFIX}:${p}:idx:brand:${brand.toLowerCase()}`,
-        locationIndex: (loc) => `${KEY_PREFIX}:${p}:idx:location:${loc.toLowerCase()}`,
-        dateIndex: (date) => `${KEY_PREFIX}:${p}:idx:date:${date}`,
-        categoryIndex: (cat) => `${KEY_PREFIX}:${p}:idx:category:${cat.toLowerCase()}`,
-        allIndexPattern: `${KEY_PREFIX}:${p}:idx:*`
+        data: `${prefix}:data`,
+        meta: `${prefix}:meta`,
+        monthlyAgg: `${prefix}:agg:monthly`, // Pre-aggregated monthly totals
+        brandMonthAgg: `${prefix}:agg:brand:monthly`, // Pre-aggregated brand+month totals
+        brandIndex: (brand) => `${prefix}:idx:brand:${brand.toLowerCase()}`,
+        locationIndex: (loc) => `${prefix}:idx:location:${loc.toLowerCase()}`,
+        dateIndex: (date) => `${prefix}:idx:date:${date}`,
+        categoryIndex: (cat) => `${prefix}:idx:category:${cat.toLowerCase()}`,
+        allIndexPattern: `${prefix}:idx:*`,
+        prefix: `${prefix}:*` // For clearing keys
     };
 };
 
@@ -111,7 +115,7 @@ export async function loadPlatformData(platform) {
         }
 
         // Clear existing data for this platform
-        const existingKeys = await client.keys(`${KEY_PREFIX}:${platform.toLowerCase()}:*`);
+        const existingKeys = await client.keys(keys.prefix);
         if (existingKeys.length > 0) {
             await client.del(existingKeys);
         }
@@ -331,7 +335,7 @@ export async function queryByFilters(platform, filters = {}) {
             const dateIds = new Set();
 
             // Get all date index keys
-            const dateKeys = await client.keys(`${KEY_PREFIX}:${platform.toLowerCase()}:idx:date:*`);
+            const dateKeys = await client.keys(`${keys.dateIndex('')}*`);
 
             for (const key of dateKeys) {
                 const dateStr = key.split(':').pop();
@@ -437,15 +441,16 @@ export async function getUniqueValues(platform, column) {
 
     try {
         let pattern;
+        const prefix = keys.categoryIndex('').replace(/:category:$/, '');
         switch (column.toLowerCase()) {
             case 'brand':
-                pattern = `${KEY_PREFIX}:${platform.toLowerCase()}:idx:brand:*`;
+                pattern = `${prefix}:brand:*`;
                 break;
             case 'location':
-                pattern = `${KEY_PREFIX}:${platform.toLowerCase()}:idx:location:*`;
+                pattern = `${prefix}:location:*`;
                 break;
             case 'category':
-                pattern = `${KEY_PREFIX}:${platform.toLowerCase()}:idx:category:*`;
+                pattern = `${prefix}:category:*`;
                 break;
             default:
                 return null;
@@ -504,8 +509,10 @@ const SOS_CACHE_TTL = 3600; // 1 hour (SOS data changes less frequently)
  * Get SOS cache key for a specific query
  */
 const getSOSCacheKey = (platform, dateStart, dateEnd, category, location) => {
+    const dbName = getCurrentDbName();
     const parts = [
         SOS_KEY_PREFIX,
+        dbName,
         platform?.toLowerCase() || 'all',
         dateStart,
         dateEnd,
@@ -561,11 +568,12 @@ export async function invalidateSOSCache(platform) {
     if (!redisClient.isReady()) return false;
 
     try {
-        const pattern = `${SOS_KEY_PREFIX}:${platform?.toLowerCase() || '*'}:*`;
+        const dbName = getCurrentDbName();
+        const pattern = `${SOS_KEY_PREFIX}:${dbName}:${platform?.toLowerCase() || '*'}:*`;
         const keys = await redisClient.getClient().keys(pattern);
         if (keys.length > 0) {
             await redisClient.getClient().del(keys);
-            console.log(`🗑️ [SOS Cache] Cleared ${keys.length} cached entries for ${platform}`);
+            console.log(`🗑️ [SOS Cache][${dbName}] Cleared ${keys.length} cached entries for ${platform}`);
         }
         return true;
     } catch (error) {
@@ -584,11 +592,13 @@ const KPI_CACHE_TTL = 3600; // 1 hour
  * Generate cache key for monthly KPI aggregations
  */
 const getKPICacheKey = (platform, month, brand, location) => {
+    const dbName = getCurrentDbName();
     // Handle array values for brand and location
     const brandStr = Array.isArray(brand) ? brand.join(',') : (brand?.toLowerCase() || 'all');
     const locationStr = Array.isArray(location) ? location.join(',') : (location?.toLowerCase() || 'all');
     const parts = [
         KPI_KEY_PREFIX,
+        dbName,
         platform?.toLowerCase() || 'all',
         month, // YYYY-MM format
         brandStr,

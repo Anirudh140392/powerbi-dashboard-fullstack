@@ -1,4 +1,5 @@
 import redisClient from '../config/redis.js';
+import { getCurrentDbName } from '../config/clickhouse.js';
 
 /**
  * Generates a consistent cache key from filter parameters
@@ -34,10 +35,11 @@ export function generateCacheKey(section, filters) {
     const p = normalize(rawPlatform);
     const b = normalize(rawBrand);
     const l = normalize(rawLocation);
+    const dbName = getCurrentDbName();
 
     // 2. Start building key with hierarchical prefix
-    // watchtower:p_{platform}:b_{brand}:l_{location}:s_{section}
-    let key = `watchtower:p_${p}:b_${b}:l_${l}:s_${normalize(section)}`;
+    // watchtower:db_{dbName}:p_{platform}:b_{brand}:l_{location}:s_{section}
+    let key = `watchtower:db_${dbName}:p_${p}:b_${b}:l_${l}:s_${normalize(section)}`;
 
     // 3. Extract other filters
     const {
