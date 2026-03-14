@@ -12,6 +12,8 @@ import {
 import { X, Filter, RefreshCcw, Maximize2, Minimize2, ChevronDown, Info, Activity } from "lucide-react";
 import RCATree from "./RCATree";
 import axiosInstance from "../../../api/axiosInstance";
+import TrendsCompetitionDrawer from "../../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import { defaultBrands } from "../../../utils/DataCenter";
 
 /**
  * RCAModal
@@ -89,6 +91,16 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
     const [brand, setBrand] = useState('All Brands');
     const [sku, setSku] = useState('All SKUs');
     const [month, setMonth] = useState('');
+
+    const [showTrends, setShowTrends] = useState(false);
+    const [selectedTrendName, setSelectedTrendName] = useState("All");
+    const [selectedTrendLevel, setSelectedTrendLevel] = useState("MRP");
+
+    const handleViewTrends = (name, level = "MRP") => {
+        setSelectedTrendName(name);
+        setSelectedTrendLevel(level);
+        setShowTrends(true);
+    };
 
     // Fetch platforms and categories on mount
     useEffect(() => {
@@ -308,9 +320,18 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
 
                 {/* RCA Tree Content */}
                 <Box sx={{ flex: 1, position: 'relative', bgcolor: 'transparent' }}>
-                    <RCATree title={title} context={context} />
+                    <RCATree title={title} context={context} onViewTrends={handleViewTrends} />
                 </Box>
             </DialogContent>
+
+            <TrendsCompetitionDrawer
+                open={showTrends}
+                onClose={() => setShowTrends(false)}
+                selectedColumn={selectedTrendName}
+                selectedLevel={selectedTrendLevel}
+                dynamicKey="platform_overview_tower"
+                brandOptions={brandOptions.filter(b => b !== 'All Brands')}
+            />
         </Dialog>
     );
 }
