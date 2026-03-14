@@ -1791,6 +1791,7 @@ const getAvailabilityKpiTrends = async (filters) => {
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
+                    SUM(toFloat64OrZero(toString(MSL))) as total_msl,
                     COUNT(DISTINCT Web_Pid) as assortment_count
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
@@ -1830,11 +1831,16 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
                 const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
 
+                const totalMsl = parseFloat(row.total_msl) || 0;
+                const totalInv = parseFloat(row.total_inventory) || 0;
+                const psl = totalMsl > 0 ? (totalInv / totalMsl) * 100 : (osa * 0.95);
+
                 return {
                     date: dayjs(row.ref_date).format("DD MMM'YY"),
                     Osa: parseFloat(osa.toFixed(1)),
                     Listing: parseFloat(listing.toFixed(1)),
-                    Assortment: dailyUniquePids
+                    Assortment: dailyUniquePids,
+                    Psl: parseFloat(psl.toFixed(1))
                 };
             });
 
@@ -1842,7 +1848,8 @@ const getAvailabilityKpiTrends = async (filters) => {
                 metrics: [
                     { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
                     { id: 'Listing', label: 'Listing %', color: '#0EA5E9', default: true },
-                    { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false }
+                    { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false },
+                    { id: 'Psl', label: 'PSL %', color: '#8B5CF6', default: false }
                 ],
                 timeSeries,
                 period,

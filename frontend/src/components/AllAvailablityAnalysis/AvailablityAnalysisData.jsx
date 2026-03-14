@@ -180,15 +180,11 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       // Convert array elements
       const mappedRows = [];
       if (Array.isArray(origRowsArray)) {
-        const kpiNames = ["OSA", "DOI"];
+        const kpiNames = ["OSA", "DOI", null, "PSL"];
         origRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
+          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
           const newRow = { ...rowData };
-
-          // Default mapping (adjusting for backend array order vs frontend display)
-          // Backend order: [osa, doi, fillrate, psl]
-          // Index 0: OSA, Index 1: DOI, Index 2: FILLRATE (skipped in UI)
-          if (idx >= 2) return; 
 
           newRow.kpi = kpiNames[idx] || 'Unknown';
 
@@ -219,12 +215,11 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       const fNormalizedColumns = fOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const fMappedRows = [];
       if (Array.isArray(fOrigRowsArray)) {
-        const kpiNames = ["OSA", "DOI"];
+        const kpiNames = ["OSA", "DOI", null, "PSL"];
         fOrigRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
+          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
           const newRow = { ...rowData };
-
-          if (idx >= 2) return;
 
           newRow.kpi = kpiNames[idx] || 'Unknown';
           if (!newRow.trend) newRow.trend = {};
@@ -247,12 +242,11 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       const cNormalizedColumns = cOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const cMappedRows = [];
       if (Array.isArray(cOrigRowsArray)) {
-        const kpiNames = ["OSA", "DOI"];
+        const kpiNames = ["OSA", "DOI", null, "PSL"];
         cOrigRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
+          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
           const newRow = { ...rowData };
-
-          if (idx >= 2) return;
 
           newRow.kpi = kpiNames[idx] || 'Unknown';
           if (!newRow.trend) newRow.trend = {};
