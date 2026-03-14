@@ -154,7 +154,8 @@ export const getOsaPercentageDetail = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -274,7 +275,8 @@ export const getAvailabilityFilterOptions = async (req, res) => {
             city: parseFilter(city),
             location: parseFilter(location),
             months: parseFilter(months),
-            metroFlag: parseFilter(metroFlag)
+            metroFlag: parseFilter(metroFlag),
+            ownBrandsOnly: req.query.ownBrandsOnly
         });
 
         console.log('[RESPONSE]:', data.options?.length, 'options returned');
@@ -458,7 +460,7 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
  */
 export const getSignalLabData = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_v3', req.query);
+        const cacheKey = generateCacheKey('signal_lab_v7', req.query);
         const data = await getCachedOrCompute(cacheKey, async () => {
             const {
                 platform,
@@ -582,18 +584,19 @@ export const getSignalLabData = async (req, res) => {
                 ? `HAVING ${sortMetric} > ${threshold}`
                 : `HAVING ${sortMetric} < -${threshold}`;
 
-            /* ================= STEP 3: GET SORTED IDs (By OSA Change) ================= */
+            console.log(`[SignalLab] request: type=${metricType}, signalType=${signalType}, direction=${direction}`);
             const skuQuery = `
                 SELECT Web_Pid, ${sortMetric} as sortMetric, ${mainOsaExpr} as absoluteOsa
                 FROM rb_pdp_olap
                 WHERE ${buildWhereClause(true)}
                 GROUP BY Web_Pid
                 ${havingClause}
-                ORDER BY absoluteOsa DESC
+                ORDER BY absoluteOsa ${direction}
                 LIMIT ${limitNum} OFFSET ${offsetNum}
             `;
 
             const skuRows = await queryClickHouse(skuQuery);
+            console.log(`[SignalLab] skuRows (top 3):`, skuRows.slice(0, 3).map(r => ({ pid: r.Web_Pid, osa: r.absoluteOsa })));
 
             if (!skuRows || !skuRows.length) return { skus: [], totalCount: 0 };
 
@@ -826,7 +829,7 @@ export const getSignalLabData = async (req, res) => {
  */
 export const getCityDetailsForProduct = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_city_details_v2', req.query);
+        const cacheKey = generateCacheKey('signal_lab_city_details_v3', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer' } = req.query;
@@ -851,7 +854,7 @@ export const getCityDetailsForProduct = async (req, res) => {
 
             const buildConditions = (includeCompDates = false) => {
                 // ADD TIER 1 FILTER USING SUBQUERY
-                const conds = [`Web_Pid = '${escapeStr(webPid)}'`, `Location IN (SELECT location FROM rb_location_darkstore WHERE tier = 'Tier 1')`];
+                const conds = [`Web_Pid = '${escapeStr(webPid)}'`, `Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`];
                 if (includeCompDates) {
                     conds.push(`(toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')`);
                 } else {
@@ -1003,8 +1006,9 @@ export const getBrandSkuCityDayLevel = async (req, res) => {
             cities: parseFilter(req.query.cities),
             categories: parseFilter(req.query.categories),
             zones: parseFilter(req.query.zones),
-            metroFlags: parseFilter(req.query.metroFlags),
-            pincodes: parseFilter(req.query.pincodes),
+            metroFlag: parseFilter(req.query.metroFlag),
+            months: parseFilter(req.query.months),
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('[Controller] getBrandSkuCityDayLevel filters:', filters);
 

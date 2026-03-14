@@ -142,7 +142,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
         let trendDelta = parseFloat((logicalDir > 50 ? logicalDelta : -logicalDelta).toFixed(1));
 
         // User request: "Assortment" and "PSL" should have 0 trend
-        if (["Assortment", "PSL"].includes(item.kpi)) {
+        if (["Assortment"].includes(item.kpi)) {
           trendDelta = 0;
         }
 
@@ -180,21 +180,17 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       // Convert array elements
       const mappedRows = [];
       if (Array.isArray(origRowsArray)) {
-        const kpiNames = ["OSA", "DOI", "PSL"];
+        const kpiNames = ["OSA", "DOI"];
         origRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
           const newRow = { ...rowData };
 
           // Default mapping (adjusting for backend array order vs frontend display)
           // Backend order: [osa, doi, fillrate, psl]
-          // Index 0: OSA, Index 1: DOI, Index 2: FILLRATE (skipped in UI), Index 3: PSL
-          let kpiIdx = idx;
-          if (idx === 2) return; // Skip Fillrate row entirely
-          if (idx > 2) kpiIdx = idx - 1; // Shift PSL down
+          // Index 0: OSA, Index 1: DOI, Index 2: FILLRATE (skipped in UI)
+          if (idx >= 2) return; 
 
-          if (kpiIdx >= kpiNames.length) return; // Safety check
-
-          newRow.kpi = kpiNames[kpiIdx] || 'Unknown';
+          newRow.kpi = kpiNames[idx] || 'Unknown';
 
           // Also add trend and series objects if missing, to prevent Showcase from crashing
           if (!newRow.trend) newRow.trend = {};
@@ -223,18 +219,14 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       const fNormalizedColumns = fOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const fMappedRows = [];
       if (Array.isArray(fOrigRowsArray)) {
-        const kpiNames = ["OSA", "DOI", "PSL"];
+        const kpiNames = ["OSA", "DOI"];
         fOrigRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
           const newRow = { ...rowData };
 
-          let kpiIdx = idx;
-          if (idx === 2) return;
-          if (idx > 2) kpiIdx = idx - 1;
+          if (idx >= 2) return;
 
-          if (kpiIdx >= kpiNames.length) return;
-
-          newRow.kpi = kpiNames[kpiIdx] || 'Unknown';
+          newRow.kpi = kpiNames[idx] || 'Unknown';
           if (!newRow.trend) newRow.trend = {};
           if (!newRow.series) newRow.series = {};
           fMappedRows.push(newRow);
@@ -255,18 +247,14 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       const cNormalizedColumns = cOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const cMappedRows = [];
       if (Array.isArray(cOrigRowsArray)) {
-        const kpiNames = ["OSA", "DOI", "PSL"];
+        const kpiNames = ["OSA", "DOI"];
         cOrigRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
           const newRow = { ...rowData };
 
-          let kpiIdx = idx;
-          if (idx === 2) return;
-          if (idx > 2) kpiIdx = idx - 1;
+          if (idx >= 2) return;
 
-          if (kpiIdx >= kpiNames.length) return;
-
-          newRow.kpi = kpiNames[kpiIdx] || 'Unknown';
+          newRow.kpi = kpiNames[idx] || 'Unknown';
           if (!newRow.trend) newRow.trend = {};
           if (!newRow.series) newRow.series = {};
           cMappedRows.push(newRow);

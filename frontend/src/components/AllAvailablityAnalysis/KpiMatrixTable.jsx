@@ -29,7 +29,6 @@ const kpis = [
     { key: "osa", label: "OSA" },
     { key: "fillrate", label: "FILLRATE" },
     { key: "doi", label: "DOI" },
-    { key: "psl", label: "PSL" },
 ];
 
 // ✅ Only OSA can drill down when competitors is selected, otherwise all KPIs can drill
@@ -643,7 +642,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                             )}
                                                             whileHover={{ scale: 1.01 }}
                                                         >
-                                                            <span className="text-sm font-semibold text-slate-800">{cell.value}{['doi', 'assortment', 'psl'].includes(kpi.key) ? '' : '%'}</span>
+                                                            <span className="text-sm font-semibold text-slate-800">{cell.value}{['doi', 'assortment'].includes(kpi.key) ? '' : '%'}</span>
                                                             <span
                                                                 className={cn(
                                                                     "text-xs font-medium",
@@ -708,7 +707,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                                                             <span className="text-slate-400" title={item}>
                                                                                                 {item.includes('Zone') ? item.split(' ')[0] : (item.length > 8 ? item.substring(0, 8) + '..' : item)}
                                                                                             </span>
-                                                                                            <span className="ml-1 font-medium text-slate-700">{drillData.value}{['doi', 'assortment', 'psl'].includes(kpi.key) ? '' : '%'}</span>
+                                                                                            <span className="ml-1 font-medium text-slate-700">{drillData.value}{['doi', 'assortment'].includes(kpi.key) ? '' : '%'}</span>
                                                                                         </div>
                                                                                     );
                                                                                 })
