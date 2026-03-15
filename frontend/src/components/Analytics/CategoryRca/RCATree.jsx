@@ -11,8 +11,8 @@ import ReactFlow, {
   MarkerType,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { motion, useSpring, useMotionValue } from "framer-motion";
-import { Plus, Minus, Activity, Zap } from "lucide-react";
+import { motion, useSpring, useMotionValue, AnimatePresence } from "framer-motion";
+import { Plus, Minus, Activity, Zap, LineChart } from "lucide-react";
 import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import {
@@ -25,12 +25,19 @@ import {
   Paper,
   Divider,
   Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from "@mui/material";
 
 // --- Layout & Typography Tokens ---
 const CARD_WIDTH = 380;
-const HORIZONTAL_GAP = 70;
-const VERTICAL_STEP = 340;
+const CARD_HEIGHT = 220; // Estimated height for vertical centering
+const VERTICAL_GAP = 50;
+const HORIZONTAL_STEP = 520;
 
 const TYPO = {
   primary: "#0f172a",
@@ -128,28 +135,217 @@ const AiInsightBadge = ({ text }) => (
     transition={{ duration: 2, repeat: Infinity }}
     style={{
       position: "absolute",
-      top: -14,
-      right: 20,
+      top: -24,
+      left: "50%",
+      transform: "translateX(-50%)",
       backgroundColor: "#8b5cf6",
       color: "white",
-      padding: "6px 14px",
-      borderRadius: "14px",
-      fontSize: "10px",
+      padding: "8px 18px",
+      borderRadius: "16px",
+      fontSize: "12px",
       fontWeight: 900,
+      whiteSpace: "nowrap",
       textTransform: "uppercase",
       letterSpacing: "1.2px",
       display: "flex",
       alignItems: "center",
       gap: "6px",
-      zIndex: 11,
-      boxShadow: "0 8px 20px rgba(139, 92, 246, 0.4)",
-      border: "1.5px solid rgba(255, 255, 255, 0.4)",
+      zIndex: 50,
+      boxShadow: "0 12px 24px rgba(139, 92, 246, 0.5)",
+      border: "1.5px solid rgba(255, 255, 255, 0.45)",
     }}
   >
     <Zap size={11} fill="white" strokeWidth={3} />
     {text}
   </motion.div>
 );
+// --- Trend Button (Purple Flickering) ---
+const TrendButton = ({ onClick }) => (
+  <motion.div
+    animate={{
+      boxShadow: [
+        "0 0 0px rgba(124, 58, 237, 0)",
+        "0 0 15px rgba(124, 58, 237, 0.6)",
+        "0 0 0px rgba(124, 58, 237, 0)",
+      ],
+      scale: [1, 1.05, 1],
+    }}
+    transition={{ duration: 2, repeat: Infinity }}
+    style={{
+      position: "absolute",
+      top: 10,
+      right: 15,
+      zIndex: 15,
+    }}
+  >
+    <IconButton
+      size="small"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      sx={{
+        bgcolor: "#7c3aed",
+        color: "white",
+        width: 34,
+        height: 34,
+        borderRadius: "12.5px",
+        "&:hover": { bgcolor: "#6d28d9", transform: "scale(1.1)" },
+        boxShadow: "0 8px 16px rgba(124, 58, 237, 0.3)",
+        border: "1.5px solid rgba(255, 255, 255, 0.4)",
+        transition: "all 0.2s ease"
+      }}
+    >
+      <LineChart size={18} strokeWidth={3.5} />
+    </IconButton>
+  </motion.div>
+);
+
+// --- Dark Hover Intelligence Popup (Table View) ---
+// --- Dark Hover Intelligence Popup (Unified) ---
+const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLabel = "KPI", category = "" }) => {
+  const isBottom = position === "bottom";
+
+  if (isOrganic) {
+    // This is now handled by the generalized dynamic tooltip
+  }
+
+  // Restoration of the Previous Black Card (Brand Intelligence)
+  const displayMetrics = metrics || [];
+
+  const getMetricKey = (label, cat) => {
+    const l = label.toLowerCase();
+    const c = cat ? cat.toLowerCase() : "";
+
+    // Keyword specific mappings
+    if (l.includes("branded")) {
+      return c === "ad" ? "adBranded" : "orgBranded";
+    }
+    if (l.includes("generic")) {
+      return "orgGeneric";
+    }
+    if (l.includes("comp")) {
+      return "adComp";
+    }
+    if (l.includes("organic impressions")) return "organic";
+    if (l.includes("ad impressions")) return "ad";
+
+    // Standard mappings
+    if (l.includes("offtake")) return "offtake";
+    if (l.includes("price")) return "price";
+    if (l.includes("impressions")) return "impressions";
+    if (l.includes("conversion")) return "conversion";
+    if (l.includes("disc")) return "discount";
+    if (l.includes("osa")) return "osa";
+    if (l.includes("ppu")) return "ppu";
+    if (l.includes("rating")) return "rating";
+    if (l.includes("listing")) return "listing";
+    return "offtake";
+  };
+
+  const metricKey = getMetricKey(kpiLabel, category);
+  const deltaKey = `delta${metricKey.charAt(0).toUpperCase() + metricKey.slice(1)}`;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
+      style={{
+        position: "absolute",
+        ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
+        left: "50%",
+        transform: "translateX(-50%)",
+        width: 1400,
+        backgroundColor: "rgba(10, 15, 28, 0.97)",
+        backdropFilter: "blur(40px) saturate(200%)",
+        borderRadius: "44px",
+        padding: "0",
+        zIndex: 100000,
+        boxShadow: "0 100px 200px -40px rgba(0, 0, 0, 0.95), 0 0 120px rgba(79, 70, 229, 0.2)",
+        border: "2px solid rgba(255, 255, 255, 0.18)",
+        pointerEvents: "auto",
+        overflow: "hidden"
+      }}
+    >
+      <Box sx={{ px: 6, py: 5, borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "rgba(255,255,255,0.01)" }}>
+        <Box>
+          <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: "28px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "5px", mb: 0.5 }}>
+            Market Intelligence Trace
+          </Typography>
+          <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: "14px", fontWeight: 700, letterSpacing: "1px" }}>
+            PRO INTELLIGENCE PIPELINE V2.0 • REAL-TIME DATA STREAM
+          </Typography>
+        </Box>
+
+      </Box>
+
+      <TableContainer sx={{ overflow: "visible" }}>
+        <Table size="medium" sx={{ "& td, & th": { border: "none", py: 4, px: 6 } }}>
+          <TableHead>
+            <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Brand Identity</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Current Month {kpiLabel}</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Previous Month {kpiLabel}</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Change</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {displayMetrics.map((row, idx) => {
+              const parseVal = (str) => {
+                if (!str) return 0;
+                let s = String(str).replace(/[₹,% ]/g, "").toLowerCase();
+                let multiplier = 1;
+                if (s.endsWith('lac')) { multiplier = 100000; s = s.replace('lac', ''); }
+                else if (s.endsWith('k')) { multiplier = 1000; s = s.replace('k', ''); }
+                else if (s.endsWith('cr')) { multiplier = 10000000; s = s.replace('cr', ''); }
+                return (parseFloat(s) || 0) * multiplier;
+              };
+
+              const currStr = row[metricKey];
+              const deltaStr = row[deltaKey];
+
+              const currVal = parseVal(currStr);
+              const deltaVal = parseVal(deltaStr);
+              const prevVal = currVal - deltaVal;
+
+              const formatVal = (val) => {
+                if (kpiLabel.includes("Offtake")) {
+                  if (val >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
+                  if (val >= 100000) return `₹ ${(val / 100000).toFixed(2)} lac`;
+                  return `₹ ${val.toLocaleString()}`;
+                }
+                if (kpiLabel.includes("Impressions")) {
+                  if (val >= 100000) return `${(val / 100000).toFixed(1)} lac`;
+                  if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
+                  return val.toLocaleString();
+                }
+                if (kpiLabel.includes("PRICE") || kpiLabel.includes("PPU")) return `₹${val.toFixed(1)}`;
+                if (kpiLabel.includes("%") || kpiLabel.includes("Conv")) return `${val.toFixed(1)}%`;
+                return val.toFixed(1);
+              };
+
+              return (
+                <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
+                  <TableCell sx={{ color: "#fff", fontSize: "26px", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.brand}</TableCell>
+                  <TableCell sx={{ color: "#fff", fontSize: "26px", fontWeight: 900 }}>{currStr}</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "26px", fontWeight: 900 }}>{formatVal(prevVal)}</TableCell>
+                  <TableCell>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <Typography sx={{ color: String(deltaStr).startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "18px", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
+                        {deltaStr}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </motion.div>
+  );
+};
 
 const StatusDot = ({ status = "healthy" }) => {
   const color = status === "healthy" ? "#10b981" : status === "warning" ? "#f59e0b" : "#f43f5e";
@@ -222,41 +418,48 @@ const KpiNode = ({ data }) => {
     isDimmed = false,
     importance = "driver", // "outcome" | "primary" | "driver"
     onHover,
+    onViewTrends,
+    metrics,
+    hoveredNodeId, // Single source of truth for global hover
   } = data;
+
+  const [localHover, setLocalHover] = useState(false);
 
   const accentColor = COLORS[category] || COLORS.impressions;
 
   const isOutcome = importance === "outcome";
   const isPrimary = importance === "primary";
 
-  const targetScale = isSelected ? 1.10 : 1;
-  const targetLift = isSelected ? -10 : 0;
+  const targetScale = isSelected ? 1.08 : localHover && !isDimmed ? 1.03 : 1;
+  const targetLift = isSelected ? -5 : 0;
 
   const baseBorder = isOutcome ? `2.5px solid ${accentColor}` : isPrimary ? "2px solid #cbd5e1" : "2px solid #cbd5e1";
   const baseShadow = isOutcome
-    ? "0 18px 44px -10px rgba(15, 23, 42, 0.22), 0 10px 22px -10px rgba(15, 23, 42, 0.14)"
-    : "0 12px 32px -6px rgba(15, 23, 42, 0.18), 0 6px 16px -6px rgba(15, 23, 42, 0.12)";
+    ? "0 18px 44px -10px rgba(15, 23, 42, 0.22)"
+    : "0 12px 32px -6px rgba(15, 23, 42, 0.18)";
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.92, y: 18 }}
       animate={{
-        opacity: isDimmed ? 0.28 : 1,
+        opacity: isDimmed ? 0.35 : 1,
         scale: targetScale,
         y: targetLift,
-        filter: isDimmed ? "grayscale(0.25) blur(0.15px)" : "none",
+        filter: isDimmed ? "grayscale(0.4) blur(0.2px)" : "none",
+        zIndex: localHover && !isDimmed ? 1000 : 1,
+      }}
+      transition={{
+        type: "spring",
+        damping: 12,
+        stiffness: 70,
+        opacity: { duration: 0.2, ease: "easeOut" }
       }}
       whileHover={{
-        y: -18,
-        scale: isDimmed ? 1 : 1.04,
         boxShadow: isDimmed
           ? baseShadow
-          : `0 30px 60px -12px rgba(0, 0, 0, 0.15),
-             0 18px 36px -18px rgba(0, 0, 0, 0.2),
-             0 10px 20px -10px rgba(0, 0, 0, 0.1)`,
+          : `0 35px 70px -15px rgba(0, 0, 0, 0.18)`,
         border: isDimmed ? baseBorder : `2.5px solid ${accentColor}`,
       }}
-      transition={{ type: "spring", damping: 12, stiffness: 70 }}
       style={{
         width: CARD_WIDTH,
         backgroundColor: "#ffffff",
@@ -267,17 +470,61 @@ const KpiNode = ({ data }) => {
         cursor: "pointer",
         position: "relative",
         boxShadow: baseShadow,
-        zIndex: isSelected ? 30 : 10,
+        zIndex: localHover && !isDimmed ? 1000 : 1, // Elevate hovered node to the top of the stacking context
         transformOrigin: "center",
       }}
-      onMouseEnter={() => onHover?.(data.id)}
-      onMouseLeave={() => onHover?.(null)}
+      onMouseEnter={(e) => {
+        e.stopPropagation();
+        setLocalHover(true);
+        // Use a small timeout to prevent rapid state switching (flickering)
+        if (window.hoverTimeout) clearTimeout(window.hoverTimeout);
+        onHover?.(data.id);
+      }}
+      onMouseLeave={(e) => {
+        e.stopPropagation();
+        setLocalHover(false);
+        window.hoverTimeout = setTimeout(() => {
+          onHover?.(null);
+        }, 100);
+      }}
       onClick={(e) => {
         if (e.target.closest(".toggle-btn")) return;
         onClickDetail(data);
       }}
     >
-      <Handle type="target" position={Position.Top} style={{ background: "transparent", border: "none", width: 0, height: 0, top: -8 }} />
+      <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none", width: 0, height: 0, left: -8, top: "50%" }} />
+
+      {/* Hover bridge to keep popup open when moving mouse between card and popup */}
+      {
+        localHover && hoveredNodeId === data.id && !isDimmed && (
+          <Box
+            sx={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              height: "45px", // Slightly more than the 40px gap
+              zIndex: 99999,
+              background: "transparent",
+              ...(data.popupPosition === "bottom"
+                ? { top: "100%" }
+                : { bottom: "100%" }
+              ),
+            }}
+          />
+        )
+      }
+
+      <AnimatePresence>
+        {localHover && hoveredNodeId === data.id && !isDimmed && (
+          <HoverMetricsPopup
+            metrics={metrics}
+            position={data.popupPosition}
+            isOrganic={label === "Organic Impressions" || label === "Organic GVs"}
+            kpiLabel={label}
+            category={category}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Top accent strip */}
       <Box
@@ -294,6 +541,7 @@ const KpiNode = ({ data }) => {
       />
 
       {insight && <AiInsightBadge text={insight} />}
+      <TrendButton onClick={() => onViewTrends(label)} />
 
       <Box
         sx={{
@@ -386,40 +634,42 @@ const KpiNode = ({ data }) => {
         )}
       </Box>
 
-      {hasChildren && (
-        <motion.div
-          className="toggle-btn"
-          whileHover={{ scale: 1.18, rotate: 90, backgroundColor: "#4f46e5", color: "#fff" }}
-          whileTap={{ scale: 0.92 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-          style={{
-            position: "absolute",
-            bottom: -20,
-            left: "50%",
-            marginLeft: -20,
-            width: 40,
-            height: 40,
-            borderRadius: "50%",
-            backgroundColor: "#fff",
-            color: "#64748b",
-            border: "2px solid rgba(255, 255, 255, 1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            zIndex: 15,
-            boxShadow: "0 14px 26px -6px rgba(0, 0, 0, 0.16)",
-          }}
-        >
-          {isCollapsed ? <Plus size={22} strokeWidth={3} /> : <Minus size={22} strokeWidth={3} />}
-        </motion.div>
-      )}
+      {
+        hasChildren && (
+          <motion.div
+            className="toggle-btn"
+            whileHover={{ scale: 1.18, rotate: 90, backgroundColor: "#4f46e5", color: "#fff" }}
+            whileTap={{ scale: 0.92 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            style={{
+              position: "absolute",
+              right: -28, // Centered on the source handle at right: -8
+              top: "50%",
+              marginTop: -20,
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              backgroundColor: "#fff",
+              color: "#64748b",
+              border: "2px solid rgba(255, 255, 255, 1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              zIndex: 15,
+              boxShadow: "0 14px 26px -6px rgba(0, 0, 0, 0.16)",
+            }}
+          >
+            {isCollapsed ? <Plus size={22} strokeWidth={3} /> : <Minus size={22} strokeWidth={3} />}
+          </motion.div>
+        )
+      }
 
-      <Handle type="source" position={Position.Bottom} style={{ background: "transparent", border: "none", width: 0, height: 0, bottom: -8 }} />
-    </motion.div>
+      <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none", width: 0, height: 0, right: -8 }} />
+    </motion.div >
   );
 };
 
@@ -512,6 +762,13 @@ const getDynamicRcaTreeData = (context) => {
       category: "offtake",
       importance: "outcome",
       insight: rootChange.isPos ? "Portfolio Growth" : "Market Pressure",
+      metrics: [
+        { brand: 'Snickers', asp: '₹66.6', discount: '7.1%', ppu: '₹122.3', deltaAsp: '-₹1.4', deltaDisc: '6.7%', deltaPpu: '-₹7.5' },
+        { brand: 'Galaxy', asp: '₹101.1', discount: '9.8%', ppu: '₹183.5', deltaAsp: '-₹8.4', deltaDisc: '8.5%', deltaPpu: '-₹1.8' },
+        { brand: 'Bounty', asp: '₹119.7', discount: '11.7%', ppu: '₹144.3', deltaAsp: '-₹9.8', deltaDisc: '9.7%', deltaPpu: '-₹14.7' },
+        { brand: 'Twix', asp: '₹117.9', discount: '5.0%', ppu: '₹175.1', deltaAsp: '-₹2.8', deltaDisc: '4.4%', deltaPpu: '-₹7' },
+        { brand: 'Mars', asp: '₹92.8', discount: '4.1%', ppu: '₹182.1', deltaAsp: '-₹2.1', deltaDisc: '3.8%', deltaPpu: '-₹4.1' },
+      ],
       children: [
         {
           id: "gvs",
@@ -521,6 +778,10 @@ const getDynamicRcaTreeData = (context) => {
           isPositive: getChange("gvs").isPos,
           category: "impressions",
           importance: "primary",
+          metrics: [
+            { brand: 'Snickers', asp: '₹64.2', discount: '8.4%', ppu: '₹118.5', deltaAsp: '+₹2.1', deltaDisc: '7.8%', deltaPpu: '+₹4.2' },
+            { brand: 'Galaxy', asp: '₹98.5', discount: '10.2%', ppu: '₹179.2', deltaAsp: '-₹1.5', deltaDisc: '9.1%', deltaPpu: '-₹2.3' },
+          ],
           meta: [{ label: "GV Share", value: "100.0%", change: "0.00", isPositive: true }],
           children: [
             {
@@ -530,6 +791,7 @@ const getDynamicRcaTreeData = (context) => {
               change: getChange("org_gv").val,
               isPositive: getChange("org_gv").isPos,
               category: "organic",
+              metrics: { discount: "8.1%", ppu: "₹ 245", asp: "₹ 210" },
               meta: [
                 { label: "Organic Share of Search", value: getVal(45.5, true, "osas", 10) },
                 { label: "Organic GV%", value: getVal(55.0, true, "ogvp", 10) }
@@ -711,7 +973,7 @@ const getDynamicRcaTreeData = (context) => {
         },
         {
           id: "asp",
-          label: "ASP",
+          label: "PRICE",
           value: `₹ ${(742.0 * getEntityBase(skuId + brandId, 0.4)).toFixed(2)}`,
           change: getChange("asp").val,
           isPositive: getChange("asp").isPos,
@@ -745,27 +1007,45 @@ const getDynamicRcaTreeData = (context) => {
     category: "offtake",
     importance: "outcome",
     insight: rootChange.isPos ? "Volume Growth" : "Critical Decline",
+    metrics: [
+      { brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%', organic: '12.2 lac', deltaOrganic: '1.1 lac', ad: '7.2 lac', deltaAd: '-0.2 lac', orgBranded: '8.4 lac', deltaOrgBranded: '0.8 lac', orgGeneric: '3.8 lac', deltaOrgGeneric: '0.3 lac', adBranded: '4.1 lac', deltaAdBranded: '-0.1 lac', adComp: '3.1 lac', deltaAdComp: '-0.1 lac', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+      { brand: 'Galaxy', offtake: '₹101.1 lac', price: '₹101.1', discount: '9.8%', ppu: '₹183.5', impressions: '13.7 lac', conversion: '6.3%', deltaOfftake: '-₹8.4 lac', deltaPrice: '-₹8.4', deltaDiscount: '1.3%', deltaPpu: '-₹1.8', deltaImpressions: '-4.7 K', deltaConversion: '-0.5%', organic: '8.5 lac', deltaOrganic: '-0.2 lac', ad: '5.2 lac', deltaAd: '-4.7 K', orgBranded: '5.1 lac', deltaOrgBranded: '-0.1 lac', orgGeneric: '3.4 lac', deltaOrgGeneric: '-0.1 lac', adBranded: '2.5 lac', deltaAdBranded: '-1.2 K', adComp: '2.7 lac', deltaAdComp: '-3.5 K' },
+      { brand: 'Bounty', offtake: '₹119.7 lac', price: '₹119.7', discount: '11.7%', ppu: '₹144.3', impressions: '4.1 lac', conversion: '7.0%', deltaOfftake: '-₹9.8 lac', deltaPrice: '-₹9.8', deltaDiscount: '2.0%', deltaPpu: '-₹14.7', deltaImpressions: '25.9 K', deltaConversion: '-0.4%', organic: '2.8 lac', deltaOrganic: '15.2 K', ad: '1.3 lac', deltaAd: '10.7 K', orgBranded: '1.5 lac', deltaOrgBranded: '8.4 K', orgGeneric: '1.3 lac', deltaOrgGeneric: '6.8 K', adBranded: '0.7 lac', deltaAdBranded: '4.2 K', adComp: '0.6 lac', deltaAdComp: '6.5 K' },
+      { brand: 'Twix', offtake: '₹117.9 lac', price: '₹117.9', discount: '5.0%', ppu: '₹175.1', impressions: '30.2 K', conversion: '12.7%', deltaOfftake: '-₹2.8 lac', deltaPrice: '-₹2.8', deltaDiscount: '0.6%', deltaPpu: '-₹7', deltaImpressions: '1.2 K', deltaConversion: '0.8%', organic: '22.4 K', deltaOrganic: '0.8 K', ad: '7.8 K', deltaAd: '0.4 K', orgBranded: '13.1 K', deltaOrgBranded: '0.5 K', orgGeneric: '9.3 K', deltaOrgGeneric: '0.3 K', adBranded: '4.2 K', deltaAdBranded: '0.2 K', adComp: '3.6 K', deltaAdComp: '0.2 K' },
+      { brand: 'Mars', offtake: '₹92.8 lac', price: '₹92.8', discount: '4.1%', ppu: '₹182.1', impressions: '10.5 K', conversion: '8.5%', deltaOfftake: '-₹2.1 lac', deltaPrice: '-₹2.1', deltaDiscount: '0.3%', deltaPpu: '-4.1', deltaImpressions: '-0.5 K', deltaConversion: '-0.3%', organic: '6.4 K', deltaOrganic: '-0.2 K', ad: '4.1 K', deltaAd: '-0.3 K', orgBranded: '3.2 K', deltaOrgBranded: '-0.1 K', orgGeneric: '3.2 K', deltaOrgGeneric: '-0.1 K', adBranded: '2.1 K', deltaAdBranded: '-0.2 K', adComp: '2.0 K', deltaAdComp: '-0.1 K' },
+    ],
     meta: [{ label: "Est. Category Share", value: getVal(5.1, true, seed + "catshare", 15), change: getChange("meta1").val, isPositive: getChange("meta1").isPos }],
     children: [
       {
         id: "asp",
-        label: "ASP",
+        label: "PRICE",
         value: `₹ ${(189.2 * getEntityBase(skuId + brandId, 1.2)).toFixed(1)}`,
         change: aspChange.val,
         isPositive: aspChange.isPos,
         category: "price",
         importance: "primary",
-        meta: [{ label: "Baseline ASP", value: "₹ 185.0" }]
+        meta: [{ label: "Baseline PRICE", value: "₹ 185.0" }],
+        metrics: [
+          { brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%', organic: '12.2 lac', deltaOrganic: '1.1 lac', ad: '7.2 lac', deltaAd: '-0.2 lac', orgBranded: '8.4 lac', deltaOrgBranded: '0.8 lac', orgGeneric: '3.8 lac', deltaOrgGeneric: '0.3 lac', adBranded: '4.1 lac', deltaAdBranded: '-0.1 lac', adComp: '3.1 lac', deltaAdComp: '-0.1 lac', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+          { brand: 'Galaxy', offtake: '₹101.1 lac', price: '₹101.1', discount: '9.8%', ppu: '₹183.5', impressions: '13.7 lac', conversion: '6.3%', deltaOfftake: '-₹8.4 lac', deltaPrice: '-₹8.4', deltaDiscount: '1.3%', deltaPpu: '-₹1.8', deltaImpressions: '-4.7 K', deltaConversion: '-0.5%' },
+          { brand: 'Bounty', offtake: '₹119.7 lac', price: '₹119.7', discount: '11.7%', ppu: '₹144.3', impressions: '4.1 lac', conversion: '7.0%', deltaOfftake: '-₹9.8 lac', deltaPrice: '-₹9.8', deltaDiscount: '2.0%', deltaPpu: '-₹14.7', deltaImpressions: '25.9 K', deltaConversion: '-0.4%' },
+          { brand: 'Twix', offtake: '₹117.9 lac', price: '₹117.9', discount: '5.0%', ppu: '₹175.1', impressions: '30.2 K', conversion: '12.7%', deltaOfftake: '-₹2.8 lac', deltaPrice: '-₹2.8', deltaDiscount: '0.6%', deltaPpu: '-₹7', deltaImpressions: '1.2 K', deltaConversion: '0.8%' },
+          { brand: 'Mars', offtake: '₹92.8 lac', price: '₹92.8', discount: '4.1%', ppu: '₹182.1', impressions: '10.5 K', conversion: '8.5%', deltaOfftake: '-₹2.1 lac', deltaPrice: '-₹2.1', deltaDiscount: '0.3%', deltaPpu: '-₹4.1', deltaImpressions: '-0.5 K', deltaConversion: '-0.3%' },
+        ],
       },
       {
         id: "indexed-impressions",
-        label: "Indexed Impressions",
+        label: "Impressions",
         value: formatLac(3.4 * finalVolume * getEntityBase(platform + "imp", 0.8)),
         change: impChange.val,
         isPositive: impChange.isPos,
         category: "impressions",
         importance: "primary",
         insight: impChange.isPos ? "High Visibility" : "Visibility Loss",
+        metrics: [
+          { brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%', organic: '12.2 lac', deltaOrganic: '1.1 lac', ad: '7.2 lac', deltaAd: '-0.2 lac', orgBranded: '8.4 lac', deltaOrgBranded: '0.8 lac', orgGeneric: '3.8 lac', deltaOrgGeneric: '0.3 lac', adBranded: '4.1 lac', deltaAdBranded: '-0.1 lac', adComp: '3.1 lac', deltaAdComp: '-0.1 lac', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+          { brand: 'Galaxy', offtake: '₹101.1 lac', price: '₹101.1', discount: '9.8%', ppu: '₹183.5', impressions: '13.7 lac', conversion: '6.3%', deltaOfftake: '-₹8.4 lac', deltaPrice: '-₹8.4', deltaDiscount: '1.3%', deltaPpu: '-₹1.8', deltaImpressions: '-4.7 K', deltaConversion: '-0.5%' },
+        ],
         meta: [{ label: "Overall SOS", value: getVal(12.5, true, seed + "sos", 25), change: getChange("meta2").val, isPositive: getChange("meta2").isPos }],
         children: [
           {
@@ -775,6 +1055,9 @@ const getDynamicRcaTreeData = (context) => {
             change: osaChange.val,
             isPositive: osaChange.isPos,
             category: "availability",
+            metrics: [
+              { brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%', organic: '12.2 lac', deltaOrganic: '1.1 lac', ad: '7.2 lac', deltaAd: '-0.2 lac', orgBranded: '8.4 lac', deltaOrgBranded: '0.8 lac', orgGeneric: '3.8 lac', deltaOrgGeneric: '0.3 lac', adBranded: '4.1 lac', deltaAdBranded: '-0.1 lac', adComp: '3.1 lac', deltaAdComp: '-0.1 lac', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+            ],
             children: [
               {
                 id: "listing",
@@ -782,7 +1065,10 @@ const getDynamicRcaTreeData = (context) => {
                 value: getVal(60.0, true, seed + "listing", 50),
                 change: getChange("meta3").val,
                 isPositive: getChange("meta3").isPos,
-                category: "availability"
+                category: "availability",
+                metrics: [
+                  { brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%', organic: '12.2 lac', deltaOrganic: '1.1 lac', ad: '7.2 lac', deltaAd: '-0.2 lac', orgBranded: '8.4 lac', deltaOrgBranded: '0.8 lac', orgGeneric: '3.8 lac', deltaOrgGeneric: '0.3 lac', adBranded: '4.1 lac', deltaAdBranded: '-0.1 lac', adComp: '3.1 lac', deltaAdComp: '-0.1 lac', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+                ],
               }
             ]
           },
@@ -794,23 +1080,29 @@ const getDynamicRcaTreeData = (context) => {
             isPositive: orgChange.isPos,
             category: "organic",
             insight: orgChange.isPos ? "Organic Pull" : "Low Ranking",
+            metrics: [
+              { brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%', organic: '12.2 lac', deltaOrganic: '1.1 lac', ad: '7.2 lac', deltaAd: '-0.2 lac', orgBranded: '8.4 lac', deltaOrgBranded: '0.8 lac', orgGeneric: '3.8 lac', deltaOrgGeneric: '0.3 lac', adBranded: '4.1 lac', deltaAdBranded: '-0.1 lac', adComp: '3.1 lac', deltaAdComp: '-0.1 lac', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+            ],
             meta: [{ label: "Organic SOS", value: getVal(8.5, true, seed + "orgsos", 15), change: getChange("meta4").val, isPositive: getChange("meta4").isPos }],
             children: [
-              { id: "org-generic", label: "Generic Keywords", value: formatLac(1.1 * finalVolume * getEntityBase("gen", 0.4)), change: getChange("gen").val, isPositive: getChange("gen").isPos, category: "organic" },
-              { id: "org-branded", label: "Branded Keywords", value: formatLac(0.694 * finalVolume * getEntityBase("brand_kw", 0.4)), change: getChange("brand_kw").val, isPositive: getChange("brand_kw").isPos, category: "organic" },
+              { id: "org-generic", label: "Generic Keywords", value: formatLac(1.1 * finalVolume * getEntityBase("gen", 0.4)), change: getChange("gen").val, isPositive: getChange("gen").isPos, category: "organic", metrics: [{ brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%' }] },
+              { id: "org-branded", label: "Branded Keywords", value: formatLac(0.694 * finalVolume * getEntityBase("brand_kw", 0.4)), change: getChange("brand_kw").val, isPositive: getChange("brand_kw").isPos, category: "organic", metrics: [{ brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%' }] },
             ],
           },
         ],
       },
       {
         id: "indexed-cvr",
-        label: "Indexed CVR",
+        label: "Conversion",
         value: getVal(6.2, true, seed + "cvr", 8),
         change: cvrChange.val,
         isPositive: cvrChange.isPos,
         category: "conversion",
         importance: "outcome",
         insight: cvrChange.isPos ? "Conv. Efficacy" : "Conv. Drop",
+        metrics: [
+          { brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%', organic: '12.2 lac', deltaOrganic: '1.1 lac', ad: '7.2 lac', deltaAd: '-0.2 lac', orgBranded: '8.4 lac', deltaOrgBranded: '0.8 lac', orgGeneric: '3.8 lac', deltaOrgGeneric: '0.3 lac', adBranded: '4.1 lac', deltaAdBranded: '-0.1 lac', adComp: '3.1 lac', deltaAdComp: '-0.1 lac', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+        ],
         children: [
           {
             id: "ad-impressions",
@@ -819,14 +1111,17 @@ const getDynamicRcaTreeData = (context) => {
             change: adChange.val,
             isPositive: adChange.isPos,
             category: "ad",
+            metrics: [
+              { brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%', organic: '12.2 lac', deltaOrganic: '1.1 lac', ad: '7.2 lac', deltaAd: '-0.2 lac', orgBranded: '8.4 lac', deltaOrgBranded: '0.8 lac', orgGeneric: '3.8 lac', deltaOrgGeneric: '0.3 lac', adBranded: '4.1 lac', deltaAdBranded: '-0.1 lac', adComp: '3.1 lac', deltaAdComp: '-0.1 lac', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+            ],
             meta: [{ label: "Ad SOS", value: getVal(4.5, true, seed + "adsos", 10), change: getChange("meta5").val, isPositive: getChange("meta5").isPos }],
             children: [
-              { id: "ad-branded", label: "Branded Keywords", value: formatLac(0.516 * finalVolume * getEntityBase("adb", 0.5)), change: getChange("adb").val, isPositive: getChange("adb").isPos, category: "ad" },
-              { id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad" },
+              { id: "ad-branded", label: "Branded Keywords", value: formatLac(0.516 * finalVolume * getEntityBase("adb", 0.5)), change: getChange("adb").val, isPositive: getChange("adb").isPos, category: "ad", metrics: [{ brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%' }] },
+              { id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad", metrics: [{ brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%' }] },
             ],
           },
-          { id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting" },
-          { id: "rating-count", label: "Rating Count", value: formatLac(1.8 * finalVolume * getEntityBase("rat", 0.7)), change: getChange("meta7").val, isPositive: getChange("meta7").isPos, category: "rating" },
+          { id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: [{ brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%' }] },
+          { id: "rating-count", label: "Rating Count", value: formatLac(1.8 * finalVolume * getEntityBase("rat", 0.7)), change: getChange("meta7").val, isPositive: getChange("meta7").isPos, category: "rating", metrics: [{ brand: 'Snickers', offtake: '₹66.6 lac', price: '₹66.6', discount: '7.1%', ppu: '₹122.3', impressions: '19.4 lac', conversion: '7.0%', deltaOfftake: '-₹1.4 lac', deltaPrice: '-₹1.4', deltaDiscount: '0.4%', deltaPpu: '-₹7.5', deltaImpressions: '-2.1 lac', deltaConversion: '-0.3%' }] },
         ],
       },
     ],
@@ -874,20 +1169,20 @@ const collectDescendants = (id, childMap) => {
 };
 
 // --- Layout Engine ---
-const computeSubtreeWidth = (node, collapsedNodes) => {
-  if (!node.children || node.children.length === 0 || collapsedNodes.has(node.id)) return CARD_WIDTH;
-  const childWidths = node.children.map((child) => computeSubtreeWidth(child, collapsedNodes));
-  return childWidths.reduce((sum, w, idx) => sum + w + (idx > 0 ? HORIZONTAL_GAP : 0), 0);
+const computeSubtreeHeight = (node, collapsedNodes) => {
+  if (!node.children || node.children.length === 0 || collapsedNodes.has(node.id)) return CARD_HEIGHT;
+  const childHeights = node.children.map((child) => computeSubtreeHeight(child, collapsedNodes));
+  return childHeights.reduce((sum, h, idx) => sum + h + (idx > 0 ? VERTICAL_GAP : 0), 0);
 };
 
-const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
+const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends) => {
   const isCollapsed = collapsedNodes.has(node.id);
-  const subtreeWidth = computeSubtreeWidth(node, collapsedNodes);
+  const subtreeHeight = computeSubtreeHeight(node, collapsedNodes);
 
   results.nodes.push({
     id: node.id,
     type: "kpi",
-    position: { x: x + subtreeWidth / 2 - CARD_WIDTH / 2, y },
+    position: { x, y: y + subtreeHeight / 2 - CARD_HEIGHT / 2 },
     data: {
       ...node,
       hasChildren: node.children?.length > 0,
@@ -895,22 +1190,22 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
       onToggle: () => { },
       onClickDetail: () => { },
       onHover: () => { },
-      isSelected: false,
       isDimmed: false,
+      onViewTrends,
     },
   });
 
   if (node.children && !isCollapsed) {
-    let currentChildX = x;
+    let currentChildY = y;
     node.children.forEach((child) => {
-      const childWidth = computeSubtreeWidth(child, collapsedNodes);
+      const childHeight = computeSubtreeHeight(child, collapsedNodes);
 
       results.edges.push({
         id: `${node.id}-${child.id}`,
         source: node.id,
         target: child.id,
         type: ConnectionLineType.Step,
-        animated: false, // only animate focus path
+        animated: false,
         style: {
           stroke: "rgba(15,23,42,0.35)",
           strokeWidth: 2.2,
@@ -924,8 +1219,8 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
         },
       });
 
-      layoutTreeNodes(child, currentChildX, y + VERTICAL_STEP, collapsedNodes, results);
-      currentChildX += childWidth + HORIZONTAL_GAP;
+      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends);
+      currentChildY += childHeight + VERTICAL_GAP;
     });
   }
 };
@@ -1041,7 +1336,7 @@ const NodeDetailPopup = ({ open, onClose, nodeData }) => {
 };
 
 // --- Internal RCATree Component ---
-const RcaTreeInner = ({ context, title }) => {
+const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -1123,49 +1418,62 @@ const RcaTreeInner = ({ context, title }) => {
 
   const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
     const results = { nodes: [], edges: [] };
-    const rootWidth = computeSubtreeWidth(currentTreeData, collapsedNodes);
-    layoutTreeNodes(currentTreeData, -rootWidth / 2, 0, collapsedNodes, results);
+    const rootHeight = computeSubtreeHeight(currentTreeData, collapsedNodes);
+    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends);
 
-    const nodes = results.nodes.map((n) => {
+    const nodesList = results.nodes.map((n) => {
       const isFocused = focusSet ? focusSet.has(n.id) : true;
-      const dim = focusSet ? !isFocused : false;
+      const isNearTop = n.position.y < -150;
 
       return {
         ...n,
+        zIndex: (hoveredNodeId === n.id || selectedNodeId === n.id) ? 1000000 : 100,
         data: {
           ...n.data,
           onToggle: () => onToggleNode(n.id),
           onClickDetail: handleCardClick,
           onHover,
           isSelected: selectedNodeId === n.id,
-          isDimmed: dim,
+          isDimmed: false,
+          popupPosition: isNearTop ? "bottom" : "top",
+          hoveredNodeId: hoveredNodeId, // Pass global state to individual node
         },
-        style: { zIndex: selectedNodeId === n.id ? 30 : 3 },
+        style: { ...n.style },
       };
+    });
+
+    // KEY FIX: Sort nodes so that hovered or selected nodes come LAST in the array.
+    // In React Flow, nodes later in the array are rendered on top of previous ones.
+    const sortedNodes = [...nodesList].sort((a, b) => {
+      if (a.id === hoveredNodeId || a.id === selectedNodeId) return 1;
+      if (b.id === hoveredNodeId || b.id === selectedNodeId) return -1;
+      return 0;
     });
 
     const edges = results.edges.map((e) => {
-      const inFocus = focusSet ? focusSet.has(e.source) && focusSet.has(e.target) : true;
       return {
         ...e,
-        animated: inFocus && !!focusSet, // animate only when focused
+        animated: false,
+        zoomable: false,
         style: {
           ...(e.style || {}),
-          stroke: inFocus ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.18)",
-          strokeWidth: inFocus ? 3.3 : 2.0,
-          strokeDasharray: inFocus ? "6,6" : "4,8",
+          stroke: "rgba(10, 15, 28, 0.8)", // Constant solid stroke
+          strokeWidth: 3.5,
+          strokeDasharray: "0", // Always solid
+          pointerEvents: "none",
+          transition: "stroke 0.3s ease",
         },
         markerEnd: {
           ...(e.markerEnd || {}),
-          color: inFocus ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.35)",
-          width: inFocus ? 16 : 12,
-          height: inFocus ? 16 : 12,
+          color: "rgba(15, 23, 42, 0.6)",
+          width: 18,
+          height: 18,
         },
       };
     });
 
-    return { nodes, edges };
-  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover]);
+    return { nodes: sortedNodes, edges };
+  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover, hoveredNodeId]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
@@ -1176,12 +1484,12 @@ const RcaTreeInner = ({ context, title }) => {
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
   useEffect(() => {
-    reactFlowInstance.fitView?.({ padding: 0.22, duration: 350 });
+    // Zoom to 85% (0.85) to match the visual scale in the reference image
+    reactFlowInstance.setViewport({ x: 100, y: 0, zoom: 0.85 }, { duration: 400 });
 
     const t = setTimeout(() => {
-      const current = reactFlowInstance.getZoom ? reactFlowInstance.getZoom() : 1;
-      reactFlowInstance.zoomTo?.(Math.min(1.12, current * 1.03), { duration: 240 });
-    }, 360);
+      reactFlowInstance.zoomTo?.(0.85, { duration: 300 });
+    }, 450);
     return () => clearTimeout(t);
   }, [reactFlowInstance]);
 
@@ -1227,33 +1535,47 @@ const RcaTreeInner = ({ context, title }) => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        fitView
         minZoom={0.2}
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
+        elevateNodesOnSelect={true}
       >
         <Controls
+          position="bottom-left"
           showInteractive={false}
           style={{
-            borderRadius: "20px",
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            borderRadius: "16px",
             overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.8)",
-            background: "rgba(255,255,255,0.7)",
-            backdropFilter: "blur(12px)",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(15, 23, 42, 0.1)",
+            background: "rgba(255,255,255,0.9)",
+            backdropFilter: "blur(20px)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
+            padding: '4px',
+            left: '20px',
+            bottom: '20px'
           }}
         />
       </ReactFlow>
 
-      <NodeDetailPopup open={detailOpen} onClose={() => setDetailOpen(false)} nodeData={selectedNode} />
+      <NodeDetailPopup
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false);
+          reactFlowInstance.fitView({ padding: 0.22, duration: 350 });
+        }}
+        nodeData={selectedNode}
+      />
     </div>
   );
 };
 
-export default function RCATree({ context, title }) {
+export default function RCATree({ context, title, onViewTrends }) {
   return (
     <ReactFlowProvider>
-      <RcaTreeInner context={context} title={title} />
+      <RcaTreeInner context={context} title={title} onViewTrends={onViewTrends} />
     </ReactFlowProvider>
   );
 }

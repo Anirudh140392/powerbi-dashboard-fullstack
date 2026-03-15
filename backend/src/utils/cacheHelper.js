@@ -66,6 +66,10 @@ export function generateCacheKey(section, filters) {
         brandsOverviewPlatform = '',
         brandsOverviewCategory = '',
         // New filters for Availability/Visibility Analysis
+        keyword = '',
+        sku = '',
+        city = '',
+        view = '',
         cities = '',
         formats = '',
         categories = '',
@@ -104,6 +108,12 @@ export function generateCacheKey(section, filters) {
     if (z && z !== 'all' && z !== 'All') key += `:zn_${normalize(z)}`;
     if (metroFlag && metroFlag !== 'all' && metroFlag !== 'All') key += `:mf_${normalize(metroFlag)}`;
     if (pincode && pincode !== 'all' && pincode !== 'All') key += `:pc_${normalize(pincode)}`;
+
+    // Keyword/SKU/City/View filters (Visibility Analysis)
+    if (keyword && keyword !== 'all' && keyword !== 'All') key += `:kw_${normalize(keyword)}`;
+    if (sku && sku !== 'all' && sku !== 'All') key += `:sku_${normalize(sku)}`;
+    if (city && city !== 'all' && city !== 'All') key += `:cty_${normalize(city)}`;
+    if (view) key += `:vw_${normalize(view)}`;
 
     if (drillDimension) key += `:ddim_${normalize(drillDimension)}`;
     if (includeBreakdown) key += `:ibd_${includeBreakdown}`;

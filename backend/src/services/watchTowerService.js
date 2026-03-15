@@ -7265,6 +7265,8 @@ const getCompetitionData = async (filters = {}) => {
                 OSA: { value: parseFloat(osa.toFixed(2)), delta: parseFloat(osaDelta.toFixed(2)) },
                 SOS: { value: parseFloat(sos.toFixed(3)), delta: parseFloat(sosDelta.toFixed(3)) },
                 Discount: { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
+                'Promo-My': { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
+                'PromoMy': { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
                 PricePerUnit: { value: parseFloat(pricePerUnit.toFixed(2)), delta: parseFloat(pricePerUnitDelta.toFixed(2)) },
                 ASP: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(2)) },
                 RPI: { value: parseFloat(rpi.toFixed(2)), delta: parseFloat(rpiDelta.toFixed(2)) },
@@ -7319,6 +7321,7 @@ const getCompetitionData = async (filters = {}) => {
             AVG(${src.f.mrp}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
+            AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${currConds}
@@ -7334,6 +7337,7 @@ const getCompetitionData = async (filters = {}) => {
             AVG(${src.f.mrp}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
+            AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${currConds}
@@ -7348,6 +7352,7 @@ const getCompetitionData = async (filters = {}) => {
             AVG(${src.f.mrp}) as avg_price,
             SUM(${src.f.neno}) as neno_osa_sum,
             SUM(${src.f.deno}) as deno_osa_sum,
+            AVG(${src.f.discount}) as avg_discount,
             AVG(${src.f.listingPercent}) as avg_listing_percent
                 FROM ${src.table}
                 WHERE ${momConds}
@@ -7423,6 +7428,8 @@ const getCompetitionData = async (filters = {}) => {
                 Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(2)) },
                 CategoryShare: { value: parseFloat(categoryShare.toFixed(2)), delta: parseFloat(categoryShareDelta.toFixed(2)) },
                 MarketShare: { value: parseFloat(marketShare.toFixed(2)), delta: parseFloat(marketShareDelta.toFixed(2)) },
+                'Promo-My': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
+                'PromoMy': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 ListingPercent: { value: parseFloat(skuListingPercent.toFixed(2)), delta: parseFloat(skuListingPercentDelta.toFixed(2)) }
             };
         });
@@ -7926,6 +7933,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             SUM(${src.f.deno}) as deno_osa_sum,
             SUM(${src.f.impressions}) as Impressions,
             AVG(${src.f.mrp}) as avg_price,
+            AVG(${src.f.discount}) as avg_discount,
             SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
             SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid
                     FROM ${src.table}
@@ -8032,6 +8040,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                     price: parseFloat(avgPrice.toFixed(0)),
                     'Promo-My': parseFloat(discount.toFixed(2)),
                     'promo-my': parseFloat(discount.toFixed(2)),
+                    'PromoMy': parseFloat(discount.toFixed(2)),
                     CategoryShare: parseFloat(categoryShare.toFixed(2)),
                     categoryShare: parseFloat(categoryShare.toFixed(2)),
                     MarketShare: parseFloat(marketShare.toFixed(2)),
@@ -8607,9 +8616,29 @@ const getRcaData = async (filters = {}) => {
             WHERE ${conds}
         `;
 
-        // SOS query from rb_kw_olap - using keyword-level join logic
+        const brandQuery = (conds) => `
+            SELECT
+                ${src.f.brand} as brand,
+                SUM(${src.f.sales}) as sales,
+                SUM(${src.f.quantitySold}) as qty,
+                SUM(${src.f.impressions}) as impressions,
+                SUM(${src.f.orders}) as orders,
+                SUM(${src.f.neno}) as neno,
+                SUM(${src.f.deno}) as deno,
+                AVG(CASE WHEN ${src.f.mrp} > 0 
+                        THEN(${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp} 
+                        ELSE 0 END) * 100 as avg_discount,
+                countIf(${src.f.deno} > 0) as listed_count,
+                count() as total_count
+            FROM ${src.table}
+            WHERE ${conds}
+            GROUP BY brand
+            ORDER BY sales DESC
+            LIMIT 10
+        `;
+
         const kwQuery = (conds) => {
-            const baseConditions = conds.split(' AND '); // Assuming conds is a string of 'AND' separated conditions
+            const baseConditions = conds.split(' AND ');
             return `
             WITH 
             n AS (
@@ -8642,13 +8671,30 @@ const getRcaData = async (filters = {}) => {
         `;
         };
 
+        const brandKwQuery = (conds) => {
+            const baseConditions = conds.split(' AND ');
+            return `
+                SELECT 
+                    brand,
+                    sum(toInt32(organic)) as organic_total,
+                    sum(toInt32(spons)) as ad_total,
+                    sum(CASE WHEN toString(flag) = '1' THEN toInt32(organic) ELSE 0 END) as organic_branded,
+                    sum(CASE WHEN toString(flag) = '0' THEN toInt32(organic) ELSE 0 END) as organic_generic,
+                    sum(CASE WHEN toString(flag) = '1' THEN toInt32(spons) ELSE 0 END) as ad_branded,
+                    sum(CASE WHEN toString(flag) = '0' THEN 0 ELSE toInt32(spons) END) as ad_comp
+                FROM rb_kw_olap
+                WHERE ${baseConditions.join(' AND ')}
+                GROUP BY brand
+            `;
+        };
+
         const brandArrForMs = normalizeFilterArray(brand);
         const brandCaseWhen = brandArrForMs && brandArrForMs.length > 0
             ? `group_brand IN(${brandArrForMs.map(b => `'${escapeStr(b)}'`).join(', ')})`
             : `group_brand = '${escapeStr(brand)}'`;
 
         // Execute all queries in parallel
-        const [currOlap, prevOlap, currKw, prevKw, currMs] = await Promise.all([
+        const [currOlap, prevOlap, currKw, prevKw, currMs, currBrands, prevBrands, currBrandKw, prevBrandKw] = await Promise.all([
             queryClickHouse(olapQuery(currOlapConds)),
             queryClickHouse(olapQuery(prevOlapConds)),
             queryClickHouse(kwQuery(currKwConds)),
@@ -8659,7 +8705,11 @@ const getRcaData = async (filters = {}) => {
             SUM(CASE WHEN ${brandCaseWhen} THEN ifNull(toFloat64OrZero(toString(sales)), 0) ELSE 0 END) as brand_sales
                 FROM rb_ms_olap
                 WHERE ${currMsConds}
-        `)
+        `),
+            queryClickHouse(brandQuery(currOlapConds)),
+            queryClickHouse(brandQuery(prevOlapConds)),
+            queryClickHouse(brandKwQuery(currKwConds)),
+            queryClickHouse(brandKwQuery(prevKwConds))
         ]);
 
         const curr = currOlap[0] || {};
@@ -8765,6 +8815,92 @@ const getRcaData = async (filters = {}) => {
         const orgRbDelta = pctDelta(cOrgRbKw, pOrgRbKw);
         const adRbDelta = pctDelta(cAdRbKw, pAdRbKw);
 
+        // Map brand metrics for tooltips
+        const brandsMap = new Map();
+        currBrands.forEach(b => {
+            brandsMap.set(b.brand, { curr: b, prev: null });
+        });
+        prevBrands.forEach(b => {
+            if (brandsMap.has(b.brand)) {
+                brandsMap.get(b.brand).prev = b;
+            } else {
+                brandsMap.set(b.brand, { curr: null, prev: b });
+            }
+        });
+
+        const kwMap = new Map();
+        currBrandKw.forEach(row => {
+            const b = (row.brand || '').toLowerCase();
+            if (!kwMap.has(b)) kwMap.set(b, { curr: row, prev: null });
+            else kwMap.get(b).curr = row;
+        });
+        prevBrandKw.forEach(row => {
+            const b = (row.brand || '').toLowerCase();
+            if (!kwMap.has(b)) kwMap.set(b, { curr: null, prev: row });
+            else kwMap.get(b).prev = row;
+        });
+
+        const allNodeMetrics = Array.from(brandsMap.entries()).map(([brandName, data]) => {
+            const c = data.curr || {};
+            const p = data.prev || {};
+
+            const k = kwMap.get(brandName.toLowerCase()) || { curr: {}, prev: {} };
+            const kc = k.curr || {};
+            const kp = k.prev || {};
+
+            const cAspB = c.qty > 0 ? c.sales / c.qty : 0;
+            const pAspB = p.qty > 0 ? p.sales / p.qty : 0;
+            const cCvrB = c.impressions > 0 ? (c.orders / c.impressions) * 100 : 0;
+            const pCvrB = p.impressions > 0 ? (p.orders / p.impressions) * 100 : 0;
+            const cOsaB = c.deno > 0 ? (c.neno / c.deno) * 100 : 0;
+            const pOsaB = p.deno > 0 ? (p.neno / p.deno) * 100 : 0;
+
+            return {
+                brand: brandName,
+                // Direct values for dynamic tooltip columns
+                offtake: formatLac(parseFloat(c.sales || 0)),
+                deltaOfftake: pctDelta(parseFloat(c.sales || 0), parseFloat(p.sales || 0)).val,
+                price: `₹${cAspB.toFixed(1)}`,
+                deltaPrice: `₹${(cAspB - pAspB).toFixed(1)}`,
+                impressions: formatCount(parseFloat(c.impressions || 0)),
+                deltaImpressions: formatCount(parseFloat(c.impressions || 0) - parseFloat(p.impressions || 0)),
+
+                // Granular keyword metrics
+                organic: formatCount(parseFloat(kc.organic_total || 0)),
+                deltaOrganic: formatCount(parseFloat(kc.organic_total || 0) - parseFloat(kp.organic_total || 0)),
+                ad: formatCount(parseFloat(kc.ad_total || 0)),
+                deltaAd: formatCount(parseFloat(kc.ad_total || 0) - parseFloat(kp.ad_total || 0)),
+                orgBranded: formatCount(parseFloat(kc.organic_branded || 0)),
+                deltaOrgBranded: formatCount(parseFloat(kc.organic_branded || 0) - parseFloat(kp.organic_branded || 0)),
+                orgGeneric: formatCount(parseFloat(kc.organic_generic || 0)),
+                deltaOrgGeneric: formatCount(parseFloat(kc.organic_generic || 0) - parseFloat(kp.organic_generic || 0)),
+                adBranded: formatCount(parseFloat(kc.ad_branded || 0)),
+                deltaAdBranded: formatCount(parseFloat(kc.ad_branded || 0) - parseFloat(kp.ad_branded || 0)),
+                adComp: formatCount(parseFloat(kc.ad_comp || 0)),
+                deltaAdComp: formatCount(parseFloat(kc.ad_comp || 0) - parseFloat(kp.ad_comp || 0)),
+
+                conversion: `${cCvrB.toFixed(1)}%`,
+                deltaConversion: `${(cCvrB - pCvrB).toFixed(1)}%`,
+                discount: `${parseFloat(c.avg_discount || 0).toFixed(1)}%`,
+                deltaDiscount: `${(parseFloat(c.avg_discount || 0) - parseFloat(p.avg_discount || 0)).toFixed(1)}%`,
+                osa: `${cOsaB.toFixed(1)}%`,
+                deltaOsa: `${(cOsaB - pOsaB).toFixed(1)}%`,
+
+                // Rating and Listing specific metrics
+                rating: formatCount(parseFloat(c.qty || 0)),
+                deltaRating: formatCount(parseFloat(c.qty || 0) - parseFloat(p.qty || 0)),
+                listing: `${(c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0).toFixed(1)}%`,
+                deltaListing: `${((c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0) - (p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0)).toFixed(1)}%`,
+
+                // PPU logic placeholder
+                ppu: `₹${(cAspB / 100).toFixed(1)}`,
+                deltaPpu: `₹${((cAspB - pAspB) / 100).toFixed(1)}`,
+                // Legacy support for older tooltips if any
+                asp: `₹${cAspB.toFixed(1)}`,
+                deltaAsp: `₹${(cAspB - pAspB).toFixed(1)}`,
+            };
+        });
+
         // Construct full RCA tree matching frontend getDynamicRcaTreeData structure
         const tree = {
             id: "root",
@@ -8776,25 +8912,28 @@ const getRcaData = async (filters = {}) => {
             importance: "outcome",
             insight: salesDelta.isPos ? "Volume Growth" : "Critical Decline",
             meta: [{ label: "Est. Category Share", value: `${marketShare.toFixed(2)}% `, change: sosDelta.val, isPositive: sosDelta.isPos }],
+            metrics: allNodeMetrics,
             children: [
                 {
                     id: "asp",
-                    label: "ASP",
+                    label: "PRICE",
                     value: `₹ ${cAsp.toFixed(2)} `,
                     change: aspDelta.val,
                     isPositive: aspDelta.isPos,
                     category: "price",
                     importance: "primary",
-                    meta: [{ label: "Baseline ASP", value: `₹ ${pAsp.toFixed(0)} ` }]
+                    meta: [{ label: "Baseline PRICE", value: `₹ ${pAsp.toFixed(0)} ` }],
+                    metrics: allNodeMetrics
                 },
                 {
                     id: "indexed-impressions",
-                    label: "Indexed Impressions",
+                    label: "Impressions",
                     value: formatCount(cImp),
                     change: impDelta.val,
                     isPositive: impDelta.isPos,
                     category: "impressions",
                     importance: "primary",
+                    metrics: allNodeMetrics,
                     insight: impDelta.isPos ? "High Visibility" : "Visibility Loss",
                     meta: [{ label: "Overall SOS", value: `${cSos.toFixed(2)}% `, change: sosDelta.val, isPositive: sosDelta.isPos }],
                     children: [
@@ -8805,6 +8944,7 @@ const getRcaData = async (filters = {}) => {
                             change: osaDelta.val,
                             isPositive: osaDelta.isPos,
                             category: "availability",
+                            metrics: allNodeMetrics,
                             children: [
                                 {
                                     id: "listing",
@@ -8812,7 +8952,8 @@ const getRcaData = async (filters = {}) => {
                                     value: `${cListing.toFixed(2)}% `,
                                     change: listingDelta.val,
                                     isPositive: listingDelta.isPos,
-                                    category: "availability"
+                                    category: "availability",
+                                    metrics: allNodeMetrics
                                 }
                             ]
                         },
@@ -8824,23 +8965,25 @@ const getRcaData = async (filters = {}) => {
                             isPositive: orgImpDelta.isPos,
                             category: "organic",
                             insight: orgImpDelta.isPos ? "Organic Pull" : "Low Ranking",
+                            metrics: allNodeMetrics,
                             meta: [{ label: "Organic SOS", value: cTotalKw > 0 ? `${((cOrgRbKw / cTotalKw) * 100).toFixed(2)}% ` : "0.0%", change: orgRbDelta.val, isPositive: orgRbDelta.isPos }],
                             children: [
-                                { id: "org-generic", label: "Generic Keywords", value: formatCount(cOrgKw - cOrgRbKw), change: orgImpDelta.val, isPositive: orgImpDelta.isPos, category: "organic" },
-                                { id: "org-branded", label: "Branded Keywords", value: formatCount(cOrgRbKw), change: orgRbDelta.val, isPositive: orgRbDelta.isPos, category: "organic" }
+                                { id: "org-generic", label: "Generic Keywords", value: formatCount(cOrgKw - cOrgRbKw), change: orgImpDelta.val, isPositive: orgImpDelta.isPos, category: "organic", metrics: allNodeMetrics },
+                                { id: "org-branded", label: "Branded Keywords", value: formatCount(cOrgRbKw), change: orgRbDelta.val, isPositive: orgRbDelta.isPos, category: "organic", metrics: allNodeMetrics }
                             ]
                         }
                     ]
                 },
                 {
                     id: "indexed-cvr",
-                    label: "Indexed CVR",
+                    label: "Conversion",
                     value: `${cCvr.toFixed(2)}% `,
                     change: cvrDelta.val,
                     isPositive: cvrDelta.isPos,
                     category: "conversion",
                     importance: "outcome",
                     insight: cvrDelta.isPos ? "Conv. Efficacy" : "Conv. Drop",
+                    metrics: allNodeMetrics,
                     children: [
                         {
                             id: "ad-impressions",
@@ -8849,14 +8992,15 @@ const getRcaData = async (filters = {}) => {
                             change: adImpDelta.val,
                             isPositive: adImpDelta.isPos,
                             category: "ad",
+                            metrics: allNodeMetrics,
                             meta: [{ label: "Ad SOS", value: cTotalKw > 0 ? `${((cAdRbKw / cTotalKw) * 100).toFixed(2)}% ` : "0.0%", change: adRbDelta.val, isPositive: adRbDelta.isPos }],
                             children: [
-                                { id: "ad-branded", label: "Branded Keywords", value: formatCount(cAdRbKw), change: adRbDelta.val, isPositive: adRbDelta.isPos, category: "ad" },
-                                { id: "ad-comp", label: "Comp Keywords", value: formatCount(cAdKw - cAdRbKw), change: adImpDelta.val, isPositive: adImpDelta.isPos, category: "ad" }
+                                { id: "ad-branded", label: "Branded Keywords", value: formatCount(cAdRbKw), change: adRbDelta.val, isPositive: adRbDelta.isPos, category: "ad", metrics: allNodeMetrics },
+                                { id: "ad-comp", label: "Comp Keywords", value: formatCount(cAdKw - cAdRbKw), change: adImpDelta.val, isPositive: adImpDelta.isPos, category: "ad", metrics: allNodeMetrics }
                             ]
                         },
-                        { id: "discounting", label: "Wt. Disc %", value: `${cDiscount.toFixed(2)}% `, change: discDelta.val, isPositive: discDelta.isPos, category: "discounting" },
-                        { id: "rating-count", label: "Rating Count", value: formatCount(cQty), change: qtyDelta.val, isPositive: qtyDelta.isPos, category: "rating" }
+                        { id: "discounting", label: "Wt. Disc %", value: `${cDiscount.toFixed(2)}% `, change: discDelta.val, isPositive: discDelta.isPos, category: "discounting", metrics: allNodeMetrics },
+                        { id: "rating-count", label: "Rating Count", value: formatCount(cQty), change: qtyDelta.val, isPositive: qtyDelta.isPos, category: "rating", metrics: allNodeMetrics }
                     ]
                 }
             ]

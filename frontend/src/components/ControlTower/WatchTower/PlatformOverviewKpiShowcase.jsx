@@ -1281,8 +1281,23 @@ const CHART_COLORS = [
   "#EC4899", // pink
 ];
 
-const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTable, onSwitchToKpi, period, timeStep }) => {
-  const [activeMetric, setActiveMetric] = useState("osa");
+const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTable, onSwitchToKpi, period, timeStep, selectedLevel }) => {
+  const getInitialMetric = () => {
+    if (!selectedLevel) return "osa";
+    const mapping = {
+      "Discounting": "promo-my",
+      "Availability": "osa",
+      "Offtake": "offtakes",
+      "Price": "price",
+      "Organic": "sos",
+      "Ad": "sos",
+      "Conversion": "osa", // Fallback
+      "Impressions": "osa", // Fallback
+    };
+    return mapping[selectedLevel] || "osa";
+  };
+
+  const [activeMetric, setActiveMetric] = useState(getInitialMetric());
   const isBrandMode = mode === "brand";
   const [overflowOpen, setOverflowOpen] = useState(false);
 
@@ -1853,12 +1868,13 @@ const BrandTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[25%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[13%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[13%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[13%]">Listing %</th>
-                <th className="px-3 py-2 text-center w-[13%]">Price</th>
-                <th className="px-3 py-2 text-center w-[13%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[20%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[11%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[11%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[11%]">Listing %</th>
+                <th className="px-3 py-2 text-center w-[11%]">Price</th>
+                <th className="px-3 py-2 text-center w-[11%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[11%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -1916,6 +1932,14 @@ const BrandTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{(Number(row['Promo-My']?.value) || Number(row.PromoMy?.value) || 0).toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {(Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-right text-slate-900">
                     <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>{(Number(row.MarketShare?.value) || 0).toFixed(1)}%</span>
@@ -1930,7 +1954,7 @@ const BrandTable = ({ rows, loading }) => {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={7}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -1981,10 +2005,11 @@ const SkuTable = ({ rows, loading }) => {
               <tr>
                 <th className="px-3 py-2 text-center w-[16%]">SKU</th>
                 <th className="px-3 py-2 text-center w-[16%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[13%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[13%]">Listing %</th>
-                <th className="px-3 py-2 text-center w-[13%]">Price</th>
-                <th className="px-3 py-2 text-center w-[13%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[11%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[11%]">Listing %</th>
+                <th className="px-3 py-2 text-center w-[11%]">Price</th>
+                <th className="px-3 py-2 text-center w-[11%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[11%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -2034,6 +2059,14 @@ const SkuTable = ({ rows, loading }) => {
                       <span>₹{(Number(row.Price?.value) || 0).toFixed(0)}</span>
                       <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.Price?.delta) || 0) <= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
                         {(Number(row.Price?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.Price?.delta) || 0).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{(Number(row['Promo-My']?.value) || Number(row.PromoMy?.value) || 0).toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {(Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0).toFixed(1)}%
                       </span>
                     </div>
                   </td>
@@ -2249,6 +2282,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
               onSwitchToKpi={() => setViewMode("kpi")}
               period={period}
               timeStep={timeStep}
+              selectedLevel={selectedLevel}
             />
           )}
           {viewMode === "kpi" && (
@@ -2281,6 +2315,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
               onSwitchToKpi={() => setViewMode("kpi")}
               period={period}
               timeStep={timeStep}
+              selectedLevel={selectedLevel}
             />
           )}
           {viewMode === "kpi" && (

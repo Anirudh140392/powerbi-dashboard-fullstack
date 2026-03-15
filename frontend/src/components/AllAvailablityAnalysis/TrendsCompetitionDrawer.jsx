@@ -425,6 +425,7 @@ export default function TrendsCompetitionDrawer({
   selectedColumn,
   selectedLevel,
   brandOptions,
+  initialPlatform,
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -447,7 +448,7 @@ export default function TrendsCompetitionDrawer({
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
+  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform || "Blinkit");
   const [showPlatformPills, setShowPlatformPills] = useState(true);
   const [showAllPills, setShowAllPills] = useState(false);
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
@@ -485,16 +486,21 @@ export default function TrendsCompetitionDrawer({
         };
         const activeAudience = audienceMap[selectedLevel] || (allTrendMeta?.context?.audience || "Platform");
 
-        // For platforms, we set the pill. For others, we default to Blinkit.
-        if (activeAudience === "Platform") {
-          setSelectedPlatform(selectedColumn);
+        // For platforms, we set the pill. For others, we default to Blinkit or initialPlatform.
+        if (selectedLevel === "platform" || activeAudience === "Platform") {
+          // Only use selectedColumn as platform if the level is actually platform
+          if (selectedLevel === "platform") {
+            setSelectedPlatform(selectedColumn);
+          } else {
+            setSelectedPlatform(initialPlatform || "Blinkit");
+          }
         } else {
-          setSelectedPlatform("Blinkit");
+          setSelectedPlatform(initialPlatform || "Blinkit");
         }
 
         setDrawerFilters(prev => ({
           ...prev,
-          Platform: activeAudience === "Platform" ? selectedColumn : "All",
+          Platform: selectedLevel === "platform" ? selectedColumn : (initialPlatform || "All"),
           Format: activeAudience === "Format" ? selectedColumn : "All",
           City: activeAudience === "City" ? selectedColumn : "All",
           Brand: activeAudience === "Brand" ? selectedColumn : "All"
@@ -508,7 +514,8 @@ export default function TrendsCompetitionDrawer({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColumn, open, dynamicKey]);
+  }, [selectedColumn, open, dynamicKey, initialPlatform]);
+
 
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);
@@ -1848,6 +1855,22 @@ export default function TrendsCompetitionDrawer({
       setCompareInitialized(true);
     }
   }, [view, compareInitialized]);
+
+  // Sync active metrics when drawer opens from a specific RCA block
+  useEffect(() => {
+    if (open && selectedColumn && trendMeta?.metrics) {
+      const normalizedQuery = selectedColumn.toLowerCase().trim();
+      // Try to find a metric that matches
+      const targetMetric = trendMeta.metrics.find(m =>
+        m.label.toLowerCase().includes(normalizedQuery) ||
+        m.id.toLowerCase().includes(normalizedQuery)
+      );
+
+      if (targetMetric) {
+        setActiveMetrics([targetMetric.id]);
+      }
+    }
+  }, [open, selectedColumn, trendMeta?.metrics]);
 
   const trendPoints = useMemo(() => {
     if (!trendMeta.points || trendMeta.points.length === 0) return [];

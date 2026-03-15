@@ -235,7 +235,7 @@ function makeSkuRows(categoryRow, cityRow) {
     const driver = (() => {
       if (offtakeComp < 0 && osaComp < 0) return "Low OSA";
       if (offtakeComp < 0 && cvrComp < 0) return "Low CVR";
-      if (offtakeComp < 0 && aspComp > 0) return "High ASP";
+      if (offtakeComp < 0 && aspComp > 0) return "High Price";
       return "OK";
     })();
 
@@ -731,7 +731,7 @@ export default function RCATable() {
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Units</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Est. Category Share</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Cat. Size (INR)</th>
-                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Indexed Impressions</th>
+                    <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Impressions</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Wt. OSA %</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Ad. SOS</th>
                     <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800 uppercase">Reason</th>
@@ -866,7 +866,7 @@ export default function RCATable() {
                                   </div>
                                 </div>
                                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                  <div className="text-[11px] font-semibold text-slate-700">Indexed Conversion</div>
+                                  <div className="text-[11px] font-semibold text-slate-700">Conversion</div>
                                   <div className="mt-1 flex items-center justify-between">
                                     <ValueWithDelta value={conv} delta={r.a2c_comp} formatter={(v) => formatPct(v, 1)} mode={catDeltaMode} />
                                   </div>
@@ -878,7 +878,7 @@ export default function RCATable() {
                                   </div>
                                 </div>
                                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                  <div className="text-[11px] font-semibold text-slate-700">ASP</div>
+                                  <div className="text-[11px] font-semibold text-slate-700">PRICE</div>
                                   <div className="mt-1 flex items-center justify-between">
                                     <ValueWithDelta value={asp} delta={aspDelta} formatter={(v) => formatIN(v)} mode={catDeltaMode} />
                                   </div>
@@ -924,7 +924,7 @@ export default function RCATable() {
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Units</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Est. Category Share</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Cat. Size (INR)</th>
-                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Indexed Impressions</th>
+                        <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Impressions</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Wt. OSA %</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Ad. SOS</th>
                         <th className="border-b border-slate-200 bg-white px-3 py-2 text-center text-[12px] font-semibold text-slate-800">Verdict</th>
@@ -1003,7 +1003,7 @@ export default function RCATable() {
                                 <td colSpan={10} className="border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white px-3 py-3">
                                   <div className="grid gap-2 md:grid-cols-3">
                                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                      <div className="text-[11px] font-semibold text-slate-700">Indexed Conversion</div>
+                                      <div className="text-[11px] font-semibold text-slate-700">Conversion</div>
                                       <div className="mt-1 flex items-center justify-between">
                                         <ValueWithDelta value={conv} delta={r.cvrComp} formatter={(v) => formatPct(v, 1)} mode={cityDeltaMode} />
                                       </div>
@@ -1015,7 +1015,7 @@ export default function RCATable() {
                                       </div>
                                     </div>
                                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                      <div className="text-[11px] font-semibold text-slate-700">ASP</div>
+                                      <div className="text-[11px] font-semibold text-slate-700">PRICE</div>
                                       <div className="mt-1 flex items-center justify-between">
                                         <ValueWithDelta value={asp} delta={aspDelta} formatter={(v) => formatIN(v)} mode={cityDeltaMode} />
                                       </div>
@@ -1064,7 +1064,7 @@ export default function RCATable() {
                         <th className="w-[120px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">Share</th>
                         <th className="w-[120px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">OSA</th>
                         <th className="w-[120px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">CVR</th>
-                        <th className="w-[140px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">ASP (INR)</th>
+                        <th className="w-[140px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">PRICE (INR)</th>
                         <th className="w-[140px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">Driver</th>
                         <th className="w-[130px] border-b border-slate-200 bg-slate-50 px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-600">Actions</th>
                       </tr>

@@ -151,9 +151,9 @@ const SKUCard = ({ sku }) => {
           </Box>
         </Box>
 
-        {/* Indexed Impressions */}
+        {/* Impressions */}
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography sx={{ fontSize: "12px", color: "#6b7280" }}>Indexed Impressions:</Typography>
+          <Typography sx={{ fontSize: "12px", color: "#6b7280" }}>Impressions:</Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#111827" }}>
               {sku.indexedImpressions}
@@ -170,9 +170,9 @@ const SKUCard = ({ sku }) => {
           </Box>
         </Box>
 
-        {/* Indexed CVR */}
+        {/* Conversion */}
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography sx={{ fontSize: "12px", color: "#6b7280" }}>Indexed CVR:</Typography>
+          <Typography sx={{ fontSize: "12px", color: "#6b7280" }}>Conversion:</Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#111827" }}>
               {sku.indexedCVR}
@@ -189,9 +189,9 @@ const SKUCard = ({ sku }) => {
           </Box>
         </Box>
 
-        {/* ASP */}
+        {/* PRICE */}
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography sx={{ fontSize: "12px", color: "#6b7280" }}>ASP:</Typography>
+          <Typography sx={{ fontSize: "12px", color: "#6b7280" }}>PRICE:</Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#111827" }}>
               {sku.asp}
@@ -361,7 +361,7 @@ const SkuLevelBreakdown = () => {
       </Box>
 
 
-     
+
     </Box>
   );
 };
