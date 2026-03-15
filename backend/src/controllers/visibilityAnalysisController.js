@@ -233,6 +233,7 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
+            category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -341,8 +342,9 @@ export const getVisibilityCompetition = async (req, res) => {
         const filters = {
             platform: req.query.platform || 'All',
             location: req.query.location || req.query.city || 'All',  // Support both 'location' and 'city' params
-            format: req.query.format || 'All',
-            productName: req.query.productName || 'All',
+            productName: req.query.productName || req.query.keyword || 'All',
+            keyword: req.query.keyword || req.query.productName || 'All',
+            category: req.query.category || req.query.format || 'All',
             brand: req.query.brand || 'All',  // Filter by specific competitor brand
             period: req.query.period || '1M'
         };
@@ -391,6 +393,8 @@ export const getBrandComparisonTrends = async (req, res) => {
             brands,
             platform: req.query.platform || 'All',
             location: req.query.location || 'All',
+            keyword: req.query.keyword || 'All',
+            category: req.query.category || 'All',
             period: req.query.period || '1M',
             startDate: req.query.startDate || null,
             endDate: req.query.endDate || null

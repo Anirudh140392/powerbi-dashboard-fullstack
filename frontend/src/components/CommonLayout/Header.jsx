@@ -296,7 +296,6 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 />
               )}
 
-              {/* 
               {location.pathname.includes("visibility") && (
                 <CustomHeaderDropdown
                   label="KEYWORD"
@@ -304,10 +303,9 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                   value={selectedKeyword}
                   onChange={setSelectedKeyword}
                   width={{ xs: "calc(100%)", sm: 130 }}
-                  multiSelect={false}
+                  multiSelect={true}
                 />
               )}
-              */}
 
               {/* TIME PERIOD & COMPARE WITH INTEGRATED */}
               <Box sx={{ width: { xs: "100%", sm: 200 }, flexShrink: 0 }}>

@@ -807,41 +807,29 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
 
   const isBrandMode = mode === "brand";
 
-  // Determine which brands to fetch trends for
-  const selectedBrands = useMemo(() => {
-    console.log('[TrendView] Calculating selectedBrands...');
-    console.log('[TrendView] filters.brands:', filters.brands);
-    console.log('[TrendView] competitionBrands:', competitionBrands.map(b => b.name || b.brand || b));
-
-    // Priority 1: Use brands explicitly selected in filter dialog
-    if (filters.brands && filters.brands.length > 0) {
-      console.log('[TrendView] Using filters.brands:', filters.brands);
-      return filters.brands;
+  // Determine which items to fetch trends for
+  const selectedItems = useMemo(() => {
+    // Priority 1: Use specific filters if user selected them in the dialog
+    const filterKey = mode === "sku" ? "skus" : mode === "keyword" ? "productNames" : "brands";
+    if (filters[filterKey] && filters[filterKey].length > 0) {
+      return filters[filterKey].slice(0, 5);
     }
 
-    // Priority 2: Use top brands from competition table data (already filtered by user's other filters)
+    // Priority 2: Use top items from competition table data
     if (competitionBrands.length > 0) {
-      const brands = competitionBrands.slice(0, 5).map(b => b.name || b.brand || b);
-      console.log('[TrendView] Using competitionBrands (top 5):', brands);
-      return brands;
+      const items = competitionBrands.slice(0, 5).map(b => b.name || b.brand || b.keyword || b);
+      return items;
     }
 
-    console.log('[TrendView] No brands available');
     return [];
-  }, [filters.brands, competitionBrands]);
+  }, [filters, competitionBrands, mode]);
 
   // Convert to string for stable dependency tracking
-  const selectedBrandsKey = JSON.stringify(selectedBrands);
+  const selectedItemsKey = JSON.stringify(selectedItems);
 
-  // Fetch brand comparison trends from API
+  // Fetch trend comparison trends from API
   useEffect(() => {
-    console.log('[TrendView] useEffect triggered');
-    console.log('[TrendView] isBrandMode:', isBrandMode);
-    console.log('[TrendView] selectedBrands.length:', selectedBrands.length);
-    console.log('[TrendView] selectedBrands values:', selectedBrandsKey);
-
-    if (!isBrandMode || selectedBrands.length === 0) {
-      console.log('[TrendView] Early return - no brands to fetch');
+    if (selectedItems.length === 0) {
       setLoading(false);
       return;
     }
@@ -850,9 +838,11 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
       setLoading(true);
       try {
         const params = {
-          brands: selectedBrands.join(','),
+          brands: selectedItems.join(','),
           platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
           location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
+          format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
+          dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M'
         };
 
@@ -863,19 +853,19 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
         const response = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
 
         if (response.data) {
-          console.log('[TrendView] ✅ Received trend data for brands:', Object.keys(response.data.brands || {}));
+          console.log('[TrendView] ✅ Received trend data for:', Object.keys(response.data.brands || {}));
           console.log('[TrendView] Days count:', response.data.days?.length);
           setTrendData(response.data);
         }
       } catch (error) {
-        console.error('[TrendView] Error fetching brand trends:', error);
+        console.error('[TrendView] Error fetching trends:', error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchTrendData();
-  }, [isBrandMode, selectedBrandsKey, filters.platforms, filters.cities]);
+  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats]);
 
 
 
@@ -937,13 +927,13 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
     );
   }
 
-  // No brands selected
-  if (selectedBrands.length === 0) {
+  // No items selected
+  if (selectedItems.length === 0) {
     return (
       <Card className="mt-4">
         <CardContent className="flex items-center justify-center h-64">
           <div className="text-slate-500">
-            No brands selected. Please select brands from the Filters to compare.
+            No {mode === "sku" ? "SKUs" : mode === "keyword" ? "keywords" : "brands"} selected. Please select items from the Filters to compare.
           </div>
         </CardContent>
       </Card>
@@ -956,7 +946,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
       <Card className="mt-4">
         <CardContent className="flex items-center justify-center h-64">
           <div className="text-slate-500">
-            No trend data available for the selected brands.
+            No trend data available for the selected {mode === "sku" ? "SKUs" : mode === "keyword" ? "keywords" : "brands"}.
           </div>
         </CardContent>
       </Card>
@@ -1074,22 +1064,29 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState({ brands: {}, days: [] });
 
-  // Determine which brands to compare
-  const selectedBrands = useMemo(() => {
-    // Priority: 1) Selected in filters, 2) Competition table brands, 3) Empty
-    if (filters.brands && filters.brands.length > 0) {
-      return filters.brands;
+  // Determine which items to compare
+  const selectedItems = useMemo(() => {
+    // Priority 1: Use specific filters if user selected them in the dialog
+    const filterKey = mode === "sku" ? "skus" : mode === "keyword" ? "productNames" : "brands";
+    if (filters[filterKey] && filters[filterKey].length > 0) {
+      return filters[filterKey].slice(0, 5);
     }
-    // Use top brands from competition data if available
-    if (competitionBrands.length > 0) {
-      return competitionBrands.slice(0, 5).map(b => b.name || b.brand || b);
-    }
-    return [];
-  }, [filters.brands, competitionBrands]);
 
-  // Fetch brand comparison trends from API
+    // Priority 2: Use top items from competition table data
+    if (competitionBrands.length > 0) {
+      const items = competitionBrands.slice(0, 5).map(b => b.name || b.brand || b.keyword || b);
+      return items;
+    }
+
+    return [];
+  }, [filters, competitionBrands, mode]);
+
+  // Convert to string for stable dependency tracking
+  const selectedItemsKey = JSON.stringify(selectedItems);
+
+  // Fetch comparison trends from API
   useEffect(() => {
-    if (mode !== "brand" || selectedBrands.length === 0) {
+    if (selectedItems.length === 0) {
       setLoading(false);
       return;
     }
@@ -1098,31 +1095,31 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
       setLoading(true);
       try {
         const params = {
-          brands: selectedBrands.join(','),
+          brands: selectedItems.join(','),
           platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
           location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
+          format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
+          dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M'
         };
 
         // Remove undefined values
         Object.keys(params).forEach(key => params[key] === undefined && delete params[key]);
 
-        console.log('[KpiCompareView] Fetching brand trends with params:', params);
         const response = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
 
         if (response.data) {
-          console.log('[KpiCompareView] Received trend data for', Object.keys(response.data.brands || {}).length, 'brands');
           setTrendData(response.data);
         }
       } catch (error) {
-        console.error('[KpiCompareView] Error fetching brand trends:', error);
+        console.error('[KpiCompareView] Error fetching trends:', error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchTrendData();
-  }, [mode, selectedBrands, filters.platforms, filters.cities]);
+  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats]);
 
   // Build chart data for a specific KPI
   const chartDataFor = (kpiKey) => {
@@ -1176,12 +1173,12 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
     );
   }
 
-  if (selectedBrands.length === 0) {
+  if (selectedItems.length === 0) {
     return (
       <Card className="mt-4">
         <CardContent className="flex items-center justify-center h-64">
           <div className="text-slate-500">
-            No brands selected. Please select brands from the Filters to compare.
+            No {mode === "sku" ? "SKUs" : mode === "keyword" ? "keywords" : "brands"} selected. Please select items from the Filters to compare.
           </div>
         </CardContent>
       </Card>
@@ -1193,7 +1190,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
       <Card className="mt-4">
         <CardContent className="flex items-center justify-center h-64">
           <div className="text-slate-500">
-            No trend data available for the selected brands.
+            No trend data available for the selected {mode === "sku" ? "SKUs" : mode === "keyword" ? "keywords" : "brands"}.
           </div>
         </CardContent>
       </Card>
@@ -1208,7 +1205,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
             Compare by SOS KPIs
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>Brands:</span>
+            <span>Items:</span>
             {brandEntries.map(([brandName, brandData]) => (
               <Badge
                 key={brandName}
@@ -1896,6 +1893,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
               city={city}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              competitionBrands={skuRows}
             />
           )}
           {viewMode === "kpi" && (
@@ -1904,6 +1902,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}
+              competitionBrands={skuRows}
             />
           )}
         </TabsContent>
@@ -1918,6 +1917,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
               city={city}
               onBackToTable={() => setViewMode("table")}
               onSwitchToKpi={() => setViewMode("kpi")}
+              competitionBrands={keywordRows}
             />
           )}
           {viewMode === "kpi" && (
@@ -1926,6 +1926,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
               filters={filters}
               city={city}
               onBackToTrend={() => setViewMode("trend")}
+              competitionBrands={keywordRows}
             />
           )}
         </TabsContent>

@@ -52,7 +52,8 @@ export default function CityDetailedTable({ sku, onClose }) {
         const fetchDetails = async () => {
             setIsLoading(true);
             try {
-                const webPidToUse = sku.Web_Pid || sku.webPid || sku.id;
+                // Fallback to skuCode which holds the Item_Id since web_pid is deprecated
+                const webPidToUse = sku.Web_Pid || sku.webPid || sku.skuCode || sku.id;
                 const params = {
                     webPid: webPidToUse,
                     signalType: sku.type || 'gainer',
@@ -114,9 +115,11 @@ export default function CityDetailedTable({ sku, onClose }) {
                         <div>
                             <div className="flex items-center gap-2">
                                 <h2 className="text-lg font-bold text-slate-900 capitalize">{displaySkuName}</h2>
-                                <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                    {displaySkuCode}
-                                </span>
+                                {sku.metricType !== 'availability' && sku.metricType !== 'visibility' && (
+                                    <span className="text-xs font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                        {displaySkuCode}
+                                    </span>
+                                )}
                             </div>
                             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${sku.type === "gainer" ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
@@ -149,7 +152,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                             </div>
                         </div>
                     )}
-                    
+
                     {error && (
                         <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl text-center text-rose-600 font-medium mb-4">
                             {error}

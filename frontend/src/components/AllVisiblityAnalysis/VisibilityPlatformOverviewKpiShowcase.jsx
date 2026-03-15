@@ -1038,6 +1038,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                     brands: brandList.join(','),
                     location: city !== 'All India' ? city : 'All',
                     format: filters.categories.length > 0 ? filters.categories[0] : 'All',
+                    dimension: 'brand',
                     period: period || '1M',
                     timeStep: timeStep
                 };

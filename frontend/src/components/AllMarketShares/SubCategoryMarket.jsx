@@ -122,6 +122,11 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Reset selectedSubCat when global category changes to ensure we fetch relevant data
+    useEffect(() => {
+        setSelectedSubCat([]);
+    }, [selectedCategory]);
+
     // Fetch sub-category KPI data from backend
     useEffect(() => {
         const fetchSubCategoryKpi = async () => {
@@ -219,9 +224,9 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                         >
                             <span className="text-[10px] font-semibold uppercase tracking-wider opacity-60">Category:</span>
                             <span className="max-w-[150px] truncate">
-                                {selectedSubCat.length === 0 ? 'Select' : 
-                                 selectedSubCat.length === 1 ? selectedSubCat[0] : 
-                                 `${selectedSubCat[0]} +${selectedSubCat.length - 1}`}
+                                {selectedSubCat.length === 0 ? 'Select' :
+                                    selectedSubCat.length === 1 ? selectedSubCat[0] :
+                                        `${selectedSubCat[0]} +${selectedSubCat.length - 1}`}
                             </span>
                             <ChevronDown
                                 size={14}

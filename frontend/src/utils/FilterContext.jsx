@@ -39,7 +39,7 @@ export const FilterProvider = ({ children }) => {
 
     // Keyword state (for visibility analysis) - fetched dynamically from rb_kw_olap
     const [keywords, setKeywords] = useState([]);
-    const [selectedKeyword, setSelectedKeyword] = useState("All");
+    const [selectedKeyword, setSelectedKeyword] = useState(["All"]);
 
     // Category state (from rca_sku_dim)
     const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
@@ -78,7 +78,7 @@ export const FilterProvider = ({ children }) => {
             setLocations(FALLBACK_LOCATIONS);
             setSelectedLocation("All");
             setKeywords([]);
-            setSelectedKeyword("All");
+            setSelectedKeyword(["All"]);
             setCategories(FALLBACK_CATEGORIES);
             setVisibilityCategories(FALLBACK_CATEGORIES);
             setSelectedCategory("All");
@@ -119,6 +119,7 @@ export const FilterProvider = ({ children }) => {
         };
         fetchDates();
     }, [isAuthenticated]);
+
 
     // ====== FETCH CHANNELS FROM DB (on mount) ======
     useEffect(() => {
@@ -355,37 +356,39 @@ export const FilterProvider = ({ children }) => {
         fetchBrands();
     }, [platform, isAuthenticated]);
 
-    // ====== FETCH KEYWORDS FROM DB (on mount) ======
+    // ====== FETCH KEYWORDS FROM DB (when platform or category changes) ======
     useEffect(() => {
         const fetchKeywords = async () => {
             if (!isAuthenticated) return;
-            try {
-                const params = {};
-                // Do NOT filter by brand — keywords in rb_kw_olap should be listed
-                // regardless of brand_name_th, since users pick keywords before brand
-                if (platform && platform !== "All") {
-                    params.platform = Array.isArray(platform) ? platform.join(',') : platform;
-                }
-                if (selectedCategory && selectedCategory !== "All") {
-                    params.category = Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory;
-                }
 
+            try {
+                const params = {
+                    platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+                    category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory)
+                };
+
+                console.log("[FilterContext] Fetching keywords with params:", params);
                 const res = await axiosInstance.get("/visibility-analysis/keywords", { params });
-                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                    console.log("[FilterContext] Fetched keywords from DB:", res.data.length, "keywords");
-                    setKeywords(res.data);
-                    // Keep current selection if still valid
-                    if (selectedKeyword !== "All" && !res.data.includes(selectedKeyword)) {
-                        setSelectedKeyword("All");
-                    }
+
+                if (res.data && Array.isArray(res.data)) {
+                    const fetchedKeywords = res.data.filter(k => k !== "All");
+                    setKeywords(fetchedKeywords);
+
+                    // Validate current selections against new list
+                    setSelectedKeyword(prev => {
+                        if (prev.includes("All")) return ["All"];
+                        const valid = prev.filter(k => fetchedKeywords.includes(k));
+                        return valid.length > 0 ? valid : ["All"];
+                    });
                 } else {
                     setKeywords([]);
                 }
             } catch (err) {
-                console.warn("[FilterContext] Failed to fetch keywords:", err.message);
+                console.error("[FilterContext] Failed to fetch keywords:", err);
                 setKeywords([]);
             }
         };
+
         fetchKeywords();
     }, [isAuthenticated, platform, selectedCategory]);
 
