@@ -535,7 +535,7 @@ export default function GeoIntelligenceMap() {
                             <div style={{ marginBottom: "24px" }}>
                                 <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px", marginBottom: "16px" }}>Intensity Prism</div>
                                 <div style={{ display: "flex", alignItems: "flex-end", gap: "6px", height: "40px" }}>
-                                    {(metric === "Sales" || metric === "Orders") ? (
+                                    {(metric === "Sales" || metric === "Orders" || metric === "Market Share") ? (
                                         <>
                                             <div style={{ flex: 1, height: "50%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
                                             <div style={{ flex: 1, height: "100%", background: COLORS.Green, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Green}33` }}></div>
@@ -559,7 +559,7 @@ export default function GeoIntelligenceMap() {
                             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                 <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px" }}>Focus Filter</div>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                                    {((metric === "Sales" || metric === "Orders") ? ["All", "Growth", "Degrowth"] : ["All", "High", "Medium", "Low"]).map(f => {
+                                    {((metric === "Sales" || metric === "Orders") ? ["All", "Growth", "Degrowth"] : (metric === "Market Share" ? ["All", "High", "Low"] : ["All", "High", "Medium", "Low"])).map(f => {
                                         const active = importanceFilter === f;
                                         let dotColor = "#94a3b8";
                                         if (f === "High" || f === "Growth") dotColor = COLORS.Green;
