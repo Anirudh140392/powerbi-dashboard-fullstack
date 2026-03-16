@@ -28,8 +28,8 @@ const copy = (title, value) => {
 const cardSize = {
     minW: 'min-w-[100px] sm:min-w-[125px]',
     py: 'py-2.5 sm:py-3',
-    text: 'text-sm sm:text-base',
-    delta: 'text-[10px] sm:text-[11px]'
+    text: 'text-lg sm:text-xl',
+    delta: 'text-[13px] sm:text-[14px]'
 };
 
 const kpiLabels = {
@@ -214,7 +214,7 @@ const LatestOverivewCatCity = ({
         if (dimension === 'city') {
             // Apply Tier filter first (using lowercase for robust comparison)
             const tierCities = CITY_TIERS[selectedTier] || [];
-            list = list.filter(e => tierCities.includes(e.key));
+            list = list.filter(e => e.key && tierCities.includes(e.key.toLowerCase()));
 
             // Then apply advanced filters if any (City Filter uses 'skus' key in modal)
             if (advancedFilters.skus?.length > 0) {
@@ -284,7 +284,7 @@ const LatestOverivewCatCity = ({
                             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                                 <Icon size={20} className="text-blue-600" />
                             </div>
-                            <span className="text-[17px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                            <span className="text-[20px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>
                                 {title}
                             </span>
                         </div>
@@ -322,7 +322,7 @@ const LatestOverivewCatCity = ({
                                                 key={key}
                                                 onClick={() => setDimension(key)}
                                                 className={cn(
-                                                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[12px] font-bold transition-all',
+                                                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[14px] font-bold transition-all',
                                                     isSelected
                                                         ? 'bg-white text-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
                                                         : 'text-slate-500 hover:text-slate-800'
@@ -346,7 +346,7 @@ const LatestOverivewCatCity = ({
                                                     key={tier}
                                                     onClick={() => setSelectedTier(tier)}
                                                     className={cn(
-                                                        'px-3.5 py-1.5 rounded-xl text-[12px] font-bold transition-all',
+                                                        'px-3.5 py-1.5 rounded-xl text-[14px] font-bold transition-all',
                                                         isSelected
                                                             ? 'bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)]'
                                                             : 'text-slate-500 hover:text-blue-600'
@@ -365,7 +365,7 @@ const LatestOverivewCatCity = ({
                             <motion.button
                                 onClick={() => setIsFilterModalOpen(true)}
                                 className={cn(
-                                    'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border',
+                                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border',
                                     activeDimensionFilters > 0
                                         ? 'bg-slate-900 text-white border-slate-900 shadow-md'
                                         : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:shadow-sm'
@@ -402,7 +402,7 @@ const LatestOverivewCatCity = ({
                             {/* KPI Header */}
                             <div className="flex items-center gap-2 mb-4 px-1">
                                 <div className="w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
+                                    <span className="text-sm font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                 </div>
                                 {selectedKpis.map(kpi => (
                                     <div
@@ -412,7 +412,7 @@ const LatestOverivewCatCity = ({
                                             cardSize.minW
                                         )}
                                     >
-                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em]">
+                                        <div className="text-[12px] font-bold text-slate-500 uppercase tracking-[0.12em]">
                                             {kpiLabels[kpi.key] || kpi.label}
                                         </div>
                                     </div>
@@ -450,7 +450,7 @@ const LatestOverivewCatCity = ({
                                         {/* ✅ Entity TEXT ONLY (no logo) */}
                                         <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
                                             <span
-                                                className="text-[12px] font-medium text-slate-700 flex-1 whitespace-nowrap"
+                                                className="text-[15px] font-medium text-slate-700 flex-1 whitespace-nowrap"
                                                 style={{ fontFamily: 'Roboto, sans-serif' }}
                                             >
                                                 {e.name}
