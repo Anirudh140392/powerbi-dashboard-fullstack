@@ -1,12 +1,6 @@
-/**
- * Map Intellect Service
- * Provides city-level KPI data for the Map Intellect (Geo Intelligence) page.
- * - OSA / Sales / Orders  → rb_pdp_olap  (Platform + Date filters only, all Locations)
- * - Market Share          → rb_brand_ms   (Platform + Date + hardcoded brand/city lists)
- */
-
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
+import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 
 // ── Database-Scoped Cache ─────────────────────────────────────
 const dbScopedCaches = new Map();
@@ -15,13 +9,15 @@ const getDbCache = () => {
     const dbName = getCurrentDbName();
     if (!dbScopedCaches.has(dbName)) {
         dbScopedCaches.set(dbName, {
-            maxDate: { date: null, timestamp: 0, promise: null }
+            maxDate: { date: null, timestamp: 0, promise: null },
+            ourBrands: { data: null, timestamp: 0, promise: null }
         });
     }
     return dbScopedCaches.get(dbName);
 };
 
 const MAX_DATE_TTL = 10 * 60 * 1000; // 10 min
+const DISTINCT_CACHE_TTL = 10 * 60 * 1000; // 10 min
 
 const getCachedMaxDate = async () => {
     const dbCache = getDbCache();
@@ -52,6 +48,100 @@ const getCachedMaxDate = async () => {
     return dbCache.maxDate.promise;
 };
 
+/**
+ * Get cached brands list where comp_flag = 0
+ */
+const getOurBrandsList = async () => {
+    const dbCache = getDbCache();
+    if (dbCache.ourBrands.data && (Date.now() - dbCache.ourBrands.timestamp) < DISTINCT_CACHE_TTL) {
+        return dbCache.ourBrands.data;
+    }
+
+    if (dbCache.ourBrands.promise) return dbCache.ourBrands.promise;
+
+    dbCache.ourBrands.promise = (async () => {
+        try {
+            const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const results = await queryClickHouse(query);
+            const brands = results.map(b => b.brand_name).filter(Boolean);
+            dbCache.ourBrands = { data: brands, timestamp: Date.now(), promise: null };
+            console.log(`🎯 [OurBrands][MapIntellect][${getCurrentDbName()}] Found ${brands.length} brands`);
+            return brands;
+        } catch (error) {
+            console.error('[MapIntellect] Error fetching brands:', error);
+            return [];
+        } finally {
+            dbCache.ourBrands.promise = null;
+        }
+    })();
+
+    return dbCache.ourBrands.promise;
+};
+
+// ── Dynamic Source Resolution ─────────────────────────────────────
+
+async function checkTableExists(tableName) {
+    try {
+        const dbName = getCurrentDbName();
+        const result = await queryClickHouse(`EXISTS TABLE ${tableName}`);
+        return result?.[0]?.result === 1 || result?.[0]?.result === '1';
+    } catch (error) {
+        console.error(`[MapIntellect] Error checking table exists (${tableName}):`, error.message);
+        return false;
+    }
+}
+
+async function getGeoSource() {
+    const tableName = 'rb_pdp_olap';
+    const cols = await getTableColumns(tableName);
+    const r = (name) => resolveColumn(cols, name);
+
+    // Optimized: Only wrap if necessary. Simple columns like DATE, Platform, Location 
+    // usually don't need wrapping IF we know their types, but to be safe and dynamic
+    // we use a lighter wrap or only wrap numeric metrics.
+    const wrap = (col, type = 'float') => {
+        // If column doesn't exist in map (resolved to itself but not in DB), return '0' or NULL
+        if (!col) return '0';
+        return `ifNull(toFloat64OrZero(toString(${col})), 0)`;
+    };
+
+    return {
+        table: tableName,
+        f: {
+            sales: wrap(r('Sales')),
+            qty: wrap(r('Qty_Sold')),
+            orders: wrap(r('Ad_Quantity_sold'), 'float'), // This will catch the typo now
+            neno: wrap(r('neno_osa')),
+            deno: wrap(r('deno_osa')),
+            listing: r('listing_percent'),
+            location: r('Location'),
+            date: r('DATE'),
+            platform: r('Platform')
+        }
+    };
+}
+
+async function getMsGeoSource() {
+    const tableName = 'rb_ms_olap';
+    const exists = await checkTableExists(tableName);
+    if (!exists) return null;
+
+    const cols = await getTableColumns(tableName);
+    const r = (name) => resolveColumn(cols, name);
+    const wrap = (col) => `ifNull(toFloat64OrZero(toString(${col})), 0)`;
+
+    return {
+        table: tableName,
+        f: {
+            sales: wrap(r('sales')),
+            groupBrand: r('group_brand'),
+            location: r('location'),
+            date: r('created_on'),
+            platform: r('platform')
+        }
+    };
+}
+
 // ── Helpers ───────────────────────────────────────────────────────
 
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -79,30 +169,10 @@ const formatLac = (val) => {
     return `₹${Math.round(val)}`;
 };
 
-// ── Constants for Market Share (rb_brand_ms) ─────────────────────
-
-const MS_BRANDS = [
-    'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-    'Orbit', 'Skittles', 'Boomer', "Wrigley's Doublemint"
-];
-const MS_BRANDS_SQL = MS_BRANDS.map(b => `'${escapeStr(b)}'`).join(', ');
-
-const MS_LOCATIONS = [
-    'Delhi', 'Ahmedabad', 'Bengaluru', 'Chandigarh', 'Chennai',
-    'Faridabad', 'Gurugram', 'Gurgaon', 'Hyderabad', 'Kolkata', 'Lucknow',
-    'Mumbai', 'Pune', 'Bengalore', 'Bangalore'
-];
-const MS_LOCATIONS_SQL = MS_LOCATIONS.map(l => `'${escapeStr(l)}'`).join(', ');
-
 // ── Main Data Function ───────────────────────────────────────────
 
-/**
- * Get city-level KPI data for the Map Intellect page
- * @param {Object} filters - { platform, startDate, endDate, months, brand, category, metric }
- * @returns {Object} { cities: [...], period: { startDate, endDate } }
- */
 const getMapIntellectData = async (filters) => {
-    console.log('[MapIntellect] Computing city-level data with filters:', JSON.stringify(filters));
+    console.log(`[MapIntellect][${getCurrentDbName()}] Computing dynamic data:`, JSON.stringify(filters));
 
     const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all' } = filters;
     const platform = filters.platform || 'All';
@@ -122,37 +192,28 @@ const getMapIntellectData = async (filters) => {
         startDate = endDate.subtract(monthsBack, 'month').startOf('day');
     }
 
-    // Previous period (same days in previous month)
     const prevStartDate = startDate.subtract(1, 'month').startOf('day');
     const prevEndDate = endDate.subtract(1, 'month').endOf('day');
 
-    // ── Platform condition for rb_pdp_olap (uses "Platform" column) ──
-    const buildPdpPlatformCond = () => {
-        if (!platform || platform === 'All') return null;
-        return `Platform LIKE '%${escapeStr(platform)}%'`;
-    };
+    // Get dynamic sources
+    const [pdpSrc, msSrc, ourBrands] = await Promise.all([
+        getGeoSource(),
+        getMsGeoSource(),
+        getOurBrandsList()
+    ]);
 
-    // ── Build WHERE for rb_pdp_olap — Platform + Date ONLY ──
-    const buildPdpConds = (sDate, eDate) => {
-        const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
-        const pCond = buildPdpPlatformCond();
-        if (pCond) conds.push(pCond);
-        return conds.join(' AND ');
-    };
-
-    // ── Build WHERE for rb_brand_ms — Platform + Date ONLY ──
-    const buildMsConds = (sDate, eDate) => {
-        const conds = [`toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
+    const buildConds = (src, sDate, eDate) => {
+        if (!src) return '1=0';
+        const conds = [`toDate(${src.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         if (platform && platform !== 'All') {
-            conds.push(`platform LIKE '%${escapeStr(platform)}%'`);
+            conds.push(`${src.f.platform} LIKE '%${escapeStr(platform)}%'`);
         }
         return conds.join(' AND ');
     };
 
-    const currPdpConds = buildPdpConds(startDate, endDate);
-    const prevPdpConds = buildPdpConds(prevStartDate, prevEndDate);
+    const currPdpConds = buildConds(pdpSrc, startDate, endDate);
+    const prevPdpConds = buildConds(pdpSrc, prevStartDate, prevEndDate);
 
-    // Determine which data to fetch based on metric
     const isMarketShareOnly = metric === 'marketshare' || metric === 'Market Share';
 
     let currCityData = [];
@@ -160,122 +221,98 @@ const getMapIntellectData = async (filters) => {
     let currMsData = [];
     let prevMsData = [];
 
-    // ── Fetch PDP data (Wt. OSA / Sales / Orders) from rb_pdp_olap ──
-    // OSA formula: SUM(neno_osa) / NULLIF(SUM(deno_osa), 0) * 100  (exact user-specified logic)
-    if (!isMarketShareOnly) {
-        [currCityData, prevCityData] = await Promise.all([
-            queryClickHouse(`
-                SELECT
-                    Location,
-                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0))          AS total_sales,
-                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0))        AS total_qty,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quantity_sold)), 0)) AS total_orders,
-                    (
-                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
-                        NULLIF(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)
-                    ) * 100 AS city_osa,
-                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) AS city_listing
-                FROM rb_pdp_olap
-                WHERE ${currPdpConds}
-                  AND Location IS NOT NULL AND Location != ''
-                GROUP BY Location
-                ORDER BY total_sales DESC
-                LIMIT 200
-            `),
-            queryClickHouse(`
-                SELECT
-                    Location,
-                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0))          AS total_sales,
-                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0))        AS total_qty,
-                    SUM(ifNull(toFloat64OrZero(toString(Ad_Quantity_sold)), 0)) AS total_orders,
-                    (
-                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) /
-                        NULLIF(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)
-                    ) * 100 AS city_osa,
-                    AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0)) AS city_listing
-                FROM rb_pdp_olap
-                WHERE ${prevPdpConds}
-                  AND Location IS NOT NULL AND Location != ''
-                GROUP BY Location
-            `)
-        ]);
-        console.log(`[MapIntellect] PDP locations: curr=${currCityData.length}, prev=${prevCityData.length}`);
-    }
-
-    // ── ALWAYS fetch Market Share from rb_brand_ms (city-wise + date-wise) ──
-    // This ensures market share appears on the map regardless of which metric is selected
-    try {
-        // Build the exact query the user specified:
-        // SELECT toDate(created_on), Location, SUM(market_share)
-        // FROM rb_brand_ms
-        // WHERE Platform LIKE '%<platform>%'
-        //   AND brand IN (<MS_BRANDS>)
-        //   AND Location IN (<MS_LOCATIONS>)
-        //   AND date range
-        // GROUP BY created_on, Location
-        // Then AVG per Location across dates
-        // Use the LATEST available date's SUM(market_share) per city
-        // This gives the most current snapshot instead of averaging across the range
-        const msQueryBase = (sDate, eDate) => `
-            SELECT 
-                location,
-                ROUND(
-                    (
-                        SUM(
-                            CASE WHEN 
-                                lower(group_brand) LIKE '%mars%' OR 
-                                lower(group_brand) LIKE '%snickers%' OR 
-                                lower(group_brand) LIKE '%galaxy%' OR 
-                                lower(group_brand) LIKE '%bounty%' OR 
-                                lower(group_brand) LIKE '%twix%' OR 
-                                lower(group_brand) LIKE '%m&m%' OR 
-                                lower(group_brand) LIKE '%orbit%' OR 
-                                lower(group_brand) LIKE '%skittles%' OR 
-                                lower(group_brand) LIKE '%boomer%' OR 
-                                lower(group_brand) LIKE '%doublemint%' OR 
-                                lower(group_brand) LIKE '%pedigree%' OR 
-                                lower(group_brand) LIKE '%extra%' 
-                            THEN toFloat64OrZero(toString(sales)) 
-                            ELSE 0 
-                            END
-                        ) / NULLIF(SUM(toFloat64OrZero(toString(sales))), 0)
-                    ) * 100, 
-                2) AS avg_market_share
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
-              AND location IN (${MS_LOCATIONS_SQL})
-            ${platform && platform !== 'All' ? `  AND platform LIKE '%${escapeStr(platform)}%'` : ''}
-              AND location IS NOT NULL AND location != ''
-            GROUP BY location
+    // ── Fetch PDP data ──
+    if (!isMarketShareOnly && pdpSrc) {
+        const pdpQuery = (conds) => `
+            SELECT
+                ${pdpSrc.f.location} AS Location,
+                SUM(${pdpSrc.f.sales}) AS total_sales,
+                SUM(${pdpSrc.f.qty}) AS total_qty,
+                SUM(${pdpSrc.f.orders}) AS total_orders,
+                (SUM(${pdpSrc.f.neno}) / NULLIF(SUM(${pdpSrc.f.deno}), 0)) * 100 AS city_osa,
+                AVG(if(toFloat64OrZero(toString(${pdpSrc.f.listing})) > 0, toFloat64OrZero(toString(${pdpSrc.f.listing})), (${pdpSrc.f.neno} / NULLIF(${pdpSrc.f.deno}, 0)) * 100)) AS city_listing
+            FROM ${pdpSrc.table}
+            WHERE ${conds}
+              AND ${pdpSrc.f.location} IS NOT NULL AND ${pdpSrc.f.location} != ''
+            GROUP BY Location
+            ORDER BY total_sales DESC
+            LIMIT 500
         `;
 
-        [currMsData, prevMsData] = await Promise.all([
-            queryClickHouse(msQueryBase(startDate, endDate)),
-            queryClickHouse(msQueryBase(prevStartDate, prevEndDate))
+        [currCityData, prevCityData] = await Promise.all([
+            queryClickHouse(pdpQuery(currPdpConds)),
+            queryClickHouse(pdpQuery(prevPdpConds))
         ]);
-
-        console.log(`[MapIntellect] MS locations: curr=${currMsData.length}, prev=${prevMsData.length}`);
-    } catch (e) {
-        console.error('[MapIntellect] Error querying rb_brand_ms:', e.message);
     }
 
-    // ── Build lookup maps ──────────────────────────────────────────
-    const prevPdpMap = new Map(prevCityData.map(d => [d.Location, d]));
-    const currMsMap = new Map(currMsData.map(d => [(d.location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
-    const prevMsMap = new Map(prevMsData.map(d => [(d.location || '').trim().toLowerCase(), parseFloat(d.avg_market_share || 0)]));
+    // ── Fetch Market Share data ──
+    if (msSrc) {
+        try {
+            const allowedMsCities = [
+                "Delhi", "Ahmedabad", "Bengaluru", "Bangalore", "Chandigarh", "Chennai",
+                "Faridabad", "Gurugram", "Gurgaon", "Hyderabad", "Kolkata", "Lucknow",
+                "Mumbai", "Pune"
+            ];
+            const cityConditions = allowedMsCities.map(c => `${msSrc.f.location} LIKE '%${escapeStr(c)}%'`).join(' OR ');
 
-    // ── Process and return cities ──────────────────────────────────
-    let cities = [];
+            let brandsCondition = 'FALSE';
+            if (ourBrands.length > 0) {
+                brandsCondition = ourBrands.map(b => `lower(${msSrc.f.groupBrand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
+            }
+
+            const msQueryBase = (sDate, eDate) => `
+                SELECT 
+                    ${msSrc.f.location} AS location,
+                    ROUND(
+                        (
+                            SUM(
+                                CASE WHEN ${brandsCondition}
+                                THEN ${msSrc.f.sales} 
+                                ELSE 0 
+                                END
+                            ) / NULLIF(SUM(${msSrc.f.sales}), 0)
+                        ) * 100, 
+                    2) AS avg_market_share
+                FROM ${msSrc.table}
+                WHERE toDate(${msSrc.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
+                  AND (${cityConditions})
+                  AND ${msSrc.f.location} IS NOT NULL AND ${msSrc.f.location} != ''
+                  ${platform && platform !== 'All' ? `AND ${msSrc.f.platform} LIKE '%${escapeStr(platform)}%'` : ''}
+                GROUP BY location
+            `;
+
+            [currMsData, prevMsData] = await Promise.all([
+                queryClickHouse(msQueryBase(startDate, endDate)),
+                queryClickHouse(msQueryBase(prevStartDate, prevEndDate))
+            ]);
+        } catch (e) {
+            console.error('[MapIntellect] Error querying market share:', e.message);
+        }
+    }
+
+    // ── Build maps for comparison ──
+    const normalizeCity = (name) => {
+        let n = (name || '').trim();
+        if (n === 'Bengalore' || n === 'Bangalore') return 'bengaluru';
+        if (n === 'Gurgaon') return 'gurugram';
+        return n.toLowerCase();
+    };
+
+    const prevPdpMap = new Map((prevCityData || []).map(d => [d.Location, d]));
+    const currMsMap = new Map((currMsData || []).map(d => [normalizeCity(d.location), parseFloat(d.avg_market_share || 0)]));
+    const prevMsMap = new Map((prevMsData || []).map(d => [normalizeCity(d.location), parseFloat(d.avg_market_share || 0)]));
+
+    // ── Merge and Process ──
+    let resultCities = [];
 
     if (isMarketShareOnly) {
-        // Market Share view — iterate over the 12 rb_brand_ms locations
-        cities = currMsData.map(data => {
+        resultCities = (currMsData || []).map(data => {
             let cityName = (data.location || '').trim();
             if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
             if (cityName === 'Gurgaon') cityName = 'Gurugram';
 
             const cityKey = cityName.toLowerCase();
-            if (!cityName || cityName.toLowerCase() === 'unknown' || cityName.toLowerCase() === 'other') return null;
+            if (!cityName || cityKey === 'unknown' || cityKey === 'other') return null;
 
             const ms = parseFloat(data.avg_market_share || 0);
             const prevMs = prevMsMap.get(cityKey) || 0;
@@ -291,31 +328,25 @@ const getMapIntellectData = async (filters) => {
                 listingPercentage: 0
             };
         }).filter(Boolean);
-
     } else {
-        // PDP metrics — iterate over ALL rb_pdp_olap locations
-        cities = currCityData.map(data => {
+        resultCities = (currCityData || []).map(data => {
             let cityName = (data.Location || '').trim();
             if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
             if (cityName === 'Gurgaon') cityName = 'Gurugram';
 
             const cityKey = cityName.toLowerCase();
-            if (!cityName || cityName.toLowerCase() === 'unknown' || cityName.toLowerCase() === 'other') return null;
+            if (!cityName || cityKey === 'unknown' || cityKey === 'other') return null;
 
             const prevData = prevPdpMap.get(data.Location) || {};
-
             const sales = parseFloat(data.total_sales || 0);
             const qty = parseFloat(data.total_qty || 0);
             const orders = parseFloat(data.total_orders || 0);
-            // city_osa computed directly in SQL: SUM(neno) / NULLIF(SUM(deno), 0) * 100
             const osa = parseFloat(data.city_osa || 0);
 
             const prevSales = parseFloat(prevData.total_sales || 0);
             const prevOrders = parseFloat(prevData.total_orders || 0);
-            // previous OSA also from SQL
             const prevOsa = parseFloat(prevData.city_osa || 0);
 
-            // Enrich with MS value if available for this city
             const ms = currMsMap.get(cityKey) || 0;
             const prevMs = prevMsMap.get(cityKey) || 0;
 
@@ -336,10 +367,8 @@ const getMapIntellectData = async (filters) => {
         }).filter(Boolean);
     }
 
-    console.log(`[MapIntellect] Returning ${cities.length} cities for metric: ${metric}`);
-
     return {
-        cities,
+        cities: resultCities,
         period: {
             startDate: startDate.format('YYYY-MM-DD'),
             endDate: endDate.format('YYYY-MM-DD'),

@@ -34,6 +34,7 @@ export const getVisibilityOverview = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -74,6 +75,7 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             pincode: req.query.pincode || 'All',
             zone: req.query.zone || 'All',
@@ -116,6 +118,7 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             sku: req.query.sku || 'All',
             city: req.query.city || 'All',
@@ -158,6 +161,7 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             filter: req.query.filter || 'All', // All, Branded, Competitor, Generic
             startDate: req.query.startDate,
@@ -233,6 +237,7 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
+            keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -303,6 +308,7 @@ export const getVisibilityKpiTrends = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
@@ -344,6 +350,7 @@ export const getVisibilityCompetition = async (req, res) => {
             location: req.query.location || req.query.city || 'All',  // Support both 'location' and 'city' params
             productName: req.query.productName || req.query.keyword || 'All',
             keyword: req.query.keyword || req.query.productName || 'All',
+            keywordType: req.query.keywordType || 'All',
             category: req.query.category || req.query.format || 'All',
             brand: req.query.brand || 'All',  // Filter by specific competitor brand
             period: req.query.period || '1M'
@@ -394,6 +401,7 @@ export const getBrandComparisonTrends = async (req, res) => {
             platform: req.query.platform || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             period: req.query.period || '1M',
             startDate: req.query.startDate || null,
@@ -447,6 +455,21 @@ export const getVisibilityKeywords = async (req, res) => {
     } catch (error) {
         console.error('[ERROR] Visibility Keywords:', error);
         res.status(500).json({ error: 'Internal Server Error', keywords: [] });
+    }
+};
+
+/**
+ * Get dynamic keyword types specifically for Visibility Analysis
+ * Returns distinct keyword_type values from rca_pm_olap
+ */
+export const getVisibilityKeywordTypes = async (req, res) => {
+    try {
+        const { platform } = req.query;
+        const keywordTypes = await visibilityService.getVisibilityKeywordTypes(platform);
+        res.json(keywordTypes);
+    } catch (error) {
+        console.error('[ERROR] Visibility Keyword Types:', error);
+        res.status(500).json({ error: 'Internal Server Error', keywordTypes: [] });
     }
 };
 

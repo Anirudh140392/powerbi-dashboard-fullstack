@@ -63,7 +63,24 @@ export function resolveColumn(columnsMap, expectedName, fallback = null) {
         return columnsMap.get(lowerExpected);
     }
 
-    // 2. Fuzzy match (remove underscores and spaces to handle Platform_Name vs PlatformName)
+    // 2. Specific Typos (e.g., Quantity vs Quanity)
+    const typoMap = {
+        'quantity': ['quanity'],
+        'quanity': ['quantity'],
+        'market_share': ['marketshare', 'ms'],
+        'marketshare': ['market_share', 'ms'],
+    };
+
+    for (const [key, aliases] of Object.entries(typoMap)) {
+        if (lowerExpected.includes(key)) {
+            for (const alias of aliases) {
+                const search = lowerExpected.replace(key, alias);
+                if (columnsMap.has(search)) return columnsMap.get(search);
+            }
+        }
+    }
+
+    // 3. Fuzzy match (remove underscores and spaces to handle Platform_Name vs PlatformName)
     const normalizedTarget = lowerExpected.replace(/[_\s]/g, '');
     for (const [lowerActual, actualName] of columnsMap) {
         if (lowerActual.replace(/[_\s]/g, '') === normalizedTarget) {
@@ -71,7 +88,19 @@ export function resolveColumn(columnsMap, expectedName, fallback = null) {
         }
     }
 
-    // 3. Fallback
+    // 4. Even fuzzier match for quantity typo
+    if (normalizedTarget.includes('quantity') || normalizedTarget.includes('quanity')) {
+        const target = normalizedTarget.replace('quantity', 'quanity');
+        const altTarget = normalizedTarget.replace('quanity', 'quantity');
+        for (const [lowerActual, actualName] of columnsMap) {
+            const normalizedActual = lowerActual.replace(/[_\s]/g, '');
+            if (normalizedActual === target || normalizedActual === altTarget) {
+                return actualName;
+            }
+        }
+    }
+
+    // 5. Fallback
     return fallback || expectedName;
 }
 

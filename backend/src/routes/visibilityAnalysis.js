@@ -11,7 +11,8 @@ import {
     getVisibilityCompetition,
     getBrandComparisonTrends,
     getVisibilityCategories,
-    getVisibilityKeywords
+    getVisibilityKeywords,
+    getVisibilityKeywordTypes
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
@@ -317,5 +318,6 @@ export default (app) => {
     // Dynamic dropdown routes for Visibility Analysis
     app.get('/api/visibility-analysis/categories', getVisibilityCategories);
     app.get('/api/visibility-analysis/keywords', getVisibilityKeywords);
+    app.get('/api/visibility-analysis/keyword-types', getVisibilityKeywordTypes);
 };
 

@@ -12,6 +12,7 @@ export default function VisibilityAnalysis() {
     selectedBrand,
     selectedLocation,
     selectedKeyword,
+    selectedKeywordType,
     selectedCategory,
     timeStart,
     timeEnd,
@@ -29,6 +30,7 @@ export default function VisibilityAnalysis() {
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
     keyword: selectedKeyword || "All",
+    keywordType: selectedKeywordType || "All",
     category: selectedCategory || "All",
     months: 6,
     timeStep: "Weekly",
@@ -101,6 +103,7 @@ export default function VisibilityAnalysis() {
         brand: selectedBrand || prev.brand,
         location: selectedLocation || prev.location,
         keyword: selectedKeyword || prev.keyword,
+        keywordType: selectedKeywordType || prev.keywordType,
         category: selectedCategory || prev.category,
       };
 
@@ -120,7 +123,7 @@ export default function VisibilityAnalysis() {
 
       return updates;
     });
-  }, [platform, selectedBrand, selectedLocation, selectedKeyword, selectedCategory, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, selectedKeyword, selectedKeywordType, selectedCategory, timeStart, timeEnd]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -237,6 +240,7 @@ export default function VisibilityAnalysis() {
       brand: filters.brand || 'All',
       location: filters.location || 'All',
       keyword: filters.keyword || 'All',
+      keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
@@ -248,6 +252,7 @@ export default function VisibilityAnalysis() {
       brand: filters.brand || 'All',
       location: filters.location || 'All',
       keyword: filters.keyword || 'All',
+      keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
@@ -289,6 +294,7 @@ export default function VisibilityAnalysis() {
       brand: filters.brand,
       location: filters.location,
       keyword: filters.keyword,
+      keywordType: filters.keywordType,
       category: filters.category,
       startDate: filters.startDate,
       endDate: filters.endDate,
@@ -342,6 +348,7 @@ export default function VisibilityAnalysis() {
           brand: filters.brand || 'All',
           location: filters.location || 'All',
           keyword: filters.keyword || 'All',
+          keywordType: filters.keywordType || 'All',
           category: filters.category || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
@@ -368,6 +375,7 @@ export default function VisibilityAnalysis() {
           brand: filters.brand || 'All',
           location: filters.location || 'All',
           keyword: filters.keyword || 'All',
+          keywordType: filters.keywordType || 'All',
           category: filters.category || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
