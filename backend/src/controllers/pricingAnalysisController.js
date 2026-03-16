@@ -50,7 +50,8 @@ export const getPricingKpis = async (req, res) => {
             location: req.query.location,
             brand: req.query.brand,
             category: req.query.category,
-            channel: req.query.channel
+            channel: req.query.channel,
+            sku: req.query.sku
         };
 
         console.log("[PricingAnalysisController] getPricingKpis called with filters:", filters);
@@ -81,7 +82,8 @@ export const getPricingInsights = async (req, res) => {
             location: req.query.location,
             brand: req.query.brand,
             category: req.query.category,
-            channel: req.query.channel
+            channel: req.query.channel,
+            sku: req.query.sku
         };
 
         console.log("[PricingAnalysisController] getPricingInsights called with filters:", filters);
@@ -113,7 +115,8 @@ export const getDimensionOverview = async (req, res) => {
             brand: req.query.brand,
             category: req.query.category,
             channel: req.query.channel,
-            dimension: req.query.dimension
+            dimension: req.query.dimension,
+            sku: req.query.sku
         };
 
         console.log("[PricingAnalysisController] getDimensionOverview called with filters:", filters);
