@@ -1,0 +1,31 @@
+﻿[ClickHouse] Executing query: 
+            SELECT name
+            FROM system.columns 
+            WHERE table = 'tb_content_score_data'
+        
+[ClickHouse] Query returned 23 rows
+Columns: [
+  "product_id",
+  "brand_name",
+  "title",
+  "title_char_count",
+  "bullet_points",
+  "bullet_points_count",
+  "description",
+  "description_char_count",
+  "aplus_content",
+  "aplus_images",
+  "aplus_images_count",
+  "thumbnail_image_count",
+  "thumbnail_video_count",
+  "thumbnail_total_count",
+  "extraction_timestamp",
+  "url",
+  "title_length_score",
+  "bullet_point_score",
+  "prod_desc_score",
+  "thumbnail_media_score",
+  "aplus_image_score",
+  "aplus_description_score",
+  "product_platform_total"
+]
