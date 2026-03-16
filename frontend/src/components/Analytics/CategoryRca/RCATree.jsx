@@ -1514,14 +1514,14 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
   useEffect(() => {
-    // Zoom to 85% (0.85) to match the visual scale in the reference image
-    reactFlowInstance.setViewport({ x: 100, y: 0, zoom: 0.85 }, { duration: 400 });
+    // Automatically fit the tree to the screen on load
+    reactFlowInstance.fitView({ padding: 0.15, duration: 800 });
 
     const t = setTimeout(() => {
-      reactFlowInstance.zoomTo?.(0.85, { duration: 300 });
-    }, 450);
+      reactFlowInstance.fitView({ padding: 0.15, duration: 400 });
+    }, 100);
     return () => clearTimeout(t);
-  }, [reactFlowInstance]);
+  }, [reactFlowInstance, currentTreeData]);
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative", cursor: "none" }}>
@@ -1565,7 +1565,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        minZoom={0.2}
+        minZoom={0.05}
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
         elevateNodesOnSelect={true}
