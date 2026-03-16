@@ -518,8 +518,18 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
 
                 <div className="space-y-3 border-t border-slate-50 pt-3">
                     {kpi.brand && (() => {
-                        const myBrands = ['snickers', 'galaxy', 'bounty', 'twix', 'mars', "m&m's", 'orbit', 'skittles', 'boomer', 'doublemint', 'mars wrigley'];
-                        const isMyBrand = myBrands.some(b => kpi.brand.toLowerCase().includes(b));
+                        // Dynamic own-brand detection: use isOwnBrand flag from backend if available,
+                        // otherwise check dbName from user context against brand name
+                        let isMyBrand = false;
+                        if (kpi.isOwnBrand !== undefined) {
+                            isMyBrand = kpi.isOwnBrand;
+                        } else {
+                            try {
+                                const u = JSON.parse(localStorage.getItem('user'));
+                                const dbName = u?.dbName?.toLowerCase() || '';
+                                isMyBrand = dbName && kpi.brand.toLowerCase().includes(dbName);
+                            } catch { /* ignore */ }
+                        }
                         return (
                             <div className={`flex items-baseline gap-1.5 mb-0.5 px-2 py-1 rounded-lg ${isMyBrand ? 'bg-amber-50 border border-amber-200' : ''}`}
                                 style={isMyBrand ? { animation: 'mwBrandPulse 2s ease-in-out infinite' } : {}}

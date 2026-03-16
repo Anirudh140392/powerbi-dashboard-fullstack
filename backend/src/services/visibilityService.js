@@ -21,9 +21,9 @@ function buildCHCondition(value, column, options = {}) {
     };
 
     const isOurBrand = (val) => {
-        if (!val) return false;
-        const lower = String(val).toLowerCase();
-        return lower.includes('mars') || lower.includes('wrigley');
+        // Rely on the generic flag='1' column in the DB to identify own-brand rows.
+        // No hardcoded brand names — works for any DB.
+        return false;
     };
 
     // If "All" brands or our main brand is selected, we want our brand's data (flag=1)
@@ -2507,7 +2507,7 @@ class VisibilityService {
 
     /**
      * Get dynamic keyword types specifically for Visibility Analysis
-     * Fetches distinct keyword_type values from rca_pm_olap table
+     * Fetches distinct keyword_type values from rb_kw_olap table
      */
     async getVisibilityKeywordTypes(platform) {
         try {
@@ -2515,12 +2515,12 @@ class VisibilityService {
 
             if (platform && platform !== 'All') {
                 const platformArr = Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()).filter(Boolean);
-                conds.push(`Platform IN (${platformArr.map(p => `'${escapeCH(p)}'`).join(',')})`);
+                conds.push(`platform_name IN (${platformArr.map(p => `'${escapeCH(p)}'`).join(',')})`);
             }
 
             const query = `
                 SELECT DISTINCT keyword_type 
-                FROM rca_pm_olap 
+                FROM rb_kw_olap 
                 WHERE ${conds.join(' AND ')} 
                 ORDER BY keyword_type ASC
             `;
