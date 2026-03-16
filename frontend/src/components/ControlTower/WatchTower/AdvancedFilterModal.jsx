@@ -223,7 +223,6 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
     )
 }
 
-// ========================================
 // MAIN ADVANCED FILTER MODAL
 // ========================================
 export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
@@ -239,8 +238,6 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         categories: [],
         platforms: [],
         skus: [],
-        skuName: '',
-        skuCode: '',
         dateFrom: '',
         dateTo: '',
         kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
@@ -282,8 +279,6 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             categories: [],
             platforms: [],
             skus: [],
-            skuName: '',
-            skuCode: '',
             kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
                 if (currentDimension === 'sku') return k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov';
                 if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
@@ -309,7 +304,6 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         showCategoryFilter && localFilters.categories.length > 0,
         showPlatformFilter && localFilters.platforms.length > 0,
         showSkuFilter && localFilters.skus.length > 0,
-        showSkuFilter && localFilters.skuCode.length > 0,
     ].filter(Boolean).length
 
     // Get dimension label for context
@@ -317,9 +311,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         platform: 'Platform',
         brand: 'Brand',
         category: 'Category',
-        sku: 'SKU',
-        city: 'City',
-        month: 'Month'
+        sku: 'Sku',
     }
 
     return (
@@ -410,28 +402,18 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 placeholder="All Platforms"
                                             />
                                         )}
+                                        {showSkuFilter && (
+                                            <MultiSelectDropdown
+                                                label="Sku"
+                                                icon={Package}
+                                                options={skus && skus.length ? skus : []}
+                                                selected={localFilters.skus}
+                                                onChange={(val) => updateFilter('skus', val)}
+                                                placeholder="All Skus"
+                                            />
+                                        )}
                                     </div>
                                 </div>
-
-                                {/* SKU Filter */}
-                                {showSkuFilter && (
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <Package size={14} className="text-slate-400" />
-                                            <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
-                                                {dimensionLabels[currentDimension] || 'SKU'} Filter
-                                            </span>
-                                        </div>
-                                        <MultiSelectDropdown
-                                            label={dimensionLabels[currentDimension] || 'SKU'}
-                                            icon={Package}
-                                            options={skus && skus.length ? skus : mockSkus}
-                                            selected={localFilters.skus}
-                                            onChange={(val) => updateFilter('skus', val)}
-                                            placeholder={`All ${dimensionLabels[currentDimension] === 'Category' ? 'Categories' : (dimensionLabels[currentDimension] === 'City' ? 'Cities' : (dimensionLabels[currentDimension] || 'SKU') + 's')}`}
-                                        />
-                                    </div>
-                                )}
 
                                 {/* Date Range Filter */}
                                 <div>
