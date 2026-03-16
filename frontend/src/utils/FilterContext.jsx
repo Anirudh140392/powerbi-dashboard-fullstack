@@ -41,6 +41,10 @@ export const FilterProvider = ({ children }) => {
     const [keywords, setKeywords] = useState([]);
     const [selectedKeyword, setSelectedKeyword] = useState(["All"]);
 
+    // Keyword Type state (for visibility analysis) - fetched dynamically from rca_pm_olap
+    const [keywordTypes, setKeywordTypes] = useState([]);
+    const [selectedKeywordType, setSelectedKeywordType] = useState(["All"]);
+
     // Category state (from rca_sku_dim)
     const [categories, setCategories] = useState(FALLBACK_CATEGORIES);
     const [visibilityCategories, setVisibilityCategories] = useState(FALLBACK_CATEGORIES);
@@ -79,6 +83,8 @@ export const FilterProvider = ({ children }) => {
             setSelectedLocation("All");
             setKeywords([]);
             setSelectedKeyword(["All"]);
+            setKeywordTypes([]);
+            setSelectedKeywordType(["All"]);
             setCategories(FALLBACK_CATEGORIES);
             setVisibilityCategories(FALLBACK_CATEGORIES);
             setSelectedCategory("All");
@@ -392,6 +398,41 @@ export const FilterProvider = ({ children }) => {
         fetchKeywords();
     }, [isAuthenticated, platform, selectedCategory]);
 
+    // ====== FETCH KEYWORD TYPES FROM DB (when platform changes) ======
+    useEffect(() => {
+        const fetchKeywordTypes = async () => {
+            if (!isAuthenticated) return;
+
+            try {
+                const params = {
+                    platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform)
+                };
+
+                console.log("[FilterContext] Fetching keyword types with params:", params);
+                const res = await axiosInstance.get("/visibility-analysis/keyword-types", { params });
+
+                if (res.data && Array.isArray(res.data)) {
+                    const fetchedKeywordTypes = res.data.filter(k => k !== "All");
+                    setKeywordTypes(fetchedKeywordTypes);
+
+                    // Validate current selections against new list
+                    setSelectedKeywordType(prev => {
+                        if (prev.includes("All")) return ["All"];
+                        const valid = prev.filter(k => fetchedKeywordTypes.includes(k));
+                        return valid.length > 0 ? valid : ["All"];
+                    });
+                } else {
+                    setKeywordTypes([]);
+                }
+            } catch (err) {
+                console.error("[FilterContext] Failed to fetch keyword types:", err);
+                setKeywordTypes([]);
+            }
+        };
+
+        fetchKeywordTypes();
+    }, [isAuthenticated, platform]);
+
     return (
         <FilterContext.Provider value={{
             channels,
@@ -406,6 +447,10 @@ export const FilterProvider = ({ children }) => {
             setKeywords,
             selectedKeyword,
             setSelectedKeyword,
+            keywordTypes,
+            setKeywordTypes,
+            selectedKeywordType,
+            setSelectedKeywordType,
             locations,
             setLocations,
             selectedLocation,
