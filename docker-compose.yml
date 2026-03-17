@@ -4,7 +4,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backend
+    container_name: trailytics-backend
     ports:
       - "4000:4000"
     env_file:
@@ -39,7 +39,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: frontend
+    container_name: trailytics-frontend
     ports:
       - "4500:4500"
     restart: unless-stopped
