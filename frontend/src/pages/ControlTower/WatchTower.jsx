@@ -813,8 +813,8 @@ const FormatPerformanceStudio = ({ rows, loading }) => {
       label: "Inorg Sales",
       activeValue: active.inorgSalesPct,
       compareValue: compare?.inorgSalesPct ?? null,
-      max: 100,
-      format: (v) => `${v}%`,
+      max: 50000000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "conversionPct",
