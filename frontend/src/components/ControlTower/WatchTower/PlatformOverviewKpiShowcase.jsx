@@ -1869,12 +1869,11 @@ const BrandTable = ({ rows, loading }) => {
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-2 text-center w-[20%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[11%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[11%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[11%]">Listing %</th>
-                <th className="px-3 py-2 text-center w-[11%]">Price</th>
-                <th className="px-3 py-2 text-center w-[11%]">Promo-My %</th>
-                <th className="px-3 py-2 text-center w-[11%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[16%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[16%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[16%]">Price</th>
+                <th className="px-3 py-2 text-center w-[16%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -1916,14 +1915,7 @@ const BrandTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.ListingPercent?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.ListingPercent?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.ListingPercent?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.ListingPercent?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
+
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
                     <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>₹{(Number(row.Price?.value) || 0).toFixed(0)}</span>
@@ -1954,7 +1946,7 @@ const BrandTable = ({ rows, loading }) => {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -2005,11 +1997,10 @@ const SkuTable = ({ rows, loading }) => {
               <tr>
                 <th className="px-3 py-2 text-center w-[16%]">SKU</th>
                 <th className="px-3 py-2 text-center w-[16%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[11%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[11%]">Listing %</th>
-                <th className="px-3 py-2 text-center w-[11%]">Price</th>
-                <th className="px-3 py-2 text-center w-[11%]">Promo-My %</th>
-                <th className="px-3 py-2 text-center w-[11%]">Mkt Share</th>
+                <th className="px-3 py-2 text-center w-[17%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[17%]">Price</th>
+                <th className="px-3 py-2 text-center w-[17%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -2046,14 +2037,7 @@ const SkuTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.ListingPercent?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.ListingPercent?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.ListingPercent?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.ListingPercent?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
+
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
                     <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                       <span>₹{(Number(row.Price?.value) || 0).toFixed(0)}</span>
@@ -2086,7 +2070,7 @@ const SkuTable = ({ rows, loading }) => {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
