@@ -41,6 +41,9 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
     keywords,
     selectedKeyword,
     setSelectedKeyword,
+    keywordTypes,
+    selectedKeywordType,
+    setSelectedKeywordType,
     locations,
     selectedLocation,
     setSelectedLocation,
@@ -285,13 +288,24 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 />
               )}
 
-              {title !== "Business Overview" && !location.pathname.includes("market-share") && (
+              {title !== "Business Overview" && !location.pathname.includes("market-share") && !location.pathname.includes("visibility") && (
                 <CustomHeaderDropdown
                   label="LOCATION"
                   options={locations}
                   value={selectedLocation}
                   onChange={(newValue) => setSelectedLocation(newValue)}
                   width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                  multiSelect={true}
+                />
+              )}
+
+              {location.pathname.includes("visibility") && (
+                <CustomHeaderDropdown
+                  label="KEYWORD TYPE"
+                  options={keywordTypes}
+                  value={selectedKeywordType}
+                  onChange={setSelectedKeywordType}
+                  width={{ xs: "calc(100%)", sm: 140 }}
                   multiSelect={true}
                 />
               )}

@@ -296,4 +296,9 @@ export const CITIES = [
     { name: "Cuttack", state_id: "OD", coords: [85.87, 20.46], value: 58 },
     { name: "Guwahati", state_id: "AS", coords: [91.73, 26.14], value: 66 },
     { name: "Dibrugarh", state_id: "AS", coords: [94.91, 27.47], value: 45 },
+    { name: "Kochi", state_id: "KL", coords: [76.27, 9.93], value: 70 },
+    { name: "Nashik", state_id: "MH", coords: [73.79, 19.99], value: 65 },
+    { name: "Eluru", state_id: "AP", coords: [81.1, 16.71], value: 50 },
+    { name: "Karnal", state_id: "HR", coords: [76.99, 29.69], value: 55 },
+    { name: "Khammam", state_id: "TG", coords: [80.15, 17.25], value: 45 },
 ];

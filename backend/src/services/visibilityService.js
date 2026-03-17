@@ -21,9 +21,9 @@ function buildCHCondition(value, column, options = {}) {
     };
 
     const isOurBrand = (val) => {
-        if (!val) return false;
-        const lower = String(val).toLowerCase();
-        return lower.includes('mars') || lower.includes('wrigley');
+        // Rely on the generic flag='1' column in the DB to identify own-brand rows.
+        // No hardcoded brand names — works for any DB.
+        return false;
     };
 
     // If "All" brands or our main brand is selected, we want our brand's data (flag=1)
@@ -42,27 +42,29 @@ function buildCHCondition(value, column, options = {}) {
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
 
-const RB_SOS_CONDITION = "flag = '1'";
 
-async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, category = null) {
+
+async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, keywordType = null, category = null) {
     try {
         const platformCondition = buildCHCondition(platform, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
         const keywordCondition = buildCHCondition(keyword, 'keyword');
+        const keywordTypeCondition = buildCHCondition(keywordType, 'keyword_type');
         const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
         // Single query that calculates ALL SOS types at once - ClickHouse syntax using rb_kw_olap
         const query = `
             SELECT 
-                ROUND(sumIf(toInt32(overall), flag = '1') * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                ROUND(sumIf(toInt32(organic), flag = '1') * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
+                ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+                ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+                ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${locationCondition}
               AND ${keywordCondition}
+              AND ${keywordTypeCondition}
               AND ${categoryCondition}
         `;
 
@@ -86,7 +88,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
  * @param {string|null} platform - Platform filter
  * @returns {Promise<{overall: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
  */
-async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, category = null) {
+async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, keywordType = null, category = null) {
     try {
         let startDate, endDate;
         if (customStartDate && customEndDate) {
@@ -104,19 +106,21 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
         const keywordCondition = buildCHCondition(keyword, 'keyword');
+        const keywordTypeCondition = buildCHCondition(keywordType, 'keyword_type');
         const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
         const query = `
             SELECT 
                 DATE as crawl_date,
-                ROUND(sumIf(toInt32(overall), flag = '1') * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                ROUND(sumIf(toInt32(organic), flag = '1') * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
+                ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+                ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+                ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
               AND ${locationCondition}
               AND ${keywordCondition}
+              AND ${keywordTypeCondition}
               AND ${categoryCondition}
             GROUP BY crawl_date
             ORDER BY crawl_date ASC
@@ -247,9 +251,9 @@ async function getVisibilityOverviewData(filters = {}) {
         // OPTIMIZED: Only 3 database queries instead of 9
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
-            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.category || filters.format),
-            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.category || filters.format),
-            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.category || filters.format)
+            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format),
+            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format),
+            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format)
         ]);
 
         // Aggregate daily points into weekly points for "Weekly" aggregation
@@ -800,6 +804,10 @@ class VisibilityService {
                     baseWhere += ` AND ${buildCHCondition(filters.keyword, 'keyword')}`;
                 }
 
+                if (filters.keywordType && filters.keywordType !== 'All') {
+                    baseWhere += ` AND ${buildCHCondition(filters.keywordType, 'keyword_type')}`;
+                }
+
                 // Apply format (category) filter if provided
                 const categoryValue = filters.category || filters.format;
                 if (categoryValue && String(categoryValue).toLowerCase() !== 'all') {
@@ -857,8 +865,8 @@ class VisibilityService {
                     }
                 }
 
-                // Brand Condition for SOS calculation - Used ONLY for RB SOS now
-                const brandSOSCondition = RB_SOS_CONDITION;
+                // Brand Condition for SOS calculation
+                const brandSOSCondition = buildCHCondition(filters.brand, 'brand_name_th', { isBrand: true });
 
                 // Date ranges for trend calculation (Current vs Previous)
                 const start = dayjs(startDate);
@@ -894,8 +902,8 @@ class VisibilityService {
                 // Query builder helper for current/prev/sparkline
                 const getMatrixQueries = (dimColumn, dimAlias, filtersToExclude = []) => {
                     // Build filtered where clauses for this specific matrix
-                    let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
-                    let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                    let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}' AND POSITION < 11`;
+                    let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}' AND POSITION < 11`;
 
                     // Helper to add condition if not excluded
                     const addCond = (val, col, exclusionKeys) => {
@@ -911,6 +919,7 @@ class VisibilityService {
                     addCond(filters.location, 'location_name', filtersToExclude);
                     // Add keyword/category/format - all map to keyword_category for Visibility page
                     addCond(filters.keyword, 'keyword', filtersToExclude);
+                    addCond(filters.keywordType, 'keyword_type', filtersToExclude);
                     addCond(filters.format || filters.category, 'keyword_category', filtersToExclude);
 
                     // Pincode (use toString to match ClickHouse type if necessary)
@@ -937,10 +946,10 @@ class VisibilityService {
                     const current = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
-                            ROUND(sumIf(toInt32(overall), flag = '1') * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                            ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                            ROUND(sumIf(toInt32(organic), flag = '1') * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
-                            ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
+                            ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
@@ -951,10 +960,10 @@ class VisibilityService {
                     const previous = `
                         SELECT 
                             ${dimColumn} as ${dimAlias},
-                            ROUND(sumIf(toInt32(overall), flag = '1') * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                            ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                            ROUND(sumIf(toInt32(organic), flag = '1') * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
-                            ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
+                            ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${prevWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}
@@ -964,10 +973,10 @@ class VisibilityService {
                         SELECT 
                             ${dimColumn} as ${dimAlias},
                             DATE as date,
-                            ROUND(sumIf(toInt32(overall), flag = '1') * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                            ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                            ROUND(sumIf(toInt32(organic), flag = '1') * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
-                            ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
+                            ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                         GROUP BY ${dimColumn}, date
@@ -1084,6 +1093,9 @@ class VisibilityService {
                 }
                 if (filters.keyword && filters.keyword !== 'All') {
                     whereConditions.push(buildCHCondition(filters.keyword, 'keyword'));
+                }
+                if (filters.keywordType && filters.keywordType !== 'All') {
+                    whereConditions.push(buildCHCondition(filters.keywordType, 'keyword_type'));
                 }
                 if (filters.location && filters.location !== 'All') {
                     const locCond = buildCHCondition(filters.location, 'location_name');
@@ -1202,7 +1214,7 @@ class VisibilityService {
                         sku,
                         city,
                         total,
-                        market_overall: keyword_market_total,
+                        market_overall,
                         market_spons,
                         market_organic,
                         rbr,
@@ -1234,7 +1246,7 @@ class VisibilityService {
                             id: `${kt}-${kw}`.toLowerCase().replace(/\s+/g, '-'),
                             label: kw, level: 'keyword',
                             children: new Map(),
-                            metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(keyword_market_total || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
+                            metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
                         });
                     }
                     const kwNode = ktNode.children.get(kw);
@@ -1242,7 +1254,7 @@ class VisibilityService {
                     // Update metrics for Type and Keyword levels (must include ALL brands for correct Market Total)
                     [ktNode, kwNode].forEach(node => {
                         if (node === ktNode) {
-                            node.metrics.market_overall = (node.metrics.market_overall || 0) + Number(keyword_market_total || 0);
+                            node.metrics.market_overall = (node.metrics.market_overall || 0) + Number(market_overall || 0);
                             node.metrics.market_spons = (node.metrics.market_spons || 0) + Number(market_spons || 0);
                             node.metrics.market_organic = (node.metrics.market_organic || 0) + Number(market_organic || 0);
                         }
@@ -1356,7 +1368,7 @@ class VisibilityService {
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const brandFilterCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
-                const brandSOSCondition = RB_SOS_CONDITION;
+                const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand_name_th', { isBrand: true });
 
                 // 1. Get latest date
                 const maxDateRes = await queryClickHouse(`
@@ -1387,14 +1399,20 @@ class VisibilityService {
                 prevDateCondition += ` AND POSITION < 11`;
 
                 // 2. Aggregate metrics for keywords
-                let mappedType = filters.filter;
-                if (mappedType === 'Competitor') {
-                    mappedType = 'Competition';
-                }
+                let typeConds = [];
+                const processType = (val) => {
+                    if (!val || val === 'All') return null;
+                    if (Array.isArray(val)) return val.map(t => t === 'Competitor' ? 'Competition' : t);
+                    return val === 'Competitor' ? 'Competition' : val;
+                };
 
-                const typeFilter = mappedType && mappedType !== 'All'
-                    ? `AND keyword_type = '${escapeCH(mappedType)}'`
-                    : '';
+                const widgetType = processType(filters.filter);
+                const globalType = processType(filters.keywordType);
+
+                if (widgetType) typeConds.push(buildCHCondition(widgetType, 'keyword_type'));
+                if (globalType) typeConds.push(buildCHCondition(globalType, 'keyword_type'));
+
+                const typeFilter = typeConds.length > 0 ? `AND ${typeConds.join(' AND ')}` : '';
 
                 // Apply keyword filter if provided
                 const keywordFilter = (filters.keyword && filters.keyword !== 'All')
@@ -1454,6 +1472,8 @@ class VisibilityService {
                       AND ${platformCondition}
                       AND ${locationCondition}
                       AND keyword IN (${keywordList})
+                      AND POSITION < 11
+                      ${typeFilter}
                       ${categoryClause}
                     GROUP BY keyword
                 `;
@@ -1461,7 +1481,6 @@ class VisibilityService {
 
                 const prevMap = {};
                 prevKeywordMetrics.forEach(p => {
-                    const prevTotal = Number(p.total_results) || 1;
                     prevMap[p.keyword] = {
                         overallSos: Number(((Number(p.rb_overall) / (Number(p.total_overall) || 1)) * 100).toFixed(1)),
                         organicSos: Number(((Number(p.rb_organic) / (Number(p.total_organic) || 1)) * 100).toFixed(1)),
@@ -1480,6 +1499,8 @@ class VisibilityService {
                       AND keyword IN (${keywordList})
                       AND ${platformCondition}
                       AND ${locationCondition}
+                      AND POSITION < 11
+                      ${typeFilter}
                       AND brand_name_th IS NOT NULL 
                       AND brand_name_th != ''
                     GROUP BY keyword, brand_name_th
@@ -1550,6 +1571,7 @@ class VisibilityService {
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
+                const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
 
                 // Apply category filter if provided
                 const categoryValue = filters.category || filters.format;
@@ -1580,6 +1602,7 @@ class VisibilityService {
                       AND POSITION < 11
                       AND ${platformCondition}
                       AND ${locationCondition}
+                      AND ${keywordTypeCondition}
                       ${categoryClause}
                       AND brand_name_th IS NOT NULL AND brand_name_th != ''
                       AND lower(brand_name_th) != 'other'
@@ -1599,6 +1622,7 @@ class VisibilityService {
                       AND POSITION < 11
                       AND ${platformCondition} 
                       AND ${locationCondition}
+                      AND ${keywordTypeCondition}
                       ${categoryClause}
                     GROUP BY period
                 `;
@@ -1985,9 +2009,10 @@ class VisibilityService {
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
+                const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
                 const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
                 // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
-                const brandSOSCondition = RB_SOS_CONDITION; // Force RB SOS
+                const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand_name_th', { isBrand: true }); // Dynamic SOS
 
                 // Determine aggregation based on timeStep
                 let dateAggregation;
@@ -2019,6 +2044,7 @@ class VisibilityService {
                   AND ${platformCondition}
                   AND ${locationCondition}
                   AND ${formatCondition}
+                  AND ${keywordTypeCondition}
                 GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
@@ -2101,6 +2127,7 @@ class VisibilityService {
                 const locationCondition = buildCHCondition(filters.location, 'location_name');
                 const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
+                const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
                 const brandsCondition = buildCHCondition(filters.brands, 'brand_name_th');
                 const brandCondition = buildCHCondition(brandFilter, 'brand_name_th');
 
@@ -2109,6 +2136,7 @@ class VisibilityService {
                 AND ${locationCondition}
                 AND ${formatCondition}
                 AND ${keywordCondition}
+                AND ${keywordTypeCondition}
                 AND ${brandCondition}
             `;
 
@@ -2266,6 +2294,7 @@ class VisibilityService {
                 const locationCondition = buildCHCondition(filters.location, 'location_name');
                 const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
+                const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
                 const brandsCondition = buildCHCondition(selectedBrands, dimColumn);
 
                 // Determine date range
@@ -2329,6 +2358,7 @@ class VisibilityService {
                   AND ${locationCondition}
                   AND ${formatCondition}
                   AND ${keywordCondition}
+                  AND ${keywordTypeCondition}
                 GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
@@ -2471,6 +2501,34 @@ class VisibilityService {
             return results.map(k => k.keyword).filter(Boolean);
         } catch (error) {
             console.error('[VisibilityService] Error getting keywords:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get dynamic keyword types specifically for Visibility Analysis
+     * Fetches distinct keyword_type values from rb_kw_olap table
+     */
+    async getVisibilityKeywordTypes(platform) {
+        try {
+            let conds = [`keyword_type IS NOT NULL`, `keyword_type != ''`];
+
+            if (platform && platform !== 'All') {
+                const platformArr = Array.isArray(platform) ? platform : platform.split(',').map(p => p.trim()).filter(Boolean);
+                conds.push(`platform_name IN (${platformArr.map(p => `'${escapeCH(p)}'`).join(',')})`);
+            }
+
+            const query = `
+                SELECT DISTINCT keyword_type 
+                FROM rb_kw_olap 
+                WHERE ${conds.join(' AND ')} 
+                ORDER BY keyword_type ASC
+            `;
+
+            const results = await queryClickHouse(query);
+            return results.map(k => k.keyword_type).filter(Boolean);
+        } catch (error) {
+            console.error('[VisibilityService] Error getting keyword types:', error);
             return [];
         }
     }

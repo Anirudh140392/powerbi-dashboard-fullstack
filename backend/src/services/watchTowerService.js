@@ -5801,11 +5801,11 @@ const getCategoryOverview = async (filters) => {
     const categories = distinctCategories.map(c => c.category).filter(Boolean);
 
     // Build maps for efficient lookup
-    const buildMap = (data, keyField, valField) => new Map(data.map(r => [r[keyField]?.toLowerCase(), r[valField]]));
-    const currCatMap = new Map(currCatData.map(d => [d.Category?.toLowerCase(), d]));
-    const prevCatMap = new Map(prevCatData.map(d => [d.Category?.toLowerCase(), d]));
+    const buildMap = (data, keyField, valField) => new Map(data.map(r => [r[keyField] != null ? String(r[keyField]).toLowerCase() : '', r[valField]]));
+    const currCatMap = new Map(currCatData.map(d => [d.Category != null ? String(d.Category).toLowerCase() : '', d]));
+    const prevCatMap = new Map(prevCatData.map(d => [d.Category != null ? String(d.Category).toLowerCase() : '', d]));
 
-    const buildSosMap = (data) => new Map(data.map(r => [r.keyword_category?.toLowerCase(), { num: parseInt(r.num), den: parseInt(r.den) }]));
+    const buildSosMap = (data) => new Map(data.map(r => [r.keyword_category != null ? String(r.keyword_category).toLowerCase() : '', { num: parseInt(r.num || 0), den: parseInt(r.den || 0) }]));
 
     const currSosMap = buildSosMap(currSosData);
     const prevSosMap = buildSosMap(prevSosData);
@@ -6174,11 +6174,11 @@ const getBrandsOverview = async (filters) => {
     const currBrandCatSize = parseFloat(currCatSizeTotal[0]?.cat_size || 0);
     const prevBrandCatSize = parseFloat(prevCatSizeTotal[0]?.cat_size || 0);
 
-    const buildMap = (data, keyField, valField) => new Map(data.map(r => [r[keyField]?.toLowerCase(), r[valField]]));
-    const currMetricMap = new Map(currBrandsMetrics.map(d => [d.Brand?.toLowerCase(), d]));
-    const prevMetricMap = new Map(prevBrandsMetrics.map(d => [d.Brand?.toLowerCase(), d]));
+    const buildMap = (data, keyField, valField) => new Map(data.map(r => [r[keyField] != null ? String(r[keyField]).toLowerCase() : '', r[valField]]));
+    const currMetricMap = new Map(currBrandsMetrics.map(d => [d.Brand != null ? String(d.Brand).toLowerCase() : '', d]));
+    const prevMetricMap = new Map(prevBrandsMetrics.map(d => [d.Brand != null ? String(d.Brand).toLowerCase() : '', d]));
 
-    const buildSosNumMap = (data) => new Map(data.map(r => [r.brand_name?.toLowerCase(), parseInt(r.num || 0)]));
+    const buildSosNumMap = (data) => new Map(data.map(r => [r.brand_name != null ? String(r.brand_name).toLowerCase() : '', parseInt(r.num || 0)]));
 
     const currSosMap = buildSosNumMap(currSosData);
     const prevSosMap = buildSosNumMap(prevSosData);
