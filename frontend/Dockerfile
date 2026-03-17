@@ -25,7 +25,7 @@ RUN echo 'server { \
     index index.html; \
     \
     location /api/ { \
-    proxy_pass http://backend:5000/api/; \
+    proxy_pass http://backend_multiple:5000/api/; \
     proxy_http_version 1.1; \
     proxy_set_header Host $host; \
     proxy_set_header X-Real-IP $remote_addr; \
