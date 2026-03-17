@@ -458,18 +458,22 @@ const VisiblityAnalysisData = ({
   onFiltersChange,
   filters: parentFilters,
   topSearchFilter: parentTopSearchFilter,
-  setTopSearchFilter: parentSetTopSearchFilter
+  setTopSearchFilter: parentSetTopSearchFilter,
+  topSearchMode: parentTopSearchMode,
+  setTopSearchMode: parentSetTopSearchMode
 }) => {
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
-  const [viewMode, setViewMode] = useState("Keywords") // Keywords | SKU
   const [skuTab, setSkuTab] = useState("My SKUs"); // My SKUs, ALL SKUs
   // Use parent topSearchFilter if available, else fallback to local
   const topSearchFilter = parentTopSearchFilter || "All";
   const setTopSearchFilter = parentSetTopSearchFilter || (() => { });
+
+  const viewMode = parentTopSearchMode || "Keywords";
+  const setViewMode = parentSetTopSearchMode || (() => { });
 
   // const sampleData = [
   //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
@@ -939,9 +943,8 @@ const VisiblityAnalysisData = ({
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
-                className={`px-4 py-1.5 text-[13px] font-semibold rounded-full transition-all ${
-                  viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
+                className={`px-4 py-1.5 text-[13px] font-semibold rounded-full transition-all ${viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
               >
                 {mode}
               </button>
@@ -955,9 +958,8 @@ const VisiblityAnalysisData = ({
                   <button
                     key={tab}
                     onClick={() => setTopSearchFilter(tab)}
-                    className={`px-3 py-1 text-[11px] font-semibold rounded-full transition-all ${
-                      topSearchFilter === tab ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700 border border-transparent"
-                    }`}
+                    className={`px-3 py-1 text-[11px] font-semibold rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700 border border-transparent"
+                      }`}
                   >
                     {tab}
                   </button>
@@ -969,15 +971,14 @@ const VisiblityAnalysisData = ({
                   <button
                     key={tab}
                     onClick={() => {
-                        // We will need a way to pass this state to SKUVisibilityTable
-                        // For now we'll use a local state in VisiblityAnalysisData or just rely on the table handling it if we can find it
-                        // The user said "show My SKUs and All SKUs tab in top right of SKU tab like in keywords tab"
-                        // I'll add a state for this.
-                        setSkuTab(tab);
+                      // We will need a way to pass this state to SKUVisibilityTable
+                      // For now we'll use a local state in VisiblityAnalysisData or just rely on the table handling it if we can find it
+                      // The user said "show My SKUs and All SKUs tab in top right of SKU tab like in keywords tab"
+                      // I'll add a state for this.
+                      setSkuTab(tab);
                     }}
-                    className={`px-3 py-1 text-[11px] font-semibold rounded-full transition-all ${
-                        skuTab === tab ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700 border border-transparent"
-                    }`}
+                    className={`px-3 py-1 text-[11px] font-semibold rounded-full transition-all ${skuTab === tab ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700 border border-transparent"
+                      }`}
                   >
                     {tab}
                   </button>
@@ -1000,7 +1001,21 @@ const VisiblityAnalysisData = ({
             )}
           </>
         ) : (
-          <SKUVisibilityTable activeTab={skuTab} setActiveTab={setSkuTab} />
+          <>
+            {apiErrors?.searchTerms ? (
+              <ErrorRetryOverlay onRetry={() => onRetry?.('searchTerms')} message={apiErrors.searchTerms} compact />
+            ) : (loading?.searchTerms || apiData?.searchTerms === undefined) ? (
+              <TopSearchTermsSkeleton />
+            ) : apiData?.searchTerms?.terms?.length === 0 ? (
+              <NoDataAvailable title="No SKU search data available" />
+            ) : (
+              <SKUVisibilityTable
+                activeTab={skuTab}
+                setActiveTab={setSkuTab}
+                apiData={apiData?.searchTerms}
+              />
+            )}
+          </>
         )}
       </div>
       <SignalLabVisibility type="visibility" />

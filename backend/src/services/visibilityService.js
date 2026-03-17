@@ -1424,125 +1424,272 @@ class VisibilityService {
                 const categoryFilter = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
                 const categoryClause = categoryFilter !== '1=1' ? `AND ${categoryFilter}` : '';
 
-                const metricsQuery = `
-                    SELECT 
-                        keyword,
-                        MAX(keyword_type) as type,
-                        sumIf(toInt32(overall), ${brandSOSCondition}) as rb_overall,
-                        sumIf(toInt32(organic), ${brandSOSCondition}) as rb_organic,
-                        sumIf(toInt32(spons), ${brandSOSCondition}) as rb_sponsored,
-                        sum(toInt32(overall)) as total_overall,
-                        sum(toInt32(organic)) as total_organic,
-                        sum(toInt32(spons)) as total_spons,
-                        sumIf(toInt32(overall), ${brandSOSCondition}) as brand_filter_overall,
-                        ROUND(AVG(POSITION), 1) as avg_overall_pos,
-                        ROUND(avgIf(POSITION, toInt32(organic) = 1 AND ${brandSOSCondition}), 1) as avg_org_pos,
-                        ROUND(avgIf(POSITION, toInt32(spons) = 1 AND ${brandSOSCondition}), 1) as avg_ad_pos
-                    FROM rb_kw_olap
-                    WHERE ${dateCondition}
-                      AND ${platformCondition}
-                      AND ${locationCondition}
-                      ${typeFilter}
-                      ${keywordFilter}
-                      ${categoryClause}
-                    GROUP BY keyword
-                    ${brand && brand !== 'All' ? 'HAVING brand_filter_overall > 0' : ''}
-                    ORDER BY (ifNull(toFloat64OrZero(toString(rb_overall)), 0) / nullIf(total_overall, 0)) DESC, total_overall DESC
-                    LIMIT 50
-                `;
+                const isSkuMode = filters.viewMode === 'sku';
+                let terms = [];
 
-                const keywordMetrics = await queryClickHouse(metricsQuery);
+                if (isSkuMode) {
+                    // 1. Get Top 50 SKUs based on overall volume
+                    const topSkusQuery = `
+                        SELECT 
+                            keyword_search_product as sku, 
+                            countIf(toInt32(overall), ${brandSOSCondition}) as vol,
+                            topKIf(1)(brand_name_th, brand_name_th != '') as best_brand_arr
+                        FROM rb_kw_olap
+                        WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} AND keyword_search_product != ''
+                        GROUP BY sku
+                        HAVING vol > 0
+                        ORDER BY vol DESC
+                        LIMIT 50
+                    `;
+                    const topSkusResult = await queryClickHouse(topSkusQuery);
+                    if (topSkusResult.length === 0) return { terms: [] };
 
-                if (keywordMetrics.length === 0) return { terms: [] };
+                    const skuList = topSkusResult.map(s => `'${escapeCH(s.sku)}'`).join(',');
+                    const skuContextMap = {};
+                    topSkusResult.forEach(s => {
+                        skuContextMap[s.sku] = {
+                            vol: s.vol,
+                            topBrand: (s.best_brand_arr && s.best_brand_arr.length > 0) ? s.best_brand_arr[0] : 'N/A'
+                        };
+                    });
 
-                const keywordList = keywordMetrics.map(k => `'${escapeCH(k.keyword)}'`).join(',');
+                    // 2. Query SKU Level POSITION counts for mode calculation (no more deltas)
+                    const skuPositionsQuery = `
+                        SELECT 
+                            keyword_search_product as sku,
+                            POSITION,
+                            countIf(toInt32(spons) = 1 AND ${brandSOSCondition}) as ad_cnt,
+                            countIf(toInt32(organic) = 1 AND ${brandSOSCondition}) as org_cnt,
+                            countIf(toInt32(overall) = 1 AND ${brandSOSCondition}) as ov_cnt
+                        FROM rb_kw_olap
+                        WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} 
+                          AND keyword_search_product IN (${skuList})
+                          AND POSITION > 0 AND POSITION < 11
+                        GROUP BY sku, POSITION
+                    `;
 
-                // 2b. Aggregate metrics for previous period (for Deltas)
-                const prevMetricsQuery = `
-                    SELECT 
-                        keyword,
-                        sum(toInt32(overall)) as total_overall,
-                        sum(toInt32(organic)) as total_organic,
-                        sum(toInt32(spons)) as total_spons,
-                        sumIf(toInt32(overall), ${brandSOSCondition}) as rb_overall,
-                        sumIf(toInt32(organic), ${brandSOSCondition}) as rb_organic,
-                        sumIf(toInt32(spons), ${brandSOSCondition}) as rb_sponsored
-                    FROM rb_kw_olap
-                    WHERE ${prevDateCondition}
-                      AND ${platformCondition}
-                      AND ${locationCondition}
-                      AND keyword IN (${keywordList})
-                      AND POSITION < 11
-                      ${typeFilter}
-                      ${categoryClause}
-                    GROUP BY keyword
-                `;
-                const prevKeywordMetrics = await queryClickHouse(prevMetricsQuery);
+                    // 3. Query SKU-Keyword Level POSITION counts for mode calculation
+                    const skuKeywordPositionsQuery = `
+                        SELECT 
+                            keyword_search_product as sku,
+                            keyword,
+                            POSITION,
+                            countIf(toInt32(spons) = 1 AND ${brandSOSCondition}) as ad_cnt,
+                            countIf(toInt32(organic) = 1 AND ${brandSOSCondition}) as org_cnt,
+                            countIf(toInt32(overall) = 1 AND ${brandSOSCondition}) as ov_cnt
+                        FROM rb_kw_olap
+                        WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} 
+                          AND keyword_search_product IN (${skuList})
+                          AND POSITION > 0 AND POSITION < 11
+                        GROUP BY sku, keyword, POSITION
+                    `;
 
-                const prevMap = {};
-                prevKeywordMetrics.forEach(p => {
-                    prevMap[p.keyword] = {
-                        overallSos: Number(((Number(p.rb_overall) / (Number(p.total_overall) || 1)) * 100).toFixed(1)),
-                        organicSos: Number(((Number(p.rb_organic) / (Number(p.total_organic) || 1)) * 100).toFixed(1)),
-                        paidSos: Number(((Number(p.rb_sponsored) / (Number(p.total_spons) || 1)) * 100).toFixed(1)),
+                    const [skuPosRes, kwPosRes] = await Promise.all([
+                        queryClickHouse(skuPositionsQuery),
+                        queryClickHouse(skuKeywordPositionsQuery)
+                    ]);
+
+                    // Helper to calculate modes from count maps
+                    const getModes = (posMap) => {
+                        const maxCnt = Math.max(...Object.values(posMap), 0);
+                        if (maxCnt === 0) return '0';
+                        return Object.keys(posMap)
+                            .filter(pos => posMap[pos] === maxCnt)
+                            .sort((a, b) => a - b)
+                            .join(', ');
                     };
-                });
 
-                // 3. Get leading brand for each keyword (the brand with most shelf share)
-                const leadingBrandQuery = `
-                    SELECT 
-                        keyword,
-                        brand_name_th as brand_name,
-                        count() as brand_count
-                    FROM rb_kw_olap
-                    WHERE ${dateCondition}
-                      AND keyword IN (${keywordList})
-                      AND ${platformCondition}
-                      AND ${locationCondition}
-                      AND POSITION < 11
-                      ${typeFilter}
-                      AND brand_name_th IS NOT NULL 
-                      AND brand_name_th != ''
-                    GROUP BY keyword, brand_name_th
-                    ORDER BY keyword, brand_count DESC
-                `;
+                    // Process SKU level distributions
+                    const skuDist = {};
+                    skuPosRes.forEach(r => {
+                        if (!skuDist[r.sku]) {
+                            skuDist[r.sku] = { ad: {}, org: {}, overall: {} };
+                        }
+                        const pos = Math.round(Number(r.POSITION));
+                        if (r.ad_cnt > 0) skuDist[r.sku].ad[pos] = (skuDist[r.sku].ad[pos] || 0) + Number(r.ad_cnt);
+                        if (r.org_cnt > 0) skuDist[r.sku].org[pos] = (skuDist[r.sku].org[pos] || 0) + Number(r.org_cnt);
+                        if (r.ov_cnt > 0) skuDist[r.sku].overall[pos] = (skuDist[r.sku].overall[pos] || 0) + Number(r.ov_cnt);
+                    });
 
-                const brandResults = await queryClickHouse(leadingBrandQuery);
+                    // Process Keyword level distributions
+                    const skuKwDist = {};
+                    kwPosRes.forEach(r => {
+                        const key = `${r.sku}_${r.keyword}`;
+                        if (!skuKwDist[key]) {
+                            skuKwDist[key] = { ad: {}, org: {}, overall: {} };
+                        }
+                        const pos = Math.round(Number(r.POSITION));
+                        if (r.ad_cnt > 0) skuKwDist[key].ad[pos] = (skuKwDist[key].ad[pos] || 0) + Number(r.ad_cnt);
+                        if (r.org_cnt > 0) skuKwDist[key].org[pos] = (skuKwDist[key].org[pos] || 0) + Number(r.org_cnt);
+                        if (r.ov_cnt > 0) skuKwDist[key].overall[pos] = (skuKwDist[key].overall[pos] || 0) + Number(r.ov_cnt);
+                    });
 
-                // ClickHouse doesn't have a direct ROW_NUMBER equivalent in simple GROUP BY, 
-                // so we'll pick the top one per keyword in JS or use argMax
-                const brandMap = {};
-                brandResults.forEach(r => {
-                    if (!brandMap[r.keyword]) {
-                        brandMap[r.keyword] = r.brand_name;
-                    }
-                });
+                    // Collect keywords per SKU
+                    const skuKeywordsMap = {};
+                    const kwKeysProcessed = new Set();
+                    kwPosRes.forEach(r => {
+                        const key = `${r.sku}_${r.keyword}`;
+                        if (kwKeysProcessed.has(key)) return;
+                        kwKeysProcessed.add(key);
 
-                const terms = keywordMetrics.map(km => {
-                    const tOverall = Number(km.total_overall) || 1;
-                    const tOrganic = Number(km.total_organic) || 1;
-                    const tSpons = Number(km.total_spons) || 1;
+                        if (!skuKeywordsMap[r.sku]) skuKeywordsMap[r.sku] = [];
 
-                    const currOverallSos = Number(((Number(km.rb_overall) / tOverall) * 100).toFixed(1));
-                    const currOrganicSos = Number(((Number(km.rb_organic) / tOrganic) * 100).toFixed(1));
-                    const currPaidSos = Number(((Number(km.rb_sponsored) / tSpons) * 100).toFixed(1));
+                        const dist = skuKwDist[key];
+                        const adModes = getModes(dist.ad);
+                        const orgModes = getModes(dist.org);
+                        const ovModes = getModes(dist.overall);
 
-                    const prev = prevMap[km.keyword] || { overallSos: currOverallSos, organicSos: currOrganicSos, paidSos: currPaidSos };
+                        skuKeywordsMap[r.sku].push({
+                            keyword: r.keyword,
+                            adRankData: { rank: adModes, delta: 0 },
+                            organicData: { rank: orgModes, delta: 0 },
+                            overallData: { rank: ovModes, delta: 0 },
+                            paidData: { rank: adModes, delta: 0 }
+                        });
+                    });
 
-                    return {
-                        keyword: km.keyword,
-                        topBrand: brandMap[km.keyword] || 'N/A',
-                        overallSos: currOverallSos,
-                        overallDelta: Number((currOverallSos - prev.overallSos).toFixed(1)),
-                        overallPos: Number(Number(km.avg_overall_pos || 0).toFixed(1)),
-                        organicSos: currOrganicSos,
-                        organicDelta: Number((currOrganicSos - prev.organicSos).toFixed(1)),
-                        organicPos: Number(Number(km.avg_org_pos || 0).toFixed(1)),
-                        paidSos: currPaidSos,
-                        paidDelta: Number((currPaidSos - prev.paidSos).toFixed(1)),
-                        paidPos: Number(Number(km.avg_ad_pos || 0).toFixed(1)),
-                    };
-                });
+                    // Build final SKU terms
+                    terms = topSkusResult.map(s => {
+                        const dist = skuDist[s.sku] || { ad: {}, org: {}, overall: {} };
+
+                        return {
+                            skuName: s.sku,
+                            topBrand: skuContextMap[s.sku]?.topBrand || 'N/A',
+                            overallRank: getModes(dist.overall),
+                            overallDelta: 0,
+                            organicRank: getModes(dist.org),
+                            organicDelta: 0,
+                            paidRank: getModes(dist.ad),
+                            paidDelta: 0,
+                            keywords: skuKeywordsMap[s.sku] || [],
+                            _vol: skuContextMap[s.sku]?.vol || 0
+                        };
+                    });
+
+                    // Resort by volume DESC exactly as fetched
+                    terms.sort((a, b) => b._vol - a._vol);
+
+                } else {
+                    const limitClause = 'LIMIT 50';
+
+                    const metricsQuery = `
+                        SELECT 
+                            keyword,
+                            MAX(keyword_type) as type,
+                            sumIf(toInt32(overall), ${brandSOSCondition}) as rb_overall,
+                            sumIf(toInt32(organic), ${brandSOSCondition}) as rb_organic,
+                            sumIf(toInt32(spons), ${brandSOSCondition}) as rb_sponsored,
+                            sum(toInt32(overall)) as total_overall,
+                            sum(toInt32(organic)) as total_organic,
+                            sum(toInt32(spons)) as total_spons,
+                            sumIf(toInt32(overall), ${brandSOSCondition}) as brand_filter_overall,
+                            ROUND(AVG(POSITION), 1) as avg_overall_pos,
+                            ROUND(avgIf(POSITION, toInt32(organic) = 1 AND ${brandSOSCondition}), 1) as avg_org_pos,
+                            ROUND(avgIf(POSITION, toInt32(spons) = 1 AND ${brandSOSCondition}), 1) as avg_ad_pos
+                        FROM rb_kw_olap
+                        WHERE ${dateCondition}
+                          AND ${platformCondition}
+                          AND ${locationCondition}
+                          ${typeFilter}
+                          ${keywordFilter}
+                          ${categoryClause}
+                        GROUP BY keyword
+                        ${brand && brand !== 'All' ? 'HAVING brand_filter_overall > 0' : ''}
+                        ORDER BY (ifNull(toFloat64OrZero(toString(rb_overall)), 0) / nullIf(total_overall, 0)) DESC, total_overall DESC
+                        ${limitClause}
+                    `;
+
+                    const keywordMetrics = await queryClickHouse(metricsQuery);
+
+                    if (keywordMetrics.length === 0) return { terms: [] };
+
+                    const keywordList = keywordMetrics.map(k => `'${escapeCH(k.keyword)}'`).join(',');
+
+                    // 2b. Aggregate metrics for previous period (for Deltas)
+                    const prevMetricsQuery = `
+                        SELECT 
+                            keyword,
+                            sum(toInt32(overall)) as total_overall,
+                            sum(toInt32(organic)) as total_organic,
+                            sum(toInt32(spons)) as total_spons,
+                            sumIf(toInt32(overall), ${brandSOSCondition}) as rb_overall,
+                            sumIf(toInt32(organic), ${brandSOSCondition}) as rb_organic,
+                            sumIf(toInt32(spons), ${brandSOSCondition}) as rb_sponsored
+                        FROM rb_kw_olap
+                        WHERE ${prevDateCondition}
+                          AND ${platformCondition}
+                          AND ${locationCondition}
+                          AND keyword IN (${keywordList})
+                          AND POSITION < 11
+                          ${typeFilter}
+                          ${categoryClause}
+                        GROUP BY keyword
+                    `;
+                    const prevKeywordMetrics = await queryClickHouse(prevMetricsQuery);
+
+                    const prevMap = {};
+                    prevKeywordMetrics.forEach(p => {
+                        prevMap[p.keyword] = {
+                            overallSos: Number(((Number(p.rb_overall) / (Number(p.total_overall) || 1)) * 100).toFixed(1)),
+                            organicSos: Number(((Number(p.rb_organic) / (Number(p.total_organic) || 1)) * 100).toFixed(1)),
+                            paidSos: Number(((Number(p.rb_sponsored) / (Number(p.total_spons) || 1)) * 100).toFixed(1))
+                        };
+                    });
+
+                    // 3. Get leading brand for each keyword (the brand with most shelf share)
+                    const leadingBrandQuery = `
+                        SELECT 
+                            keyword,
+                            brand_name_th as brand_name,
+                            count() as brand_count
+                        FROM rb_kw_olap
+                        WHERE ${dateCondition}
+                          AND keyword IN (${keywordList})
+                          AND ${platformCondition}
+                          AND ${locationCondition}
+                          AND POSITION < 11
+                          ${typeFilter}
+                          AND brand_name_th IS NOT NULL 
+                          AND brand_name_th != ''
+                        GROUP BY keyword, brand_name_th
+                        ORDER BY keyword, brand_count DESC
+                    `;
+
+                    const brandResults = await queryClickHouse(leadingBrandQuery);
+
+                    const brandMap = {};
+                    brandResults.forEach(r => {
+                        if (!brandMap[r.keyword]) {
+                            brandMap[r.keyword] = r.brand_name;
+                        }
+                    });
+
+                    terms = keywordMetrics.map(km => {
+                        const tOverall = Number(km.total_overall) || 1;
+                        const tOrganic = Number(km.total_organic) || 1;
+                        const tSpons = Number(km.total_spons) || 1;
+
+                        const currOverallSos = Number(((Number(km.rb_overall) / tOverall) * 100).toFixed(1));
+                        const currOrganicSos = Number(((Number(km.rb_organic) / tOrganic) * 100).toFixed(1));
+                        const currPaidSos = Number(((Number(km.rb_sponsored) / tSpons) * 100).toFixed(1));
+
+                        const prev = prevMap[km.keyword] || { overallSos: currOverallSos, organicSos: currOrganicSos, paidSos: currPaidSos };
+
+                        return {
+                            keyword: km.keyword,
+                            topBrand: brandMap[km.keyword] || 'N/A',
+                            overallSos: currOverallSos,
+                            overallDelta: Number((currOverallSos - prev.overallSos).toFixed(1)),
+                            overallPos: Number(Number(km.avg_overall_pos || 0).toFixed(1)),
+                            organicSos: currOrganicSos,
+                            organicDelta: Number((currOrganicSos - prev.organicSos).toFixed(1)),
+                            organicPos: Number(Number(km.avg_org_pos || 0).toFixed(1)),
+                            paidSos: currPaidSos,
+                            paidDelta: Number((currPaidSos - prev.paidSos).toFixed(1)),
+                            paidPos: Number(Number(km.avg_ad_pos || 0).toFixed(1)),
+                        };
+                    });
+                }
 
                 return { terms };
             } catch (error) {
