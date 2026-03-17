@@ -3,11 +3,11 @@ name: Deploy to EC2
 on:
   push:
     branches:
-      - enhancement_01122025_backend_kenil
+      - Ashika_RCA
   workflow_dispatch:  # Allow manual trigger
 
 env:
-  APP_DIR: /Dashboard/powerbi-dashboard-fullstack
+  APP_DIR: /Demo/powerbi-dashboard-fullstack
 
 jobs:
   deploy:
