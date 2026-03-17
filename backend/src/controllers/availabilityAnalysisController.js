@@ -480,7 +480,7 @@ export const getSignalLabData = async (req, res) => {
             } = req.query;
 
             const isBrandGroup = groupBy === 'brand';
-            const groupCol = isBrandGroup ? 'Brand' : 'Item_Id';
+            const groupCol = isBrandGroup ? 'Brand' : 'Web_Pid';
 
             const pageNum = Number(page) || 1;
             const limitNum = Number(limit) || 5;
@@ -522,9 +522,9 @@ export const getSignalLabData = async (req, res) => {
 
                 if (platformFilter) {
                     if (Array.isArray(platformFilter)) {
-                        conditions.push(`Platform IN (${platformFilter.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                        conditions.push(`LOWER(Platform) IN (${platformFilter.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
                     } else {
-                        conditions.push(`Platform = '${escapeStr(platformFilter)}'`);
+                        conditions.push(`Platform ILIKE '${escapeStr(platformFilter)}'`);
                     }
                 }
 
@@ -536,22 +536,25 @@ export const getSignalLabData = async (req, res) => {
                     }
                 }
 
+                // Tier 1/2 filter for all Signal Lab queries
+                conditions.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
+
                 if (categoryFilter) {
                     const isMars = getCurrentDbName() === 'mars';
                     const catCol = isMars ? 'Category' : 'Product_type';
                     if (Array.isArray(categoryFilter)) {
-                        conditions.push(`${catCol} IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                        conditions.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
                     } else {
-                        conditions.push(`${catCol} = '${escapeStr(categoryFilter)}'`);
+                        conditions.push(`${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
                     }
                 }
 
                 if (!ignoreBrand) {
                     if (brandFilter) {
                         if (Array.isArray(brandFilter)) {
-                            conditions.push(`Brand IN (${brandFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+                            conditions.push(`LOWER(Brand) IN (${brandFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
                         } else {
-                            conditions.push(`Brand LIKE '%${escapeStr(brandFilter)}%'`);
+                            conditions.push(`Brand ILIKE '%${escapeStr(brandFilter)}%'`);
                         }
                     } else {
                         // For my brand only
@@ -638,7 +641,7 @@ export const getSignalLabData = async (req, res) => {
 
             /* ================= STEP 5: FULL AGGREGATION FOR SELECTED IDs ================= */
             const webPidsStr = webPids.map(p => `'${escapeStr(p)}'`).join(', ');
-            const filterCol = isBrandGroup ? 'Brand' : 'Item_Id';
+            const filterCol = isBrandGroup ? 'Brand' : 'Web_Pid';
 
             const aggQuery = `
                 SELECT
@@ -647,12 +650,13 @@ export const getSignalLabData = async (req, res) => {
                     any(Category) as Category,
                     any(Platform) as Platform,
                     ${isBrandGroup ? "'' as BrandCol" : "any(Brand) as Brand"},
+                    any(Comp_flag) as Comp_flag,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) AS totalNeno,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)) AS totalDeno,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) AS compNeno,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)) AS compDeno,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) AS avgInventory,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) AS totalQtySold,
+                    GREATEST(0, avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0))) AS avgInventory,
+                    GREATEST(0, sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0))) AS totalQtySold,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Selling_Price), 0.0)) AS avgPrice,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) AS avgRoas,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) AS totalClicks,
@@ -678,17 +682,107 @@ export const getSignalLabData = async (req, res) => {
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) as roas,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) as clicks,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) as impressions,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) as inventory,
+                    GREATEST(0, avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0))) as inventory,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) as citySales
                 FROM rb_pdp_olap
                 WHERE ${filterCol} IN (${webPidsStr})
                     AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
-                    AND Location IN (SELECT location FROM rb_location_darkstore WHERE tier = 'Tier 1')
+                    AND ${buildWhereClause(false, true).replace(/Brand ILIKE.*' OR /g, '').replace(/Brand ILIKE.*' AND /g, '') /* Simple way to inject other filters but not current brand */}
                 GROUP BY ${groupCol}, Location
             `;
-
             const cityRows = await queryClickHouse(cityAggQuery);
+
+            /* ================= STEP 6.5: FETCH SOS FOR VISIBILITY ================= */
+            let sosMap = {};
+            if (metricType === 'visibility' && webPids.length > 0) {
+                try {
+                    const brandOwnership = {}; // { brandName: isOurs }
+                    rows.forEach(r => {
+                        const b = isBrandGroup ? webPid : (r.Brand || r.BrandCol);
+                        if (b) brandOwnership[b.toLowerCase()] = (r.Comp_flag == 0);
+                    });
+                    const brandsForSOS = Object.keys(brandOwnership);
+
+                    if (brandsForSOS.length > 0) {
+                        let marketConds = [`DATE BETWEEN '${start}' AND '${end}'`];
+                        
+                        if (platformFilter) {
+                            const pList = Array.isArray(platformFilter) ? platformFilter : [platformFilter];
+                            marketConds.push(`LOWER(platform_name) IN (${pList.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                        }
+                        if (locationFilter) {
+                            const lList = Array.isArray(locationFilter) ? locationFilter : [locationFilter];
+                            marketConds.push(`LOWER(location_name) IN (${lList.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                        }
+
+                        const sosQuery = `
+                            SELECT
+                                brand_name_th as brand,
+                                flag,
+                                sum(toInt32(overall)) as brand_overall,
+                                sum(toInt32(spons)) as brand_ad,
+                                sum(toInt32(organic)) as brand_organic,
+                                sum(sum(toInt32(overall))) OVER () as market_overall,
+                                sum(sum(toInt32(spons))) OVER () as market_ad,
+                                sum(sum(toInt32(organic))) OVER () as market_organic
+                            FROM rb_kw_olap
+                            WHERE ${marketConds.join(' AND ')}
+                            GROUP BY brand_name_th, flag
+                        `;
+                        const sosResults = await queryClickHouse(sosQuery);
+                        
+                        // Aggregate Mars results (flag=1) and competitor results
+                        const processedSos = {
+                            ours: { overall: 0, ad: 0, organic: 0, marketOverall: 0, marketAd: 0, marketOrganic: 0 },
+                            competitors: {} // { brandLower: { ... } }
+                        };
+
+                        sosResults.forEach(r => {
+                            const marketOverall = r.market_overall || 0;
+                            const marketAd = r.market_ad || 0;
+                            const marketOrganic = r.market_organic || 0;
+
+                            if (r.flag == 1) {
+                                processedSos.ours.overall += Number(r.brand_overall || 0);
+                                processedSos.ours.ad += Number(r.brand_ad || 0);
+                                processedSos.ours.organic += Number(r.brand_organic || 0);
+                                processedSos.ours.marketOverall = marketOverall;
+                                processedSos.ours.marketAd = marketAd;
+                                processedSos.ours.marketOrganic = marketOrganic;
+                            } else {
+                                const bLower = r.brand.toLowerCase();
+                                processedSos.competitors[bLower] = {
+                                    overall: Number(r.brand_overall || 0),
+                                    ad: Number(r.brand_ad || 0),
+                                    organic: Number(r.brand_organic || 0),
+                                    marketOverall, marketAd, marketOrganic
+                                };
+                            }
+                        });
+
+                        brandsForSOS.forEach(brandName => {
+                            const bLower = brandName.toLowerCase();
+                            const isOurs = brandOwnership[bLower];
+                            const data = isOurs ? processedSos.ours : processedSos.competitors[bLower];
+                            
+                            if (data) {
+                                const overall = data.marketOverall > 0 ? (data.overall / data.marketOverall) * 100 : 0;
+                                const ad = data.marketAd > 0 ? (data.ad / data.marketAd) * 100 : 0;
+                                const organic = data.marketOrganic > 0 ? (data.organic / data.marketOrganic) * 100 : 0;
+                                
+                                sosMap[brandName] = {
+                                    overall: overall.toFixed(1) + '%',
+                                    ad: ad.toFixed(1) + '%',
+                                    organic: organic.toFixed(1) + '%'
+                                };
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('[SignalLab] SOS Fetch Error:', e);
+                }
+            }
 
             /* ================= STEP 7: RESPONSE MAPPING ================= */
             const skus = sortedRows.map((item, i) => {
@@ -717,7 +811,7 @@ export const getSignalLabData = async (req, res) => {
                     kpis = {
                         orders: qty > 1000 ? `${(qty / 1000).toFixed(1)}k` : qty.toString(),
                         asp: `₹${Math.round(price)}`,
-                        revenueShare: `${(Math.random() * 10).toFixed(1)}%`
+                        revenueShare: totalMarketSales > 0 ? `${(revenue / totalMarketSales * 100).toFixed(1)}%` : '0.0%'
                     };
                 } else if (metricType === 'availability') {
                     kpis = {
@@ -744,10 +838,12 @@ export const getSignalLabData = async (req, res) => {
                         atc: atc > 1000 ? `${(atc / 1000).toFixed(1)}k` : atc.toString()
                     };
                 } else if (metricType === 'visibility') {
+                    const brandKey = isBrandGroup ? item[groupCol] : item.Brand;
+                    const sosData = sosMap[brandKey] || { overall: '0.0%', ad: '0.0%', organic: '0.0%' };
                     kpis = {
-                        adSos: (Math.random() * 30).toFixed(1) + '%',
-                        organicSos: (Math.random() * 10).toFixed(1) + '%',
-                        overallSos: (Math.random() * 20).toFixed(1) + '%',
+                        adSos: sosData.ad,
+                        organicSos: sosData.organic,
+                        overallSos: sosData.overall,
                         weightedOsa: `${osa.toFixed(1)}%`
                     };
                 }
@@ -801,7 +897,7 @@ export const getSignalLabData = async (req, res) => {
 
                 // When grouping by brand, skuName = brand name, skuCode = '-', packSize = '-'
                 const displayName = isBrandGroup ? item[groupCol] : item.Product;
-                const displayCode = isBrandGroup ? '-' : (item.Item_Id || '-');
+                const displayCode = isBrandGroup ? '-' : (item.Web_Pid || item.web_pid || '-');
 
                 return {
                     id: `${metricType.substring(0, 3).toUpperCase()}-${(pageNum - 1) * limitNum + i + 1}`,
@@ -848,12 +944,12 @@ export const getCityDetailsForProduct = async (req, res) => {
             if (!webPid) throw new Error('webPid is required');
 
             const isBrandGroup = groupBy === 'brand';
-            const filterCol = isBrandGroup ? 'Brand' : 'Item_Id';
+            const filterCol = isBrandGroup ? 'Brand' : 'Web_Pid';
 
-            const start = startDate || '2025-12-01';
-            const end = endDate || '2025-12-31';
-            const compStart = compareStartDate || '2025-11-01';
-            const compEnd = compareEndDate || '2025-11-30';
+            const end = endDate || dayjs().format('YYYY-MM-DD');
+            const start = startDate || dayjs(end).subtract(30, 'day').format('YYYY-MM-DD');
+            const compEnd = compareEndDate || dayjs(start).subtract(1, 'day').format('YYYY-MM-DD');
+            const compStart = compareStartDate || dayjs(compEnd).subtract(dayjs(end).diff(dayjs(start), 'day'), 'day').format('YYYY-MM-DD');
 
             const processFilter = (val) => {
                 if (!val || val === 'All') return null;
@@ -867,8 +963,11 @@ export const getCityDetailsForProduct = async (req, res) => {
             const categoryFilter = processFilter(req.query.category);
 
             const buildConditions = (includeCompDates = false) => {
-                // ADD TIER 1 FILTER USING SUBQUERY
-                const conds = [`${filterCol} = '${escapeStr(webPid)}'`, `Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`];
+                const conds = [`${filterCol} = '${escapeStr(webPid)}'`];
+                
+                // Tier 1/2 filter for all Signal Lab queries
+                conds.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
+
                 if (includeCompDates) {
                     conds.push(`(toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')`);
                 } else {
@@ -876,53 +975,74 @@ export const getCityDetailsForProduct = async (req, res) => {
                 }
 
                 if (platformFilter) {
-                    if (Array.isArray(platformFilter)) conds.push(`Platform IN (${platformFilter.map(p => `'${escapeStr(p)}'`).join(', ')})`);
-                    else conds.push(`Platform = '${escapeStr(platformFilter)}'`);
+                    if (Array.isArray(platformFilter)) conds.push(`LOWER(Platform) IN (${platformFilter.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`Platform ILIKE '${escapeStr(platformFilter)}'`);
                 }
                 if (locationFilter) {
                     if (Array.isArray(locationFilter)) conds.push(`Location IN (${locationFilter.map(l => `'${escapeStr(l)}'`).join(', ')})`);
                     else conds.push(`Location = '${escapeStr(locationFilter)}'`);
                 }
                 if (brandFilter) {
-                    if (Array.isArray(brandFilter)) conds.push(`Brand IN (${brandFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
-                    else conds.push(`Brand LIKE '%${escapeStr(brandFilter)}%'`);
+                    if (Array.isArray(brandFilter)) conds.push(`LOWER(Brand) IN (${brandFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`Brand ILIKE '%${escapeStr(brandFilter)}%'`);
                 }
                 if (categoryFilter) {
                     const isMars = getCurrentDbName() === 'mars';
-                    const catCol = isMars ? 'Product_type' : 'Category';
-                    if (Array.isArray(categoryFilter)) conds.push(`${catCol} IN (${categoryFilter.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-                    else conds.push(`${catCol} = '${escapeStr(categoryFilter)}'`);
+                    const catCol = isMars ? 'Category' : 'Product_type';
+                    if (Array.isArray(categoryFilter)) conds.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
                 }
                 return conds.join(' AND ');
             };
 
-            // Main query with all metrics
+            // Main query with all metrics - Aggregating by city and date first to get correct city-level SOH
             const query = `
+                WITH daily_city_stats AS (
+                    SELECT 
+                        Location,
+                        DATE,
+                        any(Brand) as brand_name,
+                        any(Comp_flag) as comp_flag,
+                        GREATEST(0, sum(ifNull(toFloat64OrZero(toString(Inventory)), 0.0))) as daily_inventory,
+                        GREATEST(0, sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0.0))) as daily_qty_sold,
+                        sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0.0)) as daily_neno,
+                        sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0.0)) as daily_deno,
+                        sum(ifNull(toFloat64OrZero(toString(Sales)), 0.0)) as daily_sales,
+                        sum(ifNull(toFloat64OrZero(toString(MRP)), 0.0)) as daily_mrp,
+                        sum(ifNull(toFloat64OrZero(toString(Selling_Price)), 0.0)) as daily_sp,
+                        countIf(toFloat64(deno_osa) > 0) as listed_count,
+                        count() as total_rows
+                    FROM rb_pdp_olap
+                    WHERE ${buildConditions(true)}
+                    GROUP BY Location, DATE
+                )
                 SELECT
                     Location as city,
-                    any(Brand) as brand_name,
+                    any(brand_name) as brand_name,
+                    any(comp_flag) as comp_flag,
                     -- OSA metrics
-                    (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
-                    (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS compOsa,
-                    -- Sales/Offtake metrics
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS offtake,
-                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS compOfftake,
+                    (sumIf(daily_neno, toDate(DATE) BETWEEN '${start}' AND '${end}') / nullIf(sumIf(daily_deno, toDate(DATE) BETWEEN '${start}' AND '${end}'), 0)) * 100 AS osa,
+                    (sumIf(daily_neno, toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}') / nullIf(sumIf(daily_deno, toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}'), 0)) * 100 AS compOsa,
+                    -- Sales metrics
+                    sumIf(daily_sales, toDate(DATE) BETWEEN '${start}' AND '${end}') AS offtake,
+                    sumIf(daily_sales, toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}') AS compOfftake,
+                    -- Inventory metrics (Latest daily city-total inventory)
+                    argMax(daily_inventory, DATE) AS soh,
+                    sumIf(daily_qty_sold, toDate(DATE) BETWEEN '${start}' AND '${end}') AS qty_sold,
                     -- Listing %
-                    (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}' AND toFloat64(deno_osa) > 0, 1, 0)) / nullIf(count(if(toDate(DATE) BETWEEN '${start}' AND '${end}', 1, null)), 0)) * 100 AS listing_pct,
-                    -- Discount calculation
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}' AND toFloat64(MRP) > 0, 
-                        (toFloat64(MRP) - toFloat64(Selling_Price)) / toFloat64(MRP) * 100, 0.0)) AS discount,
-                    -- Category share info
-                    count() as rowCount
-                FROM rb_pdp_olap
-                WHERE ${buildConditions(true)}
+                    (sumIf(listed_count, toDate(DATE) BETWEEN '${start}' AND '${end}') / nullIf(sumIf(total_rows, toDate(DATE) BETWEEN '${start}' AND '${end}'), 0)) * 100 AS listing_pct,
+                    -- Discount (Average weighted by total count if needed, but simple avg on daily sums is usually fine)
+                    avgIf((daily_mrp - daily_sp) / nullIf(daily_mrp, 0) * 100, toDate(DATE) BETWEEN '${start}' AND '${end}' AND daily_mrp > 0) AS discount
+                FROM daily_city_stats
                 GROUP BY Location
                 ORDER BY abs(osa - compOsa) DESC
             `;
 
-            console.log(`[CityDetails] webPid=${webPid} query=`, query.replace(/\s+/g, ' '));
-
             const rows = await queryClickHouse(query);
+
+            const startD = dayjs(start);
+            const endD = dayjs(end);
+            const daysInPeriod = Math.max(1, endD.diff(startD, 'day') + 1);
 
             const cities = rows.map(row => {
                 const osa = Number(row.osa || 0);
@@ -936,25 +1056,34 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const discount = Number(row.discount || 0);
                 const listingPct = Number(row.listing_pct || 0);
 
+                const soh = Number(row.soh || 0);
+                const qtySold = Number(row.qty_sold || 0);
+                const drr = qtySold / daysInPeriod;
+                const doi = drr > 0 ? soh / drr : 0;
+
                 return {
                     city: row.city,
                     brand_name: row.brand_name,
+                    comp_flag: row.comp_flag,
                     listingPct: listingPct,
-                    estOfftake: offtake / 100000, // Convert to lacs
+                    estOfftake: offtake / 100000, 
                     estOfftakeChange: offtakeChange,
                     wtOsa: osa,
                     wtOsaChange: osaChange,
-                    overallSos: 0, // Placeholder, will fill below
-                    adSos: 0, // Placeholder, will fill below
+                    overallSos: 0,
+                    adSos: 0,
+                    organicSos: 0,
                     wtDisc: discount,
-                    brand_name: row.brand_name
+                    soh: soh,
+                    doi: doi
                 };
-            })
-                // Filter by 5% OSA threshold: drainers show cities with OSA drop > 5%, gainers show cities with OSA rise > 5%
-                .filter(c => signalType === 'drainer' ? c.wtOsaChange < -5 : c.wtOsaChange > 5)
-            // Sort: drainers by biggest drop first, gainers by biggest rise first
+            });
+
+            // FIXED: Use same threshold as card view (0.5 for brands, 2 for SKUs)
+            const dynamicThreshold = isBrandGroup ? 0.5 : 2;
+
             let finalCities = cities
-                .filter(c => signalType === 'drainer' ? c.wtOsaChange < -5 : c.wtOsaChange > 5)
+                .filter(c => signalType === 'drainer' ? c.wtOsaChange < -dynamicThreshold : c.wtOsaChange > dynamicThreshold)
                 .sort((a, b) => signalType === 'drainer' ? a.wtOsaChange - b.wtOsaChange : b.wtOsaChange - a.wtOsaChange);
 
             // Fetch SOS metrics from rb_kw_olap for these cities
@@ -962,39 +1091,71 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const uniqueCities = [...new Set(finalCities.map(c => c.city))];
                 const citiesStr = uniqueCities.map(c => `'${escapeStr(c)}'`).join(', ');
 
-                // Extract brand name - in brand mode it's the webPid itself, otherwise any(Brand)
+                // Check ownership - if most are ours, we use flag=1
+                const isOurs = finalCities[0]?.comp_flag == 0;
                 const mainBrand = isBrandGroup ? webPid : finalCities[0]?.brand_name;
 
                 if (mainBrand) {
+                    let marketConds = [
+                        `DATE BETWEEN '${start}' AND '${end}'`,
+                        `location_name IN (${citiesStr})`
+                    ];
+
+                    if (platformFilter) {
+                        const pList = Array.isArray(platformFilter) ? platformFilter : [platformFilter];
+                        marketConds.push(`LOWER(platform_name) IN (${pList.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                    }
+
+                    // Query to get brand counts and city market totals
                     const sosQuery = `
                         SELECT
                             location_name as city,
-                            (sumIf(toInt32(overall), flag = 1) / nullIf(sum(toInt32(overall)), 0)) * 100 AS overall_sos,
-                            (sumIf(toInt32(spons), flag = 1) / nullIf(sum(toInt32(spons)), 0)) * 100 AS ad_sos,
-                            (sumIf(toInt32(organic), flag = 1) / nullIf(sum(toInt32(organic)), 0)) * 100 AS organic_sos
+                            brand_name_th as brand,
+                            flag,
+                            sum(toInt32(overall)) as brand_overall,
+                            sum(toInt32(spons)) as brand_ad,
+                            sum(toInt32(organic)) as brand_organic,
+                            sum(sum(toInt32(overall))) OVER (PARTITION BY location_name) as city_market_overall,
+                            sum(sum(toInt32(spons))) OVER (PARTITION BY location_name) as city_market_ad,
+                            sum(sum(toInt32(organic))) OVER (PARTITION BY location_name) as city_market_organic
                         FROM rb_kw_olap
-                        WHERE DATE BETWEEN '${start}' AND '${end}'
-                          AND location_name IN (${citiesStr})
-                        GROUP BY location_name
+                        WHERE ${marketConds.join(' AND ')}
+                        GROUP BY location_name, brand_name_th, flag
                     `;
 
                     try {
-                        const sosRows = await queryClickHouse(sosQuery);
-                        const sosMap = {};
-                        sosRows.forEach(row => {
-                            sosMap[row.city] = {
-                                overallSos: Number(row.overall_sos || 0),
-                                adSos: Number(row.ad_sos || 0),
-                                organicSos: Number(row.organic_sos || 0)
-                            };
+                        const sosResults = await queryClickHouse(sosQuery);
+                        const targetBrandLower = mainBrand.toLowerCase();
+                        const sosLookup = {};
+
+                        sosResults.forEach(r => {
+                            const cKey = r.city.toLowerCase();
+                            if (!sosLookup[cKey]) sosLookup[cKey] = { brand_overall: 0, brand_ad: 0, brand_organic: 0, market_overall: r.city_market_overall, market_ad: r.city_market_ad, market_organic: r.city_market_organic };
+
+                            const match = isOurs ? (r.flag == 1) : (r.brand.toLowerCase() === targetBrandLower);
+                            if (match) {
+                                sosLookup[cKey].brand_overall += Number(r.brand_overall || 0);
+                                sosLookup[cKey].brand_ad += Number(r.brand_ad || 0);
+                                sosLookup[cKey].brand_organic += Number(r.brand_organic || 0);
+                            }
                         });
 
-                        finalCities = finalCities.map(c => ({
-                            ...c,
-                            overallSos: sosMap[c.city]?.overallSos || 0,
-                            adSos: sosMap[c.city]?.adSos || 0,
-                            organicSos: sosMap[c.city]?.organicSos || 0
-                        }));
+                        finalCities = finalCities.map(c => {
+                            const data = sosLookup[c.city.toLowerCase()];
+                            if (data) {
+                                const overallSos = data.market_overall > 0 ? (data.brand_overall / data.market_overall) * 100 : 0;
+                                const adSos = data.market_ad > 0 ? (data.brand_ad / data.market_ad) * 100 : 0;
+                                const organicSos = data.market_organic > 0 ? (data.brand_organic / data.market_organic) * 100 : 0;
+                                
+                                return {
+                                    ...c,
+                                    overallSos: parseFloat(overallSos.toFixed(1)),
+                                    adSos: parseFloat(adSos.toFixed(1)),
+                                    organicSos: parseFloat(organicSos.toFixed(1))
+                                };
+                            }
+                            return c;
+                        });
                     } catch (e) {
                         console.error('[CityDetails] SOS fetching error:', e);
                     }
@@ -1006,7 +1167,6 @@ export const getCityDetailsForProduct = async (req, res) => {
 
         res.json(data);
     } catch (err) {
-        console.error('🔥 CITY DETAILS ERROR:', err);
         res.status(500).json({ error: 'Internal Server Error', message: err.message });
     }
 };

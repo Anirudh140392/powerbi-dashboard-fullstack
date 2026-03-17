@@ -83,6 +83,8 @@ export default function CityDetailedTable({ sku, onClose }) {
                         overallSos: `${(c.overallSos || 0).toFixed(1)}%`,
                         organicSos: `${(c.organicSos || 0).toFixed(1)}%`,
                         adSos: `${(c.adSos || 0).toFixed(1)}%`,
+                        soh: (c.soh || 0).toFixed(1),
+                        doi: (c.doi || 0).toFixed(1),
                         wtDisc: `${(c.wtDisc || 0).toFixed(1)}%`,
                         discChange: `+0.0%`,
                     }));
@@ -167,9 +169,18 @@ export default function CityDetailedTable({ sku, onClose }) {
                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider sticky top-0 z-10 shadow-sm">
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">City</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. OSA %</th>
-                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Overall Sos</th>
-                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Organic Sos</th>
-                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Ad Sos</th>
+                                    {sku.metricType === 'visibility' ? (
+                                        <>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">Overall Sos</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">Organic Sos</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">Ad Sos</th>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">SOH</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">DOI</th>
+                                        </>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
@@ -201,20 +212,37 @@ export default function CityDetailedTable({ sku, onClose }) {
                                             </div>
                                         </td>
 
-                                        {/* Overall Sos */}
-                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                            <div className="flex justify-center w-full text-center">{row.overallSos}</div>
-                                        </td>
+                                        {/* Metrics based on Type */}
+                                        {sku.metricType === 'visibility' ? (
+                                            <>
+                                                {/* Overall Sos */}
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.overallSos}</div>
+                                                </td>
 
-                                        {/* Organic Sos */}
-                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                            <div className="flex justify-center w-full text-center">{row.organicSos}</div>
-                                        </td>
+                                                {/* Organic Sos */}
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.organicSos}</div>
+                                                </td>
 
-                                        {/* Ad Sos */}
-                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                            <div className="flex justify-center w-full text-center">{row.adSos}</div>
-                                        </td>
+                                                {/* Ad Sos */}
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.adSos}</div>
+                                                </td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {/* SOH */}
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.soh}</div>
+                                                </td>
+
+                                                {/* DOI */}
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.doi}</div>
+                                                </td>
+                                            </>
+                                        )}
 
 
                                     </tr>
