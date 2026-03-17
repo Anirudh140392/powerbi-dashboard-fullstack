@@ -71,11 +71,9 @@ jobs:
             git checkout ${{ github.ref_name }}
             git reset --hard origin/${{ github.ref_name }}
             
-            echo "🛑 Stopping existing containers..."
-            sudo docker compose down --remove-orphans || true
-            
-            echo "🧹 Cleaning up old images..."
-            sudo docker image prune -f || true
+            echo "🛑 Stopping and removing specific containers..."
+            sudo docker stop backend frontend || true
+            sudo docker rm backend frontend || true
             
             echo "🔨 Building and starting containers..."
             sudo docker compose build --no-cache
