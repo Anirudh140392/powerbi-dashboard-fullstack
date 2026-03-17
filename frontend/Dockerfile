@@ -20,12 +20,12 @@ COPY --from=build-stage /app/dist /usr/share/nginx/html
 
 # Create nginx config with API proxy to backend
 RUN echo 'server { \
-    listen 9500; \
+    listen 4500; \
     root /usr/share/nginx/html; \
     index index.html; \
     \
     location /api/ { \
-    proxy_pass http://backend:5000/api/; \
+    proxy_pass http://backend:4000/api/; \
     proxy_http_version 1.1; \
     proxy_set_header Host $host; \
     proxy_set_header X-Real-IP $remote_addr; \
@@ -41,7 +41,7 @@ RUN echo 'server { \
     }' > /etc/nginx/conf.d/default.conf
 
 # Expose port
-EXPOSE 9500
+EXPOSE 4500
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
