@@ -13,6 +13,7 @@ async function checkBlinkit() {
         `);
         console.log('Results (Categories):', JSON.stringify(results, null, 2));
 
+
         console.log('--- Checking Product_types for Blinkit in Mar 1-11, 2026 ---');
         const ptResults = await queryClickHouse(`
             SELECT Product_type, count() as count
