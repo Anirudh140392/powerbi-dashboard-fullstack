@@ -87,7 +87,7 @@ jobs:
             sudo docker compose ps
             
             echo "✅ Health check..."
-            curl -sf http://localhost/health || { echo "❌ Health check failed"; exit 1; }
+            curl -sf http://localhost/project/health || { echo "❌ Health check failed"; exit 1; }
             
             echo "🎉 Deployment successful!"
           ENDSSH
