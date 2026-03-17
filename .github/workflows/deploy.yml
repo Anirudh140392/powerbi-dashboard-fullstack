@@ -95,6 +95,7 @@ jobs:
         if: always()
         run: rm -f ~/.ssh/deploy_key
 
+
       - name: Deployment Summary
         run: |
           echo "## Deployment Summary 🚀" >> $GITHUB_STEP_SUMMARY
