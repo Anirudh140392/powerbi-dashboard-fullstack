@@ -42,13 +42,13 @@ const CustomHeaderDropdown = ({
             return;
         }
 
-        if (newList.length === options.length) {
-            onChange("All");
-        } else if (newList.length === 0) {
-            // When nothing is selected, pass an empty array to deselect all
-            onChange([]);
+        if (newList.length === 0) {
+            // When nothing is selected, pass "All" so the backend doesn't fail with empty list
+            onChange(["All"]);
+        } else if (newList.length === options.length) {
+            onChange(["All"]); // Or "All" string, let's pass array
         } else {
-            onChange(newList.length === 1 ? newList[0] : newList);
+            onChange(newList);
         }
     };
 
@@ -60,10 +60,15 @@ const CustomHeaderDropdown = ({
 
         let newList;
         if (currentSelected.includes(option)) {
-            newList = currentSelected.filter((item) => item !== option);
+            newList = currentSelected.filter((item) => item !== option && item !== "All");
         } else {
-            newList = [...currentSelected, option];
+            // If they clicked an option, remove "All" from the list
+            newList = currentSelected.filter((item) => item !== "All");
+            newList.push(option);
         }
+
+
+
         emitChange(newList);
     };
 

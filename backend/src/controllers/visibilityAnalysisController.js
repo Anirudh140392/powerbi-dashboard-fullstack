@@ -165,7 +165,8 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
             category: req.query.category || 'All',
             filter: req.query.filter || 'All', // All, Branded, Competitor, Generic
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            viewMode: req.query.viewMode || 'keyword'
         };
         console.log('\n========== VISIBILITY TOP SEARCH TERMS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
