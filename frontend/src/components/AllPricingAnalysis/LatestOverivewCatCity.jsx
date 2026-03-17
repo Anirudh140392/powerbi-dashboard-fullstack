@@ -10,9 +10,16 @@ import {
     MapPin,
     SlidersHorizontal,
     LineChart,
+    LayoutGrid,
+    Package,
+    ChevronLeft,
+    ChevronRight,
+    ArrowLeft,
+    ChevronDown,
 } from 'lucide-react'
 import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
+import { formatNumber } from '../../utils/formatters'
 import { cn } from '../../lib/utils'
 
 /* --- HELPERS --- */
@@ -27,9 +34,9 @@ const copy = (title, value) => {
 
 const cardSize = {
     minW: 'min-w-[100px] sm:min-w-[125px]',
-    py: 'py-2.5 sm:py-3',
-    text: 'text-lg sm:text-xl',
-    delta: 'text-[13px] sm:text-[14px]'
+    py: 'py-2 sm:py-3',
+    text: 'text-[13px]',
+    delta: 'text-[10px] sm:text-[11px]'
 };
 
 const kpiLabels = {
@@ -39,12 +46,7 @@ const kpiLabels = {
     offtake: 'Offtake',
 };
 
-const CITY_TIERS = {
-    T1: ['mumbai', 'delhi', 'bengaluru', 'hyderabad', 'ahmedabad', 'kolkata', 'chennai', 'pune', 'gurugram', 'noida', 'faridabad', 'ghaziabad'],
-    T2: ['lucknow', 'jaipur', 'surat', 'nagpur', 'indore', 'bhopal', 'chandigarh', 'patna', 'kochi', 'coimbatore', 'rajkot', 'ludhiana', 'jalandhar', 'guwahati', 'bhubaneswar', 'nashik'],
-    T3: ['agra', 'meerut', 'kanpur', 'varanasi', 'vijayawada', 'visakhapatnam', 'jodhpur', 'ranchi', 'amritsar', 'dehradun', 'hubballi', 'madurai', 'warangal', 'gwalior', 'prayagraj', 'bareilly'],
-    T4: ['ajmer', 'alwar', 'asansol', 'bathinda', 'bhagalpur', 'bhiwadi', 'hapur', 'haridwar', 'hisar', 'jhansi', 'kanchipuram', 'karnal', 'khammam', 'kota', 'kottayam', 'mathura', 'muzaffarpur', 'panchkula', 'patiala', 'pondicherry', 'rewari', 'roorkee', 'rudrapur', 'saharanpur', 'shillong', 'sonipat', 'udaipur', 'ujjain', 'vapi', 'vellore', 'vizianagaram', 'zirakpur', 'durg', 'eluru', 'gorakhpur', 'guntur']
-};
+
 
 const LatestOverivewCatCity = ({
     onViewTrends = () => { },
@@ -75,8 +77,7 @@ const LatestOverivewCatCity = ({
     } = useContext(FilterContext);
 
     // ✅ Dimension + Tier State
-    const [dimension, setDimension] = useState('category')
-    const [selectedTier, setSelectedTier] = useState('T1')
+    const [dimension, setDimension] = useState('platform')
     const [glanceKpis, setGlanceKpis] = useState(['discount', 'rpi', 'asp', 'offtake'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
@@ -91,8 +92,24 @@ const LatestOverivewCatCity = ({
         filterLogic: 'OR',
     })
 
+    const [apiData, setApiData] = useState([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [currentPage, setCurrentPage] = useState(1)
+    const [expandedSku, setExpandedSku] = useState(null)
+    const [expandedCityData, setExpandedCityData] = useState({})
+    const [isCityLoading, setIsCityLoading] = useState(false)
+    const itemsPerPage = 10;
+
     // ✅ Entity list — dynamically built from FilterContext
     const dimensionData = useMemo(() => ({
+        platform: {
+            label: 'Platform',
+            icon: LayoutGrid,
+            entities: (contextPlatforms || []).filter(p => p && p !== 'All').map(p => ({
+                key: p,
+                name: p,
+            })),
+        },
         category: {
             label: 'Category',
             icon: Grid3X3,
@@ -101,15 +118,12 @@ const LatestOverivewCatCity = ({
                 name: c,
             })),
         },
-        city: {
-            label: 'City',
-            icon: MapPin,
-            entities: (contextLocations || []).filter(l => l && l !== 'All').map(l => ({
-                key: l.toLowerCase().replace(/\s+/g, '_'),
-                name: l,
-            })),
+        sku: {
+            label: 'Sku',
+            icon: Package,
+            entities: [], // Will be filled by API data
         },
-    }), [contextCategories, contextLocations]);
+    }), [contextPlatforms, contextCategories]);
 
     // Dynamic options for AdvancedFilterModal dropdowns
     const brandOptions = useMemo(() =>
@@ -121,11 +135,8 @@ const LatestOverivewCatCity = ({
         [contextPlatforms]
     );
 
-
-    const [apiData, setApiData] = useState([])
-    const [isLoading, setIsLoading] = useState(true)
-    const skuOptions = useMemo(() =>
-        apiData.map(item => ({ id: item.key, name: item.name })).filter(s => s.name),
+    const skuOptions = useMemo(() => 
+        apiData.map(item => ({ id: item.key, name: item.name })), 
         [apiData]
     );
 
@@ -161,6 +172,7 @@ const LatestOverivewCatCity = ({
                 if (ch) params.append('channel', ch);
 
                 params.append('dimension', dimension);
+                // if (drilldownSku) params.append('sku', drilldownSku); // No longer needed for main list
                 
                 // Date overrides from advanced filters
                 const start = advancedFilters.dateFrom || (typeof timeStart === 'string' ? timeStart : timeStart?.format('YYYY-MM-DD'));
@@ -186,10 +198,93 @@ const LatestOverivewCatCity = ({
         return () => { isMounted = false; };
     }, [dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
 
+    // Reset pagination when dimension or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [dimension, advancedFilters, selectedBrand, selectedCategory, globalPlatform, expandedSku]);
+
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
         setGlanceKpis(filters.kpis)
     }
+
+    const handleToggleExpand = async (skuName) => {
+        if (expandedSku === skuName) {
+            setExpandedSku(null);
+            return;
+        }
+
+        setExpandedSku(skuName);
+        if (expandedCityData[skuName]) return;
+
+        setIsCityLoading(true);
+        try {
+            const params = new URLSearchParams();
+            
+            // Re-use logic for filters but target 'city' dimension for specific SKU
+            const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : globalPlatform); 
+            if (pl) params.append('platform', pl);
+            
+            const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
+            if (br) params.append('brand', br);
+            
+            const ca = toParam(advancedFilters.categories?.length > 0 ? advancedFilters.categories : selectedCategory); 
+            if (ca) params.append('category', ca);
+            
+            const ch = toParam(selectedChannel); 
+            if (ch) params.append('channel', ch);
+
+            params.append('dimension', 'city');
+            params.append('sku', skuName);
+            
+            const start = advancedFilters.dateFrom || (typeof timeStart === 'string' ? timeStart : timeStart?.format('YYYY-MM-DD'));
+            const end = advancedFilters.dateTo || (typeof timeEnd === 'string' ? timeEnd : timeEnd?.format('YYYY-MM-DD'));
+            
+            if (start) params.append('startDate', start);
+            if (end) params.append('endDate', end);
+
+            const url = `/pricing-analysis/dimension-overview?${params.toString()}`;
+            const response = await axiosInstance.get(url);
+            
+            if (response.data?.success) {
+                // Format the city data like we do for entities
+                const formattedCities = response.data.data.map(city => {
+                    const formattedData = {};
+                    kpis.forEach(kpi => {
+                        const cell = city.data[kpi.key];
+                        if (cell) {
+                            let valStr = cell.value;
+                            if (kpi.key === 'discount') valStr = `${cell.value.toFixed(1)}%`;
+                            else if (kpi.key === 'asp') valStr = `₹${cell.value.toFixed(2)}`;
+                            else if (kpi.key === 'rpi') valStr = `${cell.value.toFixed(1)}`;
+                            else if (kpi.key === 'offtake') {
+                                valStr = formatNumber(cell.value, 1);
+                            } else valStr = cell.value.toFixed(2);
+
+                            formattedData[kpi.key] = {
+                                value: valStr,
+                                delta: { value: `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`, dir: cell.dir }
+                            };
+                        } else {
+                            formattedData[kpi.key] = { value: '-', delta: { value: '-', dir: 'neutral' } };
+                        }
+                    });
+                    return { ...city, data: formattedData };
+                });
+                setExpandedCityData(prev => ({ ...prev, [skuName]: formattedCities }));
+            }
+        } catch (error) {
+            console.error("[CategoryOverview] Expansion failed:", error);
+        } finally {
+            setIsCityLoading(false);
+        }
+    };
+
+    const toParam = (val) => {
+        if (!val) return null;
+        if (Array.isArray(val)) return val.length > 0 ? val.join(',') : null;
+        return val;
+    };
 
     const activeDimensionFilters = [
         advancedFilters.brands?.length > 0,
@@ -208,18 +303,8 @@ const LatestOverivewCatCity = ({
         let list = [...apiData];
 
         // Apply dimension-specific advanced filters locally
-        if (dimension === 'category' && advancedFilters.skus?.length > 0) {
+        if ((dimension === 'category' || dimension === 'platform' || dimension === 'sku') && advancedFilters.skus?.length > 0) {
             list = list.filter(e => advancedFilters.skus.includes(e.key));
-        }
-        if (dimension === 'city') {
-            // Apply Tier filter first (using lowercase for robust comparison)
-            const tierCities = CITY_TIERS[selectedTier] || [];
-            list = list.filter(e => e.key && tierCities.includes(e.key.toLowerCase()));
-
-            // Then apply advanced filters if any (City Filter uses 'skus' key in modal)
-            if (advancedFilters.skus?.length > 0) {
-                list = list.filter(e => advancedFilters.skus.includes(e.key));
-            }
         }
 
         // Format to match the component's expected display formatting
@@ -239,10 +324,8 @@ const LatestOverivewCatCity = ({
                         valStr = `${cell.value.toFixed(1)}`;
                         deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%`;
                     } else if (kpi.key === 'offtake') {
-                        // Large number formatting for offtake
-                        if (cell.value >= 1000000) valStr = `${(cell.value / 1000000).toFixed(1)}M`;
-                        else if (cell.value >= 1000) valStr = `${(cell.value / 1000).toFixed(1)}K`;
-                        else valStr = cell.value.toFixed(0);
+                        // Large number formatting for offtake using centralized formatter
+                        valStr = formatNumber(cell.value, 1);
                     } else {
                         valStr = cell.value.toFixed(2);
                     }
@@ -260,7 +343,14 @@ const LatestOverivewCatCity = ({
                 data: formattedData
             };
         });
-    }, [apiData, dimension, advancedFilters, selectedTier, kpis]);
+    }, [apiData, dimension, advancedFilters, kpis]);
+
+    const paginatedEntities = useMemo(() => {
+        if (dimension !== 'sku') return entities;
+        return entities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    }, [entities, dimension, currentPage, itemsPerPage]);
+
+    const totalPages = Math.ceil(entities.length / itemsPerPage);
 
     const SectionWrapper = ({
         title,
@@ -284,9 +374,11 @@ const LatestOverivewCatCity = ({
                             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                                 <Icon size={20} className="text-blue-600" />
                             </div>
-                            <span className="text-[20px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                                {title}
-                            </span>
+                            <div className="flex flex-col">
+                                <span className="text-[20px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                    {title}
+                                </span>
+                            </div>
                         </div>
 
                         {headerRight && (
@@ -320,7 +412,10 @@ const LatestOverivewCatCity = ({
                                         return (
                                             <button
                                                 key={key}
-                                                onClick={() => setDimension(key)}
+                                                onClick={() => {
+                                                    setDimension(key);
+                                                    setExpandedSku(null);
+                                                }}
                                                 className={cn(
                                                     'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[14px] font-bold transition-all',
                                                     isSelected
@@ -335,30 +430,6 @@ const LatestOverivewCatCity = ({
                                         )
                                     })}
                                 </div>
-
-                                {/* ✅ T1-T4 Tier Toggle */}
-                                {dimension === 'city' && (
-                                    <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2 duration-300">
-                                        {Object.keys(CITY_TIERS).map((tier) => {
-                                            const isSelected = selectedTier === tier
-                                            return (
-                                                <button
-                                                    key={tier}
-                                                    onClick={() => setSelectedTier(tier)}
-                                                    className={cn(
-                                                        'px-3.5 py-1.5 rounded-xl text-[14px] font-bold transition-all',
-                                                        isSelected
-                                                            ? 'bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)]'
-                                                            : 'text-slate-500 hover:text-blue-600'
-                                                    )}
-                                                    style={{ fontFamily: 'Roboto, sans-serif' }}
-                                                >
-                                                    {tier}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                )}
                             </div>
 
                             {/* Filters */}
@@ -439,41 +510,51 @@ const LatestOverivewCatCity = ({
                                         <Grid3X3 size={32} className="text-slate-300 mb-2" />
                                         <p className="text-sm font-medium">No data available for the selected filters.</p>
                                     </div>
-                                ) : entities.map((e) => (
-                                    <motion.div
-                                        key={e.key}
-                                        className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50/50 transition-colors group"
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                    >
-                                        {/* ✅ Entity TEXT ONLY (no logo) */}
-                                        <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
-                                            <span
-                                                className="text-[15px] font-medium text-slate-700 flex-1 whitespace-nowrap"
-                                                style={{ fontFamily: 'Roboto, sans-serif' }}
-                                            >
-                                                {e.name}
-                                            </span>
-
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    onClick={(event) => {
-                                                        event.stopPropagation();
-                                                        onViewTrends(e.name, currentDimension.label, dimension);
-                                                    }}
-                                                    className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
-                                                    title="View Trends"
-                                                >
-                                                    <LineChart size={14} />
-                                                </button>
-                                                <div
-                                                    className="p-1 text-slate-300 cursor-default"
-                                                    title="Map Analysis (Coming Soon)"
-                                                >
-                                                    <MapPin size={14} />
+                                ) : paginatedEntities.map((e) => (
+                                    <div key={e.key} className="space-y-1">
+                                        <motion.div
+                                            className={cn(
+                                                "flex items-center gap-2 p-2 rounded-xl transition-all group cursor-pointer",
+                                                expandedSku === e.key ? "bg-slate-50 shadow-sm" : "hover:bg-slate-50/50"
+                                            )}
+                                            onClick={() => dimension === 'sku' && handleToggleExpand(e.key)}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                        >
+                                            <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                                {dimension === 'sku' && (
+                                                    <div className="flex-shrink-0 p-1 rounded-lg bg-slate-50 text-slate-400 group-hover:text-blue-600 transition-colors">
+                                                        {expandedSku === e.key ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-col flex-1 truncate">
+                                                    <span
+                                                        className="text-[13px] font-bold text-slate-700 truncate"
+                                                        style={{ fontFamily: 'Roboto, sans-serif' }}
+                                                        title={e.name}
+                                                    >
+                                                        {e.name}
+                                                    </span>
+                                                    {dimension === 'sku' && (
+                                                        <span className="text-[13px] text-slate-400 font-medium truncate uppercase tracking-wider">
+                                                            {e.key}
+                                                        </span>
+                                                    )}
                                                 </div>
-                                            </div>
+
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            onViewTrends(e.name, currentDimension.label, dimension);
+                                                        }}
+                                                        className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                                                        title="View Trends"
+                                                    >
+                                                        <LineChart size={14} />
+                                                    </button>
+                                                </div>
                                         </div>
 
                                         {/* KPI Cards */}
@@ -514,11 +595,115 @@ const LatestOverivewCatCity = ({
                                                 </motion.button>
                                             )
                                         })}
-                                    </motion.div>
+                                        </motion.div>
+
+                                        {/* Nested City Rows */}
+                                        {expandedSku === e.key && (
+                                            <div className="ml-8 space-y-1 mt-1 border-l-2 border-slate-100/60 pl-2">
+                                                {(isCityLoading && !expandedCityData[e.key]) ? (
+                                                    Array(3).fill(0).map((_, i) => (
+                                                        <div key={i} className="flex items-center gap-2 p-1.5 opacity-50">
+                                                            <div className="w-56 flex-shrink-0 h-6">
+                                                                <Skeleton variant="text" width="60%" height={24} />
+                                                            </div>
+                                                            {selectedKpis.map(kpi => (
+                                                                <div key={kpi.key} className={cn("flex-1", cardSize.minW)}>
+                                                                    <Skeleton variant="rounded" width="100%" height={32} />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ))
+                                                ) : expandedCityData[e.key]?.map((city) => (
+                                                    <motion.div
+                                                        key={city.key}
+                                                        className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-50/30 hover:bg-slate-50 transition-colors"
+                                                        initial={{ opacity: 0, y: -5 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                    >
+                                                        <div className="w-56 flex-shrink-0 flex items-center pr-4">
+                                                            <span className="text-[13px] font-medium text-slate-500 italic pl-6">{city.name}</span>
+                                                        </div>
+
+                                                        {selectedKpis.map(kpi => {
+                                                            const cell = city.data[kpi.key]
+                                                            const isUp = cell?.delta?.dir === 'up'
+                                                            return (
+                                                                <div
+                                                                    key={kpi.key}
+                                                                    className={cn(
+                                                                        "flex-1 py-1.5 px-2 text-center rounded-lg border border-slate-100/50 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]",
+                                                                        cardSize.minW
+                                                                    )}
+                                                                >
+                                                                    <div className="text-[13px] font-bold text-slate-800">{cell?.value}</div>
+                                                                    <div className={cn("text-[9px] font-bold", getStatusText(cell?.delta))}>
+                                                                        {isUp ? '↑' : '↓'} {cell?.delta?.value?.replace(/[+-]/, '')}
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
+
+                            {/* Pagination for SKU level (or any dimension with many results) */}
+                            {totalPages > 1 && (
+                                <div className="mt-6 flex items-center justify-between px-2 py-4 border-t border-slate-100">
+                                    <div className="text-sm text-slate-500">
+                                        Showing <span className="font-semibold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-semibold text-slate-700">{Math.min(currentPage * itemsPerPage, entities.length)}</span> of <span className="font-semibold text-slate-700">{entities.length}</span> results
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                            disabled={currentPage === 1}
+                                            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronLeft size={18} className="text-slate-600" />
+                                        </button>
+                                        
+                                        <div className="flex items-center gap-1">
+                                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                // Page number logic for 5 visible slots
+                                                let pageNum = i + 1;
+                                                if (totalPages > 5 && currentPage > 3) {
+                                                    pageNum = currentPage - 2 + i;
+                                                    if (pageNum + (4 - i) > totalPages) pageNum = totalPages - (4 - i);
+                                                }
+                                                
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => setCurrentPage(pageNum)}
+                                                        className={cn(
+                                                            "w-9 h-9 rounded-lg text-sm font-medium transition-colors",
+                                                            currentPage === pageNum 
+                                                                ? "bg-blue-600 text-white shadow-sm" 
+                                                                : "text-slate-600 hover:bg-slate-50"
+                                                        )}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                            disabled={currentPage === totalPages}
+                                            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronRight size={18} className="text-slate-600" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    </div>
+                        </div>
+                    
 
                     {/* Footer */}
                     <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
