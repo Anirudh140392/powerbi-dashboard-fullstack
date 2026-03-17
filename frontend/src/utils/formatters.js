@@ -16,8 +16,8 @@ export const formatNumber = (num, decimals = 2) => {
         // Crores
         return sign + (absNum / 1e7).toFixed(decimals) + ' Cr';
     } else if (absNum >= 1e5) {
-        // Lakhs (Lac)
-        return sign + (absNum / 1e5).toFixed(decimals) + ' Lac';
+        // Lakhs (Lacs)
+        return sign + (absNum / 1e5).toFixed(decimals) + ' Lacs';
     } else if (absNum >= 1e3) {
         // Thousands
         return sign + (absNum / 1e3).toFixed(decimals) + ' K';
@@ -111,7 +111,7 @@ export const formatYAxisTick = (value, kpiKey) => {
     if (absValue >= 1e7) {
         return sign + (absValue / 1e7).toFixed(1) + ' Cr';
     } else if (absValue >= 1e5) {
-        return sign + (absValue / 1e5).toFixed(1) + ' Lac';
+        return sign + (absValue / 1e5).toFixed(1) + ' Lacs';
     } else if (absValue >= 1e3) {
         return sign + (absValue / 1e3).toFixed(1) + ' K';
     } else {
