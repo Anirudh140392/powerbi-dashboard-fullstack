@@ -205,6 +205,26 @@ const TrendButton = ({ onClick }) => (
 // --- Dark Hover Intelligence Popup (Unified) ---
 const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLabel = "KPI", category = "" }) => {
   const isBottom = position === "bottom";
+  const popupRef = React.useRef(null);
+  const [hOffset, setHOffset] = useState(0);
+
+  useEffect(() => {
+    if (popupRef.current) {
+      const rect = popupRef.current.getBoundingClientRect();
+      const padding = 20; // safe margin
+      let offset = 0;
+
+      if (rect.left < padding) {
+        offset = padding - rect.left;
+      } else if (rect.right > window.innerWidth - padding) {
+        offset = window.innerWidth - padding - rect.right;
+      }
+
+      if (offset !== 0) {
+        setHOffset(offset);
+      }
+    }
+  }, []);
 
   if (isOrganic) {
     // This is now handled by the generalized dynamic tooltip
@@ -246,8 +266,36 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
   const metricKey = getMetricKey(kpiLabel, category);
   const deltaKey = `delta${metricKey.charAt(0).toUpperCase() + metricKey.slice(1)}`;
 
+  const parseVal = (str) => {
+    if (!str) return 0;
+    let s = String(str).replace(/[₹,% ]/g, "").toLowerCase();
+    let multiplier = 1;
+    if (s.endsWith('lac')) { multiplier = 100000; s = s.replace('lac', ''); }
+    else if (s.endsWith('k')) { multiplier = 1000; s = s.replace('k', ''); }
+    else if (s.endsWith('cr')) { multiplier = 10000000; s = s.replace('cr', ''); }
+    return (parseFloat(s) || 0) * multiplier;
+  };
+
+  const formatVal = (val) => {
+    const absVal = Math.abs(val);
+    if (kpiLabel.toLowerCase().includes("offtake")) {
+      if (absVal >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
+      if (absVal >= 100000) return `₹ ${(val / 100000).toFixed(2)} lac`;
+      return `₹ ${val.toLocaleString()}`;
+    }
+    if (kpiLabel.toLowerCase().includes("impressions")) {
+      if (absVal >= 100000) return `${(val / 100000).toFixed(1)} lac`;
+      if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
+      return val.toLocaleString();
+    }
+    if (kpiLabel.toLowerCase().includes("price") || kpiLabel.toLowerCase().includes("ppu")) return `₹${val.toFixed(1)}`;
+    if (kpiLabel.includes("%") || kpiLabel.toLowerCase().includes("conv")) return `${val.toFixed(1)}%`;
+    return val.toFixed(1);
+  };
+
   return (
     <motion.div
+      ref={popupRef}
       initial={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
@@ -255,9 +303,9 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
         position: "absolute",
         ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
         left: "50%",
-        transform: "translateX(-50%)",
-        width: 1400,
-        backgroundColor: "rgba(10, 15, 28, 0.97)",
+        transform: `translateX(calc(-50% + ${hOffset}px))`,
+        width: "max(600px, min(1400px, 95vw))", // Responsive width with constraints
+        backgroundColor: "rgba(10, 15, 28, 0.98)",
         backdropFilter: "blur(40px) saturate(200%)",
         borderRadius: "44px",
         padding: "0",
@@ -265,74 +313,56 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
         boxShadow: "0 100px 200px -40px rgba(0, 0, 0, 0.95), 0 0 120px rgba(79, 70, 229, 0.2)",
         border: "2px solid rgba(255, 255, 255, 0.18)",
         pointerEvents: "auto",
-        overflow: "hidden"
+        overflow: "hidden",
+        maxHeight: "85vh",
+        display: "flex",
+        flexDirection: "column"
       }}
     >
-      <Box sx={{ px: 6, py: 5, borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "rgba(255,255,255,0.01)" }}>
+      <Box sx={{ px: { xs: 3, md: 6 }, py: { xs: 3, md: 4 }, borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "rgba(255,255,255,0.01)" }}>
         <Box>
-          <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: "28px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "5px", mb: 0.5 }}>
+          <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: "clamp(18px, 2vw, 28px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "5px", mb: 0.5 }}>
             Market Intelligence Trace
           </Typography>
-          <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: "14px", fontWeight: 700, letterSpacing: "1px" }}>
+          <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: "clamp(10px, 1vw, 14px)", fontWeight: 700, letterSpacing: "1px" }}>
             PRO INTELLIGENCE PIPELINE V2.0 • REAL-TIME DATA STREAM
           </Typography>
         </Box>
-
       </Box>
 
-      <TableContainer sx={{ overflow: "visible" }}>
-        <Table size="medium" sx={{ "& td, & th": { border: "none", py: 4, px: 6 } }}>
+      <TableContainer sx={{
+        overflowY: "auto",
+        flex: 1,
+        "&::-webkit-scrollbar": { width: "10px" },
+        "&::-webkit-scrollbar-track": { background: "rgba(255,255,255,0.02)" },
+        "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(255,255,255,0.2)", borderRadius: "10px", border: "2px solid rgba(10,15,28,0.1)" },
+        "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
+      }}>
+        <Table size="small" sx={{ "& td, & th": { border: "none", py: { xs: 2, md: 2.5 }, px: { xs: 3, md: 6 } } }}>
           <TableHead>
-            <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Brand Identity</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Current Month {kpiLabel}</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Previous Month {kpiLabel}</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Change</TableCell>
+            <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)", position: "sticky", top: 0, bgcolor: "rgba(10, 15, 28, 1)", zIndex: 10 }}>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Brand Identity</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Current Month {kpiLabel}</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Previous Month {kpiLabel}</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Change</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {displayMetrics.map((row, idx) => {
-              const parseVal = (str) => {
-                if (!str) return 0;
-                let s = String(str).replace(/[₹,% ]/g, "").toLowerCase();
-                let multiplier = 1;
-                if (s.endsWith('lac')) { multiplier = 100000; s = s.replace('lac', ''); }
-                else if (s.endsWith('k')) { multiplier = 1000; s = s.replace('k', ''); }
-                else if (s.endsWith('cr')) { multiplier = 10000000; s = s.replace('cr', ''); }
-                return (parseFloat(s) || 0) * multiplier;
-              };
-
               const currStr = row[metricKey];
               const deltaStr = row[deltaKey];
-
               const currVal = parseVal(currStr);
               const deltaVal = parseVal(deltaStr);
               const prevVal = currVal - deltaVal;
 
-              const formatVal = (val) => {
-                if (kpiLabel.includes("Offtake")) {
-                  if (val >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
-                  if (val >= 100000) return `₹ ${(val / 100000).toFixed(2)} lac`;
-                  return `₹ ${val.toLocaleString()}`;
-                }
-                if (kpiLabel.includes("Impressions")) {
-                  if (val >= 100000) return `${(val / 100000).toFixed(1)} lac`;
-                  if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
-                  return val.toLocaleString();
-                }
-                if (kpiLabel.includes("PRICE") || kpiLabel.includes("PPU")) return `₹${val.toFixed(1)}`;
-                if (kpiLabel.includes("%") || kpiLabel.includes("Conv")) return `${val.toFixed(1)}%`;
-                return val.toFixed(1);
-              };
-
               return (
                 <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
-                  <TableCell sx={{ color: "#fff", fontSize: "26px", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.brand}</TableCell>
-                  <TableCell sx={{ color: "#fff", fontSize: "26px", fontWeight: 900 }}>{currStr}</TableCell>
-                  <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "26px", fontWeight: 900 }}>{formatVal(prevVal)}</TableCell>
+                  <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.brand}</TableCell>
+                  <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{currStr}</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{formatVal(prevVal)}</TableCell>
                   <TableCell>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      <Typography sx={{ color: String(deltaStr).startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "18px", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
+                      <Typography sx={{ color: String(deltaStr).startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "clamp(12px, 1.2vw, 18px)", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
                         {deltaStr}
                       </Typography>
                     </Box>

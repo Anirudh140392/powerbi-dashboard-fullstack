@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import eyLogo from "../../assets/sidebar_logo.png";
 import marsLogo from "../../assets/mars2.svg";
+import mamaearthLogo from "../../assets/mamaearth.jpeg";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -58,7 +59,11 @@ const Sidebar = ({
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+
+  // Dynamic logo based on user's database
+  const activeLogo = user?.dbName === 'mamaearth' ? mamaearthLogo : marsLogo;
+  const activeLogoAlt = user?.dbName === 'mamaearth' ? 'Mamaearth Logo' : 'Mars Logo';
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
@@ -75,10 +80,10 @@ const Sidebar = ({
       { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} /> },
       // { label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       // { label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
       // { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Scheduled Reports", path: "/scheduled-reports", icon: <ScheduleIcon sx={{ fontSize: '1rem' }} /> },
@@ -157,14 +162,15 @@ const Sidebar = ({
             }}
           >
             <img
-              src={marsLogo}
-              alt="Mars Logo"
+              src={activeLogo}
+              alt={activeLogoAlt}
               style={{
-                maxHeight: isCollapsed ? '32px' : '45px',
+                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '60px' : '45px'),
                 width: isCollapsed ? '100%' : 'auto',
-                maxWidth: isCollapsed ? '42px' : '180px',
+                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '220px' : '180px'),
                 objectFit: 'contain',
-                display: 'block'
+                display: 'block',
+                borderRadius: user?.dbName === 'mamaearth' ? '6px' : '0',
               }}
             />
           </Box>
@@ -243,7 +249,7 @@ const Sidebar = ({
                 {sectionName}
               </Typography>
             )}
-            {items.map((item) => {
+            {items.filter((item) => !item.hideForDb || !item.hideForDb.includes(user?.dbName)).map((item) => {
               const isActive = currentPath === item.path;
               const isPiy = item.isPiy;
 
