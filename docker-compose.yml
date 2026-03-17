@@ -6,10 +6,10 @@ services:
       dockerfile: Dockerfile
     container_name: backend
     ports:
-      - "5000:5000"
+      - "4000:4000"
     environment:
       - NODE_ENV=production
-      - PORT=5000
+      - PORT=4000
       - REDIS_HOST=${REDIS_HOST:-host.docker.internal}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
@@ -39,7 +39,7 @@ services:
       dockerfile: Dockerfile
     container_name: frontend
     ports:
-      - "9400:9500"
+      - "4500:4500"
     restart: unless-stopped
     deploy:
       resources:

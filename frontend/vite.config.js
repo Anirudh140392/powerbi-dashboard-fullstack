@@ -11,14 +11,14 @@ export default defineConfig({
     },
   },
   server: {
-    port: 9500,
+    port: 4500,
     host: true,
     hmr: {
-      clientPort: 9500,
+      clientPort: 4500,
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:4000',
         changeOrigin: true,
       },
     },
