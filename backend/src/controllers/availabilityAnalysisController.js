@@ -460,7 +460,7 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
  */
 export const getSignalLabData = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_v7', req.query);
+        const cacheKey = generateCacheKey('signal_lab_v8', req.query);
         const data = await getCachedOrCompute(cacheKey, async () => {
             const {
                 platform,
@@ -475,8 +475,12 @@ export const getSignalLabData = async (req, res) => {
                 page = 1,
                 limit = 5,
                 signalType = 'drainer',
-                keyword = 'All'
+                keyword = 'All',
+                groupBy = 'sku'
             } = req.query;
+
+            const isBrandGroup = groupBy === 'brand';
+            const groupCol = isBrandGroup ? 'Brand' : 'Item_Id';
 
             const pageNum = Number(page) || 1;
             const limitNum = Number(limit) || 5;
@@ -586,29 +590,29 @@ export const getSignalLabData = async (req, res) => {
             // We use OSA change as the sort metric for ALL availability signal lab tabs (as per user request)
             const sortMetric = osaMetricExpr;
 
-            const threshold = 2; // Reduced threshold to show more signals
+            const threshold = isBrandGroup ? 0.5 : 2; // Reduced threshold for brands to show more signals
             const havingClause = signalType === 'gainer'
                 ? `HAVING ${sortMetric} > ${threshold}`
                 : `HAVING ${sortMetric} < -${threshold}`;
 
-            console.log(`[SignalLab] request: type=${metricType}, signalType=${signalType}, direction=${direction}`);
+            console.log(`[SignalLab] request: type=${metricType}, signalType=${signalType}, direction=${direction}, groupBy=${groupBy}`);
             const skuQuery = `
-                SELECT Item_Id, ${sortMetric} as sortMetric, ${mainOsaExpr} as absoluteOsa
+                SELECT ${groupCol}, ${sortMetric} as sortMetric, ${mainOsaExpr} as absoluteOsa
                 FROM rb_pdp_olap
                 WHERE ${buildWhereClause(true)}
-                GROUP BY Item_Id
+                GROUP BY ${groupCol}
                 ${havingClause}
                 ORDER BY absoluteOsa ${direction}
                 LIMIT ${limitNum} OFFSET ${offsetNum}
             `;
 
             const skuRows = await queryClickHouse(skuQuery);
-            console.log(`[SignalLab] skuRows (top 3):`, skuRows.slice(0, 3).map(r => ({ pid: r.Item_Id, osa: r.absoluteOsa })));
+            console.log(`[SignalLab] skuRows (top 3):`, skuRows.slice(0, 3).map(r => ({ pid: r[groupCol], osa: r.absoluteOsa })));
 
             if (!skuRows || !skuRows.length) return { skus: [], totalCount: 0 };
 
-            // Ordered list of PIDs
-            const webPids = skuRows.map(r => r.Item_Id);
+            // Ordered list of IDs (brand names or Item_Ids)
+            const webPids = skuRows.map(r => r[groupCol]);
 
             /* ================= STEP 4: GET TOTAL CONTEXT SALES & COUNT ================= */
             const totalMarketSalesQuery = `
@@ -621,10 +625,10 @@ export const getSignalLabData = async (req, res) => {
 
             const countQuery = `
                 SELECT count() as count FROM (
-                    SELECT Item_Id
+                    SELECT ${groupCol}
                     FROM rb_pdp_olap
                     WHERE ${buildWhereClause(true)}
-                    GROUP BY Item_Id
+                    GROUP BY ${groupCol}
                     ${havingClause}
                 ) as temp
             `;
@@ -634,15 +638,15 @@ export const getSignalLabData = async (req, res) => {
 
             /* ================= STEP 5: FULL AGGREGATION FOR SELECTED IDs ================= */
             const webPidsStr = webPids.map(p => `'${escapeStr(p)}'`).join(', ');
+            const filterCol = isBrandGroup ? 'Brand' : 'Item_Id';
 
             const aggQuery = `
                 SELECT
-                    Item_Id,  
-                    any(Product) as Product, 
-                    any(Category) as Category, 
+                    ${groupCol},
+                    ${isBrandGroup ? "'' as Product" : 'any(Product) as Product'},
+                    any(Category) as Category,
                     any(Platform) as Platform,
-                    '' as Weight, 
-                    any(Brand) as Brand,
+                    ${isBrandGroup ? "'' as BrandCol" : "any(Brand) as Brand"},
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) AS totalNeno,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)) AS totalDeno,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) AS compNeno,
@@ -656,19 +660,19 @@ export const getSignalLabData = async (req, res) => {
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS prevSales
                 FROM rb_pdp_olap
-                WHERE Item_Id IN (${webPidsStr})
+                WHERE ${filterCol} IN (${webPidsStr})
                     AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
-                GROUP BY Item_Id
+                GROUP BY ${groupCol}
             `;
 
             const rows = await queryClickHouse(aggQuery);
 
-            const sortedRows = webPids.map(pid => rows.find(r => r.Item_Id === pid)).filter(Boolean);
+            const sortedRows = webPids.map(pid => rows.find(r => r[groupCol] === pid)).filter(Boolean);
 
             /* ================= STEP 6: City level data (Current & Comparison) ================= */
             const cityAggQuery = `
                 SELECT
-                    Item_Id, Location,
+                    ${groupCol}, Location,
                     (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
                     (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS prev_osa,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) as roas,
@@ -678,9 +682,10 @@ export const getSignalLabData = async (req, res) => {
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) as citySales
                 FROM rb_pdp_olap
-                WHERE Item_Id IN (${webPidsStr})
+                WHERE ${filterCol} IN (${webPidsStr})
                     AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
-                GROUP BY Item_Id, Location
+                    AND Location IN (SELECT location FROM rb_location_darkstore WHERE tier = 'Tier 1')
+                GROUP BY ${groupCol}, Location
             `;
 
             const cityRows = await queryClickHouse(cityAggQuery);
@@ -702,11 +707,10 @@ export const getSignalLabData = async (req, res) => {
                 const qty = Number(item.totalQtySold || 0);
                 const price = Number(item.avgPrice || 0);
                 const currSalesVal = Number(item.currSales || 0);
-                const revenue = currSalesVal; // Use actual sales, not qty * price
+                const revenue = currSalesVal;
                 const inventory = Number(item.avgInventory || 0);
                 const drr = qty / daysInPeriod;
                 const doi = drr > 0 ? inventory / drr : 0;
-
 
                 let kpis = {};
                 if (metricType === 'sales') {
@@ -741,23 +745,20 @@ export const getSignalLabData = async (req, res) => {
                     };
                 } else if (metricType === 'visibility') {
                     kpis = {
-                        adPosition: Math.floor(Math.random() * 10) + 1,
                         adSos: (Math.random() * 30).toFixed(1) + '%',
-                        organicPosition: Math.floor(Math.random() * 30) + 1,
+                        organicSos: (Math.random() * 10).toFixed(1) + '%',
                         overallSos: (Math.random() * 20).toFixed(1) + '%',
-                        volumeShare: (Math.random() * 15).toFixed(1) + '%',
-                        organicSos: (Math.random() * 10).toFixed(1) + '%'
+                        weightedOsa: `${osa.toFixed(1)}%`
                     };
                 }
 
-                const podCities = cityRows.filter(c => c.Item_Id === item.Item_Id);
+                const podCities = cityRows.filter(c => c[groupCol] === item[groupCol]);
                 const sortedByImpact = podCities.sort((a, b) => {
                     const diffA = Number(a.osa || 0) - Number(a.prev_osa || 0);
                     const diffB = Number(b.osa || 0) - Number(b.prev_osa || 0);
                     return signalType === 'drainer' ? diffA - diffB : diffB - diffA;
                 });
 
-                // Get top contributing cities (increased to 10 to support "More cities" drilldown)
                 const topCities = sortedByImpact.slice(0, 10).map((c, idx) => {
                     const cityOsaNow = Number(c.osa || 0);
                     const cityOsaWas = Number(c.prev_osa || 0);
@@ -798,13 +799,18 @@ export const getSignalLabData = async (req, res) => {
                     };
                 });
 
+                // When grouping by brand, skuName = brand name, skuCode = '-', packSize = '-'
+                const displayName = isBrandGroup ? item[groupCol] : item.Product;
+                const displayCode = isBrandGroup ? '-' : (item.Item_Id || '-');
+
                 return {
                     id: `${metricType.substring(0, 3).toUpperCase()}-${(pageNum - 1) * limitNum + i + 1}`,
-                    skuCode: item.Item_Id || '-',
-                    skuName: item.Product,
-                    packSize: item.Weight,
+                    skuCode: displayCode,
+                    skuName: displayName,
+                    packSize: '-',
                     platform: item.Platform,
                     categoryTag: item.Category,
+                    groupBy: groupBy,
                     type: signalType,
                     metricType,
                     offtakeValue: metricType === 'inventory' ? doi.toFixed(1) : `₹${(revenue / 100000).toFixed(1)} lac`,
@@ -837,9 +843,12 @@ export const getCityDetailsForProduct = async (req, res) => {
         const cacheKey = generateCacheKey('signal_lab_city_details_v3', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
-            const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer' } = req.query;
+            const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer', groupBy = 'sku' } = req.query;
 
             if (!webPid) throw new Error('webPid is required');
+
+            const isBrandGroup = groupBy === 'brand';
+            const filterCol = isBrandGroup ? 'Brand' : 'Item_Id';
 
             const start = startDate || '2025-12-01';
             const end = endDate || '2025-12-31';
@@ -859,7 +868,7 @@ export const getCityDetailsForProduct = async (req, res) => {
 
             const buildConditions = (includeCompDates = false) => {
                 // ADD TIER 1 FILTER USING SUBQUERY
-                const conds = [`Item_Id = '${escapeStr(webPid)}'`, `Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`];
+                const conds = [`${filterCol} = '${escapeStr(webPid)}'`, `Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`];
                 if (includeCompDates) {
                     conds.push(`(toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')`);
                 } else {
@@ -953,17 +962,18 @@ export const getCityDetailsForProduct = async (req, res) => {
                 const uniqueCities = [...new Set(finalCities.map(c => c.city))];
                 const citiesStr = uniqueCities.map(c => `'${escapeStr(c)}'`).join(', ');
 
-                // Extract brand from the first row (assuming all rows belong to the same SKU/brand)
-                const mainBrand = finalCities[0]?.brand_name;
+                // Extract brand name - in brand mode it's the webPid itself, otherwise any(Brand)
+                const mainBrand = isBrandGroup ? webPid : finalCities[0]?.brand_name;
 
                 if (mainBrand) {
                     const sosQuery = `
                         SELECT
                             location_name as city,
-                            (countIf(brand_name = '${escapeStr(mainBrand)}') / nullIf(count(), 0)) * 100 AS overall_sos,
-                            (countIf(brand_name = '${escapeStr(mainBrand)}' AND spons_flag = 1) / nullIf(countIf(spons_flag = 1), 0)) * 100 AS ad_sos
+                            (sumIf(toInt32(overall), flag = 1) / nullIf(sum(toInt32(overall)), 0)) * 100 AS overall_sos,
+                            (sumIf(toInt32(spons), flag = 1) / nullIf(sum(toInt32(spons)), 0)) * 100 AS ad_sos,
+                            (sumIf(toInt32(organic), flag = 1) / nullIf(sum(toInt32(organic)), 0)) * 100 AS organic_sos
                         FROM rb_kw_olap
-                        WHERE kw_crawl_date BETWEEN '${start}' AND '${end}'
+                        WHERE DATE BETWEEN '${start}' AND '${end}'
                           AND location_name IN (${citiesStr})
                         GROUP BY location_name
                     `;
@@ -974,14 +984,16 @@ export const getCityDetailsForProduct = async (req, res) => {
                         sosRows.forEach(row => {
                             sosMap[row.city] = {
                                 overallSos: Number(row.overall_sos || 0),
-                                adSos: Number(row.ad_sos || 0)
+                                adSos: Number(row.ad_sos || 0),
+                                organicSos: Number(row.organic_sos || 0)
                             };
                         });
 
                         finalCities = finalCities.map(c => ({
                             ...c,
                             overallSos: sosMap[c.city]?.overallSos || 0,
-                            adSos: sosMap[c.city]?.adSos || 0
+                            adSos: sosMap[c.city]?.adSos || 0,
+                            organicSos: sosMap[c.city]?.organicSos || 0
                         }));
                     } catch (e) {
                         console.error('[CityDetails] SOS fetching error:', e);

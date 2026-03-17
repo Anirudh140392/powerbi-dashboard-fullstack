@@ -98,7 +98,7 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
     }, [sortedData, page, rowsPerPage]);
 
     const handleExportCSV = () => {
-        const headers = ["City", "Current Discount %", "Change %", "OSA %", "Listing %", "Offtake"];
+        const headers = ["City", "Current Discount %", "Change %", "OSA %", "Offtake"];
         const csvRows = [
             headers.join(","),
             ...sortedData.map(item => [
@@ -106,7 +106,6 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
                 item.discount.toFixed(1),
                 item.change.toFixed(1),
                 (item.osa || 0).toFixed(1),
-                (item.listing || 0).toFixed(1),
                 (item.offtakes || 0).toLocaleString()
             ].join(","))
         ];
@@ -195,9 +194,7 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
                                 <TableCell align="center" sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                                     OSA %
                                 </TableCell>
-                                <TableCell align="center" sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                                    Listing %
-                                </TableCell>
+
                                 <TableCell align="center" sx={{ fontSize: '10px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
                                     Offtake
                                 </TableCell>
@@ -206,7 +203,7 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
                         <TableBody>
                             {paginatedData.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} align="center" sx={{ py: 8 }}>
+                                    <TableCell colSpan={5} align="center" sx={{ py: 8 }}>
                                         <Typography sx={{ color: '#94a3b8', fontSize: '13px' }}>No cities match this filter.</Typography>
                                     </TableCell>
                                 </TableRow>
@@ -229,11 +226,7 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
                                                 {(row.osa || 0).toFixed(1)}%
                                             </Typography>
                                         </TableCell>
-                                        <TableCell align="center">
-                                            <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
-                                                {(row.listing || 0).toFixed(1)}%
-                                            </Typography>
-                                        </TableCell>
+
                                         <TableCell align="center">
                                             <Typography sx={{ fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
                                                 {formatNumberToIndianUnits(row.offtakes)}

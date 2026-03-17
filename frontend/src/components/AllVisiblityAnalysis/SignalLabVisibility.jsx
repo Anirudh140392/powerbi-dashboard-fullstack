@@ -44,12 +44,10 @@ const ErrorWithRefresh = ({ onRetry, message }) => (
    KPI ORDER CONFIG
 -------------------------------------------------------*/
 const visibilityKpiOrder = [
-    "adPosition",
     "adSos",
-    "organicPosition",
-    "overallSos",
-    "volumeShare",
     "organicSos",
+    "overallSos",
+    "weightedOsa",
 ];
 
 const availabilityKpiOrder = [
@@ -93,7 +91,7 @@ const KPI_LABELS = {
     soh: "SOH",
     doi: "DOI",
     stockoutRisk: "Stock-out Risk",
-    weightedOsa: "Weighted OSA",
+    weightedOsa: "Wt. OSA",
     potentialSalesLoss: "Potential Sales Loss",
     fillrate: "Fillrate",
     offtakeShare: "MS (Offtake Share)",
@@ -1223,7 +1221,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
             <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
                     <div className="flex items-center gap-2">
-                        {sku.metricType !== 'availability' && sku.metricType !== 'visibility' && (
+                        {sku.skuCode && sku.skuCode !== '-' && (
                             <span className="font-semibold">{sku.skuCode}</span>
                         )}
                         <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-50 border">
@@ -1236,21 +1234,28 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                 </div>
 
                 <div>
+                    {sku.groupBy === 'brand' && (
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Brand</div>
+                    )}
                     <div className="text-sm font-semibold line-clamp-2" title={sku.skuName}>{sku.skuName}</div>
-                    <div className="text-xs text-slate-500">{sku.packSize}</div>
+                    {sku.packSize && sku.packSize !== '-' && (
+                        <div className="text-xs text-slate-500">{sku.packSize}</div>
+                    )}
                 </div>
 
-                <div className="mt-3 flex justify-between items-end text-xs">
-                    <div>
-                        <div className="text-slate-400">
-                            {metricType === "inventory" ? "DOI" : "Offtakes"}
+                {metricType !== "visibility" && (
+                    <div className="mt-3 flex justify-between items-end text-xs">
+                        <div>
+                            <div className="text-slate-400">
+                                {metricType === "inventory" ? "DOI" : "Offtakes"}
+                            </div>
+                            <div className="text-base font-semibold">
+                                {metricType === "inventory" ? sku.kpis.doi : sku.offtakeValue}
+                            </div>
                         </div>
-                        <div className="text-base font-semibold">
-                            {metricType === "inventory" ? sku.kpis.doi : sku.offtakeValue}
-                        </div>
+                        <ImpactPill value={sku.impact} />
                     </div>
-                    <ImpactPill value={sku.impact} />
-                </div>
+                )}
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
                     {kpiKeys.map((key) =>
@@ -1387,6 +1392,7 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
                 if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
                 if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
                 if (selectedKeyword && selectedKeyword !== 'All') params.append('keyword', selectedKeyword);
+                params.append('groupBy', 'brand');
 
                 const res = await fetch(`/api/availability-analysis/signal-lab?${params.toString()}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -1468,6 +1474,7 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
                 if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
                 if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
                 if (selectedKeyword && selectedKeyword !== 'All') params.append('keyword', selectedKeyword);
+                params.append('groupBy', 'brand');
 
                 const res = await fetch(`/api/availability-analysis/signal-lab?${params.toString()}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}

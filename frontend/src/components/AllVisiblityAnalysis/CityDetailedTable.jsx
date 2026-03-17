@@ -52,11 +52,14 @@ export default function CityDetailedTable({ sku, onClose }) {
         const fetchDetails = async () => {
             setIsLoading(true);
             try {
-                // Fallback to skuCode which holds the Item_Id since web_pid is deprecated
-                const webPidToUse = sku.Web_Pid || sku.webPid || sku.skuCode || sku.id;
+                const isBrandGroup = sku.groupBy === 'brand';
+                // If brand group, use skuName (which is the brand) instead of skuCode
+                const webPidToUse = isBrandGroup ? sku.skuName : (sku.Web_Pid || sku.webPid || sku.skuCode || sku.id);
+                
                 const params = {
                     webPid: webPidToUse,
                     signalType: sku.type || 'gainer',
+                    groupBy: sku.groupBy || 'sku',
                     startDate: timeStart?.format('YYYY-MM-DD'),
                     endDate: timeEnd?.format('YYYY-MM-DD'),
                     compareStartDate: compareStart?.format('YYYY-MM-DD'),
@@ -74,12 +77,11 @@ export default function CityDetailedTable({ sku, onClose }) {
                     const formatted = res.data.cities.map((c, idx) => ({
                         id: idx,
                         city: c.city || "Unknown",
-                        estOfftake: `₹ ${(c.estOfftake || 0).toFixed(1)} L`,
-                        offtakeChange: `${(c.estOfftakeChange || 0) >= 0 ? '+' : ''}${(c.estOfftakeChange || 0).toFixed(1)}%`,
                         wtOsa: `${(c.wtOsa || 0).toFixed(1)}%`,
                         osaChange: `${(c.wtOsaChange || 0) >= 0 ? '+' : ''}${(c.wtOsaChange || 0).toFixed(1)}%`,
                         listingPct: `${((c.wtOsa || 0) * 0.9).toFixed(1)}%`,
                         overallSos: `${(c.overallSos || 0).toFixed(1)}%`,
+                        organicSos: `${(c.organicSos || 0).toFixed(1)}%`,
                         adSos: `${(c.adSos || 0).toFixed(1)}%`,
                         wtDisc: `${(c.wtDisc || 0).toFixed(1)}%`,
                         discChange: `+0.0%`,
@@ -164,18 +166,16 @@ export default function CityDetailedTable({ sku, onClose }) {
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider sticky top-0 z-10 shadow-sm">
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">City</th>
-                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Listing %</th>
-                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Est. Offtake</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. OSA %</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Overall Sos</th>
+                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Organic Sos</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Ad Sos</th>
-                                    <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. Disc %</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 text-sm">
                                 {!isLoading && displayedData.length === 0 && (
                                     <tr>
-                                        <td colSpan={7} className="py-12 text-slate-400 italic">No city data found for this SKU</td>
+                                        <td colSpan={5} className="py-12 text-slate-400 italic">No city data found for this SKU</td>
                                     </tr>
                                 )}
                                 {displayedData.map((row) => (
@@ -184,20 +184,9 @@ export default function CityDetailedTable({ sku, onClose }) {
                                             <div className="flex justify-center w-full">{row.city}</div>
                                         </td>
 
-                                        {/* Listing % */}
-                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
-                                            <div className="flex justify-center w-full text-center">{row.listingPct}</div>
-                                        </td>
 
-                                        {/* Est Offtake */}
-                                        <td className="px-4 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap">
-                                                <span className="font-semibold text-slate-700">{row.estOfftake}</span>
-                                                <span className={`text-[10px] ${row.offtakeChange.startsWith('+') ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                    {row.offtakeChange}
-                                                </span>
-                                            </div>
-                                        </td>
+
+
 
 
                                         {/* OSA - Heatmap */}
@@ -217,18 +206,17 @@ export default function CityDetailedTable({ sku, onClose }) {
                                             <div className="flex justify-center w-full text-center">{row.overallSos}</div>
                                         </td>
 
+                                        {/* Organic Sos */}
+                                        <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                            <div className="flex justify-center w-full text-center">{row.organicSos}</div>
+                                        </td>
+
                                         {/* Ad Sos */}
                                         <td className="px-4 py-3 text-center font-bold text-slate-700">
                                             <div className="flex justify-center w-full text-center">{row.adSos}</div>
                                         </td>
 
-                                        {/* Disc % */}
-                                        <td className="px-4 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-2 whitespace-nowrap text-center">
-                                                <span className="font-semibold text-slate-700">{row.wtDisc}</span>
-                                                <span className="text-[10px] text-emerald-600 font-medium">{row.discChange}</span>
-                                            </div>
-                                        </td>
+
                                     </tr>
                                 ))}
                             </tbody>

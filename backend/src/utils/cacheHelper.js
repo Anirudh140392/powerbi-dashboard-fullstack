@@ -89,11 +89,13 @@ export function generateCacheKey(section, filters) {
         skuCode = '',
         dimension = '',
         dimensionValue = '',
-        ownBrandsOnly = ''
+        ownBrandsOnly = '',
+        groupBy = ''
     } = filters;
 
     // 4. Append secondary filters
     if (ownBrandsOnly) key += `:obo_${ownBrandsOnly}`;
+    if (groupBy) key += `:gb_${normalize(groupBy)}`;
     if (dimension) key += `:dim_${normalize(dimension)}`;
     if (dimensionValue) key += `:dimval_${normalize(dimensionValue)}`;
     if (filterType) key += `:ft_${normalize(filterType)}`;

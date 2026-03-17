@@ -81,8 +81,8 @@ const normalizeChannels = (channels) => {
  */
 const buildInClause = (column, values) => {
     if (!values || values.length === 0) return null;
-    const escaped = values.map(v => `'${escapeStr(v)}'`).join(',');
-    return `${column} IN (${escaped})`;
+    const escaped = values.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+    return `lower(${column}) IN (${escaped})`;
 };
 
 
@@ -765,9 +765,13 @@ const getDimensionOverview = async (filters = {}) => {
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
 
             const dimensionParam = filters.dimension || 'category';
-            // dimensionParam can be 'category', 'location', or 'city' (frontend sends 'city')
+            // dimensionParam can be 'category', 'location', 'city' or 'platform'
+            const isPlatform = dimensionParam === 'platform';
+            const isSku = dimensionParam === 'sku';
             const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
-            const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
+            const groupByExpr = isPlatform ? 'p.Platform' : 
+                               isSku ? 'p.Product' : 
+                               (isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL);
 
             const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
             const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
@@ -798,10 +802,18 @@ const getDimensionOverview = async (filters = {}) => {
             if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
             const categories = parseMultiSelectFilter(category);
-            if (categories) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+            if (categories) whereConditions.push(`lower(${PRODUCT_CATEGORY_SQL}) IN (${categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',')})`);
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
             if (channels) whereConditions.push(buildInClause(channelCol, channels));
+
+            const skus = parseMultiSelectFilter(filters.sku);
+            if (skus) whereConditions.push(buildInClause('p.Product', skus));
+
+            // ✅ Only show own brands for SKU dimension unless explicitly filtered
+            if (isSku) {
+                whereConditions.push("p.Comp_flag = '0'");
+            }
 
             const whereClause = whereConditions.join(' AND ');
 
@@ -902,8 +914,12 @@ const getDimensionTrends = async (filters = {}) => {
         const startDate = filters.startDate || dayjs(endDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
 
         const dimensionParam = filters.dimension || 'category';
+        const isPlatform = dimensionParam === 'platform';
+        const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === "location" || dimensionParam === "city";
-        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
+        const groupByExpr = isPlatform ? 'p.Platform' : 
+                           isSku ? 'p.Product' : 
+                           (isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL);
         const dimensionValue = filters.dimensionValue;
 
         let whereConditions = [
@@ -935,6 +951,9 @@ const getDimensionTrends = async (filters = {}) => {
             const channelCol = isMars ? 'p.channel' : 'p.Channel';
             whereConditions.push(buildInClause(channelCol, channels));
         }
+
+        const skus = parseMultiSelectFilter(filters.sku);
+        if (skus) whereConditions.push(buildInClause('p.Product', skus));
 
         if (dimensionValue) {
             whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
@@ -1117,8 +1136,12 @@ const getPricingCompetition = async (filters) => {
         const startDate = filters.startDate || dayjs(endDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
 
         const dimensionParam = filters.dimension || 'category';
+        const isPlatform = dimensionParam === 'platform';
+        const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === "location" || dimensionParam === "city";
-        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
+        const groupByExpr = isPlatform ? 'p.Platform' : 
+                           isSku ? 'p.Product' : 
+                           (isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL);
         const dimensionValue = filters.dimensionValue;
 
         let whereConditions = [
@@ -1155,6 +1178,9 @@ const getPricingCompetition = async (filters) => {
         if (dimensionValue) {
             whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
         }
+
+        const skus = parseMultiSelectFilter(filters.sku);
+        if (skus) whereConditions.push(buildInClause('p.Product', skus));
 
         const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
 

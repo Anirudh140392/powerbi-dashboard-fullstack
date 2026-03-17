@@ -1211,30 +1211,38 @@ const getDOI = async (filters) => {
             const baseWhere = buildAvailabilityWhereClause(baseParams);
             const baseFilter = baseWhere !== '1=1' ? ` AND ${baseWhere}` : '';
 
-            // Get latest inventory in the period
+            // Get latest total inventory daily across the period
             const invQuery = `
-                SELECT argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE) as latestInventory
-                FROM rb_pdp_olap
-                WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                ${baseFilter}
+                WITH daily_stats AS (
+                    SELECT 
+                        DATE, 
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalDailyInv
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                    ${baseFilter}
+                    GROUP BY DATE
+                )
+                SELECT argMax(totalDailyInv, DATE) as latestInventory FROM daily_stats
             `;
             let invResult = await queryClickHouse(invQuery);
             let todayInventory = parseFloat(invResult[0]?.latestInventory) || 0;
 
-            // Fallback to last 7 days average
+            // Fallback to last 7 days average if no data on latest date
             if (todayInventory === 0) {
                 const last7Query = `
-                    SELECT 
-                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalInventory,
-                        COUNT(DISTINCT DATE) as daysCount
-                    FROM rb_pdp_olap
-                    WHERE DATE BETWEEN '${currentEndDate.subtract(7, 'day').format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                    ${baseFilter}
+                    WITH daily_stats AS (
+                        SELECT 
+                            DATE, 
+                            SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalDailyInv
+                        FROM rb_pdp_olap
+                        WHERE DATE BETWEEN '${currentEndDate.subtract(7, 'day').format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                        ${baseFilter}
+                        GROUP BY DATE
+                    )
+                    SELECT AVG(totalDailyInv) as avgInventory FROM daily_stats
                 `;
                 const last7Result = await queryClickHouse(last7Query);
-                const totalInv = parseFloat(last7Result[0]?.totalInventory) || 0;
-                const daysCount = parseFloat(last7Result[0]?.daysCount) || 1;
-                todayInventory = daysCount > 0 ? totalInv / daysCount : 0;
+                todayInventory = parseFloat(last7Result[0]?.avgInventory) || 0;
             }
 
             const thirtyDaysAgo = currentEndDate.subtract(29, 'day');
@@ -1248,10 +1256,16 @@ const getDOI = async (filters) => {
                     ${baseFilter}
                 `),
                 queryClickHouse(`
-                    SELECT argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE) as latestInventory
-                    FROM rb_pdp_olap
-                    WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
-                    ${baseFilter}
+                    WITH prev_daily_stats AS (
+                        SELECT 
+                            DATE, 
+                            SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalDailyInv
+                        FROM rb_pdp_olap
+                        WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
+                        ${baseFilter}
+                        GROUP BY DATE
+                    )
+                    SELECT argMax(totalDailyInv, DATE) as latestInventory FROM prev_daily_stats
                 `),
                 queryClickHouse(`
                     SELECT SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as totalQtySold
