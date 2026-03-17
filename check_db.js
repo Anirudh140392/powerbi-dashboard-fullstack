@@ -28,4 +28,3 @@ async function checkData() {
 }
 
 checkData();
-
