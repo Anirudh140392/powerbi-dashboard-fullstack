@@ -72,8 +72,8 @@ jobs:
             git reset --hard origin/${{ github.ref_name }}
             
             echo "🛑 Stopping and removing specific containers..."
-            sudo docker stop backend frontend || true
-            sudo docker rm backend frontend || true
+            sudo docker stop backend_multiple frontend_multiple || true
+            sudo docker rm backend_multiple frontend_multiple || true
             
             echo "🔨 Building and starting containers..."
             sudo docker compose build --no-cache

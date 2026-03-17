@@ -1,10 +1,10 @@
 services:
   # Backend API Service
-  backend:
+  backend_multiple:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backend
+    container_name: backend_multiple
     ports:
       - "5000:5000"
     environment:
@@ -33,11 +33,11 @@ services:
           cpus: '0.5'
 
   # Frontend UI Service
-  frontend:
+  frontend_multiple:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: frontend
+    container_name: frontend_multiple
     ports:
       - "9400:9500"
     restart: unless-stopped
