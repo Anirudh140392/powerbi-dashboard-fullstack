@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
+import { formatNumber } from '../../utils/formatters'
 import { cn } from '../../lib/utils'
 
 /* --- HELPERS --- */
@@ -257,9 +258,7 @@ const LatestOverivewCatCity = ({
                             else if (kpi.key === 'asp') valStr = `₹${cell.value.toFixed(2)}`;
                             else if (kpi.key === 'rpi') valStr = `${cell.value.toFixed(1)}`;
                             else if (kpi.key === 'offtake') {
-                                if (cell.value >= 1000000) valStr = `${(cell.value / 1000000).toFixed(1)}M`;
-                                else if (cell.value >= 1000) valStr = `${(cell.value / 1000).toFixed(1)}K`;
-                                else valStr = cell.value.toFixed(0);
+                                valStr = formatNumber(cell.value, 1);
                             } else valStr = cell.value.toFixed(2);
 
                             formattedData[kpi.key] = {
@@ -325,10 +324,8 @@ const LatestOverivewCatCity = ({
                         valStr = `${cell.value.toFixed(1)}`;
                         deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%`;
                     } else if (kpi.key === 'offtake') {
-                        // Large number formatting for offtake
-                        if (cell.value >= 1000000) valStr = `${(cell.value / 1000000).toFixed(1)}M`;
-                        else if (cell.value >= 1000) valStr = `${(cell.value / 1000).toFixed(1)}K`;
-                        else valStr = cell.value.toFixed(0);
+                        // Large number formatting for offtake using centralized formatter
+                        valStr = formatNumber(cell.value, 1);
                     } else {
                         valStr = cell.value.toFixed(2);
                     }
