@@ -730,6 +730,7 @@ export default function WatchTower() {
         selectedLevel={selectedTrendLevel}
         dynamicKey="platform_overview_tower"
         brandOptions={defaultBrands.map(b => b.label)}
+        initialPlatform={filters.platform}
       />
 
       <RCAModal
