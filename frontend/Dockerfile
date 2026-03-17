@@ -20,7 +20,7 @@ COPY --from=build-stage /app/dist /usr/share/nginx/html
 
 # Create nginx config with API proxy to backend
 RUN echo 'server { \
-    listen 4500; \
+    listen 9500; \
     root /usr/share/nginx/html; \
     index index.html; \
     \
@@ -41,7 +41,7 @@ RUN echo 'server { \
     }' > /etc/nginx/conf.d/default.conf
 
 # Expose port
-EXPOSE 4500
+EXPOSE 9500
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
