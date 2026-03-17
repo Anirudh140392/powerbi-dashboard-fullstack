@@ -97,15 +97,16 @@ export const queryClickHouse = async (query, params = {}) => {
     try {
         const client = getCurrentClient();
         const dbName = getCurrentDbName();
-        // console.log(`[ClickHouse] DB: ${dbName} | Query: ${query.substring(0, 100)}`);
+        // LOG ALL QUERIES FOR DEBUGGING
+        console.log(`[ClickHouse Debug] DB: ${dbName} | Query: ${query.replace(/\s+/g, ' ')}`);
+        
         const result = await client.query({
             query,
             query_params: params,
             format: 'JSONEachRow',
         });
         const data = await result.json();
-        // console.log(`[ClickHouse] DB: ${dbName} | Result: ${data.length} rows`);
-        console.log(data)
+        console.log(`[ClickHouse Debug] Result: ${data.length} rows`);
         return data;
     } catch (err) {
         console.error('[ClickHouse] Query failed:', err.message);
