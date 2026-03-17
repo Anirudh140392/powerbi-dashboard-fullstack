@@ -7649,33 +7649,40 @@ const getLatestAvailableMonth = async (filters = {}) => {
             };
         }
 
-        const src = await getWatchtowerSource();
-        // Build WHERE conditions for dynamic source
-        const conditions = [`toString(${src.f.compFlag}) = '0'`];
+        // Always query rb_pdp_olap directly for date range detection
+        // (not the agg table, since user wants dates from rb_pdp_olap specifically)
+        const cols = await getTableColumns('rb_pdp_olap');
+        const r = (name) => resolveColumn(cols, name);
+        const dateCol = r('DATE');
+        const compFlagCol = r('Comp_flag');
+        const platformCol = r('Platform');
+        const brandCol = r('Brand');
+        const locationCol = r('Location');
+
+        const conditions = [`toString(${compFlagCol}) = '0'`];
 
         if (platform && platform !== 'All') {
-            conditions.push(`lower(${src.f.platform}) = '${escapeStr(platform.toLowerCase())}'`);
+            conditions.push(`lower(${platformCol}) = '${escapeStr(platform.toLowerCase())}'`);
         }
 
         if (brand && brand !== 'All') {
-            conditions.push(`${src.f.brand} LIKE '%${escapeStr(brand)}%'`);
+            conditions.push(`${brandCol} LIKE '%${escapeStr(brand)}%'`);
         }
 
         if (location && location !== 'All') {
-            conditions.push(`lower(${src.f.location}) = '${escapeStr(location.toLowerCase())}'`);
+            conditions.push(`lower(${locationCol}) = '${escapeStr(location.toLowerCase())}'`);
         }
 
         if (category && category !== 'All') {
-            const catCol = src.f.category;
-            conditions.push(`lower(${catCol}) = '${escapeStr(category.toLowerCase())}'`);
+            conditions.push(`lower(${PRODUCT_CATEGORY_SQL}) = '${escapeStr(category.toLowerCase())}'`);
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} ` : '';
 
-        // Query dynamic source for the latest date
+        // Query rb_pdp_olap for the latest date
         const result = await queryClickHouse(`
-            SELECT MAX(toDate(${src.f.date})) as latestDate
-            FROM ${src.table}
+            SELECT MAX(toDate(${dateCol})) as latestDate
+            FROM rb_pdp_olap
             ${whereClause}
         `);
 
