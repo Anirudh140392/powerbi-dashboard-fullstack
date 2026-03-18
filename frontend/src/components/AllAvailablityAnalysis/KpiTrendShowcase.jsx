@@ -1444,9 +1444,12 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
 
         // Prevent conflicting WHERE conditions (e.g. Category="Dental Floss" AND Category="Bodywash")
         let effectiveDimValue = dimensionValue;
-        if ((dimensionType === 'category' || dimensionType === 'Category') && isCategoryFilterActive) effectiveDimValue = undefined;
-        if ((dimensionType === 'brand' || dimensionType === 'Brand') && isBrandFilterActive) effectiveDimValue = undefined;
-        if ((dimensionType === 'city' || dimensionType === 'City') && isCityFilterActive) effectiveDimValue = undefined;
+        const lowerDimType = dimensionType?.toLowerCase();
+        if (lowerDimType === 'category' && isCategoryFilterActive) effectiveDimValue = undefined;
+        if (lowerDimType === 'brand' && isBrandFilterActive) effectiveDimValue = undefined;
+        if (lowerDimType === 'city' && isCityFilterActive) effectiveDimValue = undefined;
+        if (lowerDimType === 'platform' && platform && platform !== 'All') effectiveDimValue = undefined; // Platform is global from context
+        if (lowerDimType === 'sku' && filters.skus.length > 0) effectiveDimValue = undefined;
 
         if (dynamicKey === 'pricing') {
           // For pricing: call the dedicated pricing competition endpoint
@@ -1653,9 +1656,12 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
         const isCityFilterActive = city && city !== 'All India' && city !== 'All';
 
         let effectiveDimValue = dimensionValue;
-        if ((dimensionType === 'category' || dimensionType === 'Category') && isCategoryFilterActive) effectiveDimValue = undefined;
-        if ((dimensionType === 'brand' || dimensionType === 'Brand') && isBrandFilterActive) effectiveDimValue = undefined;
-        if ((dimensionType === 'city' || dimensionType === 'City') && isCityFilterActive) effectiveDimValue = undefined;
+        const lowerDimType = dimensionType?.toLowerCase();
+        if (lowerDimType === 'category' && isCategoryFilterActive) effectiveDimValue = undefined;
+        if (lowerDimType === 'brand' && isBrandFilterActive) effectiveDimValue = undefined;
+        if (lowerDimType === 'city' && isCityFilterActive) effectiveDimValue = undefined;
+        if (lowerDimType === 'platform' && platform && platform !== 'All') effectiveDimValue = undefined;
+        if (lowerDimType === 'sku' && filters.skus.length > 0) effectiveDimValue = undefined;
 
         let res;
         if (dynamicKey === 'pricing') {

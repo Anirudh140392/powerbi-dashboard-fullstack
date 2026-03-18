@@ -424,6 +424,7 @@ export default function TrendsCompetitionDrawer({
   onClose = () => { },
   selectedColumn,
   selectedLevel,
+  dimensionType,
   brandOptions,
   initialPlatform,
 }) {
@@ -2452,7 +2453,14 @@ export default function TrendsCompetitionDrawer({
                 period={range}
                 timeStep={timeStep}
                 dimensionValue={selectedColumn}
-                dimensionType={selectedLevel === 'City' || selectedLevel === 'city' ? 'city' : 'category'}
+                dimensionType={
+                  dimensionType || (
+                    (selectedLevel?.toLowerCase() === 'city' || selectedLevel?.toLowerCase() === 'location') ? 'city' :
+                    (selectedLevel?.toLowerCase() === 'platform') ? 'platform' :
+                    (selectedLevel?.toLowerCase() === 'sku') ? 'sku' :
+                    'category'
+                  )
+                }
               />
             )}
           </>
