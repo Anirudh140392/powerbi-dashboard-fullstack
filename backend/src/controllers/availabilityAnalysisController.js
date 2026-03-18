@@ -1,6 +1,7 @@
 import availabilityService from '../services/availabilityService.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
+import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 
 /**
@@ -462,6 +463,13 @@ export const getSignalLabData = async (req, res) => {
     try {
         const cacheKey = generateCacheKey('signal_lab_v8', req.query);
         const data = await getCachedOrCompute(cacheKey, async () => {
+            // Dynamically resolve ad-related column names (case varies across DBs)
+            const cols = await getTableColumns('rb_pdp_olap');
+            const adSalesCol = resolveColumn(cols, 'Ad_sales');
+            const adSpendCol = resolveColumn(cols, 'Ad_Spend');
+            const adClicksCol = resolveColumn(cols, 'Ad_Clicks');
+            const adImpressionsCol = resolveColumn(cols, 'Ad_Impressions');
+
             const {
                 platform,
                 brand,
@@ -540,7 +548,7 @@ export const getSignalLabData = async (req, res) => {
                 conditions.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
 
                 if (categoryFilter) {
-                    const isMars = getCurrentDbName() === 'mars';
+                    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(getCurrentDbName());
                     const catCol = isMars ? 'Category' : 'Product_type';
                     if (Array.isArray(categoryFilter)) {
                         conditions.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
@@ -666,9 +674,9 @@ export const getSignalLabData = async (req, res) => {
                     GREATEST(0, avgIf(toFloat64(Inventory), toDate(DATE) BETWEEN '${start}' AND '${end}')) AS avgInventory,
                     GREATEST(0, sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0))) AS totalQtySold,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Selling_Price), 0.0)) AS avgPrice,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) AS avgRoas,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) AS totalClicks,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) AS totalImpressions,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) AS avgRoas,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) AS totalClicks,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) AS totalImpressions,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS prevSales
                 FROM rb_pdp_olap
@@ -687,9 +695,9 @@ export const getSignalLabData = async (req, res) => {
                     ${groupCol}, Location,
                     (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
                     (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS prev_osa,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) as roas,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) as clicks,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) as impressions,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) as roas,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) as clicks,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) as impressions,
                     GREATEST(0, avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0))) as inventory,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) as citySales
@@ -813,7 +821,7 @@ export const getSignalLabData = async (req, res) => {
                 const inventory = item.avgInventory === null ? null : Number(item.avgInventory);
                 const drr = qty / daysInPeriod;
                 const doi = (inventory !== null && drr > 0) ? inventory / drr : (inventory === null ? null : 0);
-                
+
                 const offtakeShare = (totalMarketSales > 0) ? (revenue / totalMarketSales * 100) : 0;
 
                 let kpis = {};
@@ -849,7 +857,7 @@ export const getSignalLabData = async (req, res) => {
                     };
                 } else if (metricType === 'visibility') {
                     const brandKey = (isBrandGroup ? item[groupCol] : item.Brand || item.BrandCol || '').toString().trim().toLowerCase();
-                    
+
                     // Improved matching for SOS: exact first, then partial
                     let sosData = sosMap[brandKey];
                     if (!sosData) {
@@ -857,7 +865,7 @@ export const getSignalLabData = async (req, res) => {
                         const partialKey = Object.keys(sosMap).find(k => k.includes(brandKey) || brandKey.includes(k));
                         sosData = sosMap[partialKey] || { overall: '0.0%', ad: '0.0%', organic: '0.0%' };
                     }
-                    
+
                     kpis = {
                         adSos: sosData.ad,
                         organicSos: sosData.organic,
@@ -1010,7 +1018,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                     else conds.push(`Brand ILIKE '%${escapeStr(brandFilter)}%'`);
                 }
                 if (categoryFilter) {
-                    const isMars = getCurrentDbName() === 'mars';
+                    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(getCurrentDbName());
                     const catCol = isMars ? 'Category' : 'Product_type';
                     if (Array.isArray(categoryFilter)) conds.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
                     else conds.push(`${catCol} ILIKE '${escapeStr(categoryFilter)}'`);

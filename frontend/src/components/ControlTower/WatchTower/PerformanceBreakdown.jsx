@@ -381,6 +381,10 @@ export function AggregatedViewTable() {
             if (filters.platform?.length > 0 && !filters.platform.includes("all")) params.set("platform_uuid", filters.platform[0]);
             if (filters.dateStart) params.set("start_date", filters.dateStart);
             if (filters.dateEnd) params.set("end_date", filters.dateEnd);
+            if (filters.channel) params.set("channel", filters.channel);
+            if (filters.category?.length > 0 && !filters.category.includes("All")) params.set("category", filters.category.join(","));
+            if (filters.brand && filters.brand !== "All") params.set("brand", Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand);
+            if (filters.location?.length > 0 && !filters.location.includes("All")) params.set("location", filters.location.join(","));
             params.set("group_by", groupBy);
             // Pass selected period keys so backend can compute comparison data
             if (selectedPeriods.length > 0) {
