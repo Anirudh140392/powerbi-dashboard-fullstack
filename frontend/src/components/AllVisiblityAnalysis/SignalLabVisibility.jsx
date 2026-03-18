@@ -113,16 +113,22 @@ const KPI_LABELS = {
 /* ------------------------------------------------------
    Impact Pill (Green/Red)
 -------------------------------------------------------*/
-function ImpactPill({ value }) {
+function ImpactPill({ value, theme }) {
     const isPositive = value?.trim().startsWith("+");
     const isNegative = value?.trim().startsWith("-");
 
     let classes =
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border shadow-sm ";
 
-    if (isPositive) classes += "bg-emerald-50 text-emerald-700 border-emerald-200";
-    else if (isNegative) classes += "bg-rose-50 text-rose-700 border-rose-200";
-    else classes += "bg-slate-100 text-slate-700 border-slate-200";
+    if (theme === 'drainer') {
+        classes += "bg-rose-50 text-rose-700 border-rose-200";
+    } else if (theme === 'gainer') {
+        classes += "bg-emerald-50 text-emerald-700 border-emerald-200";
+    } else {
+        if (isPositive) classes += "bg-emerald-50 text-emerald-700 border-emerald-200";
+        else if (isNegative) classes += "bg-rose-50 text-rose-700 border-rose-200";
+        else classes += "bg-slate-100 text-slate-700 border-slate-200";
+    }
 
     return <span className={classes}>{value}</span>;
 }
@@ -1221,9 +1227,6 @@ function SignalCard({ sku, metricType, onShowDetails }) {
             <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
                     <div className="flex items-center gap-2">
-                        {sku.skuCode && sku.skuCode !== '-' && (
-                            <span className="font-semibold">{sku.skuCode}</span>
-                        )}
                         <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-50 border">
                             {sku.categoryTag}
                         </span>
@@ -1243,19 +1246,17 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                     )}
                 </div>
 
-                {metricType !== "visibility" && (
-                    <div className="mt-3 flex justify-between items-end text-xs">
-                        <div>
-                            <div className="text-slate-400">
-                                {metricType === "inventory" ? "DOI" : "Offtakes"}
-                            </div>
-                            <div className="text-base font-semibold">
-                                {metricType === "inventory" ? sku.kpis.doi : sku.offtakeValue}
-                            </div>
+                <div className="mt-3 flex justify-between items-end text-xs">
+                    <div>
+                        <div className="text-slate-400">
+                            {metricType === "inventory" ? "DOI" : "Offtakes"}
                         </div>
-                        <ImpactPill value={sku.impact} />
+                        <div className="text-base font-semibold">
+                            {metricType === "inventory" ? (sku.kpis?.doi || '-') : sku.offtakeValue}
+                        </div>
                     </div>
-                )}
+                    <ImpactPill value={sku.impact} theme={sku.type} />
+                </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
                     {kpiKeys.map((key) =>
@@ -1294,7 +1295,7 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                             <div className="text-[9px] text-slate-500 my-0.5 leading-tight">
                                 {c.metric?.toString().replace("%", "")}
                             </div>
-                            <ImpactPill value={c.change} />
+                            <ImpactPill value={c.change} theme={sku.type} />
                         </div>
                     ))}
                 </div>
