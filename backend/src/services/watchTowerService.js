@@ -9729,10 +9729,41 @@ const getPerformanceBreakdownData = async (filters) => {
         const platCol = src.f.platform;
         const compFlagCol = src.f.compFlag;
 
+        // ── Build additional filter clauses (brand, category, location, channel) ──
+        let extraClauses = '';
+
+        // Channel filter (Ecommerce / Modern Trades) — overrides platform if set
+        if (filters.channel && filters.channel !== 'All') {
+            const channelCond = buildPlatformChannelCond(null, filters.channel, platCol);
+            if (channelCond) extraClauses += ` AND ${channelCond}`;
+        }
+
+        // Brand filter
+        if (filters.brand && filters.brand !== 'All') {
+            const brands = filters.brand.includes(',') ? filters.brand.split(',').map(b => b.trim()) : [filters.brand];
+            const brandCol = src.f.brand;
+            extraClauses += ` AND ${brandCol} IN (${brands.map(b => `'${escapeStr(b)}'`).join(', ')})`;
+        }
+
+        // Category filter
+        if (filters.category && filters.category !== 'All') {
+            const cats = filters.category.includes(',') ? filters.category.split(',').map(c => c.trim()) : [filters.category];
+            // Use PRODUCT_CATEGORY_SQL-based matching when grouping by category, otherwise use the category column directly
+            const catCol = src.isAgg ? 'category' : 'Category';
+            extraClauses += ` AND ${catCol} IN (${cats.map(c => `'${escapeStr(c)}'`).join(', ')})`;
+        }
+
+        // Location filter
+        if (filters.location && filters.location !== 'All') {
+            const locs = filters.location.includes(',') ? filters.location.split(',').map(l => l.trim()) : [filters.location];
+            const locCol = src.f.location;
+            extraClauses += ` AND ${locCol} IN (${locs.map(l => `'${escapeStr(l)}'`).join(', ')})`;
+        }
+
         const totalSpendsQuery = `
             SELECT SUM(${src.f.spend}) as total
             FROM ${src.table} 
-            WHERE ${compFlagCol} = 0 ${platformClause.replace('Platform', platCol)} ${dateClause.replace('DATE', src.f.date)}
+            WHERE ${compFlagCol} = 0 ${platformClause.replace('Platform', platCol)} ${dateClause.replace('DATE', src.f.date)} ${extraClauses}
         `;
         const totalSpendsResult = await queryClickHouse(totalSpendsQuery);
         const total_spends = parseFloat(totalSpendsResult[0]?.total || 0);
@@ -9753,6 +9784,7 @@ const getPerformanceBreakdownData = async (filters) => {
             WHERE ${compFlagCol} = 0
             ${platformClause.replace('Platform', platCol)}
             ${dateClause.replace('DATE', src.f.date)}
+            ${extraClauses}
             GROUP BY ${groupByCol}
             ORDER BY group_spends DESC
         `;
@@ -9855,7 +9887,7 @@ const getPerformanceBreakdownData = async (filters) => {
                         if (group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
             SUM(${src.f.sales}) AS group_sales
                     FROM ${src.table}
-                    WHERE ${compFlagCol} = 0 ${platformClause.replace('Platform', platCol)} ${periodDateClause}
+                    WHERE ${compFlagCol} = 0 ${platformClause.replace('Platform', platCol)} ${periodDateClause} ${extraClauses}
                     GROUP BY ${groupByCol}
                     ORDER BY group_spends DESC
                 `;

@@ -483,7 +483,11 @@ export default function WatchTower() {
     platform: filters.platform ? [filters.platform].flat() : [],
     dateStart: filters.startDate || undefined,
     dateEnd: filters.endDate || undefined,
-  }), [filters.platform, filters.startDate, filters.endDate]);
+    channel: selectedChannel || undefined,
+    category: filters.category ? [filters.category].flat() : [],
+    brand: selectedBrand || undefined,
+    location: filters.location ? [filters.location].flat() : [],
+  }), [filters.platform, filters.startDate, filters.endDate, selectedChannel, filters.category, selectedBrand, filters.location]);
 
   // Retry handler for error overlay — bumps fetchIdRef to trigger the effect
   const retryFetch = useCallback(() => {

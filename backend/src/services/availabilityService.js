@@ -12,7 +12,7 @@ import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheH
  * This handles inconsistencies in column naming/casing across different ClickHouse DBs.
  */
 const getColumnMapping = (dbName) => {
-    const isMars = dbName === 'mars';
+    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(dbName);
     // Default mappings (based on colpal/gcpl)
     const mapping = {
         rca_sku_dim: {
@@ -53,7 +53,7 @@ const buildWhereConditions = (filters, includeDate = true) => {
     if (location && location !== 'All') {
         conditions.push(`Location = '${location}'`);
     }
-    const isMars = getCurrentDbName() === 'mars';
+    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(getCurrentDbName());
     if (category && category !== 'All') {
         const catCol = isMars ? 'Category' : 'Product_type';
         conditions.push(`${catCol} = '${category}'`);
@@ -190,7 +190,7 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
         }
     }
 
-    const isMars = getCurrentDbName() === 'mars';
+    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(getCurrentDbName());
 
     if (cArr.length > 0) {
         const uniqueCArr = [...new Set(cArr)];
