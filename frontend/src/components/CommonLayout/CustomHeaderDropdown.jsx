@@ -24,8 +24,9 @@ const CustomHeaderDropdown = ({
     const open = Boolean(anchorEl);
 
     const getSelectedList = () => {
-        if (value === "All") return options;
+        if (value === "All" || (Array.isArray(value) && value.includes("All"))) return options;
         if (Array.isArray(value)) return value;
+        if (!value) return [];
         return [value];
     };
 
@@ -37,16 +38,13 @@ const CustomHeaderDropdown = ({
 
     const emitChange = (newList) => {
         if (!multiSelect) {
-            onChange(newList[0]);
+            onChange(newList[0] || "All");
             handleClose();
             return;
         }
 
-        if (newList.length === 0) {
-            // When nothing is selected, pass "All" so the backend doesn't fail with empty list
-            onChange(["All"]);
-        } else if (newList.length === options.length) {
-            onChange(["All"]); // Or "All" string, let's pass array
+        if (newList.length === options.length && options.length > 0) {
+            onChange("All");
         } else {
             onChange(newList);
         }
@@ -90,9 +88,13 @@ const CustomHeaderDropdown = ({
         setAnchorEl(event.currentTarget);
     };
 
-    const displayValue = Array.isArray(value)
-        ? (value.length === 0 ? "None" : value.length === options.length ? "All" : value.join(", "))
-        : value;
+    const isAllSelected = value === "All" || (Array.isArray(value) && (value.includes("All") || (value.length === options.length && options.length > 0)));
+
+    const displayValue = isAllSelected
+        ? "All"
+        : (Array.isArray(value)
+            ? (value.length === 0 ? "None" : value.join(", "))
+            : (value || "None"));
 
     return (
         <Box sx={{ width }}>
