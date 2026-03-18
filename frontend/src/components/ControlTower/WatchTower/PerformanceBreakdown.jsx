@@ -23,9 +23,9 @@ export function PerformanceBreakdownProvider({ darkMode = false, filters = { pla
 function getAuthToken() { return typeof window === "undefined" ? null : localStorage.getItem(AUTH_TOKEN_KEY); }
 function buildUrl(endpoint) {
     if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) return endpoint;
-    // Use relative paths to go through Vite proxy (dev) or nginx proxy (prod)
-    if (endpoint.startsWith("/api")) return endpoint;
-    return `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    const base = API_BASE_URL ? API_BASE_URL : "";
+    let path = endpoint.startsWith("/api") ? endpoint : `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    return `${base}${path}`;
 }
 function handleUnauthorized() {
     localStorage.removeItem("isLoggedIn");
