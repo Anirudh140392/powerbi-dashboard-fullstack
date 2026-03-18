@@ -12,7 +12,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { motion, useSpring, useMotionValue, AnimatePresence } from "framer-motion";
-import { Plus, Minus, Activity, Zap, LineChart } from "lucide-react";
+import { Plus, Minus, Activity, Zap, LineChart, Download } from "lucide-react";
 import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import {
@@ -31,13 +31,17 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
+  Tab,
+  TablePagination,
+  Tooltip,
 } from "@mui/material";
 
 // --- Layout & Typography Tokens ---
 const CARD_WIDTH = 380;
-const CARD_HEIGHT = 220; // Estimated height for vertical centering
-const VERTICAL_GAP = 50;
-const HORIZONTAL_STEP = 520;
+const CARD_HEIGHT = 280; // Estimated height for vertical centering
+const VERTICAL_GAP = 180;
+const HORIZONTAL_STEP = 580;
 
 const TYPO = {
   primary: "#0f172a",
@@ -54,16 +58,16 @@ const TYPO = {
 };
 
 const COLORS = {
-  offtake: "#0f172a",
-  price: "#3b82f6",
-  impressions: "#6366f1",
-  availability: "#10b981",
-  organic: "#8b5cf6",
-  ad: "#06b6d4",
-  discounting: "#f59e0b",
-  segment: "#64748b",
-  rating: "#f43f5e",
-  conversion: "#10b981",
+  offtake: "#000000",
+  price: "#5E23BB", // Zepto Purple
+  impressions: "#FFD54F", // Blinkit Yellow
+  availability: "#0C831F", // Blinkit Green
+  organic: "#9C27B0", // Premium Purple
+  ad: "#2563EB", // Modern Blue
+  discounting: "#F59E0B", // Orange
+  segment: "#64748B",
+  rating: "#E91E63", // Pink
+  conversion: "#0C831F",
 };
 
 // --- Custom Cursor / Mouse Follower ---
@@ -138,11 +142,11 @@ const AiInsightBadge = ({ text }) => (
       top: -24,
       left: "50%",
       transform: "translateX(-50%)",
-      backgroundColor: "#8b5cf6",
-      color: "white",
-      padding: "8px 18px",
-      borderRadius: "16px",
-      fontSize: "12px",
+      backgroundColor: "#FFD54F", // Blinkit Yellow
+      color: "black",
+      padding: "10px 22px",
+      borderRadius: "18px",
+      fontSize: "13px",
       fontWeight: 900,
       whiteSpace: "nowrap",
       textTransform: "uppercase",
@@ -201,79 +205,135 @@ const TrendButton = ({ onClick }) => (
   </motion.div>
 );
 
-// --- Dark Hover Intelligence Popup (Table View) ---
-// --- Dark Hover Intelligence Popup (Unified) ---
-const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false }) => {
+const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLabel = "KPI", category = "", platform = "" }) => {
+  const brands = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer"];
   const isBottom = position === "bottom";
-  
-  if (isOrganic) {
-    const displayMetrics = [
-      { metric: 'Organic Impressions', current: '16.2 lac', previous: '18.2 lac', change: '-11.3%', delta: '2.1 lac', isPos: false },
-      { metric: 'Organic SOV', current: '3.3%', previous: '4.0%', change: '-16.3%', delta: '-0.6%', isPos: false },
-    ];
+  const popupRef = React.useRef(null);
+  const [hOffset, setHOffset] = useState(0);
 
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
-        style={{
-          position: "absolute",
-          ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: 1300, // Increased size for Organic card
-          backgroundColor: "rgba(10, 15, 28, 0.98)",
-          backdropFilter: "blur(30px) saturate(180%)",
-          borderRadius: "36px",
-          padding: "48px",
-          zIndex: 100000,
-          boxShadow: "0 60px 120px rgba(0,0,0,0.85), 0 0 100px rgba(79, 70, 229, 0.15)",
-          border: "2px solid rgba(255, 255, 255, 0.18)",
-          pointerEvents: "none",
-          overflow: "hidden"
-        }}
-      >
-        <Typography sx={{ color: "rgba(255,255,255,0.6)", fontSize: "20px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "3px", mb: 4 }}>
-            Diagnostic Intelligence: Organic Pull
-        </Typography>
-        <Table size="medium">
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ color: "rgba(255,255,255,0.45)", fontWeight: 800, border: "none", fontSize: "20px", pb: 2 }}>Metric</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.45)", fontWeight: 800, border: "none", fontSize: "20px", pb: 2 }}>Current</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.45)", fontWeight: 800, border: "none", fontSize: "20px", pb: 2 }}>Previous</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.45)", fontWeight: 800, border: "none", fontSize: "20px", pb: 2 }}>Change (Magnitude)</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {displayMetrics.map((row, idx) => (
-              <TableRow key={idx}>
-                <TableCell sx={{ color: "#fff", fontWeight: 900, border: "none", fontSize: "26px", py: 2 }}>{row.metric}</TableCell>
-                <TableCell sx={{ color: "#fff", fontWeight: 900, border: "none", fontSize: "26px", py: 2 }}>{row.current}</TableCell>
-                <TableCell sx={{ color: "#fff", fontWeight: 900, border: "none", fontSize: "26px", py: 2 }}>{row.previous}</TableCell>
-                <TableCell sx={{ color: row.isPos ? "#10b981" : "#f43f5e", fontWeight: 900, border: "none", fontSize: "26px", py: 2 }}>
-                  {row.change} <span style={{ fontSize: "18px", opacity: 0.8 }}>({row.delta})</span>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </motion.div>
-    );
+  useEffect(() => {
+    if (popupRef.current) {
+      const rect = popupRef.current.getBoundingClientRect();
+      const padding = 20; // safe margin
+      let offset = 0;
+
+      if (rect.left < padding) {
+        offset = padding - rect.left;
+      } else if (rect.right > window.innerWidth - padding) {
+        offset = window.innerWidth - padding - rect.right;
+      }
+
+      if (offset !== 0) {
+        setHOffset(offset);
+      }
+    }
+  }, []);
+
+  if (isOrganic) {
+    // This is now handled by the generalized dynamic tooltip
   }
 
-  // Restoration of the Previous Black Card (Brand Intelligence)
-  const displayMetrics = Array.isArray(metrics) && metrics.length > 0 ? metrics : [
-    { brand: 'Snickers', asp: '₹66.6', discount: '7.1%', ppu: '₹122.3', deltaAsp: '-₹1.4', deltaDisc: '6.7%', deltaPpu: '-₹7.5' },
-    { brand: 'Galaxy', asp: '₹101.1', discount: '9.8%', ppu: '₹183.5', deltaAsp: '-₹8.4', deltaDisc: '8.5%', deltaPpu: '-₹1.8' },
-    { brand: 'Bounty', asp: '₹119.7', discount: '11.7%', ppu: '₹144.3', deltaAsp: '-₹9.8', deltaDisc: '9.7%', deltaPpu: '-₹14.7' },
-    { brand: 'Twix', asp: '₹117.9', discount: '5.0%', ppu: '₹175.1', deltaAsp: '-₹2.8', deltaDisc: '4.4%', deltaPpu: '-₹7' },
-    { brand: 'Mars', asp: '₹92.8', discount: '4.1%', ppu: '₹182.1', deltaAsp: '-₹2.1', deltaDisc: '3.8%', deltaPpu: '-₹4.1' },
-  ];
+  const getMetricKey = (label, cat) => {
+    const l = label.toLowerCase();
+    const c = cat ? cat.toLowerCase() : "";
+
+    // Keyword specific mappings
+    if (l.includes("branded")) {
+      return c === "ad" ? "adBranded" : "orgBranded";
+    }
+    if (l.includes("generic")) {
+      return "orgGeneric";
+    }
+    if (l.includes("comp")) {
+      return "adComp";
+    }
+    if (l.includes("organic impressions")) return "organic";
+    if (l.includes("ad impressions")) return "ad";
+
+    // Standard mappings
+    if (l.includes("offtake")) return "offtake";
+    if (l.includes("price")) return "price";
+    if (l.includes("impressions")) return "impressions";
+    if (l.includes("conversion")) return "conversion";
+    if (l.includes("disc")) return "discount";
+    if (l.includes("osa")) return "osa";
+    if (l.includes("ppu")) return "ppu";
+    if (l.includes("rating")) return "rating";
+    if (l.includes("listing")) return "listing";
+    return "offtake";
+  };
+
+  const parseVal = (str) => {
+    if (!str) return 0;
+    let s = String(str).replace(/[₹,% ]/g, "").toLowerCase();
+    let multiplier = 1;
+    if (s.endsWith('lac')) { multiplier = 100000; s = s.replace('lac', ''); }
+    else if (s.endsWith('k')) { multiplier = 1000; s = s.replace('k', ''); }
+    else if (s.endsWith('cr')) { multiplier = 10000000; s = s.replace('cr', ''); }
+    return (parseFloat(s) || 0) * multiplier;
+  };
+
+  const formatVal = (val) => {
+    const absVal = Math.abs(val);
+    if (kpiLabel.toLowerCase().includes("offtake")) {
+      if (absVal >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
+      if (absVal >= 100000) return `₹ ${(val / 100000).toFixed(2)} lac`;
+      return `₹ ${val.toLocaleString()}`;
+    }
+    if (kpiLabel.toLowerCase().includes("impressions")) {
+      if (absVal >= 100000) return `${(val / 100000).toFixed(1)} lac`;
+      if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
+      return val.toLocaleString();
+    }
+    if (kpiLabel.toLowerCase().includes("price") || kpiLabel.toLowerCase().includes("ppu")) return `₹${val.toFixed(1)}`;
+    if (kpiLabel.includes("%") || kpiLabel.toLowerCase().includes("conv")) return `${val.toFixed(1)}%`;
+    return val.toFixed(1);
+  };
+
+  const displayMetrics = (metrics && metrics.length > 0) ? metrics : brands.map((brand, idx) => {
+    // Generate varied numbers based on brand, kpi and platform
+    const brandSeed = brand.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const kpiSeed = kpiLabel.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const platformSeed = (platform || "base").split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const seed = (brandSeed + kpiSeed + platformSeed + idx) % 20;
+
+    const isPercent = kpiLabel.toLowerCase().includes("%") || kpiLabel.toLowerCase().includes("conv") || kpiLabel.toLowerCase().includes("osa") || kpiLabel.toLowerCase().includes("listing");
+    const isCurrency = kpiLabel.toLowerCase().includes("offtake") || kpiLabel.toLowerCase().includes("price") || kpiLabel.toLowerCase().includes("ppu");
+    const isImpressions = kpiLabel.toLowerCase().includes("impression");
+
+    let currentVal, deltaVal;
+
+    if (isPercent) {
+      currentVal = 65 + (seed * 1.5);
+      deltaVal = (seed - 10) * 0.8;
+    } else if (isImpressions) {
+      currentVal = (8 + seed * 6) * 100000;
+      deltaVal = (seed - 12) * 20000;
+    } else if (isCurrency) {
+      currentVal = (40 + seed * 15) * 100000;
+      deltaVal = (seed - 8) * 60000;
+    } else {
+      currentVal = 100 + seed * 20;
+      deltaVal = (seed - 10) * 15;
+    }
+
+    const mKey = getMetricKey(kpiLabel, category);
+    const dKey = `delta${mKey.charAt(0).toUpperCase() + mKey.slice(1)}`;
+    const sign = deltaVal >= 0 ? "+" : "";
+
+    return {
+      brand,
+      [mKey]: formatVal(currentVal),
+      [dKey]: isPercent ? `${sign}${(deltaVal).toFixed(1)}%` : `${sign}${formatVal(deltaVal)}`
+    };
+  });
+
+  const metricKey = getMetricKey(kpiLabel, category);
+  const deltaKey = `delta${metricKey.charAt(0).toUpperCase() + metricKey.slice(1)}`;
 
   return (
     <motion.div
+      ref={popupRef}
       initial={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
@@ -281,77 +341,73 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false }) => 
         position: "absolute",
         ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
         left: "50%",
-        transform: "translateX(-50%)",
-        width: 1400,
-        backgroundColor: "rgba(10, 15, 28, 0.97)",
+        transform: `translateX(calc(-50% + ${hOffset}px))`,
+        width: "max(600px, min(1400px, 95vw))", // Responsive width with constraints
+        backgroundColor: "rgba(10, 15, 28, 0.98)",
         backdropFilter: "blur(40px) saturate(200%)",
         borderRadius: "44px",
         padding: "0",
         zIndex: 100000,
         boxShadow: "0 100px 200px -40px rgba(0, 0, 0, 0.95), 0 0 120px rgba(79, 70, 229, 0.2)",
         border: "2px solid rgba(255, 255, 255, 0.18)",
-        pointerEvents: "none",
-        overflow: "hidden"
+        pointerEvents: "auto",
+        overflow: "hidden",
+        maxHeight: "85vh",
+        display: "flex",
+        flexDirection: "column"
       }}
     >
-      <Box sx={{ px: 6, py: 5, borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "rgba(255,255,255,0.01)" }}>
+      <Box sx={{ px: { xs: 3, md: 6 }, py: { xs: 3, md: 4 }, borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "rgba(255,255,255,0.01)" }}>
         <Box>
-            <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: "28px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "5px", mb: 0.5 }}>
+          <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: "clamp(18px, 2vw, 28px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "5px", mb: 0.5 }}>
             Market Intelligence Trace
-            </Typography>
-            <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: "14px", fontWeight: 700, letterSpacing: "1px" }}>
+          </Typography>
+          <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: "clamp(10px, 1vw, 14px)", fontWeight: 700, letterSpacing: "1px" }}>
             PRO INTELLIGENCE PIPELINE V2.0 • REAL-TIME DATA STREAM
-            </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 2 }}>
-          {["HK", "AK", "SH"].map((initial, i) => (
-             <Box key={i} sx={{ width: 56, height: 56, borderRadius: "50%", bgcolor: ["#10b981", "#f59e0b", "#6366f1"][i], color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", fontWeight: 900, border: "3px solid rgba(15,23,42,0.98)", boxShadow: "0 4px 12px rgba(0,0,0,0.5)" }}>
-               {initial}
-             </Box>
-          ))}
+          </Typography>
         </Box>
       </Box>
 
-      <TableContainer sx={{ overflow: "visible" }}>
-        <Table size="medium" sx={{ "& td, & th": { border: "none", py: 4, px: 6 } }}>
+      <TableContainer sx={{
+        overflowY: "auto",
+        flex: 1,
+        "&::-webkit-scrollbar": { width: "10px" },
+        "&::-webkit-scrollbar-track": { background: "rgba(255,255,255,0.02)" },
+        "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(255,255,255,0.2)", borderRadius: "10px", border: "2px solid rgba(10,15,28,0.1)" },
+        "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
+      }}>
+        <Table size="small" sx={{ "& td, & th": { border: "none", py: { xs: 2, md: 2.5 }, px: { xs: 3, md: 6 } } }}>
           <TableHead>
-            <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Brand Identity</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Avg. Selling Price</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Wt. Discount</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "20px", fontWeight: 800 }}>Wt. PPU (x100)</TableCell>
+            <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)", position: "sticky", top: 0, bgcolor: "rgba(10, 15, 28, 1)", zIndex: 10 }}>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Brand Identity</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Current Month {kpiLabel}</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Previous Month {kpiLabel}</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Change</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {displayMetrics.map((row, idx) => (
-              <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
-                <TableCell sx={{ color: "#fff", fontSize: "26px", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.brand}</TableCell>
-                <TableCell>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Typography sx={{ color: "#fff", fontSize: "26px", fontWeight: 900 }}>{row.asp}</Typography>
-                    <Typography sx={{ color: row.deltaAsp?.startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "18px", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
-                      {row.deltaAsp}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Typography sx={{ color: "#fff", fontSize: "26px", fontWeight: 900 }}>{row.discount}</Typography>
-                    <Typography sx={{ color: "#00ff99", fontSize: "18px", fontWeight: 900, bgcolor: "rgba(0,255,153,0.1)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
-                        {row.deltaDisc}
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    <Typography sx={{ color: "#fff", fontSize: "26px", fontWeight: 900 }}>{row.ppu}</Typography>
-                    <Typography sx={{ color: row.deltaPpu?.startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "18px", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
-                      {row.deltaPpu}
-                    </Typography>
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))}
+            {displayMetrics.map((row, idx) => {
+              const currStr = row[metricKey];
+              const deltaStr = row[deltaKey];
+              const currVal = parseVal(currStr);
+              const deltaVal = parseVal(deltaStr);
+              const prevVal = currVal - deltaVal;
+
+              return (
+                <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
+                  <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.brand}</TableCell>
+                  <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{currStr}</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{formatVal(prevVal)}</TableCell>
+                  <TableCell>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                      <Typography sx={{ color: String(deltaStr).startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "clamp(12px, 1.2vw, 18px)", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
+                        {deltaStr}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
@@ -458,26 +514,33 @@ const KpiNode = ({ data }) => {
         scale: targetScale,
         y: targetLift,
         filter: isDimmed ? "grayscale(0.4) blur(0.2px)" : "none",
+        zIndex: localHover && !isDimmed ? 1000 : 1,
       }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
+      transition={{
+        type: "spring",
+        damping: 12,
+        stiffness: 70,
+        opacity: { duration: 0.2, ease: "easeOut" }
+      }}
       whileHover={{
         boxShadow: isDimmed
           ? baseShadow
           : `0 35px 70px -15px rgba(0, 0, 0, 0.18)`,
         border: isDimmed ? baseBorder : `2.5px solid ${accentColor}`,
       }}
-      transition={{ type: "spring", damping: 12, stiffness: 70 }}
       style={{
         width: CARD_WIDTH,
         backgroundColor: "#ffffff",
-        borderRadius: "28px",
+        borderRadius: "32px",
         border: baseBorder,
         overflow: "visible",
         fontFamily: '"Outfit","Inter",sans-serif',
         cursor: "pointer",
         position: "relative",
-        boxShadow: baseShadow,
-        zIndex: "auto", // Allow parent React Flow wrapper to control stacking order
+        boxShadow: localHover && !isDimmed
+          ? `0 40px 80px -15px rgba(0,0,0,0.15), 0 0 20px ${accentColor}20`
+          : baseShadow,
+        zIndex: localHover && !isDimmed ? 1000 : 1,
         transformOrigin: "center",
       }}
       onMouseEnter={(e) => {
@@ -491,7 +554,7 @@ const KpiNode = ({ data }) => {
         e.stopPropagation();
         setLocalHover(false);
         window.hoverTimeout = setTimeout(() => {
-            onHover?.(null);
+          onHover?.(null);
         }, 100);
       }}
       onClick={(e) => {
@@ -500,13 +563,36 @@ const KpiNode = ({ data }) => {
       }}
     >
       <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none", width: 0, height: 0, left: -8, top: "50%" }} />
-      
+
+      {/* Hover bridge to keep popup open when moving mouse between card and popup */}
+      {
+        localHover && hoveredNodeId === data.id && !isDimmed && (
+          <Box
+            sx={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              height: "45px", // Slightly more than the 40px gap
+              zIndex: 99999,
+              background: "transparent",
+              ...(data.popupPosition === "bottom"
+                ? { top: "100%" }
+                : { bottom: "100%" }
+              ),
+            }}
+          />
+        )
+      }
+
       <AnimatePresence>
         {localHover && hoveredNodeId === data.id && !isDimmed && (
-          <HoverMetricsPopup 
-            metrics={metrics} 
-            position={data.popupPosition} 
-            isOrganic={label === "Organic Impressions" || label === "Organic GVs"} 
+          <HoverMetricsPopup
+            metrics={metrics}
+            position={data.popupPosition}
+            isOrganic={label === "Organic Impressions" || label === "Organic GVs"}
+            kpiLabel={label}
+            category={category}
+            platform={data.platform || ""}
           />
         )}
       </AnimatePresence>
@@ -619,40 +705,42 @@ const KpiNode = ({ data }) => {
         )}
       </Box>
 
-      {hasChildren && (
-        <motion.div
-          className="toggle-btn"
-          whileHover={{ scale: 1.18, rotate: 90, backgroundColor: "#4f46e5", color: "#fff" }}
-          whileTap={{ scale: 0.92 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-          style={{
-            position: "absolute",
-            right: -28, // Centered on the source handle at right: -8
-            top: "50%",
-            marginTop: -20,
-            width: 40,
-            height: 40,
-            borderRadius: "50%",
-            backgroundColor: "#fff",
-            color: "#64748b",
-            border: "2px solid rgba(255, 255, 255, 1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            zIndex: 15,
-            boxShadow: "0 14px 26px -6px rgba(0, 0, 0, 0.16)",
-          }}
-        >
-          {isCollapsed ? <Plus size={22} strokeWidth={3} /> : <Minus size={22} strokeWidth={3} />}
-        </motion.div>
-      )}
+      {
+        hasChildren && (
+          <motion.div
+            className="toggle-btn"
+            whileHover={{ scale: 1.18, rotate: 90, backgroundColor: "#4f46e5", color: "#fff" }}
+            whileTap={{ scale: 0.92 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            style={{
+              position: "absolute",
+              right: -28, // Centered on the source handle at right: -8
+              top: "50%",
+              marginTop: -20,
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              backgroundColor: "#fff",
+              color: "#64748b",
+              border: "2px solid rgba(255, 255, 255, 1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              zIndex: 15,
+              boxShadow: "0 14px 26px -6px rgba(0, 0, 0, 0.16)",
+            }}
+          >
+            {isCollapsed ? <Plus size={22} strokeWidth={3} /> : <Minus size={22} strokeWidth={3} />}
+          </motion.div>
+        )
+      }
 
       <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none", width: 0, height: 0, right: -8 }} />
-    </motion.div>
+    </motion.div >
   );
 };
 
@@ -733,67 +821,99 @@ const getDynamicRcaTreeData = (context) => {
   const brandId = brand || "base";
   const skuId = sku || "base";
 
-  // --- AMAZON SPECIFIC TREE ---
-  if (platform?.toLowerCase() === "amazon") {
-    const rootChange = getChange("root");
+  // --- FLIPKART & AMAZON SPECIFIC TREE (HARDCODED AS REQUESTED) ---
+  if (platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart") {
+    const isFlipkart = platform?.toLowerCase() === "flipkart";
+    const gvLabel = isFlipkart ? "Impression" : "GV";
+    const pluralGvLabel = isFlipkart ? "Impressions" : "GVs";
+
     return {
       id: "root",
       label: "Offtake",
-      value: getVal(5.0 * 100), // Amazon usually has higher scale
-      change: rootChange.val,
-      isPositive: rootChange.isPos,
+      value: "₹ 2.95 Cr",
+      change: "53.73%",
+      isPositive: false,
       category: "offtake",
       importance: "outcome",
-      insight: rootChange.isPos ? "Portfolio Growth" : "Market Pressure",
-      metrics: [
-        { brand: 'Snickers', asp: '₹66.6', discount: '7.1%', ppu: '₹122.3', deltaAsp: '-₹1.4', deltaDisc: '6.7%', deltaPpu: '-₹7.5' },
-        { brand: 'Galaxy', asp: '₹101.1', discount: '9.8%', ppu: '₹183.5', deltaAsp: '-₹8.4', deltaDisc: '8.5%', deltaPpu: '-₹1.8' },
-        { brand: 'Bounty', asp: '₹119.7', discount: '11.7%', ppu: '₹144.3', deltaAsp: '-₹9.8', deltaDisc: '9.7%', deltaPpu: '-₹14.7' },
-        { brand: 'Twix', asp: '₹117.9', discount: '5.0%', ppu: '₹175.1', deltaAsp: '-₹2.8', deltaDisc: '4.4%', deltaPpu: '-₹7' },
-        { brand: 'Mars', asp: '₹92.8', discount: '4.1%', ppu: '₹182.1', deltaAsp: '-₹2.1', deltaDisc: '3.8%', deltaPpu: '-₹4.1' },
-      ],
+      insight: "Critical Decline",
+      meta: [{ label: "Est. Category share", value: "0.00%", change: "2.40%", isPositive: false }],
       children: [
         {
-          id: "gvs",
-          label: "GVs",
-          value: formatLac(133.1 * finalVolume),
-          change: getChange("gvs").val,
-          isPositive: getChange("gvs").isPos,
+          id: isFlipkart ? "impressions" : "gvs",
+          label: isFlipkart ? "Impressions" : "GVs",
+          value: "115.65K",
+          change: "46.97%",
+          isPositive: false,
           category: "impressions",
           importance: "primary",
-          metrics: [
-            { brand: 'Snickers', asp: '₹64.2', discount: '8.4%', ppu: '₹118.5', deltaAsp: '+₹2.1', deltaDisc: '7.8%', deltaPpu: '+₹4.2' },
-            { brand: 'Galaxy', asp: '₹98.5', discount: '10.2%', ppu: '₹179.2', deltaAsp: '-₹1.5', deltaDisc: '9.1%', deltaPpu: '-₹2.3' },
+          meta: [
+            { label: "Share of Search", value: "45.80%", change: "7.63%", isPositive: false },
+            { label: `${gvLabel} Share`, value: "100.00%", change: "0.00", isPositive: true }
           ],
-          meta: [{ label: "GV Share", value: "100.0%", change: "0.00", isPositive: true }],
           children: [
             {
-              id: "organic-gvs",
-              label: "Organic GVs",
-              value: formatLac(73.3 * finalVolume),
-              change: getChange("org_gv").val,
-              isPositive: getChange("org_gv").isPos,
+              id: isFlipkart ? "organic-impressions" : "organic-gvs",
+              label: isFlipkart ? "Organic " + pluralGvLabel : "Organic GVs",
+              value: "80.10K",
+              change: "37.63%",
+              isPositive: false,
               category: "organic",
-              metrics: { discount: "8.1%", ppu: "₹ 245", asp: "₹ 210" },
               meta: [
-                { label: "Organic Share of Search", value: getVal(45.5, true, "osas", 10) },
-                { label: "Organic GV%", value: getVal(55.0, true, "ogvp", 10) }
+                { label: `Organic Share of Search`, value: "45.03%", change: "0.01%", isPositive: true },
+                { label: `Organic ${gvLabel}%`, value: "69.26%", change: "10.38%", isPositive: true }
               ]
             },
             {
-              id: "ad-gvs",
-              label: "Ad GVs",
-              value: formatLac(59.8 * finalVolume),
-              change: getChange("ad_gv").val,
-              isPositive: getChange("ad_gv").isPos,
+              id: isFlipkart ? "ad-impressions" : "ad-gvs",
+              label: isFlipkart ? "Ad " + pluralGvLabel : "Ad GVs",
+              value: "35.55K",
+              change: "60.35%",
+              isPositive: false,
               category: "ad",
               meta: [
-                { label: "Sp. Share of Search", value: getVal(64.8, true, "ssos", 10) },
-                { label: "AD Driven GV%", value: getVal(44.9, true, "adgv", 10) },
-                { label: "AD Spend", value: `₹ ${(3.0 * finalVolume).toFixed(1)}M` },
-                { label: "Total ROAS", value: (3.2 * (0.8 + seed * 0.4)).toFixed(2) }
+                { label: "Sp. Share of Search", value: "47.60%", change: "29.79%", isPositive: false },
+                { label: `AD Driven ${gvLabel}%`, value: "30.74%", change: "10.38%", isPositive: false },
+                { label: "AD Spend", value: "3.33M", change: "50.58%", isPositive: false },
+                { label: "Total ROAS", value: "2.77", change: "15.70%", isPositive: false }
               ],
-              children: [
+              children: isFlipkart ? [
+                {
+                  id: "pla",
+                  label: "PLA",
+                  value: "22.45K",
+                  change: "46.74%",
+                  isPositive: false,
+                  category: "ad",
+                  meta: [
+                    { label: "PLA Impressions", value: "22.45K", change: "46.74%", isPositive: false },
+                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false }
+                  ]
+                },
+                {
+                  id: "pca",
+                  label: "PCA",
+                  value: "8.10K",
+                  change: "56.80%",
+                  isPositive: false,
+                  category: "ad",
+                  meta: [
+                    { label: "PCA Impressions", value: "8.10K", change: "56.80%", isPositive: false },
+                    { label: "Conversion", value: "29.21%", change: "6.80%", isPositive: true }
+                  ]
+                },
+                {
+                  id: "display-ads",
+                  label: "Display Ads",
+                  value: "5.00K",
+                  change: "43.79%",
+                  isPositive: false,
+                  category: "ad",
+                  meta: [
+                    { label: "Display Impressions", value: "5.00K", change: "43.79%", isPositive: false },
+                    { label: "Conversion", value: "23.28%", change: "2.18%", isPositive: false }
+                  ]
+                }
+              ] : [
                 {
                   id: "dsp",
                   label: "DSP",
@@ -809,52 +929,55 @@ const getDynamicRcaTreeData = (context) => {
                 {
                   id: "sponsored-search",
                   label: "Sponsored Search",
-                  value: formatLac(46.8 * finalVolume),
-                  change: getChange("sps").val,
-                  isPositive: getChange("sps").isPos,
+                  value: "45.00K",
+                  change: "46.74%",
+                  isPositive: false,
                   category: "ad",
-                  meta: [{ label: "Search GVs", value: formatLac(46.8 * finalVolume) }, { label: "Conversion", value: "23.19%" }],
+                  meta: [
+                    { label: "Search GVs", value: "45.00K", change: "46.74%", isPositive: false },
+                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false }
+                  ],
                   children: [
                     {
                       id: "sp",
                       label: "Sponsored Product",
-                      value: formatLac(35.5 * finalVolume),
-                      change: getChange("sp").val,
-                      isPositive: getChange("sp").isPos,
+                      value: "30.41K",
+                      change: "56.80%",
+                      isPositive: false,
                       category: "ad",
                       meta: [
-                        { label: "SP GVs", value: formatLac(35.5 * finalVolume) },
-                        { label: "Conversion", value: getVal(26.6, true, "spc", 5) },
-                        { label: "SP ROAS", value: "3.56" },
-                        { label: "SP SPEND", value: "2.62M" }
+                        { label: "SP GVs", value: "30.41K", change: "56.80%", isPositive: false },
+                        { label: "Conversion", value: "29.21%", change: "6.80%", isPositive: true },
+                        { label: "SP ROAS", value: "2.83", change: "13.85%", isPositive: false },
+                        { label: "SP SPEND", value: "2.61M", change: "55.17%", isPositive: false }
                       ]
                     },
                     {
                       id: "sb",
                       label: "Sponsored Brand",
-                      value: formatLac(4.3 * finalVolume),
-                      change: getChange("sb").val,
-                      isPositive: getChange("sb").isPos,
+                      value: "5.48K",
+                      change: "43.79%",
+                      isPositive: false,
                       category: "ad",
                       meta: [
-                        { label: "SB All GVs", value: formatLac(4.3 * finalVolume) },
-                        { label: "Conversion", value: "17.56%" },
-                        { label: "SB ROAS", value: "0.42" },
-                        { label: "SB SPEND", value: "264.49K" }
+                        { label: "SB All GVs", value: "5.48K", change: "43.79%", isPositive: false },
+                        { label: "Conversion", value: "23.28%", change: "2.18%", isPositive: false },
+                        { label: "SB ROAS", value: "1.50", change: "34.67%", isPositive: false },
+                        { label: "SB SPEND", value: "544.89K", change: "32.99%", isPositive: false }
                       ]
                     },
                     {
                       id: "sd",
                       label: "Sponsored Display",
-                      value: formatLac(6.9 * finalVolume),
-                      change: getChange("sd").val,
-                      isPositive: getChange("sd").isPos,
+                      value: "9.11K",
+                      change: "109.94%",
+                      isPositive: true,
                       category: "ad",
                       meta: [
-                        { label: "SD GVs", value: formatLac(6.9 * finalVolume) },
-                        { label: "Conversion", value: "9.00%" },
-                        { label: "SD ROAS", value: "1.64" },
-                        { label: "SD SPEND", value: "112.06K" }
+                        { label: "SD GVs", value: "9.11K", change: "109.94%", isPositive: true },
+                        { label: "Conversion", value: "13.98%", change: "24.94%", isPositive: false },
+                        { label: "SD ROAS", value: "5.79", change: "46.13%", isPositive: false },
+                        { label: "SD SPEND", value: "177.33K", change: "63.58%", isPositive: true }
                       ]
                     }
                   ]
@@ -864,45 +987,45 @@ const getDynamicRcaTreeData = (context) => {
             {
               id: "sov-overall",
               label: "SOV Overall",
-              value: "15.66%",
+              value: "8.75%",
               change: "0.0%",
               isPositive: true,
               category: "impressions",
-              meta: [{ label: "SOV", value: "15.66%" }]
+              meta: [{ label: "SOV", value: "8.75%" }]
             }
           ]
         },
         {
           id: "cvr",
           label: "CVR",
-          value: getVal(39.5, true, "cvr_main", 10),
-          change: getChange("cvr").val,
-          isPositive: getChange("cvr").isPos,
+          value: "40.68%",
+          change: "13.01%",
+          isPositive: true,
           category: "conversion",
           importance: "primary",
           children: [
             {
               id: "availability",
               label: "Availability",
-              value: getVal(77.9, true, "avail", 10),
-              change: getChange("ava").val,
-              isPositive: getChange("ava").isPos,
+              value: "69.55%",
+              change: "4.60%",
+              isPositive: false,
               category: "availability",
               children: [
                 {
                   id: "buybox",
                   label: "BuyBox%",
-                  value: getVal(58.3, true, "bbox", 15),
-                  change: getChange("bbx").val,
-                  isPositive: getChange("bbx").isPos,
+                  value: "43.01%",
+                  change: "22.74%",
+                  isPositive: false,
                   category: "availability"
                 },
                 {
                   id: "seller-listing",
                   label: "Seller Listing%",
-                  value: getVal(56.7, true, "slst", 15),
-                  change: getChange("sls").val,
-                  isPositive: getChange("sls").isPos,
+                  value: "42.85%",
+                  change: "0.0%",
+                  isPositive: true,
                   category: "availability"
                 }
               ]
@@ -910,46 +1033,45 @@ const getDynamicRcaTreeData = (context) => {
             {
               id: "delivery-time",
               label: "Delivery Time",
-              value: "1.5 Days",
-              change: getChange("del").val,
-              isPositive: getChange("del").isPos,
+              value: "Same Day",
+              change: "22.74%",
+              isPositive: false,
               category: "segment",
-              meta: [{ label: "Delivery Time", value: "1.5 Days" }]
+              children: isFlipkart ? [] : [
+                { id: "same-day", label: `Same Day ${pluralGvLabel}%`, value: "100.00%", change: "81.09%", isPositive: true, category: "segment" }
+              ]
             },
             {
               id: "discounting",
               label: "Discounting%",
-              value: getVal(9.8, true, "disc", 5),
-              change: getChange("dsc").val,
-              isPositive: getChange("dsc").isPos,
-              category: "discounting"
+              value: "9.11%",
+              change: "9.45%",
+              isPositive: false,
+              category: "discounting",
+              children: isFlipkart ? [] : [
+                { id: "one-day", label: `1 Day ${pluralGvLabel}%`, value: "0.00%", change: "0.05%", isPositive: false, category: "segment" }
+              ]
             },
             {
               id: "organic-cvr",
               label: "Organic CVR",
-              value: getVal(58.9, true, "ocvr", 10),
-              change: getChange("ocvr").val,
-              isPositive: getChange("ocvr").isPos,
-              category: "organic"
+              value: "47.65%",
+              change: "1.54%",
+              isPositive: true,
+              category: "organic",
+              children: isFlipkart ? [] : [
+                { id: "two-day", label: `2 Day ${pluralGvLabel}%`, value: "(Blank)", change: "74.95%", isPositive: false, category: "segment" }
+              ]
             },
             {
               id: "inorganic-cvr",
               label: "Inorganic CVR",
-              value: getVal(26.6, true, "icvr", 10),
-              change: getChange("icvr").val,
-              isPositive: getChange("icvr").isPos,
-              category: "ad"
-            },
-            {
-              id: "delivery-slots", // Same day, 1 day, etc
-              label: "Delivery Slots",
-              value: "Analysis",
-              category: "segment",
-              children: [
-                { id: "same-day", label: "Same Day GVs%", value: "11.29%", category: "segment" },
-                { id: "one-day", label: "1 Day GVs%", value: "0.00%", category: "segment" },
-                { id: "two-day", label: "2 Day GVs%", value: "69.56%", category: "segment" },
-                { id: "greater-two", label: "> 2 Days GVs%", value: "19.14%", category: "segment" }
+              value: "29.21%",
+              change: "1.81%",
+              isPositive: true,
+              category: "ad",
+              children: isFlipkart ? [] : [
+                { id: "greater-two", label: `> 2 Days ${pluralGvLabel}%`, value: "0.00%", change: "6.08%", isPositive: false, category: "segment" }
               ]
             }
           ]
@@ -957,15 +1079,28 @@ const getDynamicRcaTreeData = (context) => {
         {
           id: "asp",
           label: "ASP",
-          value: `₹ ${(742.0 * getEntityBase(skuId + brandId, 0.4)).toFixed(2)}`,
-          change: getChange("asp").val,
-          isPositive: getChange("asp").isPos,
+          value: "626.36",
+          change: "17.02%",
+          isPositive: false,
           category: "price",
           importance: "primary",
           children: [
-            { id: "combo-sales", label: "Combo Sales%", value: "44.16%", category: "segment" },
-            { id: "large-sales", label: "Large Sales%", value: "61.72%", category: "segment" },
-            { id: "premium-sales", label: "Premium Sales%", value: "26.34%", category: "segment" }
+            { id: "combo-sales", label: "Combo Sales%", value: "42.91%", change: "13.48%", isPositive: true, category: "segment" },
+            { id: "large-sales", label: "Large Sales%", value: "53.41%", change: "17.39%", isPositive: false, category: "segment" },
+            { id: "premium-sales", label: "Premium Sales%", value: "20.85%", change: "4.73%", isPositive: false, category: "segment" }
+          ]
+        },
+        {
+          id: "sns",
+          label: "Subscribe & Save %",
+          value: "0.00%",
+          change: "0.00%",
+          isPositive: true,
+          category: "segment",
+          meta: [{ label: "SnS Sales%", value: "0.00%" }],
+          children: [
+            { id: "loyalty", label: "Loyalty/Repeats %", value: "79.62%", change: "1.37%", isPositive: true, category: "segment" },
+            { id: "new-cust", label: "New Customer %", value: "20.38%", change: "1.37%", isPositive: false, category: "segment" }
           ]
         }
       ]
@@ -991,33 +1126,47 @@ const getDynamicRcaTreeData = (context) => {
     importance: "outcome",
     insight: rootChange.isPos ? "Volume Growth" : "Critical Decline",
     metrics: [
-        { brand: 'Snickers', asp: '₹66.6', discount: '7.1%', ppu: '₹122.3', deltaAsp: '-₹1.4', deltaDisc: '6.7%', deltaPpu: '-₹7.5' },
-        { brand: 'Galaxy', asp: '₹101.1', discount: '9.8%', ppu: '₹183.5', deltaAsp: '-₹8.4', deltaDisc: '8.5%', deltaPpu: '-₹1.8' },
-        { brand: 'Bounty', asp: '₹119.7', discount: '11.7%', ppu: '₹144.3', deltaAsp: '-₹9.8', deltaDisc: '9.7%', deltaPpu: '-₹14.7' },
-        { brand: 'Twix', asp: '₹117.9', discount: '5.0%', ppu: '₹175.1', deltaAsp: '-₹2.8', deltaDisc: '4.4%', deltaPpu: '-₹7' },
-        { brand: 'Mars', asp: '₹92.8', discount: '4.1%', ppu: '₹182.1', deltaAsp: '-₹2.1', deltaDisc: '3.8%', deltaPpu: '-₹4.1' },
+      { brand: 'Snickers', offtake: '₹66.6 lac', deltaOfftake: '-₹1.4 lac', price: '₹66.6', deltaPrice: '-₹1.4', discount: '7.1%', deltaDiscount: '0.4%', ppu: '₹122.3', deltaPpu: '-₹7.5', impressions: '19.4 lac', deltaImpressions: '-2.1 lac', conversion: '7.0%', deltaConversion: '-0.3%', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+      { brand: 'Galaxy', offtake: '₹101.1 lac', deltaOfftake: '-₹8.4 lac', price: '₹101.1', deltaPrice: '-₹8.4', discount: '9.8%', deltaDiscount: '1.3%', ppu: '₹183.5', deltaPpu: '-₹1.8', impressions: '13.7 lac', deltaImpressions: '-4.7 K', conversion: '6.3%', deltaConversion: '-0.5%', listing: '82.1%', deltaListing: '-0.8%' },
+      { brand: 'Bounty', offtake: '₹119.7 lac', deltaOfftake: '-₹9.8 lac', price: '₹119.7', deltaPrice: '-₹9.8', discount: '11.7%', deltaDiscount: '2.0%', ppu: '₹144.3', deltaPpu: '-₹14.7', impressions: '4.1 lac', deltaImpressions: '25.9 K', conversion: '7.0%', deltaConversion: '-0.4%', listing: '78.4%', deltaListing: '2.1%' },
+      { brand: 'Twix', offtake: '₹117.9 lac', deltaOfftake: '-₹2.8 lac', price: '₹117.9', deltaPrice: '-₹2.8', discount: '5.0%', deltaDiscount: '0.6%', ppu: '₹175.1', deltaPpu: '-₹7', impressions: '30.2 K', deltaImpressions: '1.2 K', conversion: '12.7%', deltaConversion: '0.8%', listing: '91.2%', deltaListing: '-1.5%' },
+      { brand: 'Mars', offtake: '₹92.8 lac', deltaOfftake: '-₹2.1 lac', price: '₹92.8', deltaPrice: '-₹2.1', discount: '4.1%', deltaDiscount: '0.3%', ppu: '₹182.1', deltaPpu: '-₹4.1', impressions: '10.5 K', deltaImpressions: '-0.5 K', conversion: '8.5%', deltaConversion: '-0.3%', listing: '88.5%', deltaListing: '0.5%' },
     ],
     meta: [{ label: "Est. Category Share", value: getVal(5.1, true, seed + "catshare", 15), change: getChange("meta1").val, isPositive: getChange("meta1").isPos }],
     children: [
       {
         id: "asp",
-        label: "ASP",
+        label: "PRICE",
         value: `₹ ${(189.2 * getEntityBase(skuId + brandId, 1.2)).toFixed(1)}`,
         change: aspChange.val,
         isPositive: aspChange.isPos,
         category: "price",
         importance: "primary",
-        meta: [{ label: "Baseline ASP", value: "₹ 185.0" }]
+        meta: [{ label: "Baseline PRICE", value: "₹ 185.0" }],
+        metrics: [
+          { brand: 'Snickers', price: '₹122.3', deltaPrice: '-₹7.5' },
+          { brand: 'Galaxy', price: '₹183.5', deltaPrice: '-₹1.8' },
+          { brand: 'Bounty', price: '₹144.3', deltaPrice: '-₹14.7' },
+          { brand: 'Twix', price: '₹175.1', deltaPrice: '-₹7.0' },
+          { brand: 'Mars', price: '₹182.1', deltaPrice: '-₹4.1' },
+        ],
       },
       {
         id: "indexed-impressions",
-        label: "Indexed Impressions",
+        label: "Impressions",
         value: formatLac(3.4 * finalVolume * getEntityBase(platform + "imp", 0.8)),
         change: impChange.val,
         isPositive: impChange.isPos,
         category: "impressions",
         importance: "primary",
         insight: impChange.isPos ? "High Visibility" : "Visibility Loss",
+        metrics: [
+          { brand: 'Snickers', impressions: '19.4 lac', deltaImpressions: '+1.2 lac' },
+          { brand: 'Galaxy', impressions: '15.2 lac', deltaImpressions: '-0.8 lac' },
+          { brand: 'Bounty', impressions: '10.1 lac', deltaImpressions: '+2.5 lac' },
+          { brand: 'Twix', impressions: '8.4 lac', deltaImpressions: '-0.3 lac' },
+          { brand: 'Mars', impressions: '7.0 lac', deltaImpressions: '+0.1 lac' },
+        ],
         meta: [{ label: "Overall SOS", value: getVal(12.5, true, seed + "sos", 25), change: getChange("meta2").val, isPositive: getChange("meta2").isPos }],
         children: [
           {
@@ -1027,6 +1176,13 @@ const getDynamicRcaTreeData = (context) => {
             change: osaChange.val,
             isPositive: osaChange.isPos,
             category: "availability",
+            metrics: [
+              { brand: 'Snickers', osa: '82.5%', deltaOsa: '+1.2%' },
+              { brand: 'Galaxy', osa: '75.1%', deltaOsa: '-2.4%' },
+              { brand: 'Bounty', osa: '88.9%', deltaOsa: '+0.5%' },
+              { brand: 'Twix', osa: '91.2%', deltaOsa: '-1.8%' },
+              { brand: 'Mars', osa: '85.4%', deltaOsa: '+3.1%' },
+            ],
             children: [
               {
                 id: "listing",
@@ -1034,7 +1190,14 @@ const getDynamicRcaTreeData = (context) => {
                 value: getVal(60.0, true, seed + "listing", 50),
                 change: getChange("meta3").val,
                 isPositive: getChange("meta3").isPos,
-                category: "availability"
+                category: "availability",
+                metrics: [
+                  { brand: 'Snickers', listing: '92.1%', deltaListing: '+1.5%' },
+                  { brand: 'Galaxy', listing: '88.4%', deltaListing: '-0.8%' },
+                  { brand: 'Bounty', listing: '85.0%', deltaListing: '+2.1%' },
+                  { brand: 'Twix', listing: '95.2%', deltaListing: '-1.2%' },
+                  { brand: 'Mars', listing: '89.7%', deltaListing: '+0.4%' },
+                ],
               }
             ]
           },
@@ -1046,24 +1209,15 @@ const getDynamicRcaTreeData = (context) => {
             isPositive: orgChange.isPos,
             category: "organic",
             insight: orgChange.isPos ? "Organic Pull" : "Low Ranking",
-            meta: [{ label: "Organic SOS", value: getVal(8.5, true, seed + "orgsos", 15), change: getChange("meta4").val, isPositive: getChange("meta4").isPos }],
-            children: [
-              { id: "org-generic", label: "Generic Keywords", value: formatLac(1.1 * finalVolume * getEntityBase("gen", 0.4)), change: getChange("gen").val, isPositive: getChange("gen").isPos, category: "organic" },
-              { id: "org-branded", label: "Branded Keywords", value: formatLac(0.694 * finalVolume * getEntityBase("brand_kw", 0.4)), change: getChange("brand_kw").val, isPositive: getChange("brand_kw").isPos, category: "organic" },
+            metrics: [
+              { brand: 'Snickers', organic: '12.2 lac', deltaOrganic: '+0.8 lac' },
+              { brand: 'Galaxy', organic: '8.5 lac', deltaOrganic: '-0.3 lac' },
+              { brand: 'Bounty', organic: '5.4 lac', deltaOrganic: '+0.2 lac' },
+              { brand: 'Twix', organic: '3.1 lac', deltaOrganic: '-0.1 lac' },
+              { brand: 'Mars', organic: '1.2 lac', deltaOrganic: '+0.05 lac' },
             ],
+            meta: [{ label: "Organic SOS", value: getVal(8.5, true, seed + "orgsos", 15), change: getChange("meta4").val, isPositive: getChange("meta4").isPos }],
           },
-        ],
-      },
-      {
-        id: "indexed-cvr",
-        label: "Indexed CVR",
-        value: getVal(6.2, true, seed + "cvr", 8),
-        change: cvrChange.val,
-        isPositive: cvrChange.isPos,
-        category: "conversion",
-        importance: "outcome",
-        insight: cvrChange.isPos ? "Conv. Efficacy" : "Conv. Drop",
-        children: [
           {
             id: "ad-impressions",
             label: "Ad Impressions",
@@ -1071,14 +1225,54 @@ const getDynamicRcaTreeData = (context) => {
             change: adChange.val,
             isPositive: adChange.isPos,
             category: "ad",
+            metrics: [
+              { brand: 'Snickers', ad: '7.2 lac', deltaAd: '+0.4 lac' },
+              { brand: 'Galaxy', ad: '6.7 lac', deltaAd: '-0.5 lac' },
+              { brand: 'Bounty', ad: '4.7 lac', deltaAd: '+0.3 lac' },
+              { brand: 'Twix', ad: '5.3 lac', deltaAd: '+0.2 lac' },
+              { brand: 'Mars', ad: '5.8 lac', deltaAd: '+0.1 lac' },
+            ],
             meta: [{ label: "Ad SOS", value: getVal(4.5, true, seed + "adsos", 10), change: getChange("meta5").val, isPositive: getChange("meta5").isPos }],
             children: [
-              { id: "ad-branded", label: "Branded Keywords", value: formatLac(0.516 * finalVolume * getEntityBase("adb", 0.5)), change: getChange("adb").val, isPositive: getChange("adb").isPos, category: "ad" },
-              { id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad" },
+              {
+                id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad", metrics: [
+                  { brand: 'Snickers', adComp: '3.1 lac', deltaAdComp: '-0.1 lac' },
+                  { brand: 'Galaxy', adComp: '2.7 lac', deltaAdComp: '-0.2 lac' },
+                  { brand: 'Bounty', adComp: '0.6 lac', deltaAdComp: '+0.1 lac' },
+                  { brand: 'Twix', adComp: '3.6 K', deltaAdComp: '+0.2 K' },
+                  { brand: 'Mars', adComp: '2.0 K', deltaAdComp: '-0.1 K' },
+                ]
+              },
             ],
           },
-          { id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting" },
-          { id: "rating-count", label: "Rating Count", value: formatLac(1.8 * finalVolume * getEntityBase("rat", 0.7)), change: getChange("meta7").val, isPositive: getChange("meta7").isPos, category: "rating" },
+        ],
+      },
+      {
+        id: "indexed-cvr",
+        label: "Conversion",
+        value: getVal(6.2, true, seed + "cvr", 8),
+        change: cvrChange.val,
+        isPositive: cvrChange.isPos,
+        category: "conversion",
+        importance: "outcome",
+        insight: cvrChange.isPos ? "Conv. Efficacy" : "Conv. Drop",
+        metrics: [
+          { brand: 'Snickers', conversion: '7.2%', deltaConversion: '+0.5%' },
+          { brand: 'Galaxy', conversion: '6.3%', deltaConversion: '-0.2%' },
+          { brand: 'Bounty', conversion: '8.5%', deltaConversion: '+1.1%' },
+          { brand: 'Twix', conversion: '12.7%', deltaConversion: '-2.4%' },
+          { brand: 'Mars', conversion: '9.4%', deltaConversion: '+0.3%' },
+        ],
+        children: [
+          {
+            id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: [
+              { brand: 'Snickers', discount: '7.1%', deltaDiscount: '+0.4%' },
+              { brand: 'Galaxy', discount: '9.8%', deltaDiscount: '+1.3%' },
+              { brand: 'Bounty', discount: '11.7%', deltaDiscount: '+2.0%' },
+              { brand: 'Twix', discount: '5.0%', deltaDiscount: '+0.6%' },
+              { brand: 'Mars', discount: '4.1%', deltaDiscount: '+0.3%' },
+            ]
+          },
         ],
       },
     ],
@@ -1132,7 +1326,7 @@ const computeSubtreeHeight = (node, collapsedNodes) => {
   return childHeights.reduce((sum, h, idx) => sum + h + (idx > 0 ? VERTICAL_GAP : 0), 0);
 };
 
-const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends) => {
+const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, platform = "") => {
   const isCollapsed = collapsedNodes.has(node.id);
   const subtreeHeight = computeSubtreeHeight(node, collapsedNodes);
 
@@ -1142,6 +1336,7 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends) => {
     position: { x, y: y + subtreeHeight / 2 - CARD_HEIGHT / 2 },
     data: {
       ...node,
+      platform,
       hasChildren: node.children?.length > 0,
       isCollapsed,
       onToggle: () => { },
@@ -1176,29 +1371,383 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends) => {
         },
       });
 
-      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends);
+      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends, platform);
       currentChildY += childHeight + VERTICAL_GAP;
     });
   }
 };
 
-// --- Detail Popup (unchanged except kept) ---
-const NodeDetailPopup = ({ open, onClose, nodeData }) => {
+// --- Detail Popup (Updated with Brand Filtering, Download, and Pagination) ---
+const NodeDetailPopup = ({ open, onClose, nodeData, selectedBrand, selectedPlatform }) => {
+  const [tabIndex, setTabIndex] = useState(0);
+  const [page, setPage] = useState(0);
+  const rowsPerPage = 4;
+
+  useEffect(() => {
+    setPage(0);
+  }, [tabIndex, selectedBrand]);
+
   if (!nodeData) return null;
+
+  const normalizedPlatform = (selectedPlatform || "").toLowerCase();
+  const kpiKey = (nodeData.category || nodeData.label || "").toLowerCase();
+  const showKeywordColumn = /impression|conversion|cvr/i.test(nodeData.label || nodeData.category || "");
+  const isAdImpressions = showKeywordColumn;
+
+  const contributionsMap = {
+    amazon: {
+      offtake: {
+        gainers: [
+          { sku: "Snickers Peanut Duo 50g", keyword: "snickers bar", brand: "Snickers", value: "+18.5%" },
+          { sku: "Galaxy Smooth Milk 80g", keyword: "galaxy chocolate", brand: "Galaxy", value: "+14.8%" },
+          { sku: "M&M's Peanut 100g", keyword: "m&ms peanut", brand: "M&M", value: "+11.3%" },
+          { sku: "Twix Single 50g", keyword: "twix bar", brand: "Twix", value: "+9.2%" },
+          { sku: "Mars Bar Single 45g", keyword: "mars chocolate", brand: "Mars", value: "+7.1%" },
+        ],
+        drainers: [
+          { sku: "Bounty Coconut 57g", keyword: "bounty bar", brand: "Bounty", value: "-12.7%" },
+          { sku: "Orbit Spearmint Bottle", keyword: "orbit gum", brand: "Orbit", value: "-9.8%" },
+          { sku: "Skittles Fruits 45g", keyword: "skittles candy", brand: "Skittles", value: "-7.5%" },
+          { sku: "Doublemint Peppermint", keyword: "doublemint gum", brand: "Doublemint", value: "-5.2%" },
+          { sku: "Boomer Jelly Blue", keyword: "boomer gum", brand: "Boomer", value: "-3.9%" },
+        ],
+      },
+      impressions: {
+        gainers: [
+          { sku: "Snickers Stick 40g", keyword: "snickers ads", brand: "Snickers", value: "+22.8%" },
+          { sku: "Galaxy Minis 150g", keyword: "galaxy shelf", brand: "Galaxy", value: "+18.1%" },
+          { sku: "M&M's Chocolate 45g", keyword: "m&m banner", brand: "M&M", value: "+12.3%" },
+          { sku: "Orbit White Bottle", keyword: "orbit ads", brand: "Orbit", value: "+10.9%" },
+          { sku: "Skittles Wild Berry", keyword: "skittles banner", brand: "Skittles", value: "+9.4%" },
+        ],
+        drainers: [
+          { sku: "Mars Minis Pack", keyword: "mars old ads", brand: "Mars", value: "-13.7%" },
+          { sku: "Twix Minis 200g", keyword: "twix promo slot", brand: "Twix", value: "-8.6%" },
+          { sku: "Bounty Minis 150g", keyword: "bounty banner", brand: "Bounty", value: "-6.1%" },
+          { sku: "Doublemint Lemon", keyword: "doublemint ads", brand: "Doublemint", value: "-4.9%" },
+          { sku: "Boomer Strawberry", keyword: "boomer ads", brand: "Boomer", value: "-3.0%" },
+        ],
+      },
+      conversion: {
+        gainers: [
+          { sku: "Snickers Almond 40g", keyword: "snickers conversion", brand: "Snickers", value: "+11.2%" },
+          { sku: "Galaxy Cookie Crumble", keyword: "galaxy conversion", brand: "Galaxy", value: "+9.5%" },
+          { sku: "Orbit Blueberry Bottle", keyword: "orbit checkout", brand: "Orbit", value: "+8.1%" },
+          { sku: "M&M's Crispy 80g", keyword: "m&m checkout", brand: "M&M", value: "+6.3%" },
+          { sku: "Skittles Sour 45g", keyword: "skittles sour", brand: "Skittles", value: "+4.7%" },
+        ],
+        drainers: [
+          { sku: "Mars Caramel 135g", keyword: "mars drop", brand: "Mars", value: "-10.2%" },
+          { sku: "Twix White 50g", keyword: "twix drop", brand: "Twix", value: "-8.7%" },
+          { sku: "Doublemint Peppermint", keyword: "doublemint drop", brand: "Doublemint", value: "-6.6%" },
+          { sku: "Boomer Jelly Pink", keyword: "boomer drop", brand: "Boomer", value: "-4.2%" },
+          { sku: "Bounty Coconut 57g", keyword: "bounty drop", brand: "Bounty", value: "-3.1%" },
+        ],
+      },
+      price: {
+        gainers: [
+          { sku: "Orbit Peppermint 22g", keyword: "orbit price", brand: "Orbit", value: "+6.8%" },
+          { sku: "Boomer Strawberry 5g", keyword: "boomer price", brand: "Boomer", value: "+4.5%" },
+          { sku: "Doublemint Mints", keyword: "doublemint price", brand: "Doublemint", value: "+3.2%" },
+          { sku: "Skittles Fruits 100g", keyword: "skittles price", brand: "Skittles", value: "+2.1%" },
+          { sku: "Galaxy Fruit & Nut", keyword: "galaxy premium", brand: "Galaxy", value: "+1.0%" },
+        ],
+        drainers: [
+          { sku: "Snickers Bulk Pack", keyword: "snickers discount", brand: "Snickers", value: "-9.8%" },
+          { sku: "M&M's Party Bucket", keyword: "m&m discount", brand: "M&M", value: "-7.3%" },
+          { sku: "Twix Multi-Pack", keyword: "twix discount", brand: "Twix", value: "-5.4%" },
+          { sku: "Mars Party Pack", keyword: "mars discount", brand: "Mars", value: "-4.0%" },
+          { sku: "Bounty Trio Pack", keyword: "bounty discount", brand: "Bounty", value: "-2.8%" },
+        ],
+      },
+      availability: {
+        gainers: [
+          { sku: "Orbit Spearmint 22g", keyword: "orbit osa", brand: "Orbit", value: "+7.4%" },
+          { sku: "Skittles Fruits 45g", keyword: "skittles osa", brand: "Skittles", value: "+5.7%" },
+          { sku: "M&M's Peanut 45g", keyword: "m&m stock", brand: "M&M", value: "+4.9%" },
+          { sku: "Galaxy Caramel 135g", keyword: "galaxy stock", brand: "Galaxy", value: "+3.3%" },
+          { sku: "Snickers Peanut 50g", keyword: "snickers inventory", brand: "Snickers", value: "+2.4%" },
+        ],
+        drainers: [
+          { sku: "Mars Single 45g", keyword: "mars oos", brand: "Mars", value: "-10.3%" },
+          { sku: "Twix Single 50g", keyword: "twix oos", brand: "Twix", value: "-8.1%" },
+          { sku: "Bounty Coconut 57g", keyword: "bounty oos", brand: "Bounty", value: "-5.6%" },
+          { sku: "Doublemint Lemon", keyword: "doublemint oos", brand: "Doublemint", value: "-4.2%" },
+          { sku: "Boomer Strawberry", keyword: "boomer oos", brand: "Boomer", value: "-2.1%" },
+        ],
+      },
+    },
+    flipkart: {
+      offtake: {
+        gainers: [
+          { sku: "Galaxy Smooth Milk 80g", keyword: "galaxy chocolate", brand: "Galaxy", value: "+16.9%" },
+          { sku: "Snickers Peanut Duo 50g", keyword: "snickers bar", brand: "Snickers", value: "+13.2%" },
+          { sku: "M&M's Peanut 100g", keyword: "m&ms peanut", brand: "M&M", value: "+11.4%" },
+          { sku: "Orbit Spearmint Bottle", keyword: "orbit gum", brand: "Orbit", value: "+8.8%" },
+          { sku: "Twix Single 50g", keyword: "twix bar", brand: "Twix", value: "+7.3%" },
+        ],
+        drainers: [
+          { sku: "Mars bar Single 45g", keyword: "mars bar", brand: "Mars", value: "-12.5%" },
+          { sku: "Bounty Coconut 57g", keyword: "bounty coconut", brand: "Bounty", value: "-9.8%" },
+          { sku: "Skittles Fruits 45g", keyword: "skittles candy", brand: "Skittles", value: "-6.9%" },
+          { sku: "Doublemint Peppermint", keyword: "doublemint gum", brand: "Doublemint", value: "-4.3%" },
+          { sku: "Boomer Jelly Blue", keyword: "boomer gum", brand: "Boomer", value: "-2.7%" },
+        ],
+      },
+      impressions: {
+        gainers: [
+          { sku: "Snickers Stick 40g", keyword: "snickers ads", brand: "Snickers", value: "+21.5%" },
+          { sku: "Galaxy Minis 150g", keyword: "galaxy shelf", brand: "Galaxy", value: "+18.1%" },
+          { sku: "M&M's Chocolate 45g", keyword: "m&m banner", brand: "M&M", value: "+14.2%" },
+          { sku: "Orbit White Bottle", keyword: "orbit ads", brand: "Orbit", value: "+11.0%" },
+          { sku: "Skittles Wild Berry", keyword: "skittles banner", brand: "Skittles", value: "+9.1%" },
+        ],
+        drainers: [
+          { sku: "Mars Minis Pack", keyword: "mars old ads", brand: "Mars", value: "-14.9%" },
+          { sku: "Twix Minis 200g", keyword: "twix promo slot", brand: "Twix", value: "-10.3%" },
+          { sku: "Bounty Minis 150g", keyword: "bounty banner", brand: "Bounty", value: "-7.8%" },
+          { sku: "Doublemint Lemon", keyword: "doublemint ads", brand: "Doublemint", value: "-5.9%" },
+          { sku: "Boomer Strawberry", keyword: "boomer ads", brand: "Boomer", value: "-3.4%" },
+        ],
+      },
+      conversion: {
+        gainers: [
+          { sku: "Snickers Almond 40g", keyword: "snickers conversion", brand: "Snickers", value: "+12.4%" },
+          { sku: "Galaxy Cookie Crumble", keyword: "galaxy conversion", brand: "Galaxy", value: "+10.2%" },
+          { sku: "Orbit Blueberry Bottle", keyword: "orbit checkout", brand: "Orbit", value: "+8.0%" },
+          { sku: "M&M's Crispy 80g", keyword: "m&m checkout", brand: "M&M", value: "+6.6%" },
+          { sku: "Skittles Sour 45g", keyword: "skittles sour", brand: "Skittles", value: "+5.2%" },
+        ],
+        drainers: [
+          { sku: "Mars Caramel 135g", keyword: "mars drop", brand: "Mars", value: "-10.8%" },
+          { sku: "Twix White 50g", keyword: "twix drop", brand: "Twix", value: "-8.9%" },
+          { sku: "Doublemint Peppermint", keyword: "doublemint drop", brand: "Doublemint", value: "-7.4%" },
+          { sku: "Boomer Jelly Pink", keyword: "boomer drop", brand: "Boomer", value: "-5.3%" },
+          { sku: "Bounty Coconut 57g", keyword: "bounty drop", brand: "Bounty", value: "-3.1%" },
+        ],
+      },
+      price: {
+        gainers: [
+          { sku: "Orbit Peppermint 22g", keyword: "orbit price", brand: "Orbit", value: "+9.6%" },
+          { sku: "Boomer Strawberry 5g", keyword: "boomer price", brand: "Boomer", value: "+6.2%" },
+          { sku: "Doublemint Mints", keyword: "doublemint price", brand: "Doublemint", value: "+5.1%" },
+          { sku: "Skittles Fruits 100g", keyword: "skittles price", brand: "Skittles", value: "+3.8%" },
+          { sku: "Galaxy Fruit & Nut", keyword: "galaxy premium", brand: "Galaxy", value: "+2.6%" },
+        ],
+        drainers: [
+          { sku: "Snickers Bulk Pack", keyword: "snickers discount", brand: "Snickers", value: "-11.1%" },
+          { sku: "M&M's Party Bucket", keyword: "m&m discount", brand: "M&M", value: "-9.0%" },
+          { sku: "Twix Multi-Pack", keyword: "twix discount", brand: "Twix", value: "-6.7%" },
+          { sku: "Mars Party Pack", keyword: "mars discount", brand: "Mars", value: "-4.4%" },
+          { sku: "Bounty Trio Pack", keyword: "bounty discount", brand: "Bounty", value: "-2.9%" },
+        ],
+      },
+      availability: {
+        gainers: [
+          { sku: "Orbit Spearmint 22g", keyword: "orbit osa", brand: "Orbit", value: "+8.8%" },
+          { sku: "Skittles Fruits 45g", keyword: "skittles osa", brand: "Skittles", value: "+7.3%" },
+          { sku: "M&M's Peanut 45g", keyword: "m&m stock", brand: "M&M", value: "+5.7%" },
+          { sku: "Galaxy Caramel 135g", keyword: "galaxy stock", brand: "Galaxy", value: "+4.2%" },
+          { sku: "Snickers Peanut 50g", keyword: "snickers inventory", brand: "Snickers", value: "+3.1%" },
+        ],
+        drainers: [
+          { sku: "Mars Single 45g", keyword: "mars oos", brand: "Mars", value: "-9.7%" },
+          { sku: "Twix Single 50g", keyword: "twix oos", brand: "Twix", value: "-7.4%" },
+          { sku: "Bounty Coconut 57g", keyword: "bounty oos", brand: "Bounty", value: "-5.8%" },
+          { sku: "Doublemint Lemon", keyword: "doublemint oos", brand: "Doublemint", value: "-4.1%" },
+          { sku: "Boomer Strawberry", keyword: "boomer oos", brand: "Boomer", value: "-2.7%" },
+        ],
+      },
+    },
+    blinkit: {
+      offtake: {
+        gainers: [
+          { sku: "Orbit Spearmint Bottle", keyword: "orbit gum", brand: "Orbit", value: "+18.1%" },
+          { sku: "Skittles Fruits 45g", keyword: "skittles candy", brand: "Skittles", value: "+13.2%" },
+          { sku: "Snickers Peanut Duo 50g", keyword: "snickers bar", brand: "Snickers", value: "+10.3%" },
+          { sku: "Galaxy Smooth Milk 80g", keyword: "galaxy chocolate", brand: "Galaxy", value: "+7.7%" },
+          { sku: "Twix Single 50g", keyword: "twix bar", brand: "Twix", value: "+6.0%" },
+        ],
+        drainers: [
+          { sku: "Mars bar Single 45g", keyword: "mars bar", brand: "Mars", value: "-11.9%" },
+          { sku: "Bounty Coconut 57g", keyword: "bounty coconut", brand: "Bounty", value: "-9.4%" },
+          { sku: "M&M's Peanut 100g", keyword: "m&ms peanut", brand: "M&M", value: "-6.9%" },
+          { sku: "Doublemint Peppermint", keyword: "doublemint gum", brand: "Doublemint", value: "-5.2%" },
+          { sku: "Boomer Jelly Blue", keyword: "boomer gum", brand: "Boomer", value: "-3.1%" },
+        ],
+      },
+      impressions: {
+        gainers: [
+          { sku: "Blinkit Snickers Ad", keyword: "snickers banner", brand: "Snickers", value: "+14.8%" },
+          { sku: "Galaxy Express Promo", keyword: "galaxy banner", brand: "Galaxy", value: "+11.9%" },
+          { sku: "Twix Quick Deal", keyword: "twix deal", brand: "Twix", value: "+9.6%" },
+          { sku: "Orbit Checkout Ad", keyword: "orbit ads", brand: "Orbit", value: "+7.2%" },
+          { sku: "M&M's Pop-up", keyword: "m&m ads", brand: "M&M", value: "+5.0%" },
+        ],
+        drainers: [
+          { sku: "Skittles Old Campaign", keyword: "skittles banner", brand: "Skittles", value: "-12.1%" },
+          { sku: "Mars Night Deal", keyword: "mars banner", brand: "Mars", value: "-8.8%" },
+          { sku: "Bounty Weekend Ad", keyword: "bounty banner", brand: "Bounty", value: "-6.3%" },
+          { sku: "Doublemint Shelf Ad", keyword: "doublemint ads", brand: "Doublemint", value: "-4.7%" },
+          { sku: "Boomer Mix Campaign", keyword: "boomer ads", brand: "Boomer", value: "-3.0%" },
+        ],
+      },
+      conversion: {
+        gainers: [
+          { sku: "Snickers Almond 40g", keyword: "snickers checkout", brand: "Snickers", value: "+11.3%" },
+          { sku: "Galaxy Cookie Crumble", keyword: "galaxy checkout", brand: "Galaxy", value: "+9.7%" },
+          { sku: "Orbit White Bottle", keyword: "orbit checkout", brand: "Orbit", value: "+7.5%" },
+          { sku: "Doublemint Lemon", keyword: "doublemint checkout", brand: "Doublemint", value: "+5.4%" },
+          { sku: "Twix Single 50g", keyword: "twix checkout", brand: "Twix", value: "+4.1%" },
+        ],
+        drainers: [
+          { sku: "Mars Single 45g", keyword: "mars drop", brand: "Mars", value: "-10.8%" },
+          { sku: "Bounty Coconut 57g", keyword: "bounty drop", brand: "Bounty", value: "-8.6%" },
+          { sku: "M&M's Peanut 45g", keyword: "m&m drop", brand: "M&M", value: "-6.2%" },
+          { sku: "Skittles Fruits 45g", keyword: "skittles drop", brand: "Skittles", value: "-5.0%" },
+          { sku: "Boomer Strawberry", keyword: "boomer drop", brand: "Boomer", value: "-3.4%" },
+        ],
+      },
+      price: {
+        gainers: [
+          { sku: "Orbit Peppermint 22g", keyword: "orbit price", brand: "Orbit", value: "+7.8%" },
+          { sku: "Boomer Strawberry 5g", keyword: "boomer price", brand: "Boomer", value: "+6.7%" },
+          { sku: "Doublemint Mints", keyword: "doublemint price", brand: "Doublemint", value: "+5.1%" },
+          { sku: "Skittles Fruits 100g", keyword: "skittles price", brand: "Skittles", value: "+3.9%" },
+          { sku: "Snickers Stick 40g", keyword: "snickers price", brand: "Snickers", value: "+2.6%" },
+        ],
+        drainers: [
+          { sku: "Mars Multi-Pack", keyword: "mars discount", brand: "Mars", value: "-12.4%" },
+          { sku: "Bounty Trio Pack", keyword: "bounty discount", brand: "Bounty", value: "-9.3%" },
+          { sku: "Galaxy Combo", keyword: "galaxy discount", brand: "Galaxy", value: "-7.2%" },
+          { sku: "Orbit Bulk Pack", keyword: "orbit discount", brand: "Orbit", value: "-5.6%" },
+          { sku: "Twix Mini Bag", keyword: "twix discount", brand: "Twix", value: "-3.9%" },
+        ],
+      },
+      availability: {
+        gainers: [
+          { sku: "Snickers Peanut Duo", keyword: "snickers stock", brand: "Snickers", value: "+12.6%" },
+          { sku: "Galaxy Smooth Milk", keyword: "galaxy stock", brand: "Galaxy", value: "+10.3%" },
+          { sku: "Orbit Spearmint", keyword: "orbit stock", brand: "Orbit", value: "+8.0%" },
+          { sku: "Mars Single 45g", keyword: "mars stock", brand: "Mars", value: "+6.1%" },
+          { sku: "Doublemint Lemon", keyword: "doublemint stock", brand: "Doublemint", value: "+4.7%" },
+        ],
+        drainers: [
+          { sku: "Twix Single 50g", keyword: "twix oos", brand: "Twix", value: "-10.2%" },
+          { sku: "Bounty Coconut", keyword: "bounty oos", brand: "Bounty", value: "-8.5%" },
+          { sku: "M&M's Peanut", keyword: "m&m oos", brand: "M&M", value: "-6.3%" },
+          { sku: "Skittles Fruits", keyword: "skittles oos", brand: "Skittles", value: "-4.0%" },
+          { sku: "Boomer Strawberry", keyword: "boomer oos", brand: "Boomer", value: "-2.5%" },
+        ],
+      },
+    },
+  };
+
+  const dropdownBrands = ["mars", "snickers", "galaxy", "twix", "boomer", "bounty", "doublemint", "m&m", "orbit", "skittles"];
+
+  const kpiCategoryFromLabel = (kpiLabel) => {
+    const l = (kpiLabel || "").toLowerCase();
+    if (l.includes("offtake")) return "offtake";
+    if (l.includes("impression")) return "impressions";
+    if (l.includes("conversion") || l.includes("cvr")) return "conversion";
+    if (l.includes("price") || l.includes("asp")) return "price";
+    if (l.includes("availability") || l.includes("osa")) return "availability";
+    return "offtake";
+  };
+
+  const getKpiSeed = (brand, platform, kpi, isGainer, idx) => {
+    const p = (platform || "").toLowerCase();
+    const b = (brand || "").toLowerCase();
+    const base = isGainer ? 10 : -7;
+    const platformBoost = p.includes("amazon") ? 3 : p.includes("flipkart") ? 2 : 1;
+    const kpiBoost = kpi === "offtake" ? 4 : kpi === "impressions" ? 3.6 : kpi === "conversion" ? 2.4 : kpi === "price" ? 1.1 : 2.5;
+    return Math.round((base + kpiBoost * (idx + 1) + (brand.length % 4) + platformBoost) * (isGainer ? 1 : 1.05));
+  };
+
+  const generateBrandRows = (brand, kpi, platform, isGainer) => {
+    const rows = [];
+    for (let i = 0; i < 5; i += 1) {
+      const delta = getKpiSeed(brand, platform, kpi, isGainer, i);
+      const sign = delta >= 0 ? "+" : "";
+      const value = `${sign}${delta.toFixed(1)}%`;
+      const baseName = `${brand} ${kpi}`;
+      rows.push({
+        sku: `${baseName} SKU ${i + 1}`,
+        keyword: `${baseName} KW ${i + 1}`,
+        brand: brand.charAt(0).toUpperCase() + brand.slice(1),
+        value,
+      });
+    }
+    return rows;
+  };
+
+  const getBrandSpecificRows = (brand, kpi, platform) => {
+    const normalized = (brand || "").trim().toLowerCase();
+    if (!normalized || normalized === "all" || normalized === "all brands") return null;
+    if (!dropdownBrands.includes(normalized)) return null;
+
+    return {
+      gainers: generateBrandRows(normalized, kpi, platform, true),
+      drainers: generateBrandRows(normalized, kpi, platform, false),
+    };
+  };
+
+  const getContributionRows = () => {
+    const platformKey = normalizedPlatform === "flipkart" ? "flipkart" : normalizedPlatform === "amazon" ? "amazon" : "blinkit";
+    const platformData = contributionsMap[platformKey] || contributionsMap.blinkit;
+    const kpi = kpiCategoryFromLabel(kpiKey);
+
+    const brandRows = getBrandSpecificRows(selectedBrand, kpi, normalizedPlatform);
+    if (brandRows) {
+      return brandRows;
+    }
+
+    const kpiRows = platformData[kpi] || platformData.offtake || { gainers: [], drainers: [] };
+    return {
+      gainers: kpiRows.gainers,
+      drainers: kpiRows.drainers,
+    };
+  };
+
+  const { gainers: fullGainers, drainers: fullDrainers } = getContributionRows();
+  const filterByBrand = (list) => {
+    if (!selectedBrand || selectedBrand === "All" || selectedBrand === "All Brands") return list;
+    return list.filter(item => item.brand.toLowerCase() === selectedBrand.toLowerCase());
+  };
+  const filteredGainers = filterByBrand(fullGainers);
+  const filteredDrainers = filterByBrand(fullDrainers);
+  const activeData = tabIndex === 0 ? filteredGainers : filteredDrainers;
+  const pagedData = activeData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  const handleDownload = () => {
+    const csvRows = [
+      [isAdImpressions ? "Keyword" : "SKU Name", "Brand", `${nodeData.label} Delta`],
+      ...activeData.map(row => [isAdImpressions ? (row.keyword || row.sku) : row.sku, row.brand, row.value])
+    ];
+    const csvString = csvRows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${nodeData.label}_${tabIndex === 0 ? 'Gainers' : 'Drainers'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="sm"
+      maxWidth="md"
       fullWidth
       PaperProps={{
         sx: {
           borderRadius: "40px",
-          bgcolor: "rgba(255, 255, 255, 0.88)",
-          backdropFilter: "blur(30px) saturate(170%)",
-          border: "1px solid rgba(255, 255, 255, 0.7)",
-          boxShadow: "0 50px 100px -20px rgba(0, 0, 0, 0.3)",
+          bgcolor: "rgba(255, 255, 255, 0.92)",
+          backdropFilter: "blur(40px) saturate(180%)",
+          border: "1px solid rgba(255, 255, 255, 0.8)",
+          boxShadow: "0 60px 120px -30px rgba(0, 0, 0, 0.4)",
         },
       }}
     >
@@ -1216,15 +1765,15 @@ const NodeDetailPopup = ({ open, onClose, nodeData }) => {
             <Activity size={32} strokeWidth={2.5} />
           </Box>
           <Box>
-            <Typography sx={{ fontSize: "22px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.8px" }}>
+            <Typography sx={{ fontSize: "24px", fontWeight: 900, color: "#000000", letterSpacing: "-1px" }}>
               {nodeData.label} Intelligence
             </Typography>
-            <Typography sx={{ fontSize: "11px", fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "1.2px" }}>
+            <Typography sx={{ fontSize: "11px", fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "1.5px" }}>
               High Precision Diagnostic Stream
             </Typography>
           </Box>
         </Box>
-        <IconButton onClick={onClose} sx={{ bgcolor: "rgba(0,0,0,0.05)", color: "#0f172a", width: 44, height: 44, "&:hover": { bgcolor: "rgba(0,0,0,0.1)" } }}>
+        <IconButton onClick={onClose} sx={{ bgcolor: "rgba(0,0,0,0.05)", color: "#000000", width: 44, height: 44, "&:hover": { bgcolor: "rgba(0,0,0,0.1)" } }}>
           <Plus style={{ transform: "rotate(45deg)" }} size={28} />
         </IconButton>
       </DialogTitle>
@@ -1232,61 +1781,109 @@ const NodeDetailPopup = ({ open, onClose, nodeData }) => {
       <Divider sx={{ opacity: 0.08 }} />
 
       <DialogContent sx={{ p: 5 }}>
-        <Grid container spacing={6}>
-          <Grid item xs={6}>
-            <Typography sx={{ fontSize: "11px", fontWeight: 900, color: "#64748b", textTransform: "uppercase", mb: 2, letterSpacing: "1.5px" }}>
-              Metric Magnitude
+        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography sx={{ fontSize: "13px", fontWeight: 900, color: "#000000", textTransform: "uppercase", letterSpacing: "1.2px" }}>
+                {showKeywordColumn ? "Keyword Contribution Analysis" : "SKU Contribution Analysis"}
+              </Typography>
+              <Tooltip title="Download CSV" arrow>
+                <IconButton onClick={handleDownload} sx={{ bgcolor: 'rgba(0,0,0,0.03)', color: '#64748b', p: 0.8 }}>
+                  <Download size={16} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+            <Tabs
+              value={tabIndex}
+              onChange={(_, n) => setTabIndex(n)}
+              sx={{
+                minHeight: 'auto',
+                '& .MuiTabs-indicator': { display: 'none' },
+                '& .MuiTabs-flexContainer': {
+                  bgcolor: 'rgba(0,0,0,0.04)',
+                  p: 0.5,
+                  borderRadius: '12px',
+                  gap: 0.5
+                }
+              }}
+            >
+              <Tab
+                label="Gainers"
+                sx={{
+                  fontSize: '11px', fontWeight: 900, p: '6px 16px', borderRadius: '10px', minHeight: 'auto', minWidth: 'auto',
+                  color: '#64748b',
+                  '&.Mui-selected': { bgcolor: '#fff', color: '#0d9488', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
+                }}
+              />
+              <Tab
+                label="Drainers"
+                sx={{
+                  fontSize: '11px', fontWeight: 900, p: '6px 16px', borderRadius: '10px', minHeight: 'auto', minWidth: 'auto',
+                  color: '#64748b',
+                  '&.Mui-selected': { bgcolor: '#fff', color: '#e11d48', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
+                }}
+              />
+            </Tabs>
+          </Box>
+
+          <TableContainer component={Paper} elevation={0} sx={{ bgcolor: 'transparent', borderRadius: '24px', border: '1px solid rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+            <Table size="small">
+              <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
+                <TableRow>
+                  <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>
+                    {isAdImpressions ? 'Keyword' : 'SKU Name'}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>Brand</TableCell>
+                  <TableCell align="right" sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>{nodeData.label} Δ</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {pagedData.length > 0 ? pagedData.map((row, idx) => (
+                  <TableRow key={idx} sx={{ '&:last-child td': { border: 0 }, hover: { bgcolor: 'rgba(0,0,0,0.01)' } }}>
+                    <TableCell sx={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', py: 2 }}>{showKeywordColumn ? (row.keyword || row.sku) : row.sku}</TableCell>
+                    <TableCell sx={{ fontSize: '12px', fontWeight: 700, color: '#64748b', py: 2 }}>{row.brand}</TableCell>
+                    <TableCell align="right" sx={{
+                      fontSize: '13px', fontWeight: 900, py: 2,
+                      color: row.value.startsWith('+') ? '#0d9488' : '#e11d48'
+                    }}>
+                      {row.value}
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#94a3b8', fontStyle: 'italic', fontWeight: 600 }}>
+                      No SKU results for "{selectedBrand}"
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {activeData.length > rowsPerPage && (
+            <TablePagination
+              component="div"
+              count={activeData.length}
+              page={page}
+              onPageChange={(_, p) => setPage(p)}
+              rowsPerPage={rowsPerPage}
+              rowsPerPageOptions={[]}
+              sx={{
+                border: 0,
+                '& .MuiTablePagination-toolbar': { minHeight: 48 },
+                '& .MuiTablePagination-selectLabel, .MuiTablePagination-input': { display: 'none' }
+              }}
+            />
+          )}
+
+          <Box sx={{ mt: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(0,0,0,0.05)' }} />
+            <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              End of Diagnostic Trace
             </Typography>
-            <Box sx={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-              <Typography sx={{ fontSize: "48px", fontWeight: 900, color: "#0f172a", lineHeight: 1, letterSpacing: "-2px" }}>
-                {nodeData.value}
-              </Typography>
-              <DeltaBadge change={nodeData.change} isPositive={nodeData.isPositive} />
-            </Box>
-          </Grid>
-
-          <Grid item xs={12}>
-            <Box sx={{ p: 3, bgcolor: "rgba(99, 102, 241, 0.08)", borderRadius: "24px", border: "1px solid rgba(99, 102, 241, 0.15)", mb: 4 }}>
-              <Typography sx={{ fontSize: "12px", fontWeight: 900, color: "#4f46e5", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 1.2, letterSpacing: "1px" }}>
-                <Zap size={16} fill="#4f46e5" /> Predictive Insight
-              </Typography>
-              <Typography sx={{ fontSize: "15px", fontWeight: 800, color: "#1e293b", mt: 1.5, lineHeight: 1.6 }}>
-                Automated root cause detected: Deviation in {nodeData.label} suggests a {nodeData.isPositive ? "positive" : "negative"} trend across channels.
-              </Typography>
-            </Box>
-
-            <Typography sx={{ fontSize: "13px", fontWeight: 900, color: "#0f172a", mb: 3, textTransform: "uppercase", letterSpacing: "1.2px" }}>
-              Structural Attributes
-            </Typography>
-
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
-              {nodeData.meta?.map((m, i) => (
-                <Paper
-                  key={i}
-                  elevation={0}
-                  sx={{
-                    p: 3,
-                    borderRadius: "24px",
-                    bgcolor: "rgba(255,255,255,0.5)",
-                    border: "1px solid rgba(0,0,0,0.05)",
-                    transition: "all 0.3s ease",
-                    "&:hover": { transform: "translateY(-5px)", bgcolor: "#fff" },
-                  }}
-                >
-                  <Typography sx={{ fontSize: "10px", fontWeight: 900, color: "#64748b", textTransform: "uppercase", mb: 1, letterSpacing: "0.5px" }}>
-                    {m.label}
-                  </Typography>
-                  <Typography sx={{ fontSize: "20px", fontWeight: 900, color: "#1e293b", letterSpacing: "-0.5px" }}>{m.value}</Typography>
-                  {m.change && (
-                    <Typography sx={{ fontSize: "11px", fontWeight: 900, color: m.isPositive ? "#0d9488" : "#e11d48", mt: 1 }}>
-                      {m.isPositive ? "↑" : "↓"} {m.change} WoW Momentum
-                    </Typography>
-                  )}
-                </Paper>
-              ))}
-            </Box>
-          </Grid>
-        </Grid>
+            <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(0,0,0,0.05)' }} />
+          </Box>
+        </Box>
       </DialogContent>
     </Dialog>
   );
@@ -1314,7 +1911,15 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
       if (context.category && context.category !== 'All') params.category = context.category;
       if (context.brand && context.brand !== 'All Brands' && context.brand !== 'All') params.brand = context.brand;
       if (context.sku && context.sku !== 'All SKUs' && context.sku !== 'All') params.sku = context.sku;
-      if (context.month) params.month = context.month;
+
+      // Date Range Support
+      if (context.timeStart) params.startDate = context.timeStart.format('YYYY-MM-DD');
+      if (context.timeEnd) params.endDate = context.timeEnd.format('YYYY-MM-DD');
+
+      if (context.compareOn) {
+        if (context.compareStart) params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
+        if (context.compareEnd) params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
+      }
 
       const res = await axiosInstance.get('/category-rca', { params });
       if (res.data?.tree) {
@@ -1326,16 +1931,31 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     } finally {
       setLoading(false);
     }
-  }, [context.platform, context.category, context.brand, context.sku, context.month]);
+  }, [
+    context.platform,
+    context.category,
+    context.brand,
+    context.sku,
+    context.timeStart,
+    context.timeEnd,
+    context.compareStart,
+    context.compareEnd,
+    context.compareOn
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(fetchRcaData, 300);
     return () => clearTimeout(timer);
   }, [fetchRcaData]);
 
-  // Use API data if available, otherwise fall back to hardcoded
+  // Use API data if available, otherwise fall back to hardcoded.
+  // FORCE hardcoded data for Amazon/Flipkart as requested.
   const currentTreeData = useMemo(
-    () => apiTreeData || getDynamicRcaTreeData(context),
+    () => {
+      const isMarketplace = context.platform?.toLowerCase() === 'amazon' || context.platform?.toLowerCase() === 'flipkart';
+      if (isMarketplace) return getDynamicRcaTreeData(context);
+      return apiTreeData || getDynamicRcaTreeData(context);
+    },
     [apiTreeData, context]
   );
 
@@ -1374,38 +1994,40 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const onHover = useCallback((id) => setHoveredNodeId(id), []);
 
   const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
+    const isFlipkartAmazon = context.platform?.toLowerCase() === "flipkart" || context.platform?.toLowerCase() === "amazon";
+    const initialGap = isFlipkartAmazon ? 80 : 180;
     const results = { nodes: [], edges: [] };
-    const rootHeight = computeSubtreeHeight(currentTreeData, collapsedNodes);
-    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends);
+    const rootHeight = computeSubtreeHeight(currentTreeData, collapsedNodes, initialGap);
+    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends, context.platform);
 
-      const nodesList = results.nodes.map((n) => {
-        const isFocused = focusSet ? focusSet.has(n.id) : true;
-        const isNearTop = n.position.y < -150;
+    const nodesList = results.nodes.map((n) => {
+      const isFocused = focusSet ? focusSet.has(n.id) : true;
+      const isNearTop = n.position.y < -150;
 
-        return {
-          ...n,
-          zIndex: (hoveredNodeId === n.id || selectedNodeId === n.id) ? 1000000 : 100,
-          data: {
-            ...n.data,
-            onToggle: () => onToggleNode(n.id),
-            onClickDetail: handleCardClick,
-            onHover,
-            isSelected: selectedNodeId === n.id,
-            isDimmed: false, 
-            popupPosition: isNearTop ? "bottom" : "top",
-            hoveredNodeId: hoveredNodeId, // Pass global state to individual node
-          },
-          style: { ...n.style },
-        };
-      });
+      return {
+        ...n,
+        zIndex: (hoveredNodeId === n.id || selectedNodeId === n.id) ? 1000000 : 100,
+        data: {
+          ...n.data,
+          onToggle: () => onToggleNode(n.id),
+          onClickDetail: handleCardClick,
+          onHover,
+          isSelected: selectedNodeId === n.id,
+          isDimmed: false,
+          popupPosition: isNearTop ? "bottom" : "top",
+          hoveredNodeId: hoveredNodeId, // Pass global state to individual node
+        },
+        style: { ...n.style },
+      };
+    });
 
-      // KEY FIX: Sort nodes so that hovered or selected nodes come LAST in the array.
-      // In React Flow, nodes later in the array are rendered on top of previous ones.
-      const sortedNodes = [...nodesList].sort((a, b) => {
-        if (a.id === hoveredNodeId || a.id === selectedNodeId) return 1;
-        if (b.id === hoveredNodeId || b.id === selectedNodeId) return -1;
-        return 0;
-      });
+    // KEY FIX: Sort nodes so that hovered or selected nodes come LAST in the array.
+    // In React Flow, nodes later in the array are rendered on top of previous ones.
+    const sortedNodes = [...nodesList].sort((a, b) => {
+      if (a.id === hoveredNodeId || a.id === selectedNodeId) return 1;
+      if (b.id === hoveredNodeId || b.id === selectedNodeId) return -1;
+      return 0;
+    });
 
     const edges = results.edges.map((e) => {
       return {
@@ -1430,7 +2052,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     });
 
     return { nodes: sortedNodes, edges };
-  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover, hoveredNodeId]);
+  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover, hoveredNodeId, context.platform]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
@@ -1441,14 +2063,14 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
   useEffect(() => {
-    // Zoom to 85% (0.85) to match the visual scale in the reference image
-    reactFlowInstance.setViewport({ x: 100, y: 0, zoom: 0.85 }, { duration: 400 });
+    // Automatically fit the tree to the screen on load
+    reactFlowInstance.fitView({ padding: 0.15, duration: 800 });
 
     const t = setTimeout(() => {
-      reactFlowInstance.zoomTo?.(0.85, { duration: 300 });
-    }, 450);
+      reactFlowInstance.fitView({ padding: 0.15, duration: 400 });
+    }, 100);
     return () => clearTimeout(t);
-  }, [reactFlowInstance]);
+  }, [reactFlowInstance, currentTreeData]);
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative", cursor: "none" }}>
@@ -1492,7 +2114,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        minZoom={0.2}
+        minZoom={0.05}
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
         elevateNodesOnSelect={true}
@@ -1524,6 +2146,8 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
           reactFlowInstance.fitView({ padding: 0.22, duration: 350 });
         }}
         nodeData={selectedNode}
+        selectedBrand={context.brand}
+        selectedPlatform={context.platform}
       />
     </div>
   );

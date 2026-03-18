@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Info, BarChart2 } from 'lucide-react';
+import { ChevronDown, Info, BarChart2, Calendar } from 'lucide-react';
 import { Typography, Box } from '@mui/material';
 import RCATree from './RCATree';
 import axiosInstance from '../../../api/axiosInstance';
+import DateRangeComparePicker from "../../CommonLayout/DateRangeComparePicker";
+import dayjs from "dayjs";
 
 const RCADashboard = () => {
   const [platforms, setPlatforms] = useState([]);
@@ -12,20 +14,44 @@ const RCADashboard = () => {
   const [brand, setBrand] = useState('All');
   const [sosTopN, setSosTopN] = useState('Top 10');
 
+  // Date states
+  const [timeStart, setTimeStart] = useState(dayjs().subtract(15, "day"));
+  const [timeEnd, setTimeEnd] = useState(dayjs());
+  const [compareStart, setCompareStart] = useState(dayjs().subtract(31, "day"));
+  const [compareEnd, setCompareEnd] = useState(dayjs().subtract(16, "day"));
+  const [compareOn, setCompareOn] = useState(true);
+  const [periodLabel, setPeriodLabel] = useState("Last 15 Days");
+
+  const handleDateApply = (ts, te, cs, ce, co, label) => {
+    setTimeStart(ts);
+    setTimeEnd(te);
+    setCompareStart(cs);
+    setCompareEnd(ce);
+    setCompareOn(co);
+    setPeriodLabel(label);
+  };
+
   // Fetch platforms from API on mount
   useEffect(() => {
     const fetchPlatforms = async () => {
       try {
         const response = await axiosInstance.get('/watchtower/platforms');
-        const fetchedPlatforms = response.data;
-        if (fetchedPlatforms && fetchedPlatforms.length > 0) {
+        let fetchedPlatforms = response.data || [];
+
+        // Ensure Flipkart and Amazon are always included
+        const required = ['Flipkart', 'Amazon'];
+        required.forEach(p => {
+          if (!fetchedPlatforms.includes(p)) fetchedPlatforms.push(p);
+        });
+
+        if (fetchedPlatforms.length > 0) {
           setPlatforms(fetchedPlatforms);
           setPlatform(fetchedPlatforms[0]);
         }
       } catch (error) {
         console.error('Error fetching platforms:', error);
         // Fallback to hardcoded values
-        const fallback = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket'];
+        const fallback = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket', 'Flipkart', 'Amazon'];
         setPlatforms(fallback);
         setPlatform(fallback[0]);
       }
@@ -101,137 +127,185 @@ const RCADashboard = () => {
     <div style={{
       display: 'flex',
       minHeight: '100vh',
-      backgroundColor: '#f9fafb',
+      backgroundColor: '#f6f8fb',
       marginBottom: '40px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      border: '1px solid #e5e7eb',
-      borderRadius: '16px',
-      overflow: 'hidden'
+      fontFamily: '"Outfit", "Inter", sans-serif',
+      borderRadius: '24px',
+      overflow: 'hidden',
+      color: '#0f172a'
     }}>
       {/* Left Sidebar */}
       <div style={{
-        width: '300px',
+        width: '320px',
         backgroundColor: 'white',
-        borderRight: '1px solid #e5e7eb',
-        padding: '30px 20px',
-        flexShrink: 0
+        borderRight: '1px solid rgba(0,0,0,0.05)',
+        padding: '40px 28px',
+        flexShrink: 0,
+        boxShadow: '20px 0 50px rgba(0,0,0,0.02)'
       }}>
         {/* Header */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '10px',
-          marginBottom: '32px',
-          paddingBottom: '20px',
-          borderBottom: '1px solid #e5e7eb'
+          gap: '12px',
+          marginBottom: '48px',
+          paddingBottom: '24px',
+          borderBottom: '1px solid #f1f5f9'
         }}>
           <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+            width: '40px',
+            height: '40px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, #FFD54F 0%, #F59E0B 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'white',
-            fontSize: '16px',
-            fontWeight: 700
+            boxShadow: '0 8px 16px rgba(245, 158, 11, 0.25)'
           }}>
-            ∞
+            <BarChart2 size={20} color="black" strokeWidth={2.5} />
           </div>
 
-          <Typography ml={1.2} fontWeight={600} fontSize="1.1rem">
-            Root Cause Analysis
+          <Typography sx={{ fontWeight: 900, fontSize: "1.25rem", color: "#0f172a", letterSpacing: "-0.5px" }}>
+            RCA <span style={{ color: '#9C27B0' }}>Pro</span>
           </Typography>
         </div>
 
         {/* Time Period */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '20px', letterSpacing: '0.5px' }}>
-            TIME PERIOD:
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#111827', fontWeight: 600 }}>
-            <span>01-05-2025</span>
-            <span style={{ color: '#9ca3af' }}>to</span>
-            <span>13-05-2025</span>
-            <span style={{ color: '#3b82f6', cursor: 'pointer', fontSize: '16px' }}>⊕</span>
-          </div>
-        </div>
-
-        {/* Comparison Period */}
         <div style={{ marginBottom: '32px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '20px', letterSpacing: '0.5px' }}>
-            COMPARISON PERIOD:
+          <div style={{ fontSize: '12px', fontWeight: 900, color: '#64748b', marginBottom: '16px', letterSpacing: '1.2px', textTransform: 'uppercase' }}>
+            Fiscal Period
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#111827', fontWeight: 600 }}>
-            <span>01-03-2025</span>
-            <span style={{ color: '#9ca3af' }}>to</span>
-            <span>30-03-2025</span>
-            <span style={{ color: '#3b82f6', cursor: 'pointer', fontSize: '16px' }}>⊕</span>
-          </div>
+          <DateRangeComparePicker
+            timeStart={timeStart}
+            timeEnd={timeEnd}
+            compareStart={compareStart}
+            compareEnd={compareEnd}
+            onApply={handleDateApply}
+          />
         </div>
 
         {/* Filters */}
-        <SelectBox label="PLATFORM:" value={platform} onChange={setPlatform} options={platforms} />
-        <SelectBox label="LOCATION:" value={location} onChange={setLocation} />
-        <SelectBox label="CATEGORY:" value={category} onChange={setCategory} />
-        <SelectBox label="BRAND:" value={brand} onChange={setBrand} />
-        <SelectBox label="SOS TOP N:" value={sosTopN} onChange={setSosTopN} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <SelectBox label="PLATFORM" value={platform} onChange={setPlatform} options={platforms} />
+          <SelectBox label="CATEGORY" value={category} onChange={setCategory} options={['All', 'Chocolates', 'Gifting', 'Bars']} />
+          <SelectBox label="BRAND" value={brand} onChange={setBrand} options={['All', 'Mars', 'Snickers', 'Galaxy']} />
+        </div>
 
-        {/* Note */}
+        {/* Premium Note Badge */}
         <div style={{
-          marginTop: '60px',
-          padding: '12px',
-          backgroundColor: '#fef3c7',
-          borderRadius: '6px',
-          fontSize: '11px',
-          color: '#92400e',
-          lineHeight: '1.5'
+          marginTop: 'auto',
+          padding: '20px',
+          background: 'linear-gradient(135deg, #9C27B0 0%, #E91E63 100%)',
+          borderRadius: '20px',
+          color: 'white',
+          position: 'relative',
+          overflow: 'hidden',
+          boxShadow: '0 15px 30px rgba(156, 39, 176, 0.3)',
+          marginTop: '60px'
         }}>
-          <strong>NOTE:</strong> SOS is on keyword level
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', opacity: 0.8, letterSpacing: '1px', marginBottom: '8px' }}>Pro Tip</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, lineHeight: 1.4 }}>
+              Root cause analysis is performed at the keyword level for maximum precision.
+            </div>
+          </div>
+          <div style={{
+            position: 'absolute',
+            bottom: '-20px',
+            right: '-10px',
+            opacity: 0.2,
+            transform: 'rotate(-15deg)'
+          }}>
+            <Info size={80} color="white" />
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '32px 40px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
+      <div style={{ flex: 1, padding: '48px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        {/* Header Action */}
         <div style={{
-          display: 'inline-flex',
+          display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          backgroundColor: 'white',
-          border: '2px solid #3b82f6',
-          borderRadius: '8px',
-          padding: '6px 8px',
-          marginBottom: '28px',
-          width: 'fit-content'
+          marginBottom: '32px'
         }}>
-          <button style={{
-            padding: '6px 20px',
-            backgroundColor: '#3b82f6',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: 'pointer'
+          <div style={{
+            padding: '4px',
+            backgroundColor: '#f1f5f9',
+            borderRadius: '14px',
+            display: 'flex',
+            gap: '4px'
           }}>
-            PRODUCT RCA
-          </button>
+            <button style={{
+              padding: '10px 24px',
+              backgroundColor: 'white',
+              color: '#0f172a',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.05)'
+            }}>
+              PRODUCT RCA
+            </button>
+            <button style={{
+              padding: '10px 24px',
+              backgroundColor: 'transparent',
+              color: '#64748b',
+              border: 'none',
+              borderRadius: '10px',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}>
+              MARKET OVERVIEW
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button style={{
+              backgroundColor: '#FFD54F',
+              color: 'black',
+              border: 'none',
+              borderRadius: '12px',
+              padding: '10px 20px',
+              fontSize: '13px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(255, 213, 79, 0.3)'
+            }}>
+              Export Data
+            </button>
+          </div>
         </div>
 
-        {/* Tree Structure Container - Replaced with Interactive RCATree */}
+        {/* Tree Structure Container */}
         <Box sx={{
           flex: 1,
           width: '100%',
           minHeight: '800px',
           position: 'relative',
-          border: '1px solid #e5e7eb',
-          borderRadius: '12px',
-          overflow: 'hidden',
           backgroundColor: '#fff',
-          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+          borderRadius: '32px',
+          overflow: 'hidden',
+          boxShadow: '0 25px 60px -15px rgba(0,0,0,0.08)',
+          border: '1px solid rgba(0,0,0,0.03)'
         }}>
-          <RCATree />
+          <RCATree context={{
+            platform,
+            category,
+            brand,
+            timeStart,
+            timeEnd,
+            compareStart,
+            compareEnd,
+            compareOn
+          }} />
         </Box>
       </div>
     </div>
