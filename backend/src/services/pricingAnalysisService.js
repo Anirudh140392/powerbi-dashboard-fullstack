@@ -623,12 +623,20 @@ async function getPricingInsights(filters = {}) {
                     ELSE NULL END) AS listing_curr,
                 (SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.neno_osa)), 0) ELSE 0 END) / 
                  NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.deno_osa)), 0) ELSE 0 END), 0)) * 100 AS osa_curr,
-                SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) AS offtakes_curr,
+                
+                -- Coalesce Sales from p (own brand) and m (competitor brand)
+                COALESCE(
+                    NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0),
+                    NULLIF(SUM(CASE WHEN m.created_on BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.sales)), 0) ELSE 0 END), 0),
+                    0
+                ) AS offtakes_curr,
+                
                 AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
                     THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
                     ELSE NULL END) AS discount_prev
             FROM rb_pdp_olap p
+            LEFT JOIN rb_brand_ms m ON p.Web_Pid = m.web_pid AND p.DATE = m.created_on
             WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
             GROUP BY p.Brand, p.Product, Category, p.Comp_flag
@@ -688,11 +696,19 @@ async function getPricingInsights(filters = {}) {
                             ELSE NULL END) AS listing_curr,
                         (SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.neno_osa)), 0) ELSE 0 END) / 
                          NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.deno_osa)), 0) ELSE 0 END), 0)) * 100 AS osa_curr,
-                        SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) AS offtakes_curr,
+                        
+                        -- Coalesce Sales from p and m for city level
+                        COALESCE(
+                            NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0),
+                            NULLIF(SUM(CASE WHEN m.created_on BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.sales)), 0) ELSE 0 END), 0),
+                            0
+                        ) AS offtakes_curr,
+
                         AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
                             THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
                             ELSE NULL END) AS discount_prev
                     FROM rb_pdp_olap p
+                    LEFT JOIN rb_brand_ms m ON p.Web_Pid = m.web_pid AND p.DATE = m.created_on AND p.Location = m.location
                     WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
                       AND p.Product IN (${productEscaped})
                       ${platforms ? `AND ${buildInClause('p.Platform', platforms)}` : ''}
@@ -1034,9 +1050,13 @@ const getPricingCompetitionTrends = async (filters) => {
         const location = filters.location || null;
         const category = filters.category || null;
         const dimensionParam = filters.dimension || 'category';
-        const dimensionValue = filters.dimensionValue;
+        const isPlatform = dimensionParam === 'platform';
+        const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
-        const groupByExpr = isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL;
+        const groupByExpr = isPlatform ? 'p.Platform' : 
+                           isSku ? 'p.Product' : 
+                           (isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL);
+        const dimensionValue = filters.dimensionValue;
 
         const platforms = parseMultiSelectFilter(platform);
         if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
@@ -1045,7 +1065,10 @@ const getPricingCompetitionTrends = async (filters) => {
         if (locations) whereConditions.push(buildInClause('p.Location', locations));
 
         const categoriesArr = parseMultiSelectFilter(category);
-        if (categoriesArr) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
+        if (categoriesArr) {
+            const escaped = categoriesArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+            whereConditions.push(`lower(${PRODUCT_CATEGORY_SQL}) IN (${escaped})`);
+        }
 
         const channels = normalizeChannels(parseMultiSelectFilter(filters.channel));
         if (channels) {
@@ -1166,7 +1189,10 @@ const getPricingCompetition = async (filters) => {
         if (brands) whereConditions.push(buildInClause('p.Brand', brands));
 
         const categoriesArr = parseMultiSelectFilter(category);
-        if (categoriesArr) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
+        if (categoriesArr) {
+            const escaped = categoriesArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+            whereConditions.push(`lower(${PRODUCT_CATEGORY_SQL}) IN (${escaped})`);
+        }
 
         const channels = normalizeChannels(parseMultiSelectFilter(filters.channel));
         if (channels) {

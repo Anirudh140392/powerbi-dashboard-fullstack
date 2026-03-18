@@ -2624,9 +2624,10 @@ export default function PricingAnalysisData() {
       <TrendsCompetitionDrawer
         dynamicKey="pricing"
         open={trendsDrawer.open}
-        onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '' })}
+        onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '', dimensionType: '' })}
         selectedColumn={trendsDrawer.entity}
         selectedLevel={trendsDrawer.dimension}
+        dimensionType={trendsDrawer.dimensionType}
       />
 
       {/* Pricing RCA Drawer */}
