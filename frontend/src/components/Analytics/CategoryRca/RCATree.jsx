@@ -203,7 +203,7 @@ const TrendButton = ({ onClick }) => (
 
 // --- Dark Hover Intelligence Popup (Table View) ---
 // --- Dark Hover Intelligence Popup (Unified) ---
-const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLabel = "KPI", category = "" }) => {
+const HoverMetricsPopup = ({ metrics, keywordMetrics, position = "top", isOrganic = false, kpiLabel = "KPI", category = "" }) => {
   const isBottom = position === "bottom";
   const popupRef = React.useRef(null);
   const [hOffset, setHOffset] = useState(0);
@@ -231,7 +231,8 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
   }
 
   // Restoration of the Previous Black Card (Brand Intelligence)
-  const displayMetrics = metrics || [];
+  const isKeywordTable = !!(keywordMetrics && keywordMetrics.length > 0);
+  const displayMetrics = isKeywordTable ? keywordMetrics : (metrics || []);
 
   const getMetricKey = (label, cat) => {
     const l = label.toLowerCase();
@@ -341,25 +342,58 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
         <Table size="small" sx={{ "& td, & th": { border: "none", py: { xs: 2, md: 2.5 }, px: { xs: 3, md: 6 } } }}>
           <TableHead>
             <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)", position: "sticky", top: 0, bgcolor: "rgba(10, 15, 28, 1)", zIndex: 10 }}>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Brand Identity</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Current Month {kpiLabel}</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Previous Month {kpiLabel}</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Change</TableCell>
+              {isKeywordTable ? (
+                <>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Keyword</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Current Month</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Previous Month</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Change</TableCell>
+                </>
+              ) : (
+                <>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Brand Identity</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Current Month {kpiLabel}</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Previous Month {kpiLabel}</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Change</TableCell>
+                </>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
             {displayMetrics.map((row, idx) => {
+              if (isKeywordTable) {
+                return (
+                  <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
+                    <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.keyword}</TableCell>
+                    <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{row.current}</TableCell>
+                    <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{row.previous}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                        <Typography sx={{ color: row.isPositive ? "#00ff99" : "#ff4d4d", fontSize: "clamp(12px, 1.2vw, 18px)", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
+                          {row.change}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                );
+              }
+
               const currStr = row[metricKey];
               const deltaStr = row[deltaKey];
-              const currVal = parseVal(currStr);
-              const deltaVal = parseVal(deltaStr);
-              const prevVal = currVal - deltaVal;
+              const prevKey = `prev${metricKey.charAt(0).toUpperCase() + metricKey.slice(1)}`;
+
+              let displayPrevStr = row[prevKey];
+              if (displayPrevStr === undefined) {
+                const currVal = parseVal(currStr);
+                const deltaVal = parseVal(deltaStr);
+                displayPrevStr = formatVal(currVal - deltaVal);
+              }
 
               return (
                 <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
                   <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.brand}</TableCell>
                   <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{currStr}</TableCell>
-                  <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{formatVal(prevVal)}</TableCell>
+                  <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{displayPrevStr}</TableCell>
                   <TableCell>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                       <Typography sx={{ color: String(deltaStr).startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "clamp(12px, 1.2vw, 18px)", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
@@ -548,6 +582,7 @@ const KpiNode = ({ data }) => {
         {localHover && hoveredNodeId === data.id && !isDimmed && (
           <HoverMetricsPopup
             metrics={metrics}
+            keywordMetrics={data.keywordMetrics}
             position={data.popupPosition}
             isOrganic={label === "Organic Impressions" || label === "Organic GVs"}
             kpiLabel={label}
@@ -1514,14 +1549,14 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
   useEffect(() => {
-    // Zoom to 85% (0.85) to match the visual scale in the reference image
-    reactFlowInstance.setViewport({ x: 100, y: 0, zoom: 0.85 }, { duration: 400 });
+    // Automatically fit the tree to the screen on load
+    reactFlowInstance.fitView({ padding: 0.15, duration: 800 });
 
     const t = setTimeout(() => {
-      reactFlowInstance.zoomTo?.(0.85, { duration: 300 });
-    }, 450);
+      reactFlowInstance.fitView({ padding: 0.15, duration: 400 });
+    }, 100);
     return () => clearTimeout(t);
-  }, [reactFlowInstance]);
+  }, [reactFlowInstance, currentTreeData]);
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative", cursor: "none" }}>
@@ -1565,7 +1600,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        minZoom={0.2}
+        minZoom={0.05}
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
         elevateNodesOnSelect={true}

@@ -146,6 +146,7 @@ export default function VisibilityAnalysis() {
 
   // Tab for Top Search Terms
   const [topSearchFilter, setTopSearchFilter] = useState("All");
+  const [topSearchMode, setTopSearchMode] = useState("Keywords"); // "Keywords" or "SKU"
 
   // API data state - fetched when filters change
   const [apiData, setApiData] = useState({});
@@ -259,7 +260,8 @@ export default function VisibilityAnalysis() {
     }).toString();
     const termsParams = new URLSearchParams({
       ...baseParams,
-      filter: topSearchFilter
+      filter: topSearchFilter,
+      viewMode: topSearchMode === "SKU" ? "sku" : "keyword"
     }).toString();
 
     switch (segmentKey) {
@@ -303,7 +305,8 @@ export default function VisibilityAnalysis() {
     // Create a stable key to detect actual filter changes (including tabs)
     const filterKey = JSON.stringify({
       ...JSON.parse(mainFiltersKey),
-      topSearchFilter: topSearchFilter // Add tab filter to dependency tracking
+      topSearchFilter: topSearchFilter, // Add tab filter to dependency tracking
+      topSearchMode: topSearchMode // Add view mode strictly
     });
 
     // Check if MAIN filters (platform, brand, location, dates) actually changed
@@ -357,10 +360,11 @@ export default function VisibilityAnalysis() {
         // 1. ALWAYS fetch Top Search Terms if tab OR main filters changed
         const termsParams = new URLSearchParams({
           ...baseParams,
-          filter: topSearchFilter
+          filter: topSearchFilter,
+          viewMode: topSearchMode === "SKU" ? "sku" : "keyword"
         }).toString();
 
-        console.log('📡 [Visibility] Fetching Top Search Terms:', topSearchFilter);
+        console.log(`📡 [Visibility] Fetching Top Search Terms (${topSearchMode}):`, topSearchFilter);
         fetchVisibilitySearchTerms(termsParams);
 
         // 2. Only fetch OTHER segments if it was a main filter change
@@ -395,7 +399,7 @@ export default function VisibilityAnalysis() {
     };
 
     fetchData();
-  }, [filters, topSearchFilter, visibilityDatesReady]); // Wait for visibility dates before fetching
+  }, [filters, topSearchFilter, topSearchMode, visibilityDatesReady]); // Wait for visibility dates before fetching
 
   const handleViewTrends = (card) => {
     console.log("card clicked", card);
@@ -459,6 +463,8 @@ export default function VisibilityAnalysis() {
           onFiltersChange={setFilters}
           topSearchFilter={topSearchFilter}
           setTopSearchFilter={setTopSearchFilter}
+          topSearchMode={topSearchMode}
+          setTopSearchMode={setTopSearchMode}
         />
       </CommonContainer>
     </>

@@ -7649,33 +7649,40 @@ const getLatestAvailableMonth = async (filters = {}) => {
             };
         }
 
-        const src = await getWatchtowerSource();
-        // Build WHERE conditions for dynamic source
-        const conditions = [`toString(${src.f.compFlag}) = '0'`];
+        // Always query rb_pdp_olap directly for date range detection
+        // (not the agg table, since user wants dates from rb_pdp_olap specifically)
+        const cols = await getTableColumns('rb_pdp_olap');
+        const r = (name) => resolveColumn(cols, name);
+        const dateCol = r('DATE');
+        const compFlagCol = r('Comp_flag');
+        const platformCol = r('Platform');
+        const brandCol = r('Brand');
+        const locationCol = r('Location');
+
+        const conditions = [`toString(${compFlagCol}) = '0'`];
 
         if (platform && platform !== 'All') {
-            conditions.push(`lower(${src.f.platform}) = '${escapeStr(platform.toLowerCase())}'`);
+            conditions.push(`lower(${platformCol}) = '${escapeStr(platform.toLowerCase())}'`);
         }
 
         if (brand && brand !== 'All') {
-            conditions.push(`${src.f.brand} LIKE '%${escapeStr(brand)}%'`);
+            conditions.push(`${brandCol} LIKE '%${escapeStr(brand)}%'`);
         }
 
         if (location && location !== 'All') {
-            conditions.push(`lower(${src.f.location}) = '${escapeStr(location.toLowerCase())}'`);
+            conditions.push(`lower(${locationCol}) = '${escapeStr(location.toLowerCase())}'`);
         }
 
         if (category && category !== 'All') {
-            const catCol = src.f.category;
-            conditions.push(`lower(${catCol}) = '${escapeStr(category.toLowerCase())}'`);
+            conditions.push(`lower(${PRODUCT_CATEGORY_SQL}) = '${escapeStr(category.toLowerCase())}'`);
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')} ` : '';
 
-        // Query dynamic source for the latest date
+        // Query rb_pdp_olap for the latest date
         const result = await queryClickHouse(`
-            SELECT MAX(toDate(${src.f.date})) as latestDate
-            FROM ${src.table}
+            SELECT MAX(toDate(${dateCol})) as latestDate
+            FROM rb_pdp_olap
             ${whereClause}
         `);
 
@@ -8594,6 +8601,25 @@ const getRcaData = async (filters = {}) => {
         const prevKwConds = buildKwConds(prevStartStr, prevEndStr);
         const currMsConds = buildMsConds(startStr, endStr);
 
+        // Build conditions for rca_pm_olap for keyword-level metrics
+        const buildPmConds = (sDate, eDate) => {
+            const conds = [`toDate(DATE) BETWEEN '${sDate}' AND '${eDate}'`];
+            const platArr = normalizeFilterArray(platform);
+            if (platArr && platArr.length > 0) {
+                conds.push(`Platform IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            }
+            if (category && category !== 'All') {
+                conds.push(`category = '${escapeStr(category)}'`);
+            }
+            if (brand && brand !== 'All' && brand !== 'All Brands') {
+                conds.push(`brand LIKE '%${escapeStr(brand)}%'`);
+            }
+            return conds.join(' AND ');
+        };
+
+        const currPmConds = buildPmConds(startStr, endStr);
+        const prevPmConds = buildPmConds(prevStartStr, prevEndStr);
+
         // (src already defined at top)
         // The big OLAP query - get all metrics in one shot
         const olapQuery = (conds) => `
@@ -8693,8 +8719,20 @@ const getRcaData = async (filters = {}) => {
             ? `group_brand IN(${brandArrForMs.map(b => `'${escapeStr(b)}'`).join(', ')})`
             : `group_brand = '${escapeStr(brand)}'`;
 
+        const pmKeywordQuery = (conds) => `
+            SELECT 
+                ifNull(keyword_type, 'Generic') as keyword_type,
+                ifNull(keyword, 'N/A') as keyword,
+                SUM(impressions) as impressions
+            FROM rca_pm_olap
+            WHERE ${conds} 
+              AND keyword IS NOT NULL AND keyword != ''
+            GROUP BY keyword_type, keyword
+            ORDER BY impressions DESC
+        `;
+
         // Execute all queries in parallel
-        const [currOlap, prevOlap, currKw, prevKw, currMs, currBrands, prevBrands, currBrandKw, prevBrandKw] = await Promise.all([
+        const [currOlap, prevOlap, currKw, prevKw, currMs, currBrands, prevBrands, currBrandKw, prevBrandKw, currPmKw, prevPmKw] = await Promise.all([
             queryClickHouse(olapQuery(currOlapConds)),
             queryClickHouse(olapQuery(prevOlapConds)),
             queryClickHouse(kwQuery(currKwConds)),
@@ -8709,7 +8747,9 @@ const getRcaData = async (filters = {}) => {
             queryClickHouse(brandQuery(currOlapConds)),
             queryClickHouse(brandQuery(prevOlapConds)),
             queryClickHouse(brandKwQuery(currKwConds)),
-            queryClickHouse(brandKwQuery(prevKwConds))
+            queryClickHouse(brandKwQuery(prevKwConds)),
+            queryClickHouse(pmKeywordQuery(currPmConds)),
+            queryClickHouse(pmKeywordQuery(prevPmConds))
         ]);
 
         const curr = currOlap[0] || {};
@@ -8790,14 +8830,20 @@ const getRcaData = async (filters = {}) => {
         };
 
         const pctDelta = (curr, prev) => {
-            if (prev === 0) return { val: curr > 0 ? '100.0%' : '0.0%', isPos: curr > 0 };
+            if (prev === 0) return { val: curr > 0 ? '+100.0%' : '0.0%', isPos: curr > 0 };
             const d = ((curr - prev) / Math.abs(prev)) * 100;
-            return { val: `${Math.abs(d).toFixed(2)}% `, isPos: d >= 0 };
+            return { val: `${d > 0 ? '+' : ''}${d.toFixed(2)}%`, isPos: d >= 0 };
         };
 
         const absDelta = (curr, prev) => {
             const d = curr - prev;
-            return { val: `${Math.abs(d).toFixed(2)}% `, isPos: d >= 0 };
+            return { val: `${d > 0 ? '+' : ''}${d.toFixed(2)}%`, isPos: d >= 0 };
+        };
+
+        const formatDeltaCount = (curr, prev) => {
+            const d = curr - prev;
+            const sign = d > 0 ? '+' : '';
+            return `${sign}${formatCount(Math.abs(d))}`;
         };
 
         // Calculate deltas
@@ -8859,47 +8905,118 @@ const getRcaData = async (filters = {}) => {
                 brand: brandName,
                 // Direct values for dynamic tooltip columns
                 offtake: formatLac(parseFloat(c.sales || 0)),
+                prevOfftake: formatLac(parseFloat(p.sales || 0)),
                 deltaOfftake: pctDelta(parseFloat(c.sales || 0), parseFloat(p.sales || 0)).val,
+
                 price: `₹${cAspB.toFixed(1)}`,
-                deltaPrice: `₹${(cAspB - pAspB).toFixed(1)}`,
+                prevPrice: `₹${pAspB.toFixed(1)}`,
+                deltaPrice: `${(cAspB - pAspB) > 0 ? '+' : ''}₹${Math.abs(cAspB - pAspB).toFixed(1)}`,
+
                 impressions: formatCount(parseFloat(c.impressions || 0)),
-                deltaImpressions: formatCount(parseFloat(c.impressions || 0) - parseFloat(p.impressions || 0)),
+                prevImpressions: formatCount(parseFloat(p.impressions || 0)),
+                deltaImpressions: formatDeltaCount(parseFloat(c.impressions || 0), parseFloat(p.impressions || 0)),
 
                 // Granular keyword metrics
                 organic: formatCount(parseFloat(kc.organic_total || 0)),
-                deltaOrganic: formatCount(parseFloat(kc.organic_total || 0) - parseFloat(kp.organic_total || 0)),
+                prevOrganic: formatCount(parseFloat(kp.organic_total || 0)),
+                deltaOrganic: formatDeltaCount(parseFloat(kc.organic_total || 0), parseFloat(kp.organic_total || 0)),
+
                 ad: formatCount(parseFloat(kc.ad_total || 0)),
-                deltaAd: formatCount(parseFloat(kc.ad_total || 0) - parseFloat(kp.ad_total || 0)),
+                prevAd: formatCount(parseFloat(kp.ad_total || 0)),
+                deltaAd: formatDeltaCount(parseFloat(kc.ad_total || 0), parseFloat(kp.ad_total || 0)),
+
                 orgBranded: formatCount(parseFloat(kc.organic_branded || 0)),
-                deltaOrgBranded: formatCount(parseFloat(kc.organic_branded || 0) - parseFloat(kp.organic_branded || 0)),
+                prevOrgBranded: formatCount(parseFloat(kp.organic_branded || 0)),
+                deltaOrgBranded: formatDeltaCount(parseFloat(kc.organic_branded || 0), parseFloat(kp.organic_branded || 0)),
+
                 orgGeneric: formatCount(parseFloat(kc.organic_generic || 0)),
-                deltaOrgGeneric: formatCount(parseFloat(kc.organic_generic || 0) - parseFloat(kp.organic_generic || 0)),
+                prevOrgGeneric: formatCount(parseFloat(kp.organic_generic || 0)),
+                deltaOrgGeneric: formatDeltaCount(parseFloat(kc.organic_generic || 0), parseFloat(kp.organic_generic || 0)),
+
                 adBranded: formatCount(parseFloat(kc.ad_branded || 0)),
-                deltaAdBranded: formatCount(parseFloat(kc.ad_branded || 0) - parseFloat(kp.ad_branded || 0)),
+                prevAdBranded: formatCount(parseFloat(kp.ad_branded || 0)),
+                deltaAdBranded: formatDeltaCount(parseFloat(kc.ad_branded || 0), parseFloat(kp.ad_branded || 0)),
+
                 adComp: formatCount(parseFloat(kc.ad_comp || 0)),
-                deltaAdComp: formatCount(parseFloat(kc.ad_comp || 0) - parseFloat(kp.ad_comp || 0)),
+                prevAdComp: formatCount(parseFloat(kp.ad_comp || 0)),
+                deltaAdComp: formatDeltaCount(parseFloat(kc.ad_comp || 0), parseFloat(kp.ad_comp || 0)),
 
                 conversion: `${cCvrB.toFixed(1)}%`,
-                deltaConversion: `${(cCvrB - pCvrB).toFixed(1)}%`,
+                prevConversion: `${pCvrB.toFixed(1)}%`,
+                deltaConversion: `${(cCvrB - pCvrB) > 0 ? '+' : ''}${(cCvrB - pCvrB).toFixed(1)}%`,
+
                 discount: `${parseFloat(c.avg_discount || 0).toFixed(1)}%`,
-                deltaDiscount: `${(parseFloat(c.avg_discount || 0) - parseFloat(p.avg_discount || 0)).toFixed(1)}%`,
+                prevDiscount: `${parseFloat(p.avg_discount || 0).toFixed(1)}%`,
+                deltaDiscount: `${(parseFloat(c.avg_discount || 0) - parseFloat(p.avg_discount || 0)) > 0 ? '+' : ''}${(parseFloat(c.avg_discount || 0) - parseFloat(p.avg_discount || 0)).toFixed(1)}%`,
+
                 osa: `${cOsaB.toFixed(1)}%`,
-                deltaOsa: `${(cOsaB - pOsaB).toFixed(1)}%`,
+                prevOsa: `${pOsaB.toFixed(1)}%`,
+                deltaOsa: `${(cOsaB - pOsaB) > 0 ? '+' : ''}${(cOsaB - pOsaB).toFixed(1)}%`,
 
                 // Rating and Listing specific metrics
                 rating: formatCount(parseFloat(c.qty || 0)),
-                deltaRating: formatCount(parseFloat(c.qty || 0) - parseFloat(p.qty || 0)),
+                prevRating: formatCount(parseFloat(p.qty || 0)),
+                deltaRating: formatDeltaCount(parseFloat(c.qty || 0), parseFloat(p.qty || 0)),
+
                 listing: `${(c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0).toFixed(1)}%`,
-                deltaListing: `${((c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0) - (p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0)).toFixed(1)}%`,
+                prevListing: `${(p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0).toFixed(1)}%`,
+                deltaListing: `${((c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0) - (p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0)) > 0 ? '+' : ''}${((c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0) - (p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0)).toFixed(1)}%`,
 
                 // PPU logic placeholder
                 ppu: `₹${(cAspB / 100).toFixed(1)}`,
-                deltaPpu: `₹${((cAspB - pAspB) / 100).toFixed(1)}`,
+                prevPpu: `₹${(pAspB / 100).toFixed(1)}`,
+                deltaPpu: `${((cAspB - pAspB) / 100) > 0 ? '+' : ''}₹${Math.abs((cAspB - pAspB) / 100).toFixed(1)}`,
+
                 // Legacy support for older tooltips if any
                 asp: `₹${cAspB.toFixed(1)}`,
-                deltaAsp: `₹${(cAspB - pAspB).toFixed(1)}`,
+                prevAsp: `₹${pAspB.toFixed(1)}`,
+                deltaAsp: `${(cAspB - pAspB) > 0 ? '+' : ''}₹${Math.abs(cAspB - pAspB).toFixed(1)}`,
             };
         });
+
+        // Parse keyword impression metrics for hover tooltips
+        const allPmKwMap = new Map();
+        currPmKw.forEach(row => {
+            const k = row.keyword;
+            const t = row.keyword_type;
+            const key = `${t}_${k}`;
+            allPmKwMap.set(key, { keyword: k, type: t, currImp: parseFloat(row.impressions || 0), prevImp: 0 });
+        });
+        prevPmKw.forEach(row => {
+            const k = row.keyword;
+            const t = row.keyword_type;
+            const key = `${t}_${k}`;
+            if (allPmKwMap.has(key)) {
+                allPmKwMap.get(key).prevImp = parseFloat(row.impressions || 0);
+            } else {
+                allPmKwMap.set(key, { keyword: k, type: t, currImp: 0, prevImp: parseFloat(row.impressions || 0) });
+            }
+        });
+
+        const genericKwMetrics = [];
+        const brandedKwMetrics = [];
+        const compKwMetrics = [];
+
+        Array.from(allPmKwMap.values()).forEach(item => {
+            const deltaVal = item.currImp - item.prevImp;
+            const isPos = deltaVal >= 0;
+            const metricObj = {
+                keyword: item.keyword,
+                current: formatCount(item.currImp),
+                previous: formatCount(item.prevImp),
+                change: (isPos ? '+' : '') + formatCount(deltaVal),
+                isPositive: isPos,
+                rawCurrent: item.currImp
+            };
+            const typeLower = item.type.toLowerCase();
+            if (typeLower.includes('generic')) genericKwMetrics.push(metricObj);
+            else if (typeLower.includes('brand')) brandedKwMetrics.push(metricObj);
+            else if (typeLower.includes('comp')) compKwMetrics.push(metricObj);
+        });
+
+        genericKwMetrics.sort((a, b) => b.rawCurrent - a.rawCurrent);
+        brandedKwMetrics.sort((a, b) => b.rawCurrent - a.rawCurrent);
+        compKwMetrics.sort((a, b) => b.rawCurrent - a.rawCurrent);
 
         // Construct full RCA tree matching frontend getDynamicRcaTreeData structure
         const tree = {
@@ -8968,8 +9085,8 @@ const getRcaData = async (filters = {}) => {
                             metrics: allNodeMetrics,
                             meta: [{ label: "Organic SOS", value: cTotalKw > 0 ? `${((cOrgRbKw / cTotalKw) * 100).toFixed(2)}% ` : "0.0%", change: orgRbDelta.val, isPositive: orgRbDelta.isPos }],
                             children: [
-                                { id: "org-generic", label: "Generic Keywords", value: formatCount(cOrgKw - cOrgRbKw), change: orgImpDelta.val, isPositive: orgImpDelta.isPos, category: "organic", metrics: allNodeMetrics },
-                                { id: "org-branded", label: "Branded Keywords", value: formatCount(cOrgRbKw), change: orgRbDelta.val, isPositive: orgRbDelta.isPos, category: "organic", metrics: allNodeMetrics }
+                                { id: "org-generic", label: "Generic Keywords", value: formatCount(cOrgKw - cOrgRbKw), change: orgImpDelta.val, isPositive: orgImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: genericKwMetrics },
+                                { id: "org-branded", label: "Branded Keywords", value: formatCount(cOrgRbKw), change: orgRbDelta.val, isPositive: orgRbDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: brandedKwMetrics }
                             ]
                         }
                     ]
@@ -8995,8 +9112,8 @@ const getRcaData = async (filters = {}) => {
                             metrics: allNodeMetrics,
                             meta: [{ label: "Ad SOS", value: cTotalKw > 0 ? `${((cAdRbKw / cTotalKw) * 100).toFixed(2)}% ` : "0.0%", change: adRbDelta.val, isPositive: adRbDelta.isPos }],
                             children: [
-                                { id: "ad-branded", label: "Branded Keywords", value: formatCount(cAdRbKw), change: adRbDelta.val, isPositive: adRbDelta.isPos, category: "ad", metrics: allNodeMetrics },
-                                { id: "ad-comp", label: "Comp Keywords", value: formatCount(cAdKw - cAdRbKw), change: adImpDelta.val, isPositive: adImpDelta.isPos, category: "ad", metrics: allNodeMetrics }
+                                { id: "ad-branded", label: "Branded Keywords", value: formatCount(cAdRbKw), change: adRbDelta.val, isPositive: adRbDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: brandedKwMetrics },
+                                { id: "ad-comp", label: "Comp Keywords", value: formatCount(cAdKw - cAdRbKw), change: adImpDelta.val, isPositive: adImpDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: compKwMetrics }
                             ]
                         },
                         { id: "discounting", label: "Wt. Disc %", value: `${cDiscount.toFixed(2)}% `, change: discDelta.val, isPositive: discDelta.isPos, category: "discounting", metrics: allNodeMetrics },

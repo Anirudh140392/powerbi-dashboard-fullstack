@@ -1392,7 +1392,7 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
                 if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
                 if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
                 if (selectedKeyword && selectedKeyword !== 'All') params.append('keyword', selectedKeyword);
-                
+
                 // Group by brand for visibility, otherwise group by SKU
                 const groupByValue = (metricType === 'visibility') ? 'brand' : 'sku';
                 params.append('groupBy', groupByValue);
@@ -1477,7 +1477,9 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
                 if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
                 if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
                 if (selectedKeyword && selectedKeyword !== 'All') params.append('keyword', selectedKeyword);
-                params.append('groupBy', 'brand');
+                // Group by brand for visibility, otherwise group by SKU (same logic as initial fetch)
+                const groupByValue = (metricType === 'visibility') ? 'brand' : 'sku';
+                params.append('groupBy', groupByValue);
 
                 const res = await fetch(`/api/availability-analysis/signal-lab?${params.toString()}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {}

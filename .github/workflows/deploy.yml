@@ -71,11 +71,9 @@ jobs:
             git checkout ${{ github.ref_name }}
             git reset --hard origin/${{ github.ref_name }}
             
-            echo "🛑 Stopping existing containers..."
-            sudo docker compose down --remove-orphans || true
-            
-            echo "🧹 Cleaning up old images..."
-            sudo docker image prune -f || true
+            echo "🛑 Stopping and removing specific containers..."
+            sudo docker stop backend_multiple frontend_multiple || true
+            sudo docker rm backend_multiple frontend_multiple || true
             
             echo "🔨 Building and starting containers..."
             sudo docker compose build --no-cache
@@ -96,6 +94,7 @@ jobs:
       - name: Cleanup SSH key
         if: always()
         run: rm -f ~/.ssh/deploy_key
+
 
       - name: Deployment Summary
         run: |

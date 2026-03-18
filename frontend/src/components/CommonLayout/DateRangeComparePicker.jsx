@@ -200,7 +200,9 @@ export default function DateRangeComparePicker({
     maxDate,
     onApply
 }) {
-    const today = useMemo(() => new Date(), []);
+    // Use maxDate (latest available date in DB) instead of current calendar date
+    // so quick ranges like "This Month", "Last 7 Days" etc. are relative to actual data
+    const today = useMemo(() => maxDate ? maxDate.toDate() : new Date(), [maxDate]);
     const [anchorEl, setAnchorEl] = useState(null);
 
     const [start, setStart] = useState(timeStart ? timeStart.toDate() : addDays(today, -7));
@@ -216,12 +218,24 @@ export default function DateRangeComparePicker({
     useEffect(() => {
         if (timeEnd) {
             setEnd(timeEnd.toDate());
-            // If internal end state was "today" but prop is different, update activeQuick
-            if (activeQuick === "last7" || activeQuick === "today") {
+        }
+    }, [timeEnd]);
+
+    // Auto-detect if the current range matches "Month to Date" relative to maxDate
+    // Default from backend is: 1st of month of latest date → latest date = MTD
+    useEffect(() => {
+        if (timeStart && timeEnd && maxDate) {
+            const mx = startOfDay(maxDate.toDate());
+            const ts = startOfDay(timeStart.toDate());
+            const te = startOfDay(timeEnd.toDate());
+            const mtdStart = startOfMonth(mx);
+            if (ts.getTime() === mtdStart.getTime() && te.getTime() === mx.getTime()) {
+                setActiveQuick("mtd");
+            } else {
                 setActiveQuick("custom");
             }
         }
-    }, [timeEnd]);
+    }, [timeStart, timeEnd, maxDate]);
 
     const [activeQuick, setActiveQuick] = useState("last7");
     const [compareOn, setCompareOn] = useState(true);

@@ -60,9 +60,13 @@ export const fetchVisibilityKeywordsAtGlance = async (filters = {}) => {
  */
 export const fetchVisibilityTopSearchTerms = async (filters = {}) => {
     const params = new URLSearchParams();
+    if (filters.viewMode) params.append('viewMode', filters.viewMode);
     if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
     if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
     if (filters.location && filters.location !== 'All') params.append('location', filters.location);
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
+    if (filters.keywordType && filters.keywordType !== 'All') params.append('keywordType', filters.keywordType);
+    if (filters.category && filters.category !== 'All') params.append('category', filters.category);
     if (filters.filter && filters.filter !== 'All') params.append('filter', filters.filter);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
