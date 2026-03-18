@@ -699,14 +699,14 @@ export const getSignalLabData = async (req, res) => {
                 try {
                     const brandOwnership = {}; // { brandName: isOurs }
                     rows.forEach(r => {
-                        const b = isBrandGroup ? webPid : (r.Brand || r.BrandCol);
+                        const b = isBrandGroup ? r[groupCol] : (r.Brand || r.BrandCol);
                         if (b) brandOwnership[b.toLowerCase()] = (r.Comp_flag == 0);
                     });
                     const brandsForSOS = Object.keys(brandOwnership);
 
                     if (brandsForSOS.length > 0) {
                         let marketConds = [`DATE BETWEEN '${start}' AND '${end}'`];
-                        
+
                         if (platformFilter) {
                             const pList = Array.isArray(platformFilter) ? platformFilter : [platformFilter];
                             marketConds.push(`LOWER(platform_name) IN (${pList.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
@@ -731,7 +731,7 @@ export const getSignalLabData = async (req, res) => {
                             GROUP BY brand_name_th, flag
                         `;
                         const sosResults = await queryClickHouse(sosQuery);
-                        
+
                         // Aggregate Mars results (flag=1) and competitor results
                         const processedSos = {
                             ours: { overall: 0, ad: 0, organic: 0, marketOverall: 0, marketAd: 0, marketOrganic: 0 },
@@ -765,12 +765,12 @@ export const getSignalLabData = async (req, res) => {
                             const bLower = brandName.toLowerCase();
                             const isOurs = brandOwnership[bLower];
                             const data = isOurs ? processedSos.ours : processedSos.competitors[bLower];
-                            
+
                             if (data) {
                                 const overall = data.marketOverall > 0 ? (data.overall / data.marketOverall) * 100 : 0;
                                 const ad = data.marketAd > 0 ? (data.ad / data.marketAd) * 100 : 0;
                                 const organic = data.marketOrganic > 0 ? (data.organic / data.marketOrganic) * 100 : 0;
-                                
+
                                 sosMap[brandName] = {
                                     overall: overall.toFixed(1) + '%',
                                     ad: ad.toFixed(1) + '%',
@@ -964,7 +964,7 @@ export const getCityDetailsForProduct = async (req, res) => {
 
             const buildConditions = (includeCompDates = false) => {
                 const conds = [`${filterCol} = '${escapeStr(webPid)}'`];
-                
+
                 // Tier 1/2 filter for all Signal Lab queries
                 conds.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
 
@@ -1066,7 +1066,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                     brand_name: row.brand_name,
                     comp_flag: row.comp_flag,
                     listingPct: listingPct,
-                    estOfftake: offtake / 100000, 
+                    estOfftake: offtake / 100000,
                     estOfftakeChange: offtakeChange,
                     wtOsa: osa,
                     wtOsaChange: osaChange,
@@ -1146,7 +1146,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                                 const overallSos = data.market_overall > 0 ? (data.brand_overall / data.market_overall) * 100 : 0;
                                 const adSos = data.market_ad > 0 ? (data.brand_ad / data.market_ad) * 100 : 0;
                                 const organicSos = data.market_organic > 0 ? (data.brand_organic / data.market_organic) * 100 : 0;
-                                
+
                                 return {
                                     ...c,
                                     overallSos: parseFloat(overallSos.toFixed(1)),

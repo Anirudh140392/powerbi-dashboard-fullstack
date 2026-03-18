@@ -276,8 +276,8 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 multiSelect={true}
               />
 
-              {/* PRODUCT CATEGORY SELECTION (Only for Availability Analysis) */}
-              {title === "Availability Analysis" && (
+              {/* PRODUCT CATEGORY SELECTION (Hidden as per request) */}
+              {/* {title === "Availability Analysis" && (
                 <CustomHeaderDropdown
                   label="PRODUCT CATEGORY"
                   options={productCategories}
@@ -286,7 +286,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                   width={{ xs: "calc(50% - 6px)", sm: 140 }}
                   multiSelect={true}
                 />
-              )}
+              )} */}
 
               {title !== "Business Overview" && !location.pathname.includes("market-share") && !location.pathname.includes("visibility") && (
                 <CustomHeaderDropdown

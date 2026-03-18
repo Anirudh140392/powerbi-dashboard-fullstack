@@ -479,33 +479,63 @@ export default function TrendsCompetitionDrawer({
         }));
       } else {
         // Map selectedLevel to drawer layout "audience" (Platform, Format, City, Brand)
+        const normLevel = selectedLevel?.toLowerCase();
         const audienceMap = {
           platform: "Platform",
           format: "Format",
+          category: "Format",
           city: "City",
-          brand: "Brand"
+          brand: "Brand",
+          month: "Platform",
+          sku: "Platform"
         };
-        const activeAudience = audienceMap[selectedLevel] || (allTrendMeta?.context?.audience || "Platform");
 
-        // For platforms, we set the pill. For others, we default to Blinkit or initialPlatform.
-        if (selectedLevel === "platform" || activeAudience === "Platform") {
-          // Only use selectedColumn as platform if the level is actually platform
-          if (selectedLevel === "platform") {
-            setSelectedPlatform(selectedColumn);
-          } else {
-            setSelectedPlatform(initialPlatform || "Blinkit");
-          }
-        } else {
+        const activeAudience = audienceMap[normLevel] || "Platform";
+
+        // Handle specific default selections based on the segment clicked
+        if (normLevel === "platform") {
+          setSelectedPlatform(selectedColumn);
+          setDrawerFilters(prev => ({
+            Platform: selectedColumn,
+            Format: "All",
+            City: "All",
+            Brand: "All"
+          }));
+        } else if (normLevel === "brand") {
           setSelectedPlatform(initialPlatform || "Blinkit");
+          setDrawerFilters(prev => ({
+            Platform: initialPlatform || "Blinkit",
+            Format: "All",
+            City: "All",
+            Brand: selectedColumn
+          }));
+        } else if (normLevel === "category") {
+          setSelectedPlatform(initialPlatform || "Blinkit");
+          setDrawerFilters(prev => ({
+            Platform: initialPlatform || "Blinkit",
+            Format: selectedColumn,
+            City: "All",
+            Brand: "All"
+          }));
+        } else if (normLevel === "month" || normLevel === "sku") {
+          // For Month and SKU, default to first platform (Blinkit) and clear specific dimension filters
+          setSelectedPlatform("Blinkit");
+          setDrawerFilters(prev => ({
+            Platform: "Blinkit",
+            Format: "All",
+            City: "All",
+            Brand: "All"
+          }));
+        } else {
+          // Fallback logic
+          setSelectedPlatform(initialPlatform || "Blinkit");
+          setDrawerFilters(prev => ({
+            Platform: initialPlatform || "All",
+            Format: activeAudience === "Format" ? selectedColumn : "All",
+            City: activeAudience === "City" ? selectedColumn : "All",
+            Brand: activeAudience === "Brand" ? selectedColumn : "All"
+          }));
         }
-
-        setDrawerFilters(prev => ({
-          ...prev,
-          Platform: selectedLevel === "platform" ? selectedColumn : (initialPlatform || "All"),
-          Format: activeAudience === "Format" ? selectedColumn : "All",
-          City: activeAudience === "City" ? selectedColumn : "All",
-          Brand: activeAudience === "Brand" ? selectedColumn : "All"
-        }));
 
         // Update the context audience so logic downstream knows the level
         allSetTrendMeta(prev => ({
