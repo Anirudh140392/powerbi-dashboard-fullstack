@@ -751,51 +751,113 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         const totalCatSales = parseFloat(totalSalesResult?.[0]?.total_sales || 0);
         const prevTotalCatSales = parseFloat(prevTotalSalesResult?.[0]?.total_sales || 0);
 
-        // 4a. SOS queries: countIf(overall='1')/count(*) and countIf(spons='1')/count(*) per brand
-        const currentSOSQuery = `
-            SELECT group_brand as brand,
-                   ROUND(countIf(toString(overall) = '1') * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
-                   ROUND(countIf(toString(spons) = '1') * 100.0 / nullIf(count(*), 0), 2) AS paid_sos
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
-            ${baseCond}
-            ${subCatCond}
-            AND group_brand IS NOT NULL AND group_brand != ''
-            GROUP BY group_brand
+        // 4a. SOS queries for Overall Share of Visibility & Paid Share of Visibility using rb_kw_olap (matching WatchTower Brand page)
+
+        let kwPlatformCond = '';
+        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
+            const platformConds = platformArr.map(p => `lower(platform_name) LIKE '%${p.toLowerCase().replace(/'/g, "''")}%'`).join(' OR ');
+            kwPlatformCond = `AND (${platformConds})`;
+        }
+
+        let kwLocationCond = '';
+        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
+            kwLocationCond = `AND lower(location_name) IN (${locationArr.map(l => `'${l.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        let kwCategoryCond = '';
+        if (categoryArr && categoryArr.length > 0 && !categoryArr.includes('All')) {
+            const mappedCats = mapCategoryForMs(categoryArr);
+            kwCategoryCond = `AND lower(keyword_category) IN (${mappedCats.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        let kwSubCatCond = '';
+        if (hasTargetSubCats) {
+            kwSubCatCond = `AND lower(keyword_category) IN (${targetSubCats.map(c => `'${c.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+        } else if (targetSubCat) {
+            kwSubCatCond = `AND lower(keyword_category) = '${targetSubCat.toLowerCase().replace(/'/g, "''")}'`;
+        }
+
+        const kwBaseCond = `
+            ${kwPlatformCond}
+            ${kwLocationCond}
+            ${kwCategoryCond}
+            AND keyword_category IS NOT NULL AND keyword_category != ''
         `;
 
-        const prevSOSQuery = `
-            SELECT group_brand as brand,
-                   ROUND(countIf(toString(overall) = '1') * 100.0 / nullIf(count(*), 0), 2) AS overall_sos,
-                   ROUND(countIf(toString(spons) = '1') * 100.0 / nullIf(count(*), 0), 2) AS paid_sos
-            FROM rb_ms_olap
-            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
-            ${baseCond}
-            ${subCatCond}
-            AND group_brand IS NOT NULL AND group_brand != ''
-            GROUP BY group_brand
+        // Denominator: total sum(overall)/sum(spons) across ALL brands with SAME selected filters
+        const currDenomQuery = `
+            SELECT sum(toInt32(overall)) as total_overall, sum(toInt32(spons)) as total_spons
+            FROM rb_kw_olap
+            WHERE toDate(DATE) BETWEEN '${startStr}' AND '${endStr}'
+            ${kwBaseCond}
+            ${kwSubCatCond}
         `;
 
-        const [currentSOSResults, prevSOSResults] = await Promise.all([
-            queryClickHouse(currentSOSQuery),
-            queryClickHouse(prevSOSQuery)
+        const prevDenomQuery = `
+            SELECT sum(toInt32(overall)) as total_overall, sum(toInt32(spons)) as total_spons
+            FROM rb_kw_olap
+            WHERE toDate(DATE) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            ${kwBaseCond}
+            ${kwSubCatCond}
+        `;
+
+        // Numerators: per-brand sum(overall)/sum(spons) where flag='1' (our brand rows)
+        const currSOSNumQuery = `
+            SELECT brand_name_th as brand,
+                   sum(toInt32(overall)) as overall_num,
+                   sum(toInt32(spons)) as spons_num
+            FROM rb_kw_olap
+            WHERE toDate(DATE) BETWEEN '${startStr}' AND '${endStr}'
+            ${kwBaseCond}
+            ${kwSubCatCond}
+            AND brand_name_th IS NOT NULL AND brand_name_th != ''
+            GROUP BY brand_name_th
+        `;
+
+        const prevSOSNumQuery = `
+            SELECT brand_name_th as brand,
+                   sum(toInt32(overall)) as overall_num,
+                   sum(toInt32(spons)) as spons_num
+            FROM rb_kw_olap
+            WHERE toDate(DATE) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            ${kwBaseCond}
+            ${kwSubCatCond}
+            AND brand_name_th IS NOT NULL AND brand_name_th != ''
+            GROUP BY brand_name_th
+        `;
+
+        const [currDenomResult, prevDenomResult, currSOSNumResults, prevSOSNumResults] = await Promise.all([
+            queryClickHouse(currDenomQuery),
+            queryClickHouse(prevDenomQuery),
+            queryClickHouse(currSOSNumQuery),
+            queryClickHouse(prevSOSNumQuery)
         ]);
 
-        // Build SOS lookups
+        const currTotalOverall = parseInt(currDenomResult[0]?.total_overall || 0);
+        const currTotalSpons = parseInt(currDenomResult[0]?.total_spons || 0);
+        const prevTotalOverall = parseInt(prevDenomResult[0]?.total_overall || 0);
+        const prevTotalSpons = parseInt(prevDenomResult[0]?.total_spons || 0);
+
+        console.log(`[SubCategoryKpi SOV DEBUG] currTotalOverall=${currTotalOverall}, currTotalSpons=${currTotalSpons}`);
+
+        // Build SOS numerator lookups (using lowercase keys for matching)
         const currentSOSMap = new Map();
-        currentSOSResults.forEach(r => {
-            currentSOSMap.set(r.brand, {
-                overallSov: parseFloat(r.overall_sos || 0),
-                paidSov: parseFloat(r.paid_sos || 0)
-            });
+        currSOSNumResults.forEach(r => {
+            const overallNum = parseInt(r.overall_num || 0);
+            const sponsNum = parseInt(r.spons_num || 0);
+            const overallSov = currTotalOverall > 0 ? (overallNum / currTotalOverall) * 100 : 0;
+            const paidSov = currTotalSpons > 0 ? (sponsNum / currTotalSpons) * 100 : 0;
+            console.log(`[SubCategoryKpi SOV DEBUG] Brand=${r.brand}, overallNum=${overallNum}, overallSov=${overallSov.toFixed(2)}%, sponsNum=${sponsNum}, paidSov=${paidSov.toFixed(2)}%`);
+            currentSOSMap.set(String(r.brand).toLowerCase().trim(), { overallSov, paidSov });
         });
 
         const prevSOSMap = new Map();
-        prevSOSResults.forEach(r => {
-            prevSOSMap.set(r.brand, {
-                overallSov: parseFloat(r.overall_sos || 0),
-                paidSov: parseFloat(r.paid_sos || 0)
-            });
+        prevSOSNumResults.forEach(r => {
+            const overallNum = parseInt(r.overall_num || 0);
+            const sponsNum = parseInt(r.spons_num || 0);
+            const overallSov = prevTotalOverall > 0 ? (overallNum / prevTotalOverall) * 100 : 0;
+            const paidSov = prevTotalSpons > 0 ? (sponsNum / prevTotalSpons) * 100 : 0;
+            prevSOSMap.set(String(r.brand).toLowerCase().trim(), { overallSov, paidSov });
         });
 
         // Build previous-period lookup
@@ -820,8 +882,9 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             const prev = prevMap.get(r.brand) || { marketShare: 0 };
             const msDelta = parseFloat((ms - prev.marketShare).toFixed(2));
 
-            const curSOS = currentSOSMap.get(r.brand) || { overallSov: 0, paidSov: 0 };
-            const prSOS = prevSOSMap.get(r.brand) || { overallSov: 0, paidSov: 0 };
+            const brandKey = String(r.brand).toLowerCase().trim();
+            const curSOS = currentSOSMap.get(brandKey) || { overallSov: 0, paidSov: 0 };
+            const prSOS = prevSOSMap.get(brandKey) || { overallSov: 0, paidSov: 0 };
             const overallSovDelta = parseFloat((curSOS.overallSov - prSOS.overallSov).toFixed(2));
             const paidSovDelta = parseFloat((curSOS.paidSov - prSOS.paidSov).toFixed(2));
 
