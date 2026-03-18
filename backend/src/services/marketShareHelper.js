@@ -16,13 +16,10 @@ export const normalizeFilterArray = (value) => {
 
 // ── Category name mapping helpers ──────────────────────────────────────────────
 // Maps rb_pdp_olap category names → rb_ms_olap category names
-const mapCategoryForMs = (categoryArr) => {
+// Now fully dynamic: returns the original categories verbatim.
+export const mapCategoryForMs = (categoryArr) => {
     if (!categoryArr || categoryArr.length === 0) return [];
-    return categoryArr.map(c => {
-        if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
-        if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
-        return c;
-    });
+    return categoryArr;
 };
 
 /**
@@ -54,10 +51,13 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
             brandsToQuery = brandArr;
         } else {
-            brandsToQuery = [
-                'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-                'Orbit', 'Skittles', 'Boomer', 'Doublemint'
-            ];
+            // Dynamically fetch our brands (comp_flag = 0)
+            const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const brandResult = await queryClickHouse(brandQuery);
+            brandsToQuery = brandResult.map(b => b.brand_name).filter(Boolean);
+            if (brandsToQuery.length === 0) {
+                brandsToQuery = ['dummy_no_brands']; // Fallback if no brands found
+            }
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
@@ -128,10 +128,13 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
             brandsToQuery = brandArr;
         } else {
-            brandsToQuery = [
-                'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-                'Orbit', 'Skittles', 'Boomer', 'Doublemint'
-            ];
+            // Dynamically fetch our brands (comp_flag = 0)
+            const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const brandResult = await queryClickHouse(brandQuery);
+            brandsToQuery = brandResult.map(b => b.brand_name).filter(Boolean);
+            if (brandsToQuery.length === 0) {
+                brandsToQuery = ['dummy_no_brands']; // Fallback if no brands found
+            }
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
@@ -213,10 +216,13 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
             brandsToQuery = brandArr;
         } else {
-            brandsToQuery = [
-                'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-                'Orbit', 'Skittles', 'Boomer', 'Doublemint'
-            ];
+            // Dynamically fetch our brands (comp_flag = 0)
+            const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const brandResult = await queryClickHouse(brandQuery);
+            brandsToQuery = brandResult.map(b => b.brand_name).filter(Boolean);
+            if (brandsToQuery.length === 0) {
+                brandsToQuery = ['dummy_no_brands']; // Fallback if no brands found
+            }
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
@@ -293,10 +299,13 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
         if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
             brandsToQuery = brandArr;
         } else {
-            brandsToQuery = [
-                'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's",
-                'Orbit', 'Skittles', 'Boomer', 'Doublemint'
-            ];
+            // Dynamically fetch our brands (comp_flag = 0)
+            const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const brandResult = await queryClickHouse(brandQuery);
+            brandsToQuery = brandResult.map(b => b.brand_name).filter(Boolean);
+            if (brandsToQuery.length === 0) {
+                brandsToQuery = ['dummy_no_brands']; // Fallback if no brands found
+            }
         }
         const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
 
@@ -491,22 +500,14 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
 
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
-        // Mars Wrigley brands
-        const marsFilter = `AND (
-            lower(group_brand) LIKE '%mars%'
-            OR lower(group_brand) LIKE '%wrigley%'
-            OR lower(group_brand) LIKE '%snickers%'
-            OR lower(group_brand) LIKE '%galaxy%'
-            OR lower(group_brand) LIKE '%bounty%'
-            OR lower(group_brand) LIKE '%twix%'
-            OR lower(group_brand) LIKE '%m&m%'
-            OR lower(group_brand) LIKE '%orbit%'
-            OR lower(group_brand) LIKE '%skittles%'
-            OR lower(group_brand) LIKE '%boomer%'
-            OR lower(group_brand) LIKE '%doublemint%'
-            OR lower(group_brand) LIKE '%pedigree%'
-            OR lower(group_brand) LIKE '%extra%'
-        )`;
+        // Dynamic "Our Brands" query (comp_flag = 0)
+        const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+        const brandResult = await queryClickHouse(brandQuery);
+        let ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
+        if (ourBrands.length === 0) {
+            ourBrands = ['dummy_no_brands'];
+        }
+        const marsFilter = `AND lower(group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
         // Current period
         const currentQuery = `
@@ -882,19 +883,14 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
 
         const baseCond = `${locationCond} ${categoryCond} ${brandCond}`;
 
-        const marsFilter = `(
-            lower(group_brand) LIKE '%mars%'
-            OR lower(group_brand) LIKE '%wrigley%'
-            OR lower(group_brand) LIKE '%snickers%'
-            OR lower(group_brand) LIKE '%galaxy%'
-            OR lower(group_brand) LIKE '%bounty%'
-            OR lower(group_brand) LIKE '%twix%'
-            OR lower(group_brand) LIKE '%m&m%'
-            OR lower(group_brand) LIKE '%orbit%'
-            OR lower(group_brand) LIKE '%skittles%'
-            OR lower(group_brand) LIKE '%boomer%'
-            OR lower(group_brand) LIKE '%doublemint%'
-        )`;
+        // Dynamic "Our Brands" query (comp_flag = 0)
+        const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+        const brandResult = await queryClickHouse(brandQuery);
+        let ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
+        if (ourBrands.length === 0) {
+            ourBrands = ['dummy_no_brands'];
+        }
+        const marsFilter = `lower(group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
         const platforms = ['Blinkit', 'Instamart', 'Zepto'];
 
@@ -1239,19 +1235,14 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
         }
         denomCond = `${denomCond} ${denomCategoryCond}`;
 
-        const marsFilter = `(
-            lower(group_brand) LIKE '%mars%'
-            OR lower(group_brand) LIKE '%wrigley%'
-            OR lower(group_brand) LIKE '%snickers%'
-            OR lower(group_brand) LIKE '%galaxy%'
-            OR lower(group_brand) LIKE '%bounty%'
-            OR lower(group_brand) LIKE '%twix%'
-            OR lower(group_brand) LIKE '%m&m%'
-            OR lower(group_brand) LIKE '%orbit%'
-            OR lower(group_brand) LIKE '%skittles%'
-            OR lower(group_brand) LIKE '%boomer%'
-            OR lower(group_brand) LIKE '%doublemint%'
-        )`;
+        // Dynamic "Our Brands" query (comp_flag = 0)
+        const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+        const brandResult = await queryClickHouse(brandQuery);
+        let ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
+        if (ourBrands.length === 0) {
+            ourBrands = ['dummy_no_brands'];
+        }
+        const marsFilter = `lower(group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
         // Query 1: Category Size per period = SUM(sales) for all brands in the category (denominator)
         const catSizeQuery = `
