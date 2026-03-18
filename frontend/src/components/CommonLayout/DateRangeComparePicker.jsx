@@ -3,7 +3,7 @@ import { Box, Typography, Button, Popover } from "@mui/material";
 import dayjs from "dayjs";
 
 // Date Range + Compare Picker (single-file JSX)
-// Refactored to use MUI Popover for reliability
+// Refactored for RCA focused view (Small Manual Window)
 
 function pad2(n) {
     return String(n).padStart(2, "0");
@@ -57,11 +57,6 @@ function endOfMonth(d) {
     return new Date(d.getFullYear(), d.getMonth() + 1, 0);
 }
 
-function startOfQuarter(d) {
-    const q = Math.floor(d.getMonth() / 3);
-    return new Date(d.getFullYear(), q * 3, 1);
-}
-
 function daysBetweenInclusive(a, b) {
     const aa = startOfDay(a);
     const bb = startOfDay(b);
@@ -88,87 +83,7 @@ function computeCompareRange(primaryStart, primaryEnd, mode) {
         const compStart = addDays(compEnd, -(len - 1));
         return clampRange(compStart, compEnd);
     }
-
-    if (mode === "same_last_month") {
-        return clampRange(addMonths(s, -1), addMonths(e, -1));
-    }
-
-    if (mode === "same_last_year") {
-        return clampRange(addYears(s, -1), addYears(e, -1));
-    }
-
-    if (mode === "lysm") {
-        const target = addYears(s, -1);
-        return clampRange(startOfMonth(target), endOfMonth(target));
-    }
-
     return clampRange(addDays(s, -len), addDays(e, -len));
-}
-
-const QUICK_RANGES = (today) => {
-    const t = startOfDay(today);
-    const thisMonthStart = startOfMonth(t);
-    const thisMonthEnd = t;
-    const qtdStart = startOfQuarter(t);
-    const ytdStart = new Date(t.getFullYear(), 0, 1);
-
-    return [
-        { key: "today", label: "Today", range: () => [t, t] },
-        { key: "yesterday", label: "Yesterday", range: () => [addDays(t, -1), addDays(t, -1)] },
-        { key: "last7", label: "Last 7 Days", range: () => [addDays(t, -6), t] },
-        { key: "last14", label: "Last 14 Days", range: () => [addDays(t, -13), t] },
-        { key: "last30", label: "Last 30 Days", range: () => [addDays(t, -29), t] },
-        { key: "thisMonth", label: "This Month", range: () => [startOfMonth(t), endOfMonth(t)] },
-        { key: "mtd", label: "Month to Date", range: () => [thisMonthStart, thisMonthEnd] },
-        { key: "qtd", label: "Quarter to Date", range: () => [qtdStart, t] },
-        { key: "ytd", label: "Year to Date", range: () => [ytdStart, t] },
-        {
-            key: "l3m", label: "Last 3 Months", range: () => {
-                const end = new Date(t.getFullYear(), t.getMonth(), 0);
-                const start = startOfMonth(addMonths(end, -2));
-                return [start, end];
-            }
-        },
-        {
-            key: "l6m", label: "Last 6 Months", range: () => {
-                const end = new Date(t.getFullYear(), t.getMonth(), 0);
-                const start = startOfMonth(addMonths(end, -5));
-                return [start, end];
-            }
-        },
-    ];
-};
-
-function CustomChip({ active, onClick, title }) {
-    return (
-        <button
-            onClick={onClick}
-            className={
-                "group w-full rounded-xl border px-3 py-2.5 text-left transition " +
-                (active
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50")
-            }
-        >
-            <div className="text-[14px] font-bold text-slate-900 leading-tight">{title}</div>
-        </button>
-    );
-}
-
-function CustomSegButton({ active, onClick, children }) {
-    return (
-        <button
-            onClick={onClick}
-            className={
-                "rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition " +
-                (active
-                    ? "bg-slate-900 text-white"
-                    : "bg-transparent text-slate-700 hover:bg-slate-200")
-            }
-        >
-            {children}
-        </button>
-    );
 }
 
 function CustomToggle({ enabled, onChange }) {
@@ -200,34 +115,24 @@ export default function DateRangeComparePicker({
     maxDate,
     onApply
 }) {
-    const today = useMemo(() => new Date(), []);
+    const today = useMemo(() => maxDate ? maxDate.toDate() : new Date(), [maxDate]);
     const [anchorEl, setAnchorEl] = useState(null);
 
     const [start, setStart] = useState(timeStart ? timeStart.toDate() : addDays(today, -7));
     const [end, setEnd] = useState(timeEnd ? timeEnd.toDate() : today);
 
-    // Sync internal state with props when they change (e.g. after fetching from backend)
     useEffect(() => {
-        if (timeStart) {
-            setStart(timeStart.toDate());
-        }
+        if (timeStart) setStart(timeStart.toDate());
     }, [timeStart]);
 
     useEffect(() => {
-        if (timeEnd) {
-            setEnd(timeEnd.toDate());
-            // If internal end state was "today" but prop is different, update activeQuick
-            if (activeQuick === "last7" || activeQuick === "today") {
-                setActiveQuick("custom");
-            }
-        }
+        if (timeEnd) setEnd(timeEnd.toDate());
     }, [timeEnd]);
 
-    const [activeQuick, setActiveQuick] = useState("last7");
     const [compareOn, setCompareOn] = useState(true);
-    const [compareMode, setCompareMode] = useState("previous");
+    const [compareMode, setCompareMode] = useState("custom");
 
-    const computedCompare = useMemo(() => computeCompareRange(start, end, compareMode), [start, end, compareMode]);
+    const computedCompare = useMemo(() => computeCompareRange(start, end, "previous"), [start, end]);
     const [customCompareStart, setCustomCompareStart] = useState(initialCompareStart ? initialCompareStart.toDate() : computedCompare[0]);
     const [customCompareEnd, setCustomCompareEnd] = useState(initialCompareEnd ? initialCompareEnd.toDate() : computedCompare[1]);
 
@@ -239,91 +144,31 @@ export default function DateRangeComparePicker({
         if (initialCompareEnd) setCustomCompareEnd(initialCompareEnd.toDate());
     }, [initialCompareEnd]);
 
-    const compareStartFinal = compareMode === "custom" ? customCompareStart : computedCompare[0];
-    const compareEndFinal = compareMode === "custom" ? customCompareEnd : computedCompare[1];
+    const compareStartFinal = customCompareStart;
+    const compareEndFinal = customCompareEnd;
 
     const primaryLabel = rangeLabel(...clampRange(start, end));
     const compareLabel = rangeLabel(...clampRange(compareStartFinal, compareEndFinal));
-
-    const quickRanges = useMemo(() => QUICK_RANGES(today), [today]);
 
     const handleOpen = (event) => setAnchorEl(event.currentTarget);
     const handleClose = () => setAnchorEl(null);
     const open = Boolean(anchorEl);
     const maxDateStr = useMemo(() => maxDate ? toKey(maxDate.toDate()) : toKey(today), [maxDate, today]);
 
-    function applyQuick(key) {
-        const item = quickRanges.find((x) => x.key === key);
-        if (!item) return;
-        let [s, e] = item.range();
-
-        // Clamp to maxDate if provided
-        if (maxDate) {
-            const mx = maxDate.toDate();
-            if (e.getTime() > mx.getTime()) e = new Date(mx);
-            if (s.getTime() > mx.getTime()) s = new Date(mx);
-        }
-
-        const [cs, ce] = clampRange(s, e);
-        setStart(cs);
-        setEnd(ce);
-        setActiveQuick(key);
-
-        const [ns, ne] = computeCompareRange(cs, ce, compareMode);
-        setCustomCompareStart(ns);
-        setCustomCompareEnd(ne);
-
-        // Auto-apply and close
-        if (onApply) {
-            onApply(
-                dayjs(cs),
-                dayjs(ce),
-                dayjs(ns),
-                dayjs(ne),
-                compareOn,
-                item.label // Pass the friendly label
-            );
-        }
-        handleClose();
-    }
-
     function onPrimaryStartChange(v) {
         let ns = fromKey(v);
-        if (maxDate && ns.getTime() > maxDate.toDate().getTime()) {
-            ns = maxDate.toDate();
-        }
+        if (maxDate && ns.getTime() > maxDate.toDate().getTime()) ns = maxDate.toDate();
         const [cs, ce] = clampRange(ns, end);
         setStart(cs);
         setEnd(ce);
-        setActiveQuick("custom");
-
-        const [ns2, ne2] = computeCompareRange(cs, ce, compareMode);
-        setCustomCompareStart(ns2);
-        setCustomCompareEnd(ne2);
     }
 
     function onPrimaryEndChange(v) {
         let ne = fromKey(v);
-        if (maxDate && ne.getTime() > maxDate.toDate().getTime()) {
-            ne = maxDate.toDate();
-        }
+        if (maxDate && ne.getTime() > maxDate.toDate().getTime()) ne = maxDate.toDate();
         const [cs, ce] = clampRange(start, ne);
         setStart(cs);
         setEnd(ce);
-        setActiveQuick("custom");
-
-        const [ns2, ne2] = computeCompareRange(cs, ce, compareMode);
-        setCustomCompareStart(ns2);
-        setCustomCompareEnd(ne2);
-    }
-
-    function setMode(mode) {
-        setCompareMode(mode);
-        if (mode !== "custom") {
-            const [ns, ne] = computeCompareRange(start, end, mode);
-            setCustomCompareStart(ns);
-            setCustomCompareEnd(ne);
-        }
     }
 
     function handleFinalApply() {
@@ -334,7 +179,7 @@ export default function DateRangeComparePicker({
                 dayjs(compareStartFinal),
                 dayjs(compareEndFinal),
                 compareOn,
-                activeQuick === "custom" ? "Custom Range" : (quickRanges.find(q => q.key === activeQuick)?.label || "Custom Range")
+                "Custom Range"
             );
         }
         handleClose();
@@ -355,11 +200,11 @@ export default function DateRangeComparePicker({
                     justifyContent: 'center',
                     minWidth: { xs: 'auto', sm: '160px' }
                 }}>
-                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', lineHeight: 1.1, fontFamily: 'Roboto, sans-serif' }}>
+                    <Typography sx={{ fontSize: '0.82rem', fontWeight: 500, color: '#000000', lineHeight: 1.1, fontFamily: 'Inter, sans-serif' }}>
                         {primaryLabel}
                     </Typography>
                     {compareOn && (
-                        <Typography sx={{ fontSize: '0.62rem', color: '#64748b', lineHeight: 1.1, fontWeight: 500, fontFamily: 'Roboto, sans-serif' }}>
+                        <Typography sx={{ fontSize: '0.65rem', color: '#64748b', lineHeight: 1.1, fontWeight: 400, fontFamily: 'Inter, sans-serif' }}>
                             vs {compareLabel}
                         </Typography>
                     )}
@@ -376,8 +221,8 @@ export default function DateRangeComparePicker({
                 PaperProps={{
                     sx: {
                         mt: 1,
-                        width: { xs: "calc(100vw - 32px)", sm: 480 },
-                        maxWidth: 480,
+                        width: 320,
+                        maxWidth: 320,
                         borderRadius: 3,
                         boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)",
                         border: "1px solid #e2e8f0",
@@ -385,125 +230,86 @@ export default function DateRangeComparePicker({
                     }
                 }}
             >
-                <Box sx={{ maxHeight: "85vh", overflowY: "auto", bgcolor: 'white' }}>
-                    <Box sx={{ p: 2.5, borderBottom: "1px solid #f1f5f9" }}>
-                        <Typography sx={{ fontWeight: 700, fontSize: '1.1rem', mb: 2 }}>Select Date Range</Typography>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+                <Box sx={{ bgcolor: 'white' }}>
+                    <Box sx={{ p: 2, borderBottom: "1px solid #f1f5f9" }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', mb: 1.5 }}>Select Date Range</Typography>
+                        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5 }}>
                             <Box>
-                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569', mb: 0.5 }}>START DATE</Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: 2, px: 1.5, py: 1 }}>
+                                <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, color: '#64748b', mb: 0.5 }}>START</Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: 1.5, px: 1, py: 0.5 }}>
                                     <input
                                         type="date"
                                         value={toKey(start)}
                                         onChange={(e) => onPrimaryStartChange(e.target.value)}
                                         max={maxDateStr}
-                                        style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
+                                        style={{ border: 'none', outline: 'none', width: '100%', fontSize: '11px' }}
                                     />
                                 </Box>
                             </Box>
                             <Box>
-                                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569', mb: 0.5 }}>END DATE</Typography>
-                                <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: 2, px: 1.5, py: 1 }}>
+                                <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, color: '#64748b', mb: 0.5 }}>END</Typography>
+                                <Box sx={{ display: 'flex', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: 1.5, px: 1, py: 0.5 }}>
                                     <input
                                         type="date"
                                         value={toKey(end)}
                                         onChange={(e) => onPrimaryEndChange(e.target.value)}
                                         max={maxDateStr}
-                                        style={{ border: 'none', outline: 'none', width: '100%', fontSize: '13px' }}
+                                        style={{ border: 'none', outline: 'none', width: '100%', fontSize: '11px' }}
                                     />
                                 </Box>
                             </Box>
                         </Box>
-
-
                     </Box>
 
-                    <Box sx={{ p: 2.5 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                            <Box>
-                                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Compare with</Typography>
-                                <Typography sx={{ fontSize: '0.7rem', color: '#64748b' }}>Enable reference period</Typography>
-                            </Box>
+                    <Box sx={{ p: 2 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                            <Typography sx={{ fontWeight: 800, fontSize: '0.85rem' }}>Compare with</Typography>
                             <CustomToggle enabled={compareOn} onChange={setCompareOn} />
                         </Box>
 
                         {compareOn && (
-                            <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 3, p: 2 }}>
-                                <Box sx={{ display: 'flex', gap: 1, bgcolor: '#f8fafc', p: 0.75, borderRadius: 2, mb: 2 }}>
-                                    <CustomSegButton active={compareMode === "previous"} onClick={() => setMode("previous")}>Prev</CustomSegButton>
-                                    <CustomSegButton active={compareMode === "same_last_month"} onClick={() => setMode("same_last_month")}>Month</CustomSegButton>
-                                    <CustomSegButton active={compareMode === "same_last_year"} onClick={() => setMode("same_last_year")}>Year</CustomSegButton>
-                                    <CustomSegButton active={compareMode === "lysm"} onClick={() => setMode("lysm")}>LYSM</CustomSegButton>
-                                    <CustomSegButton active={compareMode === "custom"} onClick={() => setMode("custom")}>Custom</CustomSegButton>
-                                </Box>
-
-                                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
-                                    <Box>
-                                        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', mb: 0.5 }}>COMP START</Typography>
-                                        <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 2, px: 1, py: 0.75 }}>
-                                            <input
-                                                type="date"
-                                                value={toKey(compareStartFinal)}
-                                                onChange={(e) => {
-                                                    setCompareMode("custom");
-                                                    setCustomCompareStart(fromKey(e.target.value));
-                                                }}
-                                                max={maxDateStr}
-                                                style={{
-                                                    border: 'none', outline: 'none', width: '100%', fontSize: '11px',
-                                                    color: compareMode === 'custom' ? '#0f172a' : '#94a3b8'
-                                                }}
-                                            />
-                                        </Box>
+                            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mb: 1.5 }}>
+                                <Box>
+                                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, color: '#64748b', mb: 0.5 }}>COMP START</Typography>
+                                    <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, px: 1, py: 0.5 }}>
+                                        <input
+                                            type="date"
+                                            value={toKey(customCompareStart)}
+                                            onChange={(e) => setCustomCompareStart(fromKey(e.target.value))}
+                                            max={maxDateStr}
+                                            style={{ border: 'none', outline: 'none', width: '100%', fontSize: '11px' }}
+                                        />
                                     </Box>
-                                    <Box>
-                                        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#475569', mb: 0.5 }}>COMP END</Typography>
-                                        <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 2, px: 1, py: 0.75 }}>
-                                            <input
-                                                type="date"
-                                                value={toKey(compareEndFinal)}
-                                                onChange={(e) => {
-                                                    setCompareMode("custom");
-                                                    setCustomCompareEnd(fromKey(e.target.value));
-                                                }}
-                                                max={maxDateStr}
-                                                style={{
-                                                    border: 'none', outline: 'none', width: '100%', fontSize: '11px',
-                                                    color: compareMode === 'custom' ? '#0f172a' : '#94a3b8'
-                                                }}
-                                            />
-                                        </Box>
+                                </Box>
+                                <Box>
+                                    <Typography sx={{ fontSize: '0.6rem', fontWeight: 900, color: '#64748b', mb: 0.5 }}>COMP END</Typography>
+                                    <Box sx={{ border: '1px solid #e2e8f0', borderRadius: 1.5, px: 1, py: 0.5 }}>
+                                        <input
+                                            type="date"
+                                            value={toKey(customCompareEnd)}
+                                            onChange={(e) => setCustomCompareEnd(fromKey(e.target.value))}
+                                            max={maxDateStr}
+                                            style={{ border: 'none', outline: 'none', width: '100%', fontSize: '11px' }}
+                                        />
                                     </Box>
                                 </Box>
                             </Box>
                         )}
 
-                        <Box sx={{ mt: 3, mb: 3 }}>
-                            <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', mb: 1.5 }}>Quick Ranges</Typography>
-                            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
-                                {quickRanges.map((q) => (
-                                    <CustomChip
-                                        key={q.key}
-                                        active={activeQuick === q.key}
-                                        onClick={() => applyQuick(q.key)}
-                                        title={q.label}
-                                    />
-                                ))}
-                            </Box>
-                        </Box>
-
-                        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Button onClick={handleClose} sx={{ color: '#64748b', textTransform: 'none', fontWeight: 600 }}>Cancel</Button>
+                        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                            <Button onClick={handleClose} size="small" sx={{ color: '#64748b', textTransform: 'none', fontWeight: 900, fontSize: '11px' }}>Cancel</Button>
                             <Button
                                 variant="contained"
                                 onClick={handleFinalApply}
+                                size="small"
                                 sx={{
-                                    bgcolor: '#2563eb',
-                                    '&:hover': { bgcolor: '#1d4ed8' },
+                                    bgcolor: '#000',
+                                    '&:hover': { bgcolor: '#333' },
                                     textTransform: 'none',
-                                    px: 4,
-                                    borderRadius: 2,
-                                    fontWeight: 600
+                                    px: 2,
+                                    borderRadius: 1.5,
+                                    fontWeight: 900,
+                                    fontSize: '11px'
                                 }}
                             >
                                 Apply
