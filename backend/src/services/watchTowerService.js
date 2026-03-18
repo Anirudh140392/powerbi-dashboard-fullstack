@@ -9706,7 +9706,6 @@ const getCityOverview = async (filters) => {
  */
 const getPerformanceBreakdownData = async (filters) => {
     try {
-        const platformClause = filters.platform_uuid && filters.platform_uuid !== 'All' ? `AND Platform = '${filters.platform_uuid}'` : '';
         const groupByMap = {
             'category': PRODUCT_CATEGORY_SQL,
             'brand': 'Brand',
@@ -9714,29 +9713,24 @@ const getPerformanceBreakdownData = async (filters) => {
         };
         const groupByCol = groupByMap[filters.group_by] || PRODUCT_CATEGORY_SQL;
 
-        let dateClause = '';
-        if (filters.start_date && filters.end_date) {
-            dateClause = `AND DATE >= '${filters.start_date}' AND DATE <= '${filters.end_date}'`;
-        } else {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const pastDate = new Date();
-            pastDate.setDate(pastDate.getDate() - 30);
-            const pastStr = pastDate.toISOString().split('T')[0];
-            dateClause = `AND DATE >= '${pastStr}' AND DATE <= '${todayStr}'`;
-        }
+        // ── Default Date Range: MTD (Month-To-Date) ──
+        // Ignoring filters.start_date/end_date as per user request to act as current "Pulse"
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
+        const dateClause = `AND DATE >= '${startOfMonthStr}' AND DATE <= '${todayStr}'`;
 
         const src = await getWatchtowerSource();
         const platCol = src.f.platform;
         const compFlagCol = src.f.compFlag;
 
-        // ── Build additional filter clauses (brand, category, location, channel) ──
-        let extraClauses = '';
+        // ── Build consolidated platform/channel condition ──
+        const pCond = buildPlatformChannelCond(filters.platform_uuid, filters.channel, platCol);
+        const platformCond = pCond ? `AND ${pCond}` : '';
 
-        // Channel filter (Ecommerce / Modern Trades) — overrides platform if set
-        if (filters.channel && filters.channel !== 'All') {
-            const channelCond = buildPlatformChannelCond(null, filters.channel, platCol);
-            if (channelCond) extraClauses += ` AND ${channelCond}`;
-        }
+        // ── Build additional filter clauses (brand, category, location) ──
+        let extraClauses = '';
 
         // Brand filter
         if (filters.brand && filters.brand !== 'All') {
@@ -9763,7 +9757,7 @@ const getPerformanceBreakdownData = async (filters) => {
         const totalSpendsQuery = `
             SELECT SUM(${src.f.spend}) as total
             FROM ${src.table} 
-            WHERE ${compFlagCol} = 0 ${platformClause.replace('Platform', platCol)} ${dateClause.replace('DATE', src.f.date)} ${extraClauses}
+            WHERE ${compFlagCol} = 0 ${platformCond} ${dateClause.replace('DATE', src.f.date)} ${extraClauses}
         `;
         const totalSpendsResult = await queryClickHouse(totalSpendsQuery);
         const total_spends = parseFloat(totalSpendsResult[0]?.total || 0);
@@ -9782,7 +9776,7 @@ const getPerformanceBreakdownData = async (filters) => {
             SUM(${src.f.sales}) AS group_sales
             FROM ${src.table}
             WHERE ${compFlagCol} = 0
-            ${platformClause.replace('Platform', platCol)}
+            ${platformCond}
             ${dateClause.replace('DATE', src.f.date)}
             ${extraClauses}
             GROUP BY ${groupByCol}
@@ -9790,6 +9784,47 @@ const getPerformanceBreakdownData = async (filters) => {
         `;
 
         const data = await queryClickHouse(query);
+
+        // ── Fetch PM Data for Accurate CVR (Orders / Impressions) ──
+        const fetchPmBreakdown = async (startStr, endStr) => {
+            try {
+                const pmSrc = await getPmSource();
+                let pmGroupBy = pmSrc.f.category;
+                if (filters.group_by === 'brand') pmGroupBy = pmSrc.f.brand;
+                else if (filters.group_by === 'sku') return null;
+
+                const pmConds = [`${pmSrc.f.date} >= '${startStr}' AND ${pmSrc.f.date} <= '${endStr}'`];
+                const pCond = buildPlatformChannelCond(filters.platform_uuid, filters.channel, pmSrc.f.platform);
+                if (pCond) pmConds.push(pCond);
+
+                if (filters.brand && filters.brand !== 'All') {
+                    const brands = filters.brand.includes(',') ? filters.brand.split(',').map(b => b.trim()) : [filters.brand];
+                    pmConds.push(`${pmSrc.f.brand} IN (${brands.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+                }
+                if (filters.category && filters.category !== 'All') {
+                    const cats = filters.category.includes(',') ? filters.category.split(',').map(c => c.trim()) : [filters.category];
+                    pmConds.push(`${pmSrc.f.category} IN (${cats.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                }
+                if (filters.location && filters.location !== 'All') {
+                    const locs = filters.location.includes(',') ? filters.location.split(',').map(l => l.trim()) : [filters.location];
+                    pmConds.push(`${pmSrc.f.location} IN (${locs.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                }
+
+                const pmQuery = `
+                    SELECT ${pmGroupBy} as tag, SUM(${pmSrc.f.orders}) as pm_orders, SUM(${pmSrc.f.impressions}) as pm_impressions
+                    FROM ${pmSrc.table}
+                    WHERE ${pmConds.join(' AND ')}
+                    GROUP BY tag
+                `;
+                const pmRes = await queryClickHouse(pmQuery);
+                return new Map(pmRes.map(r => [String(r.tag).toLowerCase(), r]));
+            } catch (err) {
+                console.error('[fetchPmBreakdown] Error:', err);
+                return null;
+            }
+        };
+
+        const mtdPmMap = await fetchPmBreakdown(startOfMonthStr, todayStr);
 
         let totals = {
             impressions: 0, clicks: 0, ctr: 0, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0
@@ -9802,6 +9837,12 @@ const getPerformanceBreakdownData = async (filters) => {
             const spends = parseFloat(scaled.group_spends) || 0;
             const orders = parseFloat(scaled.group_orders) || 0;
             const sales = parseFloat(scaled.group_sales) || 0;
+
+            // Use PM data for CVR if available
+            const pmMatch = mtdPmMap?.get(String(row.tag).toLowerCase());
+            const pmOrders = pmMatch ? parseFloat(pmMatch.pm_orders || 0) : 0;
+            const pmImpressions = pmMatch ? parseFloat(pmMatch.pm_impressions || 0) : 0;
+            const cvr = pmImpressions > 0 ? (pmOrders / pmImpressions) * 100 : (impressions > 0 ? (orders / impressions) * 100 : 0);
 
             totals.impressions += impressions;
             totals.clicks += clicks;
@@ -9817,7 +9858,7 @@ const getPerformanceBreakdownData = async (filters) => {
                 spends,
                 cpc: clicks > 0 ? spends / clicks : 0,
                 orders,
-                cvr: impressions > 0 ? (orders / impressions) * 100 : 0,
+                cvr,
                 sales
             };
         });
@@ -9827,9 +9868,18 @@ const getPerformanceBreakdownData = async (filters) => {
             item.spend_percent_share = totals.spends > 0 ? (item.spends / totals.spends) * 100 : 0;
         });
 
+        // Totals CVR calculation for the whole MTD pulse
+        let totalPmOrders = 0;
+        let totalPmImpressions = 0;
+        if (mtdPmMap) {
+            for (const val of mtdPmMap.values()) {
+                totalPmOrders += parseFloat(val.pm_orders || 0);
+                totalPmImpressions += parseFloat(val.pm_impressions || 0);
+            }
+        }
         totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
-        totals.cpc = totals.clicks > 0 ? (totals.spends / totals.clicks) : 0;
-        totals.cvr = totals.impressions > 0 ? (totals.orders / totals.impressions) * 100 : 0;
+        totals.cpc = totals.clicks > 0 ? totals.spends / totals.clicks : 0;
+        totals.cvr = totalPmImpressions > 0 ? (totalPmOrders / totalPmImpressions) * 100 : (totals.impressions > 0 ? (totals.orders / totals.impressions) * 100 : 0);
 
         // ── Period Comparison ───────────────────────────────────────────────
         let period_comparison = null;
@@ -9852,13 +9902,11 @@ const getPerformanceBreakdownData = async (filters) => {
 
             const fmtDate = (d) => d.toISOString().split('T')[0];
 
-            const periodQueries = periodKeys.map(async (periodParam) => {
-                // Parse: preset keys are plain (e.g. "last_week"), custom are "custom_<ts>:<start>:<end>"
+            const periodResults = await Promise.all(periodKeys.map(async (periodParam) => {
                 let key = periodParam;
                 let range = null;
 
                 if (periodParam.includes(':')) {
-                    // Custom period format: "custom_123456:2026-01-11:2026-01-15"
                     const parts = periodParam.split(':');
                     key = parts[0];
                     const customStart = parts[1];
@@ -9870,48 +9918,50 @@ const getPerformanceBreakdownData = async (filters) => {
                     range = getPresetRange(key);
                 }
 
-                if (!range) {
-                    return { key, data: [] };
-                }
+                if (!range) return { key, data: [] };
 
-                const periodDateClause = `AND ${src.f.date} >= '${fmtDate(range.start)}' AND ${src.f.date} <= '${fmtDate(range.end)}'`;
-                const periodQuery = `
-        SELECT
-                        ${groupByCol} AS tag,
-            SUM(${src.f.impressions}) AS group_impressions,
-                SUM(${src.f.clicks}) AS group_clicks,
-                        if (group_impressions > 0, (group_clicks / group_impressions) * 100, 0) AS ctr,
-            SUM(${src.f.spend}) AS group_spends,
-                        if (group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
-            SUM(${src.f.quantitySold}) AS group_orders,
-                        if (group_clicks > 0, (group_orders / group_clicks) * 100, 0) AS cvr,
-            SUM(${src.f.sales}) AS group_sales
-                    FROM ${src.table}
-                    WHERE ${compFlagCol} = 0 ${platformClause.replace('Platform', platCol)} ${periodDateClause} ${extraClauses}
-                    GROUP BY ${groupByCol}
-                    ORDER BY group_spends DESC
-                `;
-                const periodData = await queryClickHouse(periodQuery);
+                const startStr = fmtDate(range.start);
+                const endStr = fmtDate(range.end);
+                const periodDateClause = `AND ${src.f.date} >= '${startStr}' AND ${src.f.date} <= '${endStr}'`;
+
+                // Fetch main metrics and PM metrics in parallel
+                const [periodData, pmPeriodMap] = await Promise.all([
+                    queryClickHouse(`
+                        SELECT ${groupByCol} AS tag, SUM(${src.f.impressions}) AS group_impressions, SUM(${src.f.clicks}) AS group_clicks,
+                               SUM(${src.f.spend}) AS group_spends, SUM(${src.f.quantitySold}) AS group_orders, SUM(${src.f.sales}) AS group_sales
+                        FROM ${src.table}
+                        WHERE ${compFlagCol} = 0 ${platformCond} ${periodDateClause} ${extraClauses}
+                        GROUP BY tag
+                    `),
+                    fetchPmBreakdown(startStr, endStr)
+                ]);
+
                 return {
                     key,
                     data: periodData.map(r => {
                         const scaled = scaleMarsMetrics(r, r.tag);
+                        const pmMatch = pmPeriodMap?.get(String(r.tag).toLowerCase());
+                        const pmOrders = pmMatch ? parseFloat(pmMatch.pm_orders || 0) : 0;
+                        const pmImpressions = pmMatch ? parseFloat(pmMatch.pm_impressions || 0) : 0;
+
+                        const impressions = parseFloat(scaled.group_impressions) || 0;
+                        const orders = parseFloat(scaled.group_orders) || 0;
+
                         return {
                             tag: scaled.tag || 'Unknown',
-                            impressions: parseFloat(scaled.group_impressions) || 0,
+                            impressions,
                             clicks: parseFloat(scaled.group_clicks) || 0,
-                            ctr: parseFloat(scaled.ctr) || 0, // ClickHouse calculated, but let's re-calculate to be safe if desired? Actually CTR is ratio, doesn't change if both scaled.
+                            ctr: impressions > 0 ? (parseFloat(scaled.group_clicks) || 0) / impressions * 100 : 0,
                             spends: parseFloat(scaled.group_spends) || 0,
-                            cpc: parseFloat(scaled.cpc) || 0,
-                            orders: parseFloat(scaled.group_orders) || 0,
-                            cvr: parseFloat(scaled.cvr) || 0,
+                            cpc: (parseFloat(scaled.group_clicks) || 0) > 0 ? parseFloat(scaled.group_spends) / parseFloat(scaled.group_clicks) : 0,
+                            orders,
+                            cvr: pmImpressions > 0 ? (pmOrders / pmImpressions) * 100 : (impressions > 0 ? (orders / impressions) * 100 : 0),
                             sales: parseFloat(scaled.group_sales) || 0
                         };
                     })
                 };
-            });
+            }));
 
-            const periodResults = await Promise.all(periodQueries);
             period_comparison = {};
             periodResults.forEach(({ key, data }) => { period_comparison[key] = data; });
         }
