@@ -51,7 +51,8 @@ const kpiLabels = {
 };
 
 /* --- Platform entities (COLUMN headers — horizontal, top) --- */
-const platformEntities = [
+/* Fallback while loading; overridden dynamically from backend response */
+const defaultPlatformEntities = [
     { key: 'odd_overall', name: 'ODD Overall' },
     { key: 'blinkit', name: 'Blinkit' },
     { key: 'instamart', name: 'Instamart' },
@@ -144,6 +145,28 @@ const MarketCatOverview = ({
     const selectedKpis = kpiDefs.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
+    // Derive dynamic platform entities from backend response
+    const platformEntities = useMemo(() => {
+        if (!backendData) return defaultPlatformEntities;
+
+        // Use _availablePlatforms from backend if present
+        if (backendData._availablePlatforms) {
+            return backendData._availablePlatforms.map(key => ({
+                key,
+                name: key === 'odd_overall' ? 'ODD Overall' : key.charAt(0).toUpperCase() + key.slice(1)
+            }));
+        }
+
+        // Fallback: derive from response keys, filtering out internal keys
+        const keys = Object.keys(backendData).filter(k => !k.startsWith('_'));
+        // Ensure odd_overall comes first
+        const sorted = ['odd_overall', ...keys.filter(k => k !== 'odd_overall')];
+        return sorted.map(key => ({
+            key,
+            name: key === 'odd_overall' ? 'ODD Overall' : key.charAt(0).toUpperCase() + key.slice(1)
+        }));
+    }, [backendData]);
+
     // Build platformData from backend response
     const platformData = useMemo(() => {
         if (!backendData) {
@@ -164,7 +187,7 @@ const MarketCatOverview = ({
                 return acc;
             }, {})
         }));
-    }, [backendData]);
+    }, [backendData, platformEntities]);
 
     const SectionWrapper = ({
         title,

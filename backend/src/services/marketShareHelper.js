@@ -955,7 +955,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
         }
         const marsFilter = `lower(group_brand) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
 
-        const platforms = ['Blinkit', 'Instamart', 'Zepto'];
+        // Platforms are derived dynamically from query results (no hardcoding)
 
         // Build one big query per period that gets all data grouped by platform
         // (kept for reference but not used - we use separate queries below)
@@ -1121,9 +1121,10 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             };
         };
 
-        // Build per-platform results
+        // Build per-platform results — derive platforms dynamically from catSizeCurr
         const result = {};
-        platforms.forEach(p => {
+        const discoveredPlatforms = [...new Set(catSizeCurr.map(r => r.platform).filter(Boolean))];
+        discoveredPlatforms.forEach(p => {
             result[p.toLowerCase()] = buildPlatformData(p);
         });
 
@@ -1189,6 +1190,9 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             },
             mlBrand: overallMlBrand ? overallMlBrand[0] : 'N/A'
         };
+
+        // Include available platform keys for the frontend
+        result._availablePlatforms = ['odd_overall', ...discoveredPlatforms.map(p => p.toLowerCase())];
 
         return result;
     } catch (error) {
