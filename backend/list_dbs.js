@@ -17,4 +17,3 @@ async function listDbs() {
 }
 
 listDbs();
-
