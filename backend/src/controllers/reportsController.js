@@ -1,7 +1,21 @@
 import { queryClickHouse } from '../config/clickhouse.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
+import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
+
+/**
+ * Check if a table exists in the current ClickHouse database
+ */
+const checkTableExists = async (tableName) => {
+    try {
+        const result = await queryClickHouse(`EXISTS TABLE ${tableName}`);
+        return result && result[0] && result[0].result === 1;
+    } catch (error) {
+        console.warn(`[Reports] Table existence check failed for ${tableName}:`, error.message);
+        return false;
+    }
+};
 
 /**
  * Get filter options for Scheduled Reports
@@ -108,8 +122,19 @@ export const downloadReport = async (req, res) => {
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+        // Check which optional tables exist for conditional JOINs
+        const [hasKwOlap, hasLocationDarkstore] = await Promise.all([
+            checkTableExists('rb_kw_olap'),
+            checkTableExists('rb_location_darkstore'),
+        ]);
+
+        // Discover actual column names for rb_pdp_olap (handles case-sensitivity differences)
+        const pdpCols = await getTableColumns('rb_pdp_olap');
+        const col = (name) => resolveColumn(pdpCols, name);
+
         if (reportType === "Availability Analysis") {
-            query = `
+            // Build optional CTEs/JOINs based on table existence
+            const sosCte = hasKwOlap ? `
                 WITH sos_stats AS (
                     SELECT 
                         toDate(kw_crawl_date) as DATE, platform_name as Platform, brand_name as Brand, keyword_category as Category,
@@ -123,35 +148,38 @@ export const downloadReport = async (req, res) => {
                         count() as total_kw_count
                     FROM rb_kw_olap
                     GROUP BY DATE, Platform, Category
-                )
-                SELECT 
-                    t.DATE, t.Platform, t.Brand, t.Location as City, t.Product_type as Format, t.Product,
-                    -- Core Availability Metrics
-                    round(SUM(toFloat64(t.neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100, 2) as OSA_Percentage,
-                    round(100 - (SUM(toFloat64(t.neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100), 2) as Stock_Out_Percentage,
-                    round(avg(toFloat64(t.DIH)), 2) as DOI,
-                    round(SUM(toFloat64(t.buy_box_neno_osa)) / nullIf(SUM(toFloat64(t.deno_osa)), 0) * 100, 2) as Fillrate_Percentage,
-                    
-                    -- SOS % (Share of Search)
-                    round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,
-                    
-                    -- PSL Calculation (Latest Inventory / MSL proxy)
-                    round(SUM(toFloat64(t.Inventory)) / nullIf(SUM(toFloat64(t.MSL)), 0) * 100, 2) as PSL,
-                    
-                    -- Assortment (Distinct Count of Web_Pid)
-                    COUNT(DISTINCT t.Web_Pid) as Assortment,
-                    
-                    -- Metro City Stock Availability
-                    round(SUM(if(m.is_metro = 1, toFloat64(t.neno_osa), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.deno_osa), 0)), 0) * 100, 2) as Metro_City_Stock_Availability
-                FROM rb_pdp_olap t
+                )` : '';
+
+            const sosJoin = hasKwOlap ? `
                 LEFT JOIN sos_stats s ON toDate(t.DATE) = s.DATE AND t.Platform = s.Platform AND t.Brand = s.Brand AND t.Product_type = s.Category
-                LEFT JOIN total_kw_stats tot ON toDate(t.DATE) = tot.DATE AND t.Platform = tot.Platform AND t.Product_type = tot.Category
+                LEFT JOIN total_kw_stats tot ON toDate(t.DATE) = tot.DATE AND t.Platform = tot.Platform AND t.Product_type = tot.Category` : '';
+
+            const metroJoin = hasLocationDarkstore ? `
                 LEFT JOIN (
                     SELECT DISTINCT location, 1 as is_metro
                     FROM rb_location_darkstore
                     WHERE tier = 'Tier 1'
-                ) m ON t.Location = m.location
-                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (m) => m === 'Category' ? 'Product_type' : 't.' + m)}
+                ) m ON t.Location = m.location` : '';
+
+            const sosCol = hasKwOlap ? `round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,` : '';
+            const metroCol = hasLocationDarkstore ? `round(SUM(if(m.is_metro = 1, toFloat64(t.${col('neno_osa')}), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.${col('deno_osa')})), 0)), 0) * 100, 2) as Metro_City_Stock_Availability` : `0 as Metro_City_Stock_Availability`;
+
+            query = `
+                ${sosCte}
+                SELECT 
+                    t.${col('DATE')} as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${col('Product_type')} as Format, t.${col('Product')} as Product,
+                    round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
+                    round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
+                    round(avg(toFloat64(t.${col('DIH')})), 2) as DOI,
+                    round(SUM(toFloat64(t.${col('buy_box_neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as Fillrate_Percentage,
+                    ${sosCol}
+                    round(SUM(toFloat64(t.${col('Inventory')})) / nullIf(SUM(toFloat64(t.${col('MSL')})), 0) * 100, 2) as PSL,
+                    COUNT(DISTINCT t.${col('Web_Pid')}) as Assortment,
+                    ${metroCol}
+                FROM rb_pdp_olap t
+                ${sosJoin}
+                ${metroJoin}
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col('Product_type') : 't.' + col(match))}
                 GROUP BY t.DATE, t.Platform, t.Brand, t.Location, t.Product_type, t.Product
                 ORDER BY t.DATE DESC
             `;
@@ -184,16 +212,21 @@ export const downloadReport = async (req, res) => {
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Market Share") {
+            // Use rb_brand_ms if it exists, otherwise fall back to rb_ms_olap
+            const hasBrandMs = await checkTableExists('rb_brand_ms');
+            const msTable = hasBrandMs ? 'rb_brand_ms' : 'rb_ms_olap';
+            const msDateCol = hasBrandMs ? 'created_on' : 'created_on';
+            const msBrandCol = hasBrandMs ? 'brand' : 'group_brand';
             query = `
                 SELECT 
-                    toDate(created_on) as DATE, brand as Brand, category as Category, Location as City,
+                    toDate(${msDateCol}) as DATE, ${msBrandCol} as Brand, category as Category, Location as City,
                     SUM(sales) as Sales_Value,
                     ROUND(SUM(sales) / nullIf(SUM(SUM(sales)) OVER (PARTITION BY DATE, category, Location), 0) * 100, 2) as Market_Share_Percentage
-                FROM rb_brand_ms
-                WHERE toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'
-                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND brand = '${brand.replace(/'/g, "''")}'` : ''}
+                FROM ${msTable}
+                WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'
+                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND ${msBrandCol} = '${brand.replace(/'/g, "''")}'` : ''}
                 ${city && city !== 'All' && !city.startsWith('All ') ? `AND Location = '${city.replace(/'/g, "''")}'` : ''}
-                GROUP BY DATE, brand, category, Location
+                GROUP BY DATE, ${msBrandCol}, category, Location
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Sales Data") {
@@ -270,20 +303,25 @@ export const downloadReport = async (req, res) => {
         } else if (reportType === "Performance Marketing") {
             query = `
                 SELECT 
-                    DATE, Platform, Brand, Location as City, Product_type as Format, Product,
-                    SUM(toFloat64(Ad_Impressions)) as Impressions,
-                    SUM(toFloat64(Ad_Clicks)) as Clicks,
-                    SUM(toFloat64(Ad_Spend)) as Spend,
-                    round(SUM(toFloat64(Ad_sales)) / nullIf(SUM(toFloat64(Ad_Spend)), 0), 2) as ROAS,
-                    round((SUM(toFloat64(Ad_Quantity_sold)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0)) * 100, 2) as Conversion_Rate,
-                    round((SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Impressions)), 0)) * 1000, 2) as CPM,
-                    round(SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0), 2) as CPC
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    SUM(toFloat64(${col('Ad_Impressions')})) as Impressions,
+                    SUM(toFloat64(${col('Ad_Clicks')})) as Clicks,
+                    SUM(toFloat64(${col('Ad_Spend')})) as Spend,
+                    round(SUM(toFloat64(${col('Ad_Sales')})) / nullIf(SUM(toFloat64(${col('Ad_Spend')})), 0), 2) as ROAS,
+                    round((SUM(toFloat64(${col('Ad_Quantity_sold')})) / nullIf(SUM(toFloat64(${col('Ad_Clicks')})), 0)) * 100, 2) as Conversion_Rate,
+                    round((SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Ad_Impressions')})), 0)) * 1000, 2) as CPM,
+                    round(SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Ad_Clicks')})), 0), 2) as CPC
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col('Product_type') : col(match))}
                 GROUP BY DATE, Platform, Brand, Location, Product_type, Product
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Content Analysis") {
+            // Use tb_content_score_data without hardcoded DB prefix — resolves to user's current DB
+            const hasContentTable = await checkTableExists('tb_content_score_data');
+            if (!hasContentTable) {
+                return res.status(404).json({ error: 'Content Analysis is not available for this database. The table tb_content_score_data does not exist.' });
+            }
             query = `
                 SELECT 
                     toDate(extraction_timestamp) as DATE, brand_name as Brand, title as Product, url as URL,
@@ -293,34 +331,33 @@ export const downloadReport = async (req, res) => {
                     prod_desc_score as Description_Score,
                     title_char_count as Title_Length,
                     description_char_count as Word_Count
-                FROM gcpl.tb_content_score_data
-                WHERE toDate(extraction_timestamp) BETWEEN '${startDate}' AND '${endDate}'
-                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(brand_name) = lower('${brand.replace(/'/g, "''")}')` : ''}
+                FROM tb_content_score_data
+                WHERE toDate(${col('extraction_timestamp')}) BETWEEN '${startDate}' AND '${endDate}'
+                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(${col('brand_name')}) = lower('${brand.replace(/'/g, "''")}')` : ''}
                 ORDER BY DATE DESC
                 LIMIT 5000
             `;
         } else if (reportType === "Inventory Analysis") {
             query = `
                 SELECT 
-                    DATE, Platform, Brand, Location as City, Product_type as Format, Product,
-                    round(argMax(toFloat64(Inventory), DATE), 2) as Current_Inventory,
-                    round(SUM(ifNull(Qty_Sold, 0)) / 30, 2) as DRR,
-                    round(if(DRR > 0, Current_Inventory / DRR, 0), 2) as DOH,
-                    round(if(8 > DOH, (8 - DOH) * DRR, 0), 2) as Req_PO_Quantity,
-                    round(Req_PO_Quantity / 24, 2) as Req_Boxes
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    SUM(toFloat64(${col('Inventory')})) as Current_Inventory,
+                    SUM(toFloat64(${col('MSL')})) as Target_Inventory,
+                    round(SUM(toFloat64(${col('Inventory')})) / nullIf(SUM(toFloat64(${col('MSL')})), 0) * 100, 2) as Inventory_Health_Percentage,
+                    round(avg(toFloat64(${col('DIH')})), 2) as Days_Inventory_on_Hand
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
-                GROUP BY DATE, Platform, Brand, Location, Product_type, Product
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col('Product_type') : col(match))}
+                GROUP BY DATE, Platform, Brand, City, Format, Product
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Category RCA") {
             query = `
                 SELECT 
-                    DATE, Platform, Product_type as Format, Location as City,
-                    SUM(toFloat64(Sales)) as Offtake_Sales,
-                    SUM(assumeNotNull(Qty_Sold)) as Units,
-                    round(SUM(toFloat64(Sales)) / nullIf(SUM(SUM(toFloat64(Sales))) OVER (PARTITION BY DATE, Platform, Location), 0) * 100, 2) as Category_Share,
-                    SUM(SUM(toFloat64(Sales))) OVER (PARTITION BY DATE, Platform, Location) as Cat_Size
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Product_type')} as Format, ${col('Location')} as City,
+                    SUM(toFloat64(${col('Sales')})) as Offtake_Sales,
+                    SUM(assumeNotNull(${col('Qty_Sold')})) as Units,
+                    round(SUM(toFloat64(${col('Sales')})) / nullIf(SUM(SUM(toFloat64(${col('Sales')}))) OVER (PARTITION BY ${col('DATE')}, ${col('Platform')}, ${col('Location')}), 0) * 100, 2) as Category_Share,
+                    SUM(SUM(toFloat64(${col('Sales')}))) OVER (PARTITION BY ${col('DATE')}, ${col('Platform')}, ${col('Location')}) as Cat_Size
                 FROM rb_pdp_olap
                 ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
                 GROUP BY DATE, Platform, Product_type, Location
@@ -329,11 +366,11 @@ export const downloadReport = async (req, res) => {
         } else if (reportType === "Portfolio Analysis") {
             query = `
                 SELECT 
-                    DATE, Platform, Brand, Location as City, Product_type as Format, Product,
-                    round(SUM(toFloat64(Sales)) / nullIf(SUM(assumeNotNull(Qty_Sold)), 0), 2) as ASP,
-                    round((1 - (SUM(toFloat64(Sales)) / nullIf(SUM(toFloat64(MRP) * assumeNotNull(Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
-                    SUM(assumeNotNull(Qty_Sold)) as Volume,
-                    SUM(if(toFloat64(Discount) > 0, assumeNotNull(Qty_Sold), 0)) as Promo_Volume,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    round(SUM(toFloat64(${col('Sales')})) / nullIf(SUM(assumeNotNull(${col('Qty_Sold')})), 0), 2) as ASP,
+                    round((1 - (SUM(toFloat64(${col('Sales')})) / nullIf(SUM(toFloat64(${col('MRP')}) * assumeNotNull(${col('Qty_Sold')})), 0))) * 100, 2) as Discount_Percentage,
+                    SUM(assumeNotNull(${col('Qty_Sold')})) as Volume,
+                    SUM(if(toFloat64(${col('Discount')}) > 0, assumeNotNull(${col('Qty_Sold')}), 0)) as Promo_Volume,
                     round(Promo_Volume / nullIf(Volume, 0) * 100, 2) as Promo_Volume_Percentage
                 FROM rb_pdp_olap
                 ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
@@ -343,29 +380,29 @@ export const downloadReport = async (req, res) => {
         } else if (reportType === "Watch Tower") {
             query = `
                 SELECT 
-                    DATE, Platform, Brand, Location as City, Product_type as Format, Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
                     -- Core Metrics
-                    SUM(toFloat64(Sales)) as Offtake,
-                    SUM(assumeNotNull(Qty_Sold)) as Units_Sold,
-                    round(SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as Stock_Availability,
-                    round(avg(toFloat64(DIH)), 2) as DOI,
-                    round(avg(ifNull(toFloat64OrZero(toString(listing_percent)), 0)), 2) as listing_percentage,
+                    SUM(toFloat64(${col('Sales')})) as Offtake,
+                    SUM(assumeNotNull(${col('Qty_Sold')})) as Units_Sold,
+                    round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as Stock_Availability,
+                    round(avg(toFloat64(${col('DIH')})), 2) as DOI,
+                    round(avg(ifNull(toFloat64OrZero(toString(${col('listing_percent')})), 0)), 2) as listing_percentage,
                     
                     -- Performance Marketing Metrics
-                    SUM(toFloat64(Ad_sales)) as Inorganic_Sales,
-                    SUM(toFloat64(Ad_Spend)) as Spend,
-                    round(SUM(toFloat64(Ad_sales)) / nullIf(SUM(toFloat64(Ad_Spend)), 0), 2) as ROAS,
-                    round((SUM(toFloat64(Ad_Quantity_sold)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0)) * 100, 2) as Conversion,
-                    round((SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Impressions)), 0)) * 1000, 2) as CPM,
-                    round(SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Ad_Clicks)), 0), 2) as CPC,
+                    SUM(toFloat64(${col('Ad_Sales')})) as Inorganic_Sales,
+                    SUM(toFloat64(${col('Ad_Spend')})) as Spend,
+                    round(SUM(toFloat64(${col('Ad_Sales')})) / nullIf(SUM(toFloat64(${col('Ad_Spend')})), 0), 2) as ROAS,
+                    round((SUM(toFloat64(${col('Ad_Quantity_sold')})) / nullIf(SUM(toFloat64(${col('Ad_Clicks')})), 0)) * 100, 2) as Conversion,
+                    round((SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Ad_Impressions')})), 0)) * 1000, 2) as CPM,
+                    round(SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Ad_Clicks')})), 0), 2) as CPC,
                     
                     -- Ad Spend over Sales
-                    round((SUM(toFloat64(Ad_Spend)) / nullIf(SUM(toFloat64(Sales)), 0)) * 100, 2) as BMI_Sales_Ratio,
+                    round((SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Sales')})), 0)) * 100, 2) as BMI_Sales_Ratio,
                     
                     -- Promo Metrics
-                    round(avg(toFloat64(Discount)), 2) as Promo_Percentage
+                    round(avg(toFloat64(${col('Discount')})), 2) as Promo_Percentage
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col('Product_type') : col(match))}
                 GROUP BY DATE, Platform, Brand, Location, Product_type, Product
                 ORDER BY DATE DESC
             `;
@@ -373,11 +410,11 @@ export const downloadReport = async (req, res) => {
             // Default generic query for other report types (Category RCA, Portfolio, Play it You)
             query = `
                 SELECT 
-                    DATE, Platform, Brand, Location as City, Product_type as Format, Product,
-                    SUM(toFloat64(Sales)) as Sales,
-                    SUM(assumeNotNull(Qty_Sold)) as Qty,
-                    round(SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0) * 100, 2) as OSA,
-                    round(avg(toFloat64(DIH)), 2) as DOI
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    SUM(toFloat64(${col('Sales')})) as Sales,
+                    SUM(assumeNotNull(${col('Qty_Sold')})) as Qty,
+                    round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as OSA,
+                    round(avg(toFloat64(${col('DIH')})), 2) as DOI
                 FROM rb_pdp_olap
                 ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
                 GROUP BY DATE, Platform, Brand, Location, Product_type, Product
@@ -421,6 +458,51 @@ export const downloadReport = async (req, res) => {
 
     } catch (error) {
         console.error('[downloadReport] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get available report types based on which tables exist in the current DB
+ */
+export const getAvailableReportTypes = async (req, res) => {
+    try {
+        const cacheKey = generateCacheKey('available_report_types', {});
+
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            // Define report types and their required tables
+            const reportTableMap = [
+                { type: 'Watch Tower', tables: ['rb_pdp_olap'] },
+                { type: 'Availability Analysis', tables: ['rb_pdp_olap'] },
+                { type: 'Visibility Analysis', tables: ['rb_kw_olap'] },
+                { type: 'Sales Data', tables: ['rb_pdp_olap'] },
+                { type: 'Pricing Analysis', tables: ['rb_pdp_olap'] },
+                { type: 'Performance Marketing', tables: ['rb_pdp_olap'] },
+                { type: 'Inventory Analysis', tables: ['rb_pdp_olap'] },
+                { type: 'Market Share', tables: ['rb_brand_ms', 'rb_ms_olap'] },  // either works
+                { type: 'Content Analysis', tables: ['tb_content_score_data'] },
+                { type: 'Category RCA', tables: ['rb_pdp_olap'] },
+                { type: 'Portfolio Analysis', tables: ['rb_pdp_olap'] },
+            ];
+
+            const results = [];
+            for (const entry of reportTableMap) {
+                // For Market Share: need at least one of the tables
+                if (entry.type === 'Market Share') {
+                    const checks = await Promise.all(entry.tables.map(t => checkTableExists(t)));
+                    if (checks.some(Boolean)) results.push(entry.type);
+                } else {
+                    // For others: need all required tables
+                    const checks = await Promise.all(entry.tables.map(t => checkTableExists(t)));
+                    if (checks.every(Boolean)) results.push(entry.type);
+                }
+            }
+            return results;
+        }, CACHE_TTL.METRICS);
+
+        res.json({ reportTypes: data });
+    } catch (error) {
+        console.error('[getAvailableReportTypes] Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };

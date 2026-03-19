@@ -4,6 +4,7 @@ import eyLogo from "../../assets/sidebar_logo.png";
 import marsLogo from "../../assets/mars2.svg";
 import mamaearthLogo from "../../assets/mamaearth.jpeg";
 import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
+import boatLogo from "../../assets/Boat.png";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -66,12 +67,14 @@ const Sidebar = ({
   const activeLogo = useMemo(() => {
     if (user?.dbName === 'mamaearth') return mamaearthLogo;
     if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
+    if (user?.dbName === 'boat') return boatLogo;
     return marsLogo;
   }, [user?.dbName]);
 
   const activeLogoAlt = useMemo(() => {
     if (user?.dbName === 'mamaearth') return 'Mamaearth Logo';
     if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
+    if (user?.dbName === 'boat') return 'Boat Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
