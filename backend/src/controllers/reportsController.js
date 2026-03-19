@@ -130,7 +130,8 @@ export const downloadReport = async (req, res) => {
 
         // Discover actual column names for rb_pdp_olap (handles case-sensitivity differences)
         const pdpCols = await getTableColumns('rb_pdp_olap');
-        const col = (name) => resolveColumn(pdpCols, name);
+        // Provide '0' as fallback so queries don't crash if optional columns (like DIH, Ad_Sales) are missing
+        const col = (name) => resolveColumn(pdpCols, name, '0');
 
         if (reportType === "Availability Analysis") {
             // Build optional CTEs/JOINs based on table existence
