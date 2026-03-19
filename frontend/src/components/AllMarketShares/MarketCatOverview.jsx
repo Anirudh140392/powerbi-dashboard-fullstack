@@ -36,16 +36,16 @@ const cardSize = {
 /* --- KPI definitions (ROW headers — vertical, left side) --- */
 const kpiDefs = [
     { key: 'categorySize', label: 'Category Size' },
-    { key: 'mwMarketShare', label: 'MW Market Share%' },
-    { key: 'mwSales', label: 'MW Sales (Cr)' },
+    { key: 'mwMarketShare', label: 'Market Share%' },
+    { key: 'mwSales', label: 'Sales (Cr)' },
     { key: 'mlMarketShare', label: 'ML Market Share%' },
     { key: 'mlSales', label: 'ML Sales (Cr)' },
 ];
 
 const kpiLabels = {
     categorySize: 'Category Size',
-    mwMarketShare: 'MW Market Share%',
-    mwSales: 'MW Sales (Cr)',
+    mwMarketShare: 'Market Share%',
+    mwSales: 'Sales (Cr)',
     mlMarketShare: 'ML Market Share%',
     mlSales: 'ML Sales (Cr)',
 };
