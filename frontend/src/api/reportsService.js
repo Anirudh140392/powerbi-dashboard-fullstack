@@ -35,3 +35,13 @@ export const downloadReport = async (params = {}) => {
         throw error;
     }
 };
+
+export const fetchAvailableReportTypes = async () => {
+    try {
+        const response = await axiosInstance.get("/reports/available-types");
+        return response.data.reportTypes || [];
+    } catch (error) {
+        console.error("fetchAvailableReportTypes error:", error);
+        return [];
+    }
+};

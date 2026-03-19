@@ -3,7 +3,7 @@ import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import dayjs from "dayjs";
 import { ScheduledReport } from "@/components/Reports/ScheduledReport";
 import { saveAs } from 'file-saver';
-import { fetchReportFilterOptions, downloadReport } from "../../api/reportsService";
+import { fetchReportFilterOptions, downloadReport, fetchAvailableReportTypes } from "../../api/reportsService";
 import { FilterContext } from "../../utils/FilterContext";
 import { useContext } from "react";
 
@@ -49,6 +49,24 @@ export default function ScheduledReports() {
         formats: [],
         months: [],
     });
+
+    // Dynamic report types from backend
+    const [availableReportTypes, setAvailableReportTypes] = useState([]);
+
+    // Fetch available report types on mount
+    useEffect(() => {
+        const loadReportTypes = async () => {
+            const types = await fetchAvailableReportTypes();
+            if (types.length > 0) {
+                setAvailableReportTypes(types);
+                // If current reportType is not in the available list, switch to first available
+                if (!types.includes(selectedFilters.reportType)) {
+                    setSelectedFilters(prev => ({ ...prev, reportType: types[0] }));
+                }
+            }
+        };
+        loadReportTypes();
+    }, []);
 
     // Fetch filter options from backend whenever platform changes
     const loadFilterOptions = useCallback(async (platform) => {
@@ -124,7 +142,7 @@ export default function ScheduledReports() {
     // Dropdown options derived from backend data
     const platformOptions = filterOptions.platforms.length > 0
         ? filterOptions.platforms
-        : ["Blinkit", "Zepto", "Instamart", "Amazon", "Flipkart"];
+        : [];
 
     const getBrandOptions = () => {
         const brands = filterOptions.brands || [];
@@ -156,15 +174,18 @@ export default function ScheduledReports() {
         "Custom Range",
     ];
 
-    const reportTypeOptions = [
-        "Watch Tower",
-        "Availability Analysis",
-        "Visibility Analysis",
-        "Sales Data",
-        "Pricing Analysis",
-        "Performance Marketing",
-        "Inventory Analysis",
-    ];
+    // Report types from backend (fallback to common types while loading)
+    const reportTypeOptions = availableReportTypes.length > 0
+        ? availableReportTypes
+        : [
+            "Watch Tower",
+            "Availability Analysis",
+            "Visibility Analysis",
+            "Sales Data",
+            "Pricing Analysis",
+            "Performance Marketing",
+            "Inventory Analysis",
+        ];
 
     const handleDownload = async () => {
         setIsDownloading(true);

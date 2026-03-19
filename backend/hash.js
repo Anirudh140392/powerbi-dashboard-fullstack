@@ -31,7 +31,7 @@ async function verifyPassword(password, hashedPassword) {
 
 // Example usage
 async function run() {
-    const plainPassword = "Mamaearth@123#";
+    const plainPassword = "Boat@123#";
 
     // Hash password
     const hashed = await hashPassword(plainPassword);
