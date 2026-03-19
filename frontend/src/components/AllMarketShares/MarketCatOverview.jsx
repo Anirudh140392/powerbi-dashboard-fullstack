@@ -38,16 +38,16 @@ const kpiDefs = [
     { key: 'categorySize', label: 'Category Size' },
     { key: 'mwMarketShare', label: 'Market Share%' },
     { key: 'mwSales', label: 'Sales (Cr)' },
-    { key: 'mlMarketShare', label: 'ML Market Share%' },
-    { key: 'mlSales', label: 'ML Sales (Cr)' },
+    { key: 'mlMarketShare', label: 'Market Share%' },
+    { key: 'mlSales', label: 'Sales (Cr)' },
 ];
 
 const kpiLabels = {
     categorySize: 'Category Size',
     mwMarketShare: 'Market Share%',
     mwSales: 'Sales (Cr)',
-    mlMarketShare: 'ML Market Share%',
-    mlSales: 'ML Sales (Cr)',
+    mlMarketShare: 'Market Share%',
+    mlSales: 'Sales (Cr)',
 };
 
 /* --- Platform entities (COLUMN headers — horizontal, top) --- */
