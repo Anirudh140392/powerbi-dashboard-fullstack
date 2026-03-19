@@ -1,10 +1,11 @@
 
 import { queryClickHouse } from './src/config/clickhouse.js';
 
+
 async function inspectData() {
     try {
         console.log('--- Inspecting rb_kw_olap distribution ---');
-        
+
         const platformFlagRes = await queryClickHouse('SELECT platform_name, flag, count() as total FROM rb_kw_olap GROUP BY platform_name, flag');
         console.log('Platform/Flag distribution:');
         console.table(platformFlagRes);
