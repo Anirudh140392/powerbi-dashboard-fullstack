@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import eyLogo from "../../assets/sidebar_logo.png";
 import marsLogo from "../../assets/mars2.svg";
 import mamaearthLogo from "../../assets/mamaearth.jpeg";
+import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -62,8 +63,17 @@ const Sidebar = ({
   const { logout, user } = useAuth();
 
   // Dynamic logo based on user's database
-  const activeLogo = user?.dbName === 'mamaearth' ? mamaearthLogo : marsLogo;
-  const activeLogoAlt = user?.dbName === 'mamaearth' ? 'Mamaearth Logo' : 'Mars Logo';
+  const activeLogo = useMemo(() => {
+    if (user?.dbName === 'mamaearth') return mamaearthLogo;
+    if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
+    return marsLogo;
+  }, [user?.dbName]);
+
+  const activeLogoAlt = useMemo(() => {
+    if (user?.dbName === 'mamaearth') return 'Mamaearth Logo';
+    if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
+    return 'Mars Logo';
+  }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
@@ -146,7 +156,7 @@ const Sidebar = ({
             justifyContent: 'center', // Center logo horizontally
             transition: 'all 0.3s ease',
             width: '100%',
-            height: 60,
+            height: (user?.dbName === 'mars_petcare' && !isCollapsed) ? 150 : (user?.dbName === 'mamaearth' && !isCollapsed ? 100 : 60),
           }}
         >
           {/* EY Logo Container */}
@@ -165,10 +175,11 @@ const Sidebar = ({
               src={activeLogo}
               alt={activeLogoAlt}
               style={{
-                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '60px' : '45px'),
+                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : '45px')),
                 width: isCollapsed ? '100%' : 'auto',
-                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '220px' : '180px'),
+                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : '180px')),
                 objectFit: 'contain',
+                padding: '0',
                 display: 'block',
                 borderRadius: user?.dbName === 'mamaearth' ? '6px' : '0',
               }}
