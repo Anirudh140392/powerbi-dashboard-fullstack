@@ -6499,16 +6499,27 @@ const getKpiTrends = async (filters) => {
     const ourBrandsFilter = validOurBrandNames.length > 0 ? `brand IN (${validOurBrandNames.map(b => `'${escapeStr(b)}'`).join(', ')})` : '1=0';
 
     // Calculate master assortment from rb_sku_platform for Listing %
+    // Dynamically resolve column names as they differ per database (e.g. brand_name vs brand)
+    const skuPlatCols = await getTableColumns('rb_sku_platform');
+    const getSkuPlatCol = (possibleNames) => {
+        for (const name of possibleNames) {
+            if (columnExists(skuPlatCols, name)) return resolveColumn(skuPlatCols, name);
+        }
+        return possibleNames[0];
+    };
+    const skuPlatBrandCol = getSkuPlatCol(['brand_name', 'brand']);
+    const skuPlatCategoryCol = getSkuPlatCol(['brand_category', 'product_category', 'Product_type', 'Category']);
+
     const masterAssortmentConds = [`status = 1`];
-    if (catArr && catArr.length > 0) masterAssortmentConds.push(`lower(product_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
-    if (brandArr && brandArr.length > 0) masterAssortmentConds.push(`lower(brand) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+    if (catArr && catArr.length > 0) masterAssortmentConds.push(`lower(${skuPlatCategoryCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+    if (brandArr && brandArr.length > 0) masterAssortmentConds.push(`lower(${skuPlatBrandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
 
     // Dimension-specific master count (e.g. when opening a specific category row trend)
     if (dimension && dimensionValue && dimensionValue !== 'All') {
         const dimKey = dimension.toLowerCase();
         const val = dimensionValue.toLowerCase();
-        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(product_category) = '${escapeStr(val)}'`);
-        else if (dimKey === 'brand') masterAssortmentConds.push(`lower(brand) = '${escapeStr(val)}'`);
+        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(${skuPlatCategoryCol}) = '${escapeStr(val)}'`);
+        else if (dimKey === 'brand') masterAssortmentConds.push(`lower(${skuPlatBrandCol}) = '${escapeStr(val)}'`);
     }
 
     const masterQuery = `SELECT count(DISTINCT web_pid) as total_master FROM rb_sku_platform WHERE ${masterAssortmentConds.join(' AND ')}`;
@@ -6702,8 +6713,8 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
         }
 
         if (filterType === 'brands') {
-            // Fetch unique brands
-            const conditions = [`${src.f.brand} IS NOT NULL`, `${src.f.brand} != ''`];
+            // Fetch unique OWN brands only (comp_flag=0)
+            const conditions = [`${src.f.brand} IS NOT NULL`, `${src.f.brand} != ''`, `toString(${src.f.compFlag}) = '0'`];
             if (platArr && platArr.length > 0) {
                 conditions.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
             }
