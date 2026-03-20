@@ -117,10 +117,23 @@ export default function GeoIntelligenceMap() {
         fetchData();
     }, [platform, timePeriod, metric]);
 
+    // --- Intercept Nation-level Data ---
+    const nationData = useMemo(() => {
+        if (!apiData || apiData.length === 0) return null;
+        return apiData.find(city => {
+            const name = (city.name || '').toLowerCase();
+            return name === 'india' || name === 'nation' || name === 'national';
+        });
+    }, [apiData]);
+
     // --- Build coordinate-mapped data from API response ---
     const mapData = useMemo(() => {
         // Build a lookup from city/state name -> coordinates
-        const coordsLookup = {};
+        const coordsLookup = {
+            "nation": { lat: 22.0, lng: 79.5, type: "National" },
+            "national": { lat: 22.0, lng: 79.5, type: "National" },
+            "india": { lat: 22.0, lng: 79.5, type: "National" }
+        };
         CITIES.forEach(c => { coordsLookup[c.name.toLowerCase()] = { lat: c.coords[1], lng: c.coords[0], type: "City" }; });
         STATES.forEach(s => { coordsLookup[s.name.toLowerCase()] = { lat: s.center[1], lng: s.center[0], type: "State" }; });
 
@@ -157,7 +170,7 @@ export default function GeoIntelligenceMap() {
                 }
 
                 return {
-                    name: city.name,
+                    name: coords.type === "National" ? "National Overview" : city.name,
                     value,
                     osa: city.osa || 0,
                     marketShare: city.marketShare || 0,
@@ -504,7 +517,7 @@ export default function GeoIntelligenceMap() {
                         )}
 
                         {/* Floating Control: Focus Area */}
-                        <div style={{ position: "absolute", top: "20px", left: "20px", background: "white", padding: "12px 16px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)", display: "flex", gap: "24px", alignItems: "center" }}>
+                        <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 10, background: "white", padding: "12px 16px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)", display: "flex", gap: "24px", alignItems: "center" }}>
                             <div>
                                 <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>FOCUS AREA</div>
                                 <div style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a", marginTop: "2px" }}>Across India</div>
@@ -512,7 +525,7 @@ export default function GeoIntelligenceMap() {
                             <div style={{ width: "1px", height: "24px", background: "#e2e8f0" }}></div>
                             <div>
                                 <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>GRANULARITY</div>
-                                <div style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a", marginTop: "2px" }}>State-level</div>
+                                <div style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a", marginTop: "2px" }}>{nationData && mapData.length === 0 ? "National-level" : "State-level"}</div>
                             </div>
                         </div>
 
