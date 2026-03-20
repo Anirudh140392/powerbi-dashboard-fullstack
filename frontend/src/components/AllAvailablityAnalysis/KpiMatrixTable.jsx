@@ -333,6 +333,9 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     }
                 });
 
+                // Force ownBrandsOnly to match Watch Tower KPIs identically
+                params.append('ownBrandsOnly', 'true');
+
                 const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
                 });

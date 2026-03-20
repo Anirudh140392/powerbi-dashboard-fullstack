@@ -47,10 +47,9 @@ const MarketShareDrilldown = ({ loading: parentLoading }) => {
                 const response = await axiosInstance.get('/api/market-share/drilldown', {
                     params: {
                         platform,
-                        category: selectedCategory,
-                        location: selectedLocation,
-                        startDate: timeStart,
-                        endDate: timeEnd
+                        category: selectedCategory === 'All' ? undefined : selectedCategory,
+                        location: undefined, // Enforced isolation from global location filter
+                        startDate: timeStart ? timeStart.format('YYYY-MM-DD') : undefined,
                     }
                 });
                 setDrilldownData(response.data.drilldownData || []);
