@@ -1,0 +1,811 @@
+import React, { useState } from 'react';
+import { 
+    X, 
+    Search, 
+    ChevronUp,
+    ChevronDown,
+    Plus,
+    Award,
+    Check
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '../../../lib/utils';
+
+// Mock Data
+const MOCK_PLATFORMS = [
+    { id: 'instamart', name: 'Instamart', color: '#f97316' }, // Orange
+    { id: 'zepto', name: 'Zepto', color: '#d946ef' }, // Fuchsia
+    { id: 'blinkit', name: 'Blinkit', color: '#eab308' }, // Yellow
+];
+
+const MOCK_CATEGORIES = [
+    { id: 'all', name: 'All' },
+    { id: 'body_lotion', name: 'Body Lotion' },
+    { id: 'body_oil', name: 'Body Oil' },
+    { id: 'conditioner', name: 'Conditioner' },
+    { id: 'eyeliner', name: 'Eyeliner' },
+    { id: 'face_mask', name: 'Face Mask' },
+    { id: 'face_wash', name: 'Face Wash' },
+    { id: 'hair_mask', name: 'Hair Mask' },
+    { id: 'moisturizer', name: 'Moisturizer' },
+    { id: 'shampoo', name: 'Shampoo' },
+    { id: 'serum', name: 'Serum' },
+    { id: 'toner', name: 'Toner' },
+    { id: 'sunscreen', name: 'Sunscreen' },
+    { id: 'soap', name: 'Soap' },
+];
+
+const MOCK_BRANDS = [
+    { id: 'all', name: 'All' },
+    { id: '8x', name: '8X' },
+    { id: '8x_kt', name: '8X Kt' },
+    { id: 'a_ret', name: 'A Ret' },
+    { id: 'aaa', name: 'Aaa' },
+    { id: 'aclind', name: 'Aclind Bp' },
+    { id: 'acnestar', name: 'Acnestar' },
+    { id: 'beardo', name: 'Beardo' },
+    { id: 'biotique', name: 'Biotique' },
+    { id: 'cetaphil', name: 'Cetaphil' },
+    { id: 'dove', name: 'Dove' },
+    { id: 'himalaya', name: 'Himalaya' },
+    { id: 'loreal', name: "L'Oreal" },
+    { id: 'mamaearth', name: 'Mamaearth' },
+    { id: 'nivea', name: 'Nivea' },
+    { id: 'ponds', name: "Pond's" },
+];
+
+const MOCK_PRODUCTS = [
+    { 
+        id: 101, 
+        name: 'Dot & Key Vitamin C + E Super Bright Sunscreen (Spf 50 Pa++++)', 
+        size: '50 g', 
+        category: 'Sunscreen',
+        platform: 'blinkit',
+        brand: 'dot_and_key',
+        ppu: 450
+    },
+    { 
+        id: 102, 
+        name: 'NIVEA Nourishing Body Lotion Body Milk | 48 H Moisturization | For Very Dry Skin...', 
+        size: '600 ml', 
+        category: 'Body Lotion',
+        platform: 'instamart',
+        brand: 'nivea',
+        ppu: 350
+    },
+    { 
+        id: 103, 
+        name: 'Dove Deeply Nourishing Body Wash', 
+        size: '800 ml', 
+        category: 'Shower Gel',
+        platform: 'zepto',
+        brand: 'dove',
+        ppu: 420
+    },
+    { 
+        id: 104, 
+        name: 'Cetaphil Gentle Skin Cleanser Face Wash', 
+        size: '250 ml', 
+        category: 'Face Wash',
+        platform: 'blinkit',
+        brand: 'cetaphil',
+        ppu: 520
+    },
+    { 
+        id: 105, 
+        name: "L'Oreal Paris Moisture Sealing Conditioner, With Hyaluronic Acid, For Dry Hair...", 
+        size: '180 ml', 
+        category: 'Conditioner',
+        platform: 'zepto',
+        brand: 'loreal',
+        ppu: 280
+    },
+    { 
+        id: 106, 
+        name: 'NIVEA Soft Vit E Non-Sticky Moisturizer- Fresh & Hydrated Skin', 
+        size: '300 ml', 
+        category: 'Face Moisturizer',
+        platform: 'instamart',
+        brand: 'nivea',
+        ppu: 190
+    },
+    { 
+        id: 107, 
+        name: 'Cetaphil Gentle Skin Cleanser Face Wash', 
+        size: '125 ml', 
+        category: 'Face Wash',
+        platform: 'blinkit',
+        brand: 'cetaphil',
+        ppu: 320
+    },
+    { 
+        id: 108, 
+        name: 'Dove Cream Beauty Bathing Bar B4G1 Free', 
+        size: '525 g', 
+        category: 'Soap',
+        platform: 'zepto',
+        brand: 'dove',
+        ppu: 150
+    },
+    { 
+        id: 109, 
+        name: "L'Oréal Professionnel Absolut Repair Mask For Dry and Damaged Hair...", 
+        size: '250 g', 
+        category: 'Hair Mask',
+        platform: 'instamart',
+        brand: 'loreal',
+        ppu: 720
+    }
+];
+
+const FilterSection = ({ title, expanded, onToggle, children }) => (
+    <div className="border-b border-slate-100/60 py-4">
+        <button 
+            onClick={onToggle}
+            className="flex items-center justify-between w-full text-left mb-1.5 group select-none"
+        >
+            <span className="text-[12px] font-bold text-slate-800 uppercase tracking-[0.15em] opacity-80 group-hover:opacity-100 transition-opacity">{title}</span>
+            <div className="text-slate-300 group-hover:text-blue-500 transition-all duration-300 transform group-hover:scale-110">
+                {expanded ? <ChevronUp size={14} strokeWidth={3} /> : <ChevronDown size={14} strokeWidth={3} />}
+            </div>
+        </button>
+        {expanded && (
+            <motion.div 
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="mt-3 space-y-1"
+            >
+                {children}
+            </motion.div>
+        )}
+    </div>
+);
+
+const PriceRangeSlider = ({ min, max, onChange }) => {
+    const [minValue, setMinValue] = useState(min);
+    const [maxValue, setMaxValue] = useState(max);
+
+    const handleMinChange = (e) => {
+        const value = Math.min(Number(e.target.value), maxValue - 100);
+        setMinValue(value);
+        onChange?.({ min: value, max: maxValue });
+    };
+
+    const handleMaxChange = (e) => {
+        const value = Math.max(Number(e.target.value), minValue + 100);
+        setMaxValue(value);
+        onChange?.({ min: minValue, max: value });
+    };
+
+    const minPos = ((minValue - min) / (max - min)) * 100;
+    const maxPos = ((maxValue - min) / (max - min)) * 100;
+
+    return (
+        <div className="px-1 pt-8 pb-6">
+            <div className="relative w-full h-2 bg-slate-100 rounded-full border border-slate-200/50">
+                {/* Track highlight */}
+                <div 
+                    className="absolute h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+                    style={{ left: `${minPos}%`, right: `${100 - maxPos}%` }}
+                />
+                
+                {/* Custom inputs */}
+                <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    value={minValue}
+                    onChange={handleMinChange}
+                    className="absolute w-full h-2 opacity-0 cursor-pointer z-30 pointer-events-auto"
+                    style={{ appearance: 'none' }}
+                />
+                <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    value={maxValue}
+                    onChange={handleMaxChange}
+                    className="absolute w-full h-2 opacity-0 cursor-pointer z-30 pointer-events-auto"
+                    style={{ appearance: 'none' }}
+                />
+
+                {/* Visible Handles */}
+                <div 
+                    className="absolute w-5 h-5 bg-white border-[3px] border-blue-600 rounded-full shadow-lg shadow-blue-500/20 top-1/2 -translate-y-1/2 z-20 transition-transform active:scale-125 hover:scale-110"
+                    style={{ left: `${minPos}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                    <div className="absolute inset-0 rounded-full bg-blue-500/10 animate-ping"></div>
+                </div>
+                <div 
+                    className="absolute w-5 h-5 bg-white border-[3px] border-indigo-600 rounded-full shadow-lg shadow-indigo-500/20 top-1/2 -translate-y-1/2 z-20 transition-transform active:scale-125 hover:scale-110"
+                    style={{ left: `${maxPos}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                    <div className="absolute inset-0 rounded-full bg-indigo-500/10 animate-ping"></div>
+                </div>
+
+                {/* Tooltip for Current Range */}
+                <div 
+                    className="absolute -top-10 bg-slate-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-2xl z-40 whitespace-nowrap flex items-center gap-2 border border-white/10"
+                    style={{ left: `${(minPos + maxPos) / 2}%`, transform: 'translateX(-50%)' }}
+                >
+                    <span className="text-blue-400">₹{minValue.toLocaleString()}</span>
+                    <span className="text-slate-500">—</span>
+                    <span className="text-indigo-400">₹{maxValue.toLocaleString()}</span>
+                    {/* Arrow */}
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45 border-r border-b border-white/5"></div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const CheckboxItem = ({ label, count, color, icon, defaultChecked = false }) => {
+    const [checked, setChecked] = useState(defaultChecked);
+    return (
+        <div 
+            className="flex items-center justify-between py-1.5 cursor-pointer group"
+            onClick={() => setChecked(!checked)}
+        >
+            <div className="flex items-center gap-2.5">
+                <div className={`w-3.5 h-3.5 rounded-[3px] border transition-colors relative flex items-center justify-center ${checked ? 'bg-blue-500 border-blue-500' : 'bg-white border-slate-300 group-hover:border-blue-400'}`}>
+                    {checked && <Check size={10} strokeWidth={4} className="text-white" />}
+                </div>
+                {icon && (
+                    <div className="w-[14px] h-[14px] flex items-center justify-center rounded-[3px] text-white" style={{ backgroundColor: color }}>
+                        <div className="w-1.5 h-1.5 bg-white rounded-[2px]"></div>
+                    </div>
+                )}
+                <span className={`text-[12px] transition-colors ${checked ? 'font-bold text-slate-800' : 'font-medium text-[#475569] group-hover:text-[#0f172a]'}`}>{label}</span>
+            </div>
+        </div>
+    );
+};
+
+const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedProductIds, setSelectedProductIds] = useState([]);
+    // Filter collapse states
+    const [openFilters, setOpenFilters] = useState({
+        platforms: true,
+        category: true,
+        brands: true,
+        ppu: true,
+        grammage: true
+    });
+    
+    // List expansion states (Show More)
+    const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
+    const [isBrandsExpanded, setIsBrandsExpanded] = useState(false);
+
+    // Filter States
+    const [selectedPlatforms, setSelectedPlatforms] = useState(['blinkit']); // Default select
+    const [selectedCategories, setSelectedCategories] = useState([]);
+    const [selectedBrands, setSelectedBrands] = useState([]);
+    const [selectedGrammages, setSelectedGrammages] = useState([]);
+    const [ppuRange, setPpuRange] = useState({ min: 3, max: 631696 });
+    const [categorySearch, setCategorySearch] = useState('');
+    const [brandSearch, setBrandSearch] = useState('');
+
+    const togglePlatform = (id) => {
+        setSelectedPlatforms(prev => 
+            prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+        );
+    };
+
+    const toggleCategory = (id) => {
+        setSelectedCategories(prev => 
+            prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+        );
+    };
+
+    const toggleBrand = (id) => {
+        setSelectedBrands(prev => 
+            prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]
+        );
+    };
+
+    const toggleGrammage = (id) => {
+        setSelectedGrammages(prev => 
+            prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]
+        );
+    };
+
+    const toggleFilter = (key) => {
+        setOpenFilters(prev => ({ ...prev, [key]: !prev[key] }));
+    };
+
+    const toggleProductSelection = (product) => {
+        setSelectedProductIds(prev => 
+            prev.includes(product.id) 
+                ? prev.filter(id => id !== product.id) 
+                : [...prev, product.id]
+        );
+    };
+
+    const handleBulkAdd = () => {
+        const selectedProducts = MOCK_PRODUCTS.filter(p => selectedProductIds.includes(p.id));
+        if (selectedProducts.length > 0) {
+            onAddSkus(selectedProducts);
+            setSelectedProductIds([]);
+        }
+    };
+
+    return (
+        <AnimatePresence mode="wait">
+            {isOpen && (
+                <>
+                    {/* Backdrop */}
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={onClose}
+                        className="fixed inset-0 z-[1000] bg-slate-900/40 backdrop-blur-sm"
+                    />
+                    {/* Drawer */}
+                    <motion.div 
+                        initial={{ x: '100%', opacity: 0.5 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: '100%', opacity: 0.5 }}
+                        transition={{ type: 'spring', damping: 30, stiffness: 300, mass: 0.8 }}
+                        className="fixed top-2 bottom-2 right-2 w-[1400px] max-w-[calc(100vw-32px)] z-[1001] bg-[#f8fafc] rounded-[40px] shadow-[0_32px_80px_rgba(15,23,42,0.25)] flex flex-col overflow-hidden border border-white/40"
+                    >
+                        <div className="flex items-center justify-between px-10 py-7 bg-white/95 backdrop-blur-xl border-b border-slate-100/80 flex-shrink-0 z-20">
+                            <div>
+                                <h2 className="text-[22px] font-semibold text-[#0f172a] tracking-tight flex items-center gap-4">
+                                    Add SKUs 
+                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50/50 border border-blue-100/30 text-blue-600 shadow-sm shadow-blue-500/5">
+                                        <Plus size={14} strokeWidth={3} />
+                                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">{MOCK_PRODUCTS.length * 10}+ Items</span>
+                                    </div>
+                                </h2>
+                                <p className="text-[12.5px] text-slate-400 font-medium mt-1 tracking-tight">Curate and compare products in real-time</p>
+                            </div>
+                            
+                            <div className="flex items-center gap-6 flex-1 max-w-xl mx-12">
+                                <div className="relative w-full group">
+                                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Search by SKU name..." 
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full bg-slate-50/80 border border-slate-100/80 text-[#1e293b] text-[13.5px] font-medium rounded-2xl pl-11 pr-5 py-3 focus:outline-none focus:ring-4 focus:ring-blue-500/5 focus:border-blue-400/50 transition-all placeholder:text-slate-300 shadow-sm"
+                                    />
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={onClose}
+                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-rose-500 text-slate-400 hover:text-white transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-rose-200 group"
+                            >
+                                <X size={20} strokeWidth={2.5} className="group-hover:rotate-180 transition-transform duration-500" />
+                            </button>
+                        </div>
+
+                        {/* Main Body - Sidebar + Grid */}
+                        <div className="flex-1 flex overflow-hidden bg-[#f8fafc]">
+                            
+                            {/* Filter Sidebar - Non-Parallel/Modular Design */}
+                            <div className="w-[320px] bg-white border-r border-slate-100/80 overflow-y-auto custom-scrollbar-sm flex flex-col p-7 gap-8 relative z-10">
+                                <div className="flex items-center justify-between mb-2 px-1">
+                                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-[0.25em]">Filters</span>
+                                    <button onClick={() => {
+                                        setSelectedPlatforms([]);
+                                        setSelectedCategories([]);
+                                        setSelectedBrands([]);
+                                        setSelectedGrammages([]);
+                                        setPpuRange({ min: 3, max: 631696 });
+                                    }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-700 underline underline-offset-4 decoration-blue-200">Clear All</button>
+                                </div>
+
+                                {/* Platform Section - Interactive Brand Chips */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('platforms')}>
+                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">Platforms</h3>
+                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.platforms && "rotate-180")} />
+                                    </div>
+                                    <AnimatePresence>
+                                        {openFilters.platforms && (
+                                            <motion.div 
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden space-y-2 pt-1"
+                                            >
+                                                {MOCK_PLATFORMS.map(p => (
+                                                    <button 
+                                                        key={p.id}
+                                                        onClick={() => togglePlatform(p.id)}
+                                                        className={cn(
+                                                            "w-full flex items-center justify-between p-3 rounded-2xl border transition-all duration-300 group active:scale-[0.98]",
+                                                            selectedPlatforms.includes(p.id)
+                                                                ? "bg-white border-blue-500 shadow-[0_8px_20px_-4px_rgba(59,130,246,0.15)] ring-1 ring-blue-500/10"
+                                                                : "bg-slate-50/50 border-transparent hover:border-slate-200 hover:bg-white"
+                                                        )}
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={cn(
+                                                                "w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all",
+                                                                selectedPlatforms.includes(p.id) ? "bg-blue-600 border-blue-600 shadow-sm" : "bg-white border-slate-200"
+                                                            )}>
+                                                                {selectedPlatforms.includes(p.id) && <Check size={12} strokeWidth={4} className="text-white" />}
+                                                            </div>
+                                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }}></div>
+                                                            <span className={cn("text-[12px] font-semibold transition-colors", selectedPlatforms.includes(p.id) ? "text-slate-900" : "text-slate-500 group-hover:text-slate-700")}>
+                                                                {p.name}
+                                                            </span>
+                                                        </div>
+                                                        <span className="text-[10px] font-bold text-slate-300 group-hover:text-slate-400">1.2k</span>
+                                                    </button>
+                                                ))}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* Category Section - Chip Grid */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('category')}>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-[13px] font-semibold text-slate-800 tracking-tight">Category</h3>
+                                            <div className="w-1 w-1 bg-slate-200 rounded-full"></div>
+                                            <div className={cn("flex items-center justify-center bg-blue-50 text-blue-600 w-6 h-6 rounded-lg transition-transform", isCategoriesExpanded && "bg-slate-100 text-slate-400 w-auto px-2")}>
+                                                <Search size={12} strokeWidth={3} onClick={(e) => { e.stopPropagation(); setIsCategoriesExpanded(true); }} />
+                                            </div>
+                                        </div>
+                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.category && "rotate-180")} />
+                                    </div>
+                                    <AnimatePresence>
+                                        {openFilters.category && (
+                                            <motion.div 
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden space-y-3 pt-1"
+                                            >
+                                                {isCategoriesExpanded && (
+                                                    <div className="relative mb-2">
+                                                        <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-300" />
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Search categories..." 
+                                                            value={categorySearch}
+                                                            onChange={(e) => setCategorySearch(e.target.value)}
+                                                            className="w-full bg-slate-50 border border-slate-100 text-[11px] font-semibold rounded-xl pl-8 pr-3 py-1.5 focus:outline-none focus:border-blue-300 transition-all"
+                                                            autoFocus
+                                                        />
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {(isCategoriesExpanded ? MOCK_CATEGORIES : MOCK_CATEGORIES.slice(0, 8)).filter(c => !categorySearch || c.name.toLowerCase().includes(categorySearch.toLowerCase())).map(c => (
+                                                        <button 
+                                                            key={c.id}
+                                                            onClick={() => toggleCategory(c.id)}
+                                                            className={cn(
+                                                                "px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all active:scale-95",
+                                                                selectedCategories.includes(c.id)
+                                                                    ? "bg-slate-900 border-slate-900 text-white shadow-md shadow-slate-200"
+                                                                    : "bg-white border-slate-100 text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                                                            )}
+                                                        >
+                                                            {c.name}
+                                                        </button>
+                                                    ))}
+                                                    {!isCategoriesExpanded && (
+                                                        <button 
+                                                            onClick={() => setIsCategoriesExpanded(true)}
+                                                            className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                                        >
+                                                            +18 More
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* Brands Section - List with Search */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('brands')}>
+                                        <h3 className="text-[13px] font-semibold text-slate-800 tracking-tight">Brands</h3>
+                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.brands && "rotate-180")} />
+                                    </div>
+                                    <AnimatePresence>
+                                        {openFilters.brands && (
+                                            <motion.div 
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden space-y-3 pt-1"
+                                            >
+                                                <div className="relative">
+                                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" />
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Search brands..." 
+                                                        value={brandSearch}
+                                                        onChange={(e) => setBrandSearch(e.target.value)}
+                                                        className="w-full bg-slate-50 border border-slate-100 text-[12px] font-semibold rounded-2xl pl-9 pr-3 py-2 focus:outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-500/5 transition-all"
+                                                    />
+                                                </div>
+                                                <div className="max-h-[220px] overflow-y-auto no-scrollbar pr-1 space-y-1">
+                                                    {(isBrandsExpanded ? MOCK_BRANDS : MOCK_BRANDS.slice(0, 6)).filter(b => !brandSearch || b.name.toLowerCase().includes(brandSearch.toLowerCase())).map(b => (
+                                                        <div 
+                                                            key={b.id} 
+                                                            onClick={() => toggleBrand(b.id)}
+                                                            className={cn(
+                                                                "flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer group/item",
+                                                                selectedBrands.includes(b.id) ? "bg-blue-50/50 border-blue-200" : "bg-white border-transparent hover:bg-slate-50"
+                                                            )}
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={cn(
+                                                                    "w-4 h-4 rounded border flex items-center justify-center transition-all",
+                                                                    selectedBrands.includes(b.id) ? "bg-blue-600 border-blue-600 shadow-sm" : "bg-white border-slate-200 group-hover/item:border-slate-300"
+                                                                )}>
+                                                                    {selectedBrands.includes(b.id) && <Check size={10} strokeWidth={4} className="text-white" />}
+                                                                </div>
+                                                                <span className={cn("text-[12px] font-semibold transition-colors", selectedBrands.includes(b.id) ? "text-slate-900" : "text-slate-500")}>
+                                                                    {b.name}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-[10px] font-bold text-slate-300">124</span>
+                                                        </div>
+                                                    ))}
+                                                    {!isBrandsExpanded && (
+                                                        <button 
+                                                            onClick={() => setIsBrandsExpanded(true)}
+                                                            className="w-full p-2 text-center text-[10px] font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors mt-1"
+                                                        >
+                                                            + 674 More
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* PPU Section - Professional Slider */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('ppu')}>
+                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">PPU (x100)</h3>
+                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.ppu && "rotate-180")} />
+                                    </div>
+                                    <AnimatePresence>
+                                        {openFilters.ppu && (
+                                            <motion.div 
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden space-y-4 pt-4 px-2"
+                                            >
+                                                <PriceRangeSlider 
+                                                    min={3} 
+                                                    max={631696} 
+                                                    onChange={setPpuRange} 
+                                                />
+                                                <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase pt-2">
+                                                    <span>INR 3</span>
+                                                    <span>INR 6.3L</span>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+
+                                {/* Grammage Section - Pill Cloud */}
+                                <div className="space-y-3 pb-8">
+                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('grammage')}>
+                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">Grammage</h3>
+                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.grammage && "rotate-180")} />
+                                    </div>
+                                    <AnimatePresence>
+                                        {openFilters.grammage && (
+                                            <motion.div 
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden pt-1"
+                                            >
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {['0.35 g', '5 g', '10 ml', '15 ml', '30 ml', '50 g', '100 g'].map(g => (
+                                                        <button 
+                                                            key={g} 
+                                                            onClick={() => toggleGrammage(g)}
+                                                            className={cn(
+                                                                "px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all active:scale-95",
+                                                                selectedGrammages.includes(g)
+                                                                    ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200"
+                                                                    : "bg-white border-slate-100 text-slate-500 hover:border-slate-300"
+                                                            )}
+                                                        >
+                                                            {g}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            </div>
+
+                            {/* Main Content Area - Grid Results (6 Columns) */}
+                            <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar bg-[#f8fafc] pb-32">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                                    {MOCK_PRODUCTS
+                                        .filter(p => {
+                                            const matchesSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
+                                            const matchesPlatform = selectedPlatforms.length === 0 || selectedPlatforms.includes(p.platform);
+                                            const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(p.category.toLowerCase().replace(/ /g, '_'));
+                                            const matchesBrand = selectedBrands.length === 0 || selectedBrands.includes(p.brand);
+                                            const matchesPrice = p.ppu >= ppuRange.min && p.ppu <= ppuRange.max;
+                                            
+                                            return matchesSearch && matchesPlatform && matchesCategory && matchesBrand && matchesPrice;
+                                        })
+                                        .map((product, idx) => {
+                                            const isSelected = selectedProductIds.includes(product.id);
+                                            return (
+                                                <motion.div 
+                                                    layout
+                                                    initial={{ opacity: 0, scale: 0.9 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    transition={{ delay: idx * 0.02 }}
+                                                    key={product.id}
+                                                    onClick={() => toggleProductSelection(product)}
+                                                    className={cn(
+                                                        "group relative bg-white rounded-2xl p-4 border transition-all duration-300 cursor-pointer overflow-hidden flex flex-col active:scale-[0.97]",
+                                                        isSelected 
+                                                            ? "border-blue-500 ring-4 ring-blue-500/10 shadow-lg shadow-blue-500/5 translate-y-[-2px]" 
+                                                            : "border-slate-100 hover:border-blue-300 hover:shadow-xl hover:shadow-slate-200/50 hover:translate-y-[-2px]"
+                                                    )}
+                                                >
+                                                    {/* Selection Indicator */}
+                                                    <div className="absolute top-3 right-3 z-20">
+                                                        <div className={cn(
+                                                            "w-6 h-6 rounded-lg border flex items-center justify-center transition-all",
+                                                            isSelected ? "bg-blue-600 border-blue-600 shadow-md shadow-blue-500/30" : "bg-slate-50 border-slate-100 group-hover:border-blue-200"
+                                                        )}>
+                                                            {isSelected && <Check size={12} strokeWidth={4} className="text-white" />}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Product Visual Area */}
+                                                    <div className="w-full aspect-square bg-[#f1f5f9]/50 rounded-xl mb-3 flex items-center justify-center relative overflow-hidden transition-all duration-500 group-hover:bg-blue-50/50">
+                                                        <div className="relative z-10 scale-90 group-hover:scale-105 transition-transform duration-500">
+                                                            <div className="w-8 h-12 bg-white rounded-md shadow-sm border border-slate-100 relative">
+                                                                <div className="absolute top-1 left-1 right-1 h-1.5 bg-slate-50 rounded"></div>
+                                                                <div className="absolute bottom-2 left-1 right-1 h-4 bg-slate-50/20 rounded"></div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Badge on Card */}
+                                                        <div className="absolute bottom-2 left-2">
+                                                            <span className="px-1.5 py-0.5 rounded-lg bg-white/80 backdrop-blur-sm border border-slate-100 shadow-sm text-[8px] font-bold text-slate-800 tracking-tighter uppercase whitespace-nowrap">
+                                                                {product.size}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Details */}
+                                                    <div className="flex-1 flex flex-col gap-2 min-w-0 px-1">
+                                                        <div className={cn(
+                                                            "text-[13px] font-semibold leading-[1.4] line-clamp-2 h-9 transition-colors duration-500 tracking-tight",
+                                                            isSelected ? "text-blue-600" : "text-slate-700 group-hover:text-blue-600"
+                                                        )}>
+                                                            {product.name}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-[8px] font-medium text-slate-400 uppercase tracking-[0.1em] border border-slate-100 group-hover:bg-blue-50 group-hover:text-blue-500 group-hover:border-blue-100 transition-all duration-300">
+                                                                {product.category}
+                                                            </div>
+                                                            <div className="w-1 h-1 rounded-full bg-slate-200"></div>
+                                                            <span className="text-[11px] font-medium text-slate-400 tabular-nums">₹{product.ppu}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Card Action */}
+                                                    <div className={cn(
+                                                        "mt-5 py-2.5 w-full rounded-2xl text-[12px] font-medium transition-all duration-500 border flex items-center justify-center gap-2 shadow-sm active:scale-95 group-hover:shadow-[0_20px_40px_-15px_rgba(37,99,235,0.2)]",
+                                                        isSelected 
+                                                            ? "bg-blue-600 border-blue-600 text-white shadow-blue-500/20" 
+                                                            : "bg-white border-slate-200 text-blue-600 group-hover:bg-blue-600 group-hover:border-blue-600 group-hover:text-white"
+                                                    )}>
+                                                        {isSelected ? "Selected" : "Add Sku"}
+                                                        {isSelected ? <Check size={14} strokeWidth={4} /> : <Plus size={14} strokeWidth={3} className="opacity-40 group-hover:opacity-100 transition-all group-hover:translate-x-0.5" />}
+                                                    </div>
+                                                </motion.div>
+                                            );
+                                        })
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Floating Action Menu */}
+                        <AnimatePresence>
+                            {selectedProductIds.length > 0 && (
+                                <motion.div 
+                                    initial={{ y: 150, opacity: 0, scale: 0.9 }}
+                                    animate={{ y: 0, opacity: 1, scale: 1 }}
+                                    exit={{ y: 150, opacity: 0, scale: 0.9 }}
+                                    className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[30] w-auto"
+                                >
+                                    <div className="bg-slate-950/95 backdrop-blur-xl p-2.5 rounded-[32px] border border-white/10 shadow-[0_40px_80px_rgba(0,0,0,0.5)] flex items-center gap-4 pr-4">
+                                        <div className="flex -space-x-3 pl-3">
+                                            {[...Array(Math.min(3, selectedProductIds.length))].map((_, i) => (
+                                                <div key={i} className="w-10 h-10 rounded-xl bg-white border-2 border-slate-900 flex items-center justify-center shadow-lg transform rotate-[-3deg]">
+                                                    <div className="w-4 h-8 bg-blue-500 rounded-sm"></div>
+                                                </div>
+                                            ))}
+                                            {selectedProductIds.length > 3 && (
+                                                <div className="w-10 h-10 rounded-xl bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-white text-[10px] font-bold shadow-lg">
+                                                    +{selectedProductIds.length - 3}
+                                                </div>
+                                            )}
+                                        </div>
+                                        
+                                        <div className="h-8 w-px bg-white/10"></div>
+
+                                        <button 
+                                            onClick={handleBulkAdd}
+                                            className="bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white pl-8 pr-10 py-3.5 rounded-[22px] text-[14px] font-bold shadow-xl flex items-center gap-3 transition-all group relative overflow-hidden"
+                                        >
+                                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none"></div>
+                                            Add {selectedProductIds.length} SKUs
+                                            <Check size={18} strokeWidth={4} className="text-white bg-white/20 p-0.5 rounded-full" />
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </motion.div>
+                </>
+            )}
+
+
+            <style jsx>{`
+                @keyframes shimmer {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(100%); }
+                }
+                .no-scrollbar::-webkit-scrollbar {
+                    display: none;
+                }
+                .no-scrollbar {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background-color: #cbd5e1;
+                    border: 4px solid #f8fafc;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background-color: #94a3b8;
+                }
+                .custom-scrollbar-sm::-webkit-scrollbar {
+                    width: 4px;
+                }
+                .custom-scrollbar-sm::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar-sm::-webkit-scrollbar-thumb {
+                    background-color: #e2e8f0;
+                    border-radius: 4px;
+                }
+            `}</style>
+        </AnimatePresence>
+    );
+};
+
+export default AddSkuDrawer;

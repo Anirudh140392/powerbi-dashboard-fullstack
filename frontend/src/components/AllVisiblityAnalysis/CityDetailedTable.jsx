@@ -57,7 +57,6 @@ export default function CityDetailedTable({ sku, onClose }) {
                 const webPidToUse = isBrandGroup ? sku.skuName : (sku.Web_Pid || sku.webPid || sku.skuCode || sku.id);
                 
                 const params = {
-                    webPid: webPidToUse,
                     signalType: sku.type || 'gainer',
                     groupBy: sku.groupBy || 'sku',
                     startDate: timeStart?.format('YYYY-MM-DD'),
@@ -70,8 +69,23 @@ export default function CityDetailedTable({ sku, onClose }) {
                     location: selectedLocation !== 'All' ? (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation) : undefined,
                 };
 
-                console.log("[CityDetailedTable] WebPid:", webPidToUse, "params:", params);
-                const res = await axiosInstance.get('/availability-analysis/signal-lab/city-details', { params });
+                let endpoint = '/availability-analysis/signal-lab/city-details';
+
+                if (sku.metricType === 'visibility') {
+                    endpoint = '/visibility-analysis/visibility-signals/city-details';
+                    params.level = sku.level || 'keyword';
+                    if (params.level === 'keyword') {
+                        params.keyword = sku.keyword;
+                    } else {
+                        params.skuName = sku.skuName || sku.sku;
+                    }
+                } else {
+                    params.webPid = webPidToUse;
+                    params.type = sku.metricType || 'availability';
+                }
+
+                console.log(`[CityDetailedTable] Fetching from ${endpoint}`, "params:", params);
+                const res = await axiosInstance.get(endpoint, { params });
                 console.log("[CityDetailedTable] Response:", res.data);
                 if (mounted && res.data && res.data.cities) {
                     const formatted = res.data.cities.map((c, idx) => ({
@@ -87,6 +101,18 @@ export default function CityDetailedTable({ sku, onClose }) {
                         doi: (c.doi === null || c.doi === undefined || isNaN(parseFloat(c.doi))) ? '-' : parseFloat(c.doi).toFixed(1),
                         wtDisc: `${(c.wtDisc || 0).toFixed(1)}%`,
                         discChange: `+0.0%`,
+                        offtakes: (() => {
+                            const val = c.estOfftake || 0;
+                            if (val >= 100000) return `₹${(val / 100000).toFixed(2)} Lac`;
+                            if (val >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
+                            return `₹${Math.round(val)}`;
+                        })(),
+                        orders: c.orders || 0,
+                        asp: (c.asp || 0).toFixed(2),
+                        roas: (c.roas || 0).toFixed(2),
+                        ctr: `${(c.ctr || 0).toFixed(2)}%`,
+                        clicks: typeof c.clicks === 'number' ? Number(c.clicks.toFixed(3)) : (c.clicks || 0),
+                        drr: (c.drr || 0).toFixed(2),
                     }));
                     setAllCities(formatted);
                 }
@@ -169,13 +195,35 @@ export default function CityDetailedTable({ sku, onClose }) {
                                 <tr className="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase tracking-wider sticky top-0 z-10 shadow-sm">
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">City</th>
                                     <th className="px-4 py-3 font-semibold text-center bg-slate-50">Wt. OSA %</th>
-                                    {sku.metricType === 'visibility' ? (
+                                    {sku.metricType === 'sales' && (
+                                        <>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">Offtakes</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">Orders</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">ASP</th>
+                                        </>
+                                    )}
+                                    {sku.metricType === 'performance' && (
+                                        <>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">ROAS</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">CTR</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">Clicks</th>
+                                        </>
+                                    )}
+                                    {sku.metricType === 'inventory' && (
+                                        <>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">SOH</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">DOI</th>
+                                            <th className="px-4 py-3 font-semibold text-center bg-slate-50">DRR</th>
+                                        </>
+                                    )}
+                                    {sku.metricType === 'visibility' && (
                                         <>
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">Overall Sos</th>
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">Organic Sos</th>
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">Ad Sos</th>
                                         </>
-                                    ) : (
+                                    )}
+                                    {(sku.metricType === 'availability' || !sku.metricType) && (
                                         <>
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">SOH</th>
                                             <th className="px-4 py-3 font-semibold text-center bg-slate-50">DOI</th>
@@ -213,31 +261,63 @@ export default function CityDetailedTable({ sku, onClose }) {
                                         </td>
 
                                         {/* Metrics based on Type */}
-                                        {sku.metricType === 'visibility' ? (
+                                        {sku.metricType === 'sales' && (
                                             <>
-                                                {/* Overall Sos */}
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.offtakes}</div>
+                                                </td>
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.orders}</div>
+                                                </td>
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.asp}</div>
+                                                </td>
+                                            </>
+                                        )}
+                                        {sku.metricType === 'performance' && (
+                                            <>
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.roas}</div>
+                                                </td>
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.ctr}</div>
+                                                </td>
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.clicks}</div>
+                                                </td>
+                                            </>
+                                        )}
+                                        {sku.metricType === 'inventory' && (
+                                            <>
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.soh}</div>
+                                                </td>
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.doi}</div>
+                                                </td>
+                                                <td className="px-4 py-3 text-center font-bold text-slate-700">
+                                                    <div className="flex justify-center w-full text-center">{row.drr}</div>
+                                                </td>
+                                            </>
+                                        )}
+                                        {sku.metricType === 'visibility' && (
+                                            <>
                                                 <td className="px-4 py-3 text-center font-bold text-slate-700">
                                                     <div className="flex justify-center w-full text-center">{row.overallSos}</div>
                                                 </td>
-
-                                                {/* Organic Sos */}
                                                 <td className="px-4 py-3 text-center font-bold text-slate-700">
                                                     <div className="flex justify-center w-full text-center">{row.organicSos}</div>
                                                 </td>
-
-                                                {/* Ad Sos */}
                                                 <td className="px-4 py-3 text-center font-bold text-slate-700">
                                                     <div className="flex justify-center w-full text-center">{row.adSos}</div>
                                                 </td>
                                             </>
-                                        ) : (
+                                        )}
+                                        {(sku.metricType === 'availability' || !sku.metricType) && (
                                             <>
-                                                {/* SOH */}
                                                 <td className="px-4 py-3 text-center font-bold text-slate-700">
                                                     <div className="flex justify-center w-full text-center">{row.soh}</div>
                                                 </td>
-
-                                                {/* DOI */}
                                                 <td className="px-4 py-3 text-center font-bold text-slate-700">
                                                     <div className="flex justify-center w-full text-center">{row.doi}</div>
                                                 </td>
