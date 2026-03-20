@@ -495,6 +495,7 @@ const BrandTable = ({ rows, loading }) => {
                             <tr>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
+                                <th className="px-3 py-2 text-center">Listing %</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
@@ -520,12 +521,17 @@ const BrandTable = ({ rows, loading }) => {
                                             {(row.osa || 0).toFixed(1)}%
                                         </span>
                                     </td>
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {(row.listing || 0).toFixed(1)}%
+                                        </span>
+                                    </td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={2}
+                                        colSpan={3}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
                                         No brands matching current filters.
@@ -556,12 +562,13 @@ const SkuTable = ({ rows, loading }) => {
                                 <th className="px-3 py-2 text-left">SKU</th>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
+                                <th className="px-3 py-2 text-center">Listing %</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={3} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={4} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
@@ -585,12 +592,17 @@ const SkuTable = ({ rows, loading }) => {
                                             {(row.osa || 0).toFixed(1)}%
                                         </span>
                                     </td>
+                                    <td className="px-3 py-2 text-center text-[12px]">
+                                        <span className="font-semibold text-slate-700">
+                                            {(row.listing || 0).toFixed(1)}%
+                                        </span>
+                                    </td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={3}
+                                        colSpan={4}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
                                         No SKUs matching current filters.
