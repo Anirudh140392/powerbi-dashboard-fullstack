@@ -709,6 +709,7 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          ownBrandsOnly: 'true'
         };
 
         const response = await axiosInstance.get('/availability-analysis/kpi-trends', { params });
@@ -2486,9 +2487,9 @@ export default function TrendsCompetitionDrawer({
                 dimensionType={
                   dimensionType || (
                     (selectedLevel?.toLowerCase() === 'city' || selectedLevel?.toLowerCase() === 'location') ? 'city' :
-                    (selectedLevel?.toLowerCase() === 'platform') ? 'platform' :
-                    (selectedLevel?.toLowerCase() === 'sku') ? 'sku' :
-                    'category'
+                      (selectedLevel?.toLowerCase() === 'platform') ? 'platform' :
+                        (selectedLevel?.toLowerCase() === 'sku') ? 'sku' :
+                          'category'
                   )
                 }
               />

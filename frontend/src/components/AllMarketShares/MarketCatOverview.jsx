@@ -100,7 +100,10 @@ const MarketCatOverview = ({
         const fetchCrossPlatformData = async () => {
             setDataLoading(true);
             try {
-                const selectedCities = advancedFilters.cities?.length > 0 ? advancedFilters.cities : (selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation : [selectedLocation]));
+                // Enforced isolation from global location filter
+                const selectedCities = undefined;
+
+                // Construct parameters avoiding empty arrays
                 const selectedCats = advancedFilters.categories?.length > 0 ? advancedFilters.categories : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory : [selectedCategory]));
                 const selectedBrands = advancedFilters.brands?.length > 0 ? advancedFilters.brands : undefined;
 

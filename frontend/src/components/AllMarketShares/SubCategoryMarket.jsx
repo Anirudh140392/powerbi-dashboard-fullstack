@@ -135,7 +135,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                 const params = {
                     platform: platform === 'All' ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
                     category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
-                    location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+                    location: undefined, // Enforced isolation from global location filter
                     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
                     subCategory: selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined,

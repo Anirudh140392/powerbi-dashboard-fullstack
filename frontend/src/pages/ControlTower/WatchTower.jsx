@@ -411,7 +411,7 @@ export default function WatchTower() {
         platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
-        location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+        location: undefined, // Enforced isolation from global location filter
         keyword: selectedKeyword || undefined,
         startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
         endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
@@ -498,7 +498,7 @@ export default function WatchTower() {
     const params = {
       platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
       category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
-      location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
+      location: undefined, // Enforced isolation from global location filter
       keyword: selectedKeyword || undefined,
       startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
       endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,

@@ -68,7 +68,8 @@ export const getAvailabilityOverview = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -112,7 +113,8 @@ export const getPlatformKpiMatrix = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -198,7 +200,8 @@ export const getDOI = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -239,7 +242,8 @@ export const getMetroCityStockAvailability = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -316,7 +320,8 @@ export const getOsaDetailByCategory = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -349,7 +354,8 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             timeStep: req.query.timeStep || 'Daily',
             channel: req.query.channel,
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -380,7 +386,8 @@ export const getAvailabilityCompetition = async (req, res) => {
             channel: req.query.channel,
             period: req.query.period || '1M',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== AVAILABILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));

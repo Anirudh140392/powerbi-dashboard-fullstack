@@ -34,17 +34,17 @@ export default function MainPerformanceMarketings() {
         console.log("✅ [MainPerformanceMarketing] PM Platforms:", response.data);
 
         if (response.data && response.data.length > 0) {
-          const platformList = ["All", ...response.data];
+          const platformList = response.data.filter(p => p !== 'All');
           setPlatforms(platformList);
-          if (!platformList.includes(platform)) {
+          if (!platformList.includes(platform) && platform !== 'All') {
             setPlatform("All");
           }
         } else {
-          setPlatforms(["All"]);
+          setPlatforms([]);
         }
       } catch (error) {
         console.error("❌ [MainPerformanceMarketing] Error fetching PM platforms:", error);
-        setPlatforms(["All"]);
+        setPlatforms([]);
       }
     };
     fetchPlatforms();
@@ -92,21 +92,20 @@ export default function MainPerformanceMarketings() {
         console.log("✅ [MainPerformanceMarketing] Zones API Response:", response.data);
 
         if (response.data && response.data.length > 0) {
-          const zoneList = ["All", ...response.data];
+          const zoneList = response.data.filter(z => z !== 'All');
           setLocations(zoneList);
 
           // Reset selection if current zone is not in new list
-          if (!zoneList.includes(selectedLocation)) {
+          if (selectedLocation !== 'All' && !zoneList.includes(selectedLocation)) {
             setSelectedLocation("All");
           }
         } else {
-          console.warn("⚠️ [MainPerformanceMarketing] No zones found, setting ['All'].");
-          setLocations(["All"]);
-          setSelectedLocation("All");
+          console.warn("⚠️ [MainPerformanceMarketing] No zones found, keeping existing locations.");
+          // Don't overwrite - let FilterContext's own locations stay
         }
       } catch (error) {
         console.error("❌ [MainPerformanceMarketing] Error fetching zones:", error);
-        setLocations(["All"]);
+        // Don't overwrite global locations on error
       }
     };
 
