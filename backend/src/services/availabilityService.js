@@ -432,10 +432,15 @@ const getAbsoluteOsaOverview = async (filters) => {
             };
 
             // ---- ADD OSA DETAIL DATA ----
-            // We need 31 days of data backwards from the current end date
+            // We need 31 days of data backwards from the current end date for trends
             const detailStartDate = currentEndDate.subtract(30, 'day').format('YYYY-MM-DD');
             const detailEndDate = currentEndDate.format('YYYY-MM-DD');
-            const detailFilters = { ...filters, startDate: detailStartDate, endDate: detailEndDate };
+
+            // Query should span from the earliest of currentStartDate and detailStartDate
+            const overallStartDate = currentStartDate.isBefore(detailStartDate, 'day') ? currentStartDate : dayjs(detailStartDate);
+            const overallEndDate = currentEndDate.isAfter(detailEndDate, 'day') ? currentEndDate : dayjs(detailEndDate);
+
+            const detailFilters = { ...filters, startDate: overallStartDate.format('YYYY-MM-DD'), endDate: overallEndDate.format('YYYY-MM-DD') };
             const detailWhere = buildAvailabilityWhereClause(detailFilters);
 
             const detailQuery = `
@@ -454,7 +459,7 @@ const getAbsoluteOsaOverview = async (filters) => {
             console.log('[getAbsoluteOsaOverview] Fetching detail data');
             const detailResult = await queryClickHouse(detailQuery);
 
-            // Structure: { sku: { name: '', values: [0..0] (31 length), cities: [], avg7, avg31, status } }
+            // Structure: { sku: { name: '', values: [0..0] (31 length), cities: [], avg7, avg31, avgSelected, status } }
             const skuMap = {};
             const daysArr = Array.from({ length: 31 }, (_, i) => currentEndDate.subtract(30 - i, 'day').format('YYYY-MM-DD'));
 
@@ -464,38 +469,52 @@ const getAbsoluteOsaOverview = async (filters) => {
                         name: row.name || 'Unknown Product',
                         sku: row.sku,
                         dateMap: {},
-                        values: new Array(31).fill(null), // null means no data for that day
+                        values: new Array(31).fill(null),
                     };
                 }
-                const osa = parseFloat(row.sumDeno) > 0 ? Math.round((parseFloat(row.sumNeno) / parseFloat(row.sumDeno)) * 100) : 0;
-                skuMap[row.sku].dateMap[row.date] = osa;
+                const neno = parseFloat(row.sumNeno) || 0;
+                const deno = parseFloat(row.sumDeno) || 0;
+                const osa = deno > 0 ? Math.round((neno / deno) * 100) : 0;
+
+                skuMap[row.sku].dateMap[row.date] = { osa, neno, deno };
             });
 
-            // Calculate averages and fill values array
+            // Calculate aggregates and fill values array
             const osaDetail = Object.values(skuMap).map(item => {
-                let sum31 = 0, count31 = 0;
-                let sum7 = 0, count7 = 0;
+                let totalNeno31 = 0, totalDeno31 = 0;
+                let totalNeno7 = 0, totalDeno7 = 0;
+                let totalNenoSelected = 0, totalDenoSelected = 0;
 
+                // For the last 31 days trend
                 daysArr.forEach((dateStr, index) => {
-                    const val = item.dateMap[dateStr];
-                    if (val !== undefined && val !== null) {
-                        item.values[index] = val;
-                        sum31 += val;
-                        count31++;
-                        if (index >= 24) { // Last 7 days (indexes 24 to 30)
-                            sum7 += val;
-                            count7++;
+                    const data = item.dateMap[dateStr];
+                    if (data) {
+                        item.values[index] = data.osa;
+                        totalNeno31 += data.neno;
+                        totalDeno31 += data.deno;
+                        if (index >= 24) { // Last 7 days
+                            totalNeno7 += data.neno;
+                            totalDeno7 += data.deno;
                         }
                     } else {
-                        // If no data, we could put 0 or null. The frontend expects a number for rendering.
-                        // Let's put 0 or leave it as null and frontend handles it. 
                         item.values[index] = 0;
                     }
                 });
 
-                const avg31 = count31 > 0 ? Math.round(sum31 / count31) : 0;
-                const avg7 = count7 > 0 ? Math.round(sum7 / count7) : 0;
-                const status = avg7 >= 85 ? "Healthy" : avg7 >= 70 ? "Watch" : "Action";
+                // For the selected range aggregate
+                Object.keys(item.dateMap).forEach(dateStr => {
+                    const d = dayjs(dateStr);
+                    if (!d.isBefore(currentStartDate, 'day') && !d.isAfter(currentEndDate, 'day')) {
+                        totalNenoSelected += item.dateMap[dateStr].neno;
+                        totalDenoSelected += item.dateMap[dateStr].deno;
+                    }
+                });
+
+                const avg31 = totalDeno31 > 0 ? Math.round((totalNeno31 / totalDeno31) * 100) : 0;
+                const avg7 = totalDeno7 > 0 ? Math.round((totalNeno7 / totalDeno7) * 100) : 0;
+                const avgSelected = totalDenoSelected > 0 ? Math.round((totalNenoSelected / totalDenoSelected) * 100) : 0;
+                // Status based on selected period instead of 7 days to match selected dates accuracy
+                const status = avgSelected >= 85 ? "Healthy" : avgSelected >= 70 ? "Watch" : "Action";
 
                 return {
                     name: item.name,
@@ -503,13 +522,14 @@ const getAbsoluteOsaOverview = async (filters) => {
                     values: item.values,
                     avg7,
                     avg31,
+                    avgSelected,
                     status,
-                    cities: [] // For future drilldown if needed
+                    cities: []
                 };
             });
 
-            // Sort by worst avg7 descending or name
-            osaDetail.sort((a, b) => b.avg31 - a.avg31 || a.name.localeCompare(b.name));
+            // Sort by worst avgSelected descending or name
+            osaDetail.sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
 
             result.osaDetail = osaDetail;
 
@@ -1123,17 +1143,24 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
             // Map data into final format: [{ name, sku, values: [...], avg31, status, cities: [{ name, values: [...], avg31 }] }]
             const formattedData = Object.values(skuMap).map(item => {
+                let totalNeno = 0;
+                let totalDeno = 0;
+
                 // Determine overall SKU daily OSA
                 const skuValues = sortedDates.map(d => {
                     const dayData = item.days[d];
-                    if (dayData && dayData.deno > 0) {
-                        return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
+                    if (dayData) {
+                        totalNeno += dayData.neno;
+                        totalDeno += dayData.deno;
+                        if (dayData.deno > 0) {
+                            return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
+                        }
                     }
-                    return 0;
+                    return 0; // fallback UI
                 });
 
-                const skuTotal = skuValues.reduce((a, b) => a + b, 0);
-                const skuAvg31 = skuValues.length > 0 ? Math.round(skuTotal / skuValues.length) : 0;
+                const skuAvg31 = totalDeno > 0 ? Math.round((totalNeno / totalDeno) * 100) : 0;
+                const avgSelected = skuAvg31;
 
                 const last7Values = skuValues.slice(-7);
                 const avg7 = last7Values.length > 0
@@ -1141,25 +1168,32 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     : skuAvg31;
 
                 let status = "Healthy";
-                if (avg7 < 70) status = "Action";
-                else if (avg7 < 85) status = "Watch";
+                if (avgSelected < 70) status = "Action"; // Status based on selected period
+                else if (avgSelected < 85) status = "Watch";
 
                 // Format nested cities
                 const sortedCities = Object.entries(item.cities).map(([cityName, cityDays]) => {
+                    let cityNeno = 0;
+                    let cityDeno = 0;
                     const cityValues = sortedDates.map(d => {
                         const dayData = cityDays[d];
-                        if (dayData && dayData.deno > 0) {
-                            return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
+                        if (dayData) {
+                            cityNeno += dayData.neno;
+                            cityDeno += dayData.deno;
+                            if (dayData.deno > 0) {
+                                return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
+                            }
                         }
-                        return 0; // Or `undefined` if we want to show '-' on UI (but UI currently handles 0 or undefined). We'll stick to 0 for average calculation consistency.
+                        return 0;
                     });
-                    const cityTotal = cityValues.reduce((a, b) => a + b, 0);
-                    const cityAvg31 = cityValues.length > 0 ? Math.round(cityTotal / cityValues.length) : 0;
+                    const cityAvg31 = cityDeno > 0 ? Math.round((cityNeno / cityDeno) * 100) : 0;
+                    const cityAvgSelected = cityAvg31;
 
                     return {
                         name: cityName,
                         values: cityValues,
-                        avg31: cityAvg31
+                        avg31: cityAvg31,
+                        avgSelected: cityAvgSelected
                     };
                 }).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -1173,10 +1207,11 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
+                    avgSelected: avgSelected,
                     status: status,
                     cities: sortedCities
                 };
-            }).sort((a, b) => a.name.localeCompare(b.name));
+            }).sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
 
             return formattedData;
         } catch (error) {

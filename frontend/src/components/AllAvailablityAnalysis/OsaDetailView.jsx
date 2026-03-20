@@ -48,7 +48,7 @@ function SortIcon({ dir }) {
 export default function OsaDetailTableLight({ apiData, loading }) {
     const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
-    const [sortKey, setSortKey] = useState("avg31");
+    const [sortKey, setSortKey] = useState("avgSelected");
     const [sortDir, setSortDir] = useState("desc");
     const visibleDays = 31;
     const [expandedRows, setExpandedRows] = useState(new Set());
@@ -225,7 +225,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                     OSA % Detail View
                                 </div>
                                 <div className="text-xs text-slate-500 font-normal">
-                                    Last {visibleDays} Days • Sortable • Paginated
+                                    Selected Period • Actual OSA • Sortable
                                 </div>
                             </div>
 
@@ -277,11 +277,11 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                             </th> */}
 
                                             <th
-                                                className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900"
-                                                onClick={() => headerSort("avg31")}
+                                                className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 cursor-pointer select-none"
+                                                onClick={() => headerSort("avgSelected")}
                                             >
                                                 <div className="flex items-center justify-center gap-1 h-full">
-                                                    AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
+                                                    OSA <SortIcon dir={sortKey === "avgSelected" || sortKey === "avg31" ? sortDir : undefined} />
                                                 </div>
                                             </th>
 
@@ -307,10 +307,11 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                     <tbody>
                                         {pageRows.map((r) => {
                                             const st = statusStyles(r.status);
-                                            const avgND =
-                                                visibleDays === 31
+                                            const avgND = r.avgSelected !== undefined
+                                                ? r.avgSelected
+                                                : (visibleDays === 31
                                                     ? r.avg31
-                                                    : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
+                                                    : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays));
 
                                             return (
                                                 <React.Fragment key={r.sku}>
@@ -377,10 +378,11 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                     </tr>
                                                     {expandedRows.has(r.sku) &&
                                                         (r.cities || []).map((cityData) => {
-                                                            const cityAvgND =
-                                                                visibleDays === 31
+                                                            const cityAvgND = cityData.avgSelected !== undefined
+                                                                ? cityData.avgSelected
+                                                                : (visibleDays === 31
                                                                     ? cityData.avg31
-                                                                    : Math.round(cityData.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
+                                                                    : Math.round(cityData.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays));
 
                                                             return (
                                                                 <tr key={`${r.sku}-${cityData.name}`} className="bg-slate-50/50">
