@@ -25,6 +25,7 @@ import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMain
 import ScheduledReports from "./pages/Reports/ScheduledReports";
 import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
+import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -141,6 +142,12 @@ function AppContent() {
           <Route path="/geo-intelligence" element={
             <ProtectedRoute>
               <GeoIntelligenceMap />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/compare-skus" element={
+            <ProtectedRoute>
+              <CompareSkuMatrix onClose={() => window.history.back()} />
             </ProtectedRoute>
           } />
         </Routes>
