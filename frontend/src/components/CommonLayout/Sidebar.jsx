@@ -5,6 +5,7 @@ import marsLogo from "../../assets/mars2.svg";
 import mamaearthLogo from "../../assets/mamaearth.jpeg";
 import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
 import boatLogo from "../../assets/Boat.png";
+import zydusLogo from "../../assets/zyduslogo.png";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -68,6 +69,7 @@ const Sidebar = ({
     if (user?.dbName === 'mamaearth') return mamaearthLogo;
     if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
     if (user?.dbName === 'boat') return boatLogo;
+    if (user?.dbName === 'zydus') return zydusLogo;
     return marsLogo;
   }, [user?.dbName]);
 
@@ -75,6 +77,7 @@ const Sidebar = ({
     if (user?.dbName === 'mamaearth') return 'Mamaearth Logo';
     if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
     if (user?.dbName === 'boat') return 'Boat Logo';
+    if (user?.dbName === 'zydus') return 'Zydus Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -159,7 +162,7 @@ const Sidebar = ({
             justifyContent: 'center', // Center logo horizontally
             transition: 'all 0.3s ease',
             width: '100%',
-            height: (user?.dbName === 'mars_petcare' && !isCollapsed) ? 150 : (user?.dbName === 'mamaearth' && !isCollapsed ? 100 : 60),
+            height: (user?.dbName === 'mars_petcare' && !isCollapsed) ? 150 : (user?.dbName === 'mamaearth' && !isCollapsed ? 100 : (user?.dbName === 'zydus' && !isCollapsed ? 80 : 60)),
           }}
         >
           {/* EY Logo Container */}
@@ -178,9 +181,9 @@ const Sidebar = ({
               src={activeLogo}
               alt={activeLogoAlt}
               style={{
-                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : '45px')),
+                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
                 width: isCollapsed ? '100%' : 'auto',
-                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : '180px')),
+                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
                 objectFit: 'contain',
                 padding: '0',
                 display: 'block',
