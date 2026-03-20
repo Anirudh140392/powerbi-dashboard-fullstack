@@ -1041,19 +1041,26 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (pCond) baseConditions.push(pCond);
                 }
 
-                // For brand filter: filter by flag=0 (our brands) or by specific brand name
+                // For brand filter: filter by specific brand name or our valid brands
                 const brandArr = normalizeFilterArray(brandFilter);
-                let numCondition = 'toInt32(overall) = 1';
+                let numCondition = '1=1';
 
                 if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
-                    const brandConds = brandArr.map(b => `lower(brand) LIKE lower('%${escapeStr(b)}%')`).join(' OR ');
-                    numCondition += ` AND (${brandConds})`;
+                    const brandConds = brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+                    numCondition = `lower(brand_name_th) IN (${brandConds})`;
                 } else {
-                    // When brand is "All", filter for our brands using flag=1
-                    numCondition += ` AND toString(flag) = '1'`;
+                    // When brand is "All", filter for our brands using validBrandNames
+                    const validBrandNamesForSos = await getCachedValidBrandNames();
+                    if (validBrandNamesForSos && validBrandNamesForSos.length > 0) {
+                        const brandConds = validBrandNamesForSos.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+                        numCondition = `lower(brand_name_th) IN (${brandConds})`;
+                    } else {
+                        // Fallback if no brands found
+                        numCondition = "toString(flag) = '1'";
+                    }
                 }
 
-                // Simple SOS: SUM(overall) / SUM(overall) for selected filters × 100
+                // Mathematical logic matching user query: SUM(overall) for our brands / SUM(overall) total × 100
                 const sql = `
                     SELECT 
                         sumIf(toInt32(overall), ${numCondition}) as num,
@@ -2941,33 +2948,33 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             // Build base conditions for rb_pdp_olap
             const buildPdpConditions = () => {
                 const conds = [];
-                conds.push(`${src.f.platform} = '${escapeStrMo(moPlatform)}'`);
+                conds.push(`${src.f.platform} = '${escapeStrMain(moPlatform)}'`);
                 if (brandArr && brandArr.length > 0) {
-                    const brandConds = brandArr.map(b => `${src.f.brand} LIKE '%${escapeStrMo(b)}%'`).join(' OR ');
+                    const brandConds = brandArr.map(b => `${src.f.brand} LIKE '%${escapeStrMain(b)}%'`).join(' OR ');
                     conds.push(`(${brandConds})`);
                 }
                 if (locationArr && locationArr.length > 0) {
                     if (locationArr.length === 1) {
-                        conds.push(`${src.f.location} = '${escapeStrMo(locationArr[0])}'`);
+                        conds.push(`${src.f.location} = '${escapeStrMain(locationArr[0])}'`);
                     } else {
-                        conds.push(`${src.f.location} IN (${locationArr.map(l => `'${escapeStrMo(l)}'`).join(', ')})`);
+                        conds.push(`${src.f.location} IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
                     }
                 }
                 // Apply Product_Category filter for rb_pdp_olap
                 const catArrLocal = normalizeFilterArray(filters.category);
                 if (catArrLocal && catArrLocal.length > 0) {
-                    conds.push(`${src.f.category} IN (${catArrLocal.map(c => `'${escapeStrMo(c)}'`).join(', ')})`);
+                    conds.push(`${src.f.category} IN (${catArrLocal.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
                 }
 
                 // Advanced SKU Search Filters
                 const skuArr = normalizeFilterArray(filters.skuName);
                 if (skuArr && skuArr.length > 0) {
-                    const skuConds = skuArr.map(s => `${src.f.productName} LIKE '%${escapeStrMo(s)}%'`).join(' OR ');
+                    const skuConds = skuArr.map(s => `${src.f.productName} LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
                     conds.push(`(${skuConds})`);
                 }
                 const skuCodeArr = normalizeFilterArray(filters.skuCode);
                 if (skuCodeArr && skuCodeArr.length > 0) {
-                    const skuCodeConds = skuCodeArr.map(s => `toString(${src.f.webPid}) LIKE '%${escapeStrMo(s)}%'`).join(' OR ');
+                    const skuCodeConds = skuCodeArr.map(s => `toString(${src.f.webPid}) LIKE '%${escapeStrMain(s)}%'`).join(' OR ');
                     conds.push(`(${skuCodeConds})`);
                 }
 
@@ -3041,30 +3048,30 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     (async () => {
                         const sosBaseConds = [
                             `toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
-                            `platform_name = '${escapeStrMo(moPlatform)}'`
+                            `platform_name = '${escapeStrMain(moPlatform)}'`
                         ];
                         const localCatArr = normalizeFilterArray(category);
                         if (localCatArr && localCatArr.length > 0) {
                             if (localCatArr.length === 1) {
-                                sosBaseConds.push(`keyword_category = '${escapeStrMo(localCatArr[0])}'`);
+                                sosBaseConds.push(`keyword_category = '${escapeStrMain(localCatArr[0])}'`);
                             } else {
-                                sosBaseConds.push(`keyword_category IN (${localCatArr.map(c => `'${escapeStrMo(c)}'`).join(', ')})`);
+                                sosBaseConds.push(`keyword_category IN (${localCatArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
                             }
                         }
                         if (locationArr && locationArr.length > 0) {
                             if (locationArr.length === 1) {
-                                sosBaseConds.push(`location_name = '${escapeStrMo(locationArr[0])}'`);
+                                sosBaseConds.push(`location_name = '${escapeStrMain(locationArr[0])}'`);
                             } else {
-                                sosBaseConds.push(`location_name IN (${locationArr.map(l => `'${escapeStrMo(l)}'`).join(', ')})`);
+                                sosBaseConds.push(`location_name IN (${locationArr.map(l => `'${escapeStrMain(l)}'`).join(', ')})`);
                             }
                         }
 
                         const sosNumConds = [...sosBaseConds];
                         if (brandArr && brandArr.length > 0) {
                             if (brandArr.length === 1) {
-                                sosNumConds.push(`brand = '${escapeStrMo(brandArr[0])}'`);
+                                sosNumConds.push(`brand = '${escapeStrMain(brandArr[0])}'`);
                             } else {
-                                sosNumConds.push(`brand IN (${brandArr.map(b => `'${escapeStrMo(b)}'`).join(', ')})`);
+                                sosNumConds.push(`brand IN (${brandArr.map(b => `'${escapeStrMain(b)}'`).join(', ')})`);
                             }
                         } else {
                             sosNumConds.push(`toString(flag) = '1'`);
@@ -3089,20 +3096,20 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         const brandsForNumerator = (brand && brand !== 'All')
                             ? (Array.isArray(brand) ? brand : [brand])
                             : (await getGlobalOurBrandsList());
-                        const brandInClause = brandsForNumerator.map(b => `'${escapeStrMo(b)}'`).join(', ');
+                        const brandInClause = brandsForNumerator.map(b => `'${escapeStrMain(b)}'`).join(', ');
 
                         const msBaseConds = [
                             `toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
                             `sales IS NOT NULL`,
-                            `platform = '${escapeStrMo(moPlatform)}'`
+                            `platform = '${escapeStrMain(moPlatform)}'`
                         ];
-                        if (location && location !== 'All') msBaseConds.push(`location = '${escapeStrMo(location)}'`);
+                        if (location && location !== 'All') msBaseConds.push(`location = '${escapeStrMain(location)}'`);
                         const localCatArr = normalizeFilterArray(category);
                         if (localCatArr && localCatArr.length > 0) {
                             if (localCatArr.length === 1) {
-                                msBaseConds.push(`category = '${escapeStrMo(localCatArr[0])}'`);
+                                msBaseConds.push(`category = '${escapeStrMain(localCatArr[0])}'`);
                             } else {
-                                msBaseConds.push(`category IN (${localCatArr.map(c => `'${escapeStrMo(c)}'`).join(', ')})`);
+                                msBaseConds.push(`category IN (${localCatArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
                             }
                         }
 
@@ -4273,18 +4280,23 @@ const computeTrendData = async (filters) => {
             return conds.join(' AND ');
         };
 
-        // Numerator: Our brands using flag=0 and countIf(overall=1)
+        // Numerator: Our valid brands using brand_name_th
         const sosNumConds = buildSosConds();
+        let numCondition = "toString(flag) = '1'";
+        if (validBrandNamesForMs && validBrandNamesForMs.length > 0) {
+            numCondition = `lower(brand_name_th) IN (${validBrandNamesForMs.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
+        }
+
         const sosNumerator = await queryClickHouse(`
             SELECT ${groupExpressionKw} as date_group, sum(toInt32(overall)) as count
             FROM rb_kw_olap
-            WHERE ${sosNumConds} AND toString(flag) = '1'
+            WHERE ${sosNumConds} AND ${numCondition}
             GROUP BY ${groupExpressionKw}
         `);
 
         // Denominator: All products (no brand filter)
         const sosDenominator = await queryClickHouse(`
-            SELECT ${groupExpressionKw} as date_group, sum(overall) as count
+            SELECT ${groupExpressionKw} as date_group, sum(toInt32(overall)) as count
             FROM rb_kw_olap
             WHERE ${sosNumConds}
             GROUP BY ${groupExpressionKw}
