@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import dayjs from "dayjs";
 import ReactFlow, {
   Controls,
   Handle,
@@ -205,11 +206,12 @@ const TrendButton = ({ onClick }) => (
   </motion.div>
 );
 
-const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLabel = "KPI", category = "", platform = "" }) => {
+const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLabel = "KPI", category = "", platform = "", selectedBrand = "", selectedCategory = "", currentPeriod = "Current Period", comparePeriod = "Compare Period" }) => {
   const brands = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer"];
   const isBottom = position === "bottom";
   const popupRef = React.useRef(null);
   const [hOffset, setHOffset] = useState(0);
+  const [activeTab, setActiveTab] = useState("gainers");
 
   useEffect(() => {
     if (popupRef.current) {
@@ -290,44 +292,91 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
     return val.toFixed(1);
   };
 
-  const displayMetrics = (metrics && metrics.length > 0) ? metrics : brands.map((brand, idx) => {
-    // Generate varied numbers based on brand, kpi and platform
-    const brandSeed = brand.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const kpiSeed = kpiLabel.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const platformSeed = (platform || "base").split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const seed = (brandSeed + kpiSeed + platformSeed + idx) % 20;
+  const getSeedFromStr = (str) => {
+    let h = 0xdeadbeef;
+    for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
 
+  const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
+  const hasSpecificCategory = selectedCategory && selectedCategory !== "All" && selectedCategory !== "All Categories";
+  const isSkuView = hasSpecificBrand;
+  const isQCPlatform = ["blinkit", "zepto", "instamart"].includes((platform || "").toLowerCase());
+  const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("cvr");
+  const showKeyword = isSkuView && isQCPlatform && isKeywordScopedKpi;
+  const headerColumn = showKeyword ? "Keyword" : (isSkuView ? "SKU Name" : "Brand Identity");
+
+  const getDynamicRows = () => {
     const isPercent = kpiLabel.toLowerCase().includes("%") || kpiLabel.toLowerCase().includes("conv") || kpiLabel.toLowerCase().includes("osa") || kpiLabel.toLowerCase().includes("listing");
     const isCurrency = kpiLabel.toLowerCase().includes("offtake") || kpiLabel.toLowerCase().includes("price") || kpiLabel.toLowerCase().includes("ppu");
     const isImpressions = kpiLabel.toLowerCase().includes("impression");
 
-    let currentVal, deltaVal;
-
-    if (isPercent) {
-      currentVal = 65 + (seed * 1.5);
-      deltaVal = (seed - 10) * 0.8;
-    } else if (isImpressions) {
-      currentVal = (8 + seed * 6) * 100000;
-      deltaVal = (seed - 12) * 20000;
-    } else if (isCurrency) {
-      currentVal = (40 + seed * 15) * 100000;
-      deltaVal = (seed - 8) * 60000;
-    } else {
-      currentVal = 100 + seed * 20;
-      deltaVal = (seed - 10) * 15;
-    }
-
     const mKey = getMetricKey(kpiLabel, category);
     const dKey = `delta${mKey.charAt(0).toUpperCase() + mKey.slice(1)}`;
-    const sign = deltaVal >= 0 ? "+" : "";
 
-    return {
-      brand,
-      [mKey]: formatVal(currentVal),
-      [dKey]: isPercent ? `${sign}${(deltaVal).toFixed(1)}%` : `${sign}${formatVal(deltaVal)}`
-    };
-  });
+    let rows = [];
+    for(let i=0; i<5; i++) {
+        const seedStr = `${kpiLabel}-${selectedBrand}-${selectedCategory}-${platform}-${activeTab}-${i}`;
+        const seed = getSeedFromStr(seedStr);
+        let name = "";
+        if (isSkuView) {
+            const b = selectedBrand || "Brand";
+            if (showKeyword) {
+                if (i === 0) name = `${b} chocolates`;
+                else if (i === 1) name = `${b} bar snacks`;
+                else if (i === 2) name = `${b} gifting pack`;
+                else if (i === 3) name = `${b} discount`;
+                else name = `best ${b} offers`;
+            } else {
+                if (i === 0) name = `${b} Standard Pack`;
+                else if (i === 1) name = `${b} Premium Box`;
+                else if (i === 2) name = `${b} Minis`;
+                else if (i === 3) name = `${b} Combo`;
+                else name = `${b} Family Pack`;
+            }
+        } else {
+            if (hasSpecificCategory) {
+               const cats = Array.isArray(selectedCategory) ? selectedCategory[0] : selectedCategory;
+               name = `${brands[i % brands.length]} (${cats})`;
+            } else {
+               name = brands[i % brands.length];
+            }
+        }
 
+        const isGainer = activeTab === "gainers";
+        let currentVal, deltaVal;
+
+        if (isPercent) {
+          currentVal = 65 + (seed * 20);
+          deltaVal = isGainer ? (1 + seed * 5) : -(1 + seed * 5);
+        } else if (isImpressions) {
+          currentVal = (8 + seed * 10) * 100000;
+          deltaVal = isGainer ? (10000 + seed * 50000) : -(10000 + seed * 50000);
+        } else if (isCurrency) {
+          currentVal = (40 + seed * 30) * 100000;
+          deltaVal = isGainer ? (10000 + seed * 60000) : -(10000 + seed * 60000);
+        } else {
+          currentVal = 100 + seed * 50;
+          deltaVal = isGainer ? (5 + seed * 15) : -(5 + seed * 15);
+        }
+
+        const prevVal = currentVal - deltaVal;
+        const deltaPerc = (deltaVal / Math.max(0.0001, Math.abs(prevVal))) * 100;
+        const sign = deltaVal > 0 ? "+" : "";
+
+        rows.push({
+          name: name,
+          [mKey]: formatVal(currentVal),
+          [dKey]: `${sign}${deltaPerc.toFixed(1)}%`,
+          _origDelta: deltaVal
+        });
+    }
+
+    rows.sort((a,b) => activeTab === "gainers" ? b._origDelta - a._origDelta : a._origDelta - b._origDelta);
+    return rows;
+  };
+
+  const dynamicRows = getDynamicRows();
   const metricKey = getMetricKey(kpiLabel, category);
   const deltaKey = `delta${metricKey.charAt(0).toUpperCase() + metricKey.slice(1)}`;
 
@@ -366,6 +415,32 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
             PRO INTELLIGENCE PIPELINE V2.0 • REAL-TIME DATA STREAM
           </Typography>
         </Box>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <Box
+            onClick={(e) => { e.stopPropagation(); setActiveTab('gainers'); }}
+            sx={{
+              px: 2, py: 1, borderRadius: 2, cursor: "pointer",
+              bgcolor: activeTab === 'gainers' ? "rgba(0,255,153,0.15)" : "transparent",
+              color: activeTab === 'gainers' ? "#00ff99" : "rgba(255,255,255,0.4)",
+              fontWeight: 800, fontSize: "14px", border: activeTab === 'gainers' ? "1px solid rgba(0,255,153,0.3)" : "1px solid transparent",
+              transition: "all 0.2s"
+            }}
+          >
+            Top Gainers
+          </Box>
+          <Box
+            onClick={(e) => { e.stopPropagation(); setActiveTab('drainers'); }}
+            sx={{
+              px: 2, py: 1, borderRadius: 2, cursor: "pointer",
+              bgcolor: activeTab === 'drainers' ? "rgba(255,77,77,0.15)" : "transparent",
+              color: activeTab === 'drainers' ? "#ff4d4d" : "rgba(255,255,255,0.4)",
+              fontWeight: 800, fontSize: "14px", border: activeTab === 'drainers' ? "1px solid rgba(255,77,77,0.3)" : "1px solid transparent",
+              transition: "all 0.2s"
+            }}
+          >
+            Top Drainers
+          </Box>
+        </Box>
       </Box>
 
       <TableContainer sx={{
@@ -379,14 +454,14 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
         <Table size="small" sx={{ "& td, & th": { border: "none", py: { xs: 2, md: 2.5 }, px: { xs: 3, md: 6 } } }}>
           <TableHead>
             <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)", position: "sticky", top: 0, bgcolor: "rgba(10, 15, 28, 1)", zIndex: 10 }}>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Brand Identity</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Current Month {kpiLabel}</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Previous Month {kpiLabel}</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>{headerColumn}</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Current Period</TableCell>
+              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Comparison Period</TableCell>
               <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Change</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {displayMetrics.map((row, idx) => {
+            {dynamicRows.map((row, idx) => {
               const currStr = row[metricKey];
               const deltaStr = row[deltaKey];
               const currVal = parseVal(currStr);
@@ -395,7 +470,7 @@ const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLa
 
               return (
                 <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
-                  <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.brand}</TableCell>
+                  <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.name}</TableCell>
                   <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{currStr}</TableCell>
                   <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{formatVal(prevVal)}</TableCell>
                   <TableCell>
@@ -593,6 +668,10 @@ const KpiNode = ({ data }) => {
             kpiLabel={label}
             category={category}
             platform={data.platform || ""}
+            selectedBrand={data.selectedBrand || ""}
+            selectedCategory={data.selectedCategory || ""}
+            currentPeriod={data.currentPeriodLabel || "Current Period"}
+            comparePeriod={data.comparePeriodLabel || "Compare Period"}
           />
         )}
       </AnimatePresence>
@@ -1326,7 +1405,7 @@ const computeSubtreeHeight = (node, collapsedNodes) => {
   return childHeights.reduce((sum, h, idx) => sum + h + (idx > 0 ? VERTICAL_GAP : 0), 0);
 };
 
-const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, platform = "") => {
+const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, platform = "", selectedBrand = "", selectedCategory = "", currentPeriodLabel = "", comparePeriodLabel = "") => {
   const isCollapsed = collapsedNodes.has(node.id);
   const subtreeHeight = computeSubtreeHeight(node, collapsedNodes);
 
@@ -1337,6 +1416,10 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, plat
     data: {
       ...node,
       platform,
+      selectedBrand,
+      selectedCategory,
+      currentPeriodLabel,
+      comparePeriodLabel,
       hasChildren: node.children?.length > 0,
       isCollapsed,
       onToggle: () => { },
@@ -1371,7 +1454,7 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, plat
         },
       });
 
-      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends, platform);
+      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends, platform, selectedBrand, selectedCategory, currentPeriodLabel, comparePeriodLabel);
       currentChildY += childHeight + VERTICAL_GAP;
     });
   }
@@ -1390,9 +1473,15 @@ const NodeDetailPopup = ({ open, onClose, nodeData, selectedBrand, selectedPlatf
   if (!nodeData) return null;
 
   const normalizedPlatform = (selectedPlatform || "").toLowerCase();
+  const kpiLabel = nodeData.label || "KPI";
+  const isQCPlatform = ["blinkit", "zepto", "instamart"].includes(normalizedPlatform);
+  const isKeywordScopedKpi = kpiLabel.toLowerCase().includes("impression") || kpiLabel.toLowerCase().includes("conversion") || kpiLabel.toLowerCase().includes("cvr");
+  const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
+  const showKeyword = hasSpecificBrand && isQCPlatform && isKeywordScopedKpi;
+  const headerColumn = showKeyword ? "Keyword" : (hasSpecificBrand ? "SKU Name" : "Brand Identity");
+
   const kpiKey = (nodeData.category || nodeData.label || "").toLowerCase();
-  const showKeywordColumn = /impression|conversion|cvr/i.test(nodeData.label || nodeData.category || "");
-  const isAdImpressions = showKeywordColumn;
+  const isAdImpressions = showKeyword;
 
   const contributionsMap = {
     amazon: {
@@ -1655,74 +1744,98 @@ const NodeDetailPopup = ({ open, onClose, nodeData, selectedBrand, selectedPlatf
     return "offtake";
   };
 
-  const getKpiSeed = (brand, platform, kpi, isGainer, idx) => {
-    const p = (platform || "").toLowerCase();
-    const b = (brand || "").toLowerCase();
-    const base = isGainer ? 10 : -7;
-    const platformBoost = p.includes("amazon") ? 3 : p.includes("flipkart") ? 2 : 1;
-    const kpiBoost = kpi === "offtake" ? 4 : kpi === "impressions" ? 3.6 : kpi === "conversion" ? 2.4 : kpi === "price" ? 1.1 : 2.5;
-    return Math.round((base + kpiBoost * (idx + 1) + (brand.length % 4) + platformBoost) * (isGainer ? 1 : 1.05));
+  const getSeedFromStrNode = (str) => {
+    let h = 0xdeadbeef;
+    for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
   };
 
-  const generateBrandRows = (brand, kpi, platform, isGainer) => {
-    const rows = [];
-    for (let i = 0; i < 5; i += 1) {
-      const delta = getKpiSeed(brand, platform, kpi, isGainer, i);
-      const sign = delta >= 0 ? "+" : "";
-      const value = `${sign}${delta.toFixed(1)}%`;
-      const baseName = `${brand} ${kpi}`;
-      rows.push({
-        sku: `${baseName} SKU ${i + 1}`,
-        keyword: `${baseName} KW ${i + 1}`,
-        brand: brand.charAt(0).toUpperCase() + brand.slice(1),
-        value,
-      });
+  const formatModalVal = (val, label) => {
+    const absVal = Math.abs(val);
+    const l = label.toLowerCase();
+    if (l.includes("offtake")) {
+      if (absVal >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
+      if (absVal >= 100000) return `₹ ${(val / 100000).toFixed(2)} lac`;
+      return `₹ ${val.toLocaleString()}`;
     }
-    return rows;
-  };
-
-  const getBrandSpecificRows = (brand, kpi, platform) => {
-    const normalized = (brand || "").trim().toLowerCase();
-    if (!normalized || normalized === "all" || normalized === "all brands") return null;
-    if (!dropdownBrands.includes(normalized)) return null;
-
-    return {
-      gainers: generateBrandRows(normalized, kpi, platform, true),
-      drainers: generateBrandRows(normalized, kpi, platform, false),
-    };
-  };
-
-  const getContributionRows = () => {
-    const platformKey = normalizedPlatform === "flipkart" ? "flipkart" : normalizedPlatform === "amazon" ? "amazon" : "blinkit";
-    const platformData = contributionsMap[platformKey] || contributionsMap.blinkit;
-    const kpi = kpiCategoryFromLabel(kpiKey);
-
-    const brandRows = getBrandSpecificRows(selectedBrand, kpi, normalizedPlatform);
-    if (brandRows) {
-      return brandRows;
+    if (l.includes("impressions")) {
+      if (absVal >= 100000) return `${(val / 100000).toFixed(1)} lac`;
+      if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
+      return val.toLocaleString();
     }
-
-    const kpiRows = platformData[kpi] || platformData.offtake || { gainers: [], drainers: [] };
-    return {
-      gainers: kpiRows.gainers,
-      drainers: kpiRows.drainers,
-    };
+    if (l.includes("price") || l.includes("ppu")) return `₹${val.toFixed(1)}`;
+    if (label.includes("%") || l.includes("conv")) return `${val.toFixed(1)}%`;
+    return val.toFixed(1);
   };
 
-  const { gainers: fullGainers, drainers: fullDrainers } = getContributionRows();
-  const filterByBrand = (list) => {
-    if (!selectedBrand || selectedBrand === "All" || selectedBrand === "All Brands") return list;
-    return list.filter(item => item.brand.toLowerCase() === selectedBrand.toLowerCase());
+  const getDynamicModalRows = (isGainer) => {
+     const brands = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer"];
+     const l = kpiLabel.toLowerCase();
+     const isPercent = l.includes("%") || l.includes("conv") || l.includes("osa") || l.includes("listing");
+     const isCurrency = l.includes("offtake") || l.includes("price") || l.includes("ppu");
+     const isImpressions = l.includes("impression");
+
+     let rows = [];
+     for(let i=0; i<10; i++) {
+         const seedStr = `${kpiLabel}-${selectedBrand}-${normalizedPlatform}-${isGainer ? 'g' : 'd'}-${i}`;
+         const seed = getSeedFromStrNode(seedStr);
+         let name = "";
+         if (hasSpecificBrand) {
+             const b = selectedBrand;
+             if (showKeyword) {
+                 const kwSuffixes = ["chocolates", "bar snacks", "gifting pack", "discount", "best offers", "multipack", "premium", "sale", "online", "organic"];
+                 name = `${b} ${kwSuffixes[i % kwSuffixes.length]}`;
+             } else {
+                 const skuSuffixes = ["Standard Pack", "Premium Box", "Minis", "Combo", "Family Pack", "Refill", "Bulk", "Travel Pack", "Small", "Regular"];
+                 name = `${b} ${skuSuffixes[i % skuSuffixes.length]}`;
+             }
+         } else {
+             name = brands[i % brands.length];
+             if (i >= brands.length) name = `${name} (v${Math.floor(i/brands.length) + 1})`;
+         }
+
+         let currentVal, deltaVal;
+         if (isPercent) {
+             currentVal = 65 + (seed * 20);
+             deltaVal = isGainer ? (1 + seed * 5) : -(1 + seed * 5);
+         } else if (isImpressions) {
+             currentVal = (8 + seed * 10) * 100000;
+             deltaVal = isGainer ? (10000 + seed * 50000) : -(10000 + seed * 50000);
+         } else if (isCurrency) {
+             currentVal = (40 + seed * 30) * 100000;
+             deltaVal = isGainer ? (10000 + seed * 60000) : -(10000 + seed * 60000);
+         } else {
+             currentVal = 100 + seed * 50;
+             deltaVal = isGainer ? (5 + seed * 15) : -(5 + seed * 15);
+         }
+
+         const prevVal = currentVal - deltaVal;
+         const deltaPerc = (deltaVal / Math.max(0.0001, Math.abs(prevVal))) * 100;
+         const sign = deltaVal > 0 ? "+" : "";
+
+         const currStr = formatModalVal(currentVal, kpiLabel);
+         const deltaStr = `${sign}${deltaPerc.toFixed(1)}%`;
+         const prevValStr = formatModalVal(prevVal, kpiLabel);
+
+         rows.push({
+           name,
+           current: currStr,
+           previous: prevValStr,
+           change: deltaStr,
+           _origDelta: deltaVal
+         });
+     }
+     rows.sort((a,b) => isGainer ? b._origDelta - a._origDelta : a._origDelta - b._origDelta);
+     return rows;
   };
-  const filteredGainers = filterByBrand(fullGainers);
-  const filteredDrainers = filterByBrand(fullDrainers);
-  const activeData = tabIndex === 0 ? filteredGainers : filteredDrainers;
+
+  const activeData = getDynamicModalRows(tabIndex === 0);
   const pagedData = activeData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   const handleDownload = () => {
     const csvRows = [
-      [isAdImpressions ? "Keyword" : "SKU Name", "Brand", `${nodeData.label} Delta`],
-      ...activeData.map(row => [isAdImpressions ? (row.keyword || row.sku) : row.sku, row.brand, row.value])
+      [headerColumn, "Current Period", "Comparison Period", "Change"],
+      ...activeData.map(row => [row.name, row.current, row.previous, row.change])
     ];
     const csvString = csvRows.map(e => e.join(",")).join("\n");
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
@@ -1785,7 +1898,7 @@ const NodeDetailPopup = ({ open, onClose, nodeData, selectedBrand, selectedPlatf
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
               <Typography sx={{ fontSize: "13px", fontWeight: 900, color: "#000000", textTransform: "uppercase", letterSpacing: "1.2px" }}>
-                {showKeywordColumn ? "Keyword Contribution Analysis" : "SKU Contribution Analysis"}
+                {showKeyword ? "Keyword Contribution Analysis" : "SKU Contribution Analysis"}
               </Typography>
               <Tooltip title="Download CSV" arrow>
                 <IconButton onClick={handleDownload} sx={{ bgcolor: 'rgba(0,0,0,0.03)', color: '#64748b', p: 0.8 }}>
@@ -1831,22 +1944,24 @@ const NodeDetailPopup = ({ open, onClose, nodeData, selectedBrand, selectedPlatf
               <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
                 <TableRow>
                   <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>
-                    {isAdImpressions ? 'Keyword' : 'SKU Name'}
+                    {headerColumn}
                   </TableCell>
-                  <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>Brand</TableCell>
-                  <TableCell align="right" sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>{nodeData.label} Δ</TableCell>
+                  <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>Current Period</TableCell>
+                  <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>Comparison Period</TableCell>
+                  <TableCell align="right" sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>Change</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {pagedData.length > 0 ? pagedData.map((row, idx) => (
-                  <TableRow key={idx} sx={{ '&:last-child td': { border: 0 }, hover: { bgcolor: 'rgba(0,0,0,0.01)' } }}>
-                    <TableCell sx={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', py: 2 }}>{showKeywordColumn ? (row.keyword || row.sku) : row.sku}</TableCell>
-                    <TableCell sx={{ fontSize: '12px', fontWeight: 700, color: '#64748b', py: 2 }}>{row.brand}</TableCell>
+                  <TableRow key={idx} sx={{ '&:last-child td': { border: 0 }, '&:hover': { bgcolor: 'rgba(0,0,0,0.01)' } }}>
+                    <TableCell sx={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', py: 2 }}>{row.name}</TableCell>
+                    <TableCell sx={{ fontSize: '12px', fontWeight: 700, color: '#64748b', py: 2 }}>{row.current}</TableCell>
+                    <TableCell sx={{ fontSize: '12px', fontWeight: 700, color: '#64748b', py: 2 }}>{row.previous}</TableCell>
                     <TableCell align="right" sx={{
                       fontSize: '13px', fontWeight: 900, py: 2,
-                      color: row.value.startsWith('+') ? '#0d9488' : '#e11d48'
+                      color: row.change.startsWith('+') ? '#0d9488' : '#e11d48'
                     }}>
-                      {row.value}
+                      {row.change}
                     </TableCell>
                   </TableRow>
                 )) : (
@@ -1998,7 +2113,12 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     const initialGap = isFlipkartAmazon ? 80 : 180;
     const results = { nodes: [], edges: [] };
     const rootHeight = computeSubtreeHeight(currentTreeData, collapsedNodes, initialGap);
-    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends, context.platform);
+
+    const fmtDate = (d) => d ? dayjs(d).format("D MMM'YY") : null;
+    const curP = (context.timeStart && context.timeEnd) ? `${fmtDate(context.timeStart)} - ${fmtDate(context.timeEnd)}` : "Current Period";
+    const comP = (context.compareStart && context.compareEnd) ? `${fmtDate(context.compareStart)} - ${fmtDate(context.compareEnd)}` : "Compare Period";
+
+    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends, context.platform, context.brand, context.category, curP, comP);
 
     const nodesList = results.nodes.map((n) => {
       const isFocused = focusSet ? focusSet.has(n.id) : true;
