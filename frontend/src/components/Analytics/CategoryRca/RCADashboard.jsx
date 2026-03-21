@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronDown, Info, BarChart2, Calendar } from 'lucide-react';
 import { Typography, Box } from '@mui/material';
 import RCATree from './RCATree';
+import CategoryTrendsDrawer from '../CategoryTrendsDrawer';
 import axiosInstance from '../../../api/axiosInstance';
 import DateRangeComparePicker from "../../CommonLayout/DateRangeComparePicker";
 import dayjs from "dayjs";
@@ -21,6 +22,15 @@ const RCADashboard = () => {
   const [compareEnd, setCompareEnd] = useState(dayjs().subtract(16, "day"));
   const [compareOn, setCompareOn] = useState(true);
   const [periodLabel, setPeriodLabel] = useState("Last 15 Days");
+
+  // Trends Drawer State
+  const [trendsOpen, setTrendsOpen] = useState(false);
+  const [targetKpi, setTargetKpi] = useState(null);
+
+  const handleViewTrends = (kpi) => {
+    setTargetKpi(kpi);
+    setTrendsOpen(true);
+  };
 
   const handleDateApply = (ts, te, cs, ce, co, label) => {
     setTimeStart(ts);
@@ -296,17 +306,26 @@ const RCADashboard = () => {
           boxShadow: '0 25px 60px -15px rgba(0,0,0,0.08)',
           border: '1px solid rgba(0,0,0,0.03)'
         }}>
-          <RCATree context={{
-            platform,
-            category,
-            brand,
-            timeStart,
-            timeEnd,
-            compareStart,
-            compareEnd,
-            compareOn
-          }} />
+          <RCATree 
+            onViewTrends={handleViewTrends}
+            context={{
+                platform,
+                category,
+                brand,
+                timeStart,
+                timeEnd,
+                compareStart,
+                compareEnd,
+                compareOn
+            }} 
+          />
         </Box>
+
+        <CategoryTrendsDrawer 
+            open={trendsOpen} 
+            onClose={() => setTrendsOpen(false)} 
+            targetKpi={targetKpi}
+        />
       </div>
     </div>
   );

@@ -71,6 +71,43 @@ const COLORS = {
   conversion: "#0C831F",
 };
 
+// --- Core Utility Helpers (Global) ---
+const getSeedFromStr = (str) => {
+  let h = 0xdeadbeef;
+  for (let i = 0; i < (str || "").length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
+  }
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+
+const formatValue = (val, kpiLabel) => {
+  const absVal = Math.abs(val);
+  const l = (kpiLabel || "").toLowerCase();
+  
+  // Offtake / Revenue logic
+  if (l.includes("offtake")) {
+    if (absVal >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
+    if (absVal >= 100000) return `₹ ${(val / 100000).toFixed(2)} lac`;
+    return `₹ ${val.toLocaleString()}`;
+  }
+  
+  // Impressions logic
+  if (l.includes("impressions")) {
+    if (absVal >= 100000) return `${(val / 100000).toFixed(1)} lac`;
+    if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
+    return val.toLocaleString();
+  }
+  
+  // Pricing logic
+  if (l.includes("price") || l.includes("ppu")) return `₹ ${val.toFixed(2)}`;
+  
+  // Percent / Conversion logic
+  if (l.includes("%") || l.includes("conv") || l.includes("rate")) return `${val.toFixed(1)}%`;
+  
+  // Default fallback
+  return val.toLocaleString(undefined, { maximumFractionDigits: 1 });
+};
+
 // --- Custom Cursor / Mouse Follower ---
 const MagicCursor = () => {
   const cursorX = useMotionValue(-100);
@@ -206,287 +243,415 @@ const TrendButton = ({ onClick }) => (
   </motion.div>
 );
 
-const HoverMetricsPopup = ({ metrics, position = "top", isOrganic = false, kpiLabel = "KPI", category = "", platform = "", selectedBrand = "", selectedCategory = "", currentPeriod = "Current Period", comparePeriod = "Compare Period" }) => {
-  const brands = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer"];
+/**
+ * SLEEK MINI PREVIEW (Hover)
+ */
+/**
+ * DETAILED METRICS POPUP (Hover)
+ * Shows Brand Identity table with a '+' button to drill down into Modal.
+ */
+const HoverMetricsPopup = ({ kpiLabel, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown }) => {
   const isBottom = position === "bottom";
-  const popupRef = React.useRef(null);
-  const [hOffset, setHOffset] = useState(0);
   const [activeTab, setActiveTab] = useState("gainers");
+  
+  // Decide which entity level to show based on sidebar selection
+  const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands";
+  const isSkuFilterActive = selectedSku && selectedSku !== "All SKUs";
+  const l = (kpiLabel || "").toLowerCase();
+  const isKeywordKpi = l.includes("impression") || l.includes("conversion") || l.includes("conv");
 
-  useEffect(() => {
-    if (popupRef.current) {
-      const rect = popupRef.current.getBoundingClientRect();
-      const padding = 20; // safe margin
-      let offset = 0;
+  let entityType = "Brand";
+  let entities = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer", "Mars", "Skittles", "Doublemint", "M&M's", "Hubba Bubba", "Extra"];
 
-      if (rect.left < padding) {
-        offset = padding - rect.left;
-      } else if (rect.right > window.innerWidth - padding) {
-        offset = window.innerWidth - padding - rect.right;
-      }
-
-      if (offset !== 0) {
-        setHOffset(offset);
-      }
+  if (isSkuFilterActive) {
+    entityType = "City";
+    entities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Lucknow", "Surat", "Kanpur"];
+  } else if (isBrandFilterActive) {
+    if (isKeywordKpi) {
+      entityType = "Keyword";
+      entities = [`Best ${selectedBrand}`, `${selectedBrand} reviews`, `Buy ${selectedBrand}`, `${selectedBrand} discount`, `${selectedBrand} deals`, `${selectedBrand} near me`, `${selectedBrand} price`, `Top ${selectedBrand}`];
+    } else {
+      entityType = "SKU";
+      entities = [`${selectedBrand} 100g Pack`, `${selectedBrand} 250g Box`, `${selectedBrand} Single Bar`, `${selectedBrand} Multipack`, `${selectedBrand} Value Pack`, `${selectedBrand} Twin Pack`, `${selectedBrand} Family Pack` ];
     }
-  }, []);
-
-  if (isOrganic) {
-    // This is now handled by the generalized dynamic tooltip
   }
 
-  const getMetricKey = (label, cat) => {
-    const l = label.toLowerCase();
-    const c = cat ? cat.toLowerCase() : "";
-
-    // Keyword specific mappings
-    if (l.includes("branded")) {
-      return c === "ad" ? "adBranded" : "orgBranded";
-    }
-    if (l.includes("generic")) {
-      return "orgGeneric";
-    }
-    if (l.includes("comp")) {
-      return "adComp";
-    }
-    if (l.includes("organic impressions")) return "organic";
-    if (l.includes("ad impressions")) return "ad";
-
-    // Standard mappings
-    if (l.includes("offtake")) return "offtake";
-    if (l.includes("price")) return "price";
-    if (l.includes("impressions")) return "impressions";
-    if (l.includes("conversion")) return "conversion";
-    if (l.includes("disc")) return "discount";
-    if (l.includes("osa")) return "osa";
-    if (l.includes("ppu")) return "ppu";
-    if (l.includes("rating")) return "rating";
-    if (l.includes("listing")) return "listing";
-    return "offtake";
-  };
-
-  const parseVal = (str) => {
-    if (!str) return 0;
-    let s = String(str).replace(/[₹,% ]/g, "").toLowerCase();
-    let multiplier = 1;
-    if (s.endsWith('lac')) { multiplier = 100000; s = s.replace('lac', ''); }
-    else if (s.endsWith('k')) { multiplier = 1000; s = s.replace('k', ''); }
-    else if (s.endsWith('cr')) { multiplier = 10000000; s = s.replace('cr', ''); }
-    return (parseFloat(s) || 0) * multiplier;
-  };
-
-  const formatVal = (val) => {
-    const absVal = Math.abs(val);
-    if (kpiLabel.toLowerCase().includes("offtake")) {
-      if (absVal >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
-      if (absVal >= 100000) return `₹ ${(val / 100000).toFixed(2)} lac`;
-      return `₹ ${val.toLocaleString()}`;
-    }
-    if (kpiLabel.toLowerCase().includes("impressions")) {
-      if (absVal >= 100000) return `${(val / 100000).toFixed(1)} lac`;
-      if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
-      return val.toLocaleString();
-    }
-    if (kpiLabel.toLowerCase().includes("price") || kpiLabel.toLowerCase().includes("ppu")) return `₹${val.toFixed(1)}`;
-    if (kpiLabel.includes("%") || kpiLabel.toLowerCase().includes("conv")) return `${val.toFixed(1)}%`;
-    return val.toFixed(1);
-  };
-
-  const getSeedFromStr = (str) => {
-    let h = 0xdeadbeef;
-    for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
-    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-  };
-
-  const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
-  const hasSpecificCategory = selectedCategory && selectedCategory !== "All" && selectedCategory !== "All Categories";
-  const isSkuView = hasSpecificBrand;
-  const isQCPlatform = ["blinkit", "zepto", "instamart"].includes((platform || "").toLowerCase());
-  const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("cvr");
-  const showKeyword = isSkuView && isQCPlatform && isKeywordScopedKpi;
-  const headerColumn = showKeyword ? "Keyword" : (isSkuView ? "SKU Name" : "Brand Identity");
-
-  const getDynamicRows = () => {
-    const isPercent = kpiLabel.toLowerCase().includes("%") || kpiLabel.toLowerCase().includes("conv") || kpiLabel.toLowerCase().includes("osa") || kpiLabel.toLowerCase().includes("listing");
-    const isCurrency = kpiLabel.toLowerCase().includes("offtake") || kpiLabel.toLowerCase().includes("price") || kpiLabel.toLowerCase().includes("ppu");
-    const isImpressions = kpiLabel.toLowerCase().includes("impression");
-
-    const mKey = getMetricKey(kpiLabel, category);
-    const dKey = `delta${mKey.charAt(0).toUpperCase() + mKey.slice(1)}`;
-
-    let rows = [];
-    for(let i=0; i<5; i++) {
-        const seedStr = `${kpiLabel}-${selectedBrand}-${selectedCategory}-${platform}-${activeTab}-${i}`;
-        const seed = getSeedFromStr(seedStr);
-        let name = "";
-        if (isSkuView) {
-            const b = selectedBrand || "Brand";
-            if (showKeyword) {
-                if (i === 0) name = `${b} chocolates`;
-                else if (i === 1) name = `${b} bar snacks`;
-                else if (i === 2) name = `${b} gifting pack`;
-                else if (i === 3) name = `${b} discount`;
-                else name = `best ${b} offers`;
-            } else {
-                if (i === 0) name = `${b} Standard Pack`;
-                else if (i === 1) name = `${b} Premium Box`;
-                else if (i === 2) name = `${b} Minis`;
-                else if (i === 3) name = `${b} Combo`;
-                else name = `${b} Family Pack`;
-            }
-        } else {
-            if (hasSpecificCategory) {
-               const cats = Array.isArray(selectedCategory) ? selectedCategory[0] : selectedCategory;
-               name = `${brands[i % brands.length]} (${cats})`;
-            } else {
-               name = brands[i % brands.length];
-            }
-        }
-
-        const isGainer = activeTab === "gainers";
-        let currentVal, deltaVal;
-
-        if (isPercent) {
-          currentVal = 65 + (seed * 20);
-          deltaVal = isGainer ? (1 + seed * 5) : -(1 + seed * 5);
-        } else if (isImpressions) {
-          currentVal = (8 + seed * 10) * 100000;
-          deltaVal = isGainer ? (10000 + seed * 50000) : -(10000 + seed * 50000);
-        } else if (isCurrency) {
-          currentVal = (40 + seed * 30) * 100000;
-          deltaVal = isGainer ? (10000 + seed * 60000) : -(10000 + seed * 60000);
-        } else {
-          currentVal = 100 + seed * 50;
-          deltaVal = isGainer ? (5 + seed * 15) : -(5 + seed * 15);
-        }
-
-        const prevVal = currentVal - deltaVal;
-        const deltaPerc = (deltaVal / Math.max(0.0001, Math.abs(prevVal))) * 100;
-        const sign = deltaVal > 0 ? "+" : "";
-
-        rows.push({
-          name: name,
-          [mKey]: formatVal(currentVal),
-          [dKey]: `${sign}${deltaPerc.toFixed(1)}%`,
-          _origDelta: deltaVal
-        });
+  const allRows = entities.map((name, i) => {
+    const seed = getSeedFromStr(`${kpiLabel}-${name}-${i}`);
+    
+    let curVal, delta;
+    if (isKeywordKpi) {
+        // Range -2.5% to +2.5% for conversion changes
+        curVal = 5 + seed * 10; 
+        delta = (seed * 5) - 2.5; 
+    } else if (l.includes("discount")) {
+        // Logical Mars discount range: 5% to 25%
+        curVal = 5 + seed * 20;
+        delta = (seed * 10) - 5;
+    } else {
+        curVal = 70 + seed * 80;
+        delta = (seed * 12) - 5;
     }
 
-    rows.sort((a,b) => activeTab === "gainers" ? b._origDelta - a._origDelta : a._origDelta - b._origDelta);
-    return rows;
-  };
+    const prevVal = curVal / (1 + delta / 100);
+    
+    return { 
+        name, 
+        current: formatValue(curVal, kpiLabel), 
+        prev: formatValue(prevVal, kpiLabel),
+        change: delta,
+        changeStr: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "%", 
+        pos: delta >= 0 
+    };
+  });
 
-  const dynamicRows = getDynamicRows();
-  const metricKey = getMetricKey(kpiLabel, category);
-  const deltaKey = `delta${metricKey.charAt(0).toUpperCase() + metricKey.slice(1)}`;
+  const sortedRows = [...allRows].sort((a, b) => activeTab === "gainers" ? b.change - a.change : a.change - b.change);
+  const displayRows = sortedRows.slice(0, 5);
+
+  const canDrillDown = entityType === "Brand" || (entityType === "SKU");
 
   return (
     <motion.div
-      ref={popupRef}
-      initial={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
+      initial={{ opacity: 0, scale: 0.95, y: isBottom ? -20 : 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: isBottom ? -25 : 25 }}
+      exit={{ opacity: 0, scale: 0.95, y: isBottom ? -20 : 20 }}
       style={{
         position: "absolute",
         ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
-        left: "50%",
-        transform: `translateX(calc(-50% + ${hOffset}px))`,
-        width: "max(600px, min(1400px, 95vw))", // Responsive width with constraints
-        backgroundColor: "rgba(10, 15, 28, 0.98)",
-        backdropFilter: "blur(40px) saturate(200%)",
-        borderRadius: "44px",
-        padding: "0",
-        zIndex: 100000,
-        boxShadow: "0 100px 200px -40px rgba(0, 0, 0, 0.95), 0 0 120px rgba(79, 70, 229, 0.2)",
-        border: "2px solid rgba(255, 255, 255, 0.18)",
-        pointerEvents: "auto",
-        overflow: "hidden",
-        maxHeight: "85vh",
-        display: "flex",
-        flexDirection: "column"
+        left: "50%", transform: "translateX(-50%)",
+        width: "1500px", backgroundColor: "#fff", borderRadius: "64px",
+        padding: "0", zIndex: 100001, pointerEvents: "auto",
+        boxShadow: "0 100px 200px -40px rgba(15,23,42,0.5), 0 0 120px rgba(99,102,241,0.35)",
+        border: "1px solid rgba(0,0,0,0.2)", overflow: "hidden"
       }}
     >
-      <Box sx={{ px: { xs: 3, md: 6 }, py: { xs: 3, md: 4 }, borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", bgcolor: "rgba(255,255,255,0.01)" }}>
-        <Box>
-          <Typography sx={{ color: "rgba(255,255,255,0.8)", fontSize: "clamp(18px, 2vw, 28px)", fontWeight: 900, textTransform: "uppercase", letterSpacing: "5px", mb: 0.5 }}>
-            Market Intelligence Trace
-          </Typography>
-          <Typography sx={{ color: "rgba(255,255,255,0.3)", fontSize: "clamp(10px, 1vw, 14px)", fontWeight: 700, letterSpacing: "1px" }}>
-            PRO INTELLIGENCE PIPELINE V2.0 • REAL-TIME DATA STREAM
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Box
-            onClick={(e) => { e.stopPropagation(); setActiveTab('gainers'); }}
-            sx={{
-              px: 2, py: 1, borderRadius: 2, cursor: "pointer",
-              bgcolor: activeTab === 'gainers' ? "rgba(0,255,153,0.15)" : "transparent",
-              color: activeTab === 'gainers' ? "#00ff99" : "rgba(255,255,255,0.4)",
-              fontWeight: 800, fontSize: "14px", border: activeTab === 'gainers' ? "1px solid rgba(0,255,153,0.3)" : "1px solid transparent",
-              transition: "all 0.2s"
-            }}
-          >
-            Top Gainers
-          </Box>
-          <Box
-            onClick={(e) => { e.stopPropagation(); setActiveTab('drainers'); }}
-            sx={{
-              px: 2, py: 1, borderRadius: 2, cursor: "pointer",
-              bgcolor: activeTab === 'drainers' ? "rgba(255,77,77,0.15)" : "transparent",
-              color: activeTab === 'drainers' ? "#ff4d4d" : "rgba(255,255,255,0.4)",
-              fontWeight: 800, fontSize: "14px", border: activeTab === 'drainers' ? "1px solid rgba(255,77,77,0.3)" : "1px solid transparent",
-              transition: "all 0.2s"
-            }}
-          >
-            Top Drainers
-          </Box>
-        </Box>
-      </Box>
-
-      <TableContainer sx={{
-        overflowY: "auto",
-        flex: 1,
-        "&::-webkit-scrollbar": { width: "10px" },
-        "&::-webkit-scrollbar-track": { background: "rgba(255,255,255,0.02)" },
-        "&::-webkit-scrollbar-thumb": { backgroundColor: "rgba(255,255,255,0.2)", borderRadius: "10px", border: "2px solid rgba(10,15,28,0.1)" },
-        "&::-webkit-scrollbar-thumb:hover": { backgroundColor: "rgba(255,255,255,0.3)" }
-      }}>
-        <Table size="small" sx={{ "& td, & th": { border: "none", py: { xs: 2, md: 2.5 }, px: { xs: 3, md: 6 } } }}>
-          <TableHead>
-            <TableRow sx={{ borderBottom: "1px solid rgba(255,255,255,0.1)", position: "sticky", top: 0, bgcolor: "rgba(10, 15, 28, 1)", zIndex: 10 }}>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>{headerColumn}</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Current Period</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Comparison Period</TableCell>
-              <TableCell sx={{ color: "rgba(255,255,255,0.4)", fontSize: "clamp(14px, 1.5vw, 20px)", fontWeight: 800 }}>Change</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {dynamicRows.map((row, idx) => {
-              const currStr = row[metricKey];
-              const deltaStr = row[deltaKey];
-              const currVal = parseVal(currStr);
-              const deltaVal = parseVal(deltaStr);
-              const prevVal = currVal - deltaVal;
-
-              return (
-                <TableRow key={idx} sx={{ "&:hover": { bgcolor: "rgba(255,255,255,0.04)" }, transition: "background 0.3s" }}>
-                  <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900, letterSpacing: "-0.5px" }}>{row.name}</TableCell>
-                  <TableCell sx={{ color: "#fff", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{currStr}</TableCell>
-                  <TableCell sx={{ color: "rgba(255,255,255,0.7)", fontSize: "clamp(16px, 1.8vw, 24px)", fontWeight: 900 }}>{formatVal(prevVal)}</TableCell>
-                  <TableCell>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                      <Typography sx={{ color: String(deltaStr).startsWith("-") ? "#ff4d4d" : "#00ff99", fontSize: "clamp(12px, 1.2vw, 18px)", fontWeight: 900, bgcolor: "rgba(255,255,255,0.05)", px: 1.5, py: 0.5, borderRadius: "8px" }}>
-                        {deltaStr}
-                      </Typography>
+        <Box sx={{ p: 7, bgcolor: "#f8fafc", borderBottom: "1px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+                <Typography sx={{ fontSize: "38px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "5px" }}>
+                    {entityType} Analysis: {kpiLabel}
+                </Typography>
+                <Typography sx={{ fontSize: "20px", fontWeight: 700, color: "#64748b", mt: 2, textTransform: "uppercase", letterSpacing: "3px" }}>
+                    Flagship {entityType} Performance comparison matrix
+                </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 2, borderRadius: "28px", gap: 2.5 }}>
+                {["gainers", "drainers"].map(t => (
+                    <Box key={t} onClick={(e) => { e.stopPropagation(); setActiveTab(t); }}
+                        sx={{ 
+                            px: 6, py: 2, borderRadius: "22px", cursor: 'pointer', transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                            bgcolor: activeTab === t ? (t === 'gainers' ? "#059669" : "#dc2626") : "transparent",
+                            color: activeTab === t ? "#fff" : "#64748b", fontWeight: 1000, fontSize: "18px", textTransform: 'uppercase',
+                            boxShadow: activeTab === t ? "0 20px 45px rgba(0,0,0,0.3)" : "none",
+                            transform: activeTab === t ? "scale(1.12)" : "scale(1)"
+                        }}>
+                        {t}
                     </Box>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                ))}
+            </Box>
+        </Box>
+        <Box sx={{ p: 0 }}>
+            <Table size="large" sx={{ tableLayout: 'fixed' }}>
+                <TableHead>
+                    <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 1.0)", "& th": { py: 5 } }}>
+                        <TableCell align="left" sx={{ width: '25%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pl: 9, whiteSpace: 'nowrap' }}>{entityType} Name</TableCell>
+                        <TableCell align="left" sx={{ width: '25%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Current Period</TableCell>
+                        <TableCell align="left" sx={{ width: '30%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Comparison Period</TableCell>
+                        <TableCell align="left" sx={{ width: '20%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pr: 11, whiteSpace: 'nowrap' }}>Variance %</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {displayRows.map((r, i) => (
+                        <TableRow key={i} sx={{ "&:hover": { bgcolor: "rgba(99,102,241,0.08)" }, borderBottom: i === displayRows.length - 1 ? "none" : "1px solid #f1f5f9", height: "155px" }}>
+                            <TableCell align="left" sx={{ py: 0, pl: 9 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    {canDrillDown && (
+                                        <Box onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDrillDown(r.name); }}
+                                            sx={{ 
+                                                width: 54, height: 54, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                                                bgcolor: "rgba(99,102,241,0.2)", color: "#6366f1", cursor: "pointer",
+                                                transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)", 
+                                                "&:hover": { bgcolor: "#6366f1", color: "#fff", transform: "scale(1.3) rotate(180deg)", boxShadow: "0 0 40px rgba(99,102,241,0.7)" }
+                                            }}>
+                                            <Plus size={28} strokeWidth={4} />
+                                        </Box>
+                                    )}
+                                    {!canDrillDown && <Box sx={{ width: 54 }} />}
+                                    <Typography sx={{ fontSize: "34px", fontWeight: 500, color: "#1e293b", letterSpacing: "1px" }}>{r.name}</Typography>
+                                </Box>
+                            </TableCell>
+                            <TableCell align="left" sx={{ fontSize: "30px", fontWeight: 900, color: "#0f172a" }}>{r.current}</TableCell>
+                            <TableCell align="left" sx={{ fontSize: "30px", fontWeight: 700, color: "#94a3b8" }}>{r.prev}</TableCell>
+                            <TableCell align="left" sx={{ py: 0, pr: 11 }}>
+                                <Typography sx={{ 
+                                    fontSize: "26px", 
+                                    fontWeight: 1000, 
+                                    color: r.pos ? "#059669" : "#dc2626",
+                                    bgcolor: r.pos ? "rgba(5, 150, 105, 0.2)" : "rgba(220, 38, 38, 0.2)",
+                                    px: 5, py: 2, borderRadius: "22px", display: "inline-block",
+                                    border: `4px solid ${r.pos ? "rgba(5, 150, 105, 0.35)" : "rgba(220, 38, 38, 0.35)"}`
+                                }}>
+                                    {r.changeStr}
+                                </Typography>
+                            </TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </Box>
+        <Box sx={{ p: 5, textAlign: "center", bgcolor: "#f8fafc", borderTop: "5px solid #edf2f7" }}>
+            <Typography sx={{ fontSize: "22px", fontWeight: 800, color: "#94a3b8", letterSpacing: "2.5px", textTransform: 'uppercase' }}>
+                Ultra-Precision Driver Diagnostics • {canDrillDown ? "Use [+] for Deep Entity Trace" : "Absolute Ground Level Analysis"}
+            </Typography>
+        </Box>
     </motion.div>
+  );
+};
+
+/**
+ * PREMIUM FULL MODAL (Click)
+ */
+const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedBrand, selectedSku, selectedCategory, focusedEntity }) => {
+  const brands = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer", "Mars", "Skittles", "Doublemint", "M&M's", "Hubba Bubba", "Extra", "5 Gum", "Dove", "Whiskas", "Pedigree", "Royal Canin", "Ben's Original"];
+  const [page, setPage] = useState(0);
+  const [activeTab, setActiveTab] = useState("gainers");
+  const [expandedBrand, setExpandedBrand] = useState(null);
+  const [expandedSku, setExpandedSku] = useState(null);
+  const rowsPerPage = 6;
+
+  useEffect(() => {
+    if (open) {
+      if (focusedEntity) {
+        const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands" && selectedBrand !== "All";
+        if (isBrandFilterActive) {
+            setExpandedBrand(selectedBrand);
+            setExpandedSku(focusedEntity);
+        } else {
+            setExpandedBrand(focusedEntity);
+            setExpandedSku(null);
+        }
+      } else {
+        setExpandedBrand(null);
+        setExpandedSku(null);
+      }
+      setPage(0);
+    }
+  }, [open, selectedBrand, activeTab, focusedEntity]);
+
+  const handleDownload = () => {
+    const allData = generateRows("", "brand", 20); // Get more brands
+    let csv = `Entity,Value,Current Period,Comparison Period,Change\n`;
+    allData.forEach(b => {
+      csv += `${b.name},${b.currentStr},${b.currentStr},${b.prevStr},${b.change}\n`;
+      const skus = generateRows(b.name, isKeywordDrillDown ? "sku" : "sku", 10);
+      skus.forEach(s => {
+        csv += `  - ${s.name},${s.currentStr},${s.currentStr},${s.prevStr},${s.change}\n`;
+      });
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Diagnostic_Trace_${kpiLabel.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.csv`;
+    a.click();
+  };
+
+  const isQCPlatform = ["blinkit", "zepto", "instamart"].includes((platform || "").toLowerCase());
+  const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion");
+  const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
+  const isKeywordDrillDown = isQCPlatform && isKeywordScopedKpi;
+
+  const generateRows = (brandName, level = "brand", overrideCount = null) => {
+    const l = (kpiLabel || "").toLowerCase();
+    const isPercent = l.includes("%") || l.includes("conv") || l.includes("osa") || l.includes("listing");
+    const isCurrency = l.includes("offtake") || l.includes("price") || l.includes("ppu");
+    const isImpressions = l.includes("impression");
+    const count = overrideCount || (level === "brand" ? 18 : 5);
+    const rows = [];
+    const skuSuffixes = ["Standard Pack", "Premium Box", "Minis", "Combo", "Family Pack"];
+    const kwSuffixes = ["chocolates", "bar snacks", "gifting pack", "discount", "best offers"];
+    const cities = ["Mumbai", "Delhi", "Bangalore", "Chennai", "Hyderabad"];
+
+    for (let i = 0; i < count; i++) {
+        const seed = getSeedFromStr(`${kpiLabel}-${brandName}-${platform}-${activeTab}-${level}-${i}`);
+        let name = "";
+        if (level === "brand") name = brands[i % brands.length];
+        else if (level === "sku") {
+            name = isKeywordDrillDown ? `${brandName} ${kwSuffixes[i]}` : `${brandName} ${skuSuffixes[i]}`;
+        } else if (level === "city") name = cities[i];
+
+        const isGainer = activeTab === "gainers";
+        const isPrice = l.includes("price") || l.includes("ppu");
+        let curVal, deltaVal;
+
+        if (isPrice) {
+            curVal = 50 + (seed * 45);
+            deltaVal = isGainer ? (1 + seed * 8) : -(1 + seed * 8);
+        } else if (isPercent) {
+            curVal = 65 + (seed * 20);
+            deltaVal = isGainer ? (1 + seed * 5) : -(1 + seed * 5);
+        } else if (isImpressions) {
+            curVal = (8 + seed * 10) * 100000;
+            deltaVal = isGainer ? (10000 + seed * 50000) : -(10000 + seed * 50000);
+        } else if (isCurrency) {
+            curVal = (40 + seed * 30) * 100000;
+            deltaVal = isGainer ? (10000 + seed * 60000) : -(10000 + seed * 60000);
+        } else {
+            curVal = 100 + seed * 50;
+            deltaVal = isGainer ? (5 + seed * 15) : -(5 + seed * 15);
+        }
+
+        const prevVal = curVal - deltaVal;
+        const deltaPerc = (deltaVal / Math.max(0.0001, Math.abs(prevVal))) * 100;
+        rows.push({
+            name, 
+            currentStr: formatValue(curVal, kpiLabel), 
+            prevStr: formatValue(prevVal, kpiLabel),
+            change: `${deltaVal >= 0 ? "+" : ""}${deltaPerc.toFixed(1)}%`,
+            _delta: deltaVal
+        });
+    }
+    rows.sort((a,b) => activeTab === "gainers" ? b._delta - a._delta : a._delta - b._delta);
+    return rows;
+  };
+
+  const allRows = hasSpecificBrand ? generateRows(selectedBrand, "sku") : generateRows("", "brand");
+  const topRows = allRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  const headerColumn = hasSpecificBrand ? (isKeywordDrillDown ? "Keyword" : "SKU Name") : "Brand Identity";
+  
+  const thStyle = { color: "#64748b", fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", py: 1.5 };
+  const tdStyle = { color: "#0f172a", fontSize: "15px", fontWeight: 600, py: 1.8 };
+  const tdMuted = { ...tdStyle, color: "#64748b", fontWeight: 500 };
+
+  const renderExpandBtn = (isExpanded, onClick) => (
+    <Box onClick={(e) => { e.stopPropagation(); onClick(); }}
+        sx={{
+            width: 26, height: 26, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center",
+            bgcolor: isExpanded ? "#6366f1" : "rgba(99,102,241,0.12)", color: isExpanded ? "#fff" : "#6366f1",
+            cursor: "pointer", transition: "all 0.2s", "&:hover": { bgcolor: isExpanded ? "#4f46e5" : "rgba(99,102,241,0.2)" },
+            boxShadow: isExpanded ? "0 4px 12px rgba(99,102,241,0.3)" : "none"
+        }}>
+        {isExpanded ? <Minus size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
+    </Box>
+  );
+
+  const renderRowItem = (row, level = "sub") => {
+    const isKeywordRow = (level === "sub" || (level === "main" && hasSpecificBrand)) && isKeywordDrillDown;
+    const isExpanded = level === "main" ? (hasSpecificBrand ? expandedSku === row.name : expandedBrand === row.name) : (level === "sub" ? expandedSku === row.name : false);
+    
+    return (
+        <TableRow sx={{ 
+            bgcolor: level === "city" ? "rgba(99,102,241,0.03)" : level === "sub" ? "rgba(99,102,241,0.05)" : "transparent",
+            "&:hover": { bgcolor: level === "main" ? "rgba(0,0,0,0.01)" : undefined }
+        }}>
+            <TableCell sx={{ ...tdStyle, pl: level === "main" ? 4 : (level === "sub" ? 7 : 11) }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {level !== "city" && !isKeywordRow && renderExpandBtn(isExpanded, () => {
+                         if (level === "main") {
+                             if (!hasSpecificBrand) { setExpandedBrand(isExpanded ? null : row.name); setExpandedSku(null); }
+                             else { setExpandedSku(isExpanded ? null : row.name); }
+                         } else { setExpandedSku(isExpanded ? null : row.name); }
+                    })}
+                    {(level === "city" || isKeywordRow) && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />}
+                    <Typography sx={{ ...tdStyle, fontSize: level === "main" ? "15px" : (level === "sub" ? "14px" : "13px"), p: 0 }}>
+                        {row.name}
+                    </Typography>
+                </Box>
+            </TableCell>
+            <TableCell sx={tdStyle}>{row.currentStr}</TableCell>
+            <TableCell sx={tdMuted}>{row.prevStr}</TableCell>
+            <TableCell>
+                <Typography sx={{ 
+                    color: row.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
+                    bgcolor: row.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
+                    px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
+                }}>
+                    {row.change}
+                </Typography>
+            </TableCell>
+        </TableRow>
+    );
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth
+        PaperProps={{ sx: { borderRadius: "20px", overflow: "hidden", boxShadow: "0 40px 80px -15px rgba(0,0,0,0.3)" } }}>
+        <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: "#fafafa", borderBottom: "1px solid #eee" }}>
+            <Box>
+                <Typography sx={{ fontSize: "22px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1.5px", color: "#0f172a" }}>
+                    {kpiLabel.toUpperCase()} DIAGNOSTIC TRACE
+                </Typography>
+                <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
+                    PRO INTELLIGENCE • DEEP-DIVE RCA MODULE • {platform?.toUpperCase() || "OMNI"}
+                </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                <Tooltip title="Download Complete Trace CSV">
+                    <IconButton onClick={handleDownload} sx={{ bgcolor: "rgba(99,102,241,0.06)", color: "#6366f1", "&:hover": { bgcolor: "rgba(99,102,241,0.12)" } }}>
+                        <Download size={18} strokeWidth={2.5} />
+                    </IconButton>
+                </Tooltip>
+                <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 0.5, borderRadius: "10px" }}>
+                    {["gainers", "drainers"].map(t => (
+                        <Box key={t} onClick={() => { setActiveTab(t); setPage(0); }}
+                            sx={{ 
+                                px: 2, py: 0.75, borderRadius: "8px", cursor: 'pointer', transition: 'all 0.2s',
+                                bgcolor: activeTab === t ? (t === 'gainers' ? "#059669" : "#dc2626") : "transparent",
+                                color: activeTab === t ? "#fff" : "#64748b", fontWeight: 700, fontSize: "12px", textTransform: 'uppercase'
+                            }}>
+                            {t === 'gainers' ? 'Gainers' : 'Drainers'}
+                        </Box>
+                    ))}
+                </Box>
+                <IconButton onClick={onClose} sx={{ bgcolor: "#eee", "&:hover": { bgcolor: "#ddd" } }}><Plus style={{ transform: 'rotate(45deg)' }} /></IconButton>
+            </Box>
+        </Box>
+        <DialogContent sx={{ p: 0, maxHeight: "70vh", overflowY: "auto", scrollBehavior: "smooth" }}>
+            <Table stickyHeader>
+                <TableHead>
+                    <TableRow>
+                        <TableCell sx={{ ...thStyle, pl: 5 }}>{headerColumn}</TableCell>
+                        <TableCell sx={thStyle}>Current Period</TableCell>
+                        <TableCell sx={thStyle}>Comparison Period</TableCell>
+                        <TableCell sx={thStyle}>Change</TableCell>
+                    </TableRow>
+                </TableHead>
+                <TableBody>
+                    {topRows.map((row, idx) => {
+                        const isExpanded = hasSpecificBrand ? expandedSku === row.name : expandedBrand === row.name;
+                        const subRows = isExpanded ? generateRows(row.name, hasSpecificBrand ? "city" : "sku") : [];
+                        return (
+                            <React.Fragment key={idx}>
+                                {renderRowItem(row, "main")}
+                                {isExpanded && subRows.map((sr, sIdx) => {
+                                    const subExpanded = expandedSku === sr.name;
+                                    const cityRows = subExpanded ? generateRows(sr.name, "city") : [];
+                                    return (
+                                        <React.Fragment key={`sub-${sIdx}`}>
+                                            {renderRowItem(sr, "sub")}
+                                            {subExpanded && cityRows.map((cr, cIdx) => renderRowItem(cr, "city"))}
+                                        </React.Fragment>
+                                    );
+                                })}
+                            </React.Fragment>
+                        );
+                    })}
+                </TableBody>
+            </Table>
+        </DialogContent>
+        <TablePagination
+            rowsPerPageOptions={[]}
+            component="div"
+            count={allRows.length}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={(e, p) => setPage(p)}
+            sx={{
+                bgcolor: "#fafafa", borderTop: "1px solid #eee",
+                "& .MuiTablePagination-toolbar": { minHeight: "48px" },
+                "& .MuiTypography-root": { fontWeight: 800, fontSize: "12px", color: "#64748b" }
+            }}
+        />
+    </Dialog>
   );
 };
 
@@ -662,16 +827,15 @@ const KpiNode = ({ data }) => {
       <AnimatePresence>
         {localHover && hoveredNodeId === data.id && !isDimmed && (
           <HoverMetricsPopup
-            metrics={metrics}
-            position={data.popupPosition}
-            isOrganic={label === "Organic Impressions" || label === "Organic GVs"}
-            kpiLabel={label}
-            category={category}
-            platform={data.platform || ""}
-            selectedBrand={data.selectedBrand || ""}
-            selectedCategory={data.selectedCategory || ""}
-            currentPeriod={data.currentPeriodLabel || "Current Period"}
-            comparePeriod={data.comparePeriodLabel || "Compare Period"}
+             kpiLabel={label}
+             platform={data.platform || ""}
+             selectedBrand={data.selectedBrand || ""}
+             selectedSku={data.selectedSku || ""}
+             selectedCategory={data.selectedCategory || ""}
+             position={data.popupPosition}
+             onDrillDown={(entityToFocus) => {
+                onClickDetail({ ...data, focusedEntity: entityToFocus });
+             }}
           />
         )}
       </AnimatePresence>
@@ -824,13 +988,7 @@ const KpiNode = ({ data }) => {
 };
 
 // --- Dynamic Data Helpers ---
-const getSeedFromStr = (str) => {
-  let h = 0xdeadbeef;
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
-  }
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-};
+// (using global getSeedFromStr)
 
 const getDynamicRcaTreeData = (context) => {
   const { platform, brand, sku, category, month } = context;
@@ -1405,7 +1563,7 @@ const computeSubtreeHeight = (node, collapsedNodes) => {
   return childHeights.reduce((sum, h, idx) => sum + h + (idx > 0 ? VERTICAL_GAP : 0), 0);
 };
 
-const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, platform = "", selectedBrand = "", selectedCategory = "", currentPeriodLabel = "", comparePeriodLabel = "") => {
+const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, platform = "", selectedBrand = "", selectedSku = "", selectedCategory = "", currentPeriodLabel = "", comparePeriodLabel = "") => {
   const isCollapsed = collapsedNodes.has(node.id);
   const subtreeHeight = computeSubtreeHeight(node, collapsedNodes);
 
@@ -1417,6 +1575,7 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, plat
       ...node,
       platform,
       selectedBrand,
+      selectedSku,
       selectedCategory,
       currentPeriodLabel,
       comparePeriodLabel,
@@ -1454,557 +1613,14 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, plat
         },
       });
 
-      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends, platform, selectedBrand, selectedCategory, currentPeriodLabel, comparePeriodLabel);
+      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends, platform, selectedBrand, selectedSku, selectedCategory, currentPeriodLabel, comparePeriodLabel);
       currentChildY += childHeight + VERTICAL_GAP;
     });
   }
 };
 
 // --- Detail Popup (Updated with Brand Filtering, Download, and Pagination) ---
-const NodeDetailPopup = ({ open, onClose, nodeData, selectedBrand, selectedPlatform }) => {
-  const [tabIndex, setTabIndex] = useState(0);
-  const [page, setPage] = useState(0);
-  const rowsPerPage = 4;
-
-  useEffect(() => {
-    setPage(0);
-  }, [tabIndex, selectedBrand]);
-
-  if (!nodeData) return null;
-
-  const normalizedPlatform = (selectedPlatform || "").toLowerCase();
-  const kpiLabel = nodeData.label || "KPI";
-  const isQCPlatform = ["blinkit", "zepto", "instamart"].includes(normalizedPlatform);
-  const isKeywordScopedKpi = kpiLabel.toLowerCase().includes("impression") || kpiLabel.toLowerCase().includes("conversion") || kpiLabel.toLowerCase().includes("cvr");
-  const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
-  const showKeyword = hasSpecificBrand && isQCPlatform && isKeywordScopedKpi;
-  const headerColumn = showKeyword ? "Keyword" : (hasSpecificBrand ? "SKU Name" : "Brand Identity");
-
-  const kpiKey = (nodeData.category || nodeData.label || "").toLowerCase();
-  const isAdImpressions = showKeyword;
-
-  const contributionsMap = {
-    amazon: {
-      offtake: {
-        gainers: [
-          { sku: "Snickers Peanut Duo 50g", keyword: "snickers bar", brand: "Snickers", value: "+18.5%" },
-          { sku: "Galaxy Smooth Milk 80g", keyword: "galaxy chocolate", brand: "Galaxy", value: "+14.8%" },
-          { sku: "M&M's Peanut 100g", keyword: "m&ms peanut", brand: "M&M", value: "+11.3%" },
-          { sku: "Twix Single 50g", keyword: "twix bar", brand: "Twix", value: "+9.2%" },
-          { sku: "Mars Bar Single 45g", keyword: "mars chocolate", brand: "Mars", value: "+7.1%" },
-        ],
-        drainers: [
-          { sku: "Bounty Coconut 57g", keyword: "bounty bar", brand: "Bounty", value: "-12.7%" },
-          { sku: "Orbit Spearmint Bottle", keyword: "orbit gum", brand: "Orbit", value: "-9.8%" },
-          { sku: "Skittles Fruits 45g", keyword: "skittles candy", brand: "Skittles", value: "-7.5%" },
-          { sku: "Doublemint Peppermint", keyword: "doublemint gum", brand: "Doublemint", value: "-5.2%" },
-          { sku: "Boomer Jelly Blue", keyword: "boomer gum", brand: "Boomer", value: "-3.9%" },
-        ],
-      },
-      impressions: {
-        gainers: [
-          { sku: "Snickers Stick 40g", keyword: "snickers ads", brand: "Snickers", value: "+22.8%" },
-          { sku: "Galaxy Minis 150g", keyword: "galaxy shelf", brand: "Galaxy", value: "+18.1%" },
-          { sku: "M&M's Chocolate 45g", keyword: "m&m banner", brand: "M&M", value: "+12.3%" },
-          { sku: "Orbit White Bottle", keyword: "orbit ads", brand: "Orbit", value: "+10.9%" },
-          { sku: "Skittles Wild Berry", keyword: "skittles banner", brand: "Skittles", value: "+9.4%" },
-        ],
-        drainers: [
-          { sku: "Mars Minis Pack", keyword: "mars old ads", brand: "Mars", value: "-13.7%" },
-          { sku: "Twix Minis 200g", keyword: "twix promo slot", brand: "Twix", value: "-8.6%" },
-          { sku: "Bounty Minis 150g", keyword: "bounty banner", brand: "Bounty", value: "-6.1%" },
-          { sku: "Doublemint Lemon", keyword: "doublemint ads", brand: "Doublemint", value: "-4.9%" },
-          { sku: "Boomer Strawberry", keyword: "boomer ads", brand: "Boomer", value: "-3.0%" },
-        ],
-      },
-      conversion: {
-        gainers: [
-          { sku: "Snickers Almond 40g", keyword: "snickers conversion", brand: "Snickers", value: "+11.2%" },
-          { sku: "Galaxy Cookie Crumble", keyword: "galaxy conversion", brand: "Galaxy", value: "+9.5%" },
-          { sku: "Orbit Blueberry Bottle", keyword: "orbit checkout", brand: "Orbit", value: "+8.1%" },
-          { sku: "M&M's Crispy 80g", keyword: "m&m checkout", brand: "M&M", value: "+6.3%" },
-          { sku: "Skittles Sour 45g", keyword: "skittles sour", brand: "Skittles", value: "+4.7%" },
-        ],
-        drainers: [
-          { sku: "Mars Caramel 135g", keyword: "mars drop", brand: "Mars", value: "-10.2%" },
-          { sku: "Twix White 50g", keyword: "twix drop", brand: "Twix", value: "-8.7%" },
-          { sku: "Doublemint Peppermint", keyword: "doublemint drop", brand: "Doublemint", value: "-6.6%" },
-          { sku: "Boomer Jelly Pink", keyword: "boomer drop", brand: "Boomer", value: "-4.2%" },
-          { sku: "Bounty Coconut 57g", keyword: "bounty drop", brand: "Bounty", value: "-3.1%" },
-        ],
-      },
-      price: {
-        gainers: [
-          { sku: "Orbit Peppermint 22g", keyword: "orbit price", brand: "Orbit", value: "+6.8%" },
-          { sku: "Boomer Strawberry 5g", keyword: "boomer price", brand: "Boomer", value: "+4.5%" },
-          { sku: "Doublemint Mints", keyword: "doublemint price", brand: "Doublemint", value: "+3.2%" },
-          { sku: "Skittles Fruits 100g", keyword: "skittles price", brand: "Skittles", value: "+2.1%" },
-          { sku: "Galaxy Fruit & Nut", keyword: "galaxy premium", brand: "Galaxy", value: "+1.0%" },
-        ],
-        drainers: [
-          { sku: "Snickers Bulk Pack", keyword: "snickers discount", brand: "Snickers", value: "-9.8%" },
-          { sku: "M&M's Party Bucket", keyword: "m&m discount", brand: "M&M", value: "-7.3%" },
-          { sku: "Twix Multi-Pack", keyword: "twix discount", brand: "Twix", value: "-5.4%" },
-          { sku: "Mars Party Pack", keyword: "mars discount", brand: "Mars", value: "-4.0%" },
-          { sku: "Bounty Trio Pack", keyword: "bounty discount", brand: "Bounty", value: "-2.8%" },
-        ],
-      },
-      availability: {
-        gainers: [
-          { sku: "Orbit Spearmint 22g", keyword: "orbit osa", brand: "Orbit", value: "+7.4%" },
-          { sku: "Skittles Fruits 45g", keyword: "skittles osa", brand: "Skittles", value: "+5.7%" },
-          { sku: "M&M's Peanut 45g", keyword: "m&m stock", brand: "M&M", value: "+4.9%" },
-          { sku: "Galaxy Caramel 135g", keyword: "galaxy stock", brand: "Galaxy", value: "+3.3%" },
-          { sku: "Snickers Peanut 50g", keyword: "snickers inventory", brand: "Snickers", value: "+2.4%" },
-        ],
-        drainers: [
-          { sku: "Mars Single 45g", keyword: "mars oos", brand: "Mars", value: "-10.3%" },
-          { sku: "Twix Single 50g", keyword: "twix oos", brand: "Twix", value: "-8.1%" },
-          { sku: "Bounty Coconut 57g", keyword: "bounty oos", brand: "Bounty", value: "-5.6%" },
-          { sku: "Doublemint Lemon", keyword: "doublemint oos", brand: "Doublemint", value: "-4.2%" },
-          { sku: "Boomer Strawberry", keyword: "boomer oos", brand: "Boomer", value: "-2.1%" },
-        ],
-      },
-    },
-    flipkart: {
-      offtake: {
-        gainers: [
-          { sku: "Galaxy Smooth Milk 80g", keyword: "galaxy chocolate", brand: "Galaxy", value: "+16.9%" },
-          { sku: "Snickers Peanut Duo 50g", keyword: "snickers bar", brand: "Snickers", value: "+13.2%" },
-          { sku: "M&M's Peanut 100g", keyword: "m&ms peanut", brand: "M&M", value: "+11.4%" },
-          { sku: "Orbit Spearmint Bottle", keyword: "orbit gum", brand: "Orbit", value: "+8.8%" },
-          { sku: "Twix Single 50g", keyword: "twix bar", brand: "Twix", value: "+7.3%" },
-        ],
-        drainers: [
-          { sku: "Mars bar Single 45g", keyword: "mars bar", brand: "Mars", value: "-12.5%" },
-          { sku: "Bounty Coconut 57g", keyword: "bounty coconut", brand: "Bounty", value: "-9.8%" },
-          { sku: "Skittles Fruits 45g", keyword: "skittles candy", brand: "Skittles", value: "-6.9%" },
-          { sku: "Doublemint Peppermint", keyword: "doublemint gum", brand: "Doublemint", value: "-4.3%" },
-          { sku: "Boomer Jelly Blue", keyword: "boomer gum", brand: "Boomer", value: "-2.7%" },
-        ],
-      },
-      impressions: {
-        gainers: [
-          { sku: "Snickers Stick 40g", keyword: "snickers ads", brand: "Snickers", value: "+21.5%" },
-          { sku: "Galaxy Minis 150g", keyword: "galaxy shelf", brand: "Galaxy", value: "+18.1%" },
-          { sku: "M&M's Chocolate 45g", keyword: "m&m banner", brand: "M&M", value: "+14.2%" },
-          { sku: "Orbit White Bottle", keyword: "orbit ads", brand: "Orbit", value: "+11.0%" },
-          { sku: "Skittles Wild Berry", keyword: "skittles banner", brand: "Skittles", value: "+9.1%" },
-        ],
-        drainers: [
-          { sku: "Mars Minis Pack", keyword: "mars old ads", brand: "Mars", value: "-14.9%" },
-          { sku: "Twix Minis 200g", keyword: "twix promo slot", brand: "Twix", value: "-10.3%" },
-          { sku: "Bounty Minis 150g", keyword: "bounty banner", brand: "Bounty", value: "-7.8%" },
-          { sku: "Doublemint Lemon", keyword: "doublemint ads", brand: "Doublemint", value: "-5.9%" },
-          { sku: "Boomer Strawberry", keyword: "boomer ads", brand: "Boomer", value: "-3.4%" },
-        ],
-      },
-      conversion: {
-        gainers: [
-          { sku: "Snickers Almond 40g", keyword: "snickers conversion", brand: "Snickers", value: "+12.4%" },
-          { sku: "Galaxy Cookie Crumble", keyword: "galaxy conversion", brand: "Galaxy", value: "+10.2%" },
-          { sku: "Orbit Blueberry Bottle", keyword: "orbit checkout", brand: "Orbit", value: "+8.0%" },
-          { sku: "M&M's Crispy 80g", keyword: "m&m checkout", brand: "M&M", value: "+6.6%" },
-          { sku: "Skittles Sour 45g", keyword: "skittles sour", brand: "Skittles", value: "+5.2%" },
-        ],
-        drainers: [
-          { sku: "Mars Caramel 135g", keyword: "mars drop", brand: "Mars", value: "-10.8%" },
-          { sku: "Twix White 50g", keyword: "twix drop", brand: "Twix", value: "-8.9%" },
-          { sku: "Doublemint Peppermint", keyword: "doublemint drop", brand: "Doublemint", value: "-7.4%" },
-          { sku: "Boomer Jelly Pink", keyword: "boomer drop", brand: "Boomer", value: "-5.3%" },
-          { sku: "Bounty Coconut 57g", keyword: "bounty drop", brand: "Bounty", value: "-3.1%" },
-        ],
-      },
-      price: {
-        gainers: [
-          { sku: "Orbit Peppermint 22g", keyword: "orbit price", brand: "Orbit", value: "+9.6%" },
-          { sku: "Boomer Strawberry 5g", keyword: "boomer price", brand: "Boomer", value: "+6.2%" },
-          { sku: "Doublemint Mints", keyword: "doublemint price", brand: "Doublemint", value: "+5.1%" },
-          { sku: "Skittles Fruits 100g", keyword: "skittles price", brand: "Skittles", value: "+3.8%" },
-          { sku: "Galaxy Fruit & Nut", keyword: "galaxy premium", brand: "Galaxy", value: "+2.6%" },
-        ],
-        drainers: [
-          { sku: "Snickers Bulk Pack", keyword: "snickers discount", brand: "Snickers", value: "-11.1%" },
-          { sku: "M&M's Party Bucket", keyword: "m&m discount", brand: "M&M", value: "-9.0%" },
-          { sku: "Twix Multi-Pack", keyword: "twix discount", brand: "Twix", value: "-6.7%" },
-          { sku: "Mars Party Pack", keyword: "mars discount", brand: "Mars", value: "-4.4%" },
-          { sku: "Bounty Trio Pack", keyword: "bounty discount", brand: "Bounty", value: "-2.9%" },
-        ],
-      },
-      availability: {
-        gainers: [
-          { sku: "Orbit Spearmint 22g", keyword: "orbit osa", brand: "Orbit", value: "+8.8%" },
-          { sku: "Skittles Fruits 45g", keyword: "skittles osa", brand: "Skittles", value: "+7.3%" },
-          { sku: "M&M's Peanut 45g", keyword: "m&m stock", brand: "M&M", value: "+5.7%" },
-          { sku: "Galaxy Caramel 135g", keyword: "galaxy stock", brand: "Galaxy", value: "+4.2%" },
-          { sku: "Snickers Peanut 50g", keyword: "snickers inventory", brand: "Snickers", value: "+3.1%" },
-        ],
-        drainers: [
-          { sku: "Mars Single 45g", keyword: "mars oos", brand: "Mars", value: "-9.7%" },
-          { sku: "Twix Single 50g", keyword: "twix oos", brand: "Twix", value: "-7.4%" },
-          { sku: "Bounty Coconut 57g", keyword: "bounty oos", brand: "Bounty", value: "-5.8%" },
-          { sku: "Doublemint Lemon", keyword: "doublemint oos", brand: "Doublemint", value: "-4.1%" },
-          { sku: "Boomer Strawberry", keyword: "boomer oos", brand: "Boomer", value: "-2.7%" },
-        ],
-      },
-    },
-    blinkit: {
-      offtake: {
-        gainers: [
-          { sku: "Orbit Spearmint Bottle", keyword: "orbit gum", brand: "Orbit", value: "+18.1%" },
-          { sku: "Skittles Fruits 45g", keyword: "skittles candy", brand: "Skittles", value: "+13.2%" },
-          { sku: "Snickers Peanut Duo 50g", keyword: "snickers bar", brand: "Snickers", value: "+10.3%" },
-          { sku: "Galaxy Smooth Milk 80g", keyword: "galaxy chocolate", brand: "Galaxy", value: "+7.7%" },
-          { sku: "Twix Single 50g", keyword: "twix bar", brand: "Twix", value: "+6.0%" },
-        ],
-        drainers: [
-          { sku: "Mars bar Single 45g", keyword: "mars bar", brand: "Mars", value: "-11.9%" },
-          { sku: "Bounty Coconut 57g", keyword: "bounty coconut", brand: "Bounty", value: "-9.4%" },
-          { sku: "M&M's Peanut 100g", keyword: "m&ms peanut", brand: "M&M", value: "-6.9%" },
-          { sku: "Doublemint Peppermint", keyword: "doublemint gum", brand: "Doublemint", value: "-5.2%" },
-          { sku: "Boomer Jelly Blue", keyword: "boomer gum", brand: "Boomer", value: "-3.1%" },
-        ],
-      },
-      impressions: {
-        gainers: [
-          { sku: "Blinkit Snickers Ad", keyword: "snickers banner", brand: "Snickers", value: "+14.8%" },
-          { sku: "Galaxy Express Promo", keyword: "galaxy banner", brand: "Galaxy", value: "+11.9%" },
-          { sku: "Twix Quick Deal", keyword: "twix deal", brand: "Twix", value: "+9.6%" },
-          { sku: "Orbit Checkout Ad", keyword: "orbit ads", brand: "Orbit", value: "+7.2%" },
-          { sku: "M&M's Pop-up", keyword: "m&m ads", brand: "M&M", value: "+5.0%" },
-        ],
-        drainers: [
-          { sku: "Skittles Old Campaign", keyword: "skittles banner", brand: "Skittles", value: "-12.1%" },
-          { sku: "Mars Night Deal", keyword: "mars banner", brand: "Mars", value: "-8.8%" },
-          { sku: "Bounty Weekend Ad", keyword: "bounty banner", brand: "Bounty", value: "-6.3%" },
-          { sku: "Doublemint Shelf Ad", keyword: "doublemint ads", brand: "Doublemint", value: "-4.7%" },
-          { sku: "Boomer Mix Campaign", keyword: "boomer ads", brand: "Boomer", value: "-3.0%" },
-        ],
-      },
-      conversion: {
-        gainers: [
-          { sku: "Snickers Almond 40g", keyword: "snickers checkout", brand: "Snickers", value: "+11.3%" },
-          { sku: "Galaxy Cookie Crumble", keyword: "galaxy checkout", brand: "Galaxy", value: "+9.7%" },
-          { sku: "Orbit White Bottle", keyword: "orbit checkout", brand: "Orbit", value: "+7.5%" },
-          { sku: "Doublemint Lemon", keyword: "doublemint checkout", brand: "Doublemint", value: "+5.4%" },
-          { sku: "Twix Single 50g", keyword: "twix checkout", brand: "Twix", value: "+4.1%" },
-        ],
-        drainers: [
-          { sku: "Mars Single 45g", keyword: "mars drop", brand: "Mars", value: "-10.8%" },
-          { sku: "Bounty Coconut 57g", keyword: "bounty drop", brand: "Bounty", value: "-8.6%" },
-          { sku: "M&M's Peanut 45g", keyword: "m&m drop", brand: "M&M", value: "-6.2%" },
-          { sku: "Skittles Fruits 45g", keyword: "skittles drop", brand: "Skittles", value: "-5.0%" },
-          { sku: "Boomer Strawberry", keyword: "boomer drop", brand: "Boomer", value: "-3.4%" },
-        ],
-      },
-      price: {
-        gainers: [
-          { sku: "Orbit Peppermint 22g", keyword: "orbit price", brand: "Orbit", value: "+7.8%" },
-          { sku: "Boomer Strawberry 5g", keyword: "boomer price", brand: "Boomer", value: "+6.7%" },
-          { sku: "Doublemint Mints", keyword: "doublemint price", brand: "Doublemint", value: "+5.1%" },
-          { sku: "Skittles Fruits 100g", keyword: "skittles price", brand: "Skittles", value: "+3.9%" },
-          { sku: "Snickers Stick 40g", keyword: "snickers price", brand: "Snickers", value: "+2.6%" },
-        ],
-        drainers: [
-          { sku: "Mars Multi-Pack", keyword: "mars discount", brand: "Mars", value: "-12.4%" },
-          { sku: "Bounty Trio Pack", keyword: "bounty discount", brand: "Bounty", value: "-9.3%" },
-          { sku: "Galaxy Combo", keyword: "galaxy discount", brand: "Galaxy", value: "-7.2%" },
-          { sku: "Orbit Bulk Pack", keyword: "orbit discount", brand: "Orbit", value: "-5.6%" },
-          { sku: "Twix Mini Bag", keyword: "twix discount", brand: "Twix", value: "-3.9%" },
-        ],
-      },
-      availability: {
-        gainers: [
-          { sku: "Snickers Peanut Duo", keyword: "snickers stock", brand: "Snickers", value: "+12.6%" },
-          { sku: "Galaxy Smooth Milk", keyword: "galaxy stock", brand: "Galaxy", value: "+10.3%" },
-          { sku: "Orbit Spearmint", keyword: "orbit stock", brand: "Orbit", value: "+8.0%" },
-          { sku: "Mars Single 45g", keyword: "mars stock", brand: "Mars", value: "+6.1%" },
-          { sku: "Doublemint Lemon", keyword: "doublemint stock", brand: "Doublemint", value: "+4.7%" },
-        ],
-        drainers: [
-          { sku: "Twix Single 50g", keyword: "twix oos", brand: "Twix", value: "-10.2%" },
-          { sku: "Bounty Coconut", keyword: "bounty oos", brand: "Bounty", value: "-8.5%" },
-          { sku: "M&M's Peanut", keyword: "m&m oos", brand: "M&M", value: "-6.3%" },
-          { sku: "Skittles Fruits", keyword: "skittles oos", brand: "Skittles", value: "-4.0%" },
-          { sku: "Boomer Strawberry", keyword: "boomer oos", brand: "Boomer", value: "-2.5%" },
-        ],
-      },
-    },
-  };
-
-  const dropdownBrands = ["mars", "snickers", "galaxy", "twix", "boomer", "bounty", "doublemint", "m&m", "orbit", "skittles"];
-
-  const kpiCategoryFromLabel = (kpiLabel) => {
-    const l = (kpiLabel || "").toLowerCase();
-    if (l.includes("offtake")) return "offtake";
-    if (l.includes("impression")) return "impressions";
-    if (l.includes("conversion") || l.includes("cvr")) return "conversion";
-    if (l.includes("price") || l.includes("asp")) return "price";
-    if (l.includes("availability") || l.includes("osa")) return "availability";
-    return "offtake";
-  };
-
-  const getSeedFromStrNode = (str) => {
-    let h = 0xdeadbeef;
-    for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
-    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-  };
-
-  const formatModalVal = (val, label) => {
-    const absVal = Math.abs(val);
-    const l = label.toLowerCase();
-    if (l.includes("offtake")) {
-      if (absVal >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
-      if (absVal >= 100000) return `₹ ${(val / 100000).toFixed(2)} lac`;
-      return `₹ ${val.toLocaleString()}`;
-    }
-    if (l.includes("impressions")) {
-      if (absVal >= 100000) return `${(val / 100000).toFixed(1)} lac`;
-      if (absVal >= 1000) return `${(val / 1000).toFixed(1)} K`;
-      return val.toLocaleString();
-    }
-    if (l.includes("price") || l.includes("ppu")) return `₹${val.toFixed(1)}`;
-    if (label.includes("%") || l.includes("conv")) return `${val.toFixed(1)}%`;
-    return val.toFixed(1);
-  };
-
-  const getDynamicModalRows = (isGainer) => {
-     const brands = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer"];
-     const l = kpiLabel.toLowerCase();
-     const isPercent = l.includes("%") || l.includes("conv") || l.includes("osa") || l.includes("listing");
-     const isCurrency = l.includes("offtake") || l.includes("price") || l.includes("ppu");
-     const isImpressions = l.includes("impression");
-
-     let rows = [];
-     for(let i=0; i<10; i++) {
-         const seedStr = `${kpiLabel}-${selectedBrand}-${normalizedPlatform}-${isGainer ? 'g' : 'd'}-${i}`;
-         const seed = getSeedFromStrNode(seedStr);
-         let name = "";
-         if (hasSpecificBrand) {
-             const b = selectedBrand;
-             if (showKeyword) {
-                 const kwSuffixes = ["chocolates", "bar snacks", "gifting pack", "discount", "best offers", "multipack", "premium", "sale", "online", "organic"];
-                 name = `${b} ${kwSuffixes[i % kwSuffixes.length]}`;
-             } else {
-                 const skuSuffixes = ["Standard Pack", "Premium Box", "Minis", "Combo", "Family Pack", "Refill", "Bulk", "Travel Pack", "Small", "Regular"];
-                 name = `${b} ${skuSuffixes[i % skuSuffixes.length]}`;
-             }
-         } else {
-             name = brands[i % brands.length];
-             if (i >= brands.length) name = `${name} (v${Math.floor(i/brands.length) + 1})`;
-         }
-
-         let currentVal, deltaVal;
-         if (isPercent) {
-             currentVal = 65 + (seed * 20);
-             deltaVal = isGainer ? (1 + seed * 5) : -(1 + seed * 5);
-         } else if (isImpressions) {
-             currentVal = (8 + seed * 10) * 100000;
-             deltaVal = isGainer ? (10000 + seed * 50000) : -(10000 + seed * 50000);
-         } else if (isCurrency) {
-             currentVal = (40 + seed * 30) * 100000;
-             deltaVal = isGainer ? (10000 + seed * 60000) : -(10000 + seed * 60000);
-         } else {
-             currentVal = 100 + seed * 50;
-             deltaVal = isGainer ? (5 + seed * 15) : -(5 + seed * 15);
-         }
-
-         const prevVal = currentVal - deltaVal;
-         const deltaPerc = (deltaVal / Math.max(0.0001, Math.abs(prevVal))) * 100;
-         const sign = deltaVal > 0 ? "+" : "";
-
-         const currStr = formatModalVal(currentVal, kpiLabel);
-         const deltaStr = `${sign}${deltaPerc.toFixed(1)}%`;
-         const prevValStr = formatModalVal(prevVal, kpiLabel);
-
-         rows.push({
-           name,
-           current: currStr,
-           previous: prevValStr,
-           change: deltaStr,
-           _origDelta: deltaVal
-         });
-     }
-     rows.sort((a,b) => isGainer ? b._origDelta - a._origDelta : a._origDelta - b._origDelta);
-     return rows;
-  };
-
-  const activeData = getDynamicModalRows(tabIndex === 0);
-  const pagedData = activeData.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
-
-  const handleDownload = () => {
-    const csvRows = [
-      [headerColumn, "Current Period", "Comparison Period", "Change"],
-      ...activeData.map(row => [row.name, row.current, row.previous, row.change])
-    ];
-    const csvString = csvRows.map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `${nodeData.label}_${tabIndex === 0 ? 'Gainers' : 'Drainers'}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: "40px",
-          bgcolor: "rgba(255, 255, 255, 0.92)",
-          backdropFilter: "blur(40px) saturate(180%)",
-          border: "1px solid rgba(255, 255, 255, 0.8)",
-          boxShadow: "0 60px 120px -30px rgba(0, 0, 0, 0.4)",
-        },
-      }}
-    >
-      <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1, p: 5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
-          <Box
-            sx={{
-              p: 2,
-              borderRadius: "20px",
-              bgcolor: (COLORS[nodeData.category] || "#6366f1") + "18",
-              color: COLORS[nodeData.category] || "#6366f1",
-              boxShadow: `inset 0 0 15px ${(COLORS[nodeData.category] || "#6366f1")}25`,
-            }}
-          >
-            <Activity size={32} strokeWidth={2.5} />
-          </Box>
-          <Box>
-            <Typography sx={{ fontSize: "24px", fontWeight: 900, color: "#000000", letterSpacing: "-1px" }}>
-              {nodeData.label} Intelligence
-            </Typography>
-            <Typography sx={{ fontSize: "11px", fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "1.5px" }}>
-              High Precision Diagnostic Stream
-            </Typography>
-          </Box>
-        </Box>
-        <IconButton onClick={onClose} sx={{ bgcolor: "rgba(0,0,0,0.05)", color: "#000000", width: 44, height: 44, "&:hover": { bgcolor: "rgba(0,0,0,0.1)" } }}>
-          <Plus style={{ transform: "rotate(45deg)" }} size={28} />
-        </IconButton>
-      </DialogTitle>
-
-      <Divider sx={{ opacity: 0.08 }} />
-
-      <DialogContent sx={{ p: 5 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography sx={{ fontSize: "13px", fontWeight: 900, color: "#000000", textTransform: "uppercase", letterSpacing: "1.2px" }}>
-                {showKeyword ? "Keyword Contribution Analysis" : "SKU Contribution Analysis"}
-              </Typography>
-              <Tooltip title="Download CSV" arrow>
-                <IconButton onClick={handleDownload} sx={{ bgcolor: 'rgba(0,0,0,0.03)', color: '#64748b', p: 0.8 }}>
-                  <Download size={16} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-            <Tabs
-              value={tabIndex}
-              onChange={(_, n) => setTabIndex(n)}
-              sx={{
-                minHeight: 'auto',
-                '& .MuiTabs-indicator': { display: 'none' },
-                '& .MuiTabs-flexContainer': {
-                  bgcolor: 'rgba(0,0,0,0.04)',
-                  p: 0.5,
-                  borderRadius: '12px',
-                  gap: 0.5
-                }
-              }}
-            >
-              <Tab
-                label="Gainers"
-                sx={{
-                  fontSize: '11px', fontWeight: 900, p: '6px 16px', borderRadius: '10px', minHeight: 'auto', minWidth: 'auto',
-                  color: '#64748b',
-                  '&.Mui-selected': { bgcolor: '#fff', color: '#0d9488', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
-                }}
-              />
-              <Tab
-                label="Drainers"
-                sx={{
-                  fontSize: '11px', fontWeight: 900, p: '6px 16px', borderRadius: '10px', minHeight: 'auto', minWidth: 'auto',
-                  color: '#64748b',
-                  '&.Mui-selected': { bgcolor: '#fff', color: '#e11d48', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }
-                }}
-              />
-            </Tabs>
-          </Box>
-
-          <TableContainer component={Paper} elevation={0} sx={{ bgcolor: 'transparent', borderRadius: '24px', border: '1px solid rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-            <Table size="small">
-              <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
-                <TableRow>
-                  <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>
-                    {headerColumn}
-                  </TableCell>
-                  <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>Current Period</TableCell>
-                  <TableCell sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>Comparison Period</TableCell>
-                  <TableCell align="right" sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', py: 2 }}>Change</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {pagedData.length > 0 ? pagedData.map((row, idx) => (
-                  <TableRow key={idx} sx={{ '&:last-child td': { border: 0 }, '&:hover': { bgcolor: 'rgba(0,0,0,0.01)' } }}>
-                    <TableCell sx={{ fontSize: '13px', fontWeight: 800, color: '#1e293b', py: 2 }}>{row.name}</TableCell>
-                    <TableCell sx={{ fontSize: '12px', fontWeight: 700, color: '#64748b', py: 2 }}>{row.current}</TableCell>
-                    <TableCell sx={{ fontSize: '12px', fontWeight: 700, color: '#64748b', py: 2 }}>{row.previous}</TableCell>
-                    <TableCell align="right" sx={{
-                      fontSize: '13px', fontWeight: 900, py: 2,
-                      color: row.change.startsWith('+') ? '#0d9488' : '#e11d48'
-                    }}>
-                      {row.change}
-                    </TableCell>
-                  </TableRow>
-                )) : (
-                  <TableRow>
-                    <TableCell colSpan={3} align="center" sx={{ py: 4, color: '#94a3b8', fontStyle: 'italic', fontWeight: 600 }}>
-                      No SKU results for "{selectedBrand}"
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {activeData.length > rowsPerPage && (
-            <TablePagination
-              component="div"
-              count={activeData.length}
-              page={page}
-              onPageChange={(_, p) => setPage(p)}
-              rowsPerPage={rowsPerPage}
-              rowsPerPageOptions={[]}
-              sx={{
-                border: 0,
-                '& .MuiTablePagination-toolbar': { minHeight: 48 },
-                '& .MuiTablePagination-selectLabel, .MuiTablePagination-input': { display: 'none' }
-              }}
-            />
-          )}
-
-          <Box sx={{ mt: 4, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(0,0,0,0.05)' }} />
-            <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              End of Diagnostic Trace
-            </Typography>
-            <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(0,0,0,0.05)' }} />
-          </Box>
-        </Box>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-// --- Internal RCATree Component ---
+const NodeDetailPopup = () => null;
 const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
   const [detailOpen, setDetailOpen] = useState(false);
@@ -2015,6 +1631,22 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
   const reactFlowInstance = useReactFlow();
+
+  const [kpiModalOpen, setKpiModalOpen] = useState(false);
+  const [selectedKpiModalData, setSelectedKpiModalData] = useState(null);
+
+  const handleKpiClick = useCallback((data) => {
+    setSelectedKpiModalData({
+       label: data.label,
+       category: data.category,
+       platform: data.platform,
+       selectedBrand: data.selectedBrand,
+       selectedSku: data.selectedSku,
+       selectedCategory: data.selectedCategory,
+       focusedEntity: data.focusedEntity
+    });
+    setKpiModalOpen(true);
+  }, []);
 
   // Fetch RCA tree data from backend
   const fetchRcaData = useCallback(async () => {
@@ -2064,7 +1696,6 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [fetchRcaData]);
 
   // Use API data if available, otherwise fall back to hardcoded.
-  // FORCE hardcoded data for Amazon/Flipkart as requested.
   const currentTreeData = useMemo(
     () => {
       const isMarketplace = context.platform?.toLowerCase() === 'amazon' || context.platform?.toLowerCase() === 'flipkart';
@@ -2118,31 +1749,23 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     const curP = (context.timeStart && context.timeEnd) ? `${fmtDate(context.timeStart)} - ${fmtDate(context.timeEnd)}` : "Current Period";
     const comP = (context.compareStart && context.compareEnd) ? `${fmtDate(context.compareStart)} - ${fmtDate(context.compareEnd)}` : "Compare Period";
 
-    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends, context.platform, context.brand, context.category, curP, comP);
+    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends, context.platform, context.brand, context.sku, context.category, curP, comP);
 
     const nodesList = results.nodes.map((n) => {
-      const isFocused = focusSet ? focusSet.has(n.id) : true;
-      const isNearTop = n.position.y < -150;
-
       return {
         ...n,
-        zIndex: (hoveredNodeId === n.id || selectedNodeId === n.id) ? 1000000 : 100,
+        zIndex: (hoveredNodeId === n.id) ? 1000000 : 100,
         data: {
           ...n.data,
           onToggle: () => onToggleNode(n.id),
-          onClickDetail: handleCardClick,
+          onClickDetail: () => handleKpiClick({...n.data, id: n.id, brand: context.brand, categoryVal: context.category }),
           onHover,
-          isSelected: selectedNodeId === n.id,
-          isDimmed: false,
-          popupPosition: isNearTop ? "bottom" : "top",
-          hoveredNodeId: hoveredNodeId, // Pass global state to individual node
-        },
-        style: { ...n.style },
+          hoveredNodeId: hoveredNodeId,
+          popupPosition: n.position.y < -150 ? "bottom" : "top",
+        }
       };
     });
 
-    // KEY FIX: Sort nodes so that hovered or selected nodes come LAST in the array.
-    // In React Flow, nodes later in the array are rendered on top of previous ones.
     const sortedNodes = [...nodesList].sort((a, b) => {
       if (a.id === hoveredNodeId || a.id === selectedNodeId) return 1;
       if (b.id === hoveredNodeId || b.id === selectedNodeId) return -1;
@@ -2156,9 +1779,9 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         zoomable: false,
         style: {
           ...(e.style || {}),
-          stroke: "rgba(10, 15, 28, 0.8)", // Constant solid stroke
+          stroke: "rgba(10, 15, 28, 0.8)",
           strokeWidth: 3.5,
-          strokeDasharray: "0", // Always solid
+          strokeDasharray: "0",
           pointerEvents: "none",
           transition: "stroke 0.3s ease",
         },
@@ -2172,7 +1795,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     });
 
     return { nodes: sortedNodes, edges };
-  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover, hoveredNodeId, context.platform]);
+  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, handleKpiClick, selectedNodeId, focusSet, onHover, hoveredNodeId, context.platform, context.brand, context.category, context.timeStart, context.timeEnd, context.compareStart, context.compareEnd, onViewTrends]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
@@ -2183,9 +1806,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
   useEffect(() => {
-    // Automatically fit the tree to the screen on load
     reactFlowInstance.fitView({ padding: 0.15, duration: 800 });
-
     const t = setTimeout(() => {
       reactFlowInstance.fitView({ padding: 0.15, duration: 400 });
     }, 100);
@@ -2193,13 +1814,13 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [reactFlowInstance, currentTreeData]);
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative", cursor: "none" }}>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <CoolGreyBackground />
       <MagicCursor />
 
       {loading && (
         <Box sx={{
-          position: "absolute", inset: 0, zIndex: 50,
+          position: "absolute", inset: 0, zIndex: 100,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           bgcolor: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)", gap: 3
         }}>
@@ -2209,12 +1830,6 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
           <Typography sx={{ fontSize: "13px", fontWeight: 800, color: "#6366f1", letterSpacing: "1.5px", textTransform: "uppercase" }}>
             Loading Intelligence Graph...
           </Typography>
-          <Box sx={{ display: "flex", gap: 3, mt: 2 }}>
-            {[160, 200, 180].map((w, i) => (
-              <motion.div key={i} animate={{ opacity: [0.3, 0.7, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-                style={{ width: w, height: 110, borderRadius: 24, backgroundColor: "#e2e8f0", border: "2px solid #cbd5e1" }} />
-            ))}
-          </Box>
         </Box>
       )}
 
@@ -2258,6 +1873,20 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
           }}
         />
       </ReactFlow>
+
+      {selectedKpiModalData && (
+          <KpiDetailModal
+             open={kpiModalOpen}
+             onClose={() => setKpiModalOpen(false)}
+             kpiLabel={selectedKpiModalData.label}
+             category={selectedKpiModalData.category}
+             platform={selectedKpiModalData.platform}
+             selectedBrand={selectedKpiModalData.selectedBrand}
+             selectedSku={selectedKpiModalData.selectedSku}
+             selectedCategory={selectedKpiModalData.selectedCategory}
+             focusedEntity={selectedKpiModalData.focusedEntity}
+          />
+      )}
 
       <NodeDetailPopup
         open={detailOpen}
