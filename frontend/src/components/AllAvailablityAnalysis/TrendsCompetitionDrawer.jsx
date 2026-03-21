@@ -425,6 +425,8 @@ export default function TrendsCompetitionDrawer({
   selectedColumn,
   selectedLevel,
   brandOptions,
+  initialPlatform = "Blinkit",
+  defaultView = "Trends",
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -435,7 +437,7 @@ export default function TrendsCompetitionDrawer({
   const { maxDate } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
-  const [view, setView] = useState("Trends");
+  const [view, setView] = useState(defaultView || "Trends");
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
   const [activeMetrics, setActiveMetrics] = useState([]);
@@ -447,7 +449,7 @@ export default function TrendsCompetitionDrawer({
 
   // shared Add SKU drawer + selected SKUs (used by Compare SKUs + Competition)
   const [addSkuOpen, setAddSkuOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
+  const [selectedPlatform, setSelectedPlatform] = useState(initialPlatform || "Blinkit");
   const [showPlatformPills, setShowPlatformPills] = useState(true);
   const [showAllPills, setShowAllPills] = useState(false);
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
@@ -465,29 +467,38 @@ export default function TrendsCompetitionDrawer({
   useEffect(() => {
     if (selectedColumn && open) {
       if (dynamicKey === "pricing") {
-        // For pricing, the selectedColumn is a category/city name, NOT a platform.
-        // Don't set it as a platform filter — it will be passed as dimensionValue in the API.
-        setSelectedPlatform("Blinkit"); // default platform pill
+        setSelectedPlatform(initialPlatform || "Blinkit");
         setDrawerFilters(prev => ({
           ...prev,
-          Platform: "All",
+          Platform: initialPlatform || "All",
           City: "All",
           Brand: "All",
           Format: "All",
         }));
       } else {
-        setSelectedPlatform(selectedColumn);
+        setSelectedPlatform(initialPlatform || selectedColumn || "Blinkit");
 
-        // Initialize ONLY the current audience type filter
         const currentAudience = allTrendMeta.context.audience;
         setDrawerFilters(prev => ({
           ...prev,
-          [currentAudience]: selectedColumn
+          Platform: initialPlatform || prev.Platform,
+          [currentAudience]: selectedColumn,
         }));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColumn, open, dynamicKey]);
+  }, [selectedColumn, open, dynamicKey, initialPlatform]);
+
+  useEffect(() => {
+    if (open) {
+      setView(defaultView || "Trends");
+      setSelectedPlatform(initialPlatform || selectedPlatform || "Blinkit");
+      setDrawerFilters(prev => ({
+        ...prev,
+        Platform: initialPlatform || prev.Platform || "All",
+      }));
+    }
+  }, [open, defaultView, initialPlatform]);
 
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);

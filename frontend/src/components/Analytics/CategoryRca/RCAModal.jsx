@@ -9,7 +9,7 @@ import {
     Tooltip,
     Drawer,
 } from "@mui/material";
-import { X, Filter, RefreshCcw, Maximize2, Minimize2, ChevronDown, Info, Activity } from "lucide-react";
+import { X, Filter, RefreshCcw, Maximize2, Minimize2, ChevronDown, Info, Activity, Zap } from "lucide-react";
 import RCATree from "./RCATree";
 import axiosInstance from "../../../api/axiosInstance";
 import TrendsCompetitionDrawer from "../../AllAvailablityAnalysis/TrendsCompetitionDrawer";
@@ -240,22 +240,22 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                             width: 50,
                             height: 50,
                             borderRadius: '18px',
-                            background: 'linear-gradient(135deg, #FFD54F 0%, #F59E0B 100%)',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: 'black',
-                            boxShadow: '0 10px 20px rgba(245, 158, 11, 0.25)',
+                            color: 'white',
+                            boxShadow: '0 10px 20px rgba(79, 70, 231, 0.25)',
                         }}
                     >
-                        <Activity size={28} strokeWidth={3} />
+                        <Zap size={28} strokeWidth={3} fill="white" />
                     </Box>
                     <Box>
                         <Typography variant="h6" sx={{ fontWeight: 900, fontSize: '1.6rem', color: '#0f172a', letterSpacing: '-1.2px' }}>
-                            RCA <span style={{ color: '#9C27B0' }}>Studio</span>
+                            Diagnostic <span style={{ color: '#4f46e5' }}>Studio</span>
                         </Typography>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 900, color: 'rgba(15, 23, 42, 0.4)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
-                            Advanced Marketplace Diagnostic
+                        <Typography sx={{ fontSize: '11px', fontWeight: 900, color: 'rgba(15, 23, 42, 0.4)', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                            PRO INTELLIGENCE PIPELINE V2.0
                         </Typography>
                     </Box>
                 </Box>
@@ -376,6 +376,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                 selectedLevel={selectedTrendLevel}
                 dynamicKey="platform_overview_tower"
                 initialPlatform={platform}
+                defaultView="Competition"
                 brandOptions={brandOptions.filter(b => b !== 'All Brands')}
             />
         </Dialog>
