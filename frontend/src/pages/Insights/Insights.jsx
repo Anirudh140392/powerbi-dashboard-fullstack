@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useContext } from "react";
+import axiosInstance from "../../api/axiosInstance";
 import { motion } from "framer-motion";
 import {
     X,
@@ -184,7 +185,6 @@ function PlatformIconsRow({ platforms }) {
 }
 
 function getCompetitorName(insight) {
-    // Heuristic: pick the first non-KW label from evidence (sample uses "Other brand")
     const rows = insight.evidence ?? [];
     for (const r of rows) {
         const s = (r.skuOrBrand ?? "").trim();
@@ -826,14 +826,64 @@ export default function KwalityWallsSignalHub() {
     const { refreshFilters } = useContext(FilterContext);
 
     // Restore comprehensive platform list from rca_sku_dim on mount
-    // (Prevents subsetting from other pages like Performance Marketing)
     useEffect(() => {
         if (typeof refreshFilters === 'function') {
             refreshFilters();
         }
     }, [refreshFilters]);
 
-    const allInsights = useMemo(() => sampleInsights, []);
+    const [filters, setFilters] = useState({
+        platform: "All platforms",
+        city: "All cities",
+        category: "All categories",
+        signal: "All signals"
+    });
+
+    const [dynamicData, setDynamicData] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchInsights = async () => {
+            setIsLoading(true);
+            try {
+                const params = new URLSearchParams();
+                if (filters.platform && filters.platform !== 'All platforms') params.append('platform', filters.platform);
+                if (filters.city && filters.city !== 'All cities') params.append('city', filters.city);
+                if (filters.category && filters.category !== 'All categories') params.append('category', filters.category);
+                if (filters.startDate) params.append('startDate', filters.startDate);
+                if (filters.endDate) params.append('endDate', filters.endDate);
+
+                const res = await axiosInstance.get('/insights', { params });
+                
+                if (isMounted && res.data?.success) {
+                    setDynamicData(res.data.data || []);
+                }
+            } catch (err) {
+                console.error('Error fetching dynamic insights:', err);
+            } finally {
+                if (isMounted) setIsLoading(false);
+            }
+        };
+        fetchInsights();
+        return () => { isMounted = false; };
+    }, [filters]);
+
+    // Merge static sample insights with dynamic data from backend
+    const allInsights = useMemo(() => {
+        return sampleInsights.map(sample => {
+            const dynamicMatch = dynamicData.find(d => d.type === sample.type);
+            if (dynamicMatch) {
+                return {
+                    ...sample,
+                    kpis: dynamicMatch.kpis || sample.kpis,
+                    evidence: (dynamicMatch.evidence && dynamicMatch.evidence.length > 0) ? dynamicMatch.evidence : sample.evidence,
+                    impactInr: typeof dynamicMatch.impactInr === 'number' ? dynamicMatch.impactInr : sample.impactInr
+                };
+            }
+            return sample;
+        });
+    }, [dynamicData]);
 
     const [typeFilter, setTypeFilter] = useState("All signals");
     const [cityFilter, setCityFilter] = useState("All cities");
@@ -841,11 +891,13 @@ export default function KwalityWallsSignalHub() {
     const [platformFilter, setPlatformFilter] = useState("All platforms");
     const [layout, setLayout] = useState("grid");
 
+    // Slicer options explicitly bound to static sampleInsights ensures 
+    // we don't end up with empty dropdowns when dynamicData filters aggressively.
     const slicerOptions = useMemo(() => {
-        const types = Array.from(new Set(allInsights.map((i) => i.type))).sort();
-        const cities = Array.from(new Set(allInsights.map((i) => i.city))).sort();
-        const cats = Array.from(new Set(allInsights.map((i) => i.category))).sort();
-        const plats = Array.from(new Set(allInsights.flatMap((i) => i.platforms))).sort();
+        const types = Array.from(new Set(sampleInsights.map((i) => i.type))).sort();
+        const cities = Array.from(new Set(sampleInsights.map((i) => i.city))).sort();
+        const cats = Array.from(new Set(sampleInsights.map((i) => i.category))).sort();
+        const plats = Array.from(new Set(sampleInsights.flatMap((i) => i.platforms))).sort();
 
         return {
             types: ["All signals", ...types],
@@ -853,7 +905,7 @@ export default function KwalityWallsSignalHub() {
             categories: ["All categories", ...cats],
             platforms: ["All platforms", ...plats],
         };
-    }, [allInsights]);
+    }, []);
 
     const insights = useMemo(() => {
         return allInsights.filter((i) => {
@@ -882,13 +934,6 @@ export default function KwalityWallsSignalHub() {
         setDialogOpen(true);
     };
 
-    const [filters, setFilters] = useState({
-        platform: "All platforms",
-        city: "All cities",
-        category: "All categories",
-        signal: "All signals"
-    });
-
     return (
         <CommonContainer
             title="Signal Hub"
@@ -897,7 +942,6 @@ export default function KwalityWallsSignalHub() {
         >
             <div className="bg-background text-foreground">
                 <div className="mx-auto max-w-7xl">
-
 
                     <div className="grid gap-4 lg:grid-cols-8 mb-8">
                         <div className="lg:col-span-6 grid gap-4 sm:grid-cols-2 md:grid-cols-4">
@@ -913,7 +957,13 @@ export default function KwalityWallsSignalHub() {
                     </div>
 
                     <div>
-                        {insights.length === 0 ? (
+                        {isLoading ? (
+                            <div className="rounded-2xl border-2 border-dashed border-slate-100 p-12 text-center">
+                                <div className="mx-auto h-12 w-12 rounded-full border-t-2 border-slate-300 animate-spin flex items-center justify-center mb-4"></div>
+                                <h3 className="text-sm font-bold text-slate-900">Analyzing Signals...</h3>
+                                <p className="text-xs text-slate-500 mt-1">Fetching the latest insights and anomalies.</p>
+                            </div>
+                        ) : insights.length === 0 ? (
                             <div className="rounded-2xl border-2 border-dashed border-slate-100 p-12 text-center">
                                 <div className="mx-auto h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center mb-4">
                                     <Radar className="h-6 w-6 text-slate-300" />
