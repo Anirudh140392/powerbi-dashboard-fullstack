@@ -6,9 +6,10 @@ async function run() {
         const r2 = await queryClickHouse("SELECT DISTINCT keyword FROM rb_kw_olap WHERE keyword_search_product != '' LIMIT 5");
         console.log("Keywords:", r2);
         process.exit(0);
-    } catch(e) {
+    } catch (e) {
         console.log(e);
         process.exit(1);
     }
 }
 run();
+
