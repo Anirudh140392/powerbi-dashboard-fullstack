@@ -474,7 +474,8 @@ async function getPricingKpis(filters = {}) {
                     ELSE NULL END) AS rpi_curr,
                 
                 AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) 
+                         AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 
+                    THEN toFloat64OrZero(toString(p.Selling_Price)) 
                     ELSE NULL END) AS asp_curr,
  
                 -- Previous Period
@@ -500,7 +501,8 @@ async function getPricingKpis(filters = {}) {
                     ELSE NULL END) AS rpi_prev,
                 
                 AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) 
+                         AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 
+                    THEN toFloat64OrZero(toString(p.Selling_Price)) 
                     ELSE NULL END) AS asp_prev
 
             FROM rb_pdp_olap p

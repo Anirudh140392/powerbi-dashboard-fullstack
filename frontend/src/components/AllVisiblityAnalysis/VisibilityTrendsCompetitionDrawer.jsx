@@ -685,7 +685,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms' } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats' } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands' } })
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', ownBrandsOnly: true } })
         ]);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
@@ -699,7 +699,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart"],
           formats: formats.length > 0 ? formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
           cities: cities.length > 0 ? cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"],
-          brands: brands.length > 0 ? brands : ["Cadbury", "Hershey's", "Amul", "Kit-kat", "Ferrero rocher 2024"],
+          brands: brands.length > 0 ? brands : [],
           loading: false
         });
 
@@ -713,7 +713,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           platforms: ["Blinkit", "Zepto", "Instamart"],
           formats: ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
           cities: ["Delhi", "Mumbai", "Bangalore", "Chennai"],
-          brands: ["Cadbury", "Hershey's", "Amul", "Kit-kat", "Ferrero rocher 2024"],
+          brands: [],
           loading: false
         });
       }
@@ -973,7 +973,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : ["Blinkit", "Zepto", "Instamart", "BigBasket"];
   const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : ["Cadbury", "Hershey's", "Amul", "Kit-kat", "Ferrero rocher 2024"];
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : [];
 
   if (!open) return null;
 

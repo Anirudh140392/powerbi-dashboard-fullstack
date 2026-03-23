@@ -17,4 +17,4 @@
                 product_platform_total as overallScore
             FROM tb_content_score_data
             WHERE 1=1
-         AND toDate(extraction_timestamp) BETWEEN '2026-03-01' AND '2026-03-01' AND lower(brand_name) = lower('Colgate') LIMIT 5000
+         AND toDate(extraction_timestamp) BETWEEN '2026-03-01' AND '2026-03-19' LIMIT 5000
