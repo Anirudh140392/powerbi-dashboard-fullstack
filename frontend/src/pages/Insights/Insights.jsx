@@ -284,7 +284,6 @@ function DetailBody({ insight }) {
                                             <TableHead className="text-right">Est. lost sales</TableHead>
                                         </>
                                     )}
-
                                     {view === "newEntry" && (
                                         <>
                                             <TableHead>City</TableHead>
@@ -295,7 +294,6 @@ function DetailBody({ insight }) {
                                             <TableHead className="text-right">First seen</TableHead>
                                         </>
                                     )}
-
                                     {view === "supply" && (
                                         <>
                                             <TableHead>Depot / DB</TableHead>

@@ -36,22 +36,23 @@ const cardSize = {
 /* --- KPI definitions (ROW headers — vertical, left side) --- */
 const kpiDefs = [
     { key: 'categorySize', label: 'Category Size' },
-    { key: 'mwMarketShare', label: 'MW Market Share%' },
-    { key: 'mwSales', label: 'MW Sales (Cr)' },
-    { key: 'mlMarketShare', label: 'ML Market Share%' },
-    { key: 'mlSales', label: 'ML Sales (Cr)' },
+    { key: 'mwMarketShare', label: 'Market Share%' },
+    { key: 'mwSales', label: 'Sales (Cr)' },
+    { key: 'mlMarketShare', label: 'Market Share%' },
+    { key: 'mlSales', label: 'Sales (Cr)' },
 ];
 
 const kpiLabels = {
     categorySize: 'Category Size',
-    mwMarketShare: 'MW Market Share%',
-    mwSales: 'MW Sales (Cr)',
-    mlMarketShare: 'ML Market Share%',
-    mlSales: 'ML Sales (Cr)',
+    mwMarketShare: 'Market Share%',
+    mwSales: 'Sales (Cr)',
+    mlMarketShare: 'Market Share%',
+    mlSales: 'Sales (Cr)',
 };
 
 /* --- Platform entities (COLUMN headers — horizontal, top) --- */
-const platformEntities = [
+/* Fallback while loading; overridden dynamically from backend response */
+const defaultPlatformEntities = [
     { key: 'odd_overall', name: 'ODD Overall' },
     { key: 'blinkit', name: 'Blinkit' },
     { key: 'instamart', name: 'Instamart' },
@@ -99,7 +100,10 @@ const MarketCatOverview = ({
         const fetchCrossPlatformData = async () => {
             setDataLoading(true);
             try {
-                const selectedCities = advancedFilters.cities?.length > 0 ? advancedFilters.cities : (selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation : [selectedLocation]));
+                // Enforced isolation from global location filter
+                const selectedCities = undefined;
+
+                // Construct parameters avoiding empty arrays
                 const selectedCats = advancedFilters.categories?.length > 0 ? advancedFilters.categories : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory : [selectedCategory]));
                 const selectedBrands = advancedFilters.brands?.length > 0 ? advancedFilters.brands : undefined;
 
@@ -144,6 +148,28 @@ const MarketCatOverview = ({
     const selectedKpis = kpiDefs.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
+    // Derive dynamic platform entities from backend response
+    const platformEntities = useMemo(() => {
+        if (!backendData) return defaultPlatformEntities;
+
+        // Use _availablePlatforms from backend if present
+        if (backendData._availablePlatforms) {
+            return backendData._availablePlatforms.map(key => ({
+                key,
+                name: key === 'odd_overall' ? 'ODD Overall' : key.charAt(0).toUpperCase() + key.slice(1)
+            }));
+        }
+
+        // Fallback: derive from response keys, filtering out internal keys
+        const keys = Object.keys(backendData).filter(k => !k.startsWith('_'));
+        // Ensure odd_overall comes first
+        const sorted = ['odd_overall', ...keys.filter(k => k !== 'odd_overall')];
+        return sorted.map(key => ({
+            key,
+            name: key === 'odd_overall' ? 'ODD Overall' : key.charAt(0).toUpperCase() + key.slice(1)
+        }));
+    }, [backendData]);
+
     // Build platformData from backend response
     const platformData = useMemo(() => {
         if (!backendData) {
@@ -164,7 +190,7 @@ const MarketCatOverview = ({
                 return acc;
             }, {})
         }));
-    }, [backendData]);
+    }, [backendData, platformEntities]);
 
     const SectionWrapper = ({
         title,

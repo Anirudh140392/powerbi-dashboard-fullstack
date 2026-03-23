@@ -1,46 +1,43 @@
-import "dotenv/config";
-import axios from "axios";
+import axios from 'axios';
 
-async function testSignalLab(brand = 'All') {
-    const params = {
-        platform: 'Blinkit',
-        brand: brand,
-        location: 'All',
-        startDate: '2025-12-01',
-        endDate: '2025-12-31',
-        compareStartDate: '2025-11-01',
-        compareEndDate: '2025-11-30',
-        type: 'availability',
-        signalType: 'drainer',
-        page: 1,
-        limit: 10
-    };
-
-    console.log(`\nTesting Signal Lab API for ${brand} on Blinkit...`);
-
+async function verifyFixes() {
+    const baseURL = 'http://localhost:5000/api'; // Assuming default port
     try {
-        const response = await axios.get(`http://localhost:5000/api/availability-analysis/signal-lab`, { params });
-        const data = response.data;
-
-        console.log("✅ API Success!");
-        console.log(`Total Count: ${data.totalCount}`);
-        console.log(`SKUs Found: ${data.skus?.length || 0}`);
-        if (data.skus?.length > 0) {
-            console.log("Sample SKU:", data.skus[0].skuName);
-            console.log("Change Metric (OSA Change):", data.skus[0].impact);
-        }
-    } catch (error) {
-        if (error.response) {
-            console.error("❌ API Error:", error.response.data);
+        console.log('--- VERIFYING INVENTORY MATRIX ---');
+        const res = await axios.get(`${baseURL}/inventory-analysis/matrix`, {
+            params: {
+                startDate: '2025-12-01',
+                endDate: '2025-12-12'
+            }
+        });
+        
+        const data = res.data.data;
+        console.log(`Received ${data.length} rows.`);
+        
+        const competitors = data.filter(r => 
+            r.sku.toLowerCase().includes('5 star') || 
+            r.sku.toLowerCase().includes('amul')
+        );
+        
+        if (competitors.length > 0) {
+            console.error('❌ FAILED: Found competitor SKUs in matrix:', competitors.map(c => c.sku));
         } else {
-            console.error("❌ Fetch failed:", error.message);
+            console.log('✅ SUCCESS: No competitor SKUs found in matrix.');
+        }
+        
+        const negatives = data.filter(r => r.inventory < 0);
+        if (negatives.length > 0) {
+            console.error('❌ FAILED: Found negative inventory values:', negatives.slice(0, 5));
+        } else {
+            console.log('✅ SUCCESS: No negative inventory values found.');
+        }
+
+    } catch (err) {
+        console.error('Error during verification:', err.message);
+        if (err.response) {
+            console.error('Response data:', err.response.data);
         }
     }
 }
 
-async function runTests() {
-    await testSignalLab('Aer'); // Check specific brand
-    await testSignalLab('All'); // Check user's reported "All" case
-}
-
-runTests();
+verifyFixes();

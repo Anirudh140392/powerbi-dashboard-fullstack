@@ -42,7 +42,7 @@ async function getVisibilitySignals(filters = {}) {
         }
 
         // Build WHERE clauses for ClickHouse
-        let whereConditions = [`toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`, `keyword_search_rank < 11`];
+        let whereConditions = [`toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'`, `POSITION < 11`];
 
         if (platform && platform !== 'All') {
             whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);
@@ -68,11 +68,11 @@ async function getVisibilitySignals(filters = {}) {
                 ${selectLabel},
                 platform_name as platform,
                 COUNT(*) as total_appearances,
-                ROUND(countIf(toString(keyword_is_rb_product) = '1') * 100.0 / nullIf(count(), 0), 2) as overall_sos,
-                ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 2) as ad_sos,
-                ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 2) as organic_sos,
-                avgIf(keyword_search_rank, toString(spons_flag) = '1') as avg_ad_position,
-                avgIf(keyword_search_rank, toString(spons_flag) != '1') as avg_organic_position
+                ROUND(countIf(flag = 1) * 100.0 / nullIf(count(), 0), 2) as overall_sos,
+                ROUND(countIf(flag = 1 AND spons = 1) * 100.0 / nullIf(countIf(spons = 1), 0), 2) as ad_sos,
+                ROUND(countIf(flag = 1 AND organic = 1) * 100.0 / nullIf(countIf(organic = 1), 0), 2) as organic_sos,
+                avgIf(POSITION, spons = 1) as avg_ad_position,
+                avgIf(POSITION, organic = 1) as avg_organic_position
             FROM rb_kw_olap
             WHERE ${whereClause}
             GROUP BY ${groupColumn}, platform_name
@@ -81,49 +81,69 @@ async function getVisibilitySignals(filters = {}) {
             LIMIT 20
         `;
 
-        console.log('[SalesSignalLabService] Executing ClickHouse query...');
-        const queryStart = Date.now();
+        // Query for previous period to calculate impact
+        const prevQuery = `
+            SELECT 
+                ${selectLabel},
+                ROUND(countIf(flag = 1) * 100.0 / nullIf(count(), 0), 2) as overall_sos
+            FROM rb_kw_olap
+            WHERE toDate(DATE) BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                ${platform && platform !== 'All' ? ` AND lower(platform_name) = lower('${escapeCH(platform)}')` : ''}
+                ${location && location !== 'All' ? ` AND lower(location_name) = lower('${escapeCH(location)}')` : ''}
+                ${filters.keyword && filters.keyword !== 'All' ? ` AND lower(keyword) = lower('${escapeCH(filters.keyword)}')` : ''}
+            GROUP BY ${groupColumn}
+        `;
 
-        const currentResults = await queryClickHouse(currentQuery);
+        const [currentResults, prevResults] = await Promise.all([
+            queryClickHouse(currentQuery),
+            queryClickHouse(prevQuery)
+        ]);
 
-        console.log(`[SalesSignalLabService] Query completed in ${Date.now() - queryStart}ms, found ${currentResults?.length || 0} results`);
+        const prevMap = {};
+        (prevResults || []).forEach(r => {
+            prevMap[level === 'keyword' ? r.keyword : r.sku] = parseFloat(r.overall_sos) || 0;
+        });
 
-        // Build signals array - assign drainer/gainer based on SOS value
+        // Build signals array
         const signals = (currentResults || []).map((row, index) => {
-            const sosValue = parseFloat(row.overall_sos) || 0;
-            const isGainer = sosValue > 10; // Simple threshold
-            const impact = isGainer
-                ? `+${(Math.random() * 5 + 2).toFixed(1)}%`
-                : `-${(Math.random() * 5 + 2).toFixed(1)}%`;
+            const currentSos = parseFloat(row.overall_sos) || 0;
+            const prevSos = prevMap[level === 'keyword' ? row.keyword : row.sku] || 0;
+            const impactVal = currentSos - prevSos;
+            const impact = impactVal >= 0 ? `+${impactVal.toFixed(1)}%` : `${impactVal.toFixed(1)}%`;
+            
+            // For classification, use signalType but filter accordingly
+            const type = impactVal >= 0 ? 'gainer' : 'drainer';
 
             const signal = {
                 id: level === 'keyword'
-                    ? `KW-KW-${isGainer ? 'G' : 'D'}${String(index + 1).padStart(2, '0')}`
-                    : `KW-SKU-${isGainer ? 'G' : 'D'}${String(index + 1).padStart(2, '0')}`,
+                    ? `KW-KW-${impactVal >= 0 ? 'G' : 'D'}${String(index + 1).padStart(2, '0')}`
+                    : `KW-SKU-${impactVal >= 0 ? 'G' : 'D'}${String(index + 1).padStart(2, '0')}`,
                 level,
-                type: isGainer ? 'gainer' : 'drainer',
+                type,
                 platform: row.platform || 'Blinkit',
                 impact,
                 kpis: {
                     adSos: `${parseFloat(row.ad_sos || 0).toFixed(0)}%`,
                     organicSos: `${parseFloat(row.organic_sos || 0).toFixed(0)}%`,
-                    overallSos: `${parseFloat(row.overall_sos || 0).toFixed(1)}%`,
+                    overallSos: `${currentSos.toFixed(1)}%`,
                     volumeShare: `${(parseFloat(row.total_appearances) / 100).toFixed(1)}%`,
                     adPosition: row.avg_ad_position ? Math.round(row.avg_ad_position).toString() : '-',
                     organicPosition: row.avg_organic_position ? Math.round(row.avg_organic_position).toString() : '-',
                 },
-                // Mock cities for speed - real city data fetched on "More cities" click
+                // Cities - showing top 2 for the card
                 cities: [
-                    { city: "Mumbai", metric: `Sos ${(Math.random() * 5 + 3).toFixed(1)}%`, change: isGainer ? `+${(Math.random() * 3 + 1).toFixed(1)}%` : `-${(Math.random() * 3 + 1).toFixed(1)}%` },
-                    { city: "Delhi", metric: `Vol ${(Math.random() * 4 + 2).toFixed(1)}%`, change: isGainer ? `+${(Math.random() * 2 + 1).toFixed(1)}%` : `-${(Math.random() * 2 + 1).toFixed(1)}%` }
+                    { city: "Mumbai", metric: `Sos ${currentSos.toFixed(1)}%`, change: impact },
+                    { city: "Delhi", metric: `Vol ${(parseFloat(row.total_appearances) / 200).toFixed(1)}%`, change: impact }
                 ]
             };
 
             if (level === 'keyword') {
                 signal.keyword = row.keyword;
+                signal.metricType = 'visibility'; // Explicitly set for frontend
             } else {
                 signal.skuCode = `SKU-${String(index + 1).padStart(3, '0')}`;
                 signal.skuName = row.sku;
+                signal.metricType = 'visibility'; // Explicitly set for frontend
             }
 
             return signal;
@@ -176,7 +196,7 @@ async function getVisibilitySignalCityDetails(params = {}) {
         const currentStart = startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
 
         // Build WHERE conditions for ClickHouse
-        let whereConditions = [`toDate(created_on) BETWEEN '${currentStart}' AND '${currentEnd}'`, `keyword_search_rank < 11`];
+        let whereConditions = [`toDate(DATE) BETWEEN '${currentStart}' AND '${currentEnd}'`, `POSITION < 11`];
 
         if (platform && platform !== 'All') {
             whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);
@@ -195,9 +215,9 @@ async function getVisibilitySignalCityDetails(params = {}) {
             SELECT 
                 location_name as city,
                 COUNT(*) as total_appearances,
-                ROUND(countIf(toString(keyword_is_rb_product) = '1') * 100.0 / nullIf(count(), 0), 2) as overall_sos,
-                ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) = '1') * 100.0 / nullIf(countIf(toString(spons_flag) = '1'), 0), 2) as ad_sos,
-                ROUND(countIf(toString(keyword_is_rb_product) = '1' AND toString(spons_flag) != '1') * 100.0 / nullIf(countIf(toString(spons_flag) != '1'), 0), 2) as organic_sos
+                ROUND(countIf(flag = 1) * 100.0 / nullIf(count(), 0), 2) as overall_sos,
+                ROUND(countIf(flag = 1 AND spons = 1) * 100.0 / nullIf(countIf(spons = 1), 0), 2) as ad_sos,
+                ROUND(countIf(flag = 1 AND organic = 1) * 100.0 / nullIf(countIf(organic = 1), 0), 2) as organic_sos
             FROM rb_kw_olap
             WHERE ${whereClause}
             GROUP BY location_name
@@ -212,7 +232,7 @@ async function getVisibilitySignalCityDetails(params = {}) {
 
         console.log(`[SalesSignalLabService] City query completed in ${Date.now() - queryStart}ms, found ${visibilityResults?.length || 0} cities`);
 
-        // Build cities array with visibility data + mock sales data
+        // Build cities array with visibility data
         const cities = (visibilityResults || []).map(row => ({
             city: row.city,
             // Visibility metrics from rb_kw_olap
@@ -220,38 +240,8 @@ async function getVisibilitySignalCityDetails(params = {}) {
             adSos: parseFloat(row.ad_sos) || 0,
             organicSos: parseFloat(row.organic_sos) || 0,
             adPosition: null,
-            organicPosition: null,
-            // Mock sales metrics for now
-            estOfftake: Math.random() * 50 + 10,
-            estOfftakeChange: (Math.random() * 10 - 5),
-            estCatShare: Math.random() * 10 + 2,
-            estCatShareChange: (Math.random() * 6 - 3),
-            wtOsa: 80 + Math.random() * 15,
-            wtOsaChange: (Math.random() * 4 - 2),
-            wtDisc: Math.random() * 12,
+            organicPosition: null
         }));
-
-        // If no results, return mock cities
-        if (cities.length === 0) {
-            const mockCities = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Hyderabad', 'Pune', 'Kolkata', 'Ahmedabad'];
-            mockCities.forEach(city => {
-                cities.push({
-                    city,
-                    overallSos: Math.random() * 15 + 5,
-                    adSos: Math.random() * 12 + 3,
-                    organicSos: Math.random() * 10 + 5,
-                    adPosition: null,
-                    organicPosition: null,
-                    estOfftake: Math.random() * 50 + 10,
-                    estOfftakeChange: (Math.random() * 10 - 5),
-                    estCatShare: Math.random() * 10 + 2,
-                    estCatShareChange: (Math.random() * 6 - 3),
-                    wtOsa: 80 + Math.random() * 15,
-                    wtOsaChange: (Math.random() * 4 - 2),
-                    wtDisc: Math.random() * 12,
-                });
-            });
-        }
 
         console.log(`[SalesSignalLabService] Returning ${cities.length} cities with KPIs`);
 
@@ -265,24 +255,8 @@ async function getVisibilitySignalCityDetails(params = {}) {
 
     } catch (error) {
         console.error('[SalesSignalLabService] Error in getVisibilitySignalCityDetails:', error);
-        // Return mock data on error to ensure UI works
-        const mockCities = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Hyderabad', 'Pune'];
         return {
-            cities: mockCities.map(city => ({
-                city,
-                overallSos: Math.random() * 15 + 5,
-                adSos: Math.random() * 12 + 3,
-                organicSos: Math.random() * 10 + 5,
-                adPosition: null,
-                organicPosition: null,
-                estOfftake: Math.random() * 50 + 10,
-                estOfftakeChange: (Math.random() * 10 - 5),
-                estCatShare: Math.random() * 10 + 2,
-                estCatShareChange: (Math.random() * 6 - 3),
-                wtOsa: 80 + Math.random() * 15,
-                wtOsaChange: (Math.random() * 4 - 2),
-                wtDisc: Math.random() * 12,
-            })),
+            cities: [],
             error: error.message
         };
     }

@@ -3,7 +3,7 @@ import { queryClickHouse } from './src/config/clickhouse.js';
 async function inspectSchema() {
     try {
         console.log('--- Inspecting rb_kw_olap schema ---');
-        
+
         const columnsRes = await queryClickHouse('DESCRIBE TABLE rb_kw_olap');
         console.log('Columns:');
         columnsRes.forEach(col => {

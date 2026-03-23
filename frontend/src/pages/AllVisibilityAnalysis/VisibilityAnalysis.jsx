@@ -28,7 +28,7 @@ export default function VisibilityAnalysis() {
   const [filters, setFilters] = useState({
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
-    location: selectedLocation || "All",
+    location: "All",
     keyword: selectedKeyword || "All",
     keywordType: selectedKeywordType || "All",
     category: selectedCategory || "All",
@@ -101,7 +101,7 @@ export default function VisibilityAnalysis() {
         ...prev,
         platform: platform || prev.platform,
         brand: selectedBrand || prev.brand,
-        location: selectedLocation || prev.location,
+        location: "All",
         keyword: selectedKeyword || prev.keyword,
         keywordType: selectedKeywordType || prev.keywordType,
         category: selectedCategory || prev.category,
@@ -239,7 +239,7 @@ export default function VisibilityAnalysis() {
     const baseParams = {
       platform: filters.platform || 'All',
       brand: filters.brand || 'All',
-      location: filters.location || 'All',
+      location: 'All', // Hardcode to 'All' to isolate from global filters
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
@@ -251,7 +251,7 @@ export default function VisibilityAnalysis() {
     const matrixParams = new URLSearchParams({
       platform: 'All',
       brand: filters.brand || 'All',
-      location: filters.location || 'All',
+      location: 'All', // Hardcode to 'All' to isolate from global filters
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
@@ -294,7 +294,7 @@ export default function VisibilityAnalysis() {
     const mainFiltersKey = JSON.stringify({
       platform: filters.platform,
       brand: filters.brand,
-      location: filters.location,
+      location: 'All',
       keyword: filters.keyword,
       keywordType: filters.keywordType,
       category: filters.category,
@@ -349,7 +349,7 @@ export default function VisibilityAnalysis() {
         const baseParams = {
           platform: filters.platform || 'All',
           brand: filters.brand || 'All',
-          location: filters.location || 'All',
+          location: 'All', // Hardcode to 'All' to isolate from global filters
           keyword: filters.keyword || 'All',
           keywordType: filters.keywordType || 'All',
           category: filters.category || 'All',
@@ -377,7 +377,7 @@ export default function VisibilityAnalysis() {
         const matrixParams = new URLSearchParams({
           platform: 'All',
           brand: filters.brand || 'All',
-          location: filters.location || 'All',
+          location: 'All', // Hardcode to 'All' to isolate from global filters
           keyword: filters.keyword || 'All',
           keywordType: filters.keywordType || 'All',
           category: filters.category || 'All',

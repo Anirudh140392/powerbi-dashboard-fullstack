@@ -40,7 +40,7 @@ import { KpiFilterPanel } from '../KpiFilterPanel';
 const fmt = (val) => {
     if (val === undefined || val === null || isNaN(val)) return "0";
     if (val >= 10000000) return (val / 10000000).toFixed(1) + " Cr";
-    if (val >= 100000) return (val / 100000).toFixed(1) + " lac";
+    if (val >= 100000) return (val / 100000).toFixed(1) + " Lac";
     if (val >= 1000) return (val / 1000).toFixed(1) + " K";
     return val.toFixed(1);
 };
@@ -67,12 +67,10 @@ const ErrorWithRefresh = ({ onRetry, message }) => (
 );
 
 const getMetricStyle = (label, val) => {
-    // Return neutral styling - no colored backgrounds on values
-    // Only the delta/% change will have colors
     return {
-        bgcolor: "#f8fafc",
-        color: "#334155",
-        border: "1px solid #e2e8f0"
+        bgcolor: "#f9fafb",
+        color: "#475569",
+        border: "1px solid #f1f5f9"
     };
 };
 
@@ -116,36 +114,37 @@ const MetricCell = ({ data, label, categoryName }) => {
         : { bgcolor: "#fef2f2", color: "#ef4444", border: "1px solid #fee2e2" };
 
     return (
-        <TableCell align="right" sx={{ py: 1.5, borderBottom: "1px solid #f1f5f9" }}>
+        <TableCell align="right" sx={{ py: 2, borderBottom: "1px solid #f1f5f9" }}>
             <Popover open={isOpen} onOpenChange={setIsOpen}>
                 <PopoverTrigger asChild>
                     <Box
                         display="inline-flex"
                         alignItems="center"
-                        gap={1}
+                        gap={1.5}
                         onMouseEnter={() => setIsOpen(true)}
                         onMouseLeave={() => setIsOpen(false)}
-                        sx={{ cursor: "pointer", transition: "transform 0.1s", "&:hover": { transform: "translateY(-1px)" } }}
+                        sx={{ cursor: "pointer", transition: "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { transform: "translateY(-1px)" } }}
                     >
                         {/* Main Value Badge */}
                         <Box
                             sx={{
                                 ...metricStyle,
-                                px: 1.5,
-                                py: 0.75,
-                                borderRadius: "10px",
-                                minWidth: "65px",
+                                px: 1.75,
+                                py: 0.85,
+                                borderRadius: "8px",
+                                minWidth: "70px",
                                 display: "flex",
                                 justifyContent: "center",
                                 alignItems: "center",
-                                boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
+                                boxShadow: "0 1px 1px rgba(0,0,0,0.01)",
+                                transition: "all 0.2s",
+                                "&:hover": { bgcolor: "#f1f5f9", borderColor: "#e2e8f0" }
                             }}
                         >
-                            <Typography sx={{ fontSize: 13, fontWeight: 700 }}>
+                            <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: "#1e293b" }}>
                                 {fmt(value)}
                             </Typography>
                         </Box>
-
                         {/* Delta Badge */}
                         <Box
                             sx={{
@@ -153,13 +152,14 @@ const MetricCell = ({ data, label, categoryName }) => {
                                 display: "flex",
                                 alignItems: "center",
                                 gap: 0.25,
-                                px: 1,
-                                py: 0.5,
-                                borderRadius: "10px",
-                                boxShadow: "0 1px 2px rgba(0,0,0,0.02)"
+                                px: 1.25,
+                                py: 0.65,
+                                borderRadius: "8px",
+                                boxShadow: "0 1px 1px rgba(0,0,0,0.01)",
+                                transition: "all 0.2s"
                             }}
                         >
-                            {isPositive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                            {isPositive ? <ArrowUpRight size={14} strokeWidth={2.5} /> : <ArrowDownRight size={14} strokeWidth={2.5} />}
                             <Typography sx={{ fontSize: 11, fontWeight: 700 }}>
                                 {isPositive ? "+" : ""}{delta.toFixed(1)}
                             </Typography>
@@ -394,32 +394,40 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
             ) : (
                 <>
                     <TableContainer>
-                        <Table size="small">
+                        <Table size="small" sx={{ "& .MuiTableCell-root": { borderColor: "#f1f5f9" } }}>
                             <TableHead>
                                 <TableRow sx={{ bgcolor: "#f8fafc" }}>
-                                    <TableCell sx={{ py: 3, fontWeight: 800, color: "#475569", fontSize: 12 }}>CATEGORY</TableCell>
+                                    <TableCell sx={{ py: 2.5, px: 3, fontWeight: 700, color: "#475569", fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                                        CATEGORY
+                                    </TableCell>
                                     {activeKpis.map((kpiName) => {
                                         const kpi = kpiMapping[kpiName];
                                         return (
-                                            <TableCell key={kpi.header} align="right" sx={{ py: 2, fontWeight: 800, color: "#475569", fontSize: 12 }}>
-                                                <Box display="flex" alignItems="center" justifyContent="flex-end" gap={0.75}>
+                                            <TableCell key={kpi.header} align="right" sx={{ py: 2.5, px: 3, fontWeight: 700, color: "#475569", fontSize: 11, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                                                <Box display="inline-flex" alignItems="center" justifyContent="flex-end" gap={1}>
                                                     {kpi.header}
-                                                    <Box
-                                                        className="trend-icon"
-                                                        onClick={() => onTrendClick && onTrendClick(kpi.header)}
-                                                        sx={{
-                                                            p: 0.5,
-                                                            borderRadius: "6px",
-                                                            bgcolor: "#eef2ff",
-                                                            color: "#6366f1",
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            cursor: "pointer",
-                                                            transition: "all 0.2s ease"
-                                                        }}
-                                                    >
-                                                        <LineChartIcon size={12} />
-                                                    </Box>
+                                                    <Tooltip title="View Trend Sparkline" arrow placement="top">
+                                                        <Box
+                                                            className="trend-icon"
+                                                            onClick={() => onTrendClick && onTrendClick(kpi.header)}
+                                                            sx={{
+                                                                p: 0.5,
+                                                                borderRadius: "6px",
+                                                                bgcolor: "transparent",
+                                                                color: "#94a3b8",
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                cursor: "pointer",
+                                                                transition: "all 0.2s ease",
+                                                                "&:hover": {
+                                                                    bgcolor: "#e2e8f0",
+                                                                    color: "#475569"
+                                                                }
+                                                            }}
+                                                        >
+                                                            <LineChartIcon size={14} strokeWidth={2.5} />
+                                                        </Box>
+                                                    </Tooltip>
                                                 </Box>
                                             </TableCell>
                                         );
@@ -454,8 +462,8 @@ export default function ByCategoryKpiMatrix({ startDate, endDate, compareStartDa
                                                 transition: "background-color 0.2s"
                                             }}
                                         >
-                                            <TableCell sx={{ py: 2.5, borderBottom: "1px solid #f1f5f9" }}>
-                                                <Typography sx={{ fontWeight: 800, color: "#1e293b", fontSize: 13, letterSpacing: "0.02em" }}>
+                                            <TableCell sx={{ py: 3, px: 3, borderBottom: "1px solid #f1f5f9" }}>
+                                                <Typography sx={{ fontWeight: 700, color: "#1e293b", fontSize: 13, letterSpacing: "0.01em" }}>
                                                     {row.category.toUpperCase()}
                                                 </Typography>
                                             </TableCell>
