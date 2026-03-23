@@ -71,6 +71,8 @@ const performanceKpiOrder = [
 ];
 
 const inventoryKpiOrder = [
+    "soh",
+    "doi",
     "drr",
     "oos",
     "expiryRisk",

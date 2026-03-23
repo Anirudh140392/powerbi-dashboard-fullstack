@@ -13,8 +13,10 @@ import {
     LineChart,
     MapPin,
     SlidersHorizontal,
+    Scale,
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
+import { useNavigate } from 'react-router-dom'
 import { cn } from '../../../lib/utils'
 import FlipkartLogo from '@/lib/Flipkart logo.png'
 
@@ -190,6 +192,7 @@ const PlatformOverviewNew = ({
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+    const navigate = useNavigate()
     const [apiData, setApiData] = useState({})
     const [apiLoading, setApiLoading] = useState(true)
     const [apiError, setApiError] = useState(null)
@@ -488,8 +491,8 @@ const PlatformOverviewNew = ({
     return (
         <>
             <div>
-                {/* SECTION 2: Performance Matrix - Wrapped in PowerBI Container */}
-                <SectionWrapper
+                    {/* SECTION 2: Performance Matrix - Wrapped in PowerBI Container */}
+                    <SectionWrapper
                     title="Platform Overview"
                     icon={currentDimension.icon}
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
@@ -641,8 +644,20 @@ const PlatformOverviewNew = ({
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
                                 <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
-                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between">
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
+                                        {dimension === 'sku' && (
+                                            <motion.button 
+                                                onClick={() => navigate('/compare-skus')}
+                                                className="px-3 py-1.5 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-600 to-blue-500 text-[10px] sm:text-[11px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.3)] hover:-translate-y-0.5 transition-all uppercase tracking-wider flex items-center gap-1.5 relative overflow-hidden group"
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                            >
+                                                <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-[-20deg]"></div>
+                                                <Scale size={13} className="text-blue-100" strokeWidth={2.5}/>
+                                                <span>Compare SKU</span>
+                                            </motion.button>
+                                        )}
                                     </div>
                                     {selectedKpis.map(kpi => (
                                         <div key={kpi.key} className={cn('flex-1 text-center py-2 px-2 rounded-lg bg-white border border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]', cardSize.minW)}>
@@ -783,6 +798,7 @@ const PlatformOverviewNew = ({
                     </div>
                 </SectionWrapper>
             </div>
+            
             {/* Prepare options for advanced filter dropdowns */}
             {(() => {
                 const brandOptions = globalBrands.map(b => ({ id: b, name: b }))

@@ -11,16 +11,17 @@ const getFilterMetadata = async (whereClause, params) => {
         const dbName = getCurrentDbName();
         // Top-level Category is now always 'Category' in both Mars and Default PDP tables
         const catCol = 'Category';
+        whereClause = whereClause || '1=1'; // Corrected variable name from 'where' to 'whereClause'
 
         const query = `
-        SELECT
+        SELECT DISTINCT
             Platform as platform,
             Brand as brand,
             ${catCol} as category,
             Product as sku,
             Location as city
         FROM rb_pdp_olap
-        WHERE ${whereClause}
+        WHERE ${whereClause} AND Comp_flag = 0
         GROUP BY Platform, Brand, ${catCol}, Product, Location
     `;
 
@@ -60,7 +61,7 @@ const inventoryAnalysisService = {
      */
     async getInventoryOverview(filters) {
         console.log("🔍 [InventoryAnalysis] Fetching overview (ClickHouse) with filters:", filters);
-        const cacheKey = generateCacheKey('inventory_overview', filters);
+        const cacheKey = generateCacheKey('inventory_overview_v2', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -73,6 +74,7 @@ const inventoryAnalysisService = {
 
                 const buildSqlWhere = (start, end) => {
                     let where = `toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
+                    where += ` AND Comp_flag = 0`;
                     const params = {};
 
                     if (filters.platform && filters.platform !== 'All') {
@@ -244,10 +246,10 @@ const inventoryAnalysisService = {
      * Get available platforms for filter dropdown
      */
     async getPlatforms() {
-        const cacheKey = 'inventory_platforms';
+        const cacheKey = 'inventory_platforms_v2';
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY platform ASC`;
+                const query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' AND Comp_flag = 0 ORDER BY platform ASC`;
                 const results = await queryClickHouse(query);
                 return results.map(p => p.platform);
             } catch (error) {
@@ -261,10 +263,10 @@ const inventoryAnalysisService = {
      * Get available brands for filter dropdown
      */
     async getBrands(platform) {
-        const cacheKey = generateCacheKey('inventory_brands', { platform });
+        const cacheKey = generateCacheKey('inventory_brands_v2', { platform });
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                let query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != ''`;
+                let query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != '' AND Comp_flag = 0`;
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => p.trim());
                     query += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
@@ -309,8 +311,8 @@ const inventoryAnalysisService = {
      * Get Inventory Matrix (SKU x City) with basic inventory totals
      */
     async getInventoryMatrix(filters) {
-        console.log("🔍 [InventoryAnalysis] Fetching basic matrix (ClickHouse) with filters:", filters);
-        const cacheKey = generateCacheKey('inventory_matrix', filters);
+        console.log("🔍 [DEBUG_VERIFY_FIX_123] Fetching basic matrix (ClickHouse) with filters:", filters);
+        const cacheKey = generateCacheKey('inventory_matrix_v3', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -319,6 +321,7 @@ const inventoryAnalysisService = {
 
                 const buildSqlWhere = (start, end) => {
                     let where = `toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
+                    where += ` AND Comp_flag = 0`;
                     if (filters.platform && filters.platform !== 'All') {
                         const platforms = filters.platform.split(',').map(p => p.trim());
                         where += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
@@ -354,15 +357,15 @@ const inventoryAnalysisService = {
                         Brand as brand,
                         ${catCol} as category,
                         sum(offtakeValue) as offtake_qty,
-                        argMax(Inventory, DATE) as inventory
+                        argMax(inventory, DATE) as inventory
                     FROM (
                         SELECT 
                             Product, Location, Brand, ${catCol}, Platform, DATE,
-                            Qty_Sold as offtakeValue,
-                            Inventory
+                            sum(ifNull(Qty_Sold, 0)) as offtakeValue,
+                            argMax(ifNull(toFloat64OrZero(toString(Inventory)), 0), DATE) as inventory
                         FROM rb_pdp_olap
                         WHERE ${sqlWhere}
-                        GROUP BY Product, Location, Brand, ${catCol}, Platform, DATE, Qty_Sold, Inventory
+                        GROUP BY Product, Location, Brand, ${catCol}, Platform, DATE
                     )
                     GROUP BY Product, Location, Brand, ${catCol}
                 `;
@@ -381,7 +384,7 @@ const inventoryAnalysisService = {
      */
     async getCitySkuMatrix(filters) {
         console.log("🔍 [InventoryAnalysis] Fetching city-sku matrix (ClickHouse) with filters:", filters);
-        const cacheKey = generateCacheKey('inventory_city_sku_matrix', filters);
+        const cacheKey = generateCacheKey('inventory_city_sku_matrix_v2', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -391,6 +394,7 @@ const inventoryAnalysisService = {
 
                 const buildSqlWhere = (start, end) => {
                     let where = `toDate(DATE) BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`;
+                    where += ` AND Comp_flag = 0`;
                     if (filters.platform && filters.platform !== 'All') {
                         const platforms = filters.platform.split(',').map(p => p.trim());
                         where += ` AND Platform IN (${platforms.map(p => `'${p}'`).join(',')})`;
