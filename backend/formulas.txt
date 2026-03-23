@@ -1,0 +1,31 @@
+== calculateAllSOS formulas ==
+
+== getPlatformKpiMatrix formulas ==
+L851: SELECT DISTINCT location as city
+L946: SELECT
+L948: ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+L949: ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+L950: ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
+L951: ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
+L960: SELECT
+L962: ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+L963: ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+L964: ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
+L965: ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
+L972: SELECT
+L975: ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+L976: ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+L977: ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
+L978: ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
+
+== getBrandComparisonTrends formulas ==
+L2460: SELECT MAX(DATE) as maxDate
+L2500: SELECT
+L2502: sum(toInt32(overall)) as total_overall,
+L2503: sum(toInt32(spons)) as total_spons,
+L2504: sum(toInt32(organic)) as total_organic
+L2532: SELECT
+L2535: sum(toInt32(overall)) as brand_volume,
+L2536: sum(toInt32(spons)) as sponsored_volume,
+L2537: sum(toInt32(organic)) as organic_volume,
+L2538: sum(toInt32(spons)) as display_volume

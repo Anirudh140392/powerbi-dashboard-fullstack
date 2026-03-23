@@ -216,12 +216,13 @@ export const getVisibilityFilterOptions = async (req, res) => {
             format: req.query.format || 'All',
             city: req.query.city || 'All',
             metroFlag: req.query.metroFlag || 'All',
-            brand: req.query.brand || 'All'
+            brand: req.query.brand || 'All',
+            ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true'
         };
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
 
-        const cacheKey = generateCacheKey('visibility_filters_v4', params);
+        const cacheKey = generateCacheKey('visibility_filters_v5', params);
         const data = await getCachedOrCompute(cacheKey, async () => {
             return await visibilityService.getVisibilityFilterOptions(params);
         }, CACHE_TTL.STATIC);
