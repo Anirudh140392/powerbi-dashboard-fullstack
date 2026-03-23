@@ -1,40 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Info, BarChart2 } from 'lucide-react';
+import { ChevronDown, Info, BarChart2, Calendar } from 'lucide-react';
 import { Typography, Box } from '@mui/material';
 import RCATree from './RCATree';
+import CategoryTrendsDrawer from '../CategoryTrendsDrawer';
 import axiosInstance from '../../../api/axiosInstance';
+import SelectBox from "../Common/SelectBox";
+import RCADatePicker from "./RCADatePicker";
+import { getDynamicRcaTreeData } from "../../../services/api";
+import dayjs from "dayjs";
 
 const RCADashboard = () => {
   const [platforms, setPlatforms] = useState([]);
+  const [platformChannels, setPlatformChannels] = useState([]);
   const [platform, setPlatform] = useState('');
   const [location, setLocation] = useState('All');
   const [category, setCategory] = useState('All');
   const [brand, setBrand] = useState('All');
   const [sosTopN, setSosTopN] = useState('Top 10');
 
-  // Fetch platforms from API on mount
+  // Date states
+  const [timeStart, setTimeStart] = useState(dayjs().subtract(15, "day"));
+  const [timeEnd, setTimeEnd] = useState(dayjs());
+  const [compareStart, setCompareStart] = useState(dayjs().subtract(31, "day"));
+  const [compareEnd, setCompareEnd] = useState(dayjs().subtract(16, "day"));
+  const [compareOn, setCompareOn] = useState(true);
+  const [periodLabel, setPeriodLabel] = useState("Last 15 Days");
+
+  // Trends Drawer State
+  const [trendsOpen, setTrendsOpen] = useState(false);
+  const [targetKpi, setTargetKpi] = useState(null);
+
+  const handleViewTrends = (kpi) => {
+    setTargetKpi(kpi);
+    setTrendsOpen(true);
+  };
+
+  const handleDateApply = (ts, te, cs, ce, co, label) => {
+    setTimeStart(ts);
+    setTimeEnd(te);
+    setCompareStart(cs);
+    setCompareEnd(ce);
+    setCompareOn(co);
+    setPeriodLabel(label);
+  };
+
+  // Fetch platform mappings from API on mount
   useEffect(() => {
     const fetchPlatforms = async () => {
       try {
-        const response = await axiosInstance.get('/watchtower/platforms');
-        let fetchedPlatforms = response.data || [];
-        
-        // Ensure Flipkart and Amazon are always included
-        const required = ['Flipkart', 'Amazon'];
-        required.forEach(p => {
-          if (!fetchedPlatforms.includes(p)) fetchedPlatforms.push(p);
-        });
+        const response = await axiosInstance.get('/watchtower/platform-channels');
+        const fetchedMappings = response.data || [];
 
-        if (fetchedPlatforms.length > 0) {
+        if (fetchedMappings.length > 0) {
+          setPlatformChannels(fetchedMappings);
+          const fetchedPlatforms = fetchedMappings.map(m => m.platform);
           setPlatforms(fetchedPlatforms);
           setPlatform(fetchedPlatforms[0]);
         }
       } catch (error) {
         console.error('Error fetching platforms:', error);
-        // Fallback to hardcoded values
-        const fallback = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket', 'Flipkart', 'Amazon'];
-        setPlatforms(fallback);
-        setPlatform(fallback[0]);
       }
     };
     fetchPlatforms();
@@ -154,24 +178,15 @@ const RCADashboard = () => {
         {/* Time Period */}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ fontSize: '12px', fontWeight: 900, color: '#64748b', marginBottom: '16px', letterSpacing: '1.2px', textTransform: 'uppercase' }}>
-            Time Period
+            Fiscal Period
           </div>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '12px', 
-            fontSize: '14px', 
-            color: '#1e293b', 
-            fontWeight: 700,
-            padding: '12px 16px',
-            backgroundColor: '#f8fafc',
-            borderRadius: '12px',
-            border: '1px solid #f1f5f9'
-          }}>
-            <span>01-05-2025</span>
-            <span style={{ color: '#94a3b8', fontWeight: 500 }}>to</span>
-            <span>13-05-2025</span>
-          </div>
+          <RCADatePicker
+            timeStart={timeStart}
+            timeEnd={timeEnd}
+            compareStart={compareStart}
+            compareEnd={compareEnd}
+            onApply={handleDateApply}
+          />
         </div>
 
         {/* Filters */}
@@ -199,12 +214,12 @@ const RCADashboard = () => {
               Root cause analysis is performed at the keyword level for maximum precision.
             </div>
           </div>
-          <div style={{ 
-            position: 'absolute', 
-            bottom: '-20px', 
-            right: '-10px', 
-            opacity: 0.2, 
-            transform: 'rotate(-15deg)' 
+          <div style={{
+            position: 'absolute',
+            bottom: '-20px',
+            right: '-10px',
+            opacity: 0.2,
+            transform: 'rotate(-15deg)'
           }}>
             <Info size={80} color="white" />
           </div>
@@ -286,8 +301,27 @@ const RCADashboard = () => {
           boxShadow: '0 25px 60px -15px rgba(0,0,0,0.08)',
           border: '1px solid rgba(0,0,0,0.03)'
         }}>
-          <RCATree context={{ platform, category, brand }} />
+          <RCATree
+            onViewTrends={handleViewTrends}
+            context={{
+              platform,
+              channel: platformChannels.find(p => p.platform === platform)?.channel || "",
+              category,
+              brand,
+              timeStart,
+              timeEnd,
+              compareStart,
+              compareEnd,
+              compareOn
+            }}
+          />
         </Box>
+
+        <CategoryTrendsDrawer
+          open={trendsOpen}
+          onClose={() => setTrendsOpen(false)}
+          targetKpi={targetKpi}
+        />
       </div>
     </div>
   );
