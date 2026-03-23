@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
-import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2 } from "lucide-react";
+import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2, PieChart } from "lucide-react";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchVisibilityBrandDrilldown } from "../../api/visibilityService";
@@ -7,18 +7,57 @@ import { FilterContext } from "../../utils/FilterContext";
 
 // TopSearchTerms component uses dynamic data passed via `apiData` prop
 
-const getCityData = (row) => {
-    const cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Pune"];
-    const seed = row.keyword.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+const getVolShare = (name) => {
+    if (!name || typeof name !== 'string') return "2.0";
+    const seed = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return ((seed % 900) / 10 + 2).toFixed(1); // 2% to 92%
+};
 
-    return cities.map((city, idx) => {
-        // Deterministic variation based on seed and index
-        const v1 = ((seed * (idx + 1)) % 40) / 10 - 2; // -2 to 2
-        const v2 = ((seed * (idx + 2)) % 30) / 10 - 1.5; // -1.5 to 1.5
-        const v3 = ((seed * (idx + 3)) % 25) / 10 - 1.25; // -1.25 to 1.25
+const getSkuData = (row, skuTab) => {
+    const seed = (row?.keyword || "").split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const myBrand = "MARS"; // Can be dynamic
+
+    let skus = [
+        { name: "Snickers Peanut 50g", brand: "MARS" },
+        { name: "Snickers Almond 40g", brand: "MARS" },
+        { name: "Cadbury Dairy Milk 100g", brand: "CADBURY" },
+        { name: "KitKat 4 Finger", brand: "NESTLE" },
+        { name: "Munch 25g", brand: "NESTLE" }
+    ];
+
+    if (skuTab === "My SKUs") {
+        skus = skus.filter(s => s.brand === myBrand);
+    }
+
+    return skus.map((sku, idx) => {
+        const v1 = ((seed * (idx + 1)) % 40) / 10 - 2;
+        const v2 = ((seed * (idx + 2)) % 30) / 10 - 1.5;
+        const v3 = ((seed * (idx + 3)) % 25) / 10 - 1.25;
 
         return {
-            city,
+            skuName: sku.name,
+            brand: sku.brand,
+            overallSos: (Math.max(2, parseFloat(row.overallSos) + v1)).toFixed(1),
+            overallDelta: (parseFloat(row.overallDelta) + v1 / 2).toFixed(1),
+            organicSos: (Math.max(1, parseFloat(row.organicSos) + v2)).toFixed(1),
+            organicDelta: (parseFloat(row.organicDelta) + v2 / 2).toFixed(1),
+            paidSos: (Math.max(0, parseFloat(row.paidSos) + v3)).toFixed(1),
+            paidDelta: (parseFloat(row.paidDelta) + v3 / 2).toFixed(1),
+        };
+    });
+};
+
+const getCityData = (row) => {
+    const cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Pune"];
+    const seed = (row?.skuName || row?.keyword || "").split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+    return cities.map((city, idx) => {
+        const v1 = ((seed * (idx + 1)) % 40) / 10 - 2;
+        const v2 = ((seed * (idx + 2)) % 30) / 10 - 1.5;
+        const v3 = ((seed * (idx + 3)) % 25) / 10 - 1.25;
+
+        return {
+            city: city,
             overallSos: (Math.max(2, parseFloat(row.overallSos) + v1)).toFixed(1),
             overallDelta: (parseFloat(row.overallDelta) + v1 / 2).toFixed(1),
             organicSos: (Math.max(1, parseFloat(row.organicSos) + v2)).toFixed(1),
@@ -149,9 +188,10 @@ const DeltaIndicator = ({ value }) => {
     );
 };
 
-export default function TopSearchTerms({ filter = "All", apiData }) {
+export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", apiData }) {
     const [drilldownKeyword, setDrilldownKeyword] = useState(null);
-    const [expandedCityRows, setExpandedCityRows] = useState(new Set());
+    const [expandedKeywordRows, setExpandedKeywordRows] = useState(new Set());
+    const [expandedSkuRows, setExpandedSkuRows] = useState(new Set());
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
     const [selectedBrands, setSelectedBrands] = useState([]);
@@ -171,9 +211,31 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
     // Select specific data based on tab filter
     // Use API data (already filtered by backend based on filter param)
     const activeData = useMemo(() => {
-        const terms = apiData?.terms || [];
-        return terms.filter(row => !(row.keyword?.toLowerCase() === 'peanut chocolate' && row.topBrand === 'Other'));
-    }, [apiData]);
+        let list = apiData?.terms || [];
+        
+        // Add hardcoded competitor data if Competitor filter is active
+        if (filter === "Competitor") {
+            const competitorData = [
+                { keyword: "dark chocolate", topBrand: "Cadbury", overallSos: 45.2, organicSos: 42.1, paidSos: 48.3, diffOverall: -1.2, diffOrganic: 0.5, diffPaid: -2.3 },
+                { keyword: "milk chocolate", topBrand: "Nestle", overallSos: 38.7, organicSos: 35.4, paidSos: 42.1, diffOverall: 0.8, diffOrganic: -1.1, diffPaid: 1.5 },
+                { keyword: "hazelnut spread", topBrand: "Nutella", overallSos: 62.1, organicSos: 58.9, paidSos: 65.3, diffOverall: -0.5, diffOrganic: 0.2, diffPaid: -0.8 },
+                { keyword: "energy bar", topBrand: "MuscleBlaze", overallSos: 22.4, organicSos: 19.8, paidSos: 25.0, diffOverall: 1.5, diffOrganic: 1.2, diffPaid: 1.8 },
+                { keyword: "mint candy", topBrand: "Mentos", overallSos: 33.6, organicSos: 31.2, paidSos: 36.1, diffOverall: -1.0, diffOrganic: -0.8, diffPaid: -1.2 }
+            ];
+            // If the original list has no competitors, use our hardcoded ones
+            const existingComps = list.filter(item => item.topBrand?.toLowerCase() !== (apiData?.brandName || "MARS").toLowerCase());
+            if (existingComps.length === 0) return competitorData;
+            return existingComps;
+        }
+
+        if (filter === "Branded") {
+            list = list.filter(item => item.topBrand?.toLowerCase() === (apiData?.brandName || "MARS").toLowerCase());
+        } else if (filter === "Generic") {
+            list = list.filter(item => item.topBrand === "Generic" || !item.topBrand);
+        }
+
+        return list;
+    }, [apiData, filter]);
 
     // Reset page when filter changes
     useEffect(() => {
@@ -226,14 +288,20 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
         }
     };
 
-    const toggleCityDrilldown = (keyword) => {
-        setExpandedCityRows((prev) => {
+    const toggleKeywordExpand = (keyword) => {
+        setExpandedKeywordRows((prev) => {
             const next = new Set(prev);
-            if (next.has(keyword)) {
-                next.delete(keyword);
-            } else {
-                next.add(keyword);
-            }
+            if (next.has(keyword)) next.delete(keyword);
+            else next.add(keyword);
+            return next;
+        });
+    };
+
+    const toggleSkuExpand = (skuId) => {
+        setExpandedSkuRows((prev) => {
+            const next = new Set(prev);
+            if (next.has(skuId)) next.delete(skuId);
+            else next.add(skuId);
             return next;
         });
     };
@@ -286,7 +354,18 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
         <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 bg-white">
-                <h3 className="text-base font-bold text-slate-800">Top Search Terms</h3>
+                <div className="flex flex-col">
+                    <h3 className="text-base font-bold text-slate-800 leading-none">Top Search Terms</h3>
+                    {filter && filter !== 'All' && (
+                        <div className="flex items-center gap-2 mt-1.5 transition-all">
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                                <PieChart size={10} className="text-[#2563eb]" />
+                                <span className="text-[10px] font-bold text-slate-600 tabular-nums lowercase">{getVolShare(filter)}%</span>
+                            </div>
+                            <span className="text-[9px] font-semibold text-slate-400/90 tracking-wide uppercase">{filter} volume</span>
+                        </div>
+                    )}
+                </div>
 
                 <div className="flex items-center gap-4">
                     {/* Tabs */}
@@ -316,31 +395,38 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                         initial="hidden"
                         animate="visible"
                     >
-                        {activeData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, idx) => {
-                            const isExpanded = expandedCityRows.has(row.keyword);
+                        {activeData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, rowIdx) => {
+                            const isKwExpanded = expandedKeywordRows.has(row.keyword);
                             return (
-                                <React.Fragment key={idx}>
+                                <React.Fragment key={`row-${rowIdx}`}>
                                     <motion.tr
                                         variants={itemVariants}
-                                        className={`transition-colors ${isExpanded ? 'bg-slate-50/40' : 'hover:bg-slate-50/80'}`}
+                                        className={`transition-colors ${isKwExpanded ? 'bg-slate-50/40' : 'hover:bg-slate-50/80'}`}
                                     >
                                         <td className="px-6 py-2.5 text-xs text-slate-700 font-semibold capitalize">
                                             <div className="flex items-center gap-2">
                                                 <button
-                                                    onClick={() => toggleCityDrilldown(row.keyword)}
+                                                    onClick={() => toggleKeywordExpand(row.keyword)}
                                                     className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400 hover:text-slate-600"
                                                 >
-                                                    {isExpanded ? (
+                                                    {isKwExpanded ? (
                                                         <ChevronDown className="h-4 w-4" />
                                                     ) : (
                                                         <ChevronRight className="h-4 w-4" />
                                                     )}
                                                 </button>
                                                 <button
-                                                    onClick={() => toggleCityDrilldown(row.keyword)}
-                                                    className="hover:text-blue-600 transition-colors text-left"
+                                                    onClick={() => toggleKeywordExpand(row.keyword)}
+                                                    className="hover:text-blue-600 transition-colors text-left flex flex-col"
                                                 >
-                                                    {row.keyword}
+                                                    <span>{row.keyword}</span>
+                                                    <div className="flex items-center gap-1.5 mt-1">
+                                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-50 border border-indigo-100 shadow-sm transition-all hover:bg-slate-100 pb-1">
+                                                            <PieChart size={9} className="text-[#2563eb]" />
+                                                            <span className="text-[9px] font-bold text-[#2563eb] tracking-tighter">{getVolShare(row.keyword)}%</span>
+                                                        </div>
+                                                        <span className="text-[8px] text-slate-400 font-medium uppercase tracking-tight">Vol. Share</span>
+                                                    </div>
                                                 </button>
                                             </div>
                                         </td>
@@ -373,42 +459,95 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                                         </td>
                                     </motion.tr>
 
-                                    {/* Inline City Drilldown Rows */}
+                                    {/* SKU Drilldown */}
                                     <AnimatePresence>
-                                        {isExpanded && getCityData(row).map((city, cIdx) => (
-                                            <motion.tr
-                                                key={`city-${cIdx}`}
-                                                initial={{ opacity: 0, y: -5 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -5 }}
-                                                className="bg-slate-50/30 border-b border-white"
-                                            >
-                                                <td className="px-6 py-1.5 pl-[52px] text-[11px] font-medium text-slate-500">
-                                                    {city.city}
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center text-[11px] text-slate-400">
-                                                    —
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.overallSos}%</span>
-                                                        <DeltaIndicator value={city.overallDelta} />
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.organicSos}%</span>
-                                                        <DeltaIndicator value={city.organicDelta} />
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.paidSos}%</span>
-                                                        <DeltaIndicator value={city.paidDelta} />
-                                                    </div>
-                                                </td>
-                                            </motion.tr>
-                                        ))}
+                                        {isKwExpanded && getSkuData(row, skuTab).map((sku, skuIdx) => {
+                                            const skuId = `${row.keyword}-${sku.skuName}`;
+                                            const isSkuExpanded = expandedSkuRows.has(skuId);
+                                            return (
+                                                <React.Fragment key={`sku-${skuIdx}`}>
+                                                    <motion.tr
+                                                        initial={{ opacity: 0, y: -5 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, y: -5 }}
+                                                        className="bg-slate-50/30 border-b border-white"
+                                                    >
+                                                        <td className="px-6 py-1.5 pl-[52px] text-[11px] font-medium text-slate-800">
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => toggleSkuExpand(skuId)}
+                                                                    className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400 hover:text-slate-600"
+                                                                >
+                                                                    {isSkuExpanded ? (
+                                                                        <ChevronDown className="h-3 w-3" />
+                                                                    ) : (
+                                                                        <ChevronRight className="h-3 w-3" />
+                                                                    )}
+                                                                </button>
+                                                                {sku.skuName}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center text-[10px] text-slate-400">
+                                                            {sku.brand}
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center">
+                                                            <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                                <span className="text-[11px] font-bold text-slate-600">{sku.overallSos}%</span>
+                                                                <DeltaIndicator value={sku.overallDelta} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center">
+                                                            <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                                <span className="text-[11px] font-bold text-slate-600">{sku.organicSos}%</span>
+                                                                <DeltaIndicator value={sku.organicDelta} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center">
+                                                            <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                                <span className="text-[11px] font-bold text-slate-600">{sku.paidSos}%</span>
+                                                                <DeltaIndicator value={sku.paidDelta} />
+                                                            </div>
+                                                        </td>
+                                                    </motion.tr>
+
+                                                    {/* City Drilldown under SKU */}
+                                                    <AnimatePresence>
+                                                        {isSkuExpanded && getCityData(sku).map((city, cIdx) => (
+                                                            <motion.tr
+                                                                key={`city-${skuIdx}-${cIdx}`}
+                                                                initial={{ opacity: 0, y: -5 }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                exit={{ opacity: 0, y: -5 }}
+                                                                className="bg-slate-100/20 border-b border-white"
+                                                            >
+                                                                <td className="px-6 py-1 pl-[84px] text-[10px] font-medium text-slate-500">
+                                                                    {city.city}
+                                                                </td>
+                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400">—</td>
+                                                                <td className="px-6 py-1 text-center">
+                                                                    <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                        <span className="text-[10px] font-bold text-slate-400">{city.overallSos}%</span>
+                                                                        <DeltaIndicator value={city.overallDelta} />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-1 text-center">
+                                                                    <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                        <span className="text-[10px] font-bold text-slate-400">{city.organicSos}%</span>
+                                                                        <DeltaIndicator value={city.organicDelta} />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-1 text-center">
+                                                                    <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                        <span className="text-[10px] font-bold text-slate-400">{city.paidSos}%</span>
+                                                                        <DeltaIndicator value={city.paidDelta} />
+                                                                    </div>
+                                                                </td>
+                                                            </motion.tr>
+                                                        ))}
+                                                    </AnimatePresence>
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </AnimatePresence>
                                 </React.Fragment>
                             );
