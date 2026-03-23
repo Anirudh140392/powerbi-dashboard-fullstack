@@ -91,9 +91,8 @@ export default function CompareSKUs() {
           <button
             key={r}
             onClick={() => setActiveRange(r)}
-            className={`px-4 py-2 rounded border ${
-              activeRange === r ? "bg-blue-600 text-white" : "bg-white"
-            }`}
+            className={`px-4 py-2 rounded border ${activeRange === r ? "bg-blue-600 text-white" : "bg-white"
+              }`}
           >
             {r}
           </button>
@@ -124,9 +123,8 @@ export default function CompareSKUs() {
           <button
             key={m.id}
             onClick={() => setActiveMetric(m.id)}
-            className={`px-4 py-2 rounded-full flex items-center gap-2 border ${
-              activeMetric === m.id ? "bg-blue-100 border-blue-500" : "bg-white"
-            }`}
+            className={`px-4 py-2 rounded-full flex items-center gap-2 border ${activeMetric === m.id ? "bg-blue-100 border-blue-500" : "bg-white"
+              }`}
           >
             <span
               className="w-3 h-3 rounded-full"
