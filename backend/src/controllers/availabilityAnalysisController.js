@@ -1,6 +1,7 @@
 import availabilityService from '../services/availabilityService.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
+import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 
 /**
@@ -20,6 +21,29 @@ const parseFilter = (val) => {
  * Helper to escape SQL single quotes
  */
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+/**
+ * Scales metrics for Mars-related entries if needed (100x scaling fix).
+ * Data analysis shows financial/qty metrics for Mars brands are 100x inflated in source.
+ */
+const scaleMarsMetrics = (data, key) => {
+    if (!data || !key) return data;
+    const lowerKey = key.toLowerCase();
+    const marsKeywords = ['snickers', 'galaxy', 'bounty', 'twix', 'mars', "m&m's", 'orbit', 'doublemint', 'boomer', 'skittles', 'chocolates (gifting)', 'chocolates (non gifting)', 'gmfc'];
+
+    const isMars = marsKeywords.some(kw => lowerKey.includes(kw));
+    if (!isMars) return data;
+
+    // Direct assignment to modify object properties if they exist
+    const fields = ['totalQtySold', 'currSales', 'prevSales', 'offtake', 'compOfftake', 'qty_sold', 'ad_sales', 'ad_spend', 'clicks', 'impressions', 'avgInventory', 'revenue', 'totalClicks', 'totalImpressions'];
+    
+    fields.forEach(f => {
+        if (data[f] !== undefined && data[f] !== null) {
+            data[f] = parseFloat(data[f]) * 0.01;
+        }
+    });
+    return data;
+};
 
 export const AvailabilityControlTower = async (req, res) => {
     try {
@@ -67,7 +91,8 @@ export const getAvailabilityOverview = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -111,7 +136,8 @@ export const getPlatformKpiMatrix = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -197,7 +223,8 @@ export const getDOI = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -238,7 +265,8 @@ export const getMetroCityStockAvailability = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -315,7 +343,8 @@ export const getOsaDetailByCategory = async (req, res) => {
             channel: req.query.channel,
             productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -348,7 +377,8 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             timeStep: req.query.timeStep || 'Daily',
             channel: req.query.channel,
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -379,7 +409,8 @@ export const getAvailabilityCompetition = async (req, res) => {
             channel: req.query.channel,
             period: req.query.period || '1M',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== AVAILABILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -460,8 +491,15 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
  */
 export const getSignalLabData = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_v8', req.query);
+        const cacheKey = generateCacheKey('signal_lab_v9', req.query);
         const data = await getCachedOrCompute(cacheKey, async () => {
+            // Dynamically resolve ad-related column names (case varies across DBs)
+            const cols = await getTableColumns('rb_pdp_olap');
+            const adSalesCol = resolveColumn(cols, 'Ad_sales');
+            const adSpendCol = resolveColumn(cols, 'Ad_Spend');
+            const adClicksCol = resolveColumn(cols, 'Ad_Clicks');
+            const adImpressionsCol = resolveColumn(cols, 'Ad_Impressions');
+
             const {
                 platform,
                 brand,
@@ -540,7 +578,7 @@ export const getSignalLabData = async (req, res) => {
                 conditions.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
 
                 if (categoryFilter) {
-                    const isMars = getCurrentDbName() === 'mars';
+                    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(getCurrentDbName());
                     const catCol = isMars ? 'Category' : 'Product_type';
                     if (Array.isArray(categoryFilter)) {
                         conditions.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
@@ -666,9 +704,9 @@ export const getSignalLabData = async (req, res) => {
                     GREATEST(0, avgIf(toFloat64(Inventory), toDate(DATE) BETWEEN '${start}' AND '${end}')) AS avgInventory,
                     GREATEST(0, sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0))) AS totalQtySold,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Selling_Price), 0.0)) AS avgPrice,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) AS avgRoas,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) AS totalClicks,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) AS totalImpressions,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) AS avgRoas,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) AS totalClicks,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) AS totalImpressions,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS prevSales
                 FROM rb_pdp_olap
@@ -687,9 +725,9 @@ export const getSignalLabData = async (req, res) => {
                     ${groupCol}, Location,
                     (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
                     (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS prev_osa,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_sales) / nullIf(toFloat64(Ad_Spend), 0), 0.0)) as roas,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) as clicks,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) as impressions,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) as roas,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) as clicks,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) as impressions,
                     GREATEST(0, avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0))) as inventory,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) as citySales
@@ -806,14 +844,17 @@ export const getSignalLabData = async (req, res) => {
                 // As per user request, the primary impact metric is always the OSA Increment
                 const metricChange = osaChange;
 
-                const qty = Number(item.totalQtySold || 0);
-                const price = Number(item.avgPrice || 0);
-                const currSalesVal = Number(item.currSales || 0);
+                // Apply Scaling Fix for Mars items
+                const scaledItem = scaleMarsMetrics({ ...item }, isBrandGroup ? item[groupCol] : (item.Brand || item.BrandCol));
+                
+                const qty = Number(scaledItem.totalQtySold || 0);
+                const price = Number(scaledItem.avgPrice || 0);
+                const currSalesVal = Number(scaledItem.currSales || 0);
                 const revenue = currSalesVal;
-                const inventory = item.avgInventory === null ? null : Number(item.avgInventory);
+                const inventory = scaledItem.avgInventory === null ? null : Number(scaledItem.avgInventory);
                 const drr = qty / daysInPeriod;
                 const doi = (inventory !== null && drr > 0) ? inventory / drr : (inventory === null ? null : 0);
-                
+
                 const offtakeShare = (totalMarketSales > 0) ? (revenue / totalMarketSales * 100) : 0;
 
                 let kpis = {};
@@ -833,12 +874,13 @@ export const getSignalLabData = async (req, res) => {
                     const risk = doi > 30 ? 'High' : (doi > 15 ? 'Med' : 'Low');
                     kpis = {
                         drr: drr > 1000 ? `${(drr / 1000).toFixed(1)}k` : Math.round(drr).toString(),
+                        doi: doi !== null ? doi.toFixed(1) : '-',
                         oos: `${(100 - osa).toFixed(0)}%`,
                         expiryRisk: risk
                     };
                 } else if (metricType === 'performance') {
-                    const impressions = Number(item.totalImpressions || 0);
-                    const clicks = Number(item.totalClicks || 0);
+                    const impressions = Number(scaledItem.totalImpressions || 0);
+                    const clicks = Number(scaledItem.totalClicks || 0);
                     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
                     const atc = Math.round(clicks * 0.15);
                     kpis = {
@@ -849,7 +891,7 @@ export const getSignalLabData = async (req, res) => {
                     };
                 } else if (metricType === 'visibility') {
                     const brandKey = (isBrandGroup ? item[groupCol] : item.Brand || item.BrandCol || '').toString().trim().toLowerCase();
-                    
+
                     // Improved matching for SOS: exact first, then partial
                     let sosData = sosMap[brandKey];
                     if (!sosData) {
@@ -857,7 +899,7 @@ export const getSignalLabData = async (req, res) => {
                         const partialKey = Object.keys(sosMap).find(k => k.includes(brandKey) || brandKey.includes(k));
                         sosData = sosMap[partialKey] || { overall: '0.0%', ad: '0.0%', organic: '0.0%' };
                     }
-                    
+
                     kpis = {
                         adSos: sosData.ad,
                         organicSos: sosData.organic,
@@ -959,7 +1001,7 @@ export const getSignalLabData = async (req, res) => {
  */
 export const getCityDetailsForProduct = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_city_details_v3', req.query);
+        const cacheKey = generateCacheKey('signal_lab_city_details_v5', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
             const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer', groupBy = 'sku' } = req.query;
@@ -1010,7 +1052,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                     else conds.push(`Brand ILIKE '%${escapeStr(brandFilter)}%'`);
                 }
                 if (categoryFilter) {
-                    const isMars = getCurrentDbName() === 'mars';
+                    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(getCurrentDbName());
                     const catCol = isMars ? 'Category' : 'Product_type';
                     if (Array.isArray(categoryFilter)) conds.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
                     else conds.push(`${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
@@ -1033,6 +1075,10 @@ export const getCityDetailsForProduct = async (req, res) => {
                         sum(ifNull(toFloat64OrZero(toString(Sales)), 0.0)) as daily_sales,
                         sum(ifNull(toFloat64OrZero(toString(MRP)), 0.0)) as daily_mrp,
                         sum(ifNull(toFloat64OrZero(toString(Selling_Price)), 0.0)) as daily_sp,
+                        sum(ifNull(toFloat64OrZero(toString(Ad_sales)), 0.0)) as daily_ad_sales,
+                        sum(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0.0)) as daily_ad_spend,
+                        sum(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0.0)) as daily_clicks,
+                        sum(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0.0)) as daily_impressions,
                         countIf(toFloat64(deno_osa) > 0) as listed_count,
                         count() as total_rows
                     FROM rb_pdp_olap
@@ -1049,9 +1095,13 @@ export const getCityDetailsForProduct = async (req, res) => {
                     -- Sales metrics
                     sumIf(daily_sales, toDate(DATE) BETWEEN '${start}' AND '${end}') AS offtake,
                     sumIf(daily_sales, toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}') AS compOfftake,
-                    -- Inventory metrics (Latest daily city-total inventory, picking latest non-null date)
-                    argMax(daily_inventory, if(isNotNull(daily_inventory), toUnixTimestamp(DATE), 0)) AS soh,
+                    -- Inventory metrics (Latest daily city-total inventory, picking latest non-null available)
+                    argMax(daily_inventory, if(daily_inventory > 0, toUnixTimestamp(DATE), 0)) AS soh,
                     sumIf(daily_qty_sold, toDate(DATE) BETWEEN '${start}' AND '${end}') AS qty_sold,
+                    sumIf(daily_ad_sales, toDate(DATE) BETWEEN '${start}' AND '${end}') AS ad_sales,
+                    sumIf(daily_ad_spend, toDate(DATE) BETWEEN '${start}' AND '${end}') AS ad_spend,
+                    sumIf(daily_clicks, toDate(DATE) BETWEEN '${start}' AND '${end}') AS clicks,
+                    sumIf(daily_impressions, toDate(DATE) BETWEEN '${start}' AND '${end}') AS impressions,
                     -- Listing %
                     (sumIf(listed_count, toDate(DATE) BETWEEN '${start}' AND '${end}') / nullIf(sumIf(total_rows, toDate(DATE) BETWEEN '${start}' AND '${end}'), 0)) * 100 AS listing_pct,
                     -- Discount (Average weighted by total count if needed, but simple avg on daily sums is usually fine)
@@ -1069,29 +1119,42 @@ export const getCityDetailsForProduct = async (req, res) => {
             const daysInPeriod = Math.max(1, endD.diff(startD, 'day') + 1);
 
             const cities = rows.map(row => {
-                const osa = Number(row.osa || 0);
-                const compOsa = Number(row.compOsa || 0);
+                // Apply Scaling Fix for Mars items
+                const scaledRow = scaleMarsMetrics({ ...row }, isBrandGroup ? webPid : row.brand_name);
+                
+                const osa = Number(scaledRow.osa || 0);
+                const compOsa = Number(scaledRow.compOsa || 0);
                 const osaChange = osa - compOsa;
 
-                const offtake = Number(row.offtake || 0);
-                const compOfftake = Number(row.compOfftake || 0);
+                const offtake = Number(scaledRow.offtake || 0);
+                const compOfftake = Number(scaledRow.compOfftake || 0);
                 const offtakeChange = compOfftake > 0 ? ((offtake - compOfftake) / compOfftake) * 100 : 0;
 
-                const discount = Number(row.discount || 0);
-                const listingPct = Number(row.listing_pct || 0);
+                const discount = Number(scaledRow.discount || 0);
+                const listingPct = Number(scaledRow.listing_pct || 0);
 
-                const soh = (row.soh === null || row.soh === undefined) ? null : Number(row.soh);
-                const qtySold = Number(row.qty_sold || 0);
+                const soh = (scaledRow.soh === null || scaledRow.soh === undefined) ? null : Number(scaledRow.soh);
+                const qtySold = Number(scaledRow.qty_sold || 0);
                 const drr = qtySold / daysInPeriod;
                 const doi = (soh !== null && drr > 0) ? soh / drr : (soh === null ? null : 0);
+
+                const adSales = Number(scaledRow.ad_sales || 0);
+                const adSpend = Number(scaledRow.ad_spend || 0);
+                const clicks = Number(scaledRow.clicks || 0);
+                const impressions = Number(scaledRow.impressions || 0);
 
                 return {
                     city: row.city,
                     brand_name: row.brand_name,
                     comp_flag: row.comp_flag,
                     listingPct: listingPct,
-                    estOfftake: offtake / 100000,
+                    estOfftake: offtake,
                     estOfftakeChange: offtakeChange,
+                    orders: Math.round(qtySold),
+                    asp: qtySold > 0 ? (offtake / qtySold) : 0,
+                    roas: adSpend > 0 ? (adSales / adSpend) : 0,
+                    ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                    clicks: clicks,
                     wtOsa: osa,
                     wtOsaChange: osaChange,
                     overallSos: 0,
@@ -1099,7 +1162,8 @@ export const getCityDetailsForProduct = async (req, res) => {
                     organicSos: 0,
                     wtDisc: discount,
                     soh: soh,
-                    doi: doi
+                    doi: doi,
+                    drr: drr
                 };
             });
 

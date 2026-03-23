@@ -45,7 +45,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [page, setPage] = useState(1);
 
-  const [sortKey, setSortKey] = useState("avg7");
+  const [sortKey, setSortKey] = useState("avgSelected");
   const [sortDir, setSortDir] = useState("desc");
 
   const [visibleDays, setVisibleDays] = useState(31); // 7/14/31 toggle
@@ -59,6 +59,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
         values: row.values || DAYS.map(d => row[String(d)] || 0),
         avg7: row.avg7 || 0,
         avg31: row.avg31 || 0,
+        avgSelected: row.avgSelected,
         status: row.status || "Healthy"
       }));
     }
@@ -133,7 +134,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
           <div>
             <div className="text-xl font-semibold text-slate-900">OSA % Detail View</div>
             <div className="text-sm text-slate-500">
-              Last {visibleDays} Days • Sortable • Paginated
+              Selected Period • Sortable • Paginated
             </div>
           </div>
         </div>
@@ -192,10 +193,10 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                   </th>
 
                   <th
-                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900"
-                    onClick={() => headerSort("avg31")}
+                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 cursor-pointer select-none"
+                    onClick={() => headerSort("avgSelected")}
                   >
-                    AVG <SortIcon dir={sortKey === "avg31" ? sortDir : undefined} />
+                    AVG <SortIcon dir={sortKey === "avgSelected" || sortKey === "avg31" ? sortDir : undefined} />
                   </th>
 
                   <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
@@ -218,10 +219,11 @@ export default function OsaDetailTableLight({ apiData, loading }) {
               <tbody>
                 {pageRows.map((r) => {
                   const st = statusStyles(r.status);
-                  const avgND =
-                    visibleDays === 31
+                  const avgND = r.avgSelected !== undefined
+                    ? r.avgSelected
+                    : (visibleDays === 31
                       ? r.avg31
-                      : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays);
+                      : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays));
 
                   return (
                     <tr key={r.sku} className={"group " + st.rowAccent}>
@@ -264,7 +266,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                 cellTone(v)
                               }
                             >
-                              {v}%
+                              {v !== undefined ? `${v}%` : '-'}
                             </span>
                           </td>
                         );

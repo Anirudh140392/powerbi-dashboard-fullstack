@@ -272,7 +272,8 @@ const getMapIntellectData = async (filters) => {
                                 END
                             ) / NULLIF(SUM(${msSrc.f.sales}), 0)
                         ) * 100, 
-                    2) AS avg_market_share
+                    2) AS avg_market_share,
+                    COUNT(DISTINCT ${msSrc.f.groupBrand}) AS total_brands
                 FROM ${msSrc.table}
                 WHERE toDate(${msSrc.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
                   AND (${cityConditions})
@@ -285,6 +286,10 @@ const getMapIntellectData = async (filters) => {
                 queryClickHouse(msQueryBase(startDate, endDate)),
                 queryClickHouse(msQueryBase(prevStartDate, prevEndDate))
             ]);
+
+            // Filter out cities with only 1 brand (no competitive data → misleading 100%)
+            currMsData = (currMsData || []).filter(d => parseInt(d.total_brands || 0) > 1);
+            prevMsData = (prevMsData || []).filter(d => parseInt(d.total_brands || 0) > 1);
         } catch (e) {
             console.error('[MapIntellect] Error querying market share:', e.message);
         }

@@ -2,6 +2,8 @@ import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigle
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
     try {
         const { platform, category, location, startDate, endDate } = req.query;
         console.log("Market Share API request received:", req.query);
@@ -34,6 +36,8 @@ export const Platform = async (req, res) => {
 };
 
 export const SubCategoryKpi = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
     try {
         const { platform, category, location, startDate, endDate, subCategory } = req.query;
         console.log("Sub-Category KPI request received:", req.query);
@@ -54,6 +58,8 @@ export const SubCategoryKpi = async (req, res) => {
 };
 
 export const CrossPlatformOverview = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
     try {
         const { platform, category, location, brand, startDate, endDate } = req.query;
         console.log("Cross Platform Overview request received:", req.query);
@@ -74,6 +80,8 @@ export const CrossPlatformOverview = async (req, res) => {
 };
 
 export const MarketShareTrends = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
     try {
         const { period, timeStep, dimension, dimensionValue, startDate, endDate, platform, category, location, brand } = req.query;
         console.log("Market Share Trends request received:", req.query);
@@ -94,6 +102,8 @@ export const MarketShareTrends = async (req, res) => {
 };
 
 export const MarketShareCompetition = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
     try {
         const { period, startDate, endDate, platform, category, location, brand } = req.query;
         console.log("Market Share Competition request received:", req.query);
@@ -113,6 +123,8 @@ export const MarketShareCompetition = async (req, res) => {
 };
 
 export const MarketShareCompetitionFilterOptions = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
     try {
         const { platform, location, category, brand } = req.query;
         console.log("Market Share Filter Options request received:", req.query);
@@ -130,6 +142,8 @@ export const MarketShareCompetitionFilterOptions = async (req, res) => {
 };
 
 export const MarketShareCompetitionTrends = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
     try {
         const { mode, targets, period, startDate, endDate, platform, category, location } = req.query;
         console.log("Market Share Competition Trends request received:", req.query);
@@ -149,6 +163,8 @@ export const MarketShareCompetitionTrends = async (req, res) => {
 };
 
 export const MarketShareDrilldown = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
     try {
         const { platform, category, location, startDate, endDate } = req.query;
         console.log("Market Share Drilldown request received:", { platform, category, location, startDate, endDate });

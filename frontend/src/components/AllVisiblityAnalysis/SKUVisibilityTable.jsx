@@ -16,7 +16,15 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, apiData })
     }, [activeTab]);
 
     const { selectedBrand } = useContext(FilterContext) || {};
-    const brandName = selectedBrand && selectedBrand !== "All" ? selectedBrand : "Mars";
+    const defaultBrand = useMemo(() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            return u?.dbName ? u.dbName.charAt(0).toUpperCase() + u.dbName.slice(1) : 'Brand';
+        } catch {
+            return 'Brand';
+        }
+    }, []);
+    const brandName = selectedBrand && selectedBrand !== "All" ? selectedBrand : defaultBrand;
 
     const toggleExpand = (skuName) => {
         const newExpanded = new Set(expandedSkus);

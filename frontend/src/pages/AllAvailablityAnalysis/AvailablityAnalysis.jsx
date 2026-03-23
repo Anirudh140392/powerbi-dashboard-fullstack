@@ -202,6 +202,9 @@ export default function AvailablityAnalysis() {
     if (!params.has('brand')) params.append('brand', 'All');
     if (!params.has('location')) params.append('location', 'All');
 
+    // Force ownBrandsOnly to match Watch Tower KPIs identically
+    params.append('ownBrandsOnly', 'true');
+
     return params.toString();
   };
 

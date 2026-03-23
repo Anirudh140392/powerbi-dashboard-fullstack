@@ -288,7 +288,7 @@ export const getSalesDrilldown = async (req, res) => {
 
             let groupByField = 'Location';
             if (level === 'platform' || !level) groupByField = 'Platform';
-            else if (level === 'category') groupByField = 'Product_type';
+            else if (level === 'category') groupByField = 'Category';
 
             const query = `
                 SELECT 
@@ -430,7 +430,7 @@ export const getCategorySalesMatrix = async (req, res) => {
             }
 
             if (activeCategories.length > 0) {
-                conditions.push(`Product_type IN (${activeCategories.map(c => `'${escapeCH(c)}'`).join(',')})`);
+                conditions.push(`Category IN (${activeCategories.map(c => `'${escapeCH(c)}'`).join(',')})`);
             } else {
                 // If no active categories found or table missing, include all categories
                 conditions.push('1=1');
@@ -440,7 +440,7 @@ export const getCategorySalesMatrix = async (req, res) => {
 
             const query = `
                 SELECT 
-                    Product_type as category,
+                    Category as category,
                     sum(if(toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}', toFloat64OrZero(toString(Sales)), 0)) as mtd,
                     sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMtdE}', toFloat64OrZero(toString(Sales)), 0)) as prevMtd,
                     sum(if(toDate(DATE) BETWEEN '${prevMtdS}' AND '${prevMonthFullE}', toFloat64OrZero(toString(Sales)), 0)) as prevMonthFull,
@@ -449,7 +449,7 @@ export const getCategorySalesMatrix = async (req, res) => {
                     sum(if(toDate(DATE) BETWEEN '${lastYearFullS}' AND '${lastYearFullE}', toFloat64OrZero(toString(Sales)), 0)) as lastYearFull
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
-                GROUP BY Product_type
+                GROUP BY Category
             `;
 
             const results = await queryClickHouse(query);
@@ -457,13 +457,13 @@ export const getCategorySalesMatrix = async (req, res) => {
             // Fetch daily trend data
             const trendQuery = `
                 SELECT 
-                    Product_type as Category,
+                    Category as Category,
                     toDate(DATE) as date,
                     sum(toFloat64OrZero(toString(Sales))) as dailySales
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND toDate(DATE) BETWEEN '${mtdS}' AND '${mtdE}'
-                GROUP BY Product_type, toDate(DATE)
+                GROUP BY Category, toDate(DATE)
                 ORDER BY date ASC
             `;
 
@@ -543,7 +543,7 @@ export const getSalesTrends = async (req, res) => {
                 conditions.push(buildCHMultiCondition(location, 'Location'));
             }
             if (category && category !== 'All') {
-                conditions.push(`Product_type = '${escapeCH(category)}'`);
+                conditions.push(`Category = '${escapeCH(category)}'`);
             }
 
             const start = startDate ? dayjs(startDate) : dayjs().startOf('month');
@@ -605,14 +605,14 @@ export const getSalesFilterOptions = async (req, res) => {
             const [platforms, brands, categories, locations] = await Promise.all([
                 queryClickHouse(`SELECT DISTINCT Platform FROM rb_pdp_olap WHERE Platform != '' ORDER BY Platform`),
                 queryClickHouse(`SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '' AND toString(Comp_flag) = '0' ORDER BY Brand`),
-                queryClickHouse(`SELECT DISTINCT Product_type FROM rb_pdp_olap WHERE Product_type != '' AND toString(Comp_flag) = '0' ORDER BY Product_type`),
+                queryClickHouse(`SELECT DISTINCT Category FROM rb_pdp_olap WHERE Category != '' AND toString(Comp_flag) = '0' ORDER BY Category`),
                 queryClickHouse(`SELECT DISTINCT Location FROM rb_pdp_olap WHERE Location != '' ORDER BY Location`),
             ]);
 
             return {
                 platforms: platforms.map(p => p.Platform).filter(Boolean).sort(),
                 brands: brands.map(b => b.Brand).filter(Boolean).sort(),
-                categories: categories.map(c => c.Product_type).filter(Boolean).sort(),
+                categories: categories.map(c => c.Category).filter(Boolean).sort(),
                 locations: locations.map(l => l.Location).filter(Boolean).sort(),
             };
         }, 86400); // 24 hours for filters

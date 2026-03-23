@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { FilterContext } from "../../utils/FilterContext";
 import { Container, Box, useTheme } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 
@@ -35,6 +36,15 @@ import MainPerformanceMarketing from "../../components/PerformanceMarketing/Main
 
 export default function MainPerformanceMarketings() {
   const [showTrends, setShowTrends] = useState(false);
+
+  const { refreshFilters } = useContext(FilterContext);
+
+  // Restore comprehensive platform/location list on mount
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
 
   const [filters, setFilters] = useState({
     platform: "Blinkit",

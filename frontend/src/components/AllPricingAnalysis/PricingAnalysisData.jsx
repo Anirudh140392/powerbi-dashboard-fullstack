@@ -2571,13 +2571,7 @@ export default function PricingAnalysisData() {
       <SnapshotOverview
         title="Pricing Overview"
         icon={LayoutGrid}
-        chip={
-          [
-            globalPlatform && globalPlatform !== 'All' ? (Array.isArray(globalPlatform) ? globalPlatform.join(', ') : globalPlatform) : null,
-            selectedCategory && selectedCategory !== 'All' ? (Array.isArray(selectedCategory) ? selectedCategory.join(', ') : selectedCategory) : null,
-            selectedLocation && selectedLocation !== 'All' ? (Array.isArray(selectedLocation) ? selectedLocation.join(', ') : selectedLocation) : null,
-          ].filter(Boolean).join(' · ') || 'All Platforms'
-        }
+
         headerRight={
           <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
             vs Previous Period
