@@ -31,7 +31,7 @@ import {
   Line,
   Tooltip
 } from 'recharts';
-import ArrowBackOutlinedIcon from '@mui/icons-material/ArrowBackOutlined';
+import CloseIcon from '@mui/icons-material/Close';
 import { ChevronDown, ChevronRight, SlidersHorizontal, TrendingUp, TrendingDown, BarChart3, Type, Image as LucideImage, CopyPlus, FileText, Star, PieChart, Activity } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
@@ -82,6 +82,11 @@ const gainersData = [
   { id: 'XGCB4OCRRM', name: 'Bounty Coconut Filled Chocolate Bar, Soft & Tender Coconut in the Centre, 57 g', score: '100.00%' },
   { id: 'XGCB4OCRRM', name: 'Bounty Soft & Tender Coconut Filled Chocolate Bar', score: '75.00%' },
   { id: 'A3BKYEZQZ4', name: 'Galaxy Fruit & Nut Chocolate Bar', score: '95.00%' },
+  { id: 'Z1ABX4YZZ0', name: 'Mars Milk Chocolate Bar, 46g', score: '90.00%' },
+  { id: 'P9QWE34RTA', name: 'Snickers Peanut Caramel Treat 53g', score: '88.00%' },
+  { id: 'L0F1G2H3J4', name: 'Bounty Crisp Coconut Bar 57g', score: '92.00%' },
+  { id: 'U7Y8T9R6E5', name: 'Galaxy Smooth Milk Chocolate 46g', score: '99.00%' },
+  { id: 'W3E4R5T6Y7', name: 'Dove Rich Dark Chocolate, 80g', score: '87.00%' },
 ];
 
 const drainersData = [
@@ -90,6 +95,11 @@ const drainersData = [
   { id: '72ISV2KZGJ', name: 'Orbit Spearmint Sugarfree Chewing Gum Pot - 59.4g', score: '75.00%' },
   { id: '72ISV2KZGJ', name: 'Orbit Sugar Free Spearmint Chewing Gum Pot', score: '70.00%' },
   { id: '79EWR3CGTU', name: 'Snickers Berry Whip Chocolate Bar with Peanuts, Nougat & Caramel, 40g', score: '100.00%' },
+  { id: 'M6N7B8V9C0', name: 'Milkybar Golden Crisp Finger, 110g', score: '62.00%' },
+  { id: 'J2K3L4M5N6', name: 'Maltesers Chocolate Balls, 37g', score: '58.00%' },
+  { id: 'K8L9J0H1G2', name: 'Twix Caramel Cookie Bar, 50g', score: '55.00%' },
+  { id: 'Q2W3E4R5T6', name: 'Bounty Chocolate Coconut Bar, 57g', score: '67.00%' },
+  { id: 'A0S9D8F7G6', name: 'Galaxy Hazelnut Coconut, 85g', score: '64.00%' },
 ];
 
 // --- DATA: Trends View ---
@@ -150,11 +160,11 @@ const ScoreCard = ({ title, score, isGreen }) => (
 const HeaderControls = ({ title, onBack }) => (
   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, alignItems: 'center', width: '100%' }}>
     {/* Override title area for sub-views */}
-    <Typography variant="h5" sx={{ fontWeight: 800, color: '#1d487b', textTransform: 'uppercase' }}>
-      MARS <span style={{ fontWeight: 600, fontSize: '1.2rem', color: '#1d487b' }}>CONTENT ANALYSIS ({title})</span>
+    <Typography variant="h6" sx={{ fontWeight: 500, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      MARS <span style={{ fontWeight: 500, fontSize: '0.95rem', color: '#334155' }}>CONTENT ANALYSIS ({title})</span>
     </Typography>
-    <IconButton onClick={onBack} sx={{ bgcolor: 'white', border: '2px solid #555', borderRadius: '50%', '&:hover': { bgcolor: '#f0f0f0' } }}>
-      <ArrowBackOutlinedIcon sx={{ color: '#555' }} />
+    <IconButton onClick={onBack} sx={{ bgcolor: 'white', border: '1px solid #cbd5e1', borderRadius: '50%', width: 34, height: 34, '&:hover': { bgcolor: '#f6f8fb' } }}>
+      <CloseIcon sx={{ color: '#64748b', fontSize: '20px' }} />
     </IconButton>
   </Box>
 );
@@ -162,33 +172,31 @@ const HeaderControls = ({ title, onBack }) => (
 
 
 const StyledTable = ({ title, data }) => (
-  <Card sx={{ borderRadius: '12px', mb: 3, boxShadow: '0 4px 16px rgba(0,0,0,0.04)', border: '1px solid #eaeaea' }}>
+  <Card sx={{ borderRadius: '12px', mb: 3, boxShadow: '0 4px 16px rgba(0,0,0,0.05)', border: '1px solid rgba(148,163,184,0.25)', bgcolor: '#ffffff' }}>
     <CardContent sx={{ p: '0 !important' }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 800, p: 2, pb: 1, color: '#333' }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 800, p: 2, pb: 1, color: '#0f172a' }}>
         {title}
       </Typography>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell sx={{ fontWeight: 700, color: '#111', py: 1, borderBottom: '2px solid #bde0ff', width: '20%' }}>Product ID</TableCell>
-            <TableCell sx={{ fontWeight: 700, color: '#111', py: 1, borderBottom: '2px solid #bde0ff', width: '60%' }}>SKU Name</TableCell>
-            <TableCell sx={{ fontWeight: 700, color: '#111', py: 1, borderBottom: '2px solid #bde0ff', width: '20%', textAlign: 'right' }}>Overall Score</TableCell>
-            <TableCell sx={{ p: 0, width: '10px', borderBottom: '2px solid #bde0ff' }}></TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {data.map((row, index) => (
-            <TableRow key={index}>
-              <TableCell sx={{ py: 1.5, color: '#333', fontWeight: 600 }}>{row.id}</TableCell>
-              <TableCell sx={{ py: 1.5, color: '#444' }}>{row.name}</TableCell>
-              <TableCell sx={{ py: 1.5, color: '#333', fontWeight: 600, textAlign: 'right' }}>{row.score}</TableCell>
-              <TableCell sx={{ p: 0, py: 1.5, pr: 2 }}>
-                {index === 0 && <Box sx={{ width: 8, height: 20, bgcolor: '#ccc', borderRadius: 4, ml: 'auto' }} />}
-              </TableCell>
+      <TableContainer sx={{ maxHeight: 320, overflowY: 'auto', borderTop: '1px solid #e5e7eb' }}>
+        <Table stickyHeader>
+          <TableHead>
+            <TableRow sx={{ backgroundColor: '#f8fafc' }}>
+              <TableCell sx={{ fontWeight: 700, color: '#0f172a', py: 1.5, borderBottom: '2px solid #e2e8f0', width: '21%', minWidth: 200 }}>Product ID</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#0f172a', py: 1.5, borderBottom: '2px solid #e2e8f0', width: '60%', minWidth: 400 }}>SKU Name</TableCell>
+              <TableCell sx={{ fontWeight: 700, color: '#0f172a', py: 1.5, borderBottom: '2px solid #e2e8f0', width: '19%', minWidth: 120, textAlign: 'right' }}>Overall Score</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {data.map((row, index) => (
+              <TableRow key={index} sx={{ '&:hover': { backgroundColor: '#f1f5f9' } }}>
+                <TableCell sx={{ py: 1.25, color: '#1e293b', fontWeight: 600 }}>{row.id}</TableCell>
+                <TableCell sx={{ py: 1.25, color: '#334155', whiteSpace: 'normal', lineHeight: 1.3 }}>{row.name}</TableCell>
+                <TableCell sx={{ py: 1.25, color: '#1e293b', fontWeight: 700, textAlign: 'right' }}>{row.score}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </CardContent>
   </Card>
 );
