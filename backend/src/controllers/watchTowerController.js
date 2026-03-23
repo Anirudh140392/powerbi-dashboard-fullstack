@@ -90,6 +90,16 @@ export const getPlatforms = async (req, res) => {
     }
 };
 
+export const getPlatformChannels = async (req, res) => {
+    try {
+        const platformChannels = await watchTowerService.getPlatformChannels();
+        res.json(platformChannels);
+    } catch (error) {
+        console.error('Error fetching platform channels:', error);
+        res.json([]);
+    }
+};
+
 export const getChannels = async (req, res) => {
     try {
         const channels = await watchTowerService.getChannels();

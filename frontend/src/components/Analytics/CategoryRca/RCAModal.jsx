@@ -9,11 +9,13 @@ import {
     Tooltip,
     Drawer,
 } from "@mui/material";
-import { X, Filter, RefreshCcw, Maximize2, Minimize2, ChevronDown, Info, Activity } from "lucide-react";
+import { X, Filter, RefreshCcw, Maximize2, Minimize2, ChevronDown, Info, Activity, Zap } from "lucide-react";
 import RCATree from "./RCATree";
 import axiosInstance from "../../../api/axiosInstance";
 import TrendsCompetitionDrawer from "../../AllAvailablityAnalysis/TrendsCompetitionDrawer";
 import { defaultBrands } from "../../../utils/DataCenter";
+import RCADatePicker from "./RCADatePicker";
+import dayjs from "dayjs";
 
 /**
  * RCAModal
@@ -71,26 +73,25 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
 
     // Dynamic filter options from DB
     const [platformOptions, setPlatformOptions] = useState([]);
+    const [platformChannels, setPlatformChannels] = useState([]);
     const [categoryOptions, setCategoryOptions] = useState([]);
     const [brandOptions, setBrandOptions] = useState([]);
     const [skuOptions, setSkuOptions] = useState(['All SKUs']);
     const [filtersLoading, setFiltersLoading] = useState(true);
-
-    // Generate last 6 months dynamically
-    const monthOptions = React.useMemo(() => {
-        const now = new Date();
-        return Array.from({ length: 6 }, (_, i) => {
-            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        });
-    }, []);
 
     // Selected filter values
     const [platform, setPlatform] = useState('');
     const [category, setCategory] = useState('');
     const [brand, setBrand] = useState('All Brands');
     const [sku, setSku] = useState('All SKUs');
-    const [month, setMonth] = useState('');
+
+    // Date states
+    const [timeStart, setTimeStart] = useState(dayjs().subtract(15, "day"));
+    const [timeEnd, setTimeEnd] = useState(dayjs());
+    const [compareStart, setCompareStart] = useState(dayjs().subtract(31, "day"));
+    const [compareEnd, setCompareEnd] = useState(dayjs().subtract(16, "day"));
+    const [compareOn, setCompareOn] = useState(true);
+    const [periodLabel, setPeriodLabel] = useState("Last 15 Days");
 
     const [showTrends, setShowTrends] = useState(false);
     const [selectedTrendName, setSelectedTrendName] = useState("All");
@@ -110,17 +111,15 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
             setFiltersLoading(true);
             try {
                 const [platRes, catRes, brandRes] = await Promise.all([
-                    axiosInstance.get('/watchtower/platforms'),
+                    axiosInstance.get('/watchtower/platform-channels'),
                     axiosInstance.get('/watchtower/categories'),
                     axiosInstance.get('/watchtower/brands')
                 ]);
                 if (cancelled) return;
-                const plats = platRes.data || [];
-                // Explicitly add Flipkart and Amazon if they don't exist in the data
-                const required = ['Flipkart', 'Amazon'];
-                required.forEach(p => {
-                    if (!plats.includes(p)) plats.push(p);
-                });
+
+                const fetchedMappings = platRes.data || [];
+                setPlatformChannels(fetchedMappings);
+                const plats = fetchedMappings.map(m => m.platform);
 
                 const cats = ['All', ...(catRes.data || [])];
                 const brands = ['All Brands', ...(brandRes.data || [])];
@@ -133,15 +132,10 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                 setCategory(initialData.category && cats.includes(initialData.category) ? initialData.category : (cats[0] || ''));
                 setBrand(initialData.brand && brands.includes(initialData.brand) ? initialData.brand : 'All Brands');
                 setSku('All SKUs');
-                setMonth(monthOptions[0] || '');
             } catch (err) {
                 console.error('[RCAModal] Failed to load filter options:', err);
-                const fallbackPlats = ['Blinkit', 'Zepto', 'Swiggy Instamart', 'BigBasket', 'Flipkart', 'Amazon'];
-                setPlatformOptions(fallbackPlats);
-                setPlatform(initialData.platform && fallbackPlats.includes(initialData.platform) ? initialData.platform : fallbackPlats[0]);
                 setCategoryOptions(['All']);
                 setBrandOptions(['All Brands']);
-                setMonth(monthOptions[0] || '');
             } finally {
                 if (!cancelled) setFiltersLoading(false);
             }
@@ -188,7 +182,27 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
         return () => { cancelled = true; };
     }, [platform, category, brand, open]);
 
-    const context = { platform, category, brand, sku, month };
+    const context = {
+        platform,
+        channel: platformChannels.find(p => p.platform === platform)?.channel || "",
+        category,
+        brand,
+        sku,
+        timeStart,
+        timeEnd,
+        compareStart,
+        compareEnd,
+        compareOn
+    };
+
+    const handleDateApply = (ts, te, cs, ce, co, label) => {
+        setTimeStart(ts);
+        setTimeEnd(te);
+        setCompareStart(cs);
+        setCompareEnd(ce);
+        setCompareOn(co);
+        setPeriodLabel(label);
+    };
 
     return (
         <Dialog
@@ -223,22 +237,22 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                             width: 50,
                             height: 50,
                             borderRadius: '18px',
-                            background: 'linear-gradient(135deg, #FFD54F 0%, #F59E0B 100%)',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            color: 'black',
-                            boxShadow: '0 10px 20px rgba(245, 158, 11, 0.25)',
+                            color: 'white',
+                            boxShadow: '0 10px 20px rgba(79, 70, 231, 0.25)',
                         }}
                     >
-                        <Activity size={28} strokeWidth={3} />
+                        <Zap size={28} strokeWidth={3} fill="white" />
                     </Box>
                     <Box>
                         <Typography variant="h6" sx={{ fontWeight: 900, fontSize: '1.6rem', color: '#0f172a', letterSpacing: '-1.2px' }}>
-                            RCA <span style={{ color: '#9C27B0' }}>Studio</span>
+                            Diagnostic <span style={{ color: '#4f46e5' }}>Studio</span>
                         </Typography>
-                        <Typography sx={{ fontSize: '11px', fontWeight: 900, color: 'rgba(15, 23, 42, 0.4)', textTransform: 'uppercase', letterSpacing: '1.5px' }}>
-                            Advanced Marketplace Diagnostic
+                        <Typography sx={{ fontSize: '11px', fontWeight: 900, color: 'rgba(15, 23, 42, 0.4)', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                            PRO INTELLIGENCE PIPELINE V2.0
                         </Typography>
                     </Box>
                 </Box>
@@ -308,7 +322,19 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                         <SelectBox label="Category Vertical" value={category} onChange={setCategory} options={categoryOptions} />
                         <SelectBox label="Brand Identity" value={brand} onChange={setBrand} options={brandOptions} />
                         <SelectBox label="SKU / ASIN" value={sku} onChange={setSku} options={skuOptions} />
-                        <SelectBox label="Fiscal Period" value={month} onChange={setMonth} options={monthOptions} />
+
+                        <Box sx={{ mb: 4.5 }}>
+                            <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', mb: 1.5, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
+                                Fiscal Period
+                            </Typography>
+                            <RCADatePicker
+                                timeStart={timeStart}
+                                timeEnd={timeEnd}
+                                compareStart={compareStart}
+                                compareEnd={compareEnd}
+                                onApply={handleDateApply}
+                            />
+                        </Box>
 
                         <Box sx={{
                             mt: 'auto',
@@ -347,6 +373,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                 selectedLevel={selectedTrendLevel}
                 dynamicKey="platform_overview_tower"
                 initialPlatform={platform}
+                defaultView="Competition"
                 brandOptions={brandOptions.filter(b => b !== 'All Brands')}
             />
         </Dialog>

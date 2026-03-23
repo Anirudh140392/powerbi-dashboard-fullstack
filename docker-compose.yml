@@ -1,17 +1,17 @@
 services:
   # Backend API Service
-  backend:
+  backend_multiple:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: trailytics-backend
+    container_name: backend_multiple
     ports:
-      - "4000:4000"
+      - "5000:5000"
     env_file:
       - ./backend/.env
     environment:
       - NODE_ENV=production
-      - PORT=4000
+      - PORT=5000
       - REDIS_HOST=${REDIS_HOST:-host.docker.internal}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
@@ -35,13 +35,13 @@ services:
           cpus: '0.5'
 
   # Frontend UI Service
-  frontend:
+  frontend_multiple:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: trailytics-frontend
+    container_name: frontend_multiple
     ports:
-      - "4500:4500"
+      - "9500:9500"
     restart: unless-stopped
     deploy:
       resources:
