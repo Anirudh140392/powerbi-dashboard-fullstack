@@ -165,7 +165,7 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                                                 <PieChart size={10} className="text-[#2563eb]" />
                                                 <span className="text-[9px] font-bold text-slate-600">{getVolShare(filter)}%</span>
                                             </div>
-                                            <span className="text-[8px] font-semibold text-slate-400 uppercase tracking-tight">{filter} Category Share</span>
+                                            <span className="text-[8px] font-semibold text-slate-400 uppercase tracking-tight">Keyword Vol. Share</span>
                                         </div>
                                     )}
                                 </div>

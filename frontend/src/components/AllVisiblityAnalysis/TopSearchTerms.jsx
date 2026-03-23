@@ -362,7 +362,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                                 <PieChart size={10} className="text-[#2563eb]" />
                                 <span className="text-[10px] font-bold text-slate-600 tabular-nums lowercase">{getVolShare(filter)}%</span>
                             </div>
-                            <span className="text-[9px] font-semibold text-slate-400/90 tracking-wide uppercase">{filter} volume</span>
+                            <span className="text-[9px] font-semibold text-slate-400/90 tracking-wide uppercase">Keyword Vol. Share</span>
                         </div>
                     )}
                 </div>
