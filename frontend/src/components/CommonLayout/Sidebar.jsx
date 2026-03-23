@@ -3,13 +3,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import eyLogo from "../../assets/sidebar_logo.png";
 import marsLogo from "../../assets/mars2.svg";
 import { useAuth } from "../../utils/AuthContext";
-
-// Map of dbName → imported logo asset. Add new entries as clients onboard.
-const DB_LOGO_MAP = {
-  mars: marsLogo,
-  // colpal: colpalLogo,   // uncomment and import when asset is added
-  // boat: boatLogo,       // uncomment and import when asset is added
-};
 import {
   Box,
   Typography,
@@ -65,12 +58,8 @@ const Sidebar = ({
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user } = useAuth();
+  const { logout } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-
-  // Resolve logo from user's dbName
-  const dbName = user?.dbName || '';
-  const resolvedLogo = DB_LOGO_MAP[dbName.toLowerCase()] || null;
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
 
@@ -155,7 +144,7 @@ const Sidebar = ({
             height: 60,
           }}
         >
-          {/* Dynamic Logo Container */}
+          {/* EY Logo Container */}
           <Box
             sx={{
               height: '100%',
@@ -167,35 +156,17 @@ const Sidebar = ({
               overflow: 'visible'
             }}
           >
-            {resolvedLogo ? (
-              <img
-                src={resolvedLogo}
-                alt={`${dbName} Logo`}
-                style={{
-                  maxHeight: isCollapsed ? '32px' : '45px',
-                  width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : '180px',
-                  objectFit: 'contain',
-                  display: 'block'
-                }}
-              />
-            ) : (
-              <Typography
-                sx={{
-                  fontSize: isCollapsed ? '0.85rem' : '1.35rem',
-                  fontWeight: 800,
-                  textTransform: 'capitalize',
-                  background: 'linear-gradient(135deg, #1e293b 0%, #3b82f6 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  letterSpacing: '-0.5px',
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.3s ease',
-                }}
-              >
-                {dbName || 'Dashboard'}
-              </Typography>
-            )}
+            <img
+              src={marsLogo}
+              alt="Mars Logo"
+              style={{
+                maxHeight: isCollapsed ? '32px' : '45px',
+                width: isCollapsed ? '100%' : 'auto',
+                maxWidth: isCollapsed ? '42px' : '180px',
+                objectFit: 'contain',
+                display: 'block'
+              }}
+            />
           </Box>
         </Box>
 
