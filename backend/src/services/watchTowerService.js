@@ -174,11 +174,11 @@ async function getWatchtowerSource() {
 }
 
 /**
- * Returns the appropriate SQL fields for Performance Marketing data (rca_pm_olap).
+ * Returns the appropriate SQL fields for Performance Marketing data (rb_pm_olap).
  * Discovers actual column names dynamically to handle case-sensitivity and schema variations.
  */
 async function getPmSource() {
-    const tableName = 'rca_pm_olap';
+    const tableName = 'rb_pm_olap';
     const cols = await getTableColumns(tableName);
     const r = (name) => resolveColumn(cols, name);
 
@@ -421,7 +421,7 @@ const formatCurrency = (value) => {
 };
 
 /**
- * Fetch Conversion KPI from rca_pm_olap
+ * Fetch Conversion KPI from rb_pm_olap
  * Conversion = (SUM(ad_quantity_sold) / SUM(impressions)) * 100
  */
 const getPmConversion = async (start, end, platformFilter, locationFilter, categoryFilter, brandFilter, channel) => {
@@ -474,7 +474,7 @@ const getPmConversion = async (start, end, platformFilter, locationFilter, categ
 };
 
 /**
- * Fetch Bulk Conversion KPI from rca_pm_olap grouped by a specific field
+ * Fetch Bulk Conversion KPI from rb_pm_olap grouped by a specific field
  */
 const getPmConversionBulk = async (start, end, platformFilter, locationFilter, categoryFilter, brandFilter, channel, groupByField = 'Platform') => {
     try {
@@ -3000,7 +3000,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const dateRangeCondition = `${dateCol} BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`;
 
             try {
-                // Build PM conditions for month overview (rca_pm_olap uses Platform, brand, category, location_name directly)
+                // Build PM conditions for month overview (rb_pm_olap uses Platform, brand, category, location_name directly)
                 const pmSrc = await getPmSource();
                 const pmMoConds = [
                     `${pmSrc.f.date} BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`
@@ -3176,7 +3176,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const moPmClicks = parseFloat(pm.total_clicks || 0);
 
                     const moRoas = moSpend > 0 ? moAdSales / moSpend : 0;
-                    // Conversion = (Orders / Impressions) * 100 from rca_pm_olap
+                    // Conversion = (Orders / Impressions) * 100 from rb_pm_olap
                     const moConversion = moImpressions > 0 ? (moOrders / moImpressions) * 100 : 0;
                     const moCpm = moImpressions > 0 ? (moSpend / moImpressions) * 1000 : 0;
                     const moCpc = moPmClicks > 0 ? moSpend / moPmClicks : 0;
@@ -3322,7 +3322,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         FROM ${src.table} 
                         WHERE ${catCondStr} AND ${src.f.compFlag} = '1' AND neno_osa > 0
                     `).then(r => r[0] || {}),
-                    // PM Metrics (orders/clicks) from rca_pm_olap for Conversion
+                    // PM Metrics (orders/clicks) from rb_pm_olap for Conversion
                     (async () => {
                         const pmSrc = await getPmSource();
                         const pmCatConds = [
@@ -5046,7 +5046,7 @@ const getPlatformOverview = async (filters) => {
 
     const allAvailability = allDeno > 0 ? (allNeno / allDeno) * 100 : 0;
     const allRoas = allSpend > 0 ? allAdSales / allSpend : 0;
-    // Conversion = fetched from rca_pm_olap
+    // Conversion = fetched from rb_pm_olap
     const allConversion = await getPmConversion(startDate, endDate, platformArr, locationArr, rawCategory, brandArr, channel);
     const allCpm = allImpressions > 0 ? (allSpend / allImpressions) * 1000 : 0;
     const allCpc = allClicks > 0 ? allSpend / allClicks : 0;
@@ -6420,7 +6420,7 @@ const getKpiTrends = async (filters) => {
             if (dimKey === 'platform') conds.push(`${src.f.platform} = '${escapeStr(val)}'`);
             else if (dimKey === 'category' || dimKey === 'format') {
                 const catCol = src.f.category;
-                conds.push(`${catCol} = '${escapeStr(val)}'`);
+                conds.push(`lower(trim(BOTH '\t\n ' FROM ${catCol})) = '${escapeStr(val.toLowerCase())}'`);
             }
             else if (dimKey === 'brand') conds.push(`${src.f.brand} = '${escapeStr(val)}'`);
             else if (dimKey === 'city' || dimKey === 'location') conds.push(`${src.f.location} = '${escapeStr(val)}'`);
@@ -6428,7 +6428,7 @@ const getKpiTrends = async (filters) => {
 
         if (catArr && catArr.length > 0) {
             const catCol = src.f.category;
-            conds.push(`${catCol} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            conds.push(`lower(trim(BOTH '\t\n ' FROM ${catCol})) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
         }
 
         if (brandArr && brandArr.length > 0) {
@@ -6556,17 +6556,29 @@ const getKpiTrends = async (filters) => {
         return possibleNames[0];
     };
     const skuPlatBrandCol = getSkuPlatCol(['brand_name', 'brand']);
-    const skuPlatCategoryCol = getSkuPlatCol(['brand_category', 'product_category', 'Product_type', 'Category']);
+    const skuPlatCategoryCol = getSkuPlatCol(['brand_category', 'sub_category', 'product_category', 'Product_type', 'Category']);
 
     const masterAssortmentConds = [`status = 1`];
-    if (catArr && catArr.length > 0) masterAssortmentConds.push(`lower(${skuPlatCategoryCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+
+    // Helper to handle hierarchical categories (e.g. "A > B > C" -> match "C" in sub_category)
+    const getLeafCategory = (c) => {
+        if (typeof c === 'string' && c.includes(' > ')) {
+            const parts = c.split(' > ');
+            return parts[parts.length - 1].trim();
+        }
+        return c;
+    };
+
+    if (catArr && catArr.length > 0) {
+        masterAssortmentConds.push(`lower(${skuPlatCategoryCol}) IN (${catArr.map(c => `'${escapeStr(getLeafCategory(c).toLowerCase())}'`).join(', ')})`);
+    }
     if (brandArr && brandArr.length > 0) masterAssortmentConds.push(`lower(${skuPlatBrandCol}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
 
-    // Dimension-specific master count (e.g. when opening a specific category row trend)
+    // Dimension-specific master count
     if (dimension && dimensionValue && dimensionValue !== 'All') {
         const dimKey = dimension.toLowerCase();
         const val = dimensionValue.toLowerCase();
-        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(${skuPlatCategoryCol}) = '${escapeStr(val)}'`);
+        if (dimKey === 'category' || dimKey === 'format') masterAssortmentConds.push(`lower(${skuPlatCategoryCol}) = '${escapeStr(getLeafCategory(val))}'`);
         else if (dimKey === 'brand') masterAssortmentConds.push(`lower(${skuPlatBrandCol}) = '${escapeStr(val)}'`);
     }
 
@@ -8667,7 +8679,7 @@ const getRcaData = async (filters = {}) => {
         const prevKwConds = buildKwConds(prevStartStr, prevEndStr);
         const currMsConds = buildMsConds(startStr, endStr);
 
-        // Build conditions for rca_pm_olap for keyword-level metrics
+        // Build conditions for rb_pm_olap for keyword-level metrics
         const buildPmConds = (sDate, eDate) => {
             const conds = [`toDate(DATE) BETWEEN '${sDate}' AND '${eDate}'`];
             const platArr = normalizeFilterArray(platform);
@@ -8805,7 +8817,7 @@ const getRcaData = async (filters = {}) => {
                 ifNull(keyword, 'N/A') as keyword,
                 SUM(impressions) as total_impressions,
                 SUM(if(trim(lower(brand)) = trim(lower('${escapeStr(brand)}')), impressions, 0)) as brand_impressions
-            FROM rca_pm_olap
+            FROM rb_pm_olap
             WHERE ${conds} 
               AND keyword IS NOT NULL AND keyword != ''
             GROUP BY keyword_type, keyword
@@ -8971,7 +8983,7 @@ const getRcaData = async (filters = {}) => {
                     colName = src.f.location;
                 } else if (level === 'keyword') {
                     colName = 'keyword';
-                    table = 'rca_pm_olap';
+                    table = 'rb_pm_olap';
                     dateCol = 'DATE';
                 }
 
@@ -10189,16 +10201,15 @@ const getPerformanceBreakdownData = async (filters) => {
         const groupByMap = {
             'category': pmSrc.f.category,
             'brand': pmSrc.f.brand,
-            'sku': 'Product' // SKU grouping in PM table usually relies on product name if sku column is missing, or keeps it as product. 
+            'sku': pmSrc.f.product 
         };
         const groupByCol = groupByMap[filters.group_by] || pmSrc.f.category;
 
-        // ── Default Date Range: MTD (Month-To-Date) ──
+        // ── Apply Date Range or Fallback to MTD (Month-To-Date) ──
         const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const startOfMonthStr = startOfMonth.toISOString().split('T')[0];
-        const dateClause = `AND ${pmSrc.f.date} >= '${startOfMonthStr}' AND ${pmSrc.f.date} <= '${todayStr}'`;
+        const dateStart = filters.startDate ? new Date(filters.startDate).toISOString().split('T')[0] : new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        const dateEnd = filters.endDate ? new Date(filters.endDate).toISOString().split('T')[0] : now.toISOString().split('T')[0];
+        const dateClause = `AND ${pmSrc.f.date} >= '${dateStart}' AND ${pmSrc.f.date} <= '${dateEnd}'`;
 
         // ── Build consolidated platform/channel condition ──
         const pCond = buildPlatformChannelCond(filters.platform_uuid, filters.channel, pmSrc.f.platform);
@@ -10273,7 +10284,7 @@ const getPerformanceBreakdownData = async (filters) => {
                 spends,
                 cpc: clicks > 0 ? spends / clicks : 0,
                 orders,
-                cvr: impressions > 0 ? (orders / impressions) * 100 : 0,
+                cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
                 sales,
                 spend_percent_share: parseFloat(row.spend_percent_share || 0)
             };
@@ -10281,7 +10292,7 @@ const getPerformanceBreakdownData = async (filters) => {
 
         totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
         totals.cpc = totals.clicks > 0 ? totals.spends / totals.clicks : 0;
-        totals.cvr = totals.impressions > 0 ? (totals.orders / totals.impressions) * 100 : 0;
+        totals.cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
 
         // ── Period Comparison ───────────────────────────────────────────────
         let period_comparison = null;
@@ -10351,7 +10362,7 @@ const getPerformanceBreakdownData = async (filters) => {
                             spends,
                             cpc: clicks > 0 ? spends / clicks : 0,
                             orders,
-                            cvr: impressions > 0 ? (orders / impressions) * 100 : 0,
+                            cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
                             sales: parseFloat(scaled.group_sales) || 0
                         };
                     })

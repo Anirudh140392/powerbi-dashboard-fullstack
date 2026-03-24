@@ -487,7 +487,7 @@ export const getVisibilityKeywords = async (req, res) => {
 
 /**
  * Get dynamic keyword types specifically for Visibility Analysis
- * Returns distinct keyword_type values from rca_pm_olap
+ * Returns distinct keyword_type values from rb_pm_olap
  */
 export const getVisibilityKeywordTypes = async (req, res) => {
     req.query.location = 'All';

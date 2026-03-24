@@ -2,7 +2,7 @@
 import { queryClickHouse } from './src/services/watchTowerService.js';
 
 async function verifyRawData() {
-    console.log("Verifying raw data from rca_pm_olap...");
+    console.log("Verifying raw data from rb_pm_olap...");
 
     // Sample query for Jan 2025
     const q = `
@@ -10,7 +10,7 @@ async function verifyRawData() {
             SUM(ad_quantity_sold) as total_orders,
             SUM(impressions) as total_impressions,
             (SUM(ad_quantity_sold) / NULLIF(SUM(impressions), 0)) * 100 as calculated_conversion
-        FROM rca_pm_olap
+        FROM rb_pm_olap
         WHERE DATE BETWEEN '2025-01-01' AND '2025-01-31'
     `;
 

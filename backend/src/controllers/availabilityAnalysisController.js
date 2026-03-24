@@ -378,7 +378,9 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             channel: req.query.channel,
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            dimension: req.query.dimension,
+            dimensionValue: req.query.dimensionValue
         };
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));

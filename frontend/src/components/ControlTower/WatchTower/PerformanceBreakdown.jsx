@@ -378,13 +378,18 @@ export function AggregatedViewTable() {
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
-            if (filters.platform?.length > 0 && !filters.platform.includes("all")) {
+            if (filters.platform?.length > 0 && !filters.platform.includes("all") && !filters.platform.includes("All")) {
                 params.set("platform_uuid", filters.platform.join(","));
             }
             if (filters.channel) params.set("channel", filters.channel);
             if (filters.category?.length > 0 && !filters.category.includes("All")) params.set("category", filters.category.join(","));
             if (filters.brand && filters.brand !== "All") params.set("brand", Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand);
             if (filters.location?.length > 0 && !filters.location.includes("All")) params.set("location", filters.location.join(","));
+            
+            // Pass the global context dates if they exist
+            if (filters.dateStart) params.set("startDate", filters.dateStart);
+            if (filters.dateEnd) params.set("endDate", filters.dateEnd);
+            
             params.set("group_by", groupBy);
             // Pass selected period keys so backend can compute comparison data
             if (selectedPeriods.length > 0) {
@@ -404,7 +409,22 @@ export function AggregatedViewTable() {
             const result = res.data;
             if (res.success && result?.success && result.data?.length > 0) {
                 setData(result.data);
-                setTotals(result.totals || null);
+                
+                // Dynamically calculate totals strictly based on the fetched row data
+                const calcTotals = result.data.reduce((acc, row) => {
+                    acc.impressions += (parseFloat(row.impressions) || 0);
+                    acc.clicks += (parseFloat(row.clicks) || 0);
+                    acc.spends += (parseFloat(row.spends) || 0);
+                    acc.orders += (parseFloat(row.orders) || 0);
+                    acc.sales += (parseFloat(row.sales) || 0);
+                    return acc;
+                }, { impressions: 0, clicks: 0, spends: 0, orders: 0, sales: 0 });
+                
+                calcTotals.ctr = calcTotals.impressions > 0 ? (calcTotals.clicks / calcTotals.impressions) * 100 : 0;
+                calcTotals.cpc = calcTotals.clicks > 0 ? (calcTotals.spends / calcTotals.clicks) : 0;
+                calcTotals.cvr = calcTotals.clicks > 0 ? (calcTotals.orders / calcTotals.clicks) * 100 : 0;
+                
+                setTotals(calcTotals);
                 setUntagged(result.untagged || null);
                 setPeriodComparison(result.period_comparison || null);
             } else {
