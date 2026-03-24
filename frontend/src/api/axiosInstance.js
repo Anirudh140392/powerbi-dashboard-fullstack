@@ -1,8 +1,11 @@
 import axios from "axios";
 
 const axiosInstance = axios.create({
-    // For production: use relative URL (nginx proxies /api to backend)
-    baseURL: "/api",
+    // In dev: "/api" is proxied by Vite to the backend
+    // In production: VITE_API_URL points to the actual backend (e.g., https://backend.onrender.com)
+    baseURL: import.meta.env.VITE_API_URL
+        ? `${import.meta.env.VITE_API_URL}/api`
+        : "/api",
 
     headers: {
         "Content-Type": "application/json",

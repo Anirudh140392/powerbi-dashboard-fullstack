@@ -4,7 +4,11 @@ import axios from "axios";
 const AuthContext = createContext(null);
 
 // API base URL for auth requests
-const API_BASE = "/api";
+// In dev: uses "/api" (proxied by Vite to backend)
+// In production: uses VITE_API_URL env var (e.g., https://backend.onrender.com/api)
+const API_BASE = import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "/api";
 
 export const AuthProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(() => {

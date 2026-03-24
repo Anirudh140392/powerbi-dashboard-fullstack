@@ -46,19 +46,46 @@ const trendDataHardcoded = [
   { date: "30 Sep'25", offtake: 35.8, osa: 84, categoryShare: 49.2, discount: 9, Sos: 31 }
 ];
 
-const CategoryTrendsDrawer = ({ open = false, onClose = () => { } }) => {
+const CategoryTrendsDrawer = ({ open = false, onClose = () => { }, targetKpi = null }) => {
   const [activeTab, setActiveTab] = useState('trends'); // 'trends', 'competition', 'crossPlatform'
 
   // Trends
   const [selectedPeriod, setSelectedPeriod] = useState('1M');
   const [timeStep, setTimeStep] = useState('Daily');
-  const [selectedMetrics, setSelectedMetrics] = useState({
-    offtake: true,
-    estCategoryShare: false,
-    osa: false,
-    discount: false,
-    overallSos: false
+  
+  // Initialize metrics based on targetKpi if provided
+  const [selectedMetrics, setSelectedMetrics] = useState(() => {
+    const defaults = {
+        offtake: false,
+        estCategoryShare: false,
+        osa: false,
+        discount: false,
+        overallSos: false
+    };
+    if (!targetKpi) return { ...defaults, offtake: true };
+    const l = targetKpi.toLowerCase();
+    if (l.includes("offtake") || l.includes("sales")) return { ...defaults, offtake: true };
+    if (l.includes("share")) return { ...defaults, estCategoryShare: true };
+    if (l.includes("osa") || l.includes("availability") || l.includes("impressions")) return { ...defaults, osa: true };
+    if (l.includes("discount")) return { ...defaults, discount: true };
+    if (l.includes("sos") || l.includes("asp") || l.includes("ppu") || l.includes("price")) return { ...defaults, overallSos: true };
+    return { ...defaults, offtake: true };
   });
+
+  // Re-sync if targetKpi changes and drawer opens
+  React.useEffect(() => {
+    if (open && targetKpi) {
+        const l = targetKpi.toLowerCase();
+        const next = { offtake: false, estCategoryShare: false, osa: false, discount: false, overallSos: false };
+        if (l.includes("offtake") || l.includes("sales")) next.offtake = true;
+        else if (l.includes("share")) next.estCategoryShare = true;
+        else if (l.includes("osa") || l.includes("availability") || l.includes("impressions")) next.osa = true;
+        else if (l.includes("discount")) next.discount = true;
+        else if (l.includes("sos") || l.includes("asp") || l.includes("ppu") || l.includes("price")) next.overallSos = true;
+        else next.offtake = true;
+        setSelectedMetrics(next);
+    }
+  }, [open, targetKpi]);
 
   // Competition
   const [competitionView, setCompetitionView] = useState('brands'); // 'brands' or 'skus'
