@@ -1606,9 +1606,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             (async () => {
                 try {
                     const result = await queryClickHouse(`
-                        SELECT AVG(if(${src.f.mrp} > 0, (${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp}, 0)) * 100 as avg_promo
+                        SELECT (SUM(${src.f.mrp}) - SUM(${src.f.sellingPrice})) / NULLIF(SUM(${src.f.mrp}), 0) * 100 as avg_promo
                         FROM ${src.table}
-                        WHERE ${offtakeCondStr} AND ${src.f.compFlag} = '0'
+                        WHERE ${offtakeCondStr} AND ${src.f.compFlag} = '0' AND neno_osa > 0
                     `);
                     return parseFloat(result[0]?.avg_promo || 0);
                 } catch (err) {
@@ -1621,9 +1621,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 try {
                     const prevOfftakeCondStr = buildOfftakeConditions(momStartDate, momEndDate);
                     const result = await queryClickHouse(`
-                        SELECT AVG(if(${src.f.mrp} > 0, (${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp}, 0)) * 100 as avg_promo
+                        SELECT (SUM(${src.f.mrp}) - SUM(${src.f.sellingPrice})) / NULLIF(SUM(${src.f.mrp}), 0) * 100 as avg_promo
                         FROM ${src.table}
-                        WHERE ${prevOfftakeCondStr} AND ${src.f.compFlag} = '0'
+                        WHERE ${prevOfftakeCondStr} AND ${src.f.compFlag} = '0' AND neno_osa > 0
                     `);
                     return parseFloat(result[0]?.avg_promo || 0);
                 } catch (err) {
@@ -2562,10 +2562,9 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             }
 
             const q = `
-                    SELECT avg(if(${s.f.mrp} > 0, 
-                        (${s.f.mrp} - ${s.f.sellingPrice}) / ${s.f.mrp}, 0)) as avg_depth
+                    SELECT (SUM(${s.f.mrp}) - SUM(${s.f.sellingPrice})) / NULLIF(SUM(${s.f.mrp}), 0) as avg_depth
                     FROM ${s.table}
-                    WHERE ${conds.join(' AND ')}
+                    WHERE ${conds.join(' AND ')} AND neno_osa > 0
                 `;
             try {
                 const res = await queryClickHouse(q);
@@ -3313,15 +3312,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     getMarketShare(startDate, endDate, null, catName, null, location),
                     // Promo My Brand (Comp_flag = 0)
                     queryClickHouse(`
-                        SELECT AVG(CASE WHEN ${src.f.mrp} > 0 THEN (${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp} ELSE 0 END) as avg_promo_depth
+                        SELECT (SUM(${src.f.mrp}) - SUM(${src.f.sellingPrice})) / NULLIF(SUM(${src.f.mrp}), 0) as avg_promo_depth
                         FROM ${src.table} 
-                        WHERE ${catCondStr} AND ${src.f.compFlag} = '0'
+                        WHERE ${catCondStr} AND ${src.f.compFlag} = '0' AND neno_osa > 0
                     `).then(r => r[0] || {}),
                     // Promo Compete (Comp_flag = 1)
                     queryClickHouse(`
-                        SELECT AVG(CASE WHEN ${src.f.mrp} > 0 THEN (${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp} ELSE 0 END) as avg_promo_depth
+                        SELECT (SUM(${src.f.mrp}) - SUM(${src.f.sellingPrice})) / NULLIF(SUM(${src.f.mrp}), 0) as avg_promo_depth
                         FROM ${src.table} 
-                        WHERE ${catCondStr} AND ${src.f.compFlag} = '1'
+                        WHERE ${catCondStr} AND ${src.f.compFlag} = '1' AND neno_osa > 0
                     `).then(r => r[0] || {}),
                     // PM Metrics (orders/clicks) from rca_pm_olap for Conversion
                     (async () => {
@@ -6117,10 +6116,10 @@ const getBrandsOverview = async (filters) => {
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.impressions} ELSE 0 END) as total_impressions, 
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno, 
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} ELSE 0 END) as my_mrp_val,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 AND ${src.f.neno} > 0 THEN ${src.f.mrpVal} ELSE 0 END) as my_mrp_val,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 AND ${src.f.neno} > 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 1 AND ${src.f.neno} > 0 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 1 AND ${src.f.neno} > 0 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
         FROM ${src.table} WHERE ${buildBrandConds(startDate, endDate)} GROUP BY Brand`),
         queryClickHouse(`SELECT ${src.isAgg ? 'brand' : 'Brand'} as Brand, 
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales, 
@@ -6131,10 +6130,10 @@ const getBrandsOverview = async (filters) => {
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.impressions} ELSE 0 END) as total_impressions, 
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno, 
             SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} ELSE 0 END) as my_mrp_val,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
-            SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 AND ${src.f.neno} > 0 THEN ${src.f.mrpVal} ELSE 0 END) as my_mrp_val,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 0 AND ${src.f.neno} > 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 1 AND ${src.f.neno} > 0 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
+            SUM(CASE WHEN ${src.f.compFlagMapping} = 1 AND ${src.f.neno} > 0 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
         FROM ${src.table} WHERE ${buildBrandConds(momStart, momEnd)} GROUP BY Brand`),
         // Optimized Market Share from helpers
         getMarketShareByBrand(startDate, endDate, boPlatform, boCategory, null, locationArr),
@@ -6479,7 +6478,7 @@ const getKpiTrends = async (filters) => {
                 COUNT(DISTINCT ${src.f.skuCode}) as assortment_count,
                 AVG(${src.f.sellingPrice}) as avg_selling_price,
                 AVG(${src.f.mrp}) as avg_mrp,
-                AVG(${src.f.discount}) as avg_discount,
+                (SUM(CASE WHEN ${src.f.mrp} > 0 AND ${src.f.neno} > 0 THEN ${src.f.mrp} ELSE 0 END) - SUM(CASE WHEN ${src.f.mrp} > 0 AND ${src.f.neno} > 0 THEN ${src.f.sellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${src.f.mrp} > 0 AND ${src.f.neno} > 0 THEN ${src.f.mrp} ELSE 0 END), 0) * 100 as avg_discount,
                 SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
                 SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid,
                 SUM(${src.f.sellingPrice}) as sum_selling_price,
