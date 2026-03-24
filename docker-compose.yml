@@ -41,7 +41,7 @@ services:
       dockerfile: Dockerfile
     container_name: frontend_multiple
     ports:
-      - "9500:9500"
+      - "9400:9500"
     restart: unless-stopped
     deploy:
       resources:
