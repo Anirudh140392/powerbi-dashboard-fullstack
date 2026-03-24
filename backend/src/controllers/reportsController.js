@@ -22,37 +22,52 @@ const checkTableExists = async (tableName) => {
  */
 export const getReportFilterOptions = async (req, res) => {
     try {
-        const { platform } = req.query;
-        const cacheKey = generateCacheKey('report_filter_options_ch', req.query);
+        const { platform, brand, city, format } = req.query;
+        const cacheKey = generateCacheKey('report_filter_options_ch_v2', req.query);
 
+        // Dynamically determine the Category column to avoid hardcoding "Product_type"
+        const pdpCols = await getTableColumns('rb_pdp_olap');
+        let catCol = 'Product_type';
+        if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
+        else if (pdpCols.has('category')) catCol = pdpCols.get('category');
+        else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category'); // For specific casing fallback if mapped
+        
         const data = await getCachedOrCompute(cacheKey, async () => {
-            let platformQuery = `SELECT DISTINCT Platform FROM rb_pdp_olap WHERE Platform != '' AND Platform IS NOT NULL ORDER BY Platform`;
+            const buildWhere = (excludeField) => {
+                const conditions = [];
+                if (platform && platform !== 'All' && platform !== 'All Platforms' && excludeField !== 'Platform') {
+                    conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
+                }
+                if (brand && brand !== 'All Brands' && excludeField !== 'Brand') {
+                    conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
+                }
+                if (city && city !== 'All Locations' && excludeField !== 'Location') {
+                    conditions.push(`Location = '${city.replace(/'/g, "''")}'`);
+                }
+                if (format && format !== 'All Categories' && excludeField !== catCol) {
+                    conditions.push(`${catCol} = '${format.replace(/'/g, "''")}'`);
+                }
+                return conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
+            };
 
-            let brandQuery = `SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '' AND Brand IS NOT NULL AND toString(Comp_flag) = '0'`;
-            if (platform && platform !== 'All') {
-                brandQuery += ` AND Platform = '${platform.replace(/'/g, "''")}'`;
-            }
-            brandQuery += ` ORDER BY Brand`;
+            let platformQuery = `SELECT DISTINCT Platform FROM rb_pdp_olap WHERE Platform != '' AND Platform IS NOT NULL ${buildWhere('Platform')} ORDER BY Platform`;
 
-            let locationQuery = `SELECT DISTINCT Location FROM rb_pdp_olap WHERE Location != '' AND Location IS NOT NULL`;
-            if (platform && platform !== 'All') {
-                locationQuery += ` AND Platform = '${platform.replace(/'/g, "''")}'`;
-            }
-            locationQuery += ` ORDER BY Location`;
+            let brandQuery = `SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '' AND Brand IS NOT NULL AND toString(Comp_flag) = '0' ${buildWhere('Brand')} ORDER BY Brand`;
 
-            let formatQuery = `SELECT DISTINCT Product_type FROM rb_pdp_olap WHERE Product_type != '' AND Product_type IS NOT NULL`;
-            if (platform && platform !== 'All') {
-                formatQuery += ` AND Platform = '${platform.replace(/'/g, "''")}'`;
-            }
-            formatQuery += ` ORDER BY Product_type`;
+            let locationQuery = `SELECT DISTINCT Location FROM rb_pdp_olap WHERE Location != '' AND Location IS NOT NULL ${buildWhere('Location')} ORDER BY Location`;
+
+            let formatQuery = `SELECT DISTINCT ${catCol} as CatLabel FROM rb_pdp_olap WHERE ${catCol} != '' AND ${catCol} IS NOT NULL ${buildWhere(catCol)} ORDER BY CatLabel`;
+
+            let skuQuery = `SELECT DISTINCT Product FROM rb_pdp_olap WHERE Product != '' AND Product IS NOT NULL ${buildWhere('Product')} ORDER BY Product`;
 
             let monthsQuery = `SELECT DISTINCT formatDateTime(DATE, '%Y-%m') as Month FROM rb_pdp_olap WHERE DATE IS NOT NULL ORDER BY Month DESC`;
 
-            const [platforms, brands, locations, formats, months] = await Promise.all([
+            const [platforms, brands, locations, formats, skus, months] = await Promise.all([
                 queryClickHouse(platformQuery),
                 queryClickHouse(brandQuery),
                 queryClickHouse(locationQuery),
                 queryClickHouse(formatQuery),
+                queryClickHouse(skuQuery),
                 queryClickHouse(monthsQuery)
             ]);
 
@@ -60,7 +75,8 @@ export const getReportFilterOptions = async (req, res) => {
                 platforms: platforms.map(p => p.Platform).filter(Boolean),
                 brands: brands.map(b => b.Brand).filter(Boolean),
                 cities: locations.map(l => l.Location).filter(Boolean),
-                formats: formats.map(f => f.Product_type).filter(Boolean),
+                formats: formats.map(f => f.CatLabel).filter(Boolean),
+                skus: skus.map(s => s.Product).filter(Boolean),
                 months: months.map(m => m.Month).filter(Boolean)
             };
         }, CACHE_TTL.METRICS);
@@ -78,6 +94,17 @@ export const getReportFilterOptions = async (req, res) => {
 export const downloadReport = async (req, res) => {
     try {
         const { platform, brand, city, format, timePeriod, reportType, startDate: qStart, endDate: qEnd } = req.query;
+
+        // Discover actual column names for rb_pdp_olap (handles case-sensitivity differences)
+        const pdpCols = await getTableColumns('rb_pdp_olap');
+        // Provide '0' as fallback so queries don't crash if optional columns (like DIH, Ad_Sales) are missing
+        const col = (name) => resolveColumn(pdpCols, name, '0');
+
+        // Dynamically determine Category column
+        let catCol = 'Product_type';
+        if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
+        else if (pdpCols.has('category')) catCol = pdpCols.get('category');
+        else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
 
         // 1. Determine Date Range from timePeriod
         let startDate, endDate;
@@ -117,7 +144,7 @@ export const downloadReport = async (req, res) => {
         if (platform && platform !== 'All') conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
         if (brand && brand !== 'All' && !brand.startsWith('All ')) conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
         if (city && city !== 'All' && !city.startsWith('All ')) conditions.push(`Location = '${city.replace(/'/g, "''")}'`);
-        if (format && format !== 'All' && !format.startsWith('All ')) conditions.push(`Product_type = '${format.replace(/'/g, "''")}'`);
+        if (format && format !== 'All' && !format.startsWith('All ')) conditions.push(`${catCol} = '${format.replace(/'/g, "''")}'`);
         conditions.push(`toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'`);
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -127,11 +154,6 @@ export const downloadReport = async (req, res) => {
             checkTableExists('rb_kw_olap'),
             checkTableExists('rb_location_darkstore'),
         ]);
-
-        // Discover actual column names for rb_pdp_olap (handles case-sensitivity differences)
-        const pdpCols = await getTableColumns('rb_pdp_olap');
-        // Provide '0' as fallback so queries don't crash if optional columns (like DIH, Ad_Sales) are missing
-        const col = (name) => resolveColumn(pdpCols, name, '0');
 
         if (reportType === "Availability Analysis") {
             // Build optional CTEs/JOINs based on table existence
@@ -152,8 +174,8 @@ export const downloadReport = async (req, res) => {
                 )` : '';
 
             const sosJoin = hasKwOlap ? `
-                LEFT JOIN sos_stats s ON toDate(t.DATE) = s.DATE AND t.Platform = s.Platform AND t.Brand = s.Brand AND t.Product_type = s.Category
-                LEFT JOIN total_kw_stats tot ON toDate(t.DATE) = tot.DATE AND t.Platform = tot.Platform AND t.Product_type = tot.Category` : '';
+                LEFT JOIN sos_stats s ON toDate(t.DATE) = s.DATE AND t.Platform = s.Platform AND t.Brand = s.Brand AND t.${catCol} = s.Category
+                LEFT JOIN total_kw_stats tot ON toDate(t.DATE) = tot.DATE AND t.Platform = tot.Platform AND t.${catCol} = tot.Category` : '';
 
             const metroJoin = hasLocationDarkstore ? `
                 LEFT JOIN (
@@ -168,7 +190,7 @@ export const downloadReport = async (req, res) => {
             query = `
                 ${sosCte}
                 SELECT 
-                    t.${col('DATE')} as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${col('Product_type')} as Format, t.${col('Product')} as Product,
+                    t.${col('DATE')} as DATE, t.${col('Platform')} as Platform, t.${col('Brand')} as Brand, t.${col('Location')} as City, t.${col(catCol)} as Format, t.${col('Product')} as Product,
                     round(SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
                     round(100 - (SUM(toFloat64(t.${col('neno_osa')})) / nullIf(SUM(toFloat64(t.${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
                     round(avg(toFloat64(t.${col('DIH')})), 2) as DOI,
@@ -180,8 +202,8 @@ export const downloadReport = async (req, res) => {
                 FROM rb_pdp_olap t
                 ${sosJoin}
                 ${metroJoin}
-                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col('Product_type') : 't.' + col(match))}
-                GROUP BY t.DATE, t.Platform, t.Brand, t.Location, t.Product_type, t.Product
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : 't.' + col(match))}
+                GROUP BY t.DATE, t.Platform, t.Brand, t.Location, t.${catCol}, t.Product
                 ORDER BY t.DATE DESC
             `;
         } else if (reportType === "Visibility Analysis") {
@@ -236,7 +258,7 @@ export const downloadReport = async (req, res) => {
             query = `
                 WITH daily_agg AS (
                     SELECT 
-                        toDate(DATE) as DATE, Platform, Brand, Location as City, Product_type as Format, Product,
+                        toDate(DATE) as DATE, Platform, Brand, Location as City, ${catCol} as Format, Product,
                         SUM(toFloat64(Sales)) as daily_sales,
                         SUM(assumeNotNull(Qty_Sold)) as daily_orders
                     FROM rb_pdp_olap
@@ -244,7 +266,7 @@ export const downloadReport = async (req, res) => {
                     ${platform && platform !== 'All' ? `AND Platform = '${platform.replace(/'/g, "''")}'` : ''}
                     ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND Brand = '${brand.replace(/'/g, "''")}'` : ''}
                     ${city && city !== 'All' && !city.startsWith('All ') ? `AND Location = '${city.replace(/'/g, "''")}'` : ''}
-                    ${format && format !== 'All' && !format.startsWith('All ') ? `AND Product_type = '${format.replace(/'/g, "''")}'` : ''}
+                    ${format && format !== 'All' && !format.startsWith('All ') ? `AND ${catCol} = '${format.replace(/'/g, "''")}'` : ''}
                     GROUP BY DATE, Platform, Brand, City, Format, Product
                 ),
                 running_metrics AS (
@@ -283,28 +305,28 @@ export const downloadReport = async (req, res) => {
             query = `
                 WITH category_stats AS (
                     SELECT 
-                        toDate(DATE) as JoinDate, Location, Product_type as Category,
+                        toDate(DATE) as JoinDate, Location, ${catCol} as Category,
                         avg(toFloat64(Selling_Price)) as Cat_Avg_Price
                     FROM rb_pdp_olap
-                    ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
+                    ${whereClause.replace(/\bCategory\b/g, catCol)}
                     GROUP BY JoinDate, Location, Category
                 )
                 SELECT 
-                    toDate(t.DATE) as DATE, t.Platform, t.Brand, t.Location as City, t.Product_type as Format, t.Product,
+                    toDate(t.DATE) as DATE, t.Platform, t.Brand, t.Location as City, t.${catCol} as Format, t.Product,
                     round(avg(toFloat64(t.Selling_Price)), 2) as ECP,
                     round(avg(toFloat64(t.MRP)), 2) as MRP,
                     round((1 - (SUM(toFloat64(t.Sales)) / nullIf(SUM(toFloat64(t.MRP) * assumeNotNull(t.Qty_Sold)), 0))) * 100, 2) as Discount_Percentage,
                     round(avg(toFloat64(t.Selling_Price)) / nullIf(any(c.Cat_Avg_Price), 0), 2) as RPI
                 FROM rb_pdp_olap t
-                LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.Location = c.Location AND t.Product_type = c.Category
-                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (m) => m === 'Category' ? 'Product_type' : 't.' + m)}
-                GROUP BY DATE, t.Platform, t.Brand, t.Location, t.Product_type, t.Product
+                LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.Location = c.Location AND t.${catCol} = c.Category
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (m) => m === 'Category' ? catCol : 't.' + m)}
+                GROUP BY DATE, t.Platform, t.Brand, t.Location, t.${catCol}, t.Product
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Performance Marketing") {
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
                     SUM(toFloat64(${col('Ad_Impressions')})) as Impressions,
                     SUM(toFloat64(${col('Ad_Clicks')})) as Clicks,
                     SUM(toFloat64(${col('Ad_Spend')})) as Spend,
@@ -313,8 +335,8 @@ export const downloadReport = async (req, res) => {
                     round((SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Ad_Impressions')})), 0)) * 1000, 2) as CPM,
                     round(SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Ad_Clicks')})), 0), 2) as CPC
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col('Product_type') : col(match))}
-                GROUP BY DATE, Platform, Brand, Location, Product_type, Product
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : col(match))}
+                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Content Analysis") {
@@ -341,47 +363,47 @@ export const downloadReport = async (req, res) => {
         } else if (reportType === "Inventory Analysis") {
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
                     SUM(toFloat64(${col('Inventory')})) as Current_Inventory,
                     SUM(toFloat64(${col('MSL')})) as Target_Inventory,
                     round(SUM(toFloat64(${col('Inventory')})) / nullIf(SUM(toFloat64(${col('MSL')})), 0) * 100, 2) as Inventory_Health_Percentage,
                     round(avg(toFloat64(${col('DIH')})), 2) as Days_Inventory_on_Hand
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col('Product_type') : col(match))}
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : col(match))}
                 GROUP BY DATE, Platform, Brand, City, Format, Product
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Category RCA") {
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Product_type')} as Format, ${col('Location')} as City,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col(catCol)} as Format, ${col('Location')} as City,
                     SUM(toFloat64(${col('Sales')})) as Offtake_Sales,
                     SUM(assumeNotNull(${col('Qty_Sold')})) as Units,
                     round(SUM(toFloat64(${col('Sales')})) / nullIf(SUM(SUM(toFloat64(${col('Sales')}))) OVER (PARTITION BY ${col('DATE')}, ${col('Platform')}, ${col('Location')}), 0) * 100, 2) as Category_Share,
                     SUM(SUM(toFloat64(${col('Sales')}))) OVER (PARTITION BY ${col('DATE')}, ${col('Platform')}, ${col('Location')}) as Cat_Size
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
-                GROUP BY DATE, Platform, Product_type, Location
+                ${whereClause.replace(/\bCategory\b/g, catCol)}
+                GROUP BY DATE, Platform, ${catCol}, Location
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Portfolio Analysis") {
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
                     round(SUM(toFloat64(${col('Sales')})) / nullIf(SUM(assumeNotNull(${col('Qty_Sold')})), 0), 2) as ASP,
                     round((1 - (SUM(toFloat64(${col('Sales')})) / nullIf(SUM(toFloat64(${col('MRP')}) * assumeNotNull(${col('Qty_Sold')})), 0))) * 100, 2) as Discount_Percentage,
                     SUM(assumeNotNull(${col('Qty_Sold')})) as Volume,
                     SUM(if(toFloat64(${col('Discount')}) > 0, assumeNotNull(${col('Qty_Sold')}), 0)) as Promo_Volume,
                     round(Promo_Volume / nullIf(Volume, 0) * 100, 2) as Promo_Volume_Percentage
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
-                GROUP BY DATE, Platform, Brand, Location, Product_type, Product
+                ${whereClause.replace(/\bCategory\b/g, catCol)}
+                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
                 ORDER BY DATE DESC
             `;
         } else if (reportType === "Watch Tower") {
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
                     -- Core Metrics
                     SUM(toFloat64(${col('Sales')})) as Offtake,
                     SUM(assumeNotNull(${col('Qty_Sold')})) as Units_Sold,
@@ -403,22 +425,22 @@ export const downloadReport = async (req, res) => {
                     -- Promo Metrics
                     round(avg(toFloat64(${col('Discount')})), 2) as Promo_Percentage
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col('Product_type') : col(match))}
-                GROUP BY DATE, Platform, Brand, Location, Product_type, Product
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? col(catCol) : col(match))}
+                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
                 ORDER BY DATE DESC
             `;
         } else {
             // Default generic query for other report types (Category RCA, Portfolio, Play it You)
             query = `
                 SELECT 
-                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col('Product_type')} as Format, ${col('Product')} as Product,
+                    ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
                     SUM(toFloat64(${col('Sales')})) as Sales,
                     SUM(assumeNotNull(${col('Qty_Sold')})) as Qty,
                     round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as OSA,
                     round(avg(toFloat64(${col('DIH')})), 2) as DOI
                 FROM rb_pdp_olap
-                ${whereClause.replace(/\bCategory\b/g, 'Product_type')}
-                GROUP BY DATE, Platform, Brand, Location, Product_type, Product
+                ${whereClause.replace(/\bCategory\b/g, catCol)}
+                GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
                 ORDER BY DATE DESC
                 LIMIT 10000
             `;

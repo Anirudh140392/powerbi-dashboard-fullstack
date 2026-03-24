@@ -185,11 +185,11 @@ async function getVisibilitySignalCityDetails(params = {}) {
     try {
         console.log('[SalesSignalLabService] getVisibilitySignalCityDetails called with params:', params);
 
-        const { keyword, skuName, level, platform, startDate, endDate } = params;
-        const searchTerm = level === 'keyword' ? keyword : skuName;
+        const { keyword, skuName, brand, level, platform, startDate, endDate } = params;
+        const searchTerm = level === 'brand' ? brand : (level === 'keyword' ? keyword : skuName);
 
         if (!searchTerm) {
-            return { cities: [], error: 'No keyword or SKU name provided' };
+            return { cities: [], error: 'No keyword, SKU name, or brand provided' };
         }
 
         const currentEnd = endDate || dayjs().format('YYYY-MM-DD');
@@ -202,9 +202,15 @@ async function getVisibilitySignalCityDetails(params = {}) {
             whereConditions.push(`lower(platform_name) = lower('${escapeCH(platform)}')`);
         }
 
-        // Add keyword/sku filter - use positionCaseInsensitive for LIKE equivalent
-        const kwColumn = level === 'keyword' ? 'keyword' : 'keyword_search_product';
-        whereConditions.push(`positionCaseInsensitive(${kwColumn}, '${escapeCH(searchTerm)}') > 0`);
+        // Add filter - use positionCaseInsensitive for LIKE equivalent on keyword/sku, but exact/lower match on brand
+        if (level === 'brand') {
+            // Usually exact brand matching is safer, or partial if it varies
+            whereConditions.push(`lower(brand) = lower('${escapeCH(searchTerm)}')`);
+        } else {
+            const kwColumn = level === 'keyword' ? 'keyword' : 'keyword_search_product';
+            whereConditions.push(`positionCaseInsensitive(${kwColumn}, '${escapeCH(searchTerm)}') > 0`);
+        }
+        
         whereConditions.push(`location_name IS NOT NULL`);
         whereConditions.push(`location_name != ''`);
 
