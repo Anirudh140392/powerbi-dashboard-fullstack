@@ -83,7 +83,7 @@ jobs:
             sleep 10
             
             echo "🔍 Checking container status..."
-            sudo docker compose -p trailytics ps
+            sudo docker compose -p multiple ps
             
             echo "✅ Health check..."
             curl -sf http://localhost/health || { echo "❌ Health check failed"; exit 1; }

@@ -9,8 +9,8 @@ async function checkData() {
         const resColpal = await queryClickHouse("SELECT Brand, Category, Product_type FROM colpal.rb_pdp_olap LIMIT 10");
         console.log(JSON.stringify(resColpal, null, 2));
 
-        console.log("--- rca_pm_olap sample ---");
-        const resPm = await queryClickHouse("SELECT brand, category FROM rca_pm_olap LIMIT 10");
+        console.log("--- rb_pm_olap sample ---");
+        const resPm = await queryClickHouse("SELECT brand, category FROM rb_pm_olap LIMIT 10");
         console.log(JSON.stringify(resPm, null, 2));
 
     } catch (err) {
