@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { FilterContext } from '../../utils/FilterContext';
+import axiosInstance from '../../api/axiosInstance';
 import {
   Box,
   Typography,
@@ -36,86 +38,7 @@ import { ChevronDown, ChevronRight, SlidersHorizontal, TrendingUp, TrendingDown,
 import { motion, AnimatePresence } from "framer-motion";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 
-// --- DATA: Main View ---
-const radarData = [
-  { subject: 'Image Score', A: 90, fullMark: 100 },
-  { subject: 'Title Score', A: 85, fullMark: 100 },
-  { subject: 'SI Score', A: 88, fullMark: 100 },
-  { subject: 'Rating Score', A: 65, fullMark: 100 },
-  { subject: 'Description Score', A: 60, fullMark: 100 },
-  { subject: 'Overall Score', A: 85, fullMark: 100 },
-];
-
-const barData = [
-  { name: 'Blinkit', score: 91.55 },
-  { name: 'Flipkart\nNational', score: 90.96 },
-  { name: 'zepto', score: 83.90 },
-  { name: 'Big Basket', score: 83.08 },
-  { name: 'Instamart', score: 82.08 },
-  { name: 'Amazon', score: 81.11 },
-];
-
-const tableData = [
-  { 
-    platform: 'Blinkit', title: '81.08%', images: '100.00%', secondary: '93.24%', desc: '91.89%', rating: '',
-    skus: [
-      { name: 'Boomer Krunch Strawberry, 28.8g', title: '80.00%', images: '100.00%', secondary: '90.00%', desc: '91.00%', rating: '-' },
-      { name: 'Galaxy Fruit & Nut Chocolate Bar', title: '82.16%', images: '100.00%', secondary: '96.48%', desc: '92.78%', rating: '-' }
-    ]
-  },
-  { 
-    platform: 'Instamart', title: '97.22%', images: '97.22%', secondary: '78.33%', desc: '55.56%', rating: '',
-    skus: [
-      { name: 'Snickers Peanut Brownie Chocolate Bar', title: '95.00%', images: '97.00%', secondary: '76.00%', desc: '50.00%', rating: '-' },
-      { name: 'Orbit Spearmint Sugarfree Gums', title: '99.44%', images: '97.44%', secondary: '80.66%', desc: '61.12%', rating: '-' }
-    ]
-  },
-  { platform: 'zepto', title: '100.00%', images: '100.00%', secondary: '84.23%', desc: '51.35%', rating: '', skus: [] },
-  { platform: 'Big Basket', title: '100.00%', images: '97.50%', secondary: '94.17%', desc: '71.25%', rating: '52.50%', skus: [] },
-  { platform: 'Amazon', title: '84.62%', images: '94.87%', secondary: '94.02%', desc: '62.82%', rating: '69.23%', skus: [] },
-];
-
-// --- DATA: Key Insights View ---
-const gainersData = [
-  { id: 'Q4VAVDUASQ', name: 'Boomer Krunch Strawberry Flavour Bubble Gum Tube, 28.8 g', score: '100.00%' },
-  { id: 'Q4VAVDUASQ', name: 'Boomer Krunch, Strawberry flavour Chewing Gum, Tube', score: '65.00%' },
-  { id: 'XGCB4OCRRM', name: 'Bounty Coconut Filled Chocolate Bar, Soft & Tender Coconut in the Centre, 57 g', score: '100.00%' },
-  { id: 'XGCB4OCRRM', name: 'Bounty Soft & Tender Coconut Filled Chocolate Bar', score: '75.00%' },
-  { id: 'A3BKYEZQZ4', name: 'Galaxy Fruit & Nut Chocolate Bar', score: '95.00%' },
-  { id: 'Z1ABX4YZZ0', name: 'Mars Milk Chocolate Bar, 46g', score: '90.00%' },
-  { id: 'P9QWE34RTA', name: 'Snickers Peanut Caramel Treat 53g', score: '88.00%' },
-  { id: 'L0F1G2H3J4', name: 'Bounty Crisp Coconut Bar 57g', score: '92.00%' },
-  { id: 'U7Y8T9R6E5', name: 'Galaxy Smooth Milk Chocolate 46g', score: '99.00%' },
-  { id: 'W3E4R5T6Y7', name: 'Dove Rich Dark Chocolate, 80g', score: '87.00%' },
-];
-
-const drainersData = [
-  { id: '1HL5G1ZLEI', name: 'Snickers Peanut Brownie Chocolate Bar | Loaded with Brownie, Peanuts & Caramel', score: '100.00%' },
-  { id: '1HL5G1ZLEI', name: 'Snickers Peanut Brownie Chocolate Bar, Filled with Brownie, Peanuts & Caramel, Rich & Chewy Chocolate Bar', score: '75.00%' },
-  { id: '72ISV2KZGJ', name: 'Orbit Spearmint Sugarfree Chewing Gum Pot - 59.4g', score: '75.00%' },
-  { id: '72ISV2KZGJ', name: 'Orbit Sugar Free Spearmint Chewing Gum Pot', score: '70.00%' },
-  { id: '79EWR3CGTU', name: 'Snickers Berry Whip Chocolate Bar with Peanuts, Nougat & Caramel, 40g', score: '100.00%' },
-  { id: 'M6N7B8V9C0', name: 'Milkybar Golden Crisp Finger, 110g', score: '62.00%' },
-  { id: 'J2K3L4M5N6', name: 'Maltesers Chocolate Balls, 37g', score: '58.00%' },
-  { id: 'K8L9J0H1G2', name: 'Twix Caramel Cookie Bar, 50g', score: '55.00%' },
-  { id: 'Q2W3E4R5T6', name: 'Bounty Chocolate Coconut Bar, 57g', score: '67.00%' },
-  { id: 'A0S9D8F7G6', name: 'Galaxy Hazelnut Coconut, 85g', score: '64.00%' },
-];
-
-// --- DATA: Trends View ---
-const trendsData = [
-  { month: 'May 2025', title: 81.67, images: 82.90, secondary: 79.82, rating: 67.86, overall: 84.12, description: 65.43 },
-  { month: '', title: 81.35, images: 83.00, secondary: 80.00, rating: 67.03, overall: 84.05, description: 65.21 },
-  { month: 'Jun 2025', title: 86.25, images: 89.56, secondary: 83.25, rating: 72.11, overall: 86.45, description: 68.32 },
-  { month: 'Jul 2025', title: 89.31, images: 97.35, secondary: 87.09, rating: 75.86, overall: 89.12, description: 72.15 },
-  { month: '', title: 90.18, images: 98.21, secondary: 87.44, rating: 75.86, overall: 89.85, description: 72.88 },
-  { month: 'Sep 2025', title: 90.07, images: 97.33, secondary: 87.17, rating: 75.38, overall: 89.65, description: 72.45 },
-  { month: '', title: 89.88, images: 97.79, secondary: 88.18, rating: 72.33, overall: 89.45, description: 71.98 },
-  { month: 'Nov 2025', title: 90.76, images: 98.24, secondary: 89.88, rating: 67.52, overall: 90.12, description: 69.56 },
-  { month: '', title: 94.37, images: 97.40, secondary: 94.37, rating: 60.00, overall: 92.45, description: 66.82 },
-  { month: 'Jan 2026', title: 93.86, images: 98.28, secondary: 90.99, rating: 67.42, overall: 91.55, description: 67.84 },
-  { month: '', title: 93.18, images: 98.12, secondary: 90.34, rating: 68.85, overall: 91.22, description: 67.55 },
-];
+// --- COMPONENTS ---
 
 const renderCustomLabel = (props) => {
   const { x, y, value, index } = props;
@@ -276,9 +199,74 @@ const ExpandablePlatformRow = ({ row }) => {
 
 // --- MAIN DEFAULT EXPORT ---
 export default function ContentScoreAnalysis() {
+  const { platform, selectedCategory, selectedChannel, timeStart, timeEnd, compareStart, compareEnd } = useContext(FilterContext);
+
   const [currentView, setCurrentView] = useState('main'); // 'main' | 'trends' | 'key_insights'
   const [selectedLines, setSelectedLines] = useState(['overall', 'title', 'images', 'secondary', 'description', 'rating']);
   const [selectedKpi, setSelectedKpi] = useState('overallScore');
+
+  const [overviewData, setOverviewData] = useState({
+    current: { titleScore: 0, imageScore: 0, siScore: 0, descScore: 0, ratingScore: 0, overallScore: 0 },
+    deltas: { titleScore: 0, imageScore: 0, siScore: 0, descScore: 0, ratingScore: 0, overallScore: 0 }
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [platformBreakdown, setPlatformBreakdown] = useState({ overall: null, platforms: [] });
+  const [skuData, setSkuData] = useState([]);
+  const [trendsData, setTrendsData] = useState([]);
+  
+  // Detail View Search/Filter States
+  const [detailSearchQuery, setDetailSearchQuery] = useState("");
+  const [activeStatusFilter, setActiveStatusFilter] = useState("All"); // All, Healthy, Watch, Action
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const commonParams = {
+          platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+          category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+          channel: selectedChannel === "All" ? undefined : selectedChannel,
+          startDate: timeStart ? timeStart.format('YYYY-MM-DD') : undefined,
+          endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined,
+          prevStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+          prevEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
+        };
+
+        // Fetch Overview
+        const overviewRes = await axiosInstance.get('/content-analysis/overview', { params: commonParams });
+        if (overviewRes.data && overviewRes.data.current) {
+          setOverviewData(overviewRes.data);
+        }
+
+        // Fetch Platform Breakdown
+        const breakdownRes = await axiosInstance.get('/content-analysis/platform-breakdown', { params: commonParams });
+        if (breakdownRes.data) {
+          setPlatformBreakdown(breakdownRes.data);
+        }
+
+        // Fetch SKU Details (from original content API)
+        const skuRes = await axiosInstance.get('/content-analysis', { params: commonParams });
+        if (skuRes.data) {
+          setSkuData(skuRes.data);
+        }
+
+        // Fetch Trends
+        const trendsRes = await axiosInstance.get('/content-analysis/trends', { params: commonParams });
+        if (trendsRes.data) {
+          setTrendsData(trendsRes.data);
+        }
+
+      } catch (err) {
+        console.error("Failed to fetch content analysis data", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (timeStart && timeEnd) {
+      fetchData();
+    }
+  }, [platform, selectedCategory, selectedChannel, timeStart, timeEnd, compareStart, compareEnd]);
 
   const toggleLine = (line) => {
     if (selectedLines.includes(line)) {
@@ -303,18 +291,84 @@ export default function ContentScoreAnalysis() {
   };
 
   const parsePercent = str => parseFloat((str||'0').replace('%','')) || 0;
-  const platformRows = tableData.map(row => {
-    const barItem = barData.find(b => b.name.replace('\n', ' ') === row.platform.replace('\n', ' ')) || { score: 0 };
-    return {
-      name: row.platform.replace('\n', ' '),
-      titleScore: parsePercent(row.title),
-      imagesScore: parsePercent(row.images),
-      secondaryScore: parsePercent(row.secondary),
-      descScore: parsePercent(row.desc),
-      ratingScore: parsePercent(row.rating),
-      overallScore: barItem.score
-    };
-  });
+  
+  const platformRows = useMemo(() => {
+    return platformBreakdown.platforms.map(p => ({
+      name: p.platform,
+      titleScore: p.current.titleScore,
+      imagesScore: p.current.imageScore,
+      secondaryScore: p.current.siScore,
+      descScore: p.current.descScore,
+      ratingScore: p.current.ratingScore,
+      overallScore: p.current.overallScore
+    }));
+  }, [platformBreakdown]);
+
+  // Transform SKU data for the detail table
+  const tableDataWithSkus = useMemo(() => {
+    return platformBreakdown.platforms.map(p => {
+      // Filter SKUs based on search query and status
+      const filteredSkus = skuData.filter(s => {
+        const matchesPlatform = s.platform.toLowerCase() === p.platform.toLowerCase();
+        if (!matchesPlatform) return false;
+
+        const matchesSearch = s.title.toLowerCase().includes(detailSearchQuery.toLowerCase());
+        
+        // Status logic
+        let matchesStatus = true;
+        if (activeStatusFilter !== "All") {
+          const score = s.overallScore;
+          if (activeStatusFilter === "Healthy") matchesStatus = score >= 90;
+          else if (activeStatusFilter === "Watch") matchesStatus = score >= 70 && score < 90;
+          else if (activeStatusFilter === "Action") matchesStatus = score < 70;
+        }
+
+        return matchesSearch && matchesStatus;
+      });
+
+      const platformSkus = filteredSkus.map(s => ({
+        name: s.title,
+        title: `${s.titleScore.toFixed(2)}%`,
+        images: `${s.imageScore.toFixed(2)}%`,
+        secondary: `${s.siScore.toFixed(2)}%`,
+        desc: `${s.descriptionScore.toFixed(2)}%`,
+        rating: `${s.ratingScore.toFixed(2)}%`
+      }));
+
+      return {
+        platform: p.platform,
+        title: `${p.current.titleScore.toFixed(2)}%`,
+        images: `${p.current.imageScore.toFixed(2)}%`,
+        secondary: `${p.current.siScore.toFixed(2)}%`,
+        desc: `${p.current.descScore.toFixed(2)}%`,
+        rating: `${p.current.ratingScore.toFixed(2)}%`,
+        skus: platformSkus,
+        overallScore: p.current.overallScore
+      };
+    }).filter(p => {
+      // Only show platform if it matches search OR has filtered SKUs
+      if (activeStatusFilter !== "All") {
+        return p.skus.length > 0;
+      }
+      return p.platform.toLowerCase().includes(detailSearchQuery.toLowerCase()) || p.skus.length > 0;
+    });
+  }, [platformBreakdown, skuData, detailSearchQuery, activeStatusFilter]);
+
+  // Insights gainers/drainers from SKU data
+  const gainersData = useMemo(() => {
+    return [...skuData]
+      .sort((a, b) => b.overallScore - a.overallScore)
+      .slice(0, 10)
+      .map(s => ({ id: s.product_id, name: s.title, score: `${s.overallScore.toFixed(1)}%` }));
+  }, [skuData]);
+
+  const drainersData = useMemo(() => {
+    return [...skuData]
+      .filter(s => s.overallScore > 0)
+      .sort((a, b) => a.overallScore - b.overallScore)
+      .slice(0, 10)
+      .map(s => ({ id: s.product_id, name: s.title, score: `${s.overallScore.toFixed(1)}%` }));
+  }, [skuData]);
 
   // ----- MAIN VIEW -----
   if (currentView === 'main') {
@@ -323,6 +377,7 @@ export default function ContentScoreAnalysis() {
         <SnapshotOverview
           title="Content Analysis Overview"
           icon={Activity}
+          loading={isLoading}
           chip="Performance Metrics"
           headerRight={
             <div className="flex flex-row items-center gap-2">
@@ -335,17 +390,18 @@ export default function ContentScoreAnalysis() {
             </div>
           }
           kpis={[
-            { id: 'title', title: 'Title Score', value: '93.83%', subtitle: 'Title Quality', delta: 1.5, deltaLabel: '▲ 1.5%', icon: Type, gradient: ['#10b981', '#34d399'], trendSeries: [90, 92, 91, 93, 93.83] },
-            { id: 'image', title: 'Image Score', value: '98.24%', subtitle: 'Hero images', delta: 0.8, deltaLabel: '▲ 0.8%', icon: LucideImage, gradient: ['#10b981', '#34d399'], trendSeries: [96, 96, 97, 98, 98.24] },
-            { id: 'si', title: 'SI Score', value: '90.76%', subtitle: 'Secondary images', delta: 1.2, deltaLabel: '▲ 1.2%', icon: CopyPlus, gradient: ['#10b981', '#34d399'], trendSeries: [88, 89, 89, 90, 90.76] },
-            { id: 'desc', title: 'Description Score', value: '67.84%', subtitle: 'Product details', delta: -3.4, deltaLabel: '▼ 3.4%', icon: FileText, gradient: ['#f43f5e', '#fb7185'], trendSeries: [70, 71, 71.24, 70.82, 67.84] },
-            { id: 'rating', title: 'Rating Score', value: '67.52%', subtitle: 'Consumer ratings', delta: -0.4, deltaLabel: '▼ 0.4%', icon: Star, gradient: ['#f43f5e', '#fb7185'], trendSeries: [68, 67.8, 67.9, 67.5, 67.52] },
-            { id: 'overall', title: 'Overall Score', value: '87.67%', subtitle: 'Aggregate health', delta: 2.1, deltaLabel: '▲ 2.1%', icon: PieChart, gradient: ['#6366f1', '#8b5cf6'], trendSeries: [84, 85, 85.5, 86.2, 87.67] }
+            { id: 'title', title: 'Title Score', value: `${overviewData.current.titleScore.toFixed(2)}%`, subtitle: 'Title Quality', delta: overviewData.deltas.titleScore, deltaLabel: `${overviewData.deltas.titleScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.titleScore).toFixed(1)}%`, icon: Type, gradient: ['#10b981', '#34d399'], trendSeries: [] },
+            { id: 'image', title: 'Image Score', value: `${overviewData.current.imageScore.toFixed(2)}%`, subtitle: 'Hero images', delta: overviewData.deltas.imageScore, deltaLabel: `${overviewData.deltas.imageScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.imageScore).toFixed(1)}%`, icon: LucideImage, gradient: ['#10b981', '#34d399'], trendSeries: [] },
+            { id: 'si', title: 'SI Score', value: `${overviewData.current.siScore.toFixed(2)}%`, subtitle: 'Secondary images', delta: overviewData.deltas.siScore, deltaLabel: `${overviewData.deltas.siScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.siScore).toFixed(1)}%`, icon: CopyPlus, gradient: ['#10b981', '#34d399'], trendSeries: [] },
+            { id: 'desc', title: 'Description Score', value: `${overviewData.current.descScore.toFixed(2)}%`, subtitle: 'Product details', delta: overviewData.deltas.descScore, deltaLabel: `${overviewData.deltas.descScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.descScore).toFixed(1)}%`, icon: FileText, gradient: ['#f43f5e', '#fb7185'], trendSeries: [] },
+            { id: 'rating', title: 'Rating Score', value: `${overviewData.current.ratingScore.toFixed(2)}%`, subtitle: 'Consumer ratings', delta: overviewData.deltas.ratingScore, deltaLabel: `${overviewData.deltas.ratingScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.ratingScore).toFixed(1)}%`, icon: Star, gradient: ['#f43f5e', '#fb7185'], trendSeries: [] },
+            { id: 'overall', title: 'Overall Score', value: `${overviewData.current.overallScore.toFixed(2)}%`, subtitle: 'Aggregate health', delta: overviewData.deltas.overallScore, deltaLabel: `${overviewData.deltas.overallScore > 0 ? '▲' : '▼'} ${Math.abs(overviewData.deltas.overallScore).toFixed(1)}%`, icon: PieChart, gradient: ['#6366f1', '#8b5cf6'], trendSeries: [] }
           ]}
         />
 
         <Box sx={{ mb: 2 }}>
           <ContentCrossPlatformOverview 
+            breakdown={platformBreakdown}
             onViewTrends={(kpiKey) => {
               setSelectedLines([mapKpiKeyToTrendKey(kpiKey)]);
               setCurrentView('trends');
@@ -358,7 +414,7 @@ export default function ContentScoreAnalysis() {
         </Box>
 
         <Box sx={{ mb: 4 }}>
-          <PlatformPerformanceStudio rows={platformRows} />
+          {platformRows.length > 0 && <PlatformPerformanceStudio rows={platformRows} />}
         </Box>
 
         <div className="rounded-3xl border bg-white p-4 shadow-sm w-full mt-6">
@@ -373,20 +429,55 @@ export default function ContentScoreAnalysis() {
              </div>
              
              <div className="flex items-center gap-2">
-                 <button className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50 hover:shadow transition-all cursor-pointer">
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    <span>Filters</span>
-                 </button>
+                 <div className="relative">
+                    <input 
+                      type="text"
+                      placeholder="Search SKU..."
+                      className="rounded-full border border-slate-200 bg-white pl-8 pr-4 py-1.5 text-xs outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-400 transition-all w-48"
+                      value={detailSearchQuery}
+                      onChange={(e) => setDetailSearchQuery(e.target.value)}
+                    />
+                    <SlidersHorizontal className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                 </div>
                  <div className="flex items-center gap-2 ml-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-medium text-emerald-700 border border-emerald-100">
-                        <span className="h-2 w-2 rounded-full bg-emerald-500" /> Healthy
+                    <span 
+                      onClick={() => setActiveStatusFilter(activeStatusFilter === "Healthy" ? "All" : "Healthy")}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium border cursor-pointer transition-all ${
+                        activeStatusFilter === "Healthy" 
+                        ? "bg-emerald-500 text-white border-emerald-600 shadow-sm" 
+                        : "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100"
+                      }`}
+                    >
+                        <span className={`h-2 w-2 rounded-full ${activeStatusFilter === "Healthy" ? "bg-white" : "bg-emerald-500"}`} /> Healthy
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-medium text-amber-700 border border-amber-100">
-                        <span className="h-2 w-2 rounded-full bg-amber-500" /> Watch
+                    <span 
+                      onClick={() => setActiveStatusFilter(activeStatusFilter === "Watch" ? "All" : "Watch")}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium border cursor-pointer transition-all ${
+                        activeStatusFilter === "Watch" 
+                        ? "bg-amber-500 text-white border-amber-600 shadow-sm" 
+                        : "bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100"
+                      }`}
+                    >
+                        <span className={`h-2 w-2 rounded-full ${activeStatusFilter === "Watch" ? "bg-white" : "bg-amber-500"}`} /> Watch
                     </span>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-medium text-rose-700 border border-rose-100">
-                        <span className="h-2 w-2 rounded-full bg-rose-500" /> Action
+                    <span 
+                      onClick={() => setActiveStatusFilter(activeStatusFilter === "Action" ? "All" : "Action")}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium border cursor-pointer transition-all ${
+                        activeStatusFilter === "Action" 
+                        ? "bg-rose-500 text-white border-rose-600 shadow-sm" 
+                        : "bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100"
+                      }`}
+                    >
+                        <span className={`h-2 w-2 rounded-full ${activeStatusFilter === "Action" ? "bg-white" : "bg-rose-500"}`} /> Action
                     </span>
+                    {activeStatusFilter !== "All" && (
+                      <button 
+                        onClick={() => setActiveStatusFilter("All")}
+                        className="text-[10px] text-slate-500 hover:text-slate-800 underline ml-1"
+                      >
+                        Clear
+                      </button>
+                    )}
                  </div>
              </div>
           </div>
@@ -417,7 +508,7 @@ export default function ContentScoreAnalysis() {
                           </tr>
                       </thead>
                       <tbody>
-                          {tableData.map((row, index) => (
+                          {tableDataWithSkus.map((row, index) => (
                               <ExpandablePlatformRow key={index} row={row} />
                           ))}
                       </tbody>
@@ -469,7 +560,21 @@ export default function ContentScoreAnalysis() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trendsData} margin={{ top: 20, right: 30, left: -10, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eaeaea" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#444', fontWeight: 500 }} axisLine={false} tickLine={false} dx={0} dy={10} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 10, fill: '#64748b', fontWeight: 500 }} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  dy={10}
+                  tickFormatter={(str) => {
+                    if (!str) return "";
+                    // Expected format YYYY-MM-DD from API
+                    const parts = str.split('-');
+                    if (parts.length < 3) return str;
+                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    return `${months[parseInt(parts[1])-1]} ${parts[2]}`;
+                  }}
+                />
                 <YAxis tick={{ fontSize: 12, fill: '#444', fontWeight: 500 }} axisLine={false} tickLine={false} domain={[60, 100]} tickFormatter={(val) => `${val}%`} />
                 {selectedLines.includes('overall') && <Line type="monotone" dataKey="overall" stroke="#6366f1" strokeWidth={2.5} dot={false} label={renderCustomLabel} activeDot={{ r: 6 }} />}
                 {selectedLines.includes('title') && <Line type="monotone" dataKey="title" stroke="#4ca6ff" strokeWidth={2.5} dot={false} label={renderCustomLabel} activeDot={{ r: 6 }} />}
@@ -510,12 +615,12 @@ const PlatformPerformanceStudio = ({ rows }) => {
   const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
   const kpiBands = [
-    { key: "overallScore", label: "Overall Score", activeValue: active.overallScore, compareValue: compare?.overallScore, max: 100, format: (v) => `${v}%` },
-    { key: "titleScore", label: "Title Score", activeValue: active.titleScore, compareValue: compare?.titleScore, max: 100, format: (v) => `${v}%` },
-    { key: "imagesScore", label: "Images Score", activeValue: active.imagesScore, compareValue: compare?.imagesScore, max: 100, format: (v) => `${v}%` },
-    { key: "secondaryScore", label: "Secondary Images Score", activeValue: active.secondaryScore, compareValue: compare?.secondaryScore, max: 100, format: (v) => `${v}%` },
-    { key: "descScore", label: "Description Score", activeValue: active.descScore, compareValue: compare?.descScore, max: 100, format: (v) => `${v}%` },
-    { key: "ratingScore", label: "Rating Score", activeValue: active.ratingScore, compareValue: compare?.ratingScore, max: 100, format: (v) => `${v}%` },
+    { key: "overallScore", label: "Overall Score", activeValue: active.overallScore, compareValue: compare?.overallScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+    { key: "titleScore", label: "Title Score", activeValue: active.titleScore, compareValue: compare?.titleScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+    { key: "imagesScore", label: "Images Score", activeValue: active.imagesScore, compareValue: compare?.imagesScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+    { key: "secondaryScore", label: "Secondary Images Score", activeValue: active.secondaryScore, compareValue: compare?.secondaryScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+    { key: "descScore", label: "Description Score", activeValue: active.descScore, compareValue: compare?.descScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
+    { key: "ratingScore", label: "Rating Score", activeValue: active.ratingScore, compareValue: compare?.ratingScore, max: 100, format: (v) => `${Number(v).toFixed(2)}%` },
   ];
 
   return (
@@ -557,7 +662,7 @@ const PlatformPerformanceStudio = ({ rows }) => {
                   </div>
                   <div className="text-left">
                     <div className={`font-bold text-[0.95rem] ${isActive ? `text-${scoreColor}-900` : 'text-slate-800'}`}>{f.name}</div>
-                    <div className={`text-[10px] ${isActive ? `text-${scoreColor}-600` : 'text-slate-500'}`}>Overall Score {f.overallScore}%</div>
+                    <div className={`text-[10px] ${isActive ? `text-${scoreColor}-600` : 'text-slate-500'}`}>Overall Score {Number(f.overallScore).toFixed(2)}%</div>
                   </div>
                 </div>
               </motion.button>
@@ -581,10 +686,10 @@ const PlatformPerformanceStudio = ({ rows }) => {
               </div>
               <div className="flex flex-col items-end gap-1 text-right">
                 <div className="text-[10px] text-slate-500">Overall Score</div>
-                <div className="text-lg font-semibold">{active.overallScore}%</div>
+                <div className="text-lg font-semibold">{Number(active.overallScore).toFixed(2)}%</div>
                 {compare && (
                   <div className={`mt-1 text-[10px] ${active.overallScore >= compare.overallScore ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    Delta {(active.overallScore - compare.overallScore).toFixed(1)}% vs {compare.name}
+                    Delta {(active.overallScore - compare.overallScore).toFixed(2)}% vs {compare.name}
                   </div>
                 )}
               </div>
@@ -615,8 +720,8 @@ const PlatformPerformanceStudio = ({ rows }) => {
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-xs pt-2">
                   <div className="text-[10px] text-slate-500">SCORE</div>
-                  <div className="text-lg font-semibold">{active.overallScore}%</div>
-                  {compare && <div className="text-[9px] text-violet-600 mt-0.5">vs {compare.overallScore}%</div>}
+                  <div className="text-lg font-semibold">{Number(active.overallScore).toFixed(2)}%</div>
+                  {compare && <div className="text-[9px] text-violet-600 mt-0.5">vs {Number(compare.overallScore).toFixed(2)}%</div>}
                 </div>
               </div>
 
@@ -670,7 +775,7 @@ const PlatformPerformanceStudio = ({ rows }) => {
   );
 };
 
-// --- CROSS PLATFORM OVERVIEW (STATIC) ---
+// --- CROSS PLATFORM OVERVIEW (DYNAMIC) ---
 const cn = (...classes) => classes.filter(Boolean).join(' ');
 
 const crossPlatformKpiDefs = [
@@ -682,95 +787,6 @@ const crossPlatformKpiDefs = [
   { key: 'ratingScore', label: 'Rating Score' },
 ];
 
-const crossPlatformEntities = [
-  { key: 'odd_overall', name: 'ODD OVERALL' },
-  { key: 'blinkit', name: 'BLINKIT' },
-  { key: 'flipkart', name: 'FLIPKART NAT.' },
-  { key: 'zepto', name: 'ZEPTO' },
-  { key: 'bigbasket', name: 'BIG BASKET' },
-  { key: 'instamart', name: 'INSTAMART' },
-  { key: 'amazon', name: 'AMAZON' },
-];
-
-const crossPlatformHardcodedData = [
-  {
-      key: 'odd_overall', name: 'ODD OVERALL',
-      data: {
-          overallScore: { value: '87.67%', delta: { value: '▲ 2.1%', dir: 'up' } },
-          titleScore: { value: '93.83%', delta: { value: '▲ 1.5%', dir: 'up' } },
-          imageScore: { value: '98.24%', delta: { value: '▲ 0.8%', dir: 'up' } },
-          siScore: { value: '90.76%', delta: { value: '▼ 1.2%', dir: 'down' } },
-          descScore: { value: '67.84%', delta: { value: '▼ 3.4%', dir: 'down' } },
-          ratingScore: { value: '67.52%', delta: { value: '▲ 0.4%', dir: 'up' } },
-      }
-  },
-  {
-      key: 'blinkit', name: 'BLINKIT',
-      data: {
-          overallScore: { value: '91.55%', delta: { value: '▲ 1.3%', dir: 'up' } },
-          titleScore: { value: '81.08%', delta: { value: '▼ 2.1%', dir: 'down' } },
-          imageScore: { value: '100.00%', delta: { value: '▲ 0.0%', dir: 'up' } },
-          siScore: { value: '93.24%', delta: { value: '▲ 4.1%', dir: 'up' } },
-          descScore: { value: '91.89%', delta: { value: '▲ 2.8%', dir: 'up' } },
-          ratingScore: { value: '-', delta: { value: '-', dir: 'up' } },
-      }
-  },
-  {
-      key: 'flipkart', name: 'FLIPKART NAT.',
-      data: {
-          overallScore: { value: '90.96%', delta: { value: '▲ 0.5%', dir: 'up' } },
-          titleScore: { value: '95.00%', delta: { value: '▲ 2.3%', dir: 'up' } },
-          imageScore: { value: '90.00%', delta: { value: '▼ 1.1%', dir: 'down' } },
-          siScore: { value: '85.00%', delta: { value: '▲ 0.4%', dir: 'up' } },
-          descScore: { value: '80.00%', delta: { value: '▼ 0.8%', dir: 'down' } },
-          ratingScore: { value: '90.00%', delta: { value: '▲ 1.2%', dir: 'up' } },
-      }
-  },
-  {
-      key: 'zepto', name: 'ZEPTO',
-      data: {
-          overallScore: { value: '83.90%', delta: { value: '▼ 5.2%', dir: 'down' } },
-          titleScore: { value: '100.00%', delta: { value: '▲ 0.0%', dir: 'up' } },
-          imageScore: { value: '100.00%', delta: { value: '▲ 0.0%', dir: 'up' } },
-          siScore: { value: '84.23%', delta: { value: '▼ 2.4%', dir: 'down' } },
-          descScore: { value: '51.35%', delta: { value: '▼ 8.9%', dir: 'down' } },
-          ratingScore: { value: '-', delta: { value: '-', dir: 'up' } },
-      }
-  },
-  {
-      key: 'bigbasket', name: 'BIG BASKET',
-      data: {
-          overallScore: { value: '83.08%', delta: { value: '▲ 1.1%', dir: 'up' } },
-          titleScore: { value: '100.00%', delta: { value: '▲ 0.0%', dir: 'up' } },
-          imageScore: { value: '97.50%', delta: { value: '▲ 0.5%', dir: 'up' } },
-          siScore: { value: '94.17%', delta: { value: '▲ 3.2%', dir: 'up' } },
-          descScore: { value: '71.25%', delta: { value: '▼ 4.5%', dir: 'down' } },
-          ratingScore: { value: '52.50%', delta: { value: '▼ 1.1%', dir: 'down' } },
-      }
-  },
-  {
-      key: 'instamart', name: 'INSTAMART',
-      data: {
-          overallScore: { value: '82.08%', delta: { value: '▼ 1.5%', dir: 'down' } },
-          titleScore: { value: '97.22%', delta: { value: '▲ 2.5%', dir: 'up' } },
-          imageScore: { value: '97.22%', delta: { value: '▲ 1.4%', dir: 'up' } },
-          siScore: { value: '78.33%', delta: { value: '▼ 6.2%', dir: 'down' } },
-          descScore: { value: '55.56%', delta: { value: '▼ 3.1%', dir: 'down' } },
-          ratingScore: { value: '-', delta: { value: '-', dir: 'up' } },
-      }
-  },
-  {
-      key: 'amazon', name: 'AMAZON',
-      data: {
-          overallScore: { value: '81.11%', delta: { value: '▲ 0.8%', dir: 'up' } },
-          titleScore: { value: '84.62%', delta: { value: '▼ 1.2%', dir: 'down' } },
-          imageScore: { value: '94.87%', delta: { value: '▲ 0.9%', dir: 'up' } },
-          siScore: { value: '94.02%', delta: { value: '▲ 2.1%', dir: 'up' } },
-          descScore: { value: '62.82%', delta: { value: '▼ 4.4%', dir: 'down' } },
-          ratingScore: { value: '69.23%', delta: { value: '▲ 3.6%', dir: 'up' } },
-      }
-  }
-];
 
 const crossSize = {
   minW: 'min-w-[155px]',
@@ -814,15 +830,57 @@ const SectionWrapper = ({ title, icon: Icon, children, className = '', chip, hea
   )
 };
 
-const ContentCrossPlatformOverview = ({ onViewTrends, onViewInsights }) => {
-  const platformData = crossPlatformHardcodedData;
+const ContentCrossPlatformOverview = ({ breakdown, onViewTrends, onViewInsights }) => {
+  const platformData = useMemo(() => {
+    const list = [];
+    if (breakdown.overall) {
+      list.push({
+        key: 'overall',
+        name: 'ODD OVERALL',
+        data: Object.keys(breakdown.overall.current).reduce((acc, k) => {
+          const val = breakdown.overall.current[k];
+          const delta = breakdown.overall.deltas[k];
+          acc[k] = {
+            value: `${val.toFixed(1)}%`,
+            delta: {
+              value: `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}%`,
+              dir: delta >= 0 ? 'up' : 'down'
+            }
+          };
+          return acc;
+        }, {})
+      });
+    }
+
+    breakdown.platforms.forEach(p => {
+      list.push({
+        key: p.platform.toLowerCase(),
+        name: p.platform.toUpperCase(),
+        data: Object.keys(p.current).reduce((acc, k) => {
+          const val = p.current[k];
+          const delta = p.deltas[k];
+          acc[k] = {
+            value: `${val.toFixed(1)}%`,
+            delta: {
+              value: `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}%`,
+              dir: delta >= 0 ? 'up' : 'down'
+            }
+          };
+          return acc;
+        }, {})
+      });
+    });
+
+    return list;
+  }, [breakdown]);
+
   const selectedKpis = crossPlatformKpiDefs;
 
   return (
       <SectionWrapper
           title="Cross Platform Overview"
           icon={BarChart3}
-          chip={`${crossPlatformEntities.length} Platforms × ${selectedKpis.length} KPIs`}
+          chip={`${platformData.length} Entities × ${selectedKpis.length} KPIs`}
           headerRight={
               <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
@@ -843,7 +901,7 @@ const ContentCrossPlatformOverview = ({ onViewTrends, onViewInsights }) => {
                       <div className="w-48 flex-shrink-0 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
                           <span className="text-xs font-bold text-slate-900 uppercase tracking-[0.15em]">Entity</span>
                       </div>
-                      {crossPlatformEntities.map(plat => (
+                      {platformData.map(plat => (
                           <div
                               key={plat.key}
                               className={cn(

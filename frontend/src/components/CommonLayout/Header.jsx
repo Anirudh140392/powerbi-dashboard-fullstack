@@ -288,7 +288,10 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
                 />
               )} */}
 
-              {title !== "Business Overview" && !location.pathname.includes("market-share") && !location.pathname.includes("visibility") && (
+              {title !== "Business Overview" && 
+               !location.pathname.includes("market-share") && 
+               !location.pathname.includes("visibility") && 
+               !location.pathname.includes("content-score") && (
                 <CustomHeaderDropdown
                   label="LOCATION"
                   options={locations}
