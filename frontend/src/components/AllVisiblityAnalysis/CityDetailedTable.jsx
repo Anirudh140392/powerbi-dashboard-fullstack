@@ -70,19 +70,8 @@ export default function CityDetailedTable({ sku, onClose }) {
                 };
 
                 let endpoint = '/availability-analysis/signal-lab/city-details';
-
-                if (sku.metricType === 'visibility') {
-                    endpoint = '/visibility-analysis/visibility-signals/city-details';
-                    params.level = sku.level || 'keyword';
-                    if (params.level === 'keyword') {
-                        params.keyword = sku.keyword;
-                    } else {
-                        params.skuName = sku.skuName || sku.sku;
-                    }
-                } else {
-                    params.webPid = webPidToUse;
-                    params.type = sku.metricType || 'availability';
-                }
+                params.webPid = webPidToUse;
+                params.type = sku.metricType || 'availability';
 
                 console.log(`[CityDetailedTable] Fetching from ${endpoint}`, "params:", params);
                 const res = await axiosInstance.get(endpoint, { params });
