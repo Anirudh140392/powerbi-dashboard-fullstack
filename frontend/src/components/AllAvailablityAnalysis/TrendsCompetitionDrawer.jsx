@@ -426,7 +426,8 @@ export default function TrendsCompetitionDrawer({
   selectedLevel,
   dimensionType,
   brandOptions,
-  initialPlatform,
+  initialPlatform = "Blinkit",
+  defaultView = "Trends",
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -437,7 +438,7 @@ export default function TrendsCompetitionDrawer({
   const { maxDate } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
-  const [view, setView] = useState("Trends");
+  const [view, setView] = useState(defaultView || "Trends");
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
   const [activeMetrics, setActiveMetrics] = useState([]);
@@ -467,86 +468,38 @@ export default function TrendsCompetitionDrawer({
   useEffect(() => {
     if (selectedColumn && open) {
       if (dynamicKey === "pricing") {
-        // For pricing, the selectedColumn is a category/city name, NOT a platform.
-        // Don't set it as a platform filter — it will be passed as dimensionValue in the API.
-        setSelectedPlatform("Blinkit"); // default platform pill
+        setSelectedPlatform(initialPlatform || "Blinkit");
         setDrawerFilters(prev => ({
           ...prev,
-          Platform: "All",
+          Platform: initialPlatform || "All",
           City: "All",
           Brand: "All",
           Format: "All",
         }));
       } else {
-        // Map selectedLevel to drawer layout "audience" (Platform, Format, City, Brand)
-        const normLevel = selectedLevel?.toLowerCase();
-        const audienceMap = {
-          platform: "Platform",
-          format: "Format",
-          category: "Format",
-          city: "City",
-          brand: "Brand",
-          month: "Platform",
-          sku: "Platform"
-        };
+        setSelectedPlatform(initialPlatform || selectedColumn || "Blinkit");
 
-        const activeAudience = audienceMap[normLevel] || "Platform";
-
-        // Handle specific default selections based on the segment clicked
-        if (normLevel === "platform") {
-          setSelectedPlatform(selectedColumn);
-          setDrawerFilters(prev => ({
-            Platform: selectedColumn,
-            Format: "All",
-            City: "All",
-            Brand: "All"
-          }));
-        } else if (normLevel === "brand") {
-          setSelectedPlatform(initialPlatform || "Blinkit");
-          setDrawerFilters(prev => ({
-            Platform: initialPlatform || "Blinkit",
-            Format: "All",
-            City: "All",
-            Brand: selectedColumn
-          }));
-        } else if (normLevel === "category") {
-          setSelectedPlatform(initialPlatform || "Blinkit");
-          setDrawerFilters(prev => ({
-            Platform: initialPlatform || "Blinkit",
-            Format: selectedColumn,
-            City: "All",
-            Brand: "All"
-          }));
-        } else if (normLevel === "month" || normLevel === "sku") {
-          // For Month and SKU, default to first platform (Blinkit) and clear specific dimension filters
-          setSelectedPlatform("Blinkit");
-          setDrawerFilters(prev => ({
-            Platform: "Blinkit",
-            Format: "All",
-            City: "All",
-            Brand: "All"
-          }));
-        } else {
-          // Fallback logic
-          setSelectedPlatform(initialPlatform || "Blinkit");
-          setDrawerFilters(prev => ({
-            Platform: initialPlatform || "All",
-            Format: activeAudience === "Format" ? selectedColumn : "All",
-            City: activeAudience === "City" ? selectedColumn : "All",
-            Brand: activeAudience === "Brand" ? selectedColumn : "All"
-          }));
-        }
-
-        // Update the context audience so logic downstream knows the level
-        allSetTrendMeta(prev => ({
+        const currentAudience = allTrendMeta.context.audience;
+        setDrawerFilters(prev => ({
           ...prev,
-          context: { ...prev.context, audience: activeAudience }
+          Platform: initialPlatform || prev.Platform,
+          [currentAudience]: selectedColumn,
         }));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedColumn, open, dynamicKey, initialPlatform]);
 
+  useEffect(() => {
+    if (open) {
+      setView(defaultView || "Trends");
+      setSelectedPlatform(initialPlatform || selectedPlatform || "Blinkit");
+      setDrawerFilters(prev => ({
+        ...prev,
+        Platform: initialPlatform || prev.Platform || "All",
+      }));
+    }
+  }, [open, defaultView, initialPlatform]);
 
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);

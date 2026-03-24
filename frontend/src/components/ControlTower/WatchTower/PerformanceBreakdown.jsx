@@ -23,9 +23,9 @@ export function PerformanceBreakdownProvider({ darkMode = false, filters = { pla
 function getAuthToken() { return typeof window === "undefined" ? null : localStorage.getItem(AUTH_TOKEN_KEY); }
 function buildUrl(endpoint) {
     if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) return endpoint;
-    // Use relative paths to go through Vite proxy (dev) or nginx proxy (prod)
-    if (endpoint.startsWith("/api")) return endpoint;
-    return `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    const base = API_BASE_URL ? API_BASE_URL : "";
+    let path = endpoint.startsWith("/api") ? endpoint : `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    return `${base}${path}`;
 }
 function handleUnauthorized() {
     localStorage.removeItem("isLoggedIn");
@@ -477,7 +477,7 @@ export function AggregatedViewTable() {
                         </div>
                         <button onClick={() => {
                             // CSV Download
-                            const headers = [currentDimension.label, "Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Sales"];
+                            const headers = [currentDimension.label, "Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Ad Sales"];
                             const csvRows = [headers.join(",")];
                             data.forEach(row => {
                                 csvRows.push([
@@ -502,7 +502,7 @@ export function AggregatedViewTable() {
                     <thead>
                         <tr className={darkMode ? "bg-slate-800/50" : "bg-slate-50/50"}>
                             <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{currentDimension.label}</th>
-                            {["Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
+                            {["Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Ad Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
