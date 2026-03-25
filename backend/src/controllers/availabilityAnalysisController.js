@@ -700,10 +700,10 @@ export const getSignalLabData = async (req, res) => {
                 SELECT
                     ${groupCol},
                     ${isBrandGroup ? "'' as Product" : 'any(Product) as Product'},
-                    any(Category) as Category,
-                    any(Platform) as Platform,
-                    ${isBrandGroup ? "'' as BrandCol" : "any(Brand) as Brand"},
-                    any(Comp_flag) as Comp_flag,
+                    any(Category) as aggCategory,
+                    any(Platform) as aggPlatform,
+                    ${isBrandGroup ? "'' as BrandCol" : "any(Brand) as aggBrand"},
+                    any(Comp_flag) as aggCompFlag,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) AS totalNeno,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)) AS totalDeno,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) AS compNeno,
@@ -751,8 +751,8 @@ export const getSignalLabData = async (req, res) => {
                 try {
                     const brandOwnership = {}; // { brandName: isOurs }
                     rows.forEach(r => {
-                        const b = isBrandGroup ? r[groupCol] : (r.Brand || r.BrandCol);
-                        if (b) brandOwnership[b.toLowerCase()] = (r.Comp_flag == 0);
+                        const b = isBrandGroup ? r[groupCol] : (r.aggBrand || r.BrandCol);
+                        if (b) brandOwnership[b.toLowerCase()] = (r.aggCompFlag == 0);
                     });
                     const brandsForSOS = Object.keys(brandOwnership);
 
@@ -850,7 +850,7 @@ export const getSignalLabData = async (req, res) => {
                 const metricChange = osaChange;
 
                 // Apply Scaling Fix for Mars items
-                const scaledItem = scaleMarsMetrics({ ...item }, isBrandGroup ? item[groupCol] : (item.Brand || item.BrandCol));
+                const scaledItem = scaleMarsMetrics({ ...item }, isBrandGroup ? item[groupCol] : (item.aggBrand || item.BrandCol));
                 
                 const qty = Number(scaledItem.totalQtySold || 0);
                 const price = Number(scaledItem.avgPrice || 0);
@@ -892,10 +892,11 @@ export const getSignalLabData = async (req, res) => {
                         roas: item.avgRoas ? `${Number(item.avgRoas).toFixed(1)}x` : '0.0x',
                         ctr: `${ctr.toFixed(1)}%`,
                         clicks: clicks > 1000 ? `${(clicks / 1000).toFixed(1)}k` : clicks.toString(),
+                        clicks: clicks > 1000 ? `${(clicks / 1000).toFixed(1)}k` : clicks.toString(),
                         atc: atc > 1000 ? `${(atc / 1000).toFixed(1)}k` : atc.toString()
                     };
                 } else if (metricType === 'visibility') {
-                    const brandKey = (isBrandGroup ? item[groupCol] : item.Brand || item.BrandCol || '').toString().trim().toLowerCase();
+                    const brandKey = (isBrandGroup ? item[groupCol] : item.aggBrand || item.BrandCol || '').toString().trim().toLowerCase();
 
                     // Improved matching for SOS: exact first, then partial
                     let sosData = sosMap[brandKey];
@@ -974,8 +975,8 @@ export const getSignalLabData = async (req, res) => {
                     skuCode: displayCode,
                     skuName: displayName,
                     packSize: '-',
-                    platform: item.Platform,
-                    categoryTag: item.Category,
+                    platform: item.aggPlatform,
+                    categoryTag: item.aggCategory,
                     groupBy: groupBy,
                     type: signalType,
                     metricType,
