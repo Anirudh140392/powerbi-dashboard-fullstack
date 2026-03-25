@@ -2,7 +2,38 @@ import React, { useState, useMemo, useContext } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import { motion, AnimatePresence } from "framer-motion";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
-import { ChevronDown, ChevronRight, PieChart } from "lucide-react";
+import { ChevronDown, ChevronRight, PieChart, Loader2 } from "lucide-react";
+import { fetchVisibilityCityDrilldown } from "../../api/visibilityService";
+import dayjs from "dayjs";
+
+const getVolShare = (name) => {
+    if (!name) return "2.0";
+    const seed = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return ((seed % 900) / 10 + 2).toFixed(1);
+};
+
+const ALL_BRANDS = [
+    'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&amp;M's", 'M&M', 'Orbit', 'Skittles', 'Boomer', 'Doublemint', // Mars
+    'Cadbury', 'Kinder', 'Ferrero', 'Nestle', 'Hershey\'s', 'Amul', 'Happydent', 'Mentos', 'Chupa Chups', 'Fabelle', 'Center fruit', 'The Whole Truth', 'Sour Punk', 'KitKat', 'Perk', 'Bournville', '5 Star', 'Munch', 'Kinder Bueno'
+];
+
+const getCorrectBrand = (skuName, brand, fallbackBrand) => {
+    // If brand is a valid name (not "1" and not "Other"), use it
+    if (brand && brand !== "1" && brand !== "Other") return brand;
+    
+    if (!skuName) return brand === "1" ? fallbackBrand : (brand || "Other");
+    
+    const lowerSku = skuName.toLowerCase();
+    for (const b of ALL_BRANDS) {
+        if (lowerSku.includes(b.toLowerCase())) {
+            return b;
+        }
+    }
+    
+    // Final fallback
+    if (brand === "1") return fallbackBrand;
+    return brand || "Other";
+};
 
 export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, apiData }) {
     const [currentPage, setCurrentPage] = useState(1);
@@ -10,21 +41,10 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
     const [expandedSkus, setExpandedSkus] = useState(new Set());
     const [expandedKeywords, setExpandedKeywords] = useState(new Set());
 
-    const getVolShare = (name) => {
-        const seed = (name || "").split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        return ((seed % 900) / 10 + 2).toFixed(1); // 2% to 92%
-    };
+    const [cityDrilldownData, setCityDrilldownData] = useState({}); // { [keyword_sku]: cities[] }
+    const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
 
-    const getCityData = (keyword, skuName) => {
-        const cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Pune"];
-        const seed = (keyword + skuName).split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        return cities.map((city, idx) => ({
-            city,
-            paid: ((seed * (idx + 1)) % 100) + 1,
-            organic: ((seed * (idx + 2)) % 100) + 1,
-            overall: ((seed * (idx + 3)) % 100) + 1
-        }));
-    };
+    const { platform, location, timeStart, timeEnd, selectedBrand } = useContext(FilterContext) || {};
 
     // Reset page and expanded state when tab changes
     useMemo(() => {
@@ -32,7 +52,6 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
         setExpandedSkus(new Set());
     }, [activeTab]);
 
-    const { selectedBrand } = useContext(FilterContext) || {};
     const defaultBrand = useMemo(() => {
         try {
             const u = JSON.parse(localStorage.getItem('user'));
@@ -43,11 +62,35 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
     }, []);
     const brandName = selectedBrand && selectedBrand !== "All" ? selectedBrand : defaultBrand;
 
-    const toggleExpand = (skuName) => {
-        const newExpanded = new Set(expandedSkus);
-        if (newExpanded.has(skuName)) newExpanded.delete(skuName);
-        else newExpanded.add(skuName);
-        setExpandedSkus(newExpanded);
+    const toggleExpand = async (skuId, keyword, skuName) => {
+        const isCurrentlyExpanded = expandedSkus.has(skuId);
+
+        setExpandedSkus((prev) => {
+            const next = new Set(prev);
+            if (next.has(skuId)) next.delete(skuId);
+            else next.add(skuId);
+            return next;
+        });
+
+        // Fetch city data if expanding and not loaded
+        if (!isCurrentlyExpanded && !cityDrilldownData[skuId]) {
+            try {
+                setCityLoading(prev => ({ ...prev, [skuId]: true }));
+                const response = await fetchVisibilityCityDrilldown({
+                    keyword,
+                    sku: skuName,
+                    platform,
+                    location: 'All',
+                    startDate: dayjs(timeStart).format('YYYY-MM-DD'),
+                    endDate: dayjs(timeEnd).format('YYYY-MM-DD')
+                });
+                setCityDrilldownData(prev => ({ ...prev, [skuId]: response.cities || [] }));
+            } catch (err) {
+                console.error("Failed to fetch City drilldown:", err);
+            } finally {
+                setCityLoading(prev => ({ ...prev, [skuId]: false }));
+            }
+        }
     };
 
     const toggleKeywordExpand = (keywordId) => {
@@ -58,31 +101,53 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
     };
 
     const keywordsData = useMemo(() => {
-        let allTerms = apiData?.terms || [];
+        // apiData is passed as searchTerms array from Parent
+        let allTerms = Array.isArray(apiData) ? apiData : (apiData?.terms || []);
         const kwMap = new Map();
 
-        // Flatten to keywords
-        allTerms.forEach(sku => {
-            const skuKeywords = sku.keywords || [];
-            skuKeywords.forEach(kw => {
-                if (!kwMap.has(kw.keyword)) {
-                    kwMap.set(kw.keyword, {
-                        keyword: kw.keyword,
-                        topBrand: sku.topBrand, // Placeholder
+        // Process results - handle both SKU-centric and Keyword-centric structures
+        allTerms.forEach(item => {
+            // Case 1: SKU-centric structure (from backend viewMode="sku")
+            // { skuName: "...", keywords: [ { keyword: "...", paidData: ... }, ... ] }
+            if (item.skuName && Array.isArray(item.keywords)) {
+                item.keywords.forEach(kw => {
+                    const kwName = kw.keyword || 'Unknown';
+                    if (!kwMap.has(kwName)) {
+                        kwMap.set(kwName, {
+                            keyword: kwName,
+                            topBrand: item.topBrand || item.brand || 'Other',
+                            paidRank: kw.paidData?.rank || 0,
+                            organicRank: kw.organicData?.rank || 0,
+                            overallRank: kw.overallData?.rank || 0,
+                            skus: []
+                        });
+                    }
+                    kwMap.get(kwName).skus.push({
+                        skuName: item.skuName,
+                        brand: item.topBrand || item.brand,
                         paidRank: kw.paidData?.rank || 0,
                         organicRank: kw.organicData?.rank || 0,
-                        overallRank: kw.overallData?.rank || 0,
-                        skus: []
+                        overallRank: kw.overallData?.rank || 0
                     });
-                }
-                kwMap.get(kw.keyword).skus.push({
-                    skuName: sku.skuName,
-                    brand: sku.topBrand,
-                    paidRank: kw.paidData?.rank || 0,
-                    organicRank: kw.organicData?.rank || 0,
-                    overallRank: kw.overallData?.rank || 0
                 });
-            });
+            }
+            // Case 2: Keyword-centric structure (standard or mock)
+            // { keyword: "...", skus: [ ... ] }
+            else if (item.keyword) {
+                const kwName = item.keyword;
+                if (!kwMap.has(kwName)) {
+                    kwMap.set(kwName, {
+                        keyword: kwName,
+                        topBrand: item.topBrand || item.brand || 'Other',
+                        paidRank: item.paidRank || item.paidSos || 0,
+                        organicRank: item.organicRank || item.organicSos || 0,
+                        overallRank: item.overallRank || item.overallSos || 0,
+                        skus: item.skus || []
+                    });
+                } else if (Array.isArray(item.skus)) {
+                    kwMap.get(kwName).skus = [...kwMap.get(kwName).skus, ...item.skus];
+                }
+            }
         });
 
         let list = Array.from(kwMap.values());
@@ -91,16 +156,19 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
         if (activeTab === "My SKUs") {
             list = list.filter(item =>
                 item.topBrand?.toLowerCase().includes(brandName.toLowerCase()) ||
-                item.topBrand === brandName
+                item.topBrand === brandName ||
+                item.topBrand === "1"
             );
         }
 
         if (filter && filter !== "All") {
             // Mock filter logic based on filter prop (Branded, Competitor, etc)
             if (filter === "Branded") {
-                list = list.filter(item => item.topBrand === brandName);
+                // Backend already filters by keyword_type=Branded.
+                // We allow results regardless of topBrand if they were returned by the backend.
+                list = list;
             } else if (filter === "Competitor") {
-                const exComps = list.filter(item => item.topBrand !== brandName);
+                const exComps = list.filter(item => item.topBrand !== brandName && item.topBrand !== "1");
                 if (exComps.length === 0) {
                     // Inject hardcoded competitor data
                     list = [
@@ -125,7 +193,9 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                     list = exComps;
                 }
             } else if (filter === "Generic") {
-                list = list.filter(item => !item.topBrand || item.topBrand === "Generic");
+                // Since backend already filters by keyword_type=Generic when this tab is selected,
+                // we don't need to secondary filter by topBrand here, as it might hide valid results.
+                list = list;
             }
         }
 
@@ -217,9 +287,9 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                                         </td>
                                         {activeTab === "ALL SKUs" && (
                                             <td className="px-6 py-3 text-xs text-slate-500 truncate" title={row.topBrand}>
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${row.topBrand?.toLowerCase() === brandName.toLowerCase() ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-700 border-slate-200'
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${row.topBrand?.toLowerCase() === brandName.toLowerCase() || row.topBrand === "1" ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-700 border-slate-200'
                                                     }`}>
-                                                    {row.topBrand}
+                                                    {row.topBrand === "1" ? brandName : row.topBrand}
                                                 </span>
                                             </td>
                                         )}
@@ -251,7 +321,7 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                                                                 <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        toggleExpand(skuId);
+                                                                        toggleExpand(skuId, row.keyword, sku.skuName);
                                                                     }}
                                                                     className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400 hover:text-slate-600"
                                                                 >
@@ -270,9 +340,9 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                                                             </div>
                                                         </td>
                                                         {activeTab === "ALL SKUs" && (
-                                                            <td className="px-6 py-2 text-center text-[11px] text-slate-400">
-                                                                {sku.brand}
-                                                            </td>
+                                                            <td className="px-6 py-2 text-[10px] text-slate-500 font-semibold">
+                                                            {getCorrectBrand(sku.skuName, sku.brand, brandName)}
+                                                        </td>
                                                         )}
                                                         <td className="px-6 py-2 text-center text-[10px] font-bold text-slate-500">
                                                             {sku.paidRank}
@@ -286,7 +356,20 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                                                     </motion.tr>
 
                                                     <AnimatePresence>
-                                                        {isSkuExpanded && getCityData(row.keyword, sku.skuName).map((city, cIdx) => (
+                                                        {isSkuExpanded && (cityLoading[skuId] ? (
+                                                            <motion.tr
+                                                                initial={{ opacity: 0 }}
+                                                                animate={{ opacity: 1 }}
+                                                                className="bg-slate-100/10"
+                                                            >
+                                                                <td colSpan={6} className="py-4 text-center">
+                                                                    <div className="flex flex-col items-center justify-center gap-1.5 pl-[84px]">
+                                                                        <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
+                                                                        <span className="text-[9px] font-medium text-slate-400 text-center">Loading cities...</span>
+                                                                    </div>
+                                                                </td>
+                                                            </motion.tr>
+                                                        ) : (cityDrilldownData[skuId] || []).map((city, cIdx) => (
                                                             <motion.tr
                                                                 key={`city-${skuId}-${cIdx}`}
                                                                 initial={{ opacity: 0, y: -3 }}
@@ -300,11 +383,11 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                                                                 {activeTab === "ALL SKUs" && (
                                                                     <td className="px-6 py-1 text-center text-[10px] text-slate-300">—</td>
                                                                 )}
-                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400">{city.paid}</td>
-                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400">{city.organic}</td>
-                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400">{city.overall}</td>
+                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400 font-bold">{city.paidRank || 0}</td>
+                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400 font-bold">{city.organicRank || 0}</td>
+                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400 font-bold">{city.overallRank || 0}</td>
                                                             </motion.tr>
-                                                        ))}
+                                                        )))}
                                                     </AnimatePresence>
                                                 </React.Fragment>
                                             );

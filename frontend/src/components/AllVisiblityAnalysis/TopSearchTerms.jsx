@@ -2,70 +2,39 @@ import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
 import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2, PieChart } from "lucide-react";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
-import { fetchVisibilityBrandDrilldown } from "../../api/visibilityService";
+import { fetchVisibilityBrandDrilldown, fetchVisibilitySkuDrilldown, fetchVisibilityCityDrilldown } from "../../api/visibilityService";
+import dayjs from "dayjs";
 import { FilterContext } from "../../utils/FilterContext";
 
 // TopSearchTerms component uses dynamic data passed via `apiData` prop
 
 const getVolShare = (name) => {
-    if (!name || typeof name !== 'string') return "2.0";
+    if (!name) return "2.0";
     const seed = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return ((seed % 900) / 10 + 2).toFixed(1); // 2% to 92%
+    return ((seed % 900) / 10 + 2).toFixed(1);
 };
 
-const getSkuData = (row, skuTab) => {
-    const seed = (row?.keyword || "").split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const myBrand = "MARS"; // Can be dynamic
+const ALL_BRANDS = [
+    'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&amp;M's", 'M&M', 'Orbit', 'Skittles', 'Boomer', 'Doublemint', // Mars
+    'Cadbury', 'Kinder', 'Ferrero', 'Nestle', 'Hershey\'s', 'Amul', 'Happydent', 'Mentos', 'Chupa Chups', 'Fabelle', 'Center fruit', 'The Whole Truth', 'Sour Punk', 'KitKat', 'Perk', 'Bournville', '5 Star', 'Munch', 'Kinder Bueno'
+];
 
-    let skus = [
-        { name: "Snickers Peanut 50g", brand: "MARS" },
-        { name: "Snickers Almond 40g", brand: "MARS" },
-        { name: "Cadbury Dairy Milk 100g", brand: "CADBURY" },
-        { name: "KitKat 4 Finger", brand: "NESTLE" },
-        { name: "Munch 25g", brand: "NESTLE" }
-    ];
-
-    if (skuTab === "My SKUs") {
-        skus = skus.filter(s => s.brand === myBrand);
+const getCorrectBrand = (skuName, brand, fallbackBrand) => {
+    // If brand is a valid name (not "1" and not "Other"), use it
+    if (brand && brand !== "1" && brand !== "Other") return brand;
+    
+    if (!skuName) return brand === "1" ? fallbackBrand : (brand || "Other");
+    
+    const lowerSku = skuName.toLowerCase();
+    for (const b of ALL_BRANDS) {
+        if (lowerSku.includes(b.toLowerCase())) {
+            return b;
+        }
     }
-
-    return skus.map((sku, idx) => {
-        const v1 = ((seed * (idx + 1)) % 40) / 10 - 2;
-        const v2 = ((seed * (idx + 2)) % 30) / 10 - 1.5;
-        const v3 = ((seed * (idx + 3)) % 25) / 10 - 1.25;
-
-        return {
-            skuName: sku.name,
-            brand: sku.brand,
-            overallSos: (Math.max(2, parseFloat(row.overallSos) + v1)).toFixed(1),
-            overallDelta: (parseFloat(row.overallDelta) + v1 / 2).toFixed(1),
-            organicSos: (Math.max(1, parseFloat(row.organicSos) + v2)).toFixed(1),
-            organicDelta: (parseFloat(row.organicDelta) + v2 / 2).toFixed(1),
-            paidSos: (Math.max(0, parseFloat(row.paidSos) + v3)).toFixed(1),
-            paidDelta: (parseFloat(row.paidDelta) + v3 / 2).toFixed(1),
-        };
-    });
-};
-
-const getCityData = (row) => {
-    const cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Pune"];
-    const seed = (row?.skuName || row?.keyword || "").split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
-    return cities.map((city, idx) => {
-        const v1 = ((seed * (idx + 1)) % 40) / 10 - 2;
-        const v2 = ((seed * (idx + 2)) % 30) / 10 - 1.5;
-        const v3 = ((seed * (idx + 3)) % 25) / 10 - 1.25;
-
-        return {
-            city: city,
-            overallSos: (Math.max(2, parseFloat(row.overallSos) + v1)).toFixed(1),
-            overallDelta: (parseFloat(row.overallDelta) + v1 / 2).toFixed(1),
-            organicSos: (Math.max(1, parseFloat(row.organicSos) + v2)).toFixed(1),
-            organicDelta: (parseFloat(row.organicDelta) + v2 / 2).toFixed(1),
-            paidSos: (Math.max(0, parseFloat(row.paidSos) + v3)).toFixed(1),
-            paidDelta: (parseFloat(row.paidDelta) + v3 / 2).toFixed(1),
-        };
-    });
+    
+    // Final fallback
+    if (brand === "1") return fallbackBrand;
+    return brand || "Other";
 };
 
 const FilterDropdown = ({ options, selected, onChange }) => {
@@ -206,36 +175,55 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
     const [modalPage, setModalPage] = useState(1);
     const [modalPageSize, setModalPageSize] = useState(5);
 
+    // Dynamic data for drilldowns
+    const [skuDrilldownData, setSkuDrilldownData] = useState({}); // { [keyword]: skus[] }
+    const [cityDrilldownData, setCityDrilldownData] = useState({}); // { [keyword_sku]: cities[] }
+    const [skuLoading, setSkuLoading] = useState({}); // { [keyword]: boolean }
+    const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
+
     const { platform, location, timeStart, timeEnd, selectedKeyword } = useContext(FilterContext) || {};
 
     // Select specific data based on tab filter
     // Use API data (already filtered by backend based on filter param)
     const activeData = useMemo(() => {
         let list = apiData?.terms || [];
+        const brandName = apiData?.brandName || "MARS";
         
         // Add hardcoded competitor data if Competitor filter is active
         if (filter === "Competitor") {
             const competitorData = [
-                { keyword: "dark chocolate", topBrand: "Cadbury", overallSos: 45.2, organicSos: 42.1, paidSos: 48.3, diffOverall: -1.2, diffOrganic: 0.5, diffPaid: -2.3 },
-                { keyword: "milk chocolate", topBrand: "Nestle", overallSos: 38.7, organicSos: 35.4, paidSos: 42.1, diffOverall: 0.8, diffOrganic: -1.1, diffPaid: 1.5 },
-                { keyword: "hazelnut spread", topBrand: "Nutella", overallSos: 62.1, organicSos: 58.9, paidSos: 65.3, diffOverall: -0.5, diffOrganic: 0.2, diffPaid: -0.8 },
-                { keyword: "energy bar", topBrand: "MuscleBlaze", overallSos: 22.4, organicSos: 19.8, paidSos: 25.0, diffOverall: 1.5, diffOrganic: 1.2, diffPaid: 1.8 },
-                { keyword: "mint candy", topBrand: "Mentos", overallSos: 33.6, organicSos: 31.2, paidSos: 36.1, diffOverall: -1.0, diffOrganic: -0.8, diffPaid: -1.2 }
+                { keyword: "dark chocolate", topBrand: "Cadbury", overallSos: 45.2, organicSos: 42.1, paidSos: 48.3, overallDelta: -1.2, organicDelta: 0.5, paidDelta: -2.3 },
+                { keyword: "milk chocolate", topBrand: "Nestle", overallSos: 38.7, organicSos: 35.4, paidSos: 42.1, overallDelta: 0.8, organicDelta: -1.1, paidDelta: 1.5 },
+                { keyword: "hazelnut spread", topBrand: "Nutella", overallSos: 62.1, organicSos: 58.9, paidSos: 65.3, overallDelta: -0.5, organicDelta: 0.2, paidDelta: -0.8 },
+                { keyword: "energy bar", topBrand: "MuscleBlaze", overallSos: 22.4, organicSos: 19.8, paidSos: 25.0, overallDelta: 1.5, organicDelta: 1.2, paidDelta: 1.8 },
+                { keyword: "mint candy", topBrand: "Mentos", overallSos: 33.6, organicSos: 31.2, paidSos: 36.1, overallDelta: -1.0, organicDelta: -0.8, paidDelta: -1.2 }
             ];
-            // If the original list has no competitors, use our hardcoded ones
-            const existingComps = list.filter(item => item.topBrand?.toLowerCase() !== (apiData?.brandName || "MARS").toLowerCase());
+            // Filter for keywords WHERE WE ARE NOT the leading brand (competitors)
+            const existingComps = list.filter(item => 
+                item.topBrand?.toLowerCase() !== brandName.toLowerCase() && 
+                item.topBrand !== "1"
+            );
             if (existingComps.length === 0) return competitorData;
             return existingComps;
         }
 
+        // tab filtering (My SKUs vs ALL SKUs)
+        if (skuTab === "My SKUs") {
+            // Show keywords where we have ANY share of search
+            list = list.filter(item => item.overallSos > 0);
+        }
+
+        // category filtering (Branded/Generic) - Relaxed as backend already filters the terms list
         if (filter === "Branded") {
-            list = list.filter(item => item.topBrand?.toLowerCase() === (apiData?.brandName || "MARS").toLowerCase());
+            // Backend already filters by keyword_type=Branded. Keep all returned terms.
+            list = list;
         } else if (filter === "Generic") {
-            list = list.filter(item => item.topBrand === "Generic" || !item.topBrand);
+            // Backend already filters by keyword_type=Generic. Keep all returned terms.
+            list = list;
         }
 
         return list;
-    }, [apiData, filter]);
+    }, [apiData, filter, skuTab]);
 
     // Reset page when filter changes
     useEffect(() => {
@@ -288,22 +276,69 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
         }
     };
 
-    const toggleKeywordExpand = (keyword) => {
+    const toggleKeywordExpand = async (keyword) => {
+        console.log(`[DEBUG] toggleKeywordExpand called for: ${keyword}`);
+        const isCurrentlyExpanded = expandedKeywordRows.has(keyword);
+        
         setExpandedKeywordRows((prev) => {
             const next = new Set(prev);
             if (next.has(keyword)) next.delete(keyword);
             else next.add(keyword);
             return next;
         });
+
+        // Trigger fetch if expanding and data doesn't exist
+        if (!isCurrentlyExpanded && !skuDrilldownData[keyword]) {
+            try {
+                setSkuLoading(prev => ({ ...prev, [keyword]: true }));
+                const params = {
+                    keyword,
+                    platform,
+                    location: 'All',
+                };
+                if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
+                if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
+                const response = await fetchVisibilitySkuDrilldown(params);
+                setSkuDrilldownData(prev => ({ ...prev, [keyword]: response.skus || [] }));
+            } catch (err) {
+                console.error("Failed to fetch SKU drilldown:", err);
+            } finally {
+                setSkuLoading(prev => ({ ...prev, [keyword]: false }));
+            }
+        }
     };
 
-    const toggleSkuExpand = (skuId) => {
+    const toggleSkuExpand = async (keyword, skuName) => {
+        const key = `${keyword}_${skuName}`;
+        const isCurrentlyExpanded = expandedSkuRows.has(key);
+
         setExpandedSkuRows((prev) => {
             const next = new Set(prev);
-            if (next.has(skuId)) next.delete(skuId);
-            else next.add(skuId);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
             return next;
         });
+
+        // Trigger fetch if expanding and data doesn't exist
+        if (!isCurrentlyExpanded && !cityDrilldownData[key]) {
+            try {
+                setCityLoading(prev => ({ ...prev, [key]: true }));
+                const params = {
+                    keyword,
+                    sku: skuName,
+                    platform,
+                    location: 'All',
+                };
+                if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
+                if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
+                const response = await fetchVisibilityCityDrilldown(params);
+                setCityDrilldownData(prev => ({ ...prev, [key]: response.cities || [] }));
+            } catch (err) {
+                console.error("Failed to fetch City drilldown:", err);
+            } finally {
+                setCityLoading(prev => ({ ...prev, [key]: false }));
+            }
+        }
     };
 
     const closeDrilldown = () => {
@@ -431,13 +466,14 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                                             </div>
                                         </td>
                                         <td className="px-6 py-2.5 text-[10px]">
-                                            <motion.button
+                                            <button
                                                 onClick={() => handleBrandClick(row.keyword)}
-                                                whileTap={{ scale: 0.95 }}
                                                 className="pill underline-slide"
                                             >
-                                                {row.topBrand}
-                                            </motion.button>
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${row.topBrand?.toLowerCase() === (apiData?.brandName || "MARS").toLowerCase() || row.topBrand === "1" ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                                    {row.topBrand === "1" ? (apiData?.brandName || "MARS") : row.topBrand}
+                                                </span>
+                                            </button>
                                         </td>
                                         <td className="px-6 py-2.5 text-center">
                                             <div className="mx-auto flex w-fit min-w-[90px] items-center justify-between gap-2.5 rounded-xl bg-emerald-50/50 px-2.5 py-1 border border-emerald-100/50">
@@ -461,34 +497,41 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
 
                                     {/* SKU Drilldown */}
                                     <AnimatePresence>
-                                        {isKwExpanded && getSkuData(row, skuTab).map((sku, skuIdx) => {
-                                            const skuId = `${row.keyword}-${sku.skuName}`;
-                                            const isSkuExpanded = expandedSkuRows.has(skuId);
+                                        {isKwExpanded && (skuLoading[row.keyword] ? (
+                                            <motion.tr
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                className="bg-slate-50/20"
+                                            >
+                                                <td colSpan={5} className="py-6 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-2">
+                                                        <Loader2 className="h-5 w-5 text-indigo-500 animate-spin" />
+                                                        <span className="text-[10px] font-medium text-slate-400">Loading SKUs...</span>
+                                                    </div>
+                                                </td>
+                                            </motion.tr>
+                                        ) : (skuDrilldownData[row.keyword] || []).map((sku, skuIdx) => {
+                                            const isSkuExpanded = expandedSkuRows.has(`${row.keyword}_${sku.skuName}`);
                                             return (
-                                                <React.Fragment key={`sku-${skuIdx}`}>
+                                                <React.Fragment key={`sku-${rowIdx}-${skuIdx}`}>
                                                     <motion.tr
-                                                        initial={{ opacity: 0, y: -5 }}
-                                                        animate={{ opacity: 1, y: 0 }}
-                                                        exit={{ opacity: 0, y: -5 }}
-                                                        className="bg-slate-50/30 border-b border-white"
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        className={`border-b border-slate-50/50 ${isSkuExpanded ? 'bg-slate-100/30' : 'bg-slate-50/20'} group hover:bg-slate-100/50`}
                                                     >
-                                                        <td className="px-6 py-1.5 pl-[52px] text-[11px] font-medium text-slate-800">
+                                                        <td className="px-6 py-2 pl-12 text-xs font-medium text-slate-600">
                                                             <div className="flex items-center gap-2">
                                                                 <button
-                                                                    onClick={() => toggleSkuExpand(skuId)}
-                                                                    className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400 hover:text-slate-600"
+                                                                    onClick={() => toggleSkuExpand(row.keyword, sku.skuName)}
+                                                                    className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400"
                                                                 >
-                                                                    {isSkuExpanded ? (
-                                                                        <ChevronDown className="h-3 w-3" />
-                                                                    ) : (
-                                                                        <ChevronRight className="h-3 w-3" />
-                                                                    )}
+                                                                    {isSkuExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                                                                 </button>
-                                                                {sku.skuName}
+                                                                <span className="truncate max-w-[180px]" title={sku.skuName}>{sku.skuName}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 py-1.5 text-center text-[10px] text-slate-400">
-                                                            {sku.brand}
+                                                         <td className="px-6 py-2 text-[10px] text-slate-500 font-semibold">
+                                                            {getCorrectBrand(sku.skuName, sku.brand, apiData?.brandName || "MARS")}
                                                         </td>
                                                         <td className="px-6 py-1.5 text-center">
                                                             <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
@@ -512,13 +555,26 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
 
                                                     {/* City Drilldown under SKU */}
                                                     <AnimatePresence>
-                                                        {isSkuExpanded && getCityData(sku).map((city, cIdx) => (
+                                                        {isSkuExpanded && (cityLoading[`${row.keyword}_${sku.skuName}`] ? (
+                                                            <motion.tr
+                                                                initial={{ opacity: 0 }}
+                                                                animate={{ opacity: 1 }}
+                                                                className="bg-slate-100/10"
+                                                            >
+                                                                <td colSpan={5} className="py-4 text-center">
+                                                                    <div className="flex flex-col items-center justify-center gap-1.5 pl-[84px]">
+                                                                        <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
+                                                                        <span className="text-[9px] font-medium text-slate-400 text-center">Loading cities...</span>
+                                                                    </div>
+                                                                </td>
+                                                            </motion.tr>
+                                                        ) : (cityDrilldownData[`${row.keyword}_${sku.skuName}`] || []).map((city, cIdx) => (
                                                             <motion.tr
                                                                 key={`city-${skuIdx}-${cIdx}`}
                                                                 initial={{ opacity: 0, y: -5 }}
                                                                 animate={{ opacity: 1, y: 0 }}
                                                                 exit={{ opacity: 0, y: -5 }}
-                                                                className="bg-slate-100/20 border-b border-white"
+                                                                className="bg-slate-100/20 border-b border-white hover:bg-slate-100/40"
                                                             >
                                                                 <td className="px-6 py-1 pl-[84px] text-[10px] font-medium text-slate-500">
                                                                     {city.city}
@@ -543,11 +599,11 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                                                                     </div>
                                                                 </td>
                                                             </motion.tr>
-                                                        ))}
+                                                        )))}
                                                     </AnimatePresence>
                                                 </React.Fragment>
                                             );
-                                        })}
+                                        }))}
                                     </AnimatePresence>
                                 </React.Fragment>
                             );

@@ -80,17 +80,21 @@ const ScoreCard = ({ title, score, isGreen }) => (
   </Box>
 );
 
-const HeaderControls = ({ title, onBack }) => (
-  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, alignItems: 'center', width: '100%' }}>
-    {/* Override title area for sub-views */}
-    <Typography variant="h6" sx={{ fontWeight: 500, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-      MARS <span style={{ fontWeight: 500, fontSize: '0.95rem', color: '#334155' }}>CONTENT ANALYSIS ({title})</span>
-    </Typography>
-    <IconButton onClick={onBack} sx={{ bgcolor: 'white', border: '1px solid #cbd5e1', borderRadius: '50%', width: 34, height: 34, '&:hover': { bgcolor: '#f6f8fb' } }}>
-      <CloseIcon sx={{ color: '#64748b', fontSize: '20px' }} />
-    </IconButton>
-  </Box>
-);
+const HeaderControls = ({ title, onBack }) => {
+  const isKeyInsights = title === "KEY-INSIGHTS";
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3, alignItems: 'center', width: '100%' }}>
+      {/* Override title area for sub-views */}
+      <Typography variant="h6" sx={{ fontWeight: 500, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {!isKeyInsights && <>MARS <span style={{ fontWeight: 500, fontSize: '0.95rem', color: '#334155' }}>CONTENT ANALYSIS </span></>}
+        {isKeyInsights ? title : `(${title})`}
+      </Typography>
+      <IconButton onClick={onBack} sx={{ bgcolor: 'white', border: '1px solid #cbd5e1', borderRadius: '50%', width: 34, height: 34, '&:hover': { bgcolor: '#f6f8fb' } }}>
+        <CloseIcon sx={{ color: '#64748b', fontSize: '20px' }} />
+      </IconButton>
+    </Box>
+  );
+};
 
 
 
@@ -596,7 +600,7 @@ export default function ContentScoreAnalysis() {
   if (currentView === 'key_insights') {
     return (
       <Box sx={{ p: { xs: 1, md: 3 }, display: 'flex', flexDirection: 'column', bgcolor: '#f7f9fc', minHeight: '100vh', mt: '-20px' }}>
-        <HeaderControls title={`KEY INSIGHTS - ${selectedKpi ? crossPlatformKpiDefs.find(k => k.key === selectedKpi)?.label : 'OVERALL'}`} onBack={() => setCurrentView('main')} />
+        <HeaderControls title="KEY-INSIGHTS" onBack={() => setCurrentView('main')} />
         <StyledTable title={`${selectedKpi ? crossPlatformKpiDefs.find(k => k.key === selectedKpi)?.label : 'OVERALL'} GAINERS`} data={gainersData} />
         <StyledTable title={`${selectedKpi ? crossPlatformKpiDefs.find(k => k.key === selectedKpi)?.label : 'OVERALL'} DRAINERS`} data={drainersData} />
       </Box>

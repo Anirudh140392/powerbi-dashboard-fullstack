@@ -279,7 +279,8 @@ async function getVisibilityOverviewData(filters = {}) {
             organic: aggregateToWeekly(trends.organic)
         };
 
-        console.log('[VisibilityService] Optimized query results:', { currentSOS, prevSOS, trendsReceived: !!trends });
+        console.log(`[VisibilityService] Calculated SOS Metrics: Overall=${currentSOS.overall.toFixed(1)}%, Sponsored=${currentSOS.sponsored.toFixed(1)}%, Organic=${currentSOS.organic.toFixed(1)}%`);
+        console.log('[VisibilityService] Trends Received:', !!trends);
 
         const overallChange = formatPPChange(currentSOS.overall, prevSOS.overall);
         const sponsoredChange = formatPPChange(currentSOS.sponsored, prevSOS.sponsored);
@@ -1356,9 +1357,11 @@ class VisibilityService {
 
     async getTopSearchTerms(filters = {}) {
         console.log('[VisibilityService] getTopSearchTerms called with filters:', filters);
+        console.log(`[VisibilityService] getTopSearchTerms called for platform=${filters.platform}, category=${filters.category}, startDate=${filters.startDate}, endDate=${filters.endDate}`);
         const cacheKey = generateCacheKey('visibility_top_search_terms_v3', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
+            console.log(`[VisibilityService] [CACHE MISS] Computing top search terms for key: ${cacheKey}`);
             try {
                 const platform = filters.platform || 'All';
                 const location = filters.location || 'All';
@@ -1413,6 +1416,8 @@ class VisibilityService {
 
                 const typeFilter = typeConds.length > 0 ? `AND ${typeConds.join(' AND ')}` : '';
 
+                console.log(`[VisibilityService] [getTopSearchTerms] Querying with Date Range: ${startDate} to ${endDate} (Prev: ${prevStart} to ${prevEnd})`);
+
                 // Apply keyword filter if provided
                 const keywordFilter = (filters.keyword && filters.keyword !== 'All')
                     ? `AND ${buildCHCondition(filters.keyword, 'keyword')}`
@@ -1427,11 +1432,11 @@ class VisibilityService {
                 let terms = [];
 
                 if (isSkuMode) {
-                    // 1. Get Top 50 SKUs based on overall volume
+                    // 1. Get Top 50 SKUs based on total volume
                     const topSkusQuery = `
                         SELECT 
                             keyword_search_product as sku, 
-                            countIf(toInt32(overall), ${brandSOSCondition}) as vol,
+                            count() as vol,
                             topKIf(1)(brand, brand != '') as best_brand_arr
                         FROM rb_kw_olap
                         WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} AND keyword_search_product != ''
@@ -1457,9 +1462,9 @@ class VisibilityService {
                         SELECT 
                             keyword_search_product as sku,
                             POSITION,
-                            countIf(toInt32(spons) = 1 AND ${brandSOSCondition}) as ad_cnt,
-                            countIf(toInt32(organic) = 1 AND ${brandSOSCondition}) as org_cnt,
-                            countIf(toInt32(overall) = 1 AND ${brandSOSCondition}) as ov_cnt
+                            countIf(toInt32(spons) = 1) as ad_cnt,
+                            countIf(toInt32(organic) = 1) as org_cnt,
+                            countIf(toInt32(overall) = 1) as ov_cnt
                         FROM rb_kw_olap
                         WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} 
                           AND keyword_search_product IN (${skuList})
@@ -1473,9 +1478,9 @@ class VisibilityService {
                             keyword_search_product as sku,
                             keyword,
                             POSITION,
-                            countIf(toInt32(spons) = 1 AND ${brandSOSCondition}) as ad_cnt,
-                            countIf(toInt32(organic) = 1 AND ${brandSOSCondition}) as org_cnt,
-                            countIf(toInt32(overall) = 1 AND ${brandSOSCondition}) as ov_cnt
+                            countIf(toInt32(spons) = 1) as ad_cnt,
+                            countIf(toInt32(organic) = 1) as org_cnt,
+                            countIf(toInt32(overall) = 1) as ov_cnt
                         FROM rb_kw_olap
                         WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} 
                           AND keyword_search_product IN (${skuList})
@@ -2379,6 +2384,7 @@ class VisibilityService {
                 LIMIT 20
             `;
 
+                console.log(`[VisibilityService] ClickHouse SKU Competition Query: ${skuQuery}`);
                 const skuResults = await queryClickHouse(skuQuery);
 
                 const skus = skuResults.map(s => ({
@@ -2682,7 +2688,140 @@ class VisibilityService {
             return [];
         }
     }
-}
 
+    /**
+     * Get SKU-level Visibility Drilldown for a specific keyword
+     */
+    async getSkuDrilldown(filters) {
+        const { keyword, platform, keywordType, category, brand } = filters;
+        let { startDate, endDate } = filters;
+        
+        console.log(`[VisibilityService] getSkuDrilldown called for keyword: "${keyword}"`, { startDate, endDate });
+
+        // If dates not provided, fetch latest available date from DB
+        if (!startDate || !endDate) {
+            const maxDateRes = await queryClickHouse(`SELECT MAX(DATE) as maxDate FROM rb_kw_olap WHERE DATE IS NOT NULL`);
+            const maxDate = maxDateRes[0]?.maxDate;
+            if (!maxDate || maxDate === '0000-00-00') return { skus: [] };
+            startDate = startDate || maxDate;
+            endDate = endDate || maxDate;
+        }
+
+        // First, get the total impressions for this keyword in the period to use as denominator
+        const totalImpressionsQuery = `
+            SELECT 
+                sum(toInt32(overall)) as total_overall,
+                sum(toInt32(spons)) as total_spons,
+                sum(toInt32(organic)) as total_organic
+            FROM rb_kw_olap
+            WHERE lower(keyword) = lower({kw:String})
+            AND DATE BETWEEN {sd:String} AND {ed:String}
+        `;
+        const totalRes = await queryClickHouse(totalImpressionsQuery, { kw: keyword, sd: startDate, ed: endDate });
+        const totalOverall = Number(totalRes[0]?.total_overall) || 1;
+        const totalSpons = Number(totalRes[0]?.total_spons) || 1;
+        const totalOrganic = Number(totalRes[0]?.total_organic) || 1;
+
+        let query = `
+            SELECT 
+                keyword_search_product AS skuName,
+                brand AS brand,
+                ROUND(sum(toInt32(overall)) * 100.0 / ${totalOverall}, 2) AS overallSos,
+                ROUND(sum(toInt32(spons)) * 100.0 / ${totalSpons}, 2) AS paidSos,
+                ROUND(sum(toInt32(organic)) * 100.0 / ${totalOrganic}, 2) AS organicSos
+            FROM rb_kw_olap
+            WHERE lower(keyword) = lower({kw:String})
+            AND DATE BETWEEN {sd:String} AND {ed:String}
+        `;
+
+        const params = { kw: keyword, sd: startDate, ed: endDate };
+
+        if (platform && platform !== 'All') {
+            query += " AND lower(platform_name) = lower({plt:String})";
+            params.plt = platform;
+        }
+
+        if (brand && brand !== 'All') {
+            query += " AND lower(brand) = lower({brd:String})";
+            params.brd = brand;
+        }
+
+        query += " GROUP BY skuName, brand ORDER BY overallSos DESC LIMIT 50";
+
+        try {
+            const skus = await queryClickHouse(query, params);
+            console.log(`[VisibilityService] getSkuDrilldown returned ${skus.length} SKUs`);
+            return { skus };
+        } catch (error) {
+            console.error('[VisibilityService] Error getting SKU drilldown:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get City-level Visibility Drilldown for a specific SKU and keyword
+     */
+    async getCityDrilldown(filters) {
+        const { keyword, sku, platform, brand } = filters;
+        let { startDate, endDate } = filters;
+        
+        console.log(`[VisibilityService] getCityDrilldown called for SKU: "${sku}" at Keyword: "${keyword}"`, { startDate, endDate });
+
+        // If dates not provided, fetch latest available date from DB
+        if (!startDate || !endDate) {
+            const maxDateRes = await queryClickHouse(`SELECT MAX(DATE) as maxDate FROM rb_kw_olap WHERE DATE IS NOT NULL`);
+            const maxDate = maxDateRes[0]?.maxDate;
+            if (!maxDate || maxDate === '0000-00-00') return { cities: [] };
+            startDate = startDate || maxDate;
+            endDate = endDate || maxDate;
+        }
+
+        // Denominator logic: Total impressions for the keyword in EACH city.
+        let query = `
+            WITH city_totals AS (
+                SELECT 
+                    location_name,
+                    sum(toInt32(overall)) as city_total_overall,
+                    sum(toInt32(spons)) as city_total_spons,
+                    sum(toInt32(organic)) as city_total_organic
+                FROM rb_kw_olap
+                WHERE lower(keyword) = lower({kw:String})
+                AND DATE BETWEEN {sd:String} AND {ed:String}
+                GROUP BY location_name
+            )
+            SELECT 
+                t.location_name AS city,
+                ROUND(sum(toInt32(t.overall)) * 100.0 / nullIf(ct.city_total_overall, 0), 2) AS overallSos,
+                ROUND(sum(toInt32(t.spons)) * 100.0 / nullIf(ct.city_total_spons, 0), 2) AS paidSos,
+                ROUND(sum(toInt32(t.organic)) * 100.0 / nullIf(ct.city_total_organic, 0), 2) AS organicSos,
+                ROUND(avgIf(t.POSITION, toInt32(t.overall) = 1), 1) AS overallRank,
+                ROUND(avgIf(t.POSITION, toInt32(t.spons) = 1), 1) AS paidRank,
+                ROUND(avgIf(t.POSITION, toInt32(t.organic) = 1), 1) AS organicRank
+            FROM rb_kw_olap t
+            LEFT JOIN city_totals ct ON t.location_name = ct.location_name
+            WHERE lower(t.keyword) = lower({kw:String})
+            AND lower(t.keyword_search_product) = lower({sku:String})
+            AND t.DATE BETWEEN {sd:String} AND {ed:String}
+        `;
+
+        const params = { kw: keyword, sku: sku, sd: startDate, ed: endDate };
+
+        if (platform && platform !== 'All') {
+            query += " AND lower(t.platform_name) = lower({plt:String})";
+            params.plt = platform;
+        }
+
+        query += " GROUP BY city, ct.city_total_overall, ct.city_total_spons, ct.city_total_organic ORDER BY overallSos DESC LIMIT 50";
+
+        try {
+            const cities = await queryClickHouse(query, params);
+            console.log(`[VisibilityService] getCityDrilldown returned ${cities.length} cities`);
+            return { cities };
+        } catch (error) {
+            console.error('[VisibilityService] Error getting City drilldown:', error);
+            throw error;
+        }
+    }
+}
 
 export default new VisibilityService();
