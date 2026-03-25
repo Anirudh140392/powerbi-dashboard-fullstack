@@ -42,7 +42,8 @@ const kpiDefs = [
     { key: 'mlSales', label: 'Sales (Cr)' },
 ];
 
-const kpiLabels = {
+/* kpiLabels are built dynamically inside the component using dbDisplayName */
+const baseKpiLabels = {
     categorySize: 'Category Size',
     mwMarketShare: 'Market Share%',
     mwSales: 'Sales (Cr)',
@@ -64,6 +65,26 @@ const MarketCatOverview = ({
     onViewTrends = () => { },
     onViewRca = () => { },
 }) => {
+    // Derive display name from the logged-in user's dbName
+    const dbDisplayName = useMemo(() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            if (u?.dbName) {
+                return u.dbName
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, c => c.toUpperCase());
+            }
+        } catch { /* ignore */ }
+        return 'Our';
+    }, []);
+
+    // Build dynamic kpiLabels with DB name prefix for our brand KPIs
+    const kpiLabels = useMemo(() => ({
+        ...baseKpiLabels,
+        mwMarketShare: `${dbDisplayName} Market Share%`,
+        mwSales: `${dbDisplayName} Sales (Cr)`,
+    }), [dbDisplayName]);
+
     const {
         selectedChannel,
         platform: globalPlatform,
