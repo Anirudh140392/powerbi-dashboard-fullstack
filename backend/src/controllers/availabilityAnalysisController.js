@@ -20,7 +20,12 @@ const parseFilter = (val) => {
 /**
  * Helper to escape SQL single quotes
  */
-const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+const escapeStr = (str) => {
+    if (str === null || str === undefined) return '';
+    const s = typeof str === 'string' ? str : String(str);
+    return s.replace(/'/g, "''");
+};
+
 
 /**
  * Scales metrics for Mars-related entries if needed (100x scaling fix).
@@ -991,8 +996,14 @@ export const getSignalLabData = async (req, res) => {
         });
     } catch (err) {
         console.error('🔥 SIGNAL LAB SQL ERROR:', err);
-        res.status(500).json({ error: 'Internal Server Error', message: err.message });
+        // Include the actual error message in the response for easier debugging on the frontend
+        res.status(500).json({ 
+            error: 'Internal Server Error', 
+            message: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+        });
     }
+
 };
 
 

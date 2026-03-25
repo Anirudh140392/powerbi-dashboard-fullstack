@@ -71,7 +71,6 @@ function formatDateRangeShort(range) {
 const GROUP_DIMENSIONS = [
     { value: "category", label: "Category", icon: "📂" },
     { value: "brand", label: "Brand", icon: "🏷️" },
-    { value: "sku", label: "SKU", icon: "🧾" },
 ];
 const PRESET_PERIODS = [
     { key: "last_week", label: "Last Week", type: "preset" },

@@ -1,4 +1,4 @@
-import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName, calculateConversion } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
@@ -159,7 +159,7 @@ const performanceMarketingService = {
                         revenue: parseFloat(row.revenue || 0),
                         clicks: parseInt(row.clicks || 0),
                         orders: parseInt(row.orders || 0),
-                        conversion: row.impressions > 0 ? ((row.orders || 0) / row.impressions) * 100 : 0,
+                        conversion: calculateConversion(parseInt(row.orders || 0), parseInt(row.impressions || 0), parseInt(row.clicks || 0)),
                         roas: row.spend > 0 ? (row.revenue || 0) / row.spend : 0,
                         cpm: row.impressions > 0 ? (row.spend / row.impressions) * 1000 : 0
                     };
@@ -336,8 +336,8 @@ const performanceMarketingService = {
                             impressions: imp,
                             spend: sp,
                             roas_roas: sp > 0 ? rev / sp : 0,
-                            // Conversion % = (Orders / Impressions) * 100
-                            cr_percentage: imp > 0 ? (ord / imp) * 100 : 0
+                            // Conversion % = (Orders / Clicks) * 100
+                            cr_percentage: calculateConversion(ord, imp, clk)
                         };
                     });
                 };
@@ -358,9 +358,9 @@ const performanceMarketingService = {
                 // KPI 1: Impressions
                 const impressionsChange = calculateChange(currentMetrics.impressions, prevMetrics.impressions);
 
-                // KPI 2: Conversion Rate (Orders / Impressions * 100)
-                const currConversion = currentMetrics.impressions > 0 ? (currentMetrics.orders / currentMetrics.impressions) * 100 : 0;
-                const prevConversion = prevMetrics.impressions > 0 ? (prevMetrics.orders / prevMetrics.impressions) * 100 : 0;
+                // KPI 2: Conversion Rate (Orders / Clicks * 100)
+                const currConversion = calculateConversion(currentMetrics.orders, currentMetrics.impressions, currentMetrics.clicks);
+                const prevConversion = calculateConversion(prevMetrics.orders, prevMetrics.impressions, prevMetrics.clicks);
                 const conversionChange = currConversion - prevConversion; // Percentage point difference for rates
 
                 // KPI 3: Spend
@@ -416,7 +416,7 @@ const performanceMarketingService = {
                     const avgImpressions = prevMetrics.impressions / prevDuration;
                     const avgSpend = prevMetrics.spend / prevDuration;
                     const aggregateRoas = prevMetrics.spend > 0 ? prevMetrics.adSales / prevMetrics.spend : 0;
-                    const aggregateConversion = prevMetrics.impressions > 0 ? (prevMetrics.orders / prevMetrics.impressions) * 100 : 0;
+                    const aggregateConversion = calculateConversion(prevMetrics.orders, prevMetrics.impressions, prevMetrics.clicks);
 
                     finalTrendData.unshift({
                         date: prevStartDate.format('YYYY-MM-DD'), // Show as comparison start date
@@ -1125,7 +1125,7 @@ const performanceMarketingService = {
                     const clicks = parseFloat(row.clicks) || 0;
 
                     const orders = parseFloat(row.orders) || 0;
-                    const conversion = impressions > 0 ? ((orders / impressions) * 100).toFixed(1) + '%' : '0%';
+                    const conversion = calculateConversion(orders, impressions, clicks).toFixed(1) + '%';
 
                     // Get REAL M-1 and M-2 values from lookup maps
                     const m1Data = m1Map[row.keyword_type] || {};
@@ -1137,12 +1137,12 @@ const performanceMarketingService = {
                     const m1Clicks = parseFloat(m1Data.clicks) || 0;
                     const m1Impressions = parseFloat(m1Data.impressions) || 0;
                     const m1Orders = parseFloat(m1Data.orders) || 0;
-                    const m1Conv = m1Impressions > 0 ? ((m1Orders / m1Impressions) * 100).toFixed(1) + '%' : '0%';
+                    const m1Conv = calculateConversion(m1Orders, m1Impressions, m1Clicks).toFixed(1) + '%';
 
                     const m2Clicks = parseFloat(m2Data.clicks) || 0;
                     const m2Impressions = parseFloat(m2Data.impressions) || 0;
                     const m2Orders = parseFloat(m2Data.orders) || 0;
-                    const m2Conv = m2Impressions > 0 ? ((m2Orders / m2Impressions) * 100).toFixed(1) + '%' : '0%';
+                    const m2Conv = calculateConversion(m2Orders, m2Impressions, m2Clicks).toFixed(1) + '%';
 
                     // Build children from keywords
                     const children = (keywordsByType[row.keyword_type] || []).map(kw => {
@@ -1150,7 +1150,7 @@ const performanceMarketingService = {
                         const kwClicks = parseFloat(kw.clicks) || 0;
                         const kwImpressions = parseFloat(kw.impressions) || 0;
                         const kwOrders = parseFloat(kw.orders) || 0;
-                        const kwConv = kwImpressions > 0 ? ((kwOrders / kwImpressions) * 100).toFixed(1) + '%' : '0%';
+                        const kwConv = calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%';
 
                         // Get zones for this keyword
                         const zoneKey = `${kw.keyword_type}|${kw.keyword_name}`;
@@ -1159,7 +1159,7 @@ const performanceMarketingService = {
                             const zClicks = parseFloat(z.clicks) || 0;
                             const zImpressions = parseFloat(z.impressions) || 0;
                             const zOrders = parseFloat(z.orders) || 0;
-                            const zConv = zImpressions > 0 ? ((zOrders / zImpressions) * 100).toFixed(1) + '%' : '0%';
+                            const zConv = calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%';
 
                             return {
                                 label: z.zone,
