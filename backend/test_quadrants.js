@@ -7,7 +7,7 @@ async function test() {
             SUM(ad_spend) as spend,
             SUM(Ad_sales) as revenue,
             if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
-        FROM mars.rca_pm_olap
+        FROM mars.rb_pm_olap
         WHERE ad_spend > 0 OR Ad_sales > 0
         GROUP BY keyword
         HAVING spend > 0

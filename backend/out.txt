@@ -46,7 +46,7 @@ Brands (Top 5): [ 'Boomer', 'Bounty', 'Cancelled', 'DP', 'Doublemint' ]
                         SUM(Ad_sales) as revenue, 
                         SUM(ad_click) as clicks, 
                         SUM(ad_quantity_sold) as orders 
-                    FROM mars.rca_pm_olap 
+                    FROM mars.rb_pm_olap 
                     WHERE Date BETWEEN '2026-02-05' AND '2026-03-06'
                     GROUP BY keyword, category, month
                 
@@ -91,7 +91,7 @@ KPI Cards: [
                         SUM(ad_quantity_sold) as orders,
                         SUM(Ad_sales) as sales,
                         SUM(Ad_sales) as total_sales
-                    FROM mars.rca_pm_olap
+                    FROM mars.rb_pm_olap
                     WHERE 1=1
                     GROUP BY category, date
                     ORDER BY category ASC, date ASC

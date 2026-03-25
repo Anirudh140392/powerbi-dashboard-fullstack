@@ -3,10 +3,10 @@ import sequelize from '../config/db.js';
 
 /**
  * RcaPmOlap Model
- * Maps to the rca_pm_olap table for Performance Marketing metrics.
+ * Maps to the rb_pm_olap table for Performance Marketing metrics.
  * Primary source for Conversion, ROAS, Spend, and Ad Sales.
  */
-const RcaPmOlap = sequelize.define('rca_pm_olap', {
+const RcaPmOlap = sequelize.define('rb_pm_olap', {
     DATE: {
         type: DataTypes.DATE,
         allowNull: false
@@ -40,7 +40,7 @@ const RcaPmOlap = sequelize.define('rca_pm_olap', {
         defaultValue: 0
     }
 }, {
-    tableName: 'rca_pm_olap',
+    tableName: 'rb_pm_olap',
     schema: 'mars',
     timestamps: false,
     indexes: [

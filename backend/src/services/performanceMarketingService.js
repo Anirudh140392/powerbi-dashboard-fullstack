@@ -8,10 +8,10 @@ dayjs.extend(weekOfYear);
 
 /**
  * Helper to resolve column names and wrap them with null/NaN safety
- * for rca_pm_olap table.
+ * for rb_pm_olap table.
  */
 async function getPmSource() {
-    const tableName = 'rca_pm_olap';
+    const tableName = 'rb_pm_olap';
     const cols = await getTableColumns(tableName);
     const r = (name) => resolveColumn(cols, name);
     const wrap = (col) => `ifNull(toFloat64OrZero(toString(${col})), 0)`;
@@ -55,7 +55,7 @@ const performanceMarketingService = {
     /**
      * Get Keyword Analysis Data
      * Hierarchy: Keyword -> Category
-     * Data source: rca_pm_olap
+     * Data source: rb_pm_olap
      */
     async getKeywordAnalysis(filters) {
         console.log("🔍 [Service] getKeywordAnalysis filters:", filters);
@@ -210,7 +210,7 @@ const performanceMarketingService = {
 
     /**
      * Get KPIs Overview (Impressions, Spend, ROAS, Conversion)
-     * Data source: rca_pm_olap
+     * Data source: rb_pm_olap
      * @param {Object} filters 
      */
     async getKpisOverview(filters) {
@@ -443,7 +443,7 @@ const performanceMarketingService = {
 
     /**
      * Get Daily Format Performance (keyword_category > Date)
-     * For HeatmapDrillTable - uses rca_pm_olap
+     * For HeatmapDrillTable - uses rb_pm_olap
      */
     async getFormatPerformance(filters) {
         console.log("🔍 [Service] getFormatPerformance filters:", filters);
@@ -581,7 +581,7 @@ const performanceMarketingService = {
     ,
 
     /**
-     * Get distinct keywords from rca_pm_olap, optionally filtered by category
+     * Get distinct keywords from rb_pm_olap, optionally filtered by category
      * @param {string} category - Category name to filter keywords (optional)
      */
     getKeywords: async (category) => {
@@ -598,7 +598,7 @@ const performanceMarketingService = {
 
                 const query = `
                     SELECT DISTINCT keyword 
-                    FROM rca_pm_olap 
+                    FROM rb_pm_olap 
                     WHERE ${whereConditions.join(' AND ')}
                     ORDER BY keyword ASC
                 `;
@@ -612,7 +612,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct zones from rca_pm_olap, optionally filtered by brand
+     * Get distinct zones from rb_pm_olap, optionally filtered by brand
      * Since zone does not exist, return an empty array or handle gracefully.
      * @param {string} brand - Brand name to filter zones (optional)
      */
@@ -622,7 +622,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct platforms from rca_pm_olap for PM page
+     * Get distinct platforms from rb_pm_olap for PM page
      */
     async getPlatforms() {
         const cacheKey = 'pm_platforms';
@@ -648,7 +648,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct brands from rca_pm_olap, optionally filtered by platform
+     * Get distinct brands from rb_pm_olap, optionally filtered by platform
      * @param {string} platform - Platform to filter by (optional)
      */
     async getBrands(platform) {
@@ -684,7 +684,7 @@ const performanceMarketingService = {
 
     /**
      * Get campaign quadrant counts (Q1, Q2, Q3, Q4)
-     * For rca_pm_olap, acos_spend_class doesn't exist. We dynamically calculate
+     * For rb_pm_olap, acos_spend_class doesn't exist. We dynamically calculate
      * quadrants by grouping keywords based on whether their Spend and ROAS are
      * above or below the overall average for the filtered dataset.
      * @param {Object} filters - platform, brand, zone, startDate, endDate

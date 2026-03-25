@@ -378,7 +378,9 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             channel: req.query.channel,
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            ownBrandsOnly: req.query.ownBrandsOnly
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            dimension: req.query.dimension,
+            dimensionValue: req.query.dimensionValue
         };
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -707,11 +709,11 @@ export const getSignalLabData = async (req, res) => {
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) AS avgRoas,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) AS totalClicks,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) AS totalImpressions,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
-                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS prevSales
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', abs(toFloat64(Sales)), 0.0)) AS currSales,
+                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', abs(toFloat64(Sales)), 0.0)) AS prevSales
                 FROM rb_pdp_olap
                 WHERE ${filterCol} IN (${webPidsStr})
-                    AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
+                    AND ${buildWhereClause(true, true)}
                 GROUP BY ${groupCol}
             `;
 
@@ -730,12 +732,10 @@ export const getSignalLabData = async (req, res) => {
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) as impressions,
                     GREATEST(0, avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0))) as inventory,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) as citySales
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', abs(toFloat64(Sales)), 0.0)) as citySales
                 FROM rb_pdp_olap
                 WHERE ${filterCol} IN (${webPidsStr})
-                    AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
-                    AND Location IN (SELECT location FROM rb_location_darkstore WHERE tier = 'Tier 1')
-                    AND ${buildWhereClause(true, true).replace(/Brand ILIKE.*' OR /g, '').replace(/Brand ILIKE.*' AND /g, '') /* Simple way to inject other filters but not current brand */}
+                    AND ${buildWhereClause(true, true)}
                 GROUP BY ${groupCol}, Location
             `;
             const cityRows = await queryClickHouse(cityAggQuery);
@@ -1072,7 +1072,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                         GREATEST(0, sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0.0))) as daily_qty_sold,
                         sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0.0)) as daily_neno,
                         sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0.0)) as daily_deno,
-                        sum(ifNull(toFloat64OrZero(toString(Sales)), 0.0)) as daily_sales,
+                        sum(abs(ifNull(toFloat64OrZero(toString(Sales)), 0.0))) as daily_sales,
                         sum(ifNull(toFloat64OrZero(toString(MRP)), 0.0)) as daily_mrp,
                         sum(ifNull(toFloat64OrZero(toString(Selling_Price)), 0.0)) as daily_sp,
                         sum(ifNull(toFloat64OrZero(toString(Ad_sales)), 0.0)) as daily_ad_sales,

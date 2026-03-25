@@ -7,7 +7,7 @@ async function testQuery() {
         // This mirrors the logic in getVisibilityKeywordTypes
         const query = `
             SELECT DISTINCT keyword_type 
-            FROM rca_pm_olap 
+            FROM rb_pm_olap 
             WHERE keyword_type IS NOT NULL AND keyword_type != ''
             ORDER BY keyword_type ASC
         `;

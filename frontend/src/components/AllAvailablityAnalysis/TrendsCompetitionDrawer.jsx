@@ -1885,7 +1885,7 @@ export default function TrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const trendOption = useMemo(() => {
-    const dataSource = (chartData && chartData.length > 0) ? chartData : trendPoints;
+    const dataSource = (chartData && chartData.length > 0) ? chartData : (dynamicKey === 'availability' ? [] : trendPoints);
     const xData = dataSource.map((p) => p.date);
 
     const metrics = trendMeta.metrics || [];
