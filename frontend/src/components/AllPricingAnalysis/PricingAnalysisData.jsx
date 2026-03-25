@@ -2528,13 +2528,13 @@ export default function PricingAnalysisData() {
       {
         id: 'vis-2',
         title: 'Average selling price',
-        value: `₹${(d.pricePerUnit?.value || 0).toFixed(2)}`,
+        value: `₹${(d.asp?.value || 0).toFixed(2)}`,
         subtitle: 'Average selling price of SKUs',
-        delta: Math.abs(d.pricePerUnit?.change || 0),
-        deltaLabel: `${(d.pricePerUnit?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.pricePerUnit?.change || 0).toFixed(1)}%`,
+        delta: Math.abs(d.asp?.change || 0),
+        deltaLabel: `${(d.asp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.asp?.change || 0).toFixed(1)}%`,
         icon: icons[2],
         gradient: gradients[2],
-        trendDir: (d.pricePerUnit?.change || 0) >= 0 ? 'up' : 'down',
+        trendDir: (d.asp?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period'
       },
       {

@@ -53,9 +53,9 @@ const marketShareKpis = [
   },
   {
     id: "ms-mars-wrigley",
-    title: "Mars Wrigley's Sales (Cr)",
+    title: "Wrigley's Sales (Cr)",
     value: "₹ 6.90 Cr",
-    subtitle: "Mars Wrigley brand sales performance",
+    subtitle: "Wrigley brand sales performance",
     delta: 38.1,
     deltaLabel: "▲ 38.1% (₹4.88 Cr)",
     icon: PieChart,

@@ -47,6 +47,7 @@ export default function ScheduledReports() {
         brands: [],
         cities: [],
         formats: [],
+        skus: [],
         months: [],
     });
 
@@ -68,19 +69,22 @@ export default function ScheduledReports() {
         loadReportTypes();
     }, []);
 
-    // Fetch filter options from backend whenever platform changes
-    const loadFilterOptions = useCallback(async (platform) => {
+    // Fetch filter options from backend whenever filters change
+    const loadFilterOptions = useCallback(async (filters) => {
         try {
             const params = {};
-            if (platform && platform !== 'All') {
-                params.platform = platform;
-            }
+            if (filters.platform && filters.platform !== 'All') params.platform = filters.platform;
+            if (filters.brand && filters.brand !== 'All Brands') params.brand = filters.brand;
+            if (filters.location && filters.location !== 'All Locations') params.city = filters.location;
+            if (filters.category && filters.category !== 'All Categories') params.format = filters.category;
+
             const data = await fetchReportFilterOptions(params);
             setFilterOptions({
                 platforms: data.platforms || [],
                 brands: data.brands || [],
                 cities: data.cities || [],
                 formats: data.formats || [],
+                skus: data.skus || [],
                 months: data.months || [],
             });
         } catch (err) {
@@ -88,10 +92,16 @@ export default function ScheduledReports() {
         }
     }, []);
 
-    // Fetch filter options on mount and when platform changes
+    // Fetch filter options on mount and when any relevant filter changes
     useEffect(() => {
-        loadFilterOptions(selectedFilters.platform);
-    }, [selectedFilters.platform, loadFilterOptions]);
+        loadFilterOptions(selectedFilters);
+    }, [
+        selectedFilters.platform,
+        selectedFilters.brand,
+        selectedFilters.location,
+        selectedFilters.category,
+        loadFilterOptions
+    ]);
 
     // Scheduled reports state (persist in localStorage)
     const [scheduledReports, setScheduledReports] = useState(() => {
@@ -155,9 +165,8 @@ export default function ScheduledReports() {
     };
 
     const getSkuOptions = () => {
-        // SKU options are not provided by the filter-options endpoint
-        // Keep a generic "All SKUs" since the backend handles filtering
-        return ["All SKUs"];
+        const skus = filterOptions.skus || [];
+        return ["All SKUs", ...skus];
     };
 
     const getLocationOptions = () => {

@@ -41,7 +41,7 @@ export const FilterProvider = ({ children }) => {
     const [keywords, setKeywords] = useState([]);
     const [selectedKeyword, setSelectedKeyword] = useState(["All"]);
 
-    // Keyword Type state (for visibility analysis) - fetched dynamically from rca_pm_olap
+    // Keyword Type state (for visibility analysis) - fetched dynamically from rb_pm_olap
     const [keywordTypes, setKeywordTypes] = useState([]);
     const [selectedKeywordType, setSelectedKeywordType] = useState(["All"]);
 
