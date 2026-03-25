@@ -6192,11 +6192,14 @@ const getBrandsOverview = async (filters) => {
 
     const { months = 1, startDate: qStartDate, endDate: qEndDate, brandsOverviewPlatform, brandsOverviewCategory, channel } = filters;
 
-    // Extract filter values - frontend may send as 'location' or 'location[]' (array format)
+    // Extract filter values - frontend may send as 'brand' or 'brand[]' (array format)
+    const rawBrand = filters['brand[]'] || filters.brand;
     const rawLocation = filters['location[]'] || filters.location;
 
     // Normalize multi-value filters
+    const brandArr = normalizeFilterArray(rawBrand)?.map(b => b.toLowerCase());
     const locationArr = normalizeFilterArray(rawLocation);
+    const brand = brandArr ? (brandArr.length === 1 ? brandArr[0] : brandArr) : null;
     const location = locationArr ? (locationArr.length === 1 ? locationArr[0] : locationArr) : null;
 
     const monthsBack = parseInt(months, 10) || 1;
@@ -6328,33 +6331,33 @@ const getBrandsOverview = async (filters) => {
         currMsNum, currMsDenom, prevMsNum, prevMsDenom,
         currCatSizeTotal, prevCatSizeTotal
     ] = await Promise.all([
-        // Query 1: Distinct brands
+        // Query 1: Distinct brands (Our Brands Only)
         queryClickHouse(`
             SELECT DISTINCT ${src.f.brand} as brand FROM ${src.table}
-            WHERE ${buildBrandConds(startDate, endDate)}
+            WHERE ${buildBrandConds(startDate, endDate)} AND ${src.f.compFlag} = 0
             ORDER BY brand
         `),
         // Metrics
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
             SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as my_actual_sales,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as comp_mrp_val,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales
-        FROM ${src.table} WHERE ${buildBrandConds(startDate, endDate)} GROUP BY Brand`),
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as my_actual_sales,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as comp_mrp_val,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales
+        FROM ${src.table} WHERE ${buildBrandConds(startDate, endDate)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         queryClickHouse(`SELECT ${src.f.brand} as Brand,
             SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) as total_sales,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as my_actual_sales,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as comp_mrp_val,
-            SUM(CASE WHEN ${brand && brand !== 'All' ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales
-        FROM ${src.table} WHERE ${buildBrandConds(momStart, momEnd)} GROUP BY Brand`),
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as total_qty,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.neno})), 0) ELSE 0 END) as total_neno,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.deno})), 0) ELSE 0 END) as total_deno,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as my_mrp_val,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 0` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as my_actual_sales,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0) * ifNull(toFloat64OrZero(toString(${src.f.qty})), 0) ELSE 0 END) as comp_mrp_val,
+            SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlag} = 1` : '1=1'} THEN ifNull(toFloat64OrZero(toString(${src.f.actualSales})), 0) ELSE 0 END) as comp_actual_sales
+        FROM ${src.table} WHERE ${buildBrandConds(momStart, momEnd)} AND ${src.f.compFlag} = 0 GROUP BY Brand`),
         // Marketing Metrics from PM table
         queryClickHouse(`SELECT ${pmSrc.f.brand} as Brand,
             SUM(${pmSrc.f.spend}) as total_spend,
@@ -6475,6 +6478,19 @@ const getBrandsOverview = async (filters) => {
     const prevAdSovMap = buildSosNumMap(prevAdSovData);
     const currOrgSovMap = buildSosNumMap(currOrgSovData);
     const prevOrgSovMap = buildSosNumMap(prevOrgSovData);
+
+    // Build Market Share maps (Brand MS = Brand Sales / Total Cat Sales)
+    const currCatTotalSales = parseFloat(currCatSizeTotal[0]?.cat_size || 0);
+    const prevCatTotalSales = parseFloat(prevCatSizeTotal[0]?.cat_size || 0);
+
+    const currMsMap = new Map(currMsDenom.map(r => [
+        String(r.brand || '').toLowerCase(),
+        currCatTotalSales > 0 ? (parseFloat(r.total_sales || 0) / currCatTotalSales) * 100 : 0
+    ]));
+    const prevMsMap = new Map(prevMsDenom.map(r => [
+        String(r.brand || '').toLowerCase(),
+        prevCatTotalSales > 0 ? (parseFloat(r.total_sales || 0) / prevCatTotalSales) * 100 : 0
+    ]));
 
 
     const brandsOverview = brands.map(brandName => {
