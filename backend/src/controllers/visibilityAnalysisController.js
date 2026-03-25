@@ -503,3 +503,90 @@ export const getVisibilityKeywordTypes = async (req, res) => {
     }
 };
 
+/**
+ * Get SKU-level Visibility Drilldown for a specific keyword
+ */
+export const getVisibilitySkuDrilldown = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
+    const startTime = Date.now();
+    try {
+        const filters = {
+            keyword: req.query.keyword,
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            brand: req.query.brand || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+
+        if (!filters.keyword) {
+            return res.status(400).json({ error: 'Keyword is required' });
+        }
+
+        console.log('\n========== VISIBILITY SKU DRILLDOWN API ==========');
+        console.log('[REQUEST] Keyword:', filters.keyword);
+
+        const cacheKey = generateCacheKey('visibility_sku_drill', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getSkuDrilldown(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: SKUs count:', data.skus?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('==================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility SKU Drilldown:', error);
+        res.status(500).json({ error: 'Internal Server Error', skus: [] });
+    }
+};
+
+/**
+ * Get City-level Visibility Drilldown for a specific SKU and Keyword
+ */
+export const getVisibilityCityDrilldown = async (req, res) => {
+    req.query.location = 'All';
+    req.query.cities = 'All';
+    const startTime = Date.now();
+    try {
+        const filters = {
+            keyword: req.query.keyword,
+            sku: req.query.sku,
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            brand: req.query.brand || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+
+        if (!filters.keyword || !filters.sku) {
+            return res.status(400).json({ error: 'Keyword and SKU are required' });
+        }
+
+        console.log('\n========== VISIBILITY CITY DRILLDOWN API ==========');
+        console.log('[REQUEST] SKU:', filters.sku, 'Keyword:', filters.keyword);
+
+        const cacheKey = generateCacheKey('visibility_city_drill', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getCityDrilldown(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Cities count:', data.cities?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('===================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility City Drilldown:', error);
+        res.status(500).json({ error: 'Internal Server Error', cities: [] });
+    }
+};
+

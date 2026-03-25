@@ -12,7 +12,9 @@ import {
     getBrandComparisonTrends,
     getVisibilityCategories,
     getVisibilityKeywords,
-    getVisibilityKeywordTypes
+    getVisibilityKeywordTypes,
+    getVisibilitySkuDrilldown,
+    getVisibilityCityDrilldown
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
@@ -319,5 +321,7 @@ export default (app) => {
     app.get('/api/visibility-analysis/categories', getVisibilityCategories);
     app.get('/api/visibility-analysis/keywords', getVisibilityKeywords);
     app.get('/api/visibility-analysis/keyword-types', getVisibilityKeywordTypes);
+    app.get('/api/visibility-analysis/sku-drilldown', getVisibilitySkuDrilldown);
+    app.get('/api/visibility-analysis/city-drilldown', getVisibilityCityDrilldown);
 };
 

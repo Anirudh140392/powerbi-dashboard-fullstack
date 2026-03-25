@@ -122,7 +122,7 @@ export const getContentAnalysisOverviewStats = async (filters, isCompare = false
                         (bulletin_verification + description_verification) / 2.0
                     )
                 ) * 100 AS descScore,
-                AVG(IF(pdp_rating_value >= 4.2, 1.0, 0.0)) * 100 AS ratingScore
+                AVG(IF(lower(Platform) IN ('bigbasket', 'flipkart', 'amazon'), IF(pdp_rating_value >= 4.2, 1.0, 0.0), NULL)) * 100 AS ratingScore
             FROM rb_product_verify
             WHERE 1=1
         `;
@@ -315,7 +315,7 @@ export const getContentAnalysisTrends = async (filters) => {
                         (bulletin_verification + description_verification) / 2.0
                     )
                 ) * 100 AS descScore,
-                AVG(IF(pdp_rating_value >= 4.2, 1.0, 0.0)) * 100 AS ratingScore
+                AVG(IF(lower(Platform) IN ('bigbasket', 'flipkart', 'amazon'), IF(pdp_rating_value >= 4.2, 1.0, 0.0), NULL)) * 100 AS ratingScore
             FROM rb_product_verify
             WHERE 1=1
         `;
