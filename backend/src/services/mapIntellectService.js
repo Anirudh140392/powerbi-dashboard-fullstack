@@ -116,7 +116,8 @@ async function getGeoSource() {
             listing: r('listing_percent'),
             location: r('Location'),
             date: r('DATE'),
-            platform: r('Platform')
+            platform: r('Platform'),
+            category: r('Category', r('Product_type'))
         }
     };
 }
@@ -137,7 +138,8 @@ async function getMsGeoSource() {
             groupBrand: r('group_brand'),
             location: r('location'),
             date: r('created_on'),
-            platform: r('platform')
+            platform: r('platform'),
+            category: r('category')
         }
     };
 }
@@ -174,7 +176,7 @@ const formatLac = (val) => {
 const getMapIntellectData = async (filters) => {
     console.log(`[MapIntellect][${getCurrentDbName()}] Computing dynamic data:`, JSON.stringify(filters));
 
-    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all' } = filters;
+    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category } = filters;
     const platform = filters.platform || 'All';
 
     // Date range
@@ -207,6 +209,9 @@ const getMapIntellectData = async (filters) => {
         const conds = [`toDate(${src.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         if (platform && platform !== 'All') {
             conds.push(`${src.f.platform} LIKE '%${escapeStr(platform)}%'`);
+        }
+        if (category && category !== 'All') {
+            conds.push(`${src.f.category} = '${escapeStr(category)}'`);
         }
         return conds.join(' AND ');
     };
@@ -279,6 +284,7 @@ const getMapIntellectData = async (filters) => {
                   AND (${cityConditions})
                   AND ${msSrc.f.location} IS NOT NULL AND ${msSrc.f.location} != ''
                   ${platform && platform !== 'All' ? `AND ${msSrc.f.platform} LIKE '%${escapeStr(platform)}%'` : ''}
+                  ${category && category !== 'All' ? `AND ${msSrc.f.category} = '${escapeStr(category)}'` : ''}
                 GROUP BY location
             `;
 
@@ -381,6 +387,33 @@ const getMapIntellectData = async (filters) => {
     };
 };
 
+/**
+ * Fetch distinct categories based on metric and platform
+ */
+const getMapIntellectCategories = async (metric, platform) => {
+    const isMarketShare = metric === 'Market Share';
+    const src = isMarketShare ? await getMsGeoSource() : await getGeoSource();
+
+    if (!src) return [];
+
+    let query = `SELECT DISTINCT ${src.f.category} as category FROM ${src.table} WHERE ${src.f.category} IS NOT NULL AND ${src.f.category} != ''`;
+    
+    if (platform && platform !== 'All') {
+        query += ` AND ${src.f.platform} LIKE '%${escapeStr(platform)}%'`;
+    }
+    
+    query += ` ORDER BY category`;
+
+    try {
+        const results = await queryClickHouse(query);
+        return results.map(r => r.category).filter(Boolean);
+    } catch (error) {
+        console.error('[MapIntellect] Error fetching categories:', error);
+        return [];
+    }
+};
+
 export default {
     getMapIntellectData,
+    getMapIntellectCategories
 };
