@@ -196,6 +196,8 @@ async function getPmSource() {
             brand: r('brand'),
             category: r('category'),
             location: r('location_name'),
+            product: r('product'),
+            skuCode: r('sku_code'),
             date: r('DATE')
         }
     };
@@ -1275,15 +1277,21 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                             conditions.push(`lower(${locCol}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
                         }
                     } else {
-                        // Filter for Our Brands Only if specific brands are selected
+                        // Filter for Our Brands Only (Enforce comp_flag=0 if All brands or specific brands selected)
                         const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
                         const brandCondArr = normalizeFilterArray(brand);
+                        
                         if (brandCondArr && brandCondArr.length > 0) {
+                            // If specific brands are selected, we must ensure they are our brands (comp_flag=0)
+                            // or allow them if they are selected. Usually Watch Tower is for our brands.
                             conditions.push(`${compFlagCol} = 0`);
 
                             const brandCol = src.isAgg ? 'brand' : 'Brand';
                             const brandConds = brandCondArr.map(b => `${brandCol} LIKE '%${escapeStr(b)}%'`).join(' OR ');
                             conditions.push(`(${brandConds})`);
+                        } else {
+                            // If "All" brands selected, default to our brands only
+                            conditions.push(`${compFlagCol} = 0`);
                         }
 
                         const locCol = src.isAgg ? 'location' : 'Location';
@@ -4672,9 +4680,15 @@ const getPlatformOverview = async (filters) => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
         const conds = [`${dateCol} BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
 
-        const brandCol = src.isAgg ? 'brand' : 'Brand';
+        // Enforce comp_flag = 0 (Our Brands) for Offtakes summary
+        const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
         if (brandArr && brandArr.length > 0) {
+            conds.push(`${compFlagCol} = 0`);
+            const brandCol = src.isAgg ? 'brand' : 'Brand';
             conds.push(`(${brandArr.map(b => `${brandCol} LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
+        } else {
+            // Default to our brands if "All" is selected
+            conds.push(`${compFlagCol} = 0`);
         }
 
         const locCol = src.isAgg ? 'location' : 'Location';
@@ -4714,9 +4728,15 @@ const getPlatformOverview = async (filters) => {
     // Build base conditions for rb_pm_olap (Marketing Metrics)
     const buildPmConds = (start, end) => {
         const conds = [`${pmSrc.f.date} BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
+        
+        // Enforce our brands only for Spend (Spend table usually only has our data, but safety first)
+        const pmBrandCol = pmSrc.f.brand;
         if (brandArr && brandArr.length > 0) {
             const brandConds = brandArr.map(b => `'${escapeStr(b).toLowerCase()}'`).join(',');
-            conds.push(`lower(${pmSrc.f.brand}) IN (${brandConds})`);
+            conds.push(`lower(${pmBrandCol}) IN (${brandConds})`);
+        } else {
+            // If "All", we might want to filter by validBrandNames, but usually Spend table is pre-filtered.
+            // However, to be consistent with Platform Overview, we add a placeholder or filter here if needed.
         }
         if (locationArr && locationArr.length > 0) {
             conds.push(`lower(${pmSrc.f.location}) IN (${locationArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
@@ -4811,9 +4831,9 @@ const getPlatformOverview = async (filters) => {
         queryClickHouse(`
                     SELECT ${src.f.platform} as Platform,
                         SUM(${src.f.sales}) as sales,
-                        SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ${src.f.qty} ELSE 0 END) as qty,
-                        SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ${src.f.neno} ELSE 0 END) as neno,
-                        SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ${src.f.deno} ELSE 0 END) as deno,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as qty,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as neno,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as deno,
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount
                     FROM ${src.table}
@@ -4824,9 +4844,9 @@ const getPlatformOverview = async (filters) => {
         queryClickHouse(`
                     SELECT ${src.f.platform} as Platform,
                         SUM(${src.f.sales}) as sales,
-                        SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ${src.f.qty} ELSE 0 END) as qty,
-                        SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ${src.f.neno} ELSE 0 END) as neno,
-                        SUM(CASE WHEN ${brandArr && brandArr.length > 0 ? `${src.f.compFlagMapping} = 0` : '1=1'} THEN ${src.f.deno} ELSE 0 END) as deno,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.qty} ELSE 0 END) as qty,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as neno,
+                        SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as deno,
                         AVG(if(${src.f.compFlagMapping} = 0, ${src.f.discount}, NULL)) as my_avg_discount,
                         AVG(if(${src.f.compFlagMapping} = 1, ${src.f.discount}, NULL)) as comp_avg_discount
                     FROM ${src.table}
@@ -10617,7 +10637,7 @@ const getPerformanceBreakdownData = async (filters) => {
         const groupByMap = {
             'category': pmSrc.f.category,
             'brand': pmSrc.f.brand,
-            'sku': pmSrc.f.product 
+            'sku': pmSrc.f.product || pmSrc.f.skuCode
         };
         const groupByCol = groupByMap[filters.group_by] || pmSrc.f.category;
 
@@ -10628,22 +10648,33 @@ const getPerformanceBreakdownData = async (filters) => {
         const dateClause = `AND ${pmSrc.f.date} >= '${dateStart}' AND ${pmSrc.f.date} <= '${dateEnd}'`;
 
         // ── Build consolidated platform/channel condition ──
-        const pCond = buildPlatformChannelCond(filters.platform_uuid, filters.channel, pmSrc.f.platform);
+        const rawPlatform = filters.platform || filters.platform_uuid;
+        const pCond = buildPlatformChannelCond(rawPlatform, filters.channel, pmSrc.f.platform);
         const platformCond = pCond ? `AND ${pCond} ` : '';
 
         // ── Build additional filter clauses (brand, category, location) ──
         let extraClauses = '';
         if (filters.brand && filters.brand !== 'All') {
             const brands = filters.brand.includes(',') ? filters.brand.split(',').map(b => b.trim()) : [filters.brand];
-            extraClauses += ` AND ${pmSrc.f.brand} IN(${brands.map(b => `'${escapeStr(b)}'`).join(', ')})`;
+            extraClauses += ` AND lower(${pmSrc.f.brand}) IN(${brands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
         }
         if (filters.category && filters.category !== 'All') {
             const cats = filters.category.includes(',') ? filters.category.split(',').map(c => c.trim()) : [filters.category];
-            extraClauses += ` AND ${pmSrc.f.category} IN(${cats.map(c => `'${escapeStr(c)}'`).join(', ')})`;
+            extraClauses += ` AND lower(${pmSrc.f.category}) IN(${cats.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`;
         }
         if (filters.location && filters.location !== 'All') {
             const locs = filters.location.includes(',') ? filters.location.split(',').map(l => l.trim()) : [filters.location];
-            extraClauses += ` AND ${pmSrc.f.location} IN(${locs.map(l => `'${escapeStr(l)}'`).join(', ')})`;
+            extraClauses += ` AND lower(${pmSrc.f.location}) IN(${locs.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`;
+        }
+
+        // ── SKU Filters ──
+        if (filters.skuName && filters.skuName !== 'All') {
+            const skus = filters.skuName.includes(',') ? filters.skuName.split(',').map(s => s.trim()) : [filters.skuName];
+            extraClauses += ` AND ${pmSrc.f.product} IN(${skus.map(s => `'${escapeStr(s)}'`).join(', ')})`;
+        }
+        if (filters.skuCode && filters.skuCode !== 'All') {
+            const codes = filters.skuCode.includes(',') ? filters.skuCode.split(',').map(s => s.trim()) : [filters.skuCode];
+            extraClauses += ` AND ${pmSrc.f.skuCode} IN(${codes.map(c => `'${escapeStr(c)}'`).join(', ')})`;
         }
 
         // ── Filter to only our brands (comp_flag=0) ──
@@ -10653,13 +10684,8 @@ const getPerformanceBreakdownData = async (filters) => {
             ourBrandClause = ` AND lower(${pmSrc.f.brand}) IN(${ourBrands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
         }
 
-        const totalSpendsQuery = `
-            SELECT SUM(${pmSrc.f.spend}) as total
-            FROM ${pmSrc.table} 
-            WHERE 1 = 1 ${platformCond} ${dateClause} ${extraClauses} ${ourBrandClause}
-            `;
-        const totalSpendsResult = await queryClickHouse(totalSpendsQuery);
-        const total_spends = parseFloat(totalSpendsResult[0]?.total || 0);
+        // ── Calculate total spends by summing rows later to ensure 100% share consistency ──
+        // (Removing separate total_spends query for performance and better percentage alignment)
 
         const cvrFormula = `if (group_clicks > 0, (group_orders / group_clicks) * 100, 0)`;
 
@@ -10670,7 +10696,7 @@ const getPerformanceBreakdownData = async (filters) => {
                 SUM(${pmSrc.f.clicks}) AS group_clicks,
                 if (group_impressions > 0, (group_clicks / group_impressions) * 100, 0) AS ctr,
                 SUM(${pmSrc.f.spend}) AS group_spends,
-                if (${total_spends} > 0, (group_spends / ${total_spends}) * 100, 0) AS spend_percent_share,
+                0 AS spend_percent_share,
                 if (group_clicks > 0, group_spends / group_clicks, 0) AS cpc,
                 SUM(${pmSrc.f.orders}) AS group_orders,
                 ${cvrFormula} AS cvr,
@@ -10710,9 +10736,14 @@ const getPerformanceBreakdownData = async (filters) => {
                 cpc: clicks > 0 ? spends / clicks : 0,
                 orders,
                 cvr: calculateConversion(orders, impressions, clicks),
-                sales,
-                spend_percent_share: parseFloat(row.spend_percent_share || 0)
+                sales
             };
+        });
+
+        // ── Re-calculate percentages based on the sum of group_spends ──
+        const total_visible_spends = parsedData.reduce((acc, row) => acc + (parseFloat(row.spends) || 0), 0);
+        parsedData.forEach(row => {
+            row.spend_percent_share = total_visible_spends > 0 ? (row.spends / total_visible_spends) * 100 : 0;
         });
 
         totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
