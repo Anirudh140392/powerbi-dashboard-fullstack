@@ -682,6 +682,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         col_value,
                         argMax(daily_inv, DATE) as latest_inventory
                     FROM daily_stats
+                    WHERE daily_inv > 0
                     GROUP BY col_value
                 )
                 SELECT 
@@ -718,6 +719,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         col_value,
                         argMax(daily_inv, DATE) as latest_inventory
                     FROM daily_stats
+                    WHERE daily_inv > 0
                     GROUP BY col_value
                 )
                 SELECT 
@@ -857,8 +859,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         -- DOI / Sales components (30-day lookback)
                         SUM(if(t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Qty_Sold)), 0), 0)) as doi_total_qty_sold,
                         
-                        -- Latest Inventory (across selected period)
-                        argMax(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0), t1.DATE) as latest_inventory
+                        -- Latest Inventory (across selected period, prioritized by non-zero)
+                        argMax(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0), if(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0) > 0, t1.DATE, toDate('1970-01-01'))) as latest_inventory
                     FROM rb_pdp_olap t1
                     LEFT JOIN location_mapping l ON lower(t1.Location) = l.l_key
                     WHERE t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
@@ -1275,76 +1277,90 @@ const getDOI = async (filters) => {
             const baseWhere = buildAvailabilityWhereClause(baseParams);
             const baseFilter = baseWhere !== '1=1' ? ` AND ${baseWhere}` : '';
 
-            // Get latest total inventory daily across the period
-            const invQuery = `
-                WITH daily_stats AS (
-                    SELECT 
-                        DATE, 
-                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalDailyInv
-                    FROM rb_pdp_olap
-                    WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                    ${baseFilter}
-                    GROUP BY DATE
-                )
-                SELECT argMax(totalDailyInv, DATE) as latestInventory FROM daily_stats
-            `;
-            let invResult = await queryClickHouse(invQuery);
-            let todayInventory = parseFloat(invResult[0]?.latestInventory) || 0;
-
-            // Fallback to last 7 days average if no data on latest date
-            if (todayInventory === 0) {
-                const last7Query = `
-                    WITH daily_stats AS (
-                        SELECT 
-                            DATE, 
-                            SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalDailyInv
+            // Get latest non-zero total inventory and 30-day sales
+            // This query follows the exact logic requested:
+            // Latest Inventory (where total > 0) divided by 30rd Qty_Sold, times 30.
+            const thirtyDaysAgo = currentEndDate.subtract(29, 'day');
+            
+            const mainDoiQuery = `
+                SELECT
+                    latest_inventory,
+                    total_qty_sold_30d,
+                    if(total_qty_sold_30d > 0, (latest_inventory / total_qty_sold_30d) * 30, 0) AS DOI
+                FROM
+                (
+                    -- Latest Inventory (non-zero, latest date)
+                    SELECT
+                        argMax(total_inventory, DATE) AS latest_inventory
+                    FROM
+                    (
+                        SELECT
+                            DATE,
+                            sum(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
                         FROM rb_pdp_olap
-                        WHERE DATE BETWEEN '${currentEndDate.subtract(7, 'day').format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                        WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                         ${baseFilter}
                         GROUP BY DATE
                     )
-                    SELECT AVG(totalDailyInv) as avgInventory FROM daily_stats
-                `;
-                const last7Result = await queryClickHouse(last7Query);
-                todayInventory = parseFloat(last7Result[0]?.avgInventory) || 0;
-            }
-
-            const thirtyDaysAgo = currentEndDate.subtract(29, 'day');
-
-            // Get last 30 days Qty_Sold and previous period data in parallel
-            const [qtySoldResult, prevInvResult, prevQtySoldResult] = await Promise.all([
-                queryClickHouse(`
-                    SELECT SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as totalQtySold
+                    WHERE total_inventory > 0
+                ) inv
+                CROSS JOIN
+                (
+                    -- Total Qty Sold in last 30 days
+                    SELECT
+                        sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS total_qty_sold_30d
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${thirtyDaysAgo.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                     ${baseFilter}
-                `),
-                queryClickHouse(`
-                    WITH prev_daily_stats AS (
-                        SELECT 
-                            DATE, 
-                            SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as totalDailyInv
+                ) sales
+            `;
+
+            // Previous period DOI query
+            const prevDoiQuery = `
+                SELECT
+                    latest_inventory,
+                    total_qty_sold_30d,
+                    if(total_qty_sold_30d > 0, (latest_inventory / total_qty_sold_30d) * 30, 0) AS DOI
+                FROM
+                (
+                    -- Latest Inventory (non-zero, latest date)
+                    SELECT
+                        argMax(total_inventory, DATE) AS latest_inventory
+                    FROM
+                    (
+                        SELECT
+                            DATE,
+                            sum(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
                         FROM rb_pdp_olap
                         WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                         ${baseFilter}
                         GROUP BY DATE
                     )
-                    SELECT argMax(totalDailyInv, DATE) as latestInventory FROM prev_daily_stats
-                `),
-                queryClickHouse(`
-                    SELECT SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as totalQtySold
+                    WHERE total_inventory > 0
+                ) inv
+                CROSS JOIN
+                (
+                    -- Total Qty Sold in last 30 days
+                    SELECT
+                        sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS total_qty_sold_30d
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                     ${baseFilter}
-                `)
+                ) sales
+            `;
+
+            const [mainDoiResult, prevDoiResult] = await Promise.all([
+                queryClickHouse(mainDoiQuery),
+                queryClickHouse(prevDoiQuery)
             ]);
 
-            const totalQtySold = parseFloat(qtySoldResult[0]?.totalQtySold) || 0;
-            const currentDOI = totalQtySold > 0 ? (todayInventory / totalQtySold) * 30 : 0;
+            const todayInventory = parseFloat(mainDoiResult[0]?.latest_inventory) || 0;
+            const totalQtySold = parseFloat(mainDoiResult[0]?.total_qty_sold_30d) || 0;
+            const currentDOI = parseFloat(mainDoiResult[0]?.DOI) || 0;
 
-            const prevInventory = parseFloat(prevInvResult[0]?.latestInventory) || 0;
-            const prevTotalQtySold = parseFloat(prevQtySoldResult[0]?.totalQtySold) || 0;
-            const prevDOI = prevTotalQtySold > 0 ? (prevInventory / prevTotalQtySold) * 30 : 0;
+            const prevInventory = parseFloat(prevDoiResult[0]?.latest_inventory) || 0;
+            const prevTotalQtySold = parseFloat(prevDoiResult[0]?.total_qty_sold_30d) || 0;
+            const prevDOI = parseFloat(prevDoiResult[0]?.DOI) || 0;
 
             const changePercent = prevDOI > 0 ? ((currentDOI - prevDOI) / prevDOI) * 100 : 0;
 
@@ -1933,7 +1949,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     SELECT
                         Brand,
                         Web_Pid,
-                        argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_inv
+                        argMax(toFloat64OrZero(toString(Inventory)), if(toFloat64OrZero(toString(Inventory)) > 0, DATE, toDate('1970-01-01'))) as latest_inv
                     FROM rb_pdp_olap
                     WHERE ${whereClause}
                     GROUP BY Brand, Web_Pid
@@ -2002,7 +2018,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
                     SUM(toFloat64OrZero(toString(Sales))) as total_sales,
                     AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent,
-                    argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_sku_inventory
+                    argMax(toFloat64OrZero(toString(Inventory)), if(toFloat64OrZero(toString(Inventory)) > 0, DATE, toDate('1970-01-01'))) as latest_sku_inventory
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND Product IS NOT NULL AND Product != ''
