@@ -1,4 +1,4 @@
-import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown } from '../controllers/marketShareController.js';
+import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown } from '../controllers/marketShareController.js';
 
 export default (app) => {
     /**
@@ -100,6 +100,18 @@ export default (app) => {
      *         description: Successful response.
      */
     app.get('/api/market-share/competition-filter-options', MarketShareCompetitionFilterOptions);
+
+    /**
+     * @swagger
+     * /api/market-share/top-filter-options:
+     *   get:
+     *     summary: Get top-level filter options (Platform, Category, Channel)
+     *     description: Retrieve filter options for the main Header dropdowns from rb_ms_olap.
+     *     responses:
+     *       200:
+     *         description: Successful response.
+     */
+    app.get('/api/market-share/top-filter-options', MarketShareTopFilterOptions);
 
     /**
      * @swagger
