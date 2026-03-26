@@ -42,6 +42,8 @@ export default function GeoIntelligenceMap() {
     const [selectedPeriod, setSelectedPeriod] = useState({ startDate: "", endDate: "" });
     const [loading, setLoading] = useState(false);
     const [platforms, setPlatforms] = useState([]);
+    const [category, setCategory] = useState("All");
+    const [categories, setCategories] = useState([]);
 
     // --- Fetch Platforms from DB ---
     useEffect(() => {
@@ -60,6 +62,21 @@ export default function GeoIntelligenceMap() {
         };
         fetchPlatforms();
     }, []);
+
+    // --- Fetch Categories ---
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const res = await axiosInstance.get('/map-intellect/categories', { params: { metric, platform } });
+                setCategories(res.data || []);
+                setCategory("All"); // Reset category when metric or platform changes
+            } catch (error) {
+                console.error('[MapIntellect] Failed to fetch categories:', error);
+                setCategories([]);
+            }
+        };
+        fetchCategories();
+    }, [metric, platform]);
 
     // Filter Handling
     const [importanceFilter, setImportanceFilter] = useState("All");
@@ -95,6 +112,10 @@ export default function GeoIntelligenceMap() {
                     params += `&days=31`;
                 }
 
+                if (category && category !== 'All') {
+                    params += `&category=${encodeURIComponent(category)}`;
+                }
+
                 const res = await axiosInstance.get('/map-intellect/data', { params: Object.fromEntries(new URLSearchParams(params)) });
                 if (res.data && res.data.cities) {
                     setApiData(res.data.cities);
@@ -115,7 +136,7 @@ export default function GeoIntelligenceMap() {
             }
         };
         fetchData();
-    }, [platform, timePeriod, metric]);
+    }, [platform, metric, timePeriod, category]); // Added category dependency
 
     // --- Intercept Nation-level Data ---
     const nationData = useMemo(() => {
@@ -343,7 +364,7 @@ export default function GeoIntelligenceMap() {
     // --- Render ---
     return (
         <CommonContainer title="India Overview" filters={filters} onFiltersChange={setFilters}>
-            <div style={{ padding: "30px 28px", background: "#f8fafc", minHeight: "100vh", fontFamily: '"DM Sans", sans-serif' }}>
+            <div style={{ padding: "12px 28px", background: "#f8fafc", minHeight: "100vh", fontFamily: '"DM Sans", sans-serif' }}>
 
                 {/* Header removed per request (Map Intellect panel & analysis period) */}
 
@@ -351,25 +372,42 @@ export default function GeoIntelligenceMap() {
                 <div style={{ position: "relative" }}>
 
                     {/* Filter Bar */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
-
-                        {/* Metrics */}
-                        <div style={{ display: "flex", gap: "8px", background: "#f8fafc", padding: "4px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                    {/* Filter Bar */}
+                    {/* Filter Bar */}
+                    <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        background: "white",
+                        padding: "6px 12px",
+                        borderRadius: "14px",
+                        border: "1px solid #e2e8f0",
+                        marginBottom: "16px",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                        flexWrap: "nowrap",
+                        overflowX: "auto",
+                        scrollbarWidth: "none",
+                        msOverflowStyle: "none",
+                        width: "100%",
+                        boxSizing: "border-box"
+                    }}>
+                        {/* Metrics Selector */}
+                        <div style={{ display: "flex", gap: "4px", background: "#f8fafc", padding: "3px", borderRadius: "10px", border: "1px solid #e2e8f0", flexShrink: 0 }}>
                             {["Wt. OSA %", "Market Share", "Sales", "Orders"].map(m => (
                                 <button
                                     key={m}
                                     onClick={() => setMetric(m)}
                                     style={{
-                                        padding: "8px 16px",
-                                        borderRadius: "8px",
-                                        fontSize: "12px",
+                                        padding: "4px 10px",
+                                        borderRadius: "7px",
+                                        fontSize: "11px",
                                         fontWeight: "700",
                                         border: "none",
                                         cursor: "pointer",
                                         transition: "all 0.2s",
                                         background: metric === m ? "#2563eb" : "transparent",
                                         color: metric === m ? "white" : "#64748b",
-                                        boxShadow: metric === m ? "0 2px 4px rgba(37,99,235,0.2)" : "none"
+                                        boxShadow: metric === m ? "0 2px 4px rgba(37,99,235,0.15)" : "none"
                                     }}
                                 >
                                     {m}
@@ -377,79 +415,114 @@ export default function GeoIntelligenceMap() {
                             ))}
                         </div>
 
-                        {/* Platform & Time */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: "600", textTransform: "uppercase" }}>Market</span>
-                                <div style={{ position: "relative" }}>
-                                    <select
-                                        value={platform}
-                                        onChange={(e) => setPlatform(e.target.value)}
-                                        style={{
-                                            appearance: "none",
-                                            background: "#f8fafc",
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            padding: "8px 32px 8px 12px",
-                                            fontSize: "13px",
-                                            fontWeight: "700",
-                                            color: "#0f172a",
-                                            cursor: "pointer",
-                                            minWidth: "120px"
-                                        }}
-                                    >
-                                        {platforms.map(p => (
-                                            <option key={p} value={p}>{p}</option>
-                                        ))}
-                                    </select>
-                                    <div style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-                                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                    </div>
-                                </div>
-                            </div>
+                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
 
-                            <div style={{ height: "24px", width: "1px", background: "#e2e8f0" }}></div>
-
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                <div style={{ display: "flex", gap: "4px" }}>
-                                    {["MTD", "7D", "14D", "31D"].map(tp => (
-                                        <button
-                                            key={tp}
-                                            onClick={() => setTimePeriod(tp)}
-                                            style={{
-                                                width: "36px",
-                                                height: "32px",
-                                                borderRadius: "8px",
-                                                fontSize: "11px",
-                                                fontWeight: "700",
-                                                border: tp === timePeriod ? "none" : "1px solid #e2e8f0",
-                                                cursor: "pointer",
-                                                background: tp === timePeriod ? "#1e293b" : "white",
-                                                color: tp === timePeriod ? "white" : "#64748b",
-                                            }}
-                                        >
-                                            {tp}
-                                        </button>
-                                    ))}
-                                </div>
-                                {selectedPeriod.startDate && (
-                                    <div style={{
+                        {/* Market (Platform) Dropdown */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Market</span>
+                            <div style={{ position: "relative" }}>
+                                <select
+                                    value={platform}
+                                    onChange={(e) => setPlatform(e.target.value)}
+                                    style={{
+                                        appearance: "none",
+                                        background: "#f8fafc",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        padding: "6px 28px 6px 10px",
                                         fontSize: "12px",
                                         fontWeight: "700",
-                                        color: "#475569",
-                                        background: "#f1f5f9",
-                                        padding: "6px 12px",
-                                        borderRadius: "20px",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        border: "1px solid #e2e8f0"
-                                    }}>
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                                        {dayjs(selectedPeriod.startDate).format("DD MMM")} - {dayjs(selectedPeriod.endDate).format("DD MMM, YYYY")}
-                                    </div>
-                                )}
+                                        color: "#0f172a",
+                                        cursor: "pointer",
+                                        minWidth: "100px"
+                                    }}
+                                >
+                                    {platforms.map(p => (
+                                        <option key={p} value={p}>{p}</option>
+                                    ))}
+                                </select>
+                                <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                </div>
                             </div>
+                        </div>
+
+                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
+
+                        {/* Category Dropdown */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Category</span>
+                            <div style={{ position: "relative" }}>
+                                <select
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value)}
+                                    style={{
+                                        appearance: "none",
+                                        background: "#f8fafc",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        padding: "6px 28px 6px 10px",
+                                        fontSize: "12px",
+                                        fontWeight: "700",
+                                        color: "#0f172a",
+                                        cursor: "pointer",
+                                        minWidth: "80px"
+                                    }}
+                                >
+                                    <option value="All">All Categories</option>
+                                    {categories.map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                                <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
+
+                        {/* Time Selection & Date Range */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                            <div style={{ display: "flex", gap: "3px" }}>
+                                {["MTD", "7D", "14D", "31D"].map(tp => (
+                                    <button
+                                        key={tp}
+                                        onClick={() => setTimePeriod(tp)}
+                                        style={{
+                                            width: "32px",
+                                            height: "28px",
+                                            borderRadius: "7px",
+                                            fontSize: "10px",
+                                            fontWeight: "700",
+                                            border: tp === timePeriod ? "none" : "1px solid #e2e8f0",
+                                            cursor: "pointer",
+                                            background: tp === timePeriod ? "#1e293b" : "white",
+                                            color: tp === timePeriod ? "white" : "#64748b",
+                                            transition: "all 0.2s"
+                                        }}
+                                    >
+                                        {tp}
+                                    </button>
+                                ))}
+                            </div>
+                            {selectedPeriod.startDate && (
+                                <div style={{
+                                    fontSize: "10px",
+                                    fontWeight: "700",
+                                    color: "#475569",
+                                    background: "#f1f5f9",
+                                    padding: "5px 10px",
+                                    borderRadius: "18px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    border: "1px solid #e2e8f0"
+                                }}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                                    {dayjs(selectedPeriod.startDate).format("DD MMM")} - {dayjs(selectedPeriod.endDate).format("DD MMM, YY")}
+                                </div>
+                            )}
                         </div>
                     </div>
 
