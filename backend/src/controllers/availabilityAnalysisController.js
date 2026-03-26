@@ -622,6 +622,9 @@ export const getSignalLabData = async (req, res) => {
                     }
                 }
 
+                // Exclude 'Nation', 'National', 'All India', 'Pan India' rollup locations
+                conditions.push(`Location NOT IN ('Nation', 'National', 'All India', 'Pan India', 'all india', 'pan india', 'nation', 'national')`);
+
                 return conditions.join(' AND ');
             };
 
@@ -1069,6 +1072,10 @@ export const getCityDetailsForProduct = async (req, res) => {
                     if (Array.isArray(categoryFilter)) conds.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
                     else conds.push(`${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
                 }
+
+                // Exclude 'Nation', 'National', 'All India', 'Pan India' rollup locations
+                conds.push(`Location NOT IN ('Nation', 'National', 'All India', 'Pan India', 'all india', 'pan india', 'nation', 'national')`);
+
                 return conds.join(' AND ');
             };
 
@@ -1091,7 +1098,7 @@ export const getCityDetailsForProduct = async (req, res) => {
                         sum(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0.0)) as daily_ad_spend,
                         sum(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0.0)) as daily_clicks,
                         sum(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0.0)) as daily_impressions,
-                        countIf(toFloat64(deno_osa) > 0) as listed_count,
+                        AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0.0)) as avg_listing_pct,
                         count() as total_rows
                     FROM rb_pdp_olap
                     WHERE ${buildConditions(true)}
@@ -1114,13 +1121,12 @@ export const getCityDetailsForProduct = async (req, res) => {
                     sumIf(daily_ad_spend, toDate(DATE) BETWEEN '${start}' AND '${end}') AS ad_spend,
                     sumIf(daily_clicks, toDate(DATE) BETWEEN '${start}' AND '${end}') AS clicks,
                     sumIf(daily_impressions, toDate(DATE) BETWEEN '${start}' AND '${end}') AS impressions,
-                    -- Listing %
-                    (sumIf(listed_count, toDate(DATE) BETWEEN '${start}' AND '${end}') / nullIf(sumIf(total_rows, toDate(DATE) BETWEEN '${start}' AND '${end}'), 0)) * 100 AS listing_pct,
+                    -- Listing % (Using correct formula from rb_pdp_olap)
+                    avgIf(avg_listing_pct, toDate(DATE) BETWEEN '${start}' AND '${end}') AS listing_pct,
                     -- Discount (Average weighted by total count if needed, but simple avg on daily sums is usually fine)
                     avgIf((daily_mrp - daily_sp) / nullIf(daily_mrp, 0) * 100, toDate(DATE) BETWEEN '${start}' AND '${end}' AND daily_mrp > 0) AS discount
                 FROM daily_city_stats
                 GROUP BY Location
-                HAVING ${signalType === 'gainer' ? '(osa - compOsa) > 0' : '(osa - compOsa) < 0'}
                 ORDER BY abs(osa - compOsa) DESC
             `;
 

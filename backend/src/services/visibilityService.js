@@ -21,9 +21,12 @@ function buildCHCondition(value, column, options = {}) {
     };
 
     const isOurBrand = (val) => {
-        // Rely on the generic flag='1' column in the DB to identify own-brand rows.
-        // No hardcoded brand names — works for any DB.
-        return false;
+        if (!val) return false;
+        const lower = String(val).toLowerCase();
+        // Standardize own-brand recognition across all dashboards
+        return lower === 'mamaearth' || lower === 'honasa' || lower.includes('mamaearth') || 
+               lower.includes('derma co') || lower.includes('aqualogica') || lower.includes('dr. sheth') ||
+               lower.includes('dr sheth');
     };
 
     // If "All" brands or our main brand is selected, we want our brand's data (flag=1)
@@ -1366,8 +1369,15 @@ class VisibilityService {
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
-                const brandFilterCondition = buildCHCondition(brand, 'brand_name_th', { isBrand: true });
-                const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand_name_th', { isBrand: true });
+                const brandCondition = filters.brand || 'All';
+                
+                // Exclude global rollup locations from analytical results
+                const EXCLUDED_LOCATIONS = "'Nation', 'National', 'All India', 'Total', 'India', 'nation', 'national', 'all india'";
+                const locationFilter = location === 'All' 
+                    ? `AND location_name NOT IN (${EXCLUDED_LOCATIONS})` 
+                    : `AND ${locationCondition}`;
+
+                const brandSOSCondition = buildCHCondition(brandCondition, 'brand_name_th', { isBrand: true });
 
                 // 1. Get latest date
                 const maxDateRes = await queryClickHouse(`
@@ -1411,7 +1421,9 @@ class VisibilityService {
                 if (widgetType) typeConds.push(buildCHCondition(widgetType, 'keyword_type'));
                 if (globalType) typeConds.push(buildCHCondition(globalType, 'keyword_type'));
 
-                const typeFilter = typeConds.length > 0 ? `AND ${typeConds.join(' AND ')}` : '';
+                // deduplicate type filters if they are identical
+                const uniqueTypeConds = [...new Set(typeConds)];
+                const typeFilter = uniqueTypeConds.length > 0 ? `AND ${uniqueTypeConds.join(' AND ')}` : '';
 
                 // Apply keyword filter if provided
                 const keywordFilter = (filters.keyword && filters.keyword !== 'All')
@@ -1434,7 +1446,7 @@ class VisibilityService {
                             countIf(toInt32(overall), ${brandSOSCondition}) as vol,
                             topKIf(1)(brand_name_th, brand_name_th != '') as best_brand_arr
                         FROM rb_kw_olap
-                        WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} AND keyword_search_product != ''
+                        WHERE ${dateCondition} AND ${platformCondition} ${locationFilter} ${typeFilter} ${keywordFilter} ${categoryClause} AND keyword_search_product != ''
                         GROUP BY sku
                         HAVING vol > 0
                         ORDER BY vol DESC
@@ -1461,7 +1473,7 @@ class VisibilityService {
                             countIf(toInt32(organic) = 1 AND ${brandSOSCondition}) as org_cnt,
                             countIf(toInt32(overall) = 1 AND ${brandSOSCondition}) as ov_cnt
                         FROM rb_kw_olap
-                        WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} 
+                        WHERE ${dateCondition} AND ${platformCondition} ${locationFilter} ${typeFilter} ${keywordFilter} ${categoryClause} 
                           AND keyword_search_product IN (${skuList})
                           AND POSITION > 0 AND POSITION < 11
                         GROUP BY sku, POSITION
@@ -1477,7 +1489,7 @@ class VisibilityService {
                             countIf(toInt32(organic) = 1 AND ${brandSOSCondition}) as org_cnt,
                             countIf(toInt32(overall) = 1 AND ${brandSOSCondition}) as ov_cnt
                         FROM rb_kw_olap
-                        WHERE ${dateCondition} AND ${platformCondition} AND ${locationCondition} ${typeFilter} ${keywordFilter} ${categoryClause} 
+                        WHERE ${dateCondition} AND ${platformCondition} ${locationFilter} ${typeFilter} ${keywordFilter} ${categoryClause} 
                           AND keyword_search_product IN (${skuList})
                           AND POSITION > 0 AND POSITION < 11
                         GROUP BY sku, keyword, POSITION
@@ -1588,7 +1600,7 @@ class VisibilityService {
                         FROM rb_kw_olap
                         WHERE ${dateCondition}
                           AND ${platformCondition}
-                          AND ${locationCondition}
+                          ${locationFilter}
                           ${typeFilter}
                           ${keywordFilter}
                           ${categoryClause}
@@ -1617,7 +1629,7 @@ class VisibilityService {
                         FROM rb_kw_olap
                         WHERE ${prevDateCondition}
                           AND ${platformCondition}
-                          AND ${locationCondition}
+                          ${locationFilter}
                           AND keyword IN (${keywordList})
                           AND POSITION < 11
                           ${typeFilter}
@@ -1645,7 +1657,7 @@ class VisibilityService {
                         WHERE ${dateCondition}
                           AND keyword IN (${keywordList})
                           AND ${platformCondition}
-                          AND ${locationCondition}
+                          ${locationFilter}
                           AND POSITION < 11
                           ${typeFilter}
                           AND brand_name_th IS NOT NULL 
