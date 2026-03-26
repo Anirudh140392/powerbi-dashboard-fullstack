@@ -266,14 +266,14 @@ const TrendButton = ({ onClick }) => (
  * DETAILED METRICS POPUP (Hover)
  * Shows Brand Identity table with a '+' button to drill down into Modal.
  */
-const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown }) => {
+const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown, prefetchedRows }) => {
   const isComingSoon = COMING_SOON_IDS.includes(id);
   const isBottom = position === "bottom";
   const [activeTab, setActiveTab] = useState("gainers");
 
   // Decide which entity level to show based on sidebar selection
-  const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands";
-  const isSkuFilterActive = selectedSku && selectedSku !== "All SKUs";
+  const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands" && selectedBrand !== "All";
+  const isSkuFilterActive = selectedSku && selectedSku !== "All SKUs" && selectedSku !== "All";
   const l = (kpiLabel || "").toLowerCase();
   const isKeywordKpi = l.includes("impression") || l.includes("conversion") || l.includes("conv") || l.includes("keyword") || l.includes("cvr");
 
@@ -281,106 +281,127 @@ const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, pl
 
   // Use real metrics if available (backend now provides appropriate level in metrics array)
   let allEntities = [];
-  if (entityType === "Keyword" && keywordMetrics && keywordMetrics.length > 0) {
-    allEntities = keywordMetrics.map(m => m.keyword);
-  } else if (metrics && metrics.length > 0) {
-    allEntities = metrics.map(m => m.brand || m.label || m.Product).filter(Boolean);
-  } else {
-    // Fallback: No real metrics available
-    allEntities = [];
+  // If we have pre-fetched rows from the /category-rca API (page-load fetch), skip metrics derivation
+  const hasPrefetchedRows = prefetchedRows && prefetchedRows.length > 0;
+  if (!hasPrefetchedRows) {
+    if (entityType === "Keyword" && keywordMetrics && keywordMetrics.length > 0) {
+      allEntities = keywordMetrics.map(m => m.keyword);
+    } else if (metrics && metrics.length > 0) {
+      allEntities = metrics.map(m => m.brand || m.label || m.Product).filter(Boolean);
+    } else {
+      // Fallback: No real metrics available
+      allEntities = [];
+    }
   }
 
-  const allRows = allEntities.map((name, i) => {
-    let curVal = 0, delta = 0, prevVal = 0;
+  // Build allRows: use pre-fetched API rows if available, else fall back to metrics-based derivation
+  let allRows = [];
+  if (hasPrefetchedRows) {
+    // Use the same data as the click modal (/category-rca API rows)
+    allRows = prefetchedRows.map(row => {
+      const changeNum = parseFloat((row.change || '0').replace(/[^-\d.]/g, ''));
+      return {
+        name: row.name,
+        current: formatValue(row.currentVal, kpiLabel),
+        prev: formatValue(row.prevVal, kpiLabel),
+        change: changeNum,
+        changeStr: row.change || '0%',
+        pos: !row.change?.startsWith('-')
+      };
+    });
+  } else {
+    allRows = allEntities.map((name, i) => {
+      let curVal = 0, delta = 0, prevVal = 0;
 
-    // Override with REAL data if available (supports Brand, SKU, and City levels)
-    if (metrics && metrics.length > 0) {
-      const match = metrics.find(m => m.brand === name);
-      if (match) {
-        if (l === "impressions" || l === "indexed-impressions") {
-          curVal = match.rawImpressions || 0;
-          prevVal = match.rawPrevImpressions || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "organic impressions") {
-          curVal = match.rawOrganic || 0;
-          prevVal = match.rawPrevOrganic || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "ad impressions") {
-          curVal = match.rawAd || 0;
-          prevVal = match.rawPrevAd || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("offtake")) {
-          curVal = match.rawOfftake || 0;
-          prevVal = match.rawPrevOfftake || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("price") || l.includes("asp")) {
-          curVal = match.rawPrice || 0;
-          prevVal = match.rawPrevPrice || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("listing")) {
-          curVal = match.rawListing || 0;
-          prevVal = match.rawPrevListing || 0;
-          delta = (curVal - prevVal); // Listing % variance in absolute points
-        } else if (l === "conversion" || l === "indexed-cvr" || l === "cvr" || l === "inorganic-cvr" || l === "organic-cvr" || category === "inorganic-cvr" || category === "organic-cvr") {
-          curVal = match.rawOrgCvr || match.rawInorgCvr || match.rawCvr || 0;
-          prevVal = match.rawPrevOrgCvr || match.rawPrevInorgCvr || match.rawPrevCvr || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "availability" || l.includes("osa") || category === "availability" || category === "buybox") {
-          curVal = match.rawBuyBox || match.rawOsa || 0;
-          prevVal = match.rawPrevBuyBox || match.rawPrevOsa || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("discount") || l.includes("disc")) {
-          curVal = match.rawDiscount || 0;
-          prevVal = match.rawPrevDiscount || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("gvs")) {
-          curVal = match.rawGvs || 0;
-          prevVal = match.rawPrevGvs || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("sov")) {
-          curVal = match.rawSov || 0;
-          prevVal = match.rawPrevSov || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("sponsored display") || category === "sd") {
-          curVal = match.rawSdGvs || 0;
-          prevVal = match.rawPrevSdGvs || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if ((l.includes("ad gvs") || l.includes("ad ")) && category === "ad") {
-          curVal = match.rawTotalAdSales || match.rawAdGvs || 0;
-          prevVal = match.rawPrevTotalAdSales || match.rawPrevAdGvs || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("sp ") || l.includes("sponsored product") || category === "sp") {
-          curVal = match.rawSpGvs || 0;
-          prevVal = match.rawPrevSpGvs || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+      // Override with REAL data if available (supports Brand, SKU, and City levels)
+      if (metrics && metrics.length > 0) {
+        const match = metrics.find(m => m.brand === name);
+        if (match) {
+          if (l === "impressions" || l === "indexed-impressions") {
+            curVal = match.rawImpressions || 0;
+            prevVal = match.rawPrevImpressions || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l === "organic impressions") {
+            curVal = match.rawOrganic || 0;
+            prevVal = match.rawPrevOrganic || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l === "ad impressions") {
+            curVal = match.rawAd || 0;
+            prevVal = match.rawPrevAd || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("offtake")) {
+            curVal = match.rawOfftake || 0;
+            prevVal = match.rawPrevOfftake || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("price") || l.includes("asp")) {
+            curVal = match.rawPrice || 0;
+            prevVal = match.rawPrevPrice || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("listing")) {
+            curVal = match.rawListing || 0;
+            prevVal = match.rawPrevListing || 0;
+            delta = (curVal - prevVal);
+          } else if (l === "conversion" || l === "indexed-cvr" || l === "cvr" || l === "inorganic-cvr" || l === "organic-cvr" || category === "inorganic-cvr" || category === "organic-cvr") {
+            curVal = match.rawOrgCvr || match.rawInorgCvr || match.rawCvr || 0;
+            prevVal = match.rawPrevOrgCvr || match.rawPrevInorgCvr || match.rawPrevCvr || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l === "availability" || l.includes("osa") || category === "availability" || category === "buybox") {
+            curVal = match.rawBuyBox || match.rawOsa || 0;
+            prevVal = match.rawPrevBuyBox || match.rawPrevOsa || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("discount") || l.includes("disc")) {
+            curVal = match.rawDiscount || 0;
+            prevVal = match.rawPrevDiscount || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("gvs")) {
+            curVal = match.rawGvs || 0;
+            prevVal = match.rawPrevGvs || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("sov")) {
+            curVal = match.rawSov || 0;
+            prevVal = match.rawPrevSov || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("sponsored display") || category === "sd") {
+            curVal = match.rawSdGvs || 0;
+            prevVal = match.rawPrevSdGvs || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if ((l.includes("ad gvs") || l.includes("ad ")) && category === "ad") {
+            curVal = match.rawTotalAdSales || match.rawAdGvs || 0;
+            prevVal = match.rawPrevTotalAdSales || match.rawPrevAdGvs || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("sp ") || l.includes("sponsored product") || category === "sp") {
+            curVal = match.rawSpGvs || 0;
+            prevVal = match.rawPrevSpGvs || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          }
         }
       }
-    }
 
-    // Override with REAL data for Keywords
-    if (isKeywordKpi && isBrandFilterActive && keywordMetrics && keywordMetrics.length > 0 && entityType === "Keyword") {
-      const match = keywordMetrics.find(m => m.keyword === name);
-      if (match) {
-        return {
-          name,
-          current: match.current,
-          prev: match.previous,
-          change: match.rawChange || 0,
-          changeStr: match.change,
-          pos: match.isPositive
-        };
+      // Override with REAL data for Keywords
+      if (isKeywordKpi && isBrandFilterActive && keywordMetrics && keywordMetrics.length > 0 && entityType === "Keyword") {
+        const match = keywordMetrics.find(m => m.keyword === name);
+        if (match) {
+          return {
+            name,
+            current: match.current,
+            prev: match.previous,
+            change: match.rawChange || 0,
+            changeStr: match.change,
+            pos: match.isPositive
+          };
+        }
       }
-    }
 
-    return {
-      name,
-      current: formatValue(curVal, kpiLabel),
-      prev: formatValue(prevVal, kpiLabel),
-      change: delta,
-      changeStr: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "%",
-      pos: delta >= 0
-    };
-  });
+      return {
+        name,
+        current: formatValue(curVal, kpiLabel),
+        prev: formatValue(prevVal, kpiLabel),
+        change: delta,
+        changeStr: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "%",
+        pos: delta >= 0
+      };
+    });
+  }
 
   // Filter: Gainers = >=0%, Drainers = <0%
   // Gainers: sorted descending (highest positive first)
@@ -515,7 +536,7 @@ const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, pl
 /**
  * PREMIUM FULL MODAL (Click)
  */
-const KpiDetailModal = ({ open, onClose, id, kpiLabel, category, platform, selectedBrand, selectedSku, selectedCategory, focusedEntity, context }) => {
+const KpiDetailModal = ({ open, onClose, id, kpiLabel, category, platform, selectedBrand, selectedSku, selectedCategory, focusedEntity, context, initialRows }) => {
   const isComingSoon = id && COMING_SOON_IDS.includes(id);
   const [page, setPage] = useState(0);
   const [activeTab, setActiveTab] = useState("gainers");
@@ -623,18 +644,24 @@ const KpiDetailModal = ({ open, onClose, id, kpiLabel, category, platform, selec
   useEffect(() => {
     if (open) {
       setPage(0);
-      setRows([]);
       setDrilldownData({});
       setExpandedBrand(null);
       setExpandedSku(null);
 
-      if (hasSpecificBrand) {
-        fetchRows(isKeywordDrillDown ? "keyword" : "location", focusedEntity || null, true);
+      // Use pre-fetched rows if available (from page-load fetch), otherwise fetch now
+      if (initialRows && initialRows.length > 0 && !hasSpecificBrand) {
+        setRows(initialRows);
+        setLoading(false);
       } else {
-        fetchRows("brand", null, true);
+        setRows([]);
+        if (hasSpecificBrand) {
+          fetchRows(isKeywordDrillDown ? "keyword" : "location", focusedEntity || null, true);
+        } else {
+          fetchRows("brand", null, true);
+        }
       }
     }
-  }, [open, fetchRows, hasSpecificBrand, selectedBrand, isKeywordDrillDown, focusedEntity]);
+  }, [open, fetchRows, hasSpecificBrand, selectedBrand, isKeywordDrillDown, focusedEntity, initialRows]);
 
   const allRows = rows;
   const topRows = allRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
@@ -1036,6 +1063,7 @@ const KpiNode = ({ data }) => {
             selectedSku={data.selectedSku || ""}
             selectedCategory={data.selectedCategory || ""}
             position={data.popupPosition}
+            prefetchedRows={data.prefetchedRows || []}
             onDrillDown={(entityToFocus) => {
               onClickDetail({ ...data, focusedEntity: entityToFocus });
             }}
@@ -1809,6 +1837,8 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
 
   const [kpiModalOpen, setKpiModalOpen] = useState(false);
   const [selectedKpiModalData, setSelectedKpiModalData] = useState(null);
+  const [prefetchedModalRows, setPrefetchedModalRows] = useState([]);
+  const [prefetchedHoverData, setPrefetchedHoverData] = useState({});
 
   const handleKpiClick = useCallback((data) => {
     if (COMING_SOON_IDS.includes(data.id)) {
@@ -1913,6 +1943,19 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     const timer = setTimeout(fetchRcaData, 300);
     return () => clearTimeout(timer);
   }, [fetchRcaData]);
+
+  // Helper to collect all non-coming-soon node IDs and categories from a tree
+  const collectAllNodes = useCallback((node, result = []) => {
+    if (node && !COMING_SOON_IDS.includes(node.id)) {
+      result.push({ id: node.id, category: node.category, label: node.label });
+    }
+    if (node.children) {
+      node.children.forEach(child => collectAllNodes(child, result));
+    }
+    return result;
+  }, []);
+
+
 
   // Use API data if available, otherwise fall back to hardcoded.
   // For ecom, patch the root node with real offtake values from the backend.
@@ -2262,6 +2305,68 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     return tree;
   }, [apiTreeData, context, ecomOfftakeData]);
 
+  // Pre-fetch /category-rca drilldown data for ALL tree nodes on page load
+  // This is the same API called on click — now fires on mount for every node
+  useEffect(() => {
+    if (!context.platform || loading) return;
+
+    const fetchAllNodeData = async () => {
+      const allNodes = collectAllNodes(currentTreeData);
+      const results = {};
+      console.log(`[RCATree] Pre-fetching category-rca for ${allNodes.length} nodes on page load`);
+
+      const promises = allNodes.map(async (node) => {
+        try {
+          const params = {
+            platform: context.platform,
+            categoryVal: node.category,
+            category: context.category || 'All',
+            kpiCategory: node.category || node.label,
+            drilldownLevel: 'brand',
+            activeTab: 'gainers',
+            brand: context.brand || 'All',
+            sku: context.sku || 'All',
+            brandScope: context.brand || 'All',
+          };
+          if (context.timeStart) params.startDate = context.timeStart.format('YYYY-MM-DD');
+          if (context.timeEnd) params.endDate = context.timeEnd.format('YYYY-MM-DD');
+          if (context.compareOn && context.compareStart) {
+            params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
+            params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
+          }
+          const res = await axiosInstance.get('/category-rca', { params });
+          results[node.id] = res.data?.rows || [];
+        } catch (err) {
+          console.warn(`[RCATree] Pre-fetch for ${node.id} failed:`, err.message);
+          results[node.id] = [];
+        }
+      });
+
+      await Promise.all(promises);
+      setPrefetchedHoverData(results);
+      // Also set the root node rows for modal pre-fetch
+      if (results['root']) {
+        setPrefetchedModalRows(results['root']);
+      }
+    };
+
+    const timer = setTimeout(fetchAllNodeData, 500);
+    return () => clearTimeout(timer);
+  }, [
+    currentTreeData,
+    context.platform,
+    context.category,
+    context.brand,
+    context.sku,
+    context.timeStart,
+    context.timeEnd,
+    context.compareStart,
+    context.compareEnd,
+    context.compareOn,
+    loading,
+    collectAllNodes
+  ]);
+
   const index = useMemo(() => buildIndex(currentTreeData), [currentTreeData]);
   const focusId = selectedNodeId || hoveredNodeId;
 
@@ -2319,6 +2424,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
           onHover,
           hoveredNodeId: hoveredNodeId,
           popupPosition: n.position.y < -150 ? "bottom" : "top",
+          prefetchedRows: prefetchedHoverData[n.id] || [],
         }
       };
     });
@@ -2352,7 +2458,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     });
 
     return { nodes: sortedNodes, edges };
-  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, handleKpiClick, selectedNodeId, focusSet, onHover, hoveredNodeId, context.platform, context.brand, context.sku, context.category, context.channel, context.timeStart, context.timeEnd, context.compareStart, context.compareEnd, onViewTrends]);
+  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, handleKpiClick, selectedNodeId, focusSet, onHover, hoveredNodeId, context.platform, context.brand, context.sku, context.category, context.channel, context.timeStart, context.timeEnd, context.compareStart, context.compareEnd, onViewTrends, prefetchedHoverData]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
@@ -2444,6 +2550,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
           selectedCategory={selectedKpiModalData.selectedCategory}
           focusedEntity={selectedKpiModalData.focusedEntity}
           context={selectedKpiModalData.context}
+          initialRows={prefetchedHoverData[selectedKpiModalData.id] || []}
         />
       )}
 
