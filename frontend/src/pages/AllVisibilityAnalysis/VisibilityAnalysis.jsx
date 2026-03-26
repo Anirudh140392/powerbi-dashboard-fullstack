@@ -161,15 +161,16 @@ export default function VisibilityAnalysis() {
   });
 
   // Individual segment fetch functions for retry capability
-  const fetchVisibilityOverview = async (queryParams) => {
+  const fetchVisibilityOverview = async (queryParams, signal) => {
     try {
       setLoading(prev => ({ ...prev, overview: true }));
       setApiErrors(prev => ({ ...prev, overview: null }));
-      const res = await axiosInstance.get(`/visibility-analysis/visibility-overview?${queryParams}`);
+      const res = await axiosInstance.get(`/visibility-analysis/visibility-overview?${queryParams}`, { signal });
       const data = res.data;
       setApiData(prev => ({ ...prev, overview: data }));
       return true;
     } catch (err) {
+      if (axiosInstance.isCancel(err)) return false;
       console.error('❌ [Visibility] Overview fetch error:', err);
       setApiErrors(prev => ({ ...prev, overview: err.message }));
       return false;
@@ -178,15 +179,16 @@ export default function VisibilityAnalysis() {
     }
   };
 
-  const fetchVisibilityMatrix = async (matrixParams) => {
+  const fetchVisibilityMatrix = async (matrixParams, signal) => {
     try {
       setLoading(prev => ({ ...prev, matrix: true }));
       setApiErrors(prev => ({ ...prev, matrix: null }));
-      const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${matrixParams}`);
+      const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${matrixParams}`, { signal });
       const data = res.data;
       setApiData(prev => ({ ...prev, matrix: data }));
       return true;
     } catch (err) {
+      if (axiosInstance.isCancel(err)) return false;
       console.error('❌ [Visibility] Platform KPI Matrix fetch error:', err);
       setApiErrors(prev => ({ ...prev, matrix: err.message }));
       return false;
@@ -195,15 +197,16 @@ export default function VisibilityAnalysis() {
     }
   };
 
-  const fetchVisibilityKeywords = async (queryParams) => {
+  const fetchVisibilityKeywords = async (queryParams, signal) => {
     try {
       setLoading(prev => ({ ...prev, keywords: true }));
       setApiErrors(prev => ({ ...prev, keywords: null }));
-      const res = await axiosInstance.get(`/visibility-analysis/keywords-at-glance?${queryParams}`);
+      const res = await axiosInstance.get(`/visibility-analysis/keywords-at-glance?${queryParams}`, { signal });
       const data = res.data;
       setApiData(prev => ({ ...prev, keywords: data }));
       return true;
     } catch (err) {
+      if (axiosInstance.isCancel(err)) return false;
       console.error('❌ [Visibility] Keywords at Glance fetch error:', err);
       setApiErrors(prev => ({ ...prev, keywords: err.message }));
       return false;
@@ -212,15 +215,16 @@ export default function VisibilityAnalysis() {
     }
   };
 
-  const fetchVisibilitySearchTerms = async (termsParams) => {
+  const fetchVisibilitySearchTerms = async (termsParams, signal) => {
     try {
       setLoading(prev => ({ ...prev, searchTerms: true }));
       setApiErrors(prev => ({ ...prev, searchTerms: null }));
-      const res = await axiosInstance.get(`/visibility-analysis/top-search-terms?${termsParams}`);
+      const res = await axiosInstance.get(`/visibility-analysis/top-search-terms?${termsParams}`, { signal });
       const data = res.data;
       setApiData(prev => ({ ...prev, searchTerms: data }));
       return true;
     } catch (err) {
+      if (axiosInstance.isCancel(err)) return false;
       console.error('❌ [Visibility] Top Search Terms fetch error:', err);
       setApiErrors(prev => ({ ...prev, searchTerms: err.message }));
       return false;
@@ -344,7 +348,12 @@ export default function VisibilityAnalysis() {
       setLoading(prev => ({ ...prev, searchTerms: true }));
     }
 
+    // Create an abort controller at the top level of useEffect
+    const abortController = new AbortController();
+
     const fetchData = async () => {
+      let isCancelled = false;
+
       try {
         const baseParams = {
           platform: filters.platform || 'All',
@@ -357,15 +366,17 @@ export default function VisibilityAnalysis() {
           endDate: filters.endDate
         };
 
-        // 1. ALWAYS fetch Top Search Terms if tab OR main filters changed
+        // 1. ALWAYS fetch search terms (SOS or SKU Rank as per tab)
         const termsParams = new URLSearchParams({
           ...baseParams,
           filter: topSearchFilter,
           viewMode: topSearchMode === "SKU" ? "sku" : "keyword"
         }).toString();
 
-        console.log(`📡 [Visibility] Fetching Top Search Terms (${topSearchMode}):`, topSearchFilter);
-        fetchVisibilitySearchTerms(termsParams);
+        console.log(`📡 [Visibility] Fetching Top Search Terms (${topSearchMode}) with dates:`, filters.startDate, 'to', filters.endDate);
+        
+        // Fetch Top Search Terms first
+        await fetchVisibilitySearchTerms(termsParams, abortController.signal);
 
         // 2. Only fetch OTHER segments if it was a main filter change
         if (!isMainFilterChange) {
@@ -385,20 +396,32 @@ export default function VisibilityAnalysis() {
           endDate: filters.endDate
         }).toString();
 
-        console.log('📡 [Visibility] Fetching ALL segments (main filters changed)');
+        console.log('📡 [Visibility] Fetching ALL segments with dates:', filters.startDate, 'to', filters.endDate);
 
         // Fetch all segments (errors are tracked per-segment)
         await Promise.allSettled([
-          fetchVisibilityOverview(queryParams),
-          fetchVisibilityMatrix(matrixParams),
-          fetchVisibilityKeywords(queryParams)
+          fetchVisibilityOverview(queryParams, abortController.signal),
+          fetchVisibilityMatrix(matrixParams, abortController.signal),
+          fetchVisibilityKeywords(queryParams, abortController.signal)
         ]);
       } catch (error) {
-        console.error("[Visibility] Error setting up data fetch:", error);
+        if (axiosInstance.isCancel(error)) {
+          console.log('Fetch operation cancelled by AbortController');
+        } else {
+          console.error("[Visibility] Error setting up data fetch:", error);
+        }
       }
     };
 
     fetchData();
+
+    // Cleanup function to prevent logic loops
+    return () => {
+      // This is called before the effect re-runs or when the component unmounts
+      // Abort any ongoing fetches when dependencies change or component unmounts
+      abortController.abort();
+      console.log('🧹 [Visibility] AbortController signal sent for cleanup.');
+    };
   }, [filters, topSearchFilter, topSearchMode, visibilityDatesReady]); // Wait for visibility dates before fetching
 
   const handleViewTrends = (card) => {

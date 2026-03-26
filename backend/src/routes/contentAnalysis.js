@@ -1,4 +1,4 @@
-import { ContentAnalysis } from '../controllers/contentAnalysisController.js';
+import { ContentAnalysis, ContentAnalysisOverview, ContentAnalysisPlatformBreakdownController, ContentAnalysisPlatformsController, ContentAnalysisTrendsController } from '../controllers/contentAnalysisController.js';
 
 export default (app) => {
     /**
@@ -18,4 +18,8 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/content-analysis', ContentAnalysis);
+    app.get('/api/content-analysis/overview', ContentAnalysisOverview);
+    app.get('/api/content-analysis/platform-breakdown', ContentAnalysisPlatformBreakdownController);
+    app.get('/api/content-analysis/platforms', ContentAnalysisPlatformsController);
+    app.get('/api/content-analysis/trends', ContentAnalysisTrendsController);
 };

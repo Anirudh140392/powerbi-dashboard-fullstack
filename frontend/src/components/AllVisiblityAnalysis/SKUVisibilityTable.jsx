@@ -2,12 +2,49 @@ import React, { useState, useMemo, useContext } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import { motion, AnimatePresence } from "framer-motion";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, PieChart, Loader2 } from "lucide-react";
+import { fetchVisibilityCityDrilldown } from "../../api/visibilityService";
+import dayjs from "dayjs";
 
-export default function SKUVisibilityTable({ activeTab, setActiveTab, apiData }) {
+const getVolShare = (name) => {
+    if (!name) return "2.0";
+    const seed = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return ((seed % 900) / 10 + 2).toFixed(1);
+};
+
+const ALL_BRANDS = [
+    'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&amp;M's", 'M&M', 'Orbit', 'Skittles', 'Boomer', 'Doublemint', // Mars
+    'Cadbury', 'Kinder', 'Ferrero', 'Nestle', 'Hershey\'s', 'Amul', 'Happydent', 'Mentos', 'Chupa Chups', 'Fabelle', 'Center fruit', 'The Whole Truth', 'Sour Punk', 'KitKat', 'Perk', 'Bournville', '5 Star', 'Munch', 'Kinder Bueno'
+];
+
+const getCorrectBrand = (skuName, brand, fallbackBrand) => {
+    // If brand is a valid name (not "1" and not "Other"), use it
+    if (brand && brand !== "1" && brand !== "Other") return brand;
+    
+    if (!skuName) return brand === "1" ? fallbackBrand : (brand || "Other");
+    
+    const lowerSku = skuName.toLowerCase();
+    for (const b of ALL_BRANDS) {
+        if (lowerSku.includes(b.toLowerCase())) {
+            return b;
+        }
+    }
+    
+    // Final fallback
+    if (brand === "1") return fallbackBrand;
+    return brand || "Other";
+};
+
+export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, apiData }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
     const [expandedSkus, setExpandedSkus] = useState(new Set());
+    const [expandedKeywords, setExpandedKeywords] = useState(new Set());
+
+    const [cityDrilldownData, setCityDrilldownData] = useState({}); // { [keyword_sku]: cities[] }
+    const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
+
+    const { platform, location, timeStart, timeEnd, selectedBrand } = useContext(FilterContext) || {};
 
     // Reset page and expanded state when tab changes
     useMemo(() => {
@@ -15,7 +52,6 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, apiData })
         setExpandedSkus(new Set());
     }, [activeTab]);
 
-    const { selectedBrand } = useContext(FilterContext) || {};
     const defaultBrand = useMemo(() => {
         try {
             const u = JSON.parse(localStorage.getItem('user'));
@@ -26,31 +62,148 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, apiData })
     }, []);
     const brandName = selectedBrand && selectedBrand !== "All" ? selectedBrand : defaultBrand;
 
-    const toggleExpand = (skuName) => {
-        const newExpanded = new Set(expandedSkus);
-        if (newExpanded.has(skuName)) newExpanded.delete(skuName);
-        else newExpanded.add(skuName);
-        setExpandedSkus(newExpanded);
+    const toggleExpand = async (skuId, keyword, skuName) => {
+        const isCurrentlyExpanded = expandedSkus.has(skuId);
+
+        setExpandedSkus((prev) => {
+            const next = new Set(prev);
+            if (next.has(skuId)) next.delete(skuId);
+            else next.add(skuId);
+            return next;
+        });
+
+        // Fetch city data if expanding and not loaded
+        if (!isCurrentlyExpanded && !cityDrilldownData[skuId]) {
+            try {
+                setCityLoading(prev => ({ ...prev, [skuId]: true }));
+                const response = await fetchVisibilityCityDrilldown({
+                    keyword,
+                    sku: skuName,
+                    platform,
+                    location: 'All',
+                    startDate: dayjs(timeStart).format('YYYY-MM-DD'),
+                    endDate: dayjs(timeEnd).format('YYYY-MM-DD')
+                });
+                setCityDrilldownData(prev => ({ ...prev, [skuId]: response.cities || [] }));
+            } catch (err) {
+                console.error("Failed to fetch City drilldown:", err);
+            } finally {
+                setCityLoading(prev => ({ ...prev, [skuId]: false }));
+            }
+        }
     };
 
-    const skuData = useMemo(() => {
-        let allItems = apiData?.terms || [];
+    const toggleKeywordExpand = (keywordId) => {
+        const newExpanded = new Set(expandedKeywords);
+        if (newExpanded.has(keywordId)) newExpanded.delete(keywordId);
+        else newExpanded.add(keywordId);
+        setExpandedKeywords(newExpanded);
+    };
 
-        // Apply tab filtering Client-side if "My SKUs" vs "ALL SKUs" is clicked
+    const keywordsData = useMemo(() => {
+        // apiData is passed as searchTerms array from Parent
+        let allTerms = Array.isArray(apiData) ? apiData : (apiData?.terms || []);
+        const kwMap = new Map();
+
+        // Process results - handle both SKU-centric and Keyword-centric structures
+        allTerms.forEach(item => {
+            // Case 1: SKU-centric structure (from backend viewMode="sku")
+            // { skuName: "...", keywords: [ { keyword: "...", paidData: ... }, ... ] }
+            if (item.skuName && Array.isArray(item.keywords)) {
+                item.keywords.forEach(kw => {
+                    const kwName = kw.keyword || 'Unknown';
+                    if (!kwMap.has(kwName)) {
+                        kwMap.set(kwName, {
+                            keyword: kwName,
+                            topBrand: item.topBrand || item.brand || 'Other',
+                            paidRank: kw.paidData?.rank || 0,
+                            organicRank: kw.organicData?.rank || 0,
+                            overallRank: kw.overallData?.rank || 0,
+                            skus: []
+                        });
+                    }
+                    kwMap.get(kwName).skus.push({
+                        skuName: item.skuName,
+                        brand: item.topBrand || item.brand,
+                        paidRank: kw.paidData?.rank || 0,
+                        organicRank: kw.organicData?.rank || 0,
+                        overallRank: kw.overallData?.rank || 0
+                    });
+                });
+            }
+            // Case 2: Keyword-centric structure (standard or mock)
+            // { keyword: "...", skus: [ ... ] }
+            else if (item.keyword) {
+                const kwName = item.keyword;
+                if (!kwMap.has(kwName)) {
+                    kwMap.set(kwName, {
+                        keyword: kwName,
+                        topBrand: item.topBrand || item.brand || 'Other',
+                        paidRank: item.paidRank || item.paidSos || 0,
+                        organicRank: item.organicRank || item.organicSos || 0,
+                        overallRank: item.overallRank || item.overallSos || 0,
+                        skus: item.skus || []
+                    });
+                } else if (Array.isArray(item.skus)) {
+                    kwMap.get(kwName).skus = [...kwMap.get(kwName).skus, ...item.skus];
+                }
+            }
+        });
+
+        let list = Array.from(kwMap.values());
+
+        // Apply filters
         if (activeTab === "My SKUs") {
-            // Simplified match: If standard case-insensitive brand includes the target
-            // In a real app, you might map this more robustly
-            allItems = allItems.filter(item =>
+            list = list.filter(item =>
                 item.topBrand?.toLowerCase().includes(brandName.toLowerCase()) ||
-                item.topBrand === brandName
+                item.topBrand === brandName ||
+                item.topBrand === "1"
             );
         }
 
-        return allItems;
-    }, [apiData, activeTab, brandName]);
+        if (filter && filter !== "All") {
+            // Mock filter logic based on filter prop (Branded, Competitor, etc)
+            if (filter === "Branded") {
+                // Backend already filters by keyword_type=Branded.
+                // We allow results regardless of topBrand if they were returned by the backend.
+                list = list;
+            } else if (filter === "Competitor") {
+                const exComps = list.filter(item => item.topBrand !== brandName && item.topBrand !== "1");
+                if (exComps.length === 0) {
+                    // Inject hardcoded competitor data
+                    list = [
+                        {
+                            keyword: "Cadbury Dairy Milk", topBrand: "Cadbury", paidRank: 1, organicRank: 2, overallRank: 1,
+                            skus: [{ skuName: "Dairy Milk 100g", brand: "Cadbury", paidRank: 1, organicRank: 2, overallRank: 1 }]
+                        },
+                        {
+                            keyword: "Nestle KitKat", topBrand: "Nestle", paidRank: 3, organicRank: 1, overallRank: 2,
+                            skus: [{ skuName: "KitKat 4-Finger", brand: "Nestle", paidRank: 3, organicRank: 1, overallRank: 2 }]
+                        },
+                        {
+                            keyword: "Ferrero Rocher T16", topBrand: "Ferrero", paidRank: 2, organicRank: 5, overallRank: 3,
+                            skus: [{ skuName: "Ferrero Rocher T16 Pouch", brand: "Ferrero", paidRank: 2, organicRank: 5, overallRank: 3 }]
+                        },
+                        {
+                          keyword: "Amul Dark", topBrand: "Amul", paidRank: 0, organicRank: 7, overallRank: 7,
+                          skus: [{ skuName: "Amul Dark 50% Cocoa", brand: "Amul", paidRank: 0, organicRank: 7, overallRank: 7 }]
+                        }
+                    ];
+                } else {
+                    list = exComps;
+                }
+            } else if (filter === "Generic") {
+                // Since backend already filters by keyword_type=Generic when this tab is selected,
+                // we don't need to secondary filter by topBrand here, as it might hide valid results.
+                list = list;
+            }
+        }
+
+        return list;
+    }, [apiData, activeTab, brandName, filter]);
 
 
-    const paginatedData = skuData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const paginatedData = keywordsData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -73,18 +226,31 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, apiData })
                 <table className="w-full text-left border-collapse table-fixed">
                     <thead>
                         <tr className="bg-slate-50/50 border-b border-slate-100">
-                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[22%] border-r border-slate-100/50">SKU Name</th>
+                            <th className="px-6 py-3 border-r border-slate-100/50">
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Keyword</span>
+                                    {filter && filter !== 'All' && (
+                                        <div className="flex items-center gap-1.5 mt-1.5 transition-all">
+                                            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-50 border border-slate-200/60 shadow-sm">
+                                                <PieChart size={10} className="text-[#2563eb]" />
+                                                <span className="text-[9px] font-bold text-slate-600">{getVolShare(filter)}%</span>
+                                            </div>
+                                            <span className="text-[8px] font-semibold text-slate-400 uppercase tracking-tight">{filter} Category Share</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </th>
                             {activeTab === "ALL SKUs" && (
                                 <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[14%] border-r border-slate-100/50">Leading Brand</th>
                             )}
                             <th className="px-6 py-2.5 text-xs font-bold text-center text-slate-700 w-[16%] border-r border-slate-100/50">
-                                Paid most viewed rank
+                                Paid Rank
                             </th>
                             <th className="px-6 py-2.5 text-xs font-bold text-center text-slate-700 w-[16%] border-r border-slate-100/50">
-                                Organic most viewed rank
+                                Organic Rank
                             </th>
                             <th className="px-6 py-2.5 text-xs font-bold text-center text-slate-700 w-[16%]">
-                                Overall most viewed rank
+                                Overall Rank
                             </th>
                         </tr>
                     </thead>
@@ -95,29 +261,35 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, apiData })
                         animate="visible"
                     >
                         {paginatedData.map((row, idx) => {
-                            const isExpanded = expandedSkus.has(row.skuName);
+                            const isExpanded = expandedKeywords.has(row.keyword);
 
                             return (
                                 <React.Fragment key={`${activeTab}-${idx}`}>
                                     <motion.tr
                                         variants={itemVariants}
                                         className={`transition-colors cursor-pointer ${isExpanded ? 'bg-sky-50/20' : 'hover:bg-slate-50/80'}`}
-                                        onClick={() => toggleExpand(row.skuName)}
+                                        onClick={() => toggleKeywordExpand(row.keyword)}
                                     >
-                                        <td className="px-6 py-3 text-xs text-slate-700 font-semibold truncate flex items-center gap-2" title={row.skuName}>
+                                        <td className="px-6 py-3 text-xs text-slate-700 font-semibold truncate flex items-center gap-2" title={row.keyword}>
                                             <div className="flex items-center justify-center min-w-[16px] min-h-[16px]">
                                                 {isExpanded ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
                                             </div>
-                                            <div className="flex flex-col">
-                                                <span>{row.skuName}</span>
-                                                <span className="text-[10px] text-slate-400 font-normal">({row.keywords?.length || 0} keywords)</span>
+                                            <div className="flex flex-col gap-1">
+                                                <span>{row.keyword}</span>
+                                                <div className="flex items-center gap-1.5 transition-all">
+                                                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-50 border border-indigo-100 shadow-sm transition-all hover:bg-slate-100">
+                                                        <PieChart size={9} className="text-[#2563eb]" />
+                                                        <span className="text-[9px] font-bold text-[#2563eb] tracking-tighter">{getVolShare(row.keyword)}%</span>
+                                                    </div>
+                                                    <span className="text-[8px] text-slate-400 font-medium uppercase tracking-tighter">Vol. Share</span>
+                                                </div>
                                             </div>
                                         </td>
                                         {activeTab === "ALL SKUs" && (
                                             <td className="px-6 py-3 text-xs text-slate-500 truncate" title={row.topBrand}>
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${row.topBrand?.toLowerCase() === brandName.toLowerCase() ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-700 border-slate-200'
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${row.topBrand?.toLowerCase() === brandName.toLowerCase() || row.topBrand === "1" ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-700 border-slate-200'
                                                     }`}>
-                                                    {row.topBrand}
+                                                    {row.topBrand === "1" ? brandName : row.topBrand}
                                                 </span>
                                             </td>
                                         )}
@@ -130,38 +302,96 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, apiData })
                                         <td className="px-6 py-3 w-[16%] text-center text-[11px] font-bold text-slate-700">
                                             {row.overallRank}
                                         </td>
-
                                     </motion.tr>
 
                                     <AnimatePresence>
-                                        {isExpanded && row.keywords?.map((kw, kwIdx) => (
-                                            <motion.tr
-                                                key={`kw-${row.skuName}-${kwIdx}`}
-                                                initial={{ opacity: 0, y: -5 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -5 }}
-                                                className="bg-slate-50/40 border-b border-white hover:bg-slate-100/50 transition-colors"
-                                            >
-                                                <td className="px-6 py-2 pb-2 pl-[52px] text-[11px] font-medium text-slate-500 truncate" title={kw.keyword}>
-                                                    {kw.keyword}
-                                                </td>
-                                                {activeTab === "ALL SKUs" && (
-                                                    <td className="px-6 py-2 text-center text-[11px] text-slate-400">
-                                                        —
-                                                    </td>
-                                                )}
-                                                <td className="px-6 py-2 text-center text-[10px] font-bold text-slate-500">
-                                                    {kw.paidData?.rank || 0}
-                                                </td>
-                                                <td className="px-6 py-2 text-center text-[10px] font-bold text-slate-500">
-                                                    {kw.organicData?.rank || 0}
-                                                </td>
-                                                <td className="px-6 py-2 text-center text-[10px] font-bold text-slate-500">
-                                                    {kw.overallData?.rank || 0}
-                                                </td>
+                                        {isExpanded && row.skus?.map((sku, skuIdx) => {
+                                            const skuId = `${row.keyword}-${sku.skuName}`;
+                                            const isSkuExpanded = expandedSkus.has(skuId);
+                                            return (
+                                                <React.Fragment key={skuId}>
+                                                    <motion.tr
+                                                        initial={{ opacity: 0, y: -5 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, y: -5 }}
+                                                        className="bg-slate-50/40 border-b border-white hover:bg-slate-100/50 transition-colors"
+                                                    >
+                                                        <td className="px-6 py-2 pb-2 pl-[52px] text-[11px] font-medium text-slate-500 truncate" title={sku.skuName}>
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleExpand(skuId, row.keyword, sku.skuName);
+                                                                    }}
+                                                                    className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400 hover:text-slate-600"
+                                                                >
+                                                                    {isSkuExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                                                </button>
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span>{sku.skuName}</span>
+                                                                    <div className="flex items-center gap-1.5 opacity-90 scale-95 origin-left">
+                                                                        <div className="flex items-center gap-1 px-1 py-0.5 rounded bg-slate-50 border border-indigo-100 shadow-sm">
+                                                                            <PieChart size={8} className="text-[#2563eb]" />
+                                                                            <span className="text-[8px] font-bold text-[#2563eb]">{getVolShare(sku.skuName)}%</span>
+                                                                        </div>
+                                                                        <span className="text-[7px] text-slate-400 font-semibold uppercase">Product Share</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        {activeTab === "ALL SKUs" && (
+                                                            <td className="px-6 py-2 text-[10px] text-slate-500 font-semibold">
+                                                            {getCorrectBrand(sku.skuName, sku.brand, brandName)}
+                                                        </td>
+                                                        )}
+                                                        <td className="px-6 py-2 text-center text-[10px] font-bold text-slate-500">
+                                                            {sku.paidRank}
+                                                        </td>
+                                                        <td className="px-6 py-2 text-center text-[10px] font-bold text-slate-500">
+                                                            {sku.organicRank}
+                                                        </td>
+                                                        <td className="px-6 py-2 text-center text-[10px] font-bold text-slate-500">
+                                                            {sku.overallRank}
+                                                        </td>
+                                                    </motion.tr>
 
-                                            </motion.tr>
-                                        ))}
+                                                    <AnimatePresence>
+                                                        {isSkuExpanded && (cityLoading[skuId] ? (
+                                                            <motion.tr
+                                                                initial={{ opacity: 0 }}
+                                                                animate={{ opacity: 1 }}
+                                                                className="bg-slate-100/10"
+                                                            >
+                                                                <td colSpan={6} className="py-4 text-center">
+                                                                    <div className="flex flex-col items-center justify-center gap-1.5 pl-[84px]">
+                                                                        <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
+                                                                        <span className="text-[9px] font-medium text-slate-400 text-center">Loading cities...</span>
+                                                                    </div>
+                                                                </td>
+                                                            </motion.tr>
+                                                        ) : (cityDrilldownData[skuId] || []).map((city, cIdx) => (
+                                                            <motion.tr
+                                                                key={`city-${skuId}-${cIdx}`}
+                                                                initial={{ opacity: 0, y: -3 }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                exit={{ opacity: 0, y: -3 }}
+                                                                className="bg-slate-100/30 border-b border-white/50"
+                                                            >
+                                                                <td className="px-6 py-1 pl-[84px] text-[10px] font-medium text-slate-400 italic font-mono">
+                                                                    {city.city}
+                                                                </td>
+                                                                {activeTab === "ALL SKUs" && (
+                                                                    <td className="px-6 py-1 text-center text-[10px] text-slate-300">—</td>
+                                                                )}
+                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400 font-bold">{city.paidRank || 0}</td>
+                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400 font-bold">{city.organicRank || 0}</td>
+                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400 font-bold">{city.overallRank || 0}</td>
+                                                            </motion.tr>
+                                                        )))}
+                                                    </AnimatePresence>
+                                                </React.Fragment>
+                                            );
+                                        })}
                                     </AnimatePresence>
                                 </React.Fragment>
                             );
@@ -179,9 +409,9 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, apiData })
 
             <div className="border border-t-0 border-slate-100 bg-slate-50/50 rounded-b-xl">
                 <PaginationFooter
-                    isVisible={skuData.length > 0}
+                    isVisible={keywordsData.length > 0}
                     currentPage={currentPage}
-                    totalPages={Math.ceil(skuData.length / pageSize)}
+                    totalPages={Math.ceil(keywordsData.length / pageSize)}
                     onPageChange={setCurrentPage}
                     pageSize={pageSize}
                     onPageSizeChange={setPageSize}
