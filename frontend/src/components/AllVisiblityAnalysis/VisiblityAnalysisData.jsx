@@ -462,12 +462,13 @@ const VisiblityAnalysisData = ({
   topSearchMode: parentTopSearchMode,
   setTopSearchMode: parentSetTopSearchMode
 }) => {
+  const { visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly } = useContext(FilterContext);
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
-  const [skuTab, setSkuTab] = useState("My SKUs"); // My SKUs, ALL SKUs
+  // Removed local skuTab state, now using visibilityOwnBrandsOnly from context
   // Use parent topSearchFilter if available, else fallback to local
   const topSearchFilter = parentTopSearchFilter || "All";
   const setTopSearchFilter = parentSetTopSearchFilter || (() => { });
@@ -955,14 +956,17 @@ const VisiblityAnalysisData = ({
 
           <div className="flex items-center gap-3">
             <div className="flex gap-1.5 bg-slate-50 border border-slate-200 rounded-full p-1 w-max">
-              {["My SKUs", "ALL SKUs"].map((tab) => (
+              {[
+                { label: "My SKUs", value: true },
+                { label: "ALL SKUs", value: false }
+              ].map((tab) => (
                 <button
-                  key={tab}
-                  onClick={() => setSkuTab(tab)}
-                  className={`px-3 py-1 text-[11px] font-semibold rounded-full transition-all ${skuTab === tab ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700 border border-transparent"
+                  key={tab.label}
+                  onClick={() => setVisibilityOwnBrandsOnly(tab.value)}
+                  className={`px-3 py-1 text-[11px] font-semibold rounded-full transition-all ${visibilityOwnBrandsOnly === tab.value ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700 border border-transparent"
                     }`}
                 >
-                  {tab}
+                  {tab.label}
                 </button>
               ))}
             </div>
@@ -990,7 +994,7 @@ const VisiblityAnalysisData = ({
             ) : apiData?.searchTerms?.terms?.length === 0 ? (
               <NoDataAvailable title="No search terms data available" />
             ) : (
-              <TopSearchTerms filter={topSearchFilter} skuTab={skuTab} apiData={apiData?.searchTerms} />
+              <TopSearchTerms filter={topSearchFilter} skuTab={visibilityOwnBrandsOnly ? "My SKUs" : "ALL SKUs"} apiData={apiData?.searchTerms} />
             )}
           </>
         ) : (
@@ -1003,8 +1007,8 @@ const VisiblityAnalysisData = ({
               <NoDataAvailable title="No SKU search data available" />
             ) : (
               <SKUVisibilityTable
-                activeTab={skuTab}
-                setActiveTab={setSkuTab}
+                activeTab={visibilityOwnBrandsOnly ? "My SKUs" : "ALL SKUs"}
+                setActiveTab={(tab) => setVisibilityOwnBrandsOnly(tab === "My SKUs")}
                 filter={topSearchFilter}
                 apiData={apiData?.searchTerms}
               />

@@ -2001,6 +2001,9 @@ class VisibilityService {
                     if (brand && brand !== 'All') {
                         skuWhere += ` AND brand = '${escapeCH(brand)}'`;
                     }
+                    if (ownBrandsOnly) {
+                        skuWhere += ` AND flag = 1`;
+                    }
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT keyword_search_product as sku
@@ -2053,6 +2056,9 @@ class VisibilityService {
                     }
                     if (format && format !== 'All') {
                         keywordWhere += ` AND keyword_category = '${escapeCH(format)}'`;
+                    }
+                    if (ownBrandsOnly) {
+                        keywordWhere += ` AND flag = 1`;
                     }
 
                     const results = await queryClickHouse(`
@@ -2651,7 +2657,7 @@ class VisibilityService {
     /**
      * Get dynamic keywords specifically for Visibility Analysis
      */
-    async getVisibilityKeywords(platform, category, brand) {
+    async getVisibilityKeywords(platform, category, brand, ownBrandsOnly = false) {
         try {
             let conds = [`keyword IS NOT NULL`, `keyword != ''`];
 
@@ -2664,6 +2670,9 @@ class VisibilityService {
             if (brand && brand !== 'All') {
                 const brandArr = Array.isArray(brand) ? brand : brand.split(',').map(b => b.trim()).filter(Boolean);
                 conds.push(`brand IN (${brandArr.map(b => `'${escapeCH(b)}'`).join(',')})`);
+            }
+            if (ownBrandsOnly) {
+                conds.push(`flag = 1`);
             }
 
             const query = `
@@ -2713,7 +2722,7 @@ class VisibilityService {
      * Get SKU-level Visibility Drilldown for a specific keyword
      */
     async getSkuDrilldown(filters) {
-        const { keyword, platform, keywordType, category, brand } = filters;
+        const { keyword, platform, keywordType, category, brand, ownBrandsOnly } = filters;
         let { startDate, endDate } = filters;
 
         console.log(`[VisibilityService] getSkuDrilldown called for keyword: "${keyword}"`, { startDate, endDate });
@@ -2753,6 +2762,10 @@ class VisibilityService {
             WHERE lower(keyword) = lower({kw:String})
             AND DATE BETWEEN {sd:String} AND {ed:String}
         `;
+
+        if (ownBrandsOnly) {
+            query += " AND flag = 1";
+        }
 
         const params = { kw: keyword, sd: startDate, ed: endDate };
 

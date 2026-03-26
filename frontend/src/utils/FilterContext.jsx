@@ -70,6 +70,9 @@ export const FilterProvider = ({ children }) => {
     // Content-specific filter mode (hides category filter on Content Analysis page)
     const [contentFilterMode, setContentFilterMode] = useState(false);
 
+    // Visibility-specific segment toggle (My SKUs vs All SKUs)
+    const [visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly] = useState(true);
+
     const datesInitialized = Boolean(timeStart && timeEnd);
 
     // ====== RESET STATE ON LOGOUT ======
@@ -93,8 +96,8 @@ export const FilterProvider = ({ children }) => {
             setSelectedCategory("All");
             setProductCategories([]);
             setSelectedProductCategory("All");
-            setDatesFetched(false);
             setPlatformsFetched(false);
+            setVisibilityOwnBrandsOnly(true);
         }
     }, [isAuthenticated]);
 
@@ -443,7 +446,8 @@ export const FilterProvider = ({ children }) => {
             try {
                 const params = {
                     platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
-                    category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory)
+                    category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+                    ownBrandsOnly: visibilityOwnBrandsOnly
                 };
 
                 console.log("[FilterContext] Fetching keywords with params:", params);
@@ -469,7 +473,7 @@ export const FilterProvider = ({ children }) => {
         };
 
         fetchKeywords();
-    }, [isAuthenticated, platform, selectedCategory]);
+    }, [isAuthenticated, platform, selectedCategory, visibilityOwnBrandsOnly]);
 
     // ====== FETCH KEYWORD TYPES FROM DB (when platform changes) ======
     useEffect(() => {
@@ -557,7 +561,9 @@ export const FilterProvider = ({ children }) => {
             platformsFetched,
             refreshFilters,
             contentFilterMode,
-            setContentFilterMode
+            setContentFilterMode,
+            visibilityOwnBrandsOnly,
+            setVisibilityOwnBrandsOnly
         }}>
             {children}
         </FilterContext.Provider>

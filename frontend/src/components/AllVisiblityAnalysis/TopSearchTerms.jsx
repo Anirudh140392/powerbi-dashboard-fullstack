@@ -160,7 +160,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
     const [skuLoading, setSkuLoading] = useState({}); // { [keyword]: boolean }
     const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
 
-    const { platform, location, timeStart, timeEnd, selectedKeyword, selectedBrand } = useContext(FilterContext) || {};
+    const { platform, location, timeStart, timeEnd, selectedKeyword, selectedBrand, visibilityOwnBrandsOnly } = useContext(FilterContext) || {};
 
     // Select specific data based on tab filter
     // Use API data (already filtered by backend based on filter param)
@@ -176,10 +176,12 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
         return list;
     }, [apiData, filter, skuTab]);
 
-    // Reset page when filter changes
+    // Reset page and clear drilldowns when filter or SKU toggle changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [filter]);
+        setSkuDrilldownData({});
+        setExpandedKeywordRows(new Set());
+    }, [filter, visibilityOwnBrandsOnly]);
 
     const handleBrandClick = async (keyword) => {
         setDrilldownKeyword(keyword);
@@ -246,6 +248,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                     keyword,
                     platform,
                     location: 'All',
+                    ownBrandsOnly: visibilityOwnBrandsOnly
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
                 if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
