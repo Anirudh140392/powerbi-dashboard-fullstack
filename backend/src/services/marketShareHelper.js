@@ -1745,6 +1745,49 @@ export const getMarketShareCompetitionFilterOptions = async (platformFilter, loc
 };
 
 /**
+ * Get Top-level Market Share Filter Options (Platform, Category, Channel)
+ * Sourced directly from rb_ms_olap as per user request.
+ */
+export const getMarketShareTopFilterOptions = async () => {
+    try {
+        // 1. Platforms from rb_ms_olap
+        const platformQuery = `SELECT DISTINCT platform FROM rb_ms_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
+        
+        // 2. Categories from rb_ms_olap
+        const categoryQuery = `SELECT DISTINCT category FROM rb_ms_olap WHERE category IS NOT NULL AND category != '' ORDER BY category`;
+        
+        // 3. Locations from rb_ms_olap
+        const locationQuery = `SELECT DISTINCT location FROM rb_ms_olap WHERE location IS NOT NULL AND location != '' ORDER BY location`;
+
+        // 4. Channels - filter by platforms present in rb_ms_olap to ensure relevance
+        const channelQuery = `
+            SELECT DISTINCT channel 
+            FROM rca_sku_dim 
+            WHERE platform IN (SELECT DISTINCT platform FROM rb_ms_olap)
+            AND channel IS NOT NULL AND channel != '' 
+            ORDER BY channel
+        `;
+
+        const [platformResults, categoryResults, locationResults, channelResults] = await Promise.all([
+            queryClickHouse(platformQuery),
+            queryClickHouse(categoryQuery),
+            queryClickHouse(locationQuery),
+            queryClickHouse(channelQuery)
+        ]);
+
+        return {
+            platforms: platformResults.map(r => r.platform),
+            categories: categoryResults.map(r => r.category),
+            locations: locationResults.map(r => r.location),
+            channels: channelResults.map(r => r.channel)
+        };
+    } catch (error) {
+        console.error('[MarketShareTopFilterOptions] Error:', error.message);
+        return { platforms: [], categories: [], channels: [] };
+    }
+};
+
+/**
  * Get Market Share Competition Trends (Time Series)
  */
 export const getMarketShareCompetitionTrends = async (mode, targets, period, startDate, endDate, platform, category, location) => {

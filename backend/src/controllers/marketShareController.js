@@ -1,4 +1,4 @@
-import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown } from '../services/marketShareHelper.js';
+import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown } from '../services/marketShareHelper.js';
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
@@ -137,6 +137,21 @@ export const MarketShareCompetitionFilterOptions = async (req, res) => {
         });
     } catch (error) {
         console.error('Error fetching market share filter options:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const MarketShareTopFilterOptions = async (req, res) => {
+    try {
+        console.log("Market Share Top Filter Options request received");
+        const result = await getMarketShareTopFilterOptions();
+
+        res.json({
+            message: "Top filter options fetched successfully",
+            ...result
+        });
+    } catch (error) {
+        console.error('Error fetching market share top filter options:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
