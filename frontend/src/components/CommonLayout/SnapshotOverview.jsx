@@ -801,7 +801,7 @@ const SnapshotOverview = ({
                                         key={kpi.id}
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: idx * 0.05, duration: 0.3 }}
+                                        transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     >
                                         <ComparisonCard kpi={kpi} loading={kpi.loading} />
                                     </motion.div>
@@ -827,7 +827,7 @@ const SnapshotOverview = ({
                                                 key={kpi.id}
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: (idx + 5) * 0.05, duration: 0.3 }}
+                                                transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
                                             >
                                                 <ActionableMetricCard kpi={kpi} />
                                             </motion.div>
@@ -849,7 +849,7 @@ const SnapshotOverview = ({
                 className={cn("bg-white rounded-[2rem] shadow-sm border border-slate-100/60 overflow-hidden", className)}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.2 }}
             >
                 <div className="px-8 py-5 flex items-center justify-between border-b border-slate-50">
                     <div className="flex items-center gap-5">
@@ -880,9 +880,9 @@ const SnapshotOverview = ({
                             detailedKpis.map((kpi, idx) => (
                                 <motion.div
                                     key={kpi.id || idx}
-                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    initial={{ opacity: 0, scale: 0.98 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: idx * 0.05 }}
+                                    transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     className="h-full"
                                 >
                                     <DetailedSparklineCard kpi={kpi} />

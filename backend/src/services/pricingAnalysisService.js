@@ -562,14 +562,8 @@ async function getPricingKpis(filters = {}) {
                     THEN ${f.wSellingPrice} / ${f.wMrp} 
                     ELSE NULL END) AS rpi_prev,
                 
-<<<<<<< HEAD
-                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 
-                    THEN toFloat64OrZero(toString(p.Selling_Price)) 
-=======
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                     THEN ${f.wSellingPrice} 
->>>>>>> 3866bbfcd74f489ad5b7e3459bc750050dbd2071
                     ELSE NULL END) AS asp_prev
 
             FROM ${src.table} p
