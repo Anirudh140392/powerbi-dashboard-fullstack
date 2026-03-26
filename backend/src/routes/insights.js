@@ -3,7 +3,7 @@
  * API endpoints for the Insights page
  */
 
-import { getInsights } from '../controllers/insightsController.js';
+import { getInsights, getInsightsFilters } from '../controllers/insightsController.js';
 
 export default (app) => {
     /**
@@ -29,5 +29,6 @@ export default (app) => {
      *       200:
      *         description: Successful response
      */
+    app.get('/api/insights/filters', getInsightsFilters);
     app.get('/api/insights', getInsights);
 };
