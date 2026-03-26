@@ -30,14 +30,14 @@ function buildCHCondition(value, column, options = {}) {
     };
 
     // If "All" brands or our main brand is selected, we want our brand's data (flag=1)
-    if (isBrand && (isAll(value) || isOurBrand(value))) return "flag = '1'";
+    if (isBrand && (isAll(value) || isOurBrand(value))) return "flag = 1";
     if (isAll(value)) return "1=1";
 
     const list = typeof value === 'string'
         ? value.split(',').map(v => v.trim()).filter(v => !isAll(v))
         : Array.isArray(value) ? value.filter(v => !isAll(v)) : [value];
 
-    if (list.length === 0) return isBrand ? "flag = '1'" : "1=1";
+    if (list.length === 0) return isBrand ? "flag = 1" : "1=1";
 
     if (isCategory) {
         return `LOWER(${column}) IN (${list.map(v => `'${escapeCH(String(v).toLowerCase())}'`).join(', ')})`;
@@ -58,9 +58,9 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
 
         const query = `
             SELECT 
-                ROUND(sumIf(toInt32(overall), flag = '1') * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                ROUND(sumIf(toInt32(organic), flag = '1') * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
+                ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+                ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+                ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
@@ -114,9 +114,9 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const query = `
             SELECT 
                 DATE as crawl_date,
-                ROUND(sumIf(toInt32(overall), flag = '1') * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                ROUND(sumIf(toInt32(spons), flag = '1') * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                ROUND(sumIf(toInt32(organic), flag = '1') * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
+                ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+                ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
+                ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
@@ -1375,9 +1375,12 @@ class VisibilityService {
                 const brandCondition = filters.brand || 'All';
 
                 // Exclude global rollup locations from analytical results
+                // CRITICAL: We MUST allow 'Nation' for Flipkart and Amazon because they often ONLY have nation-wide data
                 const EXCLUDED_LOCATIONS = "'Nation', 'National', 'All India', 'Total', 'India', 'nation', 'national', 'all india'";
+                const isNationOnlyPlatform = ['Flipkart', 'Amazon'].includes(platform);
+                
                 const locationFilter = location === 'All'
-                    ? `AND location_name NOT IN (${EXCLUDED_LOCATIONS})`
+                    ? (isNationOnlyPlatform ? '' : `AND location_name NOT IN (${EXCLUDED_LOCATIONS})`)
                     : `AND ${locationCondition}`;
 
                 const brandSOSCondition = buildCHCondition(brandCondition, 'brand_name_th', { isBrand: true });
@@ -1414,7 +1417,11 @@ class VisibilityService {
                 let typeConds = [];
                 const processType = (val) => {
                     if (!val || val === 'All') return null;
-                    if (Array.isArray(val)) return val.map(t => t === 'Competitor' ? 'Competition' : t);
+                    if (Array.isArray(val)) {
+                        // Handle ['All'] or ['Branded', 'All']
+                        const filtered = val.filter(t => t !== 'All' && t !== 'all').map(t => t === 'Competitor' ? 'Competition' : t);
+                        return filtered.length > 0 ? filtered : null;
+                    }
                     return val === 'Competitor' ? 'Competition' : val;
                 };
 
@@ -1444,18 +1451,19 @@ class VisibilityService {
                 let terms = [];
 
                 if (isSkuMode) {
-                    // 1. Get Top 50 SKUs based on total volume
+                    // 1. Get Top 100 SKUs based on total volume (increased from 50)
                     const topSkusQuery = `
                         SELECT 
                             keyword_search_product as sku, 
                             count() as vol,
+                            max(toInt32(flag)) as is_my_sku,
                             topKIf(1)(brand, brand != '') as best_brand_arr
                         FROM rb_kw_olap
                         WHERE ${dateCondition} AND ${platformCondition} ${locationFilter} ${typeFilter} ${keywordFilter} ${categoryClause} AND keyword_search_product != ''
                         GROUP BY sku
                         HAVING vol > 0
                         ORDER BY vol DESC
-                        LIMIT 50
+                        LIMIT 100
                     `;
                     const topSkusResult = await queryClickHouse(topSkusQuery);
                     if (topSkusResult.length === 0) return { terms: [] };
@@ -1465,7 +1473,7 @@ class VisibilityService {
                     topSkusResult.forEach(s => {
                         skuContextMap[s.sku] = {
                             vol: s.vol,
-                            topBrand: (s.best_brand_arr && s.best_brand_arr.length > 0) ? s.best_brand_arr[0] : 'N/A'
+                            topBrand: s.is_my_sku == 1 ? '1' : ((s.best_brand_arr && s.best_brand_arr.length > 0) ? s.best_brand_arr[0] : 'Other')
                         };
                     });
 
@@ -1915,7 +1923,7 @@ class VisibilityService {
                 // UPDATED FILTER LOGIC BASED ON USER REQUEST
                 // Category (formats): rb_kw_olap.keyword_category
                 // Brand: rb_kw_olap.brand_name
-                // SKU: rb_pdp_olap.Product
+                // SKU: rb_kw_olap.keyword_search_product
                 // ===========================================================================
 
                 // DATES (special case, keep as is or from rb_kw_olap)
@@ -1964,7 +1972,7 @@ class VisibilityService {
                         brandWhere += ` AND keyword_category = '${escapeCH(format)}'`;
                     }
                     if (ownBrandsOnly) {
-                        brandWhere += ` AND flag = '1'`;
+                        brandWhere += ` AND flag = 1`;
                     }
 
                     const results = await queryClickHouse(`
@@ -1978,25 +1986,25 @@ class VisibilityService {
                     return { options };
                 }
 
-                // SKUs: from rb_pdp_olap.Product
+                // SKUs: from rb_kw_olap.keyword_search_product
                 if (filterType === 'skus') {
-                    let skuWhere = "WHERE Product IS NOT NULL AND Product != ''";
+                    let skuWhere = "WHERE keyword_search_product IS NOT NULL AND keyword_search_product != ''";
                     if (platform && platform !== 'All') {
-                        skuWhere += ` AND Platform = '${escapeCH(platform)}'`;
+                        skuWhere += ` AND platform_name = '${escapeCH(platform)}'`;
                     }
                     if (city && city !== 'All') {
-                        skuWhere += ` AND Location = '${escapeCH(city)}'`;
+                        skuWhere += ` AND location_name = '${escapeCH(city)}'`;
                     }
                     if (format && format !== 'All') {
-                        skuWhere += ` AND Category = '${escapeCH(format)}'`;
+                        skuWhere += ` AND keyword_category = '${escapeCH(format)}'`;
                     }
                     if (brand && brand !== 'All') {
-                        skuWhere += ` AND Brand = '${escapeCH(brand)}'`;
+                        skuWhere += ` AND brand = '${escapeCH(brand)}'`;
                     }
 
                     const results = await queryClickHouse(`
-                        SELECT DISTINCT Product as sku
-                        FROM rb_pdp_olap
+                        SELECT DISTINCT keyword_search_product as sku
+                        FROM rb_kw_olap
                         ${skuWhere}
                         ORDER BY sku
                     `);
@@ -2351,7 +2359,7 @@ class VisibilityService {
                   ${allFilters}
                   AND brand IS NOT NULL AND brand != ''
                   AND lower(brand) != 'other'
-                  AND flag = '0'
+                  AND flag = 0
                 GROUP BY brand
                 ORDER BY impressions DESC
                 LIMIT 20
@@ -2390,7 +2398,7 @@ class VisibilityService {
                   ${allFilters}
                   AND keyword IS NOT NULL AND keyword != ''
                   AND lower(brand) != 'other'
-                  AND flag = '0'
+                  AND flag = 0
                 GROUP BY sku_name, brand_name
                 ORDER BY impressions DESC
                 LIMIT 20
