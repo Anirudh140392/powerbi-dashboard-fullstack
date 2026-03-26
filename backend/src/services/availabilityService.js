@@ -75,11 +75,11 @@ const buildWhereConditions = (filters, includeDate = true) => {
     }
     const isMars = !['colpal', 'gcpl', 'cinthol'].includes(getCurrentDbName());
     if (category && category !== 'All') {
-        const catCol = isMars ? 'Category' : 'Product_type';
+        const catCol = 'Category';
         conditions.push(`${catCol} = '${category}'`);
     }
     if (productCategory && productCategory !== 'All') {
-        const pcCol = isMars ? 'Product_type' : 'Category';
+        const pcCol = 'Product_type';
         conditions.push(`${pcCol} = '${productCategory}'`);
     }
 
@@ -476,12 +476,15 @@ const getAbsoluteOsaOverview = async (filters) => {
                 SELECT 
                     Web_Pid as sku,
                     Product as name,
+                    Platform as platform,
+                    Brand as brand,
+                    Category as format,
                     DATE as date,
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
                 FROM rb_pdp_olap
                 WHERE ${detailWhere} AND Web_Pid IS NOT NULL AND Web_Pid != ''
-                GROUP BY Web_Pid, Product, DATE
+                GROUP BY Web_Pid, Product, Platform, Brand, Category, DATE
                 ORDER BY Web_Pid, DATE
             `;
 
@@ -497,6 +500,9 @@ const getAbsoluteOsaOverview = async (filters) => {
                     skuMap[row.sku] = {
                         name: row.name || 'Unknown Product',
                         sku: row.sku,
+                        platform: row.platform,
+                        brand: row.brand,
+                        format: row.format,
                         dateMap: {},
                         values: new Array(31).fill(null),
                     };
@@ -548,6 +554,9 @@ const getAbsoluteOsaOverview = async (filters) => {
                 return {
                     name: item.name,
                     sku: item.sku,
+                    platform: item.platform,
+                    brand: item.brand,
+                    format: item.format,
                     values: item.values,
                     avg7,
                     avg31,
@@ -593,8 +602,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             console.log(`\n[DEBUG KPI MATRIX] viewMode: "${viewMode}", normalized: "${vMode}"`);
 
             const groupColumn = vMode === 'platform' ? 'Platform' :
-                vMode === 'format' ? 'Category' :
-                    vMode === 'category' ? 'Product_type' :
+                (vMode === 'format' || vMode === 'category') ? 'Category' :
                         'Location';
             console.log(`[DEBUG KPI MATRIX] groupColumn: "${groupColumn}"`);
             // Build base filter conditions using the helper (excluding date as it's handled separately for current/prev)
@@ -1073,9 +1081,8 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
         try {
             const whereClause = buildAvailabilityWhereClause(effectiveFilters);
 
-            const isMars = getCurrentDbName() === 'mars';
-            const catCol = isMars ? 'Category' : 'Product_type';
-            const pcCol = isMars ? 'Product_type' : 'Category';
+            const catCol = 'Category';
+            const pcCol = 'Product_type';
 
             const query = `
                 SELECT 
@@ -1699,9 +1706,8 @@ const getOsaDetailByCategory = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const isMars = getCurrentDbName() === 'mars';
-            const catCol = isMars ? 'Category' : 'Product_type';
-            const pcCol = isMars ? 'Product_type' : 'Category';
+            const catCol = 'Category';
+            const pcCol = 'Product_type';
             const whereClause = buildAvailabilityWhereClause(effectiveFilters, 't1');
 
             // Query SKU-level data joined with rca_sku_dim to filter by active segments (status=1)
