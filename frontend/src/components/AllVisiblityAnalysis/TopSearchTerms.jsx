@@ -14,28 +14,7 @@ const getVolShare = (name) => {
     return ((seed % 900) / 10 + 2).toFixed(1);
 };
 
-const ALL_BRANDS = [
-    'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&amp;M's", 'M&M', 'Orbit', 'Skittles', 'Boomer', 'Doublemint', // Mars
-    'Cadbury', 'Kinder', 'Ferrero', 'Nestle', 'Hershey\'s', 'Amul', 'Happydent', 'Mentos', 'Chupa Chups', 'Fabelle', 'Center fruit', 'The Whole Truth', 'Sour Punk', 'KitKat', 'Perk', 'Bournville', '5 Star', 'Munch', 'Kinder Bueno'
-];
-
-const getCorrectBrand = (skuName, brand, fallbackBrand) => {
-    // If brand is a valid name (not "1" and not "Other"), use it
-    if (brand && brand !== "1" && brand !== "Other") return brand;
-    
-    if (!skuName) return brand === "1" ? fallbackBrand : (brand || "Other");
-    
-    const lowerSku = skuName.toLowerCase();
-    for (const b of ALL_BRANDS) {
-        if (lowerSku.includes(b.toLowerCase())) {
-            return b;
-        }
-    }
-    
-    // Final fallback
-    if (brand === "1") return fallbackBrand;
-    return brand || "Other";
-};
+// Dynamic brand display uses backend data; removed hardcoded ALL_BRANDS and getCorrectBrand
 
 const FilterDropdown = ({ options, selected, onChange }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -181,45 +160,17 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
     const [skuLoading, setSkuLoading] = useState({}); // { [keyword]: boolean }
     const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
 
-    const { platform, location, timeStart, timeEnd, selectedKeyword } = useContext(FilterContext) || {};
+    const { platform, location, timeStart, timeEnd, selectedKeyword, selectedBrand } = useContext(FilterContext) || {};
 
     // Select specific data based on tab filter
     // Use API data (already filtered by backend based on filter param)
     const activeData = useMemo(() => {
         let list = apiData?.terms || [];
-        const brandName = apiData?.brandName || "MARS";
         
-        // Add hardcoded competitor data if Competitor filter is active
-        if (filter === "Competitor") {
-            const competitorData = [
-                { keyword: "dark chocolate", topBrand: "Cadbury", overallSos: 45.2, organicSos: 42.1, paidSos: 48.3, overallDelta: -1.2, organicDelta: 0.5, paidDelta: -2.3 },
-                { keyword: "milk chocolate", topBrand: "Nestle", overallSos: 38.7, organicSos: 35.4, paidSos: 42.1, overallDelta: 0.8, organicDelta: -1.1, paidDelta: 1.5 },
-                { keyword: "hazelnut spread", topBrand: "Nutella", overallSos: 62.1, organicSos: 58.9, paidSos: 65.3, overallDelta: -0.5, organicDelta: 0.2, paidDelta: -0.8 },
-                { keyword: "energy bar", topBrand: "MuscleBlaze", overallSos: 22.4, organicSos: 19.8, paidSos: 25.0, overallDelta: 1.5, organicDelta: 1.2, paidDelta: 1.8 },
-                { keyword: "mint candy", topBrand: "Mentos", overallSos: 33.6, organicSos: 31.2, paidSos: 36.1, overallDelta: -1.0, organicDelta: -0.8, paidDelta: -1.2 }
-            ];
-            // Filter for keywords WHERE WE ARE NOT the leading brand (competitors)
-            const existingComps = list.filter(item => 
-                item.topBrand?.toLowerCase() !== brandName.toLowerCase() && 
-                item.topBrand !== "1"
-            );
-            if (existingComps.length === 0) return competitorData;
-            return existingComps;
-        }
-
         // tab filtering (My SKUs vs ALL SKUs)
         if (skuTab === "My SKUs") {
             // Show keywords where we have ANY share of search
             list = list.filter(item => item.overallSos > 0);
-        }
-
-        // category filtering (Branded/Generic) - Relaxed as backend already filters the terms list
-        if (filter === "Branded") {
-            // Backend already filters by keyword_type=Branded. Keep all returned terms.
-            list = list;
-        } else if (filter === "Generic") {
-            // Backend already filters by keyword_type=Generic. Keep all returned terms.
-            list = list;
         }
 
         return list;
@@ -470,8 +421,8 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                                                 onClick={() => handleBrandClick(row.keyword)}
                                                 className="pill underline-slide"
                                             >
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${row.topBrand?.toLowerCase() === (apiData?.brandName || "MARS").toLowerCase() || row.topBrand === "1" ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-                                                    {row.topBrand === "1" ? (apiData?.brandName || "MARS") : row.topBrand}
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${selectedBrand !== "All" && row.topBrand?.toLowerCase() === selectedBrand?.toLowerCase() ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                                    {row.topBrand && row.topBrand !== "1" ? row.topBrand : "Other"}
                                                 </span>
                                             </button>
                                         </td>
@@ -531,7 +482,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                                                             </div>
                                                         </td>
                                                          <td className="px-6 py-2 text-[10px] text-slate-500 font-semibold">
-                                                            {getCorrectBrand(sku.skuName, sku.brand, apiData?.brandName || "MARS")}
+                                                            {sku.topBrand && sku.topBrand !== "1" ? sku.topBrand : (sku.brand && sku.brand !== "1" ? sku.brand : "Other")}
                                                         </td>
                                                         <td className="px-6 py-1.5 text-center">
                                                             <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
