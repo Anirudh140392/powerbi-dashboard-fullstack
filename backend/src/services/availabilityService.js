@@ -6,6 +6,7 @@
 import dayjs from 'dayjs';
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
+import { getTableColumns, columnExists, resolveColumn } from '../utils/schemaHelper.js';
 
 /**
  * Helper to get table column mappings based on the current tenant's database.
@@ -29,6 +30,25 @@ const getColumnMapping = (dbName) => {
         mapping.rca_sku_dim.category = 'Category';
     }
     return mapping;
+};
+
+/**
+ * Dynamically resolve rb_sku_platform column names by querying the DB schema.
+ * This replaces the hardcoded getColumnMapping() approach for rb_sku_platform
+ * and works across all DB schemas (mamaearth, mars, colpal, gcpl, etc.).
+ */
+const getSkuPlatformColumns = async () => {
+    const skuPlatCols = await getTableColumns('rb_sku_platform');
+    const findCol = (possibleNames) => {
+        for (const name of possibleNames) {
+            if (columnExists(skuPlatCols, name)) return resolveColumn(skuPlatCols, name);
+        }
+        return possibleNames[0]; // fallback to first candidate
+    };
+    return {
+        brandCol: findCol(['brand_name', 'brand']),
+        categoryCol: findCol(['brand_category', 'sub_category', 'product_category', 'Product_type', 'Category'])
+    };
 };
 
 // Helper to build WHERE clause from filters
@@ -1836,7 +1856,8 @@ const getAvailabilityKpiTrends = async (filters) => {
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
                     SUM(toFloat64OrZero(toString(MSL))) as total_msl,
-                    COUNT(DISTINCT Web_Pid) as assortment_count
+                    COUNT(DISTINCT Web_Pid) as assortment_count,
+                    AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY DATE
@@ -1845,67 +1866,13 @@ const getAvailabilityKpiTrends = async (filters) => {
 
             const results = await queryClickHouse(query);
 
-            const dbName = getCurrentDbName();
-            const colMap = getColumnMapping(dbName);
-            const masterBrandNameCol = colMap.rb_sku_platform.brand_name;
-            const masterCategoryCol = colMap.rb_sku_platform.category;
-
-            // Get total active assortment from rb_sku_platform for Listing % calculation
-            // Note: rb_sku_platform only has brand_name, brand_category, web_pid, status (no platform column)
-            const masterAssortmentConds = [`status = 1`];
-
-            // Helper to handle hierarchical categories (e.g. "A > B > C" -> match "C" in sub_category)
-            const getLeafCategory = (c) => {
-                if (typeof c === 'string' && c.includes(' > ')) {
-                    const parts = c.split(' > ');
-                    return parts[parts.length - 1].trim();
-                }
-                return c;
-            };
-
-            // Platform filter is omitted as rb_sku_platform doesn't have a platform column
-            if (category && category !== 'All') {
-                // IMPORTANT: Don't split by comma if the category itself contains " > " as it might be a hierarchical name with commas.
-                // However, if it's an array, we process each. If it's a string, we check if it looks like a single hierarchical string.
-                let cArr = [];
-                if (Array.isArray(category)) {
-                    cArr = category;
-                } else if (typeof category === 'string') {
-                    // Only split by comma if it doesn't look like a single hierarchical path with a comma inside
-                    // e.g. "Dry Fruits, Masala & Oil > Ghee & Vanaspati > Desi Ghee" shouldn't be split at the first comma.
-                    if (category.includes(' > ') && category.includes(',')) {
-                        cArr = [category];
-                    } else {
-                        cArr = category.split(',').map(c => c.trim());
-                    }
-                }
-
-                const catListStr = cArr.map(c => `'${escapeStr(getLeafCategory(c).toLowerCase())}'`).join(', ');
-                masterAssortmentConds.push(`lower(${masterCategoryCol}) IN (${catListStr})`);
-            }
-            if (brand && brand !== 'All') {
-                const bArr = Array.isArray(brand) ? brand : String(brand).split(',').map(b => b.trim());
-                const brandListStr = bArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
-                masterAssortmentConds.push(`lower(${masterBrandNameCol}) IN (${brandListStr})`);
-            }
-
-            const masterQuery = `
-                SELECT count(DISTINCT web_pid) as total_master
-                FROM rb_sku_platform
-                WHERE ${masterAssortmentConds.join(' AND ')}
-            `;
-            const masterResult = await queryClickHouse(masterQuery);
-            const masterCount = parseInt(masterResult[0]?.total_master, 10) || 0;
-
-
-
             const timeSeries = results.map(row => {
                 const neno = parseFloat(row.total_neno) || 0;
                 const deno = parseFloat(row.total_deno) || 0;
                 const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
 
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
-                const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
+                const listing = parseFloat(row.avg_listing_percent) || 0;
 
                 const totalSales = parseFloat(row.sum_sales) || 0;
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
@@ -1990,57 +1957,6 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
 
             const results = await queryClickHouse(query);
-
-            const dbName = getCurrentDbName();
-            const colMap = getColumnMapping(dbName);
-            const masterBrandNameCol = colMap.rb_sku_platform.brand_name;
-            const masterCategoryCol = colMap.rb_sku_platform.category;
-
-            // Get master counts from rb_sku_platform for all brands in the results to calculate Listing %
-            const foundBrands = results.map(r => r.brand_name).filter(Boolean);
-            let brandMasterCounts = {};
-
-            if (foundBrands.length > 0) {
-                const brandListStr = foundBrands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
-                const masterConds = [`status = 1`, `lower(${masterBrandNameCol}) IN (${brandListStr})`];
-                // Platform filter is omitted as rb_sku_platform doesn't have a platform column
-                if (category && category !== 'All') {
-                    const getLeafCategory = (c) => {
-                        if (typeof c === 'string' && c.includes(' > ')) {
-                            const parts = c.split(' > ');
-                            return parts[parts.length - 1].trim();
-                        }
-                        return c;
-                    };
-
-                    let cArr = [];
-                    if (Array.isArray(category)) {
-                        cArr = category;
-                    } else if (typeof category === 'string') {
-                        if (category.includes(' > ') && category.includes(',')) {
-                            cArr = [category];
-                        } else {
-                            cArr = category.split(',').map(c => c.trim());
-                        }
-                    }
-
-                    const catListStr = cArr.map(c => `'${escapeStr(getLeafCategory(c).toLowerCase())}'`).join(', ');
-                    masterConds.push(`lower(${masterCategoryCol}) IN (${catListStr})`);
-                }
-
-                const masterQuery = `
-                    SELECT ${masterBrandNameCol} as brand_name, count(DISTINCT web_pid) as total_master
-                    FROM rb_sku_platform
-                    WHERE ${masterConds.join(' AND ')}
-                    GROUP BY ${masterBrandNameCol}
-                `;
-                const masterResults = await queryClickHouse(masterQuery);
-                masterResults.forEach(r => {
-                    brandMasterCounts[r.brand_name] = parseInt(r.total_master, 10) || 0;
-                });
-            }
-
-
 
             const brands = results.map((row, idx) => {
                 const neno = parseFloat(row.total_neno) || 0;
@@ -2254,7 +2170,8 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
                     SUM(toFloat64OrZero(toString(Sales))) as total_sales,
-                    COUNT(DISTINCT Web_Pid) as assortment_count
+                    COUNT(DISTINCT Web_Pid) as assortment_count,
+                    AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY Brand, DATE
@@ -2262,52 +2179,6 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
             `;
 
             const results = await queryClickHouse(query);
-
-            const dbName = getCurrentDbName();
-            const colMap = getColumnMapping(dbName);
-            const masterBrandNameCol = colMap.rb_sku_platform.brand_name;
-            const masterCategoryCol = colMap.rb_sku_platform.category;
-
-            // Get master counts from rb_sku_platform for all brands in the brandList to calculate Listing %
-            let brandMasterCounts = {};
-            if (brandList.length > 0) {
-                const brandFilterStr = brandList.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',');
-                const masterConds = [`status = 1`, `lower(${masterBrandNameCol}) IN (${brandFilterStr})`];
-                if (category && category !== 'All') {
-                    const getLeafCategory = (c) => {
-                        if (typeof c === 'string' && c.includes(' > ')) {
-                            const parts = c.split(' > ');
-                            return parts[parts.length - 1].trim();
-                        }
-                        return c;
-                    };
-
-                    let cArr = [];
-                    if (Array.isArray(category)) {
-                        cArr = category;
-                    } else if (typeof category === 'string') {
-                        if (category.includes(' > ') && category.includes(',')) {
-                            cArr = [category];
-                        } else {
-                            cArr = category.split(',').map(c => c.trim());
-                        }
-                    }
-
-                    const catListStr = cArr.map(c => `'${escapeStr(getLeafCategory(c).toLowerCase())}'`).join(', ');
-                    masterConds.push(`lower(${masterCategoryCol}) IN (${catListStr})`);
-                }
-
-                const masterQuery = `
-                    SELECT ${masterBrandNameCol} as brand_name, count(DISTINCT web_pid) as total_master
-                    FROM rb_sku_platform
-                    WHERE ${masterConds.join(' AND ')}
-                    GROUP BY ${masterBrandNameCol}
-                `;
-                const masterResults = await queryClickHouse(masterQuery);
-                masterResults.forEach(r => {
-                    brandMasterCounts[r.brand_name] = parseInt(r.total_master, 10) || 0;
-                });
-            }
 
             // Get all unique dates in the results
             const uniqueDates = Array.from(new Set(results.map(r => dayjs(r.ref_date).format("DD MMM'YY")))).sort((a, b) => {
@@ -2347,12 +2218,11 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     const neno = parseFloat(row.total_neno) || 0;
                     const deno = parseFloat(row.total_deno) || 0;
                     const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
-                    const masterCount = brandMasterCounts[brandName] || 0;
                     const totalQtySold = parseFloat(row.total_qty_sold) || 0;
                     const totalInv = parseFloat(row.total_inventory) || 0;
 
                     const osa = deno > 0 ? (neno / deno) * 100 : 0;
-                    const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
+                    const listing = parseFloat(row.avg_listing_percent) || 0;
                     const doi = totalQtySold > 0 ? (totalInv / totalQtySold) * 30 : 0;
                     const totalSales = parseFloat(row.total_sales) || 0;
 
