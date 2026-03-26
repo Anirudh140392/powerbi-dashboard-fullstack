@@ -451,8 +451,8 @@ export const getVisibilityCategories = async (req, res) => {
  */
 export const getVisibilityKeywords = async (req, res) => {
     try {
-        const { platform, category, brand } = req.query;
-        const keywords = await visibilityService.getVisibilityKeywords(platform, category, brand);
+        const { platform, category, brand, ownBrandsOnly } = req.query;
+        const keywords = await visibilityService.getVisibilityKeywords(platform, category, brand, ownBrandsOnly === 'true');
         res.json(keywords);
     } catch (error) {
         console.error('[ERROR] Visibility Keywords:', error);
@@ -489,7 +489,8 @@ export const getVisibilitySkuDrilldown = async (req, res) => {
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            ownBrandsOnly: req.query.ownBrandsOnly === 'true'
         };
 
         if (!filters.keyword) {
