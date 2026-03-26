@@ -37,6 +37,10 @@ import {
 import CommonContainer from "@/components/CommonLayout/CommonContainer";
 import { FilterContext } from "@/utils/FilterContext";
 import { fetchInsights, fetchInsightsFilters } from "@/api/insightsService";
+import CustomHeaderDropdown from "@/components/CommonLayout/CustomHeaderDropdown";
+import DateRangeComparePicker from "@/components/CommonLayout/DateRangeComparePicker";
+import dayjs from "dayjs";
+import { Box, Typography } from "@mui/material";
 
 // --- HELPERS ---
 
@@ -51,6 +55,7 @@ const formatINRCompact = (n) => {
 const safePct = (v) => (typeof v === "number" ? `${v.toFixed(1)}%` : "-");
 const safeNum = (v) => (typeof v === "number" ? `${v}` : "-");
 const safeINR = (v) => (typeof v === "number" ? formatINRCompact(v) : "-");
+const safeINRFull = (v) => (typeof v === "number" ? `₹${v.toLocaleString('en-IN')}` : "-");
 
 const familyMeta = {
     Market: { icon: MapPinned, tone: "bg-indigo-500/10 text-indigo-700" },
@@ -152,20 +157,7 @@ const KPIChips = ({ kpis }) => (
     </div>
 );
 
-const Slicer = ({ label, value, onChange, options }) => (
-    <label className="flex flex-col gap-1">
-        <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">{label}</span>
-        <select
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-slate-200 transition-all cursor-pointer"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-        >
-            {options.map((o) => (
-                <option key={o} value={o}>{o}</option>
-            ))}
-        </select>
-    </label>
-);
+// Slicer removed — now using CustomHeaderDropdown (global filter UI style)
 
 const LayoutToggle = ({ layout, setLayout }) => (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-2">
@@ -257,14 +249,14 @@ const DetailBody = ({ insight }) => {
                                         <TableHead>City</TableHead>
                                         <TableHead>Competitor</TableHead>
                                         <TableHead className="text-right">Other brand OSA</TableHead>
-                                        <TableHead className="text-right">KW OSA</TableHead>
+                                        <TableHead className="text-right">{insight.brandName || "KW"} OSA</TableHead>
                                     </>
                                 )}
                                 {view === "share" && (
                                     <>
                                         <TableHead>City</TableHead>
                                         <TableHead>Category</TableHead>
-                                        <TableHead className="text-right">KW Share</TableHead>
+                                        <TableHead className="text-right">{insight.brandName || "KW"} Share</TableHead>
                                         <TableHead className="text-right">Benchmark</TableHead>
                                         <TableHead className="text-right">Gap</TableHead>
                                         <TableHead className="text-right">Headroom</TableHead>
@@ -276,7 +268,7 @@ const DetailBody = ({ insight }) => {
                                         <TableHead>City</TableHead>
                                         <TableHead>Category</TableHead>
                                         <TableHead>PPU cluster</TableHead>
-                                        <TableHead className="text-right">KW PPU</TableHead>
+                                        <TableHead className="text-right">{insight.brandName || "KW"} PPU</TableHead>
                                         <TableHead className="text-right">Peer PPU</TableHead>
                                         <TableHead className="text-right">Index</TableHead>
                                         <TableHead className="text-right">Cluster share</TableHead>
@@ -286,8 +278,8 @@ const DetailBody = ({ insight }) => {
                                 {view === "adStock" && (
                                     <>
                                         <TableHead>City</TableHead>
-                                        <TableHead>KW SKU</TableHead>
-                                        <TableHead className="text-right">KW OSA</TableHead>
+                                        <TableHead>{insight.brandName || "KW"} SKU</TableHead>
+                                        <TableHead className="text-right">{insight.brandName || "KW"} OSA</TableHead>
                                         <TableHead className="text-right">Ad SOV</TableHead>
                                         <TableHead className="text-right">Spend</TableHead>
                                         <TableHead className="text-right">Est. lost sales</TableHead>
@@ -307,7 +299,7 @@ const DetailBody = ({ insight }) => {
                                     <>
                                         <TableHead>Depot / DB</TableHead>
                                         <TableHead>City</TableHead>
-                                        <TableHead>KW SKU</TableHead>
+                                        <TableHead>{insight.brandName || "KW"} SKU</TableHead>
                                         <TableHead className="text-right">Planned</TableHead>
                                         <TableHead className="text-right">Dispatched</TableHead>
                                         <TableHead className="text-right">Fill rate</TableHead>
@@ -370,8 +362,8 @@ const DetailBody = ({ insight }) => {
                                             <TableCell className="max-w-[360px] truncate">{d.skuOrBrand ?? "-"}</TableCell>
                                             <TableCell className="text-right">{safePct(d.kwOsa)}</TableCell>
                                             <TableCell className="text-right">{safePct(d.adSov)}</TableCell>
-                                            <TableCell className="text-right">{safeINR(d.spendInr)}</TableCell>
-                                            <TableCell className="text-right">{safeINR(d.estLostSalesInr)}</TableCell>
+                                            <TableCell className="text-right">{safeINRFull(d.spendInr)}</TableCell>
+                                            <TableCell className="text-right">{safeINRFull(d.estLostSalesInr)}</TableCell>
                                         </>
                                     )}
                                     {view === "newEntry" && (
@@ -460,7 +452,7 @@ const PremiumSignalCard = ({ insight, layout, onClick }) => {
 // --- MAIN PAGE COMPONENT ---
 
 const KwalityWallsSignalHub = () => {
-    const { refreshFilters } = useContext(FilterContext);
+    const { refreshFilters, maxDate } = useContext(FilterContext);
 
     const [filters, setFilters] = useState({ platform: "All platforms", city: "All cities", category: "All categories", signal: "All signals" });
     const [fetchedInsights, setFetchedInsights] = useState([]);
@@ -472,6 +464,10 @@ const KwalityWallsSignalHub = () => {
     const [categoryFilter, setCategoryFilter] = useState("All categories");
     const [platformFilter, setPlatformFilter] = useState("All platforms");
     const [layout, setLayout] = useState("grid");
+
+    // Local date state for Insights page
+    const [startDate, setStartDate] = useState(dayjs().subtract(30, 'day'));
+    const [endDate, setEndDate] = useState(dayjs());
 
     useEffect(() => {
         if (typeof refreshFilters === 'function') refreshFilters();
@@ -487,7 +483,14 @@ const KwalityWallsSignalHub = () => {
         const loadInsights = async () => {
             setLoading(true);
             try {
-                const apiPayload = { ...filters, localCity: cityFilter, localCategory: categoryFilter, localPlatform: platformFilter };
+                const apiPayload = {
+                    ...filters,
+                    localCity: cityFilter,
+                    localCategory: categoryFilter,
+                    localPlatform: platformFilter,
+                    startDate: startDate.format('YYYY-MM-DD'),
+                    endDate: endDate.format('YYYY-MM-DD'),
+                };
                 const data = await fetchInsights(apiPayload);
                 const apiResponseList = (data?.success && Array.isArray(data?.data)) ? data.data : [];
 
@@ -509,7 +512,7 @@ const KwalityWallsSignalHub = () => {
         };
 
         loadInsights();
-    }, [filters, cityFilter, categoryFilter, platformFilter]);
+    }, [filters, cityFilter, categoryFilter, platformFilter, startDate, endDate]);
 
     // Use memoized list for filtering on frontend
     const allInsights = useMemo(() => fetchedInsights, [fetchedInsights]);
@@ -547,20 +550,82 @@ const KwalityWallsSignalHub = () => {
     };
 
     return (
-        <CommonContainer title="Signal Hub" filters={filters} onFiltersChange={setFilters}>
+        <CommonContainer title="Signal Hub" filters={filters} onFiltersChange={setFilters} hideFilters>
             <div className="bg-background text-foreground">
                 <div className="mx-auto max-w-7xl">
-                    <div className="grid gap-4 lg:grid-cols-8 mb-8">
-                        <div className="lg:col-span-6 grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-                            <Slicer label="Signal Type" value={typeFilter} onChange={setTypeFilter} options={slicerOptions.types} />
-                            <Slicer label="Geography" value={cityFilter} onChange={setCityFilter} options={slicerOptions.cities} />
-                            <Slicer label="Category" value={categoryFilter} onChange={setCategoryFilter} options={slicerOptions.categories} />
-                            <Slicer label="Channel" value={platformFilter} onChange={setPlatformFilter} options={slicerOptions.platforms} />
-                        </div>
-                        <div className="lg:col-span-2">
+                    {/* Local filter bar — styled to match global Header filters */}
+                    <Box
+                        sx={{
+                            display: "flex",
+                            gap: 1.5,
+                            flexWrap: { xs: "wrap", md: "nowrap" },
+                            alignItems: "flex-end",
+                            mb: 3,
+                        }}
+                    >
+                        <CustomHeaderDropdown
+                            label="SIGNAL TYPE"
+                            options={slicerOptions.types}
+                            value={typeFilter}
+                            onChange={(v) => setTypeFilter(v === "All" ? "All signals" : v)}
+                            width={{ xs: "calc(50% - 6px)", sm: 140 }}
+                            multiSelect={false}
+                        />
+                        <CustomHeaderDropdown
+                            label="GEOGRAPHY"
+                            options={slicerOptions.cities}
+                            value={cityFilter}
+                            onChange={(v) => setCityFilter(v === "All" ? "All cities" : v)}
+                            width={{ xs: "calc(50% - 6px)", sm: 130 }}
+                            multiSelect={false}
+                        />
+                        <CustomHeaderDropdown
+                            label="CATEGORY"
+                            options={slicerOptions.categories}
+                            value={categoryFilter}
+                            onChange={(v) => setCategoryFilter(v === "All" ? "All categories" : v)}
+                            width={{ xs: "calc(50% - 6px)", sm: 130 }}
+                            multiSelect={false}
+                        />
+                        <CustomHeaderDropdown
+                            label="CHANNEL"
+                            options={slicerOptions.platforms}
+                            value={platformFilter}
+                            onChange={(v) => setPlatformFilter(v === "All" ? "All platforms" : v)}
+                            width={{ xs: "calc(50% - 6px)", sm: 120 }}
+                            multiSelect={false}
+                        />
+                        <Box sx={{ width: { xs: "100%", sm: 200 }, flexShrink: 0 }}>
+                            <Typography
+                                sx={{
+                                    fontSize: "0.65rem",
+                                    fontWeight: 600,
+                                    mb: 0.4,
+                                    opacity: 0.8,
+                                    textTransform: "uppercase",
+                                    letterSpacing: '0.05em',
+                                    fontFamily: 'Roboto, sans-serif',
+                                    color: '#64748b'
+                                }}
+                            >
+                                TIME PERIOD
+                            </Typography>
+                            <DateRangeComparePicker
+                                timeStart={startDate}
+                                timeEnd={endDate}
+                                compareStart={null}
+                                compareEnd={null}
+                                maxDate={maxDate || dayjs()}
+                                onApply={(s, e) => {
+                                    setStartDate(s);
+                                    setEndDate(e);
+                                }}
+                            />
+                        </Box>
+                        <Box sx={{ ml: "auto" }}>
                             <LayoutToggle layout={layout} setLayout={setLayout} />
-                        </div>
-                    </div>
+                        </Box>
+                    </Box>
 
                     <div>
                         {loading ? (

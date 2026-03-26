@@ -27,7 +27,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
 
-const Header = ({ title = "Business Overview", onMenuClick }) => {
+const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false }) => {
   const [priceMode, setPriceMode] = React.useState("MRP");
   const [isExpanded, setIsExpanded] = React.useState(true);
 
@@ -168,7 +168,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
             </IconButton>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              {location.pathname !== "/scheduled-reports" && (
+              {!hideFilters && location.pathname !== "/scheduled-reports" && (
                 <IconButton
                   size="small"
                   onClick={() => setIsExpanded(!isExpanded)}
@@ -231,7 +231,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
         {/* FILTERS CONTAINER */}
         <AnimatePresence>
-          {isExpanded && location.pathname !== "/scheduled-reports" && (
+          {!hideFilters && isExpanded && location.pathname !== "/scheduled-reports" && (
             <Box
               component={motion.div}
               initial={{ opacity: 0, height: 0 }}
@@ -377,7 +377,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
 
       {/* ---------------- SECOND ROW ---------------- */}
       <AnimatePresence>
-        {isExpanded && location.pathname !== "/scheduled-reports" && (
+        {!hideFilters && isExpanded && location.pathname !== "/scheduled-reports" && (
           <Box
             component={motion.div}
             initial={{ opacity: 0, height: 0 }}
