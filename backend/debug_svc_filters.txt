@@ -1,7 +1,6 @@
 {
-  "platform": "All",
-  "brand": "Colgate",
-  "location": "All",
-  "startDate": "2026-03-01",
-  "endDate": "2026-03-01"
+  "startDate": "2026-01-12",
+  "endDate": "2026-03-23",
+  "prevStartDate": "2025-11-02",
+  "prevEndDate": "2026-01-11"
 }

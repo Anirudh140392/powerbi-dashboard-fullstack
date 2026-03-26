@@ -67,6 +67,9 @@ export const FilterProvider = ({ children }) => {
     const [datesFetched, setDatesFetched] = useState(false);
     const [platformsFetched, setPlatformsFetched] = useState(false);
 
+    // Content-specific filter mode (hides category filter on Content Analysis page)
+    const [contentFilterMode, setContentFilterMode] = useState(false);
+
     const datesInitialized = Boolean(timeStart && timeEnd);
 
     // ====== RESET STATE ON LOGOUT ======
@@ -159,13 +162,9 @@ export const FilterProvider = ({ children }) => {
 
         setPlatformsFetched(false);
         try {
-            const params = {};
-            if (selectedChannel && selectedChannel !== "All") {
-                params.channel = selectedChannel;
-            }
-            const res = await axiosInstance.get("/watchtower/platforms", { params });
+            const res = await axiosInstance.get("/content-analysis/platforms");
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                console.log("[FilterContext] Fetched platforms from DB:", res.data);
+                console.log("[FilterContext] Fetched dynamic platforms from Content Analysis:", res.data);
                 setPlatforms(res.data);
                 // Keep "All" or current selection if it's still valid
                 setPlatform(prevPlatform => {
@@ -181,12 +180,12 @@ export const FilterProvider = ({ children }) => {
                 setPlatform("All");
             }
         } catch (err) {
-            console.warn("[FilterContext] Failed to fetch platforms, using fallback:", err.message);
+            console.warn("[FilterContext] Failed to fetch dynamic platforms, using fallback:", err.message);
             setPlatforms(FALLBACK_PLATFORMS);
         } finally {
             setPlatformsFetched(true);
         }
-    }, [isAuthenticated, selectedChannel]);
+    }, [isAuthenticated]);
 
     useEffect(() => {
         fetchPlatformsFromDb();
@@ -482,7 +481,9 @@ export const FilterProvider = ({ children }) => {
             datesInitialized,
             datesFetched,
             platformsFetched,
-            refreshFilters
+            refreshFilters,
+            contentFilterMode,
+            setContentFilterMode
         }}>
             {children}
         </FilterContext.Provider>

@@ -198,14 +198,8 @@ body {
 }
 
 @keyframes colorBlink {
-
-  0%,
-  100% {
-    color: #0f172a;
-  }
-
-  50% {
-    color: #3b82f6;
+  0%, 100% {
+    color: #2563eb;
   }
 }
 
@@ -217,13 +211,13 @@ body {
   font-weight: 700;
   background: #f8fbff;
   border: none;
-  color: #0f172a;
+  color: #2563eb;
   cursor: pointer;
   overflow: hidden;
   text-transform: uppercase;
   letter-spacing: 0.025em;
 
-  animation: colorBlink 3s ease-in-out infinite;
+  /* Animation removed or set to static color */
 
   transition:
     transform 0.25s ease,
@@ -238,7 +232,7 @@ body {
   right: 18%;
   bottom: 6px;
   height: 2px;
-  background: #3b82f6;
+  background: #2563eb;
 
   transform: scaleX(0);
   transform-origin: center;
@@ -250,6 +244,6 @@ body {
 }
 
 .underline-slide:hover {
-  color: #3b82f6 !important;
+  color: #2563eb !important;
   transform: translateY(-2px);
 }

@@ -98,7 +98,7 @@ const Sidebar = ({
       { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
-      // { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
+       { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
@@ -266,7 +266,14 @@ const Sidebar = ({
                 {sectionName}
               </Typography>
             )}
-            {items.filter((item) => !item.hideForDb || !item.hideForDb.includes(user?.dbName)).map((item) => {
+            {items.filter((item) => {
+              const dbName = user?.dbName;
+              // If showOnlyForDb is provided, check if current db is in the list
+              if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
+              // If hideForDb is provided, check if current db is in the list
+              if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
+              return true;
+            }).map((item) => {
               const isActive = currentPath === item.path;
               const isPiy = item.isPiy;
 

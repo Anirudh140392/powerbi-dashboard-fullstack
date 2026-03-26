@@ -111,3 +111,31 @@ export const fetchAllVisibilityData = async (filters = {}) => {
         searchTerms
     };
 };
+
+/**
+ * Fetch SKU visibility drilldown for a specific keyword
+ */
+export const fetchVisibilitySkuDrilldown = async (params) => {
+    try {
+        const queryParams = new URLSearchParams(params).toString();
+        const response = await axiosInstance.get(`/visibility-analysis/sku-drilldown?${queryParams}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching SKU drilldown:", error);
+        throw error;
+    }
+};
+
+/**
+ * Fetch City visibility drilldown for a specific SKU and keyword
+ */
+export const fetchVisibilityCityDrilldown = async (params) => {
+    try {
+        const queryParams = new URLSearchParams(params).toString();
+        const response = await axiosInstance.get(`/visibility-analysis/city-drilldown?${queryParams}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching City drilldown:", error);
+        throw error;
+    }
+};

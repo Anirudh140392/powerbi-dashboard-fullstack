@@ -4,15 +4,16 @@ import ContentScoreAnalysis from "../../components/ContentScoreDashboard/Content
 import { FilterContext } from "../../utils/FilterContext";
 
 export default function ContentScoreDashboards() {
-  const { refreshFilters } = useContext(FilterContext);
+  const { refreshFilters, setContentFilterMode } = useContext(FilterContext);
 
-  // Restore comprehensive platform list from rca_sku_dim on mount
-  // (Prevents subsetting from other pages like Performance Marketing)
+  // Activate content-specific filter mode on mount, deactivate on unmount
   useEffect(() => {
+    setContentFilterMode(true);
     if (typeof refreshFilters === 'function') {
       refreshFilters();
     }
-  }, [refreshFilters]);
+    return () => setContentFilterMode(false);
+  }, [setContentFilterMode, refreshFilters]);
 
   const [showTrends, setShowTrends] = useState(false);
 
