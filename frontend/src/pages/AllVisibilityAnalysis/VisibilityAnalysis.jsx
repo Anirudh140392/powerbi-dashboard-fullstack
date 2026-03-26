@@ -41,6 +41,7 @@ export default function VisibilityAnalysis() {
   // Ref to track last fetched filters to prevent duplicate API calls
   const lastFetchedFiltersRef = useRef(null);
   const lastMainFiltersRef = useRef(null); // Track only global filters
+  const abortControllerRef = useRef(null); // Persistent ref to handle abortions manually
 
   // ============ CRITICAL: Fetch visibility-specific dates FIRST on mount ============
   useEffect(() => {
@@ -96,33 +97,37 @@ export default function VisibilityAnalysis() {
   // Sync platform/brand/location/keyword/category AND dates with FilterContext
   // When user changes any global filter in the header, update our local filters
   useEffect(() => {
-    setFilters(prev => {
-      const updates = {
+    // Only update if filters actually changed to avoid unnecessary re-renders/aborts
+    const currentPlatform = platform || filters.platform;
+    const currentBrand = selectedBrand || filters.brand;
+    const currentKeyword = selectedKeyword || filters.keyword;
+    const currentKeywordType = selectedKeywordType || filters.keywordType;
+    const currentCategory = selectedCategory || filters.category;
+    const currentStartDate = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : filters.startDate;
+    const currentEndDate = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : filters.endDate;
+
+    if (
+      currentPlatform !== filters.platform ||
+      currentBrand !== filters.brand ||
+      currentKeyword !== filters.keyword ||
+      currentKeywordType !== filters.keywordType ||
+      currentCategory !== filters.category ||
+      currentStartDate !== filters.startDate ||
+      currentEndDate !== filters.endDate
+    ) {
+      console.log('🗓️ [Visibility] Syncing filters from global context');
+      setFilters(prev => ({
         ...prev,
-        platform: platform || prev.platform,
-        brand: selectedBrand || prev.brand,
-        location: "All",
-        keyword: selectedKeyword || prev.keyword,
-        keywordType: selectedKeywordType || prev.keywordType,
-        category: selectedCategory || prev.category,
-      };
-
-      // Sync dates from FilterContext if they're changed by user in the header
-      // Only update if timeStart/timeEnd are valid dayjs objects
-      if (timeStart && timeEnd) {
-        const newStartDate = dayjs(timeStart).format('YYYY-MM-DD');
-        const newEndDate = dayjs(timeEnd).format('YYYY-MM-DD');
-
-        // Only update if dates have actually changed to avoid unnecessary re-renders
-        if (newStartDate !== prev.startDate || newEndDate !== prev.endDate) {
-          console.log('🗓️ [Visibility] Syncing dates from header:', newStartDate, 'to', newEndDate);
-          updates.startDate = newStartDate;
-          updates.endDate = newEndDate;
-        }
-      }
-
-      return updates;
-    });
+        platform: currentPlatform,
+        brand: currentBrand,
+        location: selectedLocation || "All",
+        keyword: currentKeyword,
+        keywordType: currentKeywordType,
+        category: currentCategory,
+        startDate: currentStartDate,
+        endDate: currentEndDate
+      }));
+    }
   }, [platform, selectedBrand, selectedLocation, selectedKeyword, selectedKeywordType, selectedCategory, timeStart, timeEnd]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
@@ -253,9 +258,9 @@ export default function VisibilityAnalysis() {
 
     const queryParams = new URLSearchParams(baseParams).toString();
     const matrixParams = new URLSearchParams({
-      platform: 'All',
+      platform: filters.platform || 'All',
       brand: filters.brand || 'All',
-      location: 'All', // Hardcode to 'All' to isolate from global filters
+      location: filters.location || 'All',
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
@@ -298,7 +303,7 @@ export default function VisibilityAnalysis() {
     const mainFiltersKey = JSON.stringify({
       platform: filters.platform,
       brand: filters.brand,
-      location: 'All',
+      location: filters.location || 'All',
       keyword: filters.keyword,
       keywordType: filters.keywordType,
       category: filters.category,
@@ -317,14 +322,23 @@ export default function VisibilityAnalysis() {
     const isMainFilterChange = lastMainFiltersRef.current !== mainFiltersKey;
 
     // Skip if we already fetched with these same FINAL filters (including tabs)
+    // Check if we already have a fetch in progress for THIS EXACT filter set
     if (lastFetchedFiltersRef.current === filterKey) {
-      console.log('⏭️ [Visibility] Skipping duplicate fetch: Filters unchanged');
+      console.log('⏭️ [Visibility] Skipping redundant fetch: Filter key matches active/last success');
       return;
     }
 
     console.log('✅ [Visibility] Proceeding with fetch - filterKey:', filterKey);
 
-    // Mark these filters as being fetched (to prevent immediate logical loop)
+    // ABORT PREVIOUS FETCH (Different key)
+    if (abortControllerRef.current) {
+      console.log('🛑 [Visibility] Aborting previous fetch due to new key');
+      abortControllerRef.current.abort();
+    }
+
+    // CREATE NEW CONTROLLER FOR THIS KEY
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
     lastFetchedFiltersRef.current = filterKey;
 
     // Only reset all data (triggering all skeleton loaders) if MAIN filters changed.
@@ -343,22 +357,16 @@ export default function VisibilityAnalysis() {
       lastMainFiltersRef.current = mainFiltersKey;
     } else {
       console.log('⚡ [Visibility] Only tab changed, isolating update');
-      // Optionally clear only searchTerms to show its specific loader
       setApiData(prev => ({ ...prev, searchTerms: undefined }));
       setLoading(prev => ({ ...prev, searchTerms: true }));
     }
 
-    // Create an abort controller at the top level of useEffect
-    const abortController = new AbortController();
-
     const fetchData = async () => {
-      let isCancelled = false;
-
       try {
         const baseParams = {
           platform: filters.platform || 'All',
           brand: filters.brand || 'All',
-          location: 'All', // Hardcode to 'All' to isolate from global filters
+          location: filters.location || 'All',
           keyword: filters.keyword || 'All',
           keywordType: filters.keywordType || 'All',
           category: filters.category || 'All',
@@ -366,63 +374,65 @@ export default function VisibilityAnalysis() {
           endDate: filters.endDate
         };
 
-        // 1. ALWAYS fetch search terms (SOS or SKU Rank as per tab)
-        const termsParams = new URLSearchParams({
-          ...baseParams,
-          filter: topSearchFilter,
-          viewMode: topSearchMode === "SKU" ? "sku" : "keyword"
-        }).toString();
-
-        console.log(`📡 [Visibility] Fetching Top Search Terms (${topSearchMode}) with dates:`, filters.startDate, 'to', filters.endDate);
-        
-        // Fetch Top Search Terms first
-        await fetchVisibilitySearchTerms(termsParams, abortController.signal);
-
-        // 2. Only fetch OTHER segments if it was a main filter change
-        if (!isMainFilterChange) {
-          console.log('⏭️ [Visibility] Skipping non-tab fetches (main filters unchanged)');
-          return;
-        }
-
         const queryParams = new URLSearchParams(baseParams).toString();
         const matrixParams = new URLSearchParams({
-          platform: 'All',
+          platform: filters.platform || 'All',
           brand: filters.brand || 'All',
-          location: 'All', // Hardcode to 'All' to isolate from global filters
+          location: filters.location || 'All',
           keyword: filters.keyword || 'All',
           keywordType: filters.keywordType || 'All',
           category: filters.category || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         }).toString();
+        const termsParams = new URLSearchParams({
+          ...baseParams,
+          filter: topSearchFilter,
+          viewMode: topSearchMode === "SKU" ? "sku" : "keyword"
+        }).toString();
 
-        console.log('📡 [Visibility] Fetching ALL segments with dates:', filters.startDate, 'to', filters.endDate);
+        console.log('📡 [Visibility] Fetching segments in parallel...');
 
-        // Fetch all segments (errors are tracked per-segment)
-        await Promise.allSettled([
-          fetchVisibilityOverview(queryParams, abortController.signal),
-          fetchVisibilityMatrix(matrixParams, abortController.signal),
-          fetchVisibilityKeywords(queryParams, abortController.signal)
-        ]);
+        // Fetch all segments in parallel for maximum speed
+        const fetchPromises = [
+          fetchVisibilitySearchTerms(termsParams, abortController.signal)
+        ];
+
+        if (isMainFilterChange) {
+          fetchPromises.push(
+            fetchVisibilityOverview(queryParams, abortController.signal),
+            fetchVisibilityMatrix(matrixParams, abortController.signal),
+            fetchVisibilityKeywords(queryParams, abortController.signal)
+          );
+        }
+
+        await Promise.allSettled(fetchPromises);
       } catch (error) {
         if (axiosInstance.isCancel(error)) {
           console.log('Fetch operation cancelled by AbortController');
         } else {
           console.error("[Visibility] Error setting up data fetch:", error);
+          lastFetchedFiltersRef.current = null;
         }
       }
     };
 
     fetchData();
 
-    // Cleanup function to prevent logic loops
     return () => {
-      // This is called before the effect re-runs or when the component unmounts
-      // Abort any ongoing fetches when dependencies change or component unmounts
-      abortController.abort();
-      console.log('🧹 [Visibility] AbortController signal sent for cleanup.');
+      // AbortController logic handled via abortControllerRef for stability
     };
   }, [filters, topSearchFilter, topSearchMode, visibilityDatesReady]); // Wait for visibility dates before fetching
+
+  // REAL Cleanup function to handle component unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        console.log('🧹 [Visibility] Final cleanup: Aborting all fetches on unmount');
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleViewTrends = (card) => {
     console.log("card clicked", card);

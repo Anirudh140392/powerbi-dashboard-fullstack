@@ -5,8 +5,6 @@ import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheH
  * Legacy endpoint - kept for backward compatibility
  */
 export const VisibilityWorkspace = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     try {
         const filters = req.query;
         console.log("Visibility Workspace api request received", filters);
@@ -29,8 +27,6 @@ export const VisibilityWorkspace = async (req, res) => {
  * Returns: Overall SOS, Sponsored SOS, Organic SOS
  */
 export const getVisibilityOverview = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {
@@ -71,8 +67,6 @@ export const getVisibilityOverview = async (req, res) => {
  * Returns: Platform/Format/City breakdown with SOS metrics
  */
 export const getVisibilityPlatformKpiMatrix = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {
@@ -117,8 +111,6 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
  * Returns: Hierarchical keyword/SKU drill data
  */
 export const getVisibilityKeywordsAtGlance = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {
@@ -162,8 +154,6 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
  * Returns: Search terms with SOS metrics
  */
 export const getVisibilityTopSearchTerms = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {
@@ -206,8 +196,6 @@ export const getVisibilityTopSearchTerms = async (req, res) => {
  * Returns: Dynamic options based on selected filters
  */
 export const getVisibilityFilterOptions = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const params = {
@@ -244,8 +232,6 @@ export const getVisibilityFilterOptions = async (req, res) => {
  * Returns: Brand SOS metrics with delta and top losers
  */
 export const getVisibilityBrandDrilldown = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {
@@ -289,8 +275,6 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
  * Returns: Date range of the latest month with available data in rb_kw_olap table
  */
 export const getVisibilityLatestAvailableDates = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         console.log('\n========== VISIBILITY LATEST AVAILABLE DATES API ==========');
@@ -319,8 +303,6 @@ export const getVisibilityLatestAvailableDates = async (req, res) => {
  * Returns: Time series data for Overall SOS, Sponsored SOS, Organic SOS
  */
 export const getVisibilityKpiTrends = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {
@@ -363,8 +345,6 @@ export const getVisibilityKpiTrends = async (req, res) => {
  * Returns: Brands and SKUs with SOS metrics and delta values
  */
 export const getVisibilityCompetition = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {
@@ -405,8 +385,6 @@ export const getVisibilityCompetition = async (req, res) => {
  * Returns: Daily SOS trends for multiple selected brands
  */
 export const getBrandComparisonTrends = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         // Parse brands from query - can be comma-separated string or array
@@ -458,8 +436,6 @@ export const getBrandComparisonTrends = async (req, res) => {
  * Get dynamic categories specifically for Visibility Analysis
  */
 export const getVisibilityCategories = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     try {
         const { platform } = req.query;
         const categories = await visibilityService.getVisibilityCategories(platform);
@@ -474,8 +450,6 @@ export const getVisibilityCategories = async (req, res) => {
  * Get dynamic keywords specifically for Visibility Analysis
  */
 export const getVisibilityKeywords = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     try {
         const { platform, category, brand } = req.query;
         const keywords = await visibilityService.getVisibilityKeywords(platform, category, brand);
@@ -491,8 +465,6 @@ export const getVisibilityKeywords = async (req, res) => {
  * Returns distinct keyword_type values from rb_pm_olap
  */
 export const getVisibilityKeywordTypes = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     try {
         const { platform } = req.query;
         const keywordTypes = await visibilityService.getVisibilityKeywordTypes(platform);
@@ -507,8 +479,6 @@ export const getVisibilityKeywordTypes = async (req, res) => {
  * Get SKU-level Visibility Drilldown for a specific keyword
  */
 export const getVisibilitySkuDrilldown = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {
@@ -550,8 +520,6 @@ export const getVisibilitySkuDrilldown = async (req, res) => {
  * Get City-level Visibility Drilldown for a specific SKU and Keyword
  */
 export const getVisibilityCityDrilldown = async (req, res) => {
-    req.query.location = 'All';
-    req.query.cities = 'All';
     const startTime = Date.now();
     try {
         const filters = {

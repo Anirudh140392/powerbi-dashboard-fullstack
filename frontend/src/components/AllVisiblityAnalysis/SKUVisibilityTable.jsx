@@ -12,25 +12,9 @@ const getVolShare = (name) => {
     return ((seed % 900) / 10 + 2).toFixed(1);
 };
 
-const ALL_BRANDS = [
-    'Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&amp;M's", 'M&M', 'Orbit', 'Skittles', 'Boomer', 'Doublemint', // Mars
-    'Cadbury', 'Kinder', 'Ferrero', 'Nestle', 'Hershey\'s', 'Amul', 'Happydent', 'Mentos', 'Chupa Chups', 'Fabelle', 'Center fruit', 'The Whole Truth', 'Sour Punk', 'KitKat', 'Perk', 'Bournville', '5 Star', 'Munch', 'Kinder Bueno'
-];
-
 const getCorrectBrand = (skuName, brand, fallbackBrand) => {
     // If brand is a valid name (not "1" and not "Other"), use it
     if (brand && brand !== "1" && brand !== "Other") return brand;
-    
-    if (!skuName) return brand === "1" ? fallbackBrand : (brand || "Other");
-    
-    const lowerSku = skuName.toLowerCase();
-    for (const b of ALL_BRANDS) {
-        if (lowerSku.includes(b.toLowerCase())) {
-            return b;
-        }
-    }
-    
-    // Final fallback
     if (brand === "1") return fallbackBrand;
     return brand || "Other";
 };
@@ -80,7 +64,7 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                     keyword,
                     sku: skuName,
                     platform,
-                    location: 'All',
+                    location: location || 'All',
                     startDate: dayjs(timeStart).format('YYYY-MM-DD'),
                     endDate: dayjs(timeEnd).format('YYYY-MM-DD')
                 });
@@ -168,30 +152,7 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                 // We allow results regardless of topBrand if they were returned by the backend.
                 list = list;
             } else if (filter === "Competitor") {
-                const exComps = list.filter(item => item.topBrand !== brandName && item.topBrand !== "1");
-                if (exComps.length === 0) {
-                    // Inject hardcoded competitor data
-                    list = [
-                        {
-                            keyword: "Cadbury Dairy Milk", topBrand: "Cadbury", paidRank: 1, organicRank: 2, overallRank: 1,
-                            skus: [{ skuName: "Dairy Milk 100g", brand: "Cadbury", paidRank: 1, organicRank: 2, overallRank: 1 }]
-                        },
-                        {
-                            keyword: "Nestle KitKat", topBrand: "Nestle", paidRank: 3, organicRank: 1, overallRank: 2,
-                            skus: [{ skuName: "KitKat 4-Finger", brand: "Nestle", paidRank: 3, organicRank: 1, overallRank: 2 }]
-                        },
-                        {
-                            keyword: "Ferrero Rocher T16", topBrand: "Ferrero", paidRank: 2, organicRank: 5, overallRank: 3,
-                            skus: [{ skuName: "Ferrero Rocher T16 Pouch", brand: "Ferrero", paidRank: 2, organicRank: 5, overallRank: 3 }]
-                        },
-                        {
-                          keyword: "Amul Dark", topBrand: "Amul", paidRank: 0, organicRank: 7, overallRank: 7,
-                          skus: [{ skuName: "Amul Dark 50% Cocoa", brand: "Amul", paidRank: 0, organicRank: 7, overallRank: 7 }]
-                        }
-                    ];
-                } else {
-                    list = exComps;
-                }
+                list = list.filter(item => item.topBrand !== brandName && item.topBrand !== "1");
             } else if (filter === "Generic") {
                 // Since backend already filters by keyword_type=Generic when this tab is selected,
                 // we don't need to secondary filter by topBrand here, as it might hide valid results.
