@@ -43,7 +43,14 @@ import {
 const CARD_WIDTH = 380;
 const CARD_HEIGHT = 280; // Estimated height for vertical centering
 const VERTICAL_GAP = 80;
-const HORIZONTAL_STEP = 480;
+const HORIZONTAL_STEP = 550;
+
+const COMING_SOON_IDS = [
+  'sb', 'dsp', 'organic-gvs', 'seller-listing', 
+  'delivery-time', 'same-day', 'one-day', 'two-day', 'greater-two', 
+  'combo-sales', 'large-sales', 'premium-sales',
+  'sns', 'loyalty', 'new-cust'
+];
 
 const TYPO = {
   primary: "#0f172a",
@@ -110,7 +117,8 @@ const formatValue = (val, kpiLabel) => {
   }
 
   // Percent / Conversion logic
-  if (l.includes("%") || l.includes("conv") || l.includes("rate")) return `${num.toFixed(1)}%`;
+  if (l.includes("%") || l.includes("conv") || l.includes("rate") || l.includes("sov") || l.includes("cvr") || l === "conversion" || l === "cvr") return `${num.toFixed(1)}%`;
+  if (l.includes("roas")) return num.toFixed(2);
 
   // Default fallback
   return num.toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -258,7 +266,8 @@ const TrendButton = ({ onClick }) => (
  * DETAILED METRICS POPUP (Hover)
  * Shows Brand Identity table with a '+' button to drill down into Modal.
  */
-const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown }) => {
+const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown }) => {
+  const isComingSoon = COMING_SOON_IDS.includes(id);
   const isBottom = position === "bottom";
   const [activeTab, setActiveTab] = useState("gainers");
 
@@ -266,49 +275,23 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
   const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands";
   const isSkuFilterActive = selectedSku && selectedSku !== "All SKUs";
   const l = (kpiLabel || "").toLowerCase();
-  const isKeywordKpi = l.includes("impression") || l.includes("conversion") || l.includes("conv") || l.includes("keyword");
+  const isKeywordKpi = l.includes("impression") || l.includes("conversion") || l.includes("conv") || l.includes("keyword") || l.includes("cvr");
 
   let entityType = isSkuFilterActive ? "City" : isBrandFilterActive ? (isKeywordKpi ? "Keyword" : "Location") : "Brand";
 
   // Use real metrics if available (backend now provides appropriate level in metrics array)
-  let entities = [];
+  let allEntities = [];
   if (entityType === "Keyword" && keywordMetrics && keywordMetrics.length > 0) {
-    entities = keywordMetrics.map(m => m.keyword).slice(0, 12);
+    allEntities = keywordMetrics.map(m => m.keyword);
   } else if (metrics && metrics.length > 0) {
-    entities = metrics.map(m => m.brand || m.label || m.Product).filter(Boolean).slice(0, 12);
+    allEntities = metrics.map(m => m.brand || m.label || m.Product).filter(Boolean);
   } else {
-    // Fallback to mock data if no real metrics
-    const brandPrefix = selectedBrand && selectedBrand !== "All Brands" ? selectedBrand : "Brand";
-
-    if (entityType === "City" || entityType === "Location") {
-      entities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Lucknow", "Surat", "Kanpur"];
-    } else if (entityType === "Keyword") {
-      entities = [`Best ${brandPrefix}`, `${brandPrefix} reviews`, `Buy ${brandPrefix}`, `${brandPrefix} discount`, `${brandPrefix} deals`, `${brandPrefix} near me`, `${brandPrefix} price`, `Top ${brandPrefix}`];
-    } else if (entityType === "SKU") {
-      entities = [`${brandPrefix} 100g Pack`, `${brandPrefix} 250g Box`, `${brandPrefix} Single Bar`, `${brandPrefix} Multipack`, `${brandPrefix} Value Pack`, `${brandPrefix} Twin Pack`, `${brandPrefix} Family Pack`];
-    } else {
-      entities = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer", "Mars", "Skittles", "Doublemint", "M&M's", "Hubba Bubba", "Extra"];
-    }
+    // Fallback: No real metrics available
+    allEntities = [];
   }
 
-  const allRows = entities.map((name, i) => {
-    const seed = getSeedFromStr(`${category}-${kpiLabel}-${name}-${i}`);
-
-    let curVal, delta;
-    if (isKeywordKpi) {
-      // Range -2.5% to +2.5% for conversion changes
-      curVal = 5 + seed * 10;
-      delta = (seed * 5) - 2.5;
-    } else if (l.includes("discount") || l.includes("disc")) {
-      // Logical Mars discount range: 5% to 25%
-      curVal = 5 + seed * 20;
-      delta = (seed * 10) - 5;
-    } else {
-      curVal = 70 + seed * 80;
-      delta = (seed * 12) - 5;
-    }
-
-    let prevVal = curVal / (1 + delta / 100);
+  const allRows = allEntities.map((name, i) => {
+    let curVal = 0, delta = 0, prevVal = 0;
 
     // Override with REAL data if available (supports Brand, SKU, and City levels)
     if (metrics && metrics.length > 0) {
@@ -338,14 +321,38 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           curVal = match.rawListing || 0;
           prevVal = match.rawPrevListing || 0;
           delta = (curVal - prevVal); // Listing % variance in absolute points
-        } else if (l === "conversion" || l === "indexed-cvr") {
-          curVal = match.rawCvr || 0;
-          prevVal = match.rawPrevCvr || 0;
-          delta = (curVal - prevVal); // CVR variance usually absolute points
+        } else if (l === "conversion" || l === "indexed-cvr" || l === "cvr" || l === "inorganic-cvr" || l === "organic-cvr" || category === "inorganic-cvr" || category === "organic-cvr") {
+          curVal = match.rawOrgCvr || match.rawInorgCvr || match.rawCvr || 0;
+          prevVal = match.rawPrevOrgCvr || match.rawPrevInorgCvr || match.rawPrevCvr || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "availability" || l.includes("osa") || category === "availability" || category === "buybox") {
+          curVal = match.rawBuyBox || match.rawOsa || 0;
+          prevVal = match.rawPrevBuyBox || match.rawPrevOsa || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
         } else if (l.includes("discount") || l.includes("disc")) {
           curVal = match.rawDiscount || 0;
           prevVal = match.rawPrevDiscount || 0;
-          delta = (curVal - prevVal); // Discount % variance usually absolute points
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l.includes("gvs")) {
+          curVal = match.rawGvs || 0;
+          prevVal = match.rawPrevGvs || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l.includes("sov")) {
+          curVal = match.rawSov || 0;
+          prevVal = match.rawPrevSov || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l.includes("sponsored display") || category === "sd") {
+          curVal = match.rawSdGvs || 0;
+          prevVal = match.rawPrevSdGvs || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if ((l.includes("ad gvs") || l.includes("ad ")) && category === "ad") {
+          curVal = match.rawTotalAdSales || match.rawAdGvs || 0;
+          prevVal = match.rawPrevTotalAdSales || match.rawPrevAdGvs || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l.includes("sp ") || l.includes("sponsored product") || category === "sp") {
+          curVal = match.rawSpGvs || 0;
+          prevVal = match.rawPrevSpGvs || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
         }
       }
     }
@@ -375,8 +382,10 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
     };
   });
 
-  // Filter: Gainers = only positive (green), Drainers = only negative (red)
-  const filteredRows = allRows.filter(r => activeTab === "gainers" ? r.change > 0 : r.change < 0);
+  // Filter: Gainers = >=0%, Drainers = <0%
+  // Gainers: sorted descending (highest positive first)
+  // Drainers: sorted ascending (most negative first) // wait, actually ascending for negative numbers puts most negative first!
+  const filteredRows = allRows.filter(r => activeTab === "gainers" ? r.change >= 0 : r.change < 0);
   const sortedRows = [...filteredRows].sort((a, b) => activeTab === "gainers" ? b.change - a.change : a.change - b.change);
   const displayRows = sortedRows.slice(0, 5);
 
@@ -391,13 +400,27 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
         position: "absolute",
         ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
         left: "50%", transform: "translateX(-50%)",
-        width: "1500px", backgroundColor: "#fff", borderRadius: "64px",
+        width: isComingSoon ? "600px" : "1500px", backgroundColor: "#fff", borderRadius: "64px",
         padding: "0", zIndex: 100001, pointerEvents: "auto",
         boxShadow: "0 100px 200px -40px rgba(15,23,42,0.5), 0 0 120px rgba(99,102,241,0.35)",
         border: "1px solid rgba(0,0,0,0.2)", overflow: "hidden"
       }}
     >
-      <Box sx={{ p: 7, bgcolor: "#f8fafc", borderBottom: "1px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {isComingSoon ? (
+        <Box sx={{ p: 10, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          <motion.div animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 2, repeat: Infinity }}>
+            <Activity size={80} color="#6366f1" strokeWidth={1.5} />
+          </motion.div>
+          <Typography sx={{ fontSize: "42px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "8px" }}>
+            Coming Soon
+          </Typography>
+          <Typography sx={{ fontSize: "20px", fontWeight: 700, color: "#94a3b8", textTransform: 'uppercase', letterSpacing: '3px' }}>
+            Predictive Intelligence & Real-time ingestion is currently in progress
+          </Typography>
+        </Box>
+      ) : (
+        <>
+          <Box sx={{ p: 7, bgcolor: "#f8fafc", borderBottom: "1px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography sx={{ fontSize: "38px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "5px" }}>
             {entityType} Analysis: {category === "ad" ? "Ad " : category === "organic" ? "Organic " : ""}{kpiLabel} {l.includes("keyword") ? "SOS" : ""}
@@ -432,7 +455,7 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
             </TableRow>
           </TableHead>
           <TableBody>
-            {displayRows.map((r, i) => (
+            {displayRows.length > 0 ? displayRows.map((r, i) => (
               <TableRow key={i} sx={{ "&:hover": { bgcolor: "rgba(99,102,241,0.08)" }, borderBottom: i === displayRows.length - 1 ? "none" : "1px solid #f1f5f9", height: "155px" }}>
                 <TableCell align="left" sx={{ py: 0, pl: 9 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -466,7 +489,15 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
                   </Typography>
                 </TableCell>
               </TableRow>
-            ))}
+            )) : (
+              <TableRow>
+                <TableCell colSpan={4} align="center" sx={{ py: 20 }}>
+                  <Typography sx={{ fontSize: "32px", fontWeight: 700, color: "#94a3b8", textTransform: 'uppercase', letterSpacing: '4px' }}>
+                    No Data Available
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </Box>
@@ -475,6 +506,8 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           Ultra-Precision Driver Diagnostics • {canDrillDown ? "Use [+] for Deep Entity Trace" : "Absolute Ground Level Analysis"}
         </Typography>
       </Box>
+        </>
+      )}
     </motion.div>
   );
 };
@@ -482,7 +515,8 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
 /**
  * PREMIUM FULL MODAL (Click)
  */
-const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedBrand, selectedSku, selectedCategory, focusedEntity, context }) => {
+const KpiDetailModal = ({ open, onClose, id, kpiLabel, category, platform, selectedBrand, selectedSku, selectedCategory, focusedEntity, context }) => {
+  const isComingSoon = id && COMING_SOON_IDS.includes(id);
   const [page, setPage] = useState(0);
   const [activeTab, setActiveTab] = useState("gainers");
   const [expandedBrand, setExpandedBrand] = useState(null);
@@ -541,7 +575,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
         platform,
         categoryVal: category, // This is "organic" / "ad"
         category: context?.category || context?.categoryVal || 'All', // This is product category e.g. "GMFC"
-        kpiCategory: kpiLabel,
+        kpiCategory: category || kpiLabel,
         drilldownLevel: level,
         drilldownId: parentId,
         activeTab,
@@ -624,8 +658,29 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth
-      PaperProps={{ sx: { borderRadius: "20px", overflow: "hidden", boxShadow: "0 40px 80px -15px rgba(0,0,0,0.3)" } }}>
-      <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: "#fafafa", borderBottom: "1px solid #eee" }}>
+      PaperProps={{ sx: { borderRadius: "20px", overflow: "hidden", boxShadow: "0 40px 80px -15px rgba(0,0,0,0.3)", minHeight: isComingSoon ? '500px' : 'auto' } }}>
+      {isComingSoon ? (
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, p: 10, bgcolor: '#f8fafc' }}>
+          <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 3, repeat: Infinity }}>
+            <Zap size={80} color="#6366f1" fill="#6366f120" strokeWidth={1.5} />
+          </motion.div>
+          <Typography sx={{ fontSize: "48px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "10px", textAlign: 'center' }}>
+            Coming Soon
+          </Typography>
+          <Typography sx={{ fontSize: "18px", fontWeight: 700, color: "#64748b", textTransform: 'uppercase', letterSpacing: '3px', textAlign: 'center', maxWidth: '600px', lineHeight: 1.6 }}>
+            Predictive Intelligence & Real-time ingestion is currently in progress. This module is undergoing architectural optimization.
+          </Typography>
+          <Button
+            onClick={onClose}
+            variant="contained"
+            sx={{ mt: 2, px: 6, py: 1.5, borderRadius: '16px', bgcolor: '#0f172a', fontWeight: 900, '&:hover': { bgcolor: '#1e293b' } }}
+          >
+            Close
+          </Button>
+        </Box>
+      ) : (
+        <>
+          <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: "#fafafa", borderBottom: "1px solid #eee" }}>
         <Box>
           <Typography sx={{ fontSize: "22px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1.5px", color: "#0f172a" }}>
             {category === "ad" ? "Ad " : category === "organic" ? "Organic " : ""}{kpiLabel.toUpperCase()} {kpiLabel.toLowerCase().includes("keyword") ? "SOS " : ""}DIAGNOSTIC TRACE
@@ -668,7 +723,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={4} align="center" sx={{ py: 10 }}><CircularProgress /></TableCell></TableRow>
-            ) : topRows.map((row, idx) => {
+            ) : topRows.length > 0 ? topRows.map((row, idx) => {
               const isLocationLevel = hasSpecificBrand && !isKeywordDrillDown;
               const isExpanded = hasSpecificBrand ? expandedSku === row.name : expandedBrand === row.name;
               const subRows = drilldownData[row.name] || [];
@@ -764,7 +819,15 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
                   })}
                 </React.Fragment>
               );
-            })}
+            }) : (
+              <TableRow>
+                <TableCell colSpan={4} align="center" sx={{ py: 10 }}>
+                  <Typography sx={{ fontSize: "18px", fontWeight: 700, color: "#94a3b8", textTransform: 'uppercase', letterSpacing: '2px' }}>
+                    No Data Available
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </DialogContent>
@@ -781,6 +844,8 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
           "& .MuiTypography-root": { fontWeight: 800, fontSize: "12px", color: "#64748b" }
         }}
       />
+        </>
+      )}
     </Dialog>
   );
 };
@@ -862,6 +927,8 @@ const KpiNode = ({ data }) => {
     keywordMetrics,
     hoveredNodeId, // Single source of truth for global hover
   } = data;
+
+  const isComingSoon = data.id && COMING_SOON_IDS.includes(data.id);
 
   const [localHover, setLocalHover] = useState(false);
 
@@ -959,6 +1026,7 @@ const KpiNode = ({ data }) => {
       <AnimatePresence>
         {localHover && hoveredNodeId === data.id && !isDimmed && (
           <HoverMetricsPopup
+            id={data.id}
             kpiLabel={label}
             category={data.category}
             metrics={data.metrics}
@@ -1039,21 +1107,29 @@ const KpiNode = ({ data }) => {
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.8 }}>
           <Box sx={{ flex: 1 }}>
             <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Current</Typography>
-            <Typography sx={{ fontSize: "24px", color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1 }}>{value}</Typography>
+            <Typography sx={{ fontSize: isComingSoon ? "14px" : "24px", color: isComingSoon ? "#6366f1" : TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, textTransform: isComingSoon ? "uppercase" : "none" }}>
+              {isComingSoon ? "Coming Soon" : value}
+            </Typography>
           </Box>
           <Box sx={{ width: "1px", height: "35px", bgcolor: TYPO.border, mx: 2 }} />
           <Box sx={{ flex: 1 }}>
             <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Previous</Typography>
-            <Typography sx={{ fontSize: "18px", color: TYPO.secondary, fontWeight: TYPO.weightBold, lineHeight: 1 }}>{prevValue || "—"}</Typography>
+            <Typography sx={{ fontSize: "18px", color: TYPO.secondary, fontWeight: TYPO.weightBold, lineHeight: 1 }}>{isComingSoon ? "—" : (prevValue || "—")}</Typography>
           </Box>
           <Box sx={{ width: "1px", height: "35px", bgcolor: TYPO.border, mx: 2 }} />
           <Box sx={{ flex: 1, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
             <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Variance %</Typography>
-            <Box sx={{ mt: "2px" }}><DeltaBadge change={change} isPositive={isPositive} /></Box>
+            <Box sx={{ mt: "2px" }}>
+              {isComingSoon ? (
+                <Typography sx={{ fontSize: "14px", fontWeight: 800, color: "#94a3b8" }}>—</Typography>
+              ) : (
+                <DeltaBadge change={change} isPositive={isPositive} />
+              )}
+            </Box>
           </Box>
         </Box>
 
-        {meta?.length > 0 && (
+        {meta?.length > 0 && !isComingSoon && (
           <Box
             sx={{
               display: "flex",
@@ -1134,12 +1210,14 @@ const KpiNode = ({ data }) => {
 // (using global getSeedFromStr)
 
 const getDynamicRcaTreeData = (context) => {
-  const { platform, channel, category: categoryVal, brand, sku, month } = context;
+  const { platform, channel, category: categoryVal, brand, sku, month, timeStart, compareStart } = context;
 
   const isEcom = channel?.toLowerCase().includes("e-commerce") || channel?.toLowerCase().includes("ecom") || platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
 
-  // Seed for overall consistency - now including month
-  const seed = getSeedFromStr(`${platform}-${brand}-${sku}-${categoryVal || "All"}-${month || "All"}`);
+  // Seed for overall consistency - now including month and custom date ranges
+  const dateSeed = timeStart ? timeStart.format('YYYYMMDD') : (month || "All");
+  const compareSeed = compareStart ? compareStart.format('YYYYMMDD') : "None";
+  const seed = getSeedFromStr(`${platform}-${brand}-${sku}-${categoryVal || "All"}-${dateSeed}-${compareSeed}`);
 
   // Base Multipliers to differentiate entities SIGNIFICANTLY
   const getEntityBase = (name, range = 0.5, offset = 1.0) => {
@@ -1213,6 +1291,7 @@ const getDynamicRcaTreeData = (context) => {
       id: "root",
       label: "Offtake",
       value: "₹ 2.95 Cr",
+      prevValue: "₹ 1.92 Cr",
       change: "53.73%",
       isPositive: false,
       category: "offtake",
@@ -1354,7 +1433,7 @@ const getDynamicRcaTreeData = (context) => {
                       value: "9.11K",
                       change: "109.94%",
                       isPositive: true,
-                      category: "ad",
+                      category: "sd",
                       meta: [
                         { label: "SD GVs", value: "9.11K", change: "109.94%", isPositive: true },
                         { label: "Conversion", value: "13.98%", change: "24.94%", isPositive: false },
@@ -1372,7 +1451,7 @@ const getDynamicRcaTreeData = (context) => {
               value: "8.75%",
               change: "0.0%",
               isPositive: true,
-              category: "impressions",
+              category: "sov",
               meta: [{ label: "SOV", value: "8.75%" }]
             }
           ]
@@ -1381,6 +1460,7 @@ const getDynamicRcaTreeData = (context) => {
           id: "cvr",
           label: "CVR",
           value: "40.68%",
+          prevValue: "36.00%",
           change: "13.01%",
           isPositive: true,
           category: "conversion",
@@ -1507,13 +1587,7 @@ const getDynamicRcaTreeData = (context) => {
     category: "offtake",
     importance: "outcome",
     insight: rootChange.isPos ? "Volume Growth" : "Critical Decline",
-    metrics: [
-      { brand: 'Snickers', offtake: '₹66.6 lac', deltaOfftake: '-₹1.4 lac', price: '₹66.6', deltaPrice: '-₹1.4', discount: '7.1%', deltaDiscount: '0.4%', ppu: '₹122.3', deltaPpu: '-₹7.5', impressions: '19.4 lac', deltaImpressions: '-2.1 lac', conversion: '7.0%', deltaConversion: '-0.3%', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
-      { brand: 'Galaxy', offtake: '₹101.1 lac', deltaOfftake: '-₹8.4 lac', price: '₹101.1', deltaPrice: '-₹8.4', discount: '9.8%', deltaDiscount: '1.3%', ppu: '₹183.5', deltaPpu: '-₹1.8', impressions: '13.7 lac', deltaImpressions: '-4.7 K', conversion: '6.3%', deltaConversion: '-0.5%', listing: '82.1%', deltaListing: '-0.8%' },
-      { brand: 'Bounty', offtake: '₹119.7 lac', deltaOfftake: '-₹9.8 lac', price: '₹119.7', deltaPrice: '-₹9.8', discount: '11.7%', deltaDiscount: '2.0%', ppu: '₹144.3', deltaPpu: '-₹14.7', impressions: '4.1 lac', deltaImpressions: '25.9 K', conversion: '7.0%', deltaConversion: '-0.4%', listing: '78.4%', deltaListing: '2.1%' },
-      { brand: 'Twix', offtake: '₹117.9 lac', deltaOfftake: '-₹2.8 lac', price: '₹117.9', deltaPrice: '-₹2.8', discount: '5.0%', deltaDiscount: '0.6%', ppu: '₹175.1', deltaPpu: '-₹7', impressions: '30.2 K', deltaImpressions: '1.2 K', conversion: '12.7%', deltaConversion: '0.8%', listing: '91.2%', deltaListing: '-1.5%' },
-      { brand: 'Mars', offtake: '₹92.8 lac', deltaOfftake: '-₹2.1 lac', price: '₹92.8', deltaPrice: '-₹2.1', discount: '4.1%', deltaDiscount: '0.3%', ppu: '₹182.1', deltaPpu: '-₹4.1', impressions: '10.5 K', deltaImpressions: '-0.5 K', conversion: '8.5%', deltaConversion: '-0.3%', listing: '88.5%', deltaListing: '0.5%' },
-    ],
+    metrics: [],
     meta: [{ label: "Est. Category Share", value: getVal(5.1, true, seed + "catshare", 15), change: getChange("meta1").val, isPositive: getChange("meta1").isPos }],
     children: [
       {
@@ -1525,13 +1599,7 @@ const getDynamicRcaTreeData = (context) => {
         category: "price",
         importance: "primary",
         meta: [{ label: "Baseline PRICE", value: "₹ 185.0" }],
-        metrics: [
-          { brand: 'Snickers', price: '₹122.3', deltaPrice: '-₹7.5' },
-          { brand: 'Galaxy', price: '₹183.5', deltaPrice: '-₹1.8' },
-          { brand: 'Bounty', price: '₹144.3', deltaPrice: '-₹14.7' },
-          { brand: 'Twix', price: '₹175.1', deltaPrice: '-₹7.0' },
-          { brand: 'Mars', price: '₹182.1', deltaPrice: '-₹4.1' },
-        ],
+        metrics: [],
       },
       {
         id: "indexed-impressions",
@@ -1542,13 +1610,7 @@ const getDynamicRcaTreeData = (context) => {
         category: "impressions",
         importance: "primary",
         insight: impChange.isPos ? "High Visibility" : "Visibility Loss",
-        metrics: [
-          { brand: 'Snickers', impressions: '19.4 lac', deltaImpressions: '+1.2 lac' },
-          { brand: 'Galaxy', impressions: '15.2 lac', deltaImpressions: '-0.8 lac' },
-          { brand: 'Bounty', impressions: '10.1 lac', deltaImpressions: '+2.5 lac' },
-          { brand: 'Twix', impressions: '8.4 lac', deltaImpressions: '-0.3 lac' },
-          { brand: 'Mars', impressions: '7.0 lac', deltaImpressions: '+0.1 lac' },
-        ],
+        metrics: [],
         meta: [{ label: "Overall SOS", value: getVal(12.5, true, seed + "sos", 25), change: getChange("meta2").val, isPositive: getChange("meta2").isPos }],
         children: [
           {
@@ -1558,13 +1620,7 @@ const getDynamicRcaTreeData = (context) => {
             change: osaChange.val,
             isPositive: osaChange.isPos,
             category: "availability",
-            metrics: [
-              { brand: 'Snickers', osa: '82.5%', deltaOsa: '+1.2%' },
-              { brand: 'Galaxy', osa: '75.1%', deltaOsa: '-2.4%' },
-              { brand: 'Bounty', osa: '88.9%', deltaOsa: '+0.5%' },
-              { brand: 'Twix', osa: '91.2%', deltaOsa: '-1.8%' },
-              { brand: 'Mars', osa: '85.4%', deltaOsa: '+3.1%' },
-            ],
+            metrics: [],
             children: [
               {
                 id: "listing",
@@ -1573,13 +1629,16 @@ const getDynamicRcaTreeData = (context) => {
                 change: getChange("meta3").val,
                 isPositive: getChange("meta3").isPos,
                 category: "availability",
-                metrics: [
-                  { brand: 'Snickers', listing: '92.1%', deltaListing: '+1.5%' },
-                  { brand: 'Galaxy', listing: '88.4%', deltaListing: '-0.8%' },
-                  { brand: 'Bounty', listing: '85.0%', deltaListing: '+2.1%' },
-                  { brand: 'Twix', listing: '95.2%', deltaListing: '-1.2%' },
-                  { brand: 'Mars', listing: '89.7%', deltaListing: '+0.4%' },
-                ],
+                metrics: [],
+              },
+              {
+                id: "buybox",
+                label: "BuyBox%",
+                value: getVal(43.01, true, seed + "buybox", 40),
+                change: getChange("meta7").val,
+                isPositive: getChange("meta7").isPos,
+                category: "buybox",
+                metrics: [],
               }
             ]
           },
@@ -1591,13 +1650,7 @@ const getDynamicRcaTreeData = (context) => {
             isPositive: orgChange.isPos,
             category: "organic",
             insight: orgChange.isPos ? "Organic Pull" : "Low Ranking",
-            metrics: [
-              { brand: 'Snickers', organic: '12.2 lac', deltaOrganic: '+0.8 lac' },
-              { brand: 'Galaxy', organic: '8.5 lac', deltaOrganic: '-0.3 lac' },
-              { brand: 'Bounty', organic: '5.4 lac', deltaOrganic: '+0.2 lac' },
-              { brand: 'Twix', organic: '3.1 lac', deltaOrganic: '-0.1 lac' },
-              { brand: 'Mars', organic: '1.2 lac', deltaOrganic: '+0.05 lac' },
-            ],
+            metrics: [],
             meta: [{ label: "Organic SOS", value: getVal(8.5, true, seed + "orgsos", 15), change: getChange("meta4").val, isPositive: getChange("meta4").isPos }],
           },
           {
@@ -1607,23 +1660,11 @@ const getDynamicRcaTreeData = (context) => {
             change: adChange.val,
             isPositive: adChange.isPos,
             category: "ad",
-            metrics: [
-              { brand: 'Snickers', ad: '7.2 lac', deltaAd: '+0.4 lac' },
-              { brand: 'Galaxy', ad: '6.7 lac', deltaAd: '-0.5 lac' },
-              { brand: 'Bounty', ad: '4.7 lac', deltaAd: '+0.3 lac' },
-              { brand: 'Twix', ad: '5.3 lac', deltaAd: '+0.2 lac' },
-              { brand: 'Mars', ad: '5.8 lac', deltaAd: '+0.1 lac' },
-            ],
+            metrics: [],
             meta: [{ label: "Ad SOS", value: getVal(4.5, true, seed + "adsos", 10), change: getChange("meta5").val, isPositive: getChange("meta5").isPos }],
             children: [
               {
-                id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad", metrics: [
-                  { brand: 'Snickers', adComp: '3.1 lac', deltaAdComp: '-0.1 lac' },
-                  { brand: 'Galaxy', adComp: '2.7 lac', deltaAdComp: '-0.2 lac' },
-                  { brand: 'Bounty', adComp: '0.6 lac', deltaAdComp: '+0.1 lac' },
-                  { brand: 'Twix', adComp: '3.6 K', deltaAdComp: '+0.2 K' },
-                  { brand: 'Mars', adComp: '2.0 K', deltaAdComp: '-0.1 K' },
-                ]
+                id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad", metrics: []
               },
             ],
           },
@@ -1638,22 +1679,10 @@ const getDynamicRcaTreeData = (context) => {
         category: "conversion",
         importance: "outcome",
         insight: cvrChange.isPos ? "Conv. Efficacy" : "Conv. Drop",
-        metrics: [
-          { brand: 'Snickers', conversion: '7.2%', deltaConversion: '+0.5%' },
-          { brand: 'Galaxy', conversion: '6.3%', deltaConversion: '-0.2%' },
-          { brand: 'Bounty', conversion: '8.5%', deltaConversion: '+1.1%' },
-          { brand: 'Twix', conversion: '12.7%', deltaConversion: '-2.4%' },
-          { brand: 'Mars', conversion: '9.4%', deltaConversion: '+0.3%' },
-        ],
+        metrics: [],
         children: [
           {
-            id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: [
-              { brand: 'Snickers', discount: '7.1%', deltaDiscount: '+0.4%' },
-              { brand: 'Galaxy', discount: '9.8%', deltaDiscount: '+1.3%' },
-              { brand: 'Bounty', discount: '11.7%', deltaDiscount: '+2.0%' },
-              { brand: 'Twix', discount: '5.0%', deltaDiscount: '+0.6%' },
-              { brand: 'Mars', discount: '4.1%', deltaDiscount: '+0.3%' },
-            ]
+            id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: []
           },
         ],
       },
@@ -1773,6 +1802,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [hoveredNodeId, setHoveredNodeId] = useState(null);
   const [apiTreeData, setApiTreeData] = useState(null);
+  const [ecomOfftakeData, setEcomOfftakeData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
   const reactFlowInstance = useReactFlow();
@@ -1781,7 +1811,16 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [selectedKpiModalData, setSelectedKpiModalData] = useState(null);
 
   const handleKpiClick = useCallback((data) => {
+    if (COMING_SOON_IDS.includes(data.id)) {
+      // Just show a toast or nothing for now as per "click data coming soon"
+      // We'll pass a flag to the modal if needed, or just return early.
+      // The user wants click data coming soon, so maybe a separate small modal or alert.
+      // For now, let's just show an alert or prevent opening.
+      // Actually, let's let the modal open but handle 'Coming Soon' inside it.
+    }
+
     setSelectedKpiModalData({
+      id: data.id,
       label: data.label,
       category: data.category,
       platform: data.platform,
@@ -1796,14 +1835,35 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
 
   // Fetch RCA tree data from backend
   const fetchRcaData = useCallback(async () => {
-    // For ecom platforms (Amazon, Flipkart), use the hardcoded ecom tree instead of QC backend
     const platformLower = (context.platform || '').toLowerCase();
     const channelLower = (context.channel || '').toLowerCase();
     const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
 
     if (isEcom) {
-      setApiTreeData(null); // Clear any previous QC tree data so ecom tree is used
-      setLoading(false);
+      // For ecom platforms, fetch real offtake from rb_pdp_olap
+      setLoading(true);
+      setApiError(null);
+      try {
+        const params = {};
+        if (context.platform) params.platform = context.platform;
+        if (context.category && context.category !== 'All') params.category = context.category;
+        if (context.brand && context.brand !== 'All Brands' && context.brand !== 'All') params.brand = context.brand;
+        if (context.sku && context.sku !== 'All SKUs' && context.sku !== 'All') params.sku = context.sku;
+        if (context.timeStart) params.startDate = context.timeStart.format('YYYY-MM-DD');
+        if (context.timeEnd) params.endDate = context.timeEnd.format('YYYY-MM-DD');
+        if (context.compareOn && context.compareStart) {
+          params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
+          params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
+        }
+        const res = await axiosInstance.get('/ecom-offtake', { params });
+        setEcomOfftakeData(res.data || null);
+      } catch (err) {
+        console.warn('[RCATree] ecom-offtake fetch failed, using static fallback:', err.message);
+        setEcomOfftakeData(null);
+      } finally {
+        setApiTreeData(null);
+        setLoading(false);
+      }
       return;
     }
 
@@ -1845,7 +1905,8 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     context.timeEnd,
     context.compareStart,
     context.compareEnd,
-    context.compareOn
+    context.compareOn,
+    setEcomOfftakeData
   ]);
 
   useEffect(() => {
@@ -1854,13 +1915,352 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [fetchRcaData]);
 
   // Use API data if available, otherwise fall back to hardcoded.
-  const currentTreeData = useMemo(
-    () => {
-      if (apiTreeData) return apiTreeData;
-      return getDynamicRcaTreeData(context);
-    },
-    [apiTreeData, context]
-  );
+  // For ecom, patch the root node with real offtake values from the backend.
+  const currentTreeData = useMemo(() => {
+    if (apiTreeData) return apiTreeData;
+    const tree = getDynamicRcaTreeData(context);
+
+    const isEcom = (context.channel || '').toLowerCase().includes('e-commerce')
+      || (context.channel || '').toLowerCase().includes('ecom')
+      || (context.platform || '').toLowerCase() === 'amazon'
+      || (context.platform || '').toLowerCase() === 'flipkart';
+
+    if (isEcom && ecomOfftakeData) {
+      const { 
+        currFormatted, varianceStr, isPositive, totalVariancePct, 
+        currGvsFormatted, prevGvsFormatted, gvsVarianceStr, isGvsPositive,
+        currSovFormatted, prevSovFormatted, sovVarianceStr, isSovPositive,
+        brandMetrics 
+      } = ecomOfftakeData;
+
+      // Build HoverMetricsPopup-compatible metrics from real brand data
+      const realMetrics = (brandMetrics || []).map(bm => ({
+        brand: bm.brand,
+        rawOfftake: bm.rawOfftake,
+        rawPrevOfftake: bm.rawPrevOfftake,
+        rawGvs: bm.rawGvs,
+        rawPrevGvs: bm.rawPrevGvs,
+        rawSov: bm.rawSov,
+        rawPrevSov: bm.rawPrevSov
+      }));
+
+      // Patch the Ofstake root node
+      const patchedTree = {
+        ...tree,
+        value: currFormatted,
+        prevValue: ecomOfftakeData.prevFormatted,
+        change: Math.abs(totalVariancePct).toFixed(2) + '%',
+        isPositive,
+        insight: isPositive ? 'Volume Growth' : 'Critical Decline',
+        metrics: realMetrics,
+      };
+
+      // Patch children
+      if (patchedTree.children && patchedTree.children.length > 0) {
+        // CVR Node
+        const cvrNodeIndex = patchedTree.children.findIndex(c => c.id === 'cvr' || c.id === 'indexed-cvr');
+        if (cvrNodeIndex !== -1) {
+          const { currCvrFormatted, prevCvrFormatted, cvrVarianceStr, isCvrPositive } = ecomOfftakeData;
+          const cvrNodePatch = {
+            ...patchedTree.children[cvrNodeIndex],
+            value: currCvrFormatted || '0.00%',
+            prevValue: prevCvrFormatted || '--',
+            change: cvrVarianceStr || '0%',
+            isPositive: isCvrPositive,
+            metrics: (brandMetrics || []).map(bm => ({
+              brand: bm.brand,
+              rawCvr: bm.rawCvr,
+              rawPrevCvr: bm.rawPrevCvr,
+              cvrVariancePct: bm.cvrVariancePct
+            }))
+          };
+
+          // Patch Availability (child of CVR node)
+          const { currOsaFormatted, prevOsaFormatted, osaVarianceStr, isOsaPositive } = ecomOfftakeData;
+          if (cvrNodePatch.children && cvrNodePatch.children.length > 0) {
+            const availIdx = cvrNodePatch.children.findIndex(c => c.id === 'availability');
+            if (availIdx !== -1) {
+              cvrNodePatch.children = [...cvrNodePatch.children];
+              cvrNodePatch.children[availIdx] = {
+                ...cvrNodePatch.children[availIdx],
+                value: currOsaFormatted || '0.00%',
+                prevValue: prevOsaFormatted || '--',
+                change: osaVarianceStr || '0%',
+                isPositive: isOsaPositive,
+                category: 'availability',
+                metrics: (brandMetrics || []).map(bm => ({
+                  brand: bm.brand,
+                  rawOsa: bm.rawOsa,
+                  rawPrevOsa: bm.rawPrevOsa,
+                  osaVariancePct: bm.osaVariancePct
+                }))
+              };
+
+              // Patch BuyBox% (child of Availability)
+              const { currBuyBoxFormatted, prevBuyBoxFormatted, buyBoxVarStr, isBuyBoxPositive } = ecomOfftakeData;
+              const buyBoxIdx = cvrNodePatch.children[availIdx].children?.findIndex(c => c.id === 'buybox');
+              if (buyBoxIdx !== -1 && buyBoxIdx !== undefined) {
+                cvrNodePatch.children[availIdx].children = [...cvrNodePatch.children[availIdx].children];
+                cvrNodePatch.children[availIdx].children[buyBoxIdx] = {
+                  ...cvrNodePatch.children[availIdx].children[buyBoxIdx],
+                  value: currBuyBoxFormatted || '0.00%',
+                  prevValue: prevBuyBoxFormatted || '--',
+                  change: buyBoxVarStr || '0%',
+                  isPositive: isBuyBoxPositive,
+                  category: 'buybox',
+                  metrics: (brandMetrics || []).map(bm => ({
+                    brand: bm.brand,
+                    rawBuyBox: bm.rawBuyBox,
+                    rawPrevBuyBox: bm.rawPrevBuyBox,
+                    buyBoxVariancePct: bm.buyBoxVariancePct
+                  }))
+                };
+              }
+            }
+          }
+
+          // Patch Discounting% (child of CVR node)
+          const { currDiscFormatted, prevDiscFormatted, discVarianceStr, isDiscPositive } = ecomOfftakeData;
+          if (cvrNodePatch.children && cvrNodePatch.children.length > 0) {
+            const discIdx = cvrNodePatch.children.findIndex(c => c.id === 'discounting');
+            if (discIdx !== -1) {
+              cvrNodePatch.children = [...cvrNodePatch.children];
+              cvrNodePatch.children[discIdx] = {
+                ...cvrNodePatch.children[discIdx],
+                value: currDiscFormatted || '0.00%',
+                prevValue: prevDiscFormatted || '--',
+                change: discVarianceStr || '0%',
+                isPositive: isDiscPositive,
+                category: 'discounting',
+                metrics: (brandMetrics || []).map(bm => ({
+                  brand: bm.brand,
+                  rawDiscount: bm.rawDiscount,
+                  rawPrevDiscount: bm.rawPrevDiscount,
+                  discountVariancePct: bm.discountVariancePct
+                }))
+              };
+            }
+          }
+
+          // Patch Inorganic CVR (child of CVR node)
+          const { currInorgCvrFormatted, prevInorgCvrFormatted, inorgCvrVarStr, isInorgCvrPositive } = ecomOfftakeData;
+          if (cvrNodePatch.children && cvrNodePatch.children.length > 0) {
+            const inorgCvrIdx = cvrNodePatch.children.findIndex(c => c.id === 'inorganic-cvr');
+            if (inorgCvrIdx !== -1) {
+              cvrNodePatch.children = [...cvrNodePatch.children];
+              cvrNodePatch.children[inorgCvrIdx] = {
+                ...cvrNodePatch.children[inorgCvrIdx],
+                value: currInorgCvrFormatted || '0.00%',
+                prevValue: prevInorgCvrFormatted || '--',
+                change: inorgCvrVarStr || '0%',
+                isPositive: isInorgCvrPositive,
+                category: 'inorganic-cvr',
+                metrics: (brandMetrics || []).map(bm => ({
+                  brand: bm.brand,
+                  rawInorgCvr: bm.rawInorgCvr,
+                  rawPrevInorgCvr: bm.rawPrevInorgCvr,
+                  inorgCvrVariancePct: bm.inorgCvrVariancePct
+                }))
+              };
+            }
+
+            // Patch Organic CVR (child of CVR node)
+            const { currOrgCvrFormatted, prevOrgCvrFormatted, orgCvrVarStr, isOrgCvrPositive } = ecomOfftakeData;
+            const orgCvrIdx = cvrNodePatch.children.findIndex(c => c.id === 'organic-cvr');
+            if (orgCvrIdx !== -1) {
+              cvrNodePatch.children = [...cvrNodePatch.children];
+              cvrNodePatch.children[orgCvrIdx] = {
+                ...cvrNodePatch.children[orgCvrIdx],
+                value: currOrgCvrFormatted || '0.00%',
+                prevValue: prevOrgCvrFormatted || '--',
+                change: orgCvrVarStr || '0%',
+                isPositive: isOrgCvrPositive,
+                category: 'organic-cvr',
+                metrics: (brandMetrics || []).map(bm => ({
+                  brand: bm.brand,
+                  rawOrgCvr: bm.rawOrgCvr,
+                  rawPrevOrgCvr: bm.rawPrevOrgCvr,
+                  orgCvrVariancePct: bm.orgCvrVariancePct
+                }))
+              };
+            }
+          }
+
+          patchedTree.children[cvrNodeIndex] = cvrNodePatch;
+        }
+
+        // GVs Node
+        const gvsNodeIndex = patchedTree.children.findIndex(c => c.id === 'gvs' || c.id === 'impressions');
+        if (gvsNodeIndex !== -1) {
+          const gvsNode = { ...patchedTree.children[gvsNodeIndex] };
+          
+          gvsNode.value = currGvsFormatted;
+          gvsNode.prevValue = prevGvsFormatted;
+          gvsNode.change = gvsVarianceStr;
+          gvsNode.isPositive = isGvsPositive;
+          gvsNode.metrics = realMetrics;
+          gvsNode.category = "gvs";
+
+          // SOV Overall Node (Child of GVs)
+          if (gvsNode.children && gvsNode.children.length > 0) {
+            const sovNodeIndex = gvsNode.children.findIndex(c => c.id === 'sov-overall');
+            if (sovNodeIndex !== -1) {
+              gvsNode.children[sovNodeIndex] = {
+                ...gvsNode.children[sovNodeIndex],
+                value: currSovFormatted,
+                prevValue: prevSovFormatted,
+                change: sovVarianceStr,
+                isPositive: isSovPositive,
+                metrics: realMetrics,
+                category: "sov"
+              };
+            }
+          }
+
+          // Sponsored Display Node — navigate: gvsNode -> Ad GVs -> Sponsored Search -> SD
+          if (gvsNode.children && gvsNode.children.length > 1) {
+            const adGvsIdx = gvsNode.children.findIndex(c => c.id === 'ad-gvs' || c.id === 'ad-impressions');
+            if (adGvsIdx !== -1) {
+              gvsNode.children[adGvsIdx] = { ...gvsNode.children[adGvsIdx] };
+              const adGvsNode = gvsNode.children[adGvsIdx];
+
+              // Patch Ad GVs node with Aggregate Data
+              const {
+                currAdSalesFormatted, adSalesVarStr, isAdSalesPos,
+                currAdSpendFormatted, adSpendVarStr, isAdSpendPos,
+                currAdRoasFormatted, adRoasVarStr, isAdRoasPos
+              } = ecomOfftakeData;
+
+              const adMetrics = (brandMetrics || []).map(bm => ({
+                brand: bm.brand,
+                rawTotalAdSales: bm.rawTotalAdSales,
+                rawPrevTotalAdSales: bm.rawPrevTotalAdSales
+              }));
+
+              adGvsNode.value = currAdSalesFormatted || '0';
+              adGvsNode.change = adSalesVarStr || '0%';
+              adGvsNode.isPositive = isAdSalesPos;
+              adGvsNode.category = "ad";
+              adGvsNode.metrics = adMetrics;
+              adGvsNode.meta = [
+                { label: "AD Spend", value: currAdSpendFormatted || '0', change: adSpendVarStr || '0%', isPositive: isAdSpendPos },
+                { label: "Total ROAS", value: currAdRoasFormatted || '0', change: adRoasVarStr || '0%', isPositive: isAdRoasPos }
+              ];
+
+              if (adGvsNode.children && adGvsNode.children.length > 0) {
+                // Sponsored Search is the parent of SP, SB, SD
+                const ssIdx = adGvsNode.children.findIndex(c => c.id === 'sponsored-search');
+                if (ssIdx !== -1) {
+                  adGvsNode.children[ssIdx] = { ...adGvsNode.children[ssIdx] };
+                  const ssNode = adGvsNode.children[ssIdx];
+                  
+                  // Make Sponsored Search real (Sum of SP + SB + SD)
+                  ssNode.value = currAdSalesFormatted || '0'; 
+                  ssNode.change = adSalesVarStr || '0%';
+                  ssNode.isPositive = isAdSalesPos;
+                  ssNode.category = "sponsored-search";
+
+                  if (ssNode.children && ssNode.children.length > 0) {
+                    // Sponsored Display (Real)
+                    const sdIdx = ssNode.children.findIndex(c => c.id === 'sd');
+                    if (sdIdx !== -1) {
+                      const { 
+                        currSdGvsFormatted, sdGvsVarStr, isSdGvsPos,
+                        currSdSpendFormatted, sdSpendVarStr, isSdSpendPos,
+                        currSdRoasFormatted, sdRoasVarStr, isSdRoasPos
+                      } = ecomOfftakeData;
+
+                      const sdMetrics = (brandMetrics || []).map(bm => ({
+                        brand: bm.brand,
+                        rawSdGvs: bm.rawSdGvs,
+                        rawPrevSdGvs: bm.rawPrevSdGvs,
+                        sdGvsVariancePct: bm.sdGvsVariancePct,
+                        rawSdSpend: bm.rawSdSpend,
+                        rawPrevSdSpend: bm.rawPrevSdSpend,
+                        rawSdRoas: bm.rawSdRoas,
+                        rawPrevSdRoas: bm.rawPrevSdRoas,
+                        sdRoasVariancePct: bm.sdRoasVariancePct
+                      }));
+
+                      ssNode.children[sdIdx] = {
+                        ...ssNode.children[sdIdx],
+                        value: currSdGvsFormatted || '0',
+                        change: sdGvsVarStr || '0%',
+                        isPositive: isSdGvsPos,
+                        category: "sd",
+                        metrics: sdMetrics,
+                        meta: [
+                          { label: "SD GVs", value: currSdGvsFormatted || '0', change: sdGvsVarStr || '0%', isPositive: isSdGvsPos },
+                          { label: "SD ROAS", value: currSdRoasFormatted || '0', change: sdRoasVarStr || '0%', isPositive: isSdRoasPos },
+                          { label: "SD SPEND", value: currSdSpendFormatted || '0', change: sdSpendVarStr || '0%', isPositive: isSdSpendPos }
+                        ]
+                      };
+                    }
+
+                    // Sponsored Product (Swap logic from Ad GVs)
+                    const spIdx = ssNode.children.findIndex(c => c.id === 'sp');
+                    if (spIdx !== -1) {
+                      const {
+                        currSpGvsFormatted, spGvsVarStr, isSpGvsPos,
+                        currSpSpendFormatted, spSpendVarStr, isSpSpendPos,
+                        currSpRoasFormatted, spRoasVarStr, isSpRoasPos
+                      } = ecomOfftakeData;
+
+                      const spMetrics = (brandMetrics || []).map(bm => ({
+                        brand: bm.brand,
+                        rawSpGvs: bm.rawSpGvs,
+                        rawPrevSpGvs: bm.rawPrevSpGvs,
+                        spGvsVariancePct: bm.spGvsVariancePct
+                      }));
+
+                      ssNode.children[spIdx] = {
+                        ...ssNode.children[spIdx],
+                        value: currSpGvsFormatted || '0',
+                        change: spGvsVarStr || '0%',
+                        isPositive: isSpGvsPos,
+                        category: "sp",
+                        metrics: spMetrics,
+                        meta: [
+                          { label: "SP Spend", value: currSpSpendFormatted || '0', change: spSpendVarStr || '0%', isPositive: isSpSpendPos },
+                          { label: "SP ROAS", value: currSpRoasFormatted || '0', change: spRoasVarStr || '0%', isPositive: isSpRoasPos }
+                        ]
+                      };
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          patchedTree.children[gvsNodeIndex] = gvsNode;
+        }
+
+        // ASP Node
+        const aspNodeIndex = patchedTree.children.findIndex(c => c.id === 'asp');
+        if (aspNodeIndex !== -1) {
+          const { currAspFormatted, prevAspFormatted, aspVarianceStr, isAspPositive, totalAspVariancePct } = ecomOfftakeData;
+          patchedTree.children[aspNodeIndex] = {
+            ...patchedTree.children[aspNodeIndex],
+            value: currAspFormatted || '0',
+            prevValue: prevAspFormatted || '--',
+            change: aspVarianceStr || '0%',
+            isPositive: isAspPositive,
+            category: 'price',
+            metrics: (brandMetrics || []).map(bm => ({
+              brand: bm.brand,
+              rawPrice: bm.rawAsp,
+              rawPrevPrice: bm.rawPrevAsp,
+              aspVariancePct: bm.aspVariancePct
+            }))
+          };
+        }
+      }
+
+      return patchedTree;
+    }
+
+    return tree;
+  }, [apiTreeData, context, ecomOfftakeData]);
 
   const index = useMemo(() => buildIndex(currentTreeData), [currentTreeData]);
   const focusId = selectedNodeId || hoveredNodeId;
@@ -2035,6 +2435,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         <KpiDetailModal
           open={kpiModalOpen}
           onClose={() => setKpiModalOpen(false)}
+          id={selectedKpiModalData.id}
           kpiLabel={selectedKpiModalData.label}
           category={selectedKpiModalData.category}
           platform={selectedKpiModalData.platform}

@@ -192,8 +192,8 @@ const RCADashboard = () => {
         {/* Filters */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <SelectBox label="PLATFORM" value={platform} onChange={setPlatform} options={platforms} />
-          <SelectBox label="CATEGORY" value={category} onChange={setCategory} options={['All', 'Chocolates', 'Gifting', 'Bars']} />
-          <SelectBox label="BRAND" value={brand} onChange={setBrand} options={['All', 'Mars', 'Snickers', 'Galaxy']} />
+          <SelectBox label="CATEGORY" value={category} onChange={setCategory} options={['All']} />
+          <SelectBox label="BRAND" value={brand} onChange={setBrand} options={['All']} />
         </div>
 
         {/* Premium Note Badge */}

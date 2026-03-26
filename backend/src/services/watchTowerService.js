@@ -107,7 +107,12 @@ async function getWatchtowerSource() {
                 skuCode: r('sku_code'),
                 quantitySold: r('total_qty'),
                 discount: `if(${r('mrp')} > 0, (${r('mrp')} - ${r('selling_price')}) / ${r('mrp')} * 100, 0)`,
-                listingPercent: r('avg_listing_percent')
+                listingPercent: r('avg_listing_percent'),
+                gvs: r('total_Overall_GV') || r('total_gvs') || '0',
+                sov: r('avg_SOV') || r('average_sov') || r('total_sov') || '0',
+                sd_gvs: r('total_SD_GVs') || '0',
+                sd_spend: r('total_SD_Spend') || '0',
+                sd_sales: r('total_SD_Sales') || '0'
             }
         };
     }
@@ -121,9 +126,11 @@ async function getWatchtowerSource() {
     const adSpendCol = r('Ad_Spend');
     const adSalesCol = r('Ad_sales');  // ClickHouse is case-sensitive: Ad_sales not Ad_sales
     const adClicksCol = r('Ad_Clicks');
+    const impressionCol = columnExists(cols, 'impressions') ? r('impressions') : columnExists(cols, 'impression') ? r('impression') : r('Ad_Impressions');
     const adImpressionsCol = r('Ad_Impressions');
     const nenoOsaCol = r('neno_osa');
     const denoOsaCol = r('deno_osa');
+    const buyBoxNenoCol = r('buy_box_neno_osa');
     const qtySoldCol = r('Qty_Sold');
     const adQtySoldCol = r('Ad_Quantity_sold');
     const mrpCol = r('MRP');
@@ -144,15 +151,21 @@ async function getWatchtowerSource() {
         isAgg: false,
         f: {
             sales: wrap(salesCol),
+            gvs: wrap(r('Overall_GV')),
+            sov: wrap(r('SOV')),
             spend: wrap(adSpendCol),
             adSales: wrap(adSalesCol),
             clicks: wrap(adClicksCol),
-            impressions: wrap(adImpressionsCol),
-            organicImpressions: wrap(r('Organic_Impressions')),
+            impressions: wrap(impressionCol),
+            organicImpressions: '0',
             neno: wrap(nenoOsaCol),
             deno: wrap(denoOsaCol),
+            buyBoxNeno: wrap(buyBoxNenoCol),
             qty: wrap(qtySoldCol),
             orders: wrap(adQtySoldCol),
+            sd_gvs: wrap(r('SD_GVs')),
+            sd_spend: wrap(r('SD_Spend')),
+            sd_sales: wrap(r('SD_Sales')),
             mrpVal: wrap(mrpCol),
             actualSales: wrap(salesCol),
             date: dateCol,
@@ -167,6 +180,8 @@ async function getWatchtowerSource() {
             product: productCol,
             skuCode: webPidCol,
             quantitySold: qtySoldCol,
+            adQtySold: wrap(adQtySoldCol),
+            adImpressions: wrap(adImpressionsCol),
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
             listingPercent: `if(toFloat64OrZero(toString(${listingPercentCol})) > 0, toFloat64OrZero(toString(${listingPercentCol})), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`
         }
@@ -8633,6 +8648,10 @@ const getRcaData = async (filters = {}) => {
             if (sku && sku !== 'All' && sku !== 'All SKUs') {
                 conds.push(`${src.f.skuCode} = '${escapeStr(sku)}'`);
             }
+            
+            // Explicitly requested condition
+            conds.push(`Comp_flag=0`);
+
             return conds.join(' AND ');
         };
 
@@ -8954,11 +8973,17 @@ const getRcaData = async (filters = {}) => {
                     };
                 });
 
-                if (activeTab === 'gainers') results.sort((a, b) => b._delta - a._delta);
-                else results.sort((a, b) => a._delta - b._delta);
+                let filteredResults = results;
+                if (activeTab === 'gainers') {
+                    filteredResults = results.filter(r => r._delta >= 0);
+                    filteredResults.sort((a, b) => b._delta - a._delta);
+                } else if (activeTab === 'drainers') {
+                    filteredResults = results.filter(r => r._delta < 0);
+                    filteredResults.sort((a, b) => a._delta - b._delta);
+                }
 
-                console.log(`[getRcaData] Returning ${results.length} rows for level=${drilldownLevel}. Sample:`, results.slice(0, 3));
-                return { rows: results };
+                console.log(`[getRcaData] Returning ${filteredResults.length} rows for level=${drilldownLevel}. Sample:`, filteredResults.slice(0, 3));
+                return { rows: filteredResults };
             }
 
             const getDrilldownSQL = (conds, level, parentId) => {
@@ -8998,6 +9023,16 @@ const getRcaData = async (filters = {}) => {
                     else if (kpiLower.includes('generic')) flagCond = " AND toString(flag) = '0'";
                     else if (kpiLower.includes('comp')) flagCond = " AND toString(flag) = '0'";
 
+                    const platArr = normalizeFilterArray(filters.platform);
+                    const platCond = platArr && platArr.length > 0
+                        ? `AND platform_name IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
+                        : '';
+                    const catProp = filters.category && filters.category !== 'All' ? filters.category : 'All';
+                    const catCond = catProp !== 'All'
+                        ? `AND keyword_category = '${escapeStr(catProp)}'`
+                        : '';
+                    const dts = conds.match(/'(\d{4}-\d{2}-\d{2})'/g);
+
                     if (isOrganicKpi) {
                         table = 'rb_kw_olap';
                         dateCol = 'toDate(DATE)';
@@ -9014,7 +9049,8 @@ const getRcaData = async (filters = {}) => {
                         0 as avg_discount,
                         0 as avg_listing_pct
                             FROM ${table}
-                            WHERE ${dateCol} BETWEEN '${conds.match(/'(\d{4}-\d{2}-\d{2})'/g)[0].replace(/'/g, '')}' AND '${conds.match(/'(\d{4}-\d{2}-\d{2})'/g)[1].replace(/'/g, '')}'
+                            WHERE ${dateCol} BETWEEN '${dts[0].replace(/'/g, '')}' AND '${dts[1].replace(/'/g, '')}'
+                              ${platCond} ${catCond}
                               AND lower(brand) LIKE '%${escapeStr(parentId).toLowerCase()}%' ${flagCond}
                             GROUP BY name
                             ORDER BY impressions DESC
@@ -9035,10 +9071,120 @@ const getRcaData = async (filters = {}) => {
                     0 as avg_discount,
                     0 as avg_listing_pct
                         FROM ${table}
-                        WHERE ${dateCol} BETWEEN '${conds.match(/'(\d{4}-\d{2}-\d{2})'/g)[0].replace(/'/g, '')}' AND '${conds.match(/'(\d{4}-\d{2}-\d{2})'/g)[1].replace(/'/g, '')}' ${parentCond} ${flagCond}
+                        WHERE ${dateCol} BETWEEN '${dts[0].replace(/'/g, '')}' AND '${dts[1].replace(/'/g, '')}' 
+                        ${platCond} ${catCond}
+                        ${parentCond} ${flagCond}
                         GROUP BY name
                         ORDER BY impressions DESC
                         LIMIT 50
+                `;
+                }
+
+                const kpiLower = (kpiCategory || '').toLowerCase();
+                
+                if (kpiLower === 'offtake' || kpiLower === 'sales') {
+                    return `
+            SELECT 
+                        ${colName} as name,
+                SUM(${src.f.sales}) as sales,
+                SUM(${src.f.quantitySold}) as qty,
+                0 as impressions,
+                0 as organic_impressions,
+                0 as orders,
+                0 as neno,
+                0 as deno,
+                0 as avg_discount,
+                0 as avg_listing_pct,
+                0 as gvs
+                    FROM ${table}
+                    WHERE ${conds} ${parentCond}
+                    GROUP BY name
+                    ORDER BY sales DESC
+                    LIMIT 25
+                `;
+                }
+                
+                if (kpiLower === 'gvs') {
+                    return `
+            SELECT 
+                        ${colName} as name,
+                0 as sales,
+                0 as qty,
+                0 as impressions,
+                0 as organic_impressions,
+                0 as orders,
+                0 as neno,
+                0 as deno,
+                0 as buybox_neno,
+                0 as avg_discount,
+                0 as avg_listing_pct,
+                0 as ad_qty,
+                0 as ad_impressions,
+                SUM(${src.f.gvs}) as gvs,
+                0 as sov
+                    FROM ${table}
+                    WHERE ${conds} ${parentCond}
+                    AND Comp_flag=0
+                    GROUP BY name
+                    ORDER BY gvs DESC
+                    LIMIT 25
+                `;
+                }
+                
+                if (kpiLower === 'sov') {
+                    return `
+            SELECT 
+                        ${colName} as name,
+                0 as sales,
+                0 as qty,
+                0 as impressions,
+                0 as organic_impressions,
+                0 as orders,
+                0 as neno,
+                0 as deno,
+                0 as buybox_neno,
+                0 as avg_discount,
+                0 as avg_listing_pct,
+                0 as ad_qty,
+                0 as ad_impressions,
+                0 as gvs,
+                avgIf(${src.f.sov}, ${src.f.sov} > 0) as sov
+                    FROM ${table}
+                    WHERE ${conds} ${parentCond}
+                    AND Comp_flag=0
+                    GROUP BY name
+                    ORDER BY sov DESC
+                    LIMIT 25
+                `;
+                }
+
+                if (kpiLower === 'sd') {
+                    return `
+            SELECT 
+                        ${colName} as name,
+                SUM(${src.f.sd_sales}) as sales,
+                0 as qty,
+                0 as impressions,
+                0 as organic_impressions,
+                0 as orders,
+                0 as neno,
+                0 as deno,
+                0 as buybox_neno,
+                0 as ad_qty,
+                0 as ad_impressions,
+                0 as avg_discount,
+                0 as avg_listing_pct,
+                0 as gvs,
+                0 as sov,
+                SUM(${src.f.sd_gvs}) as sd_gvs,
+                SUM(${src.f.sd_spend}) as sd_spend,
+                SUM(${src.f.sd_sales}) as sd_sales
+                    FROM ${table}
+                    WHERE ${conds} ${parentCond}
+                    AND Comp_flag=0
+                    GROUP BY name
+                    ORDER BY sd_gvs DESC
+                    LIMIT 25
                 `;
                 }
 
@@ -9052,12 +9198,22 @@ const getRcaData = async (filters = {}) => {
                 SUM(${src.f.orders}) as orders,
                 SUM(${src.f.neno}) as neno,
                 SUM(${src.f.deno}) as deno,
-                AVG(CASE WHEN ${src.f.mrp} > 0 
-                                THEN(${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp} 
-                                ELSE 0 END) * 100 as avg_discount,
-                AVG(${src.f.listingPercent}) as avg_listing_pct
+                SUM(${src.f.buyBoxNeno}) as buybox_neno,
+                avgIf( ((${src.f.mrp} - ${src.f.sellingPrice}) / NULLIF(${src.f.mrp}, 0)) * 100, ${src.f.mrp} > 0 ) as avg_discount,
+                AVG(${src.f.listingPercent}) as avg_listing_pct,
+                SUM(${src.f.gvs}) as gvs,
+                avgIf(${src.f.sov}, ${src.f.sov} > 0) as sov,
+                SUM(${src.f.adQtySold}) as ad_qty,
+                SUM(${src.f.adImpressions}) as ad_impressions,
+                SUM(${src.f.sd_gvs}) as sd_gvs,
+                SUM(${src.f.sd_spend}) as sd_spend,
+                SUM(${src.f.sd_sales}) as sd_sales,
+                SUM(${src.f.clicks}) as clicks,
+                SUM(${src.f.spend}) as ad_spend,
+                SUM(${src.f.adSales}) as ad_sales
                     FROM ${table}
                     WHERE ${conds} ${parentCond}
+                    AND Comp_flag=0
                     GROUP BY name
                     ORDER BY sales DESC
                     LIMIT 25
@@ -9082,13 +9238,38 @@ const getRcaData = async (filters = {}) => {
 
                 const getVal = (obj, cat) => {
                     if (cat.includes('offtake')) return parseFloat(obj.sales || 0);
-                    if (cat.includes('price')) return (obj.qty > 0 ? obj.sales / obj.qty : 0);
+                    if (cat === 'gvs') return parseFloat(obj.gvs || 0);
+                    if (cat === 'sov') return parseFloat(obj.sov || 0);
+                    if (cat === 'sd') return parseFloat(obj.sd_gvs || 0);
+                    if (cat === 'ad') return parseFloat(obj.ad_sales || 0) + parseFloat(obj.sd_sales || 0);
+                    if (cat === 'sp' || cat === 'sponsored product') return parseFloat(obj.clicks || 0);
+                    if (cat === 'sb' || cat === 'sponsored brand') return 0; // Coming soon
+                    if (cat === 'ad_spend') return parseFloat(obj.ad_spend || 0) + parseFloat(obj.sd_spend || 0);
+                    if (cat === 'ad_roas') {
+                        const ts = (parseFloat(obj.ad_sales || 0) + parseFloat(obj.sd_sales || 0));
+                        const tsp = (parseFloat(obj.ad_spend || 0) + parseFloat(obj.sd_spend || 0));
+                        return tsp > 0 ? ts / tsp : 0;
+                    }
+                    if (cat === 'sd_spend') return parseFloat(obj.sd_spend || 0);
+                    if (cat === 'sd_roas') return (obj.sd_spend > 0 ? obj.sd_sales / obj.sd_spend : 0);
+                    if (cat.includes('price') || cat.includes('asp')) return (obj.qty > 0 ? obj.sales / obj.qty : 0);
                     if (cat.includes('organic') && cat.includes('impression')) return parseFloat(obj.organic_impressions || 0);
                     if (cat.includes('ad') && cat.includes('impression')) return parseFloat(obj.impressions || 0);
                     if (cat.includes('impression')) return parseFloat(obj.impressions || 0) + parseFloat(obj.organic_impressions || 0);
-                    if (cat.includes('conversion') || cat.includes('cvr')) return (obj.impressions > 0 ? (obj.orders / obj.impressions) * 100 : 0);
+                    if (cat.includes('conversion') || cat.includes('cvr')) {
+                        if (cat.includes('inorganic') || cat.includes('ad')) {
+                            return (obj.ad_impressions > 0 ? Math.min((obj.ad_qty / obj.ad_impressions) * 100, 100) : 0);
+                        }
+                        if (cat.includes('organic')) {
+                            const oq = Math.max(0, (obj.qty || 0) - (obj.ad_qty || 0));
+                            const oi = Math.max(0, (obj.impressions || 0) - (obj.ad_impressions || 0));
+                            return (oi > 0 ? Math.min((oq / oi) * 100, 100) : 0);
+                        }
+                        return (obj.impressions > 0 ? Math.min((obj.qty / obj.impressions) * 100, 100) : 0);
+                    }
                     if (cat.includes('keyword')) return (obj.deno > 0 ? (obj.neno / obj.deno) * 100 : 0);
-                    if (cat.includes('osa')) return (obj.deno > 0 ? (obj.neno / obj.deno) * 100 : 0);
+                    if (cat.includes('osa') || cat.includes('availability')) return (obj.deno > 0 ? (obj.neno / obj.deno) * 100 : 0);
+                    if (cat.includes('buybox')) return (obj.deno > 0 ? (obj.buybox_neno / obj.deno) * 100 : 0);
                     if (cat.includes('listing')) return parseFloat(obj.avg_listing_pct || 0);
                     if (cat.includes('discount') || cat.includes('disc')) return parseFloat(obj.avg_discount || 0);
                     return parseFloat(obj.sales || 0);
@@ -9107,11 +9288,16 @@ const getRcaData = async (filters = {}) => {
                     _delta: delta
                 };
             });
+            let filteredResults = results;
+            if (activeTab === 'gainers') {
+                filteredResults = results.filter(r => r._delta >= 0);
+                filteredResults.sort((a, b) => b._delta - a._delta);
+            } else if (activeTab === 'drainers') {
+                filteredResults = results.filter(r => r._delta < 0);
+                filteredResults.sort((a, b) => a._delta - b._delta);
+            }
 
-            if (activeTab === 'gainers') results.sort((a, b) => b._delta - a._delta);
-            else results.sort((a, b) => a._delta - b._delta);
-
-            return { rows: results };
+            return { rows: filteredResults };
         }
 
         // Execute all queries in parallel for main tree
@@ -9265,8 +9451,8 @@ const getRcaData = async (filters = {}) => {
         const pAsp = pQty > 0 ? pSales / pQty : 0;
         const cOsa = cDeno > 0 ? (cNeno / cDeno) * 100 : 0;
         const pOsa = pDeno > 0 ? (pNeno / pDeno) * 100 : 0;
-        const cCvr = cImp > 0 ? (cOrders / cImp) * 100 : 0;
-        const pCvr = pImp > 0 ? (pOrders / pImp) * 100 : 0;
+        const cCvr = cImp > 0 ? Math.min((cQty / cImp) * 100, 100) : 0;
+        const pCvr = pImp > 0 ? Math.min((pQty / pImp) * 100, 100) : 0;
         const cListing = cTotal > 0 ? (cListed / cTotal) * 100 : 0;
         const pListing = pTotal > 0 ? (pListed / pTotal) * 100 : 0;
         const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
@@ -9386,8 +9572,8 @@ const getRcaData = async (filters = {}) => {
 
             const cAspB = c.qty > 0 ? c.sales / c.qty : 0;
             const pAspB = p.qty > 0 ? p.sales / p.qty : 0;
-            const cCvrB = c.impressions > 0 ? (c.orders / c.impressions) * 100 : 0;
-            const pCvrB = p.impressions > 0 ? (p.orders / p.impressions) * 100 : 0;
+            const cCvrB = c.impressions > 0 ? Math.min((c.qty / c.impressions) * 100, 100) : 0;
+            const pCvrB = p.impressions > 0 ? Math.min((p.qty / p.impressions) * 100, 100) : 0;
             const cOsaB = c.deno > 0 ? (c.neno / c.deno) * 100 : 0;
             const pOsaB = p.deno > 0 ? (p.neno / p.deno) * 100 : 0;
 
@@ -10425,6 +10611,641 @@ const getProductCategories = async (filters = {}) => {
     }
 };
 
+/**
+ * Ecommerce Offtake Real Data
+ * Queries rb_pdp_olap.Sales for:
+ *  - Total offtake: current period & comparison period
+ *  - Brand-wise offtake: current period & comparison period
+ * Respects all left-panel filters: platform, category, brand, SKU.
+ */
+const getEcomOfftake = async (filters = {}) => {
+    try {
+        const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+
+        const { platform, category, brand, sku } = filters;
+
+        // --- Date ranges ---
+        let startDate, endDate;
+        if (filters.startDate && filters.endDate) {
+            startDate = dayjs(filters.startDate);
+            endDate   = dayjs(filters.endDate);
+        } else {
+            endDate   = await getCachedMaxDate();
+            startDate = endDate.clone().startOf('month');
+        }
+
+        let prevStartDate, prevEndDate;
+        if (filters.compareStartDate && filters.compareEndDate) {
+            prevStartDate = dayjs(filters.compareStartDate);
+            prevEndDate   = dayjs(filters.compareEndDate);
+        } else {
+            const diff    = endDate.diff(startDate, 'day') + 1;
+            prevEndDate   = startDate.subtract(1, 'day');
+            prevStartDate = prevEndDate.subtract(diff - 1, 'day');
+        }
+
+        const startStr    = startDate.format('YYYY-MM-DD');
+        const endStr      = endDate.format('YYYY-MM-DD');
+        const prevStartStr = prevStartDate.format('YYYY-MM-DD');
+        const prevEndStr  = prevEndDate.format('YYYY-MM-DD');
+
+        const src = await getWatchtowerSource();
+        const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
+
+        // Shared WHERE builder (without date range — we inject the range separately)
+        const buildConds = (sDate, eDate) => {
+            const conds = [`${dateCol} BETWEEN '${sDate}' AND '${eDate}'`];
+
+            const platArr = normalizeFilterArray(platform);
+            if (platArr && platArr.length > 0) {
+                conds.push(`${src.f.platform} IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            }
+
+            const catArr = normalizeFilterArray(category);
+            if (catArr && catArr.length > 0) {
+                conds.push(`(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            }
+
+            if (brand && brand !== 'All' && brand !== 'All Brands') {
+                conds.push(`${src.f.brand} LIKE '%${escapeStr(brand)}%'`);
+            }
+
+            if (sku && sku !== 'All' && sku !== 'All SKUs') {
+                conds.push(`${src.f.skuCode} = '${escapeStr(sku)}'`);
+            }
+
+            // Only our brands (comp_flag = 0)
+            conds.push(`Comp_flag=0`);
+
+            return conds.join(' AND ');
+        };
+
+        const currConds = buildConds(startStr, endStr);
+        const prevConds = buildConds(prevStartStr, prevEndStr);
+
+        // --- Total offtake, gvs & sov ---
+        const totalSql = `
+            SELECT
+                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sales,
+                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sales,
+                sumIf(${src.f.gvs}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_gvs,
+                sumIf(${src.f.gvs}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_gvs,
+                avgIf(${src.f.sov}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND ${src.f.sov} > 0) as curr_sov,
+                avgIf(${src.f.sov}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND ${src.f.sov} > 0) as prev_sov,
+                sumIf(${src.f.sd_gvs}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_gvs,
+                sumIf(${src.f.sd_gvs}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_gvs,
+                sumIf(${src.f.sd_spend}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_spend,
+                sumIf(${src.f.sd_spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_spend,
+                sumIf(${src.f.sd_sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_sales,
+                sumIf(${src.f.sd_sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_sales,
+                sumIf(${src.f.clicks}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_gvs,
+                sumIf(${src.f.clicks}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_gvs,
+                sumIf(${src.f.spend}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_spend,
+                sumIf(${src.f.spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_spend,
+                sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_sales,
+                sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_sales,
+                sumIf(${src.f.quantitySold}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_qty,
+                sumIf(${src.f.quantitySold}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_qty,
+                sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_impressions,
+                sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_impressions,
+                sumIf(${src.f.neno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_neno,
+                sumIf(${src.f.neno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_neno,
+                sumIf(${src.f.deno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_deno,
+                sumIf(${src.f.deno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_deno,
+                avgIf(${src.f.discount}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_discount,
+                avgIf(${src.f.discount}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_discount,
+                sumIf(${src.f.adQtySold}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_qty,
+                sumIf(${src.f.adQtySold}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_qty,
+                sumIf(${src.f.adImpressions}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_impressions,
+                sumIf(${src.f.adImpressions}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_impressions
+            FROM ${src.table}
+            WHERE (${dateCol} BETWEEN '${startStr}' AND '${endStr}' OR ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}')
+            AND Comp_flag=0
+            ${normalizeFilterArray(platform)?.length > 0 ? `AND ${src.f.platform} IN (${normalizeFilterArray(platform).map(p => `'${escapeStr(p)}'`).join(', ')})` : ''}
+            ${normalizeFilterArray(category)?.length > 0 ? `AND (${src.f.category}) IN (${normalizeFilterArray(category).map(c => `'${escapeStr(c)}'`).join(', ')})` : ''}
+            ${(brand && brand !== 'All' && brand !== 'All Brands') ? `AND ${src.f.brand} LIKE '%${escapeStr(brand)}%'` : ''}
+            ${(sku && sku !== 'All' && sku !== 'All SKUs') ? `AND ${src.f.skuCode} = '${escapeStr(sku)}'` : ''}
+        `;
+
+        // --- Brand-wise offtake, gvs & sov ---
+        const brandSql = `
+            SELECT
+                ${src.f.brand} as brand,
+                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sales,
+                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sales,
+                sumIf(${src.f.gvs}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_gvs,
+                sumIf(${src.f.gvs}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_gvs,
+                avgIf(${src.f.sov}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND ${src.f.sov} > 0) as curr_sov,
+                avgIf(${src.f.sov}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND ${src.f.sov} > 0) as prev_sov,
+                sumIf(${src.f.sd_gvs}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_gvs,
+                sumIf(${src.f.sd_gvs}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_gvs,
+                sumIf(${src.f.sd_spend}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_spend,
+                sumIf(${src.f.sd_spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_spend,
+                sumIf(${src.f.sd_sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_sales,
+                sumIf(${src.f.sd_sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_sales,
+                sumIf(${src.f.clicks}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_gvs,
+                sumIf(${src.f.clicks}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_gvs,
+                sumIf(${src.f.spend}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_spend,
+                sumIf(${src.f.spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_spend,
+                sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_sales,
+                sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_sales,
+                sumIf(${src.f.quantitySold}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_qty,
+                sumIf(${src.f.quantitySold}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_qty,
+                sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_impressions,
+                sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_impressions,
+                sumIf(${src.f.neno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_neno,
+                sumIf(${src.f.neno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_neno,
+                sumIf(${src.f.deno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_deno,
+                sumIf(${src.f.deno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_deno,
+                avgIf(${src.f.discount}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_discount,
+                avgIf(${src.f.discount}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_discount,
+                sumIf(${src.f.buyBoxNeno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_buybox_neno,
+                sumIf(${src.f.buyBoxNeno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_buybox_neno
+            FROM ${src.table}
+            WHERE (${dateCol} BETWEEN '${startStr}' AND '${endStr}' OR ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}')
+            AND Comp_flag=0
+            ${normalizeFilterArray(platform)?.length > 0 ? `AND ${src.f.platform} IN (${normalizeFilterArray(platform).map(p => `'${escapeStr(p)}'`).join(', ')})` : ''}
+            ${normalizeFilterArray(category)?.length > 0 ? `AND (${src.f.category}) IN (${normalizeFilterArray(category).map(c => `'${escapeStr(c)}'`).join(', ')})` : ''}
+            ${(brand && brand !== 'All' && brand !== 'All Brands') ? `AND ${src.f.brand} LIKE '%${escapeStr(brand)}%'` : ''}
+            ${(sku && sku !== 'All' && sku !== 'All SKUs') ? `AND ${src.f.skuCode} = '${escapeStr(sku)}'` : ''}
+            GROUP BY ${src.f.brand}
+            HAVING (curr_sales > 0 OR prev_sales > 0 OR curr_gvs > 0 OR prev_gvs > 0 OR curr_sov > 0 OR prev_sov > 0)
+            ORDER BY curr_sales DESC
+            LIMIT 100
+        `;
+
+        console.log('[getEcomOfftake] Querying total + brand-wise offtake, gvs and sov...');
+        const [totalRes, brandRes] = await Promise.all([
+            queryClickHouse(totalSql),
+            queryClickHouse(brandSql)
+        ]);
+
+        const currTotal = parseFloat(totalRes[0]?.curr_sales || 0);
+        const prevTotal = parseFloat(totalRes[0]?.prev_sales || 0);
+        const totalVariancePct = prevTotal > 0 ? ((currTotal - prevTotal) / prevTotal) * 100 : (currTotal > 0 ? 100 : 0);
+
+        const currTotalGvs = parseFloat(totalRes[0]?.curr_gvs || 0);
+        const prevTotalGvs = parseFloat(totalRes[0]?.prev_gvs || 0);
+        const totalGvsVariancePct = prevTotalGvs > 0 ? ((currTotalGvs - prevTotalGvs) / prevTotalGvs) * 100 : (currTotalGvs > 0 ? 100 : 0);
+
+        const currTotalSov = parseFloat(totalRes[0]?.curr_sov || 0);
+        const prevTotalSov = parseFloat(totalRes[0]?.prev_sov || 0);
+        const totalSovVariancePct = prevTotalSov > 0 ? ((currTotalSov - prevTotalSov) / prevTotalSov) * 100 : (currTotalSov > 0 ? 100 : 0);
+
+        const currTotalSdGvs = parseFloat(totalRes[0]?.curr_sd_gvs || 0);
+        const prevTotalSdGvs = parseFloat(totalRes[0]?.prev_sd_gvs || 0);
+        const totalSdGvsVar = prevTotalSdGvs > 0 ? ((currTotalSdGvs - prevTotalSdGvs) / prevTotalSdGvs) * 100 : (currTotalSdGvs > 0 ? 100 : 0);
+
+        const currTotalSdSpend = parseFloat(totalRes[0]?.curr_sd_spend || 0);
+        const prevTotalSdSpend = parseFloat(totalRes[0]?.prev_sd_spend || 0);
+        const totalSdSpendVar = prevTotalSdSpend > 0 ? ((currTotalSdSpend - prevTotalSdSpend) / prevTotalSdSpend) * 100 : (currTotalSdSpend > 0 ? 100 : 0);
+
+        const currTotalSdSales = parseFloat(totalRes[0]?.curr_sd_sales || 0);
+        const prevTotalSdSales = parseFloat(totalRes[0]?.prev_sd_sales || 0);
+        const currSdRoas = currTotalSdSpend > 0 ? currTotalSdSales / currTotalSdSpend : 0;
+        const prevSdRoas = prevTotalSdSpend > 0 ? prevTotalSdSales / prevTotalSdSpend : 0;
+
+        // SP Data (User said SP logic was in Ad GVs, which used clicks)
+        const currTotalSpGvs = parseFloat(totalRes[0]?.curr_ad_gvs || 0); // clicks
+        const prevTotalSpGvs = parseFloat(totalRes[0]?.prev_ad_gvs || 0);
+        const totalSpGvsVar = prevTotalSpGvs > 0 ? ((currTotalSpGvs - prevTotalSpGvs) / prevTotalSpGvs) * 100 : (currTotalSpGvs > 0 ? 100 : 0);
+
+        const currTotalSpSpend = parseFloat(totalRes[0]?.curr_ad_spend || 0);
+        const prevTotalSpSpend = parseFloat(totalRes[0]?.prev_ad_spend || 0);
+        const currTotalSpSales = parseFloat(totalRes[0]?.curr_ad_sales || 0);
+        const prevTotalSpSales = parseFloat(totalRes[0]?.prev_ad_sales || 0);
+
+        // Aggregate Ad GVs (Total Sales for node value, but clicks for labeling if consistent with legacy)
+        // Let's make Ad GVs node reflect Total Ad Sales for consistency with GVs naming
+        const currTotalAdSales = currTotalSpSales + currTotalSdSales;
+        const prevTotalAdSales = prevTotalSpSales + prevTotalSdSales;
+        const totalAdSalesVar = prevTotalAdSales > 0 ? ((currTotalAdSales - prevTotalAdSales) / prevTotalAdSales) * 100 : (currTotalAdSales > 0 ? 100 : 0);
+        
+        const currTotalAdSpend = currTotalSpSpend + currTotalSdSpend;
+        const prevTotalAdSpend = prevTotalSpSpend + prevTotalSdSpend;
+        const currTotalAdRoas = currTotalAdSpend > 0 ? currTotalAdSales / currTotalAdSpend : 0;
+        const prevTotalAdRoas = prevTotalAdSpend > 0 ? prevTotalAdSales / prevTotalAdSpend : 0;
+        const totalAdRoasVar = prevTotalAdRoas > 0 ? ((currTotalAdRoas - prevTotalAdRoas) / prevTotalAdRoas) * 100 : (currTotalAdRoas > 0 ? 100 : 0);
+        const totalAdSpendVar = prevTotalAdSpend > 0 ? ((currTotalAdSpend - prevTotalAdSpend) / prevTotalAdSpend) * 100 : (currTotalAdSpend > 0 ? 100 : 0);
+        const totalSdRoasVar = prevSdRoas > 0 ? ((currSdRoas - prevSdRoas) / prevSdRoas) * 100 : (currSdRoas > 0 ? 100 : 0);
+
+        // Keeping currTotalAdGvs as the name for the node's main value (which currently matches clicks 34.54K in image)
+        // If we want it to be aggregate clicks, we should sum it, but user didn't specify SD clicks.
+        // For now, let's keep currTotalAdGvs = total clicks (SpGvs).
+        const currTotalAdGvs = currTotalSpGvs; 
+        const prevTotalAdGvs = prevTotalSpGvs;
+        const totalAdGvsVar = prevTotalAdGvs > 0 ? ((currTotalAdGvs - prevTotalAdGvs) / prevTotalAdGvs) * 100 : (currTotalAdGvs > 0 ? 100 : 0);
+
+        const currTotalQty = parseFloat(totalRes[0]?.curr_qty || 0);
+        const prevTotalQty = parseFloat(totalRes[0]?.prev_qty || 0);
+        const currTotalImpressions = parseFloat(totalRes[0]?.curr_impressions || 0);
+        const prevTotalImpressions = parseFloat(totalRes[0]?.prev_impressions || 0);
+        const currTotalCvr = currTotalImpressions > 0 ? (currTotalQty / currTotalImpressions) * 100 : 0;
+        const prevTotalCvr = prevTotalImpressions > 0 ? (prevTotalQty / prevTotalImpressions) * 100 : 0;
+        const totalCvrVariancePct = prevTotalCvr > 0 ? ((currTotalCvr - prevTotalCvr) / prevTotalCvr) * 100 : (currTotalCvr > 0 ? 100 : 0);
+
+        // --- OSA totals ---
+        const currTotalNeno = parseFloat(totalRes[0]?.curr_neno || 0);
+        const prevTotalNeno = parseFloat(totalRes[0]?.prev_neno || 0);
+        const currTotalDeno = parseFloat(totalRes[0]?.curr_deno || 0);
+        const prevTotalDeno = parseFloat(totalRes[0]?.prev_deno || 0);
+        const currTotalOsa = currTotalDeno > 0 ? (currTotalNeno / currTotalDeno) * 100 : 0;
+        const prevTotalOsa = prevTotalDeno > 0 ? (prevTotalNeno / prevTotalDeno) * 100 : 0;
+        const totalOsaVariancePct = prevTotalOsa > 0 ? ((currTotalOsa - prevTotalOsa) / prevTotalOsa) * 100 : (currTotalOsa > 0 ? 100 : 0);
+
+        // --- Inorganic CVR totals ---
+        const currTotalAdQty = parseFloat(totalRes[0]?.curr_ad_qty || 0);
+        const prevTotalAdQty = parseFloat(totalRes[0]?.prev_ad_qty || 0);
+        const currTotalAdImps = parseFloat(totalRes[0]?.curr_ad_impressions || 0);
+        const prevTotalAdImps = parseFloat(totalRes[0]?.prev_ad_impressions || 0);
+        const currTotalInorgCvr = currTotalAdImps > 0 ? Math.min((currTotalAdQty / currTotalAdImps) * 100, 100) : 0;
+        const prevTotalInorgCvr = prevTotalAdImps > 0 ? Math.min((prevTotalAdQty / prevTotalAdImps) * 100, 100) : 0;
+        const totalInorgCvrVar = prevTotalInorgCvr > 0 ? ((currTotalInorgCvr - prevTotalInorgCvr) / prevTotalInorgCvr) * 100 : (currTotalInorgCvr > 0 ? 100 : 0);
+
+        // --- Organic CVR totals ---
+        const currTotalOrgQty = Math.max(0, currTotalQty - currTotalAdQty);
+        const prevTotalOrgQty = Math.max(0, prevTotalQty - prevTotalAdQty);
+        const currTotalOrgImps = Math.max(0, currTotalImpressions - currTotalAdImps);
+        const prevTotalOrgImps = Math.max(0, prevTotalImpressions - prevTotalAdImps);
+        const currTotalOrgCvr = currTotalOrgImps > 0 ? Math.min((currTotalOrgQty / currTotalOrgImps) * 100, 100) : 0;
+        const prevTotalOrgCvr = prevTotalOrgImps > 0 ? Math.min((prevTotalOrgQty / prevTotalOrgImps) * 100, 100) : 0;
+        const totalOrgCvrVar = prevTotalOrgCvr > 0 ? ((currTotalOrgCvr - prevTotalOrgCvr) / prevTotalOrgCvr) * 100 : (currTotalOrgCvr > 0 ? 100 : 0);
+
+        // --- BuyBox totals ---
+        const currTotalBuyBoxNeno = parseFloat(totalRes[0]?.curr_buybox_neno || 0);
+        const prevTotalBuyBoxNeno = parseFloat(totalRes[0]?.prev_buybox_neno || 0);
+        const currTotalBuyBox = currTotalDeno > 0 ? (currTotalBuyBoxNeno / currTotalDeno) * 100 : 0;
+        const prevTotalBuyBox = prevTotalDeno > 0 ? (prevTotalBuyBoxNeno / prevTotalDeno) * 100 : 0;
+        const totalBuyBoxVar = prevTotalBuyBox > 0 ? ((currTotalBuyBox - prevTotalBuyBox) / prevTotalBuyBox) * 100 : (currTotalBuyBox > 0 ? 100 : 0);
+
+        // --- Discount totals ---
+        const currTotalDisc = parseFloat(totalRes[0]?.curr_discount || 0);
+        const prevTotalDisc = parseFloat(totalRes[0]?.prev_discount || 0);
+        const totalDiscVariancePct = (currTotalDisc - prevTotalDisc); // Absolute point difference for percentages is common, but user asked for comparison. Usually for RCA we use absolute diff for % metrics or ((c-p)/p)*100. The component shows -9.45% variance which looks like percentage growth.
+        // Let's use percentage growth to be consistent with CVR/OSA.
+        const totalDiscVarianceGrowth = prevTotalDisc > 0 ? ((currTotalDisc - prevTotalDisc) / prevTotalDisc) * 100 : (currTotalDisc > 0 ? 100 : 0);
+        
+        // --- ASP totals ---
+        const currTotalAsp = currTotalQty > 0 ? currTotal / currTotalQty : 0;
+        const prevTotalAsp = prevTotalQty > 0 ? prevTotal / prevTotalQty : 0;
+        const totalAspVariancePct = prevTotalAsp > 0 ? ((currTotalAsp - prevTotalAsp) / prevTotalAsp) * 100 : (currTotalAsp > 0 ? 100 : 0);
+
+        const brandMetrics = brandRes.map(row => {
+            const curr = parseFloat(row.curr_sales || 0);
+            const prev = parseFloat(row.prev_sales || 0);
+            const variancePct = prev > 0 ? ((curr - prev) / prev) * 100 : (curr > 0 ? 100 : 0);
+
+            const currGvs = parseFloat(row.curr_gvs || 0);
+            const prevGvs = parseFloat(row.prev_gvs || 0);
+            const gvsVariancePct = prevGvs > 0 ? ((currGvs - prevGvs) / prevGvs) * 100 : (currGvs > 0 ? 100 : 0);
+
+            const currSov = parseFloat(row.curr_sov || 0);
+            const prevSov = parseFloat(row.prev_sov || 0);
+            const sovVariancePct = prevSov > 0 ? ((currSov - prevSov) / prevSov) * 100 : (currSov > 0 ? 100 : 0);
+
+            const cSdGvs = parseFloat(row.curr_sd_gvs || 0);
+            const pSdGvs = parseFloat(row.prev_sd_gvs || 0);
+            const sdGvsVar = pSdGvs > 0 ? ((cSdGvs - pSdGvs) / pSdGvs) * 100 : (cSdGvs > 0 ? 100 : 0);
+
+            const cSdSpend = parseFloat(row.curr_sd_spend || 0);
+            const pSdSpend = parseFloat(row.prev_sd_spend || 0);
+            const cSdSales = parseFloat(row.curr_sd_sales || 0);
+            const pSdSales = parseFloat(row.prev_sd_sales || 0);
+            const cSdRoas = cSdSpend > 0 ? cSdSales / cSdSpend : 0;
+            const pSdRoas = pSdSpend > 0 ? pSdSales / pSdSpend : 0;
+            const sdRoasVar = pSdRoas > 0 ? ((cSdRoas - pSdRoas) / pSdRoas) * 100 : (cSdRoas > 0 ? 100 : 0);
+
+            return {
+                brand: row.brand,
+                rawOfftake: curr,
+                rawPrevOfftake: prev,
+                variancePct,
+                rawGvs: currGvs,
+                rawPrevGvs: prevGvs,
+                gvsVariancePct,
+                rawSov: currSov,
+                rawPrevSov: prevSov,
+                sovVariancePct,
+                rawSdGvs: cSdGvs,
+                rawPrevSdGvs: pSdGvs,
+                sdGvsVariancePct: sdGvsVar,
+                rawSdSpend: cSdSpend,
+                rawPrevSdSpend: pSdSpend,
+                rawSdRoas: cSdRoas,
+                rawPrevSdRoas: pSdRoas,
+                sdRoasVariancePct: sdRoasVar,
+                rawAdGvs: parseFloat(row.curr_ad_gvs || 0),
+                rawPrevAdGvs: parseFloat(row.prev_ad_gvs || 0),
+                adGvsVariancePct: (() => { const c = parseFloat(row.curr_ad_gvs||0), p = parseFloat(row.prev_ad_gvs||0); return p > 0 ? ((c-p)/p)*100 : (c>0?100:0); })(),
+                rawAdSpend: parseFloat(row.curr_ad_spend || 0),
+                rawPrevAdSpend: parseFloat(row.prev_ad_spend || 0),
+                rawAdRoas: (() => { const sp = parseFloat(row.curr_ad_spend||0), sl = parseFloat(row.curr_ad_sales||0); return sp > 0 ? sl/sp : 0; })(),
+                rawPrevAdRoas: (() => { const sp = parseFloat(row.prev_ad_spend||0), sl = parseFloat(row.prev_ad_sales||0); return sp > 0 ? sl/sp : 0; })(),
+                adRoasVariancePct: (() => { const csp = parseFloat(row.curr_ad_spend||0), csl = parseFloat(row.curr_ad_sales||0), psp = parseFloat(row.prev_ad_spend||0), psl = parseFloat(row.prev_ad_sales||0); const cr = csp>0?csl/csp:0, pr = psp>0?psl/psp:0; return pr > 0 ? ((cr-pr)/pr)*100 : (cr>0?100:0); })(),
+                rawCvr: (() => { const q = parseFloat(row.curr_qty||0), i = parseFloat(row.curr_impressions||0); return i > 0 ? Math.min((q/i)*100, 100) : 0; })(),
+                rawPrevCvr: (() => { const q = parseFloat(row.prev_qty||0), i = parseFloat(row.prev_impressions||0); return i > 0 ? Math.min((q/i)*100, 100) : 0; })(),
+                cvrVariancePct: (() => { 
+                    const cq = parseFloat(row.curr_qty||0), ci = parseFloat(row.curr_impressions||0);
+                    const pq = parseFloat(row.prev_qty||0), pi = parseFloat(row.prev_impressions||0);
+                    const cc = ci > 0 ? (cq/ci)*100 : 0;
+                    const pc = pi > 0 ? (pq/pi)*100 : 0;
+                    return pc > 0 ? ((cc-pc)/pc)*100 : (cc > 0 ? 100 : 0);
+                })(),
+                rawOsa: (() => { const n = parseFloat(row.curr_neno||0), d = parseFloat(row.curr_deno||0); return d > 0 ? (n/d)*100 : 0; })(),
+                rawPrevOsa: (() => { const n = parseFloat(row.prev_neno||0), d = parseFloat(row.prev_deno||0); return d > 0 ? (n/d)*100 : 0; })(),
+                osaVariancePct: (() => {
+                    const cn = parseFloat(row.curr_neno||0), cd = parseFloat(row.curr_deno||0);
+                    const pn = parseFloat(row.prev_neno||0), pd = parseFloat(row.prev_deno||0);
+                    const co = cd > 0 ? (cn/cd)*100 : 0;
+                    const po = pd > 0 ? (pn/pd)*100 : 0;
+                    return po > 0 ? ((co-po)/po)*100 : (co > 0 ? 100 : 0);
+                })(),
+                rawDiscount: parseFloat(row.curr_discount || 0),
+                rawPrevDiscount: parseFloat(row.prev_discount || 0),
+                discountVariancePct: (() => {
+                    const cd = parseFloat(row.curr_discount || 0);
+                    const pd = parseFloat(row.prev_discount || 0);
+                    return pd > 0 ? ((cd - pd) / pd) * 100 : (cd > 0 ? 100 : 0);
+                })(),
+                rawInorgCvr: (() => { 
+                    const q = parseFloat(row.curr_ad_qty||0), i = parseFloat(row.curr_ad_impressions||0); 
+                    return i > 0 ? Math.min((q/i)*100, 100) : 0; 
+                })(),
+                rawPrevInorgCvr: (() => { 
+                    const q = parseFloat(row.prev_ad_qty||0), i = parseFloat(row.prev_ad_impressions||0); 
+                    return i > 0 ? Math.min((q/i)*100, 100) : 0; 
+                })(),
+                inorgCvrVariancePct: (() => {
+                    const cq = parseFloat(row.curr_ad_qty||0), ci = parseFloat(row.curr_ad_impressions||0);
+                    const pq = parseFloat(row.prev_ad_qty||0), pi = parseFloat(row.prev_ad_impressions||0);
+                    const cc = ci > 0 ? (cq/ci)*100 : 0;
+                    const pc = pi > 0 ? (pq/pi)*100 : 0;
+                    return pc > 0 ? ((cc-pc)/pc)*100 : (cc > 0 ? 100 : 0);
+                })(),
+                rawOrgCvr: (() => {
+                    const cq = parseFloat(row.curr_qty||0), caq = parseFloat(row.curr_ad_qty||0);
+                    const ci = parseFloat(row.curr_impressions||0), cai = parseFloat(row.curr_ad_impressions||0);
+                    const oq = Math.max(0, cq - caq), oi = Math.max(0, ci - cai);
+                    return oi > 0 ? Math.min((oq/oi)*100, 100) : 0;
+                })(),
+                rawPrevOrgCvr: (() => {
+                    const pq = parseFloat(row.prev_qty||0), paq = parseFloat(row.prev_ad_qty||0);
+                    const pi = parseFloat(row.prev_impressions||0), pai = parseFloat(row.prev_ad_impressions||0);
+                    const oq = Math.max(0, pq - paq), oi = Math.max(0, pi - pai);
+                    return oi > 0 ? Math.min((oq/oi)*100, 100) : 0;
+                })(),
+                orgCvrVariancePct: (() => {
+                    const cq = parseFloat(row.curr_qty||0), caq = parseFloat(row.curr_ad_qty||0);
+                    const ci = parseFloat(row.curr_impressions||0), cai = parseFloat(row.curr_ad_impressions||0);
+                    const pq = parseFloat(row.prev_qty||0), paq = parseFloat(row.prev_ad_qty||0);
+                    const pi = parseFloat(row.prev_impressions||0), pai = parseFloat(row.prev_ad_impressions||0);
+                    const coq = Math.max(0, cq - caq), coi = Math.max(0, ci - cai);
+                    const poq = Math.max(0, pq - paq), poi = Math.max(0, pi - pai);
+                    const coc = coi > 0 ? (coq/coi)*100 : 0;
+                    const poc = poi > 0 ? (poq/poi)*100 : 0;
+                    return poc > 0 ? ((coc-poc)/poc)*100 : (coc > 0 ? 100 : 0);
+                })(),
+                rawBuyBox: (() => {
+                    const n = parseFloat(row.curr_buybox_neno || 0), d = parseFloat(row.curr_deno || 0);
+                    return d > 0 ? (n / d) * 100 : 0;
+                })(),
+                rawPrevBuyBox: (() => {
+                    const n = parseFloat(row.prev_buybox_neno || 0), d = parseFloat(row.prev_deno || 0);
+                    return d > 0 ? (n / d) * 100 : 0;
+                })(),
+                buyBoxVariancePct: (() => {
+                    const cn = parseFloat(row.curr_buybox_neno || 0), cd = parseFloat(row.curr_deno || 0);
+                    const pn = parseFloat(row.prev_buybox_neno || 0), pd = parseFloat(row.prev_deno || 0);
+                    const cb = cd > 0 ? (cn / cd) * 100 : 0;
+                    const pb = pd > 0 ? (pn / pd) * 100 : 0;
+                    return pb > 0 ? ((cb - pb) / pb) * 100 : (cb > 0 ? 100 : 0);
+                })(),
+                rawAsp: (() => { const s = parseFloat(row.curr_sales || 0), q = parseFloat(row.curr_qty || 0); return q > 0 ? s / q : 0; })(),
+                rawPrevAsp: (() => { const s = parseFloat(row.prev_sales || 0), q = parseFloat(row.prev_qty || 0); return q > 0 ? s / q : 0; })(),
+                aspVariancePct: (() => {
+                    const cs = parseFloat(row.curr_sales || 0), cq = parseFloat(row.curr_qty || 0);
+                    const ps = parseFloat(row.prev_sales || 0), pq = parseFloat(row.prev_qty || 0);
+                    const ca = cq > 0 ? cs / cq : 0;
+                    const pa = pq > 0 ? ps / pq : 0;
+                    return pa > 0 ? ((ca - pa) / pa) * 100 : (ca > 0 ? 100 : 0);
+                })(),
+                rawSpGvs: parseFloat(row.curr_ad_gvs || 0), // clicks
+                rawPrevSpGvs: parseFloat(row.curr_ad_gvs || 0),
+                rawSpSpend: parseFloat(row.curr_ad_spend || 0),
+                rawPrevSpSpend: parseFloat(row.prev_ad_spend || 0),
+                spGvsVariancePct: (() => {
+                    const c = parseFloat(row.curr_ad_gvs || 0), p = parseFloat(row.prev_ad_gvs || 0);
+                    return p > 0 ? ((c - p) / p) * 100 : (c > 0 ? 100 : 0);
+                })(),
+                rawTotalAdSales: parseFloat(row.curr_ad_sales || 0) + parseFloat(row.curr_sd_sales || 0),
+                rawPrevTotalAdSales: parseFloat(row.prev_ad_sales || 0) + parseFloat(row.prev_sd_sales || 0)
+            };
+        });
+
+        const formatLacLocal = (val) => {
+            const v = parseFloat(val);
+            if (isNaN(v)) return '₹0';
+            if (v >= 10000000) return `₹ ${(v / 10000000).toFixed(2)} Cr`;
+            if (v >= 100000)   return `₹ ${(v / 100000).toFixed(2)} Lac`;
+            if (v >= 1000)     return `₹ ${(v / 1000).toFixed(2)} K`;
+            return `₹ ${v.toFixed(0)}`;
+        };
+
+        const formatUnitsLocal = (val) => {
+            const v = parseFloat(val);
+            if (isNaN(v)) return '0';
+            if (v >= 10000000) return `${(v / 10000000).toFixed(2)} Cr`;
+            if (v >= 100000)   return `${(v / 100000).toFixed(2)} Lac`;
+            if (v >= 1000)     return `${(v / 1000).toFixed(2)} K`;
+            return `${v.toFixed(0)}`;
+        };
+
+        const formatPctLocal = (val) => {
+            const v = parseFloat(val);
+            if (isNaN(v)) return '0.00%';
+            return `${v.toFixed(2)}%`;
+        };
+
+        return {
+            currTotal,
+            prevTotal,
+            totalVariancePct,
+            currFormatted: formatLacLocal(currTotal),
+            prevFormatted: formatLacLocal(prevTotal),
+            varianceStr: (totalVariancePct >= 0 ? '+' : '') + totalVariancePct.toFixed(2) + '%',
+            isPositive: totalVariancePct >= 0,
+
+            // CVR Data
+            currTotalCvr,
+            prevTotalCvr,
+            totalCvrVariancePct,
+            currCvrFormatted: formatPctLocal(currTotalCvr),
+            prevCvrFormatted: formatPctLocal(prevTotalCvr),
+            cvrVarianceStr: (totalCvrVariancePct >= 0 ? '+' : '') + totalCvrVariancePct.toFixed(2) + '%',
+            isCvrPositive: totalCvrVariancePct >= 0,
+
+            // OSA Data
+            currTotalOsa,
+            prevTotalOsa,
+            totalOsaVariancePct,
+            currOsaFormatted: formatPctLocal(currTotalOsa),
+            prevOsaFormatted: formatPctLocal(prevTotalOsa),
+            osaVarianceStr: (totalOsaVariancePct >= 0 ? '+' : '') + totalOsaVariancePct.toFixed(2) + '%',
+            isOsaPositive: totalOsaVariancePct >= 0,
+
+            // Discount Data
+            currTotalDisc,
+            prevTotalDisc,
+            totalDiscVarianceGrowth,
+            currDiscFormatted: formatPctLocal(currTotalDisc),
+            prevDiscFormatted: formatPctLocal(prevTotalDisc),
+            discVarianceStr: (totalDiscVarianceGrowth >= 0 ? '+' : '') + totalDiscVarianceGrowth.toFixed(2) + '%',
+            isDiscPositive: totalDiscVarianceGrowth >= 0,
+
+            // Inorganic CVR Data
+            currTotalInorgCvr,
+            prevTotalInorgCvr,
+            totalInorgCvrVar,
+            currInorgCvrFormatted: formatPctLocal(currTotalInorgCvr),
+            prevInorgCvrFormatted: formatPctLocal(prevTotalInorgCvr),
+            inorgCvrVarStr: (totalInorgCvrVar >= 0 ? '+' : '') + totalInorgCvrVar.toFixed(2) + '%',
+            isInorgCvrPositive: totalInorgCvrVar >= 0,
+
+            // Organic CVR Data
+            currTotalOrgCvr,
+            prevTotalOrgCvr,
+            totalOrgCvrVar,
+            currOrgCvrFormatted: formatPctLocal(currTotalOrgCvr),
+            prevOrgCvrFormatted: formatPctLocal(prevTotalOrgCvr),
+            orgCvrVarStr: (totalOrgCvrVar >= 0 ? '+' : '') + totalOrgCvrVar.toFixed(2) + '%',
+            isOrgCvrPositive: totalOrgCvrVar >= 0,
+
+            // BuyBox Data
+            currTotalBuyBox,
+            prevTotalBuyBox,
+            totalBuyBoxVar,
+            currBuyBoxFormatted: formatPctLocal(currTotalBuyBox),
+            prevBuyBoxFormatted: formatPctLocal(prevTotalBuyBox),
+            buyBoxVarStr: (totalBuyBoxVar >= 0 ? '+' : '') + totalBuyBoxVar.toFixed(2) + '%',
+            isBuyBoxPositive: totalBuyBoxVar >= 0,
+
+            // ASP Data
+            currTotalAsp,
+            prevTotalAsp,
+            totalAspVariancePct,
+            currAspFormatted: `₹ ${currTotalAsp.toFixed(2)}`,
+            prevAspFormatted: `₹ ${prevTotalAsp.toFixed(2)}`,
+            aspVarianceStr: (totalAspVariancePct >= 0 ? '+' : '') + totalAspVariancePct.toFixed(2) + '%',
+            isAspPositive: totalAspVariancePct >= 0,
+            
+            // GVs Data
+            currTotalGvs,
+            prevTotalGvs,
+            totalGvsVariancePct,
+            currGvsFormatted: formatUnitsLocal(currTotalGvs),
+            prevGvsFormatted: formatUnitsLocal(prevTotalGvs),
+            gvsVarianceStr: (totalGvsVariancePct >= 0 ? '+' : '') + totalGvsVariancePct.toFixed(2) + '%',
+            isGvsPositive: totalGvsVariancePct >= 0,
+
+            // SOV Data
+            currTotalSov,
+            prevTotalSov,
+            totalSovVariancePct,
+            currSovFormatted: formatPctLocal(currTotalSov),
+            prevSovFormatted: formatPctLocal(prevTotalSov),
+            sovVarianceStr: (totalSovVariancePct >= 0 ? '+' : '') + totalSovVariancePct.toFixed(2) + '%',
+            isSovPositive: totalSovVariancePct >= 0,
+
+            // SD Data
+            currTotalSdGvs,
+            prevTotalSdGvs,
+            totalSdGvsVar,
+            currSdGvsFormatted: formatUnitsLocal(currTotalSdGvs),
+            prevSdGvsFormatted: formatUnitsLocal(prevTotalSdGvs),
+            sdGvsVarStr: (totalSdGvsVar >= 0 ? '+' : '') + totalSdGvsVar.toFixed(2) + '%',
+            isSdGvsPos: totalSdGvsVar >= 0,
+
+            currTotalSdSpend,
+            prevTotalSdSpend,
+            totalSdSpendVar,
+            currSdSpendFormatted: formatLacLocal(currTotalSdSpend),
+            prevSdSpendFormatted: formatLacLocal(prevTotalSdSpend),
+            sdSpendVarStr: (totalSdSpendVar >= 0 ? '+' : '') + totalSdSpendVar.toFixed(2) + '%',
+            isSdSpendPos: totalSdSpendVar >= 0,
+
+            currSdRoas,
+            prevSdRoas,
+            totalSdRoasVar,
+            currSdRoasFormatted: currSdRoas.toFixed(2),
+            prevSdRoasFormatted: prevSdRoas.toFixed(2),
+            sdRoasVarStr: (totalSdRoasVar >= 0 ? '+' : '') + totalSdRoasVar.toFixed(2) + '%',
+            isSdRoasPos: totalSdRoasVar >= 0,
+
+            currTotalAdRoas,
+            prevTotalAdRoas,
+            totalAdRoasVar,
+            currAdRoasFormatted: currTotalAdRoas.toFixed(2),
+            prevAdRoasFormatted: prevTotalAdRoas.toFixed(2),
+            adRoasVarStr: (totalAdRoasVar >= 0 ? '+' : '') + totalAdRoasVar.toFixed(2) + '%',
+            isAdRoasPos: totalAdRoasVar >= 0,
+
+            // Ad Sales (Aggregate)
+            currTotalAdSales,
+            prevTotalAdSales,
+            totalAdSalesVar,
+            currAdSalesFormatted: formatLacLocal(currTotalAdSales),
+            prevAdSalesFormatted: formatLacLocal(prevTotalAdSales),
+            adSalesVarStr: (totalAdSalesVar >= 0 ? '+' : '') + totalAdSalesVar.toFixed(2) + '%',
+            isAdSalesPos: totalAdSalesVar >= 0,
+
+            // SP Data
+            currTotalSpGvs,
+            prevTotalSpGvs,
+            totalSpGvsVar,
+            currSpGvsFormatted: formatUnitsLocal(currTotalSpGvs),
+            prevSpGvsFormatted: formatUnitsLocal(prevTotalSpGvs),
+            spGvsVarStr: (totalSpGvsVar >= 0 ? '+' : '') + totalSpGvsVar.toFixed(2) + '%',
+            isSpGvsPos: totalSpGvsVar >= 0,
+
+            currTotalSpSpend,
+            prevTotalSpSpend,
+            totalSpSpendVar,
+            currSpSpendFormatted: formatLacLocal(currTotalSpSpend),
+            prevSpSpendFormatted: formatLacLocal(prevTotalSpSpend),
+            spSpendVarStr: (totalSpSpendVar >= 0 ? '+' : '') + totalSpSpendVar.toFixed(2) + '%',
+            isSpSpendPos: totalSpSpendVar >= 0,
+
+            currSpRoas: currTotalSpSpend > 0 ? currTotalSpSales / currTotalSpSpend : 0,
+            prevSpRoas: prevTotalSpSpend > 0 ? prevTotalSpSales / prevTotalSpSpend : 0,
+            spRoasVarStr: (() => {
+                const c = currTotalSpSpend > 0 ? currTotalSpSales / currTotalSpSpend : 0;
+                const p = prevTotalSpSpend > 0 ? prevTotalSpSales / prevTotalSpSpend : 0;
+                const v = p > 0 ? ((c - p) / p) * 100 : (c > 0 ? 100 : 0);
+                return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+            })(),
+            isSpRoasPos: (() => {
+                const c = currTotalSpSpend > 0 ? currTotalSpSales / currTotalSpSpend : 0;
+                const p = prevTotalSpSpend > 0 ? prevTotalSpSales / prevTotalSpSpend : 0;
+                return c >= p;
+            })(),
+            currSpRoasFormatted: (currTotalSpSpend > 0 ? currTotalSpSales / currTotalSpSpend : 0).toFixed(2),
+
+            currAdRoas,
+            prevAdRoas,
+            totalAdRoasVar,
+            currAdRoasFormatted: currAdRoas.toFixed(2),
+            prevAdRoasFormatted: prevAdRoas.toFixed(2),
+            adRoasVarStr: (totalAdRoasVar >= 0 ? '+' : '') + totalAdRoasVar.toFixed(2) + '%',
+            isAdRoasPos: totalAdRoasVar >= 0,
+
+            brandMetrics
+        };
+    } catch (error) {
+        console.error('[getEcomOfftake] Error:', error);
+        throw error;
+    }
+};
+
 export default {
     getSummaryMetrics,
     getTrendData,
@@ -10455,5 +11276,6 @@ export default {
     getPerformanceBreakdownData,
     getProducts,
     getProductCategories,
-    getChannels
+    getChannels,
+    getEcomOfftake
 };

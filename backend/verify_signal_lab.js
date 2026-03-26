@@ -42,6 +42,7 @@ async function testSignalLab() {
             ORDER BY sortMetric ${direction}
             LIMIT 4 OFFSET 0
         `;
+        console.log("hat saale")
 
         console.log(`\n--- Testing ${signalType} ---`);
         console.log('Query:', skuQuery);

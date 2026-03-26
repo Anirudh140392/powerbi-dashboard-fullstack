@@ -866,7 +866,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     }
                     if (kpiRows.doi.breakdown[col_value]) {
                         const drr = parseFloat(doi_total_qty_sold) / 30;
-                        const doi = drr > 0 ? parseFloat(latest_inventory) / drr : 0;
+                        const doi = drr > 0 ? parseFloat(latest_inventory) / drr : 100;
                         kpiRows.doi.breakdown[col_value][item] = parseFloat(doi.toFixed(1));
                     }
                     if (kpiRows.psl.breakdown[col_value]) {
