@@ -1188,6 +1188,11 @@ export default function PricingAnalysisData() {
     return params;
   };
 
+  // Refs for tracking and cancelling requests
+  const abortControllerRef = useRef(null);
+  const lastFetchedFiltersRef = useRef(null);
+
+
   // ECP Comparison state
   const [ecpData, setEcpData] = useState([]);
   const [ecpLoading, setEcpLoading] = useState(true); // Start with loading state
@@ -1216,212 +1221,6 @@ export default function PricingAnalysisData() {
   const [pricingKpiData, setPricingKpiData] = useState(null);
   const [pricingKpiLoading, setPricingKpiLoading] = useState(true);
 
-  // Filter Dependency Array Helper
-  const filterDeps = [globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, filters.brand, timeStart, timeEnd, datesInitialized];
-  const compareFilterDeps = [...filterDeps, compareStart, compareEnd];
-
-  // Fetch Pricing KPIs
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchPricingKpis = async () => {
-      setPricingKpiLoading(true);
-      try {
-        const params = buildQueryParams(false);
-
-        console.log("[PricingAnalysisData] Fetching Pricing KPIs with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/kpis', { params });
-
-        if (response.data?.success && response.data?.data) {
-          setPricingKpiData(response.data.data);
-        } else {
-          setPricingKpiData(null);
-        }
-      } catch (error) {
-        console.error("Error fetching Pricing KPIs:", error);
-        setPricingKpiData(null);
-      } finally {
-        setPricingKpiLoading(false);
-      }
-    };
-
-    fetchPricingKpis();
-  }, filterDeps);
-
-  // Fetch ECP comparison data when filters change
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchEcpComparison = async () => {
-      setEcpLoading(true);
-      try {
-        const params = buildQueryParams(true);
-
-        console.log("[PricingAnalysisData] Fetching ECP comparison with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/ecp-comparison', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] ECP data received:", response.data.data.length, "items");
-          setEcpData(response.data.data);
-        } else {
-          setEcpData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching ECP comparison data:", error);
-        setEcpData([]);
-      } finally {
-        setEcpLoading(false);
-      }
-    };
-
-    fetchEcpComparison();
-  }, compareFilterDeps);
-
-  // Fetch ECP by Brand data when filters change
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchEcpByBrand = async () => {
-      setEcpByBrandLoading(true);
-      try {
-        const params = buildQueryParams(false);
-
-        console.log("[PricingAnalysisData] Fetching ECP by Brand with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/ecp-by-brand', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] ECP by Brand data received:", response.data.data.length, "items");
-          setEcpByBrandData(response.data.data);
-        } else {
-          setEcpByBrandData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching ECP by Brand data:", error);
-        setEcpByBrandData([]);
-      } finally {
-        setEcpByBrandLoading(false);
-      }
-    };
-
-    fetchEcpByBrand();
-  }, filterDeps);
-
-  // Fetch Brand Price Overview data when page loads/dates change or platform filter changes
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchBrandPriceOverview = async () => {
-      setBrandPriceOverviewLoading(true);
-      try {
-        const params = buildQueryParams(false);
-
-        console.log("[PricingAnalysisData] Fetching Brand Price Overview with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/brand-price-overview', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] Brand Price Overview data received:", response.data.data.length, "items");
-          setBrandPriceOverviewData(response.data.data);
-        } else {
-          setBrandPriceOverviewData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching Brand Price Overview data:", error);
-        setBrandPriceOverviewData([]);
-      } finally {
-        setBrandPriceOverviewLoading(false);
-      }
-    };
-
-    fetchBrandPriceOverview();
-  }, filterDeps);
-
-  // Fetch One View Price Grid data when page loads/dates/platform change
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchOneViewPriceGrid = async () => {
-      setOneViewPriceGridLoading(true);
-      try {
-        const params = buildQueryParams(false);
-
-        console.log("[PricingAnalysisData] Fetching One View Price Grid with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/one-view-price-grid', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] One View Price Grid data received:", response.data.data.length, "items");
-          setOneViewPriceGridData(response.data.data);
-        } else {
-          setOneViewPriceGridData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching One View Price Grid data:", error);
-        setOneViewPriceGridData([]);
-      } finally {
-        setOneViewPriceGridLoading(false);
-      }
-    };
-
-    fetchOneViewPriceGrid();
-  }, filterDeps);
-
-  // Fetch Brand Discount Trend data for Price Intelligence chart
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchBrandDiscountTrend = async () => {
-      setBrandDiscountTrendLoading(true);
-      try {
-        const params = buildQueryParams(false);
-
-        console.log("[PricingAnalysisData] Fetching Brand Discount Trend with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/brand-discount-trend', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] Brand Discount Trend data received:", response.data.data);
-          setBrandDiscountTrendData(response.data.data);
-        } else {
-          setBrandDiscountTrendData({ months: [], series: [] });
-        }
-      } catch (error) {
-        console.error("Error fetching Brand Discount Trend data:", error);
-        setBrandDiscountTrendData({ months: [], series: [] });
-      } finally {
-        setBrandDiscountTrendLoading(false);
-      }
-    };
-
-    fetchBrandDiscountTrend();
-  }, filterDeps);
-
-  // Fetch ECP by City data when filters change
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchEcpByCity = async () => {
-      setEcpByCityLoading(true);
-      try {
-        const params = buildQueryParams(false);
-
-        console.log("[PricingAnalysisData] Fetching ECP by City with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/ecp-by-city', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] ECP by City data received:", response.data.data.length, "items");
-          setEcpByCityData(response.data.data);
-        } else {
-          setEcpByCityData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching ECP by City data:", error);
-        setEcpByCityData([]);
-      } finally {
-        setEcpByCityLoading(false);
-      }
-    };
-
-    fetchEcpByCity();
-  }, filterDeps);
-
   // Discount Trend state
   const [discountTrendData, setDiscountTrendData] = useState([]);
   const [discountTrendLoading, setDiscountTrendLoading] = useState(true);
@@ -1429,38 +1228,132 @@ export default function PricingAnalysisData() {
   const [categoryLoading, setCategoryLoading] = useState({}); // { [category]: boolean }
   const [discountPlatforms, setDiscountPlatforms] = useState([]); // Dynamic platforms from API
 
-  // Fetch discount by category data when page loads
+  // Filter Dependency Array Helper
+  const filterDeps = [globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, filters.brand, timeStart, timeEnd, datesInitialized];
+  const compareFilterDeps = [...filterDeps, compareStart, compareEnd];
+
+  // Unified Fetcher for all segments to prevent race conditions and redundant renders
   useEffect(() => {
     if (!datesInitialized) return;
 
-    const fetchDiscountByCategory = async () => {
+    // Build the query params and a stable key for dependency tracking
+    const params = buildQueryParams(true);
+    const filterKey = JSON.stringify(params);
+
+    // Skip if we already fetched with these exact filters
+    if (lastFetchedFiltersRef.current === filterKey) return;
+
+    // Abort any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    lastFetchedFiltersRef.current = filterKey;
+
+    const fetchData = async () => {
+      // Set all loading states
+      setPricingKpiLoading(true);
+      setEcpLoading(true);
+      setEcpByBrandLoading(true);
+      setBrandPriceOverviewLoading(true);
+      setOneViewPriceGridLoading(true);
+      setBrandDiscountTrendLoading(true);
+      setEcpByCityLoading(true);
       setDiscountTrendLoading(true);
+
+      const signal = abortController.signal;
+
       try {
-        const params = buildQueryParams(false);
+        console.log("[PricingAnalysisData] Fetching all segments in parallel...");
+        
+        const fetchers = [
+          // 0: KPIs
+          axiosInstance.get('/pricing-analysis/kpis', { params, signal }),
+          // 1: ECP Comparison
+          axiosInstance.get('/pricing-analysis/ecp-comparison', { params, signal }),
+          // 2: ECP by Brand
+          axiosInstance.get('/pricing-analysis/ecp-by-brand', { params: buildQueryParams(false), signal }),
+          // 3: Brand Price Overview
+          axiosInstance.get('/pricing-analysis/brand-price-overview', { params: buildQueryParams(false), signal }),
+          // 4: One View Grid
+          axiosInstance.get('/pricing-analysis/one-view-price-grid', { params: buildQueryParams(false), signal }),
+          // 5: Brand Discount Trend
+          axiosInstance.get('/pricing-analysis/brand-discount-trend', { params: buildQueryParams(false), signal }),
+          // 6: ECP by City
+          axiosInstance.get('/pricing-analysis/ecp-by-city', { params: buildQueryParams(false), signal }),
+          // 7: Discount by Category
+          axiosInstance.get('/pricing-analysis/discount-by-category', { params: buildQueryParams(false), signal })
+        ];
 
-        console.log("[PricingAnalysisData] Fetching discount by category with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/discount-by-category', { params });
+        const results = await Promise.allSettled(fetchers);
 
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] Discount by category data received:", response.data.data.length, "items");
-          console.log("[PricingAnalysisData] Available platforms:", response.data.platforms);
-          setDiscountTrendData(response.data.data);
-          setDiscountPlatforms(response.data.platforms || []);
-        } else {
-          setDiscountTrendData([]);
-          setDiscountPlatforms([]);
-        }
+        // Process results
+        results.forEach((result, idx) => {
+          if (result.status === 'rejected') {
+            if (axiosInstance.isCancel(result.reason)) return;
+            console.error(`Error fetching segment ${idx}:`, result.reason);
+          }
+
+          const data = result.value?.data;
+          
+          switch(idx) {
+            case 0: // KPIs
+              setPricingKpiData(data?.success ? data.data : null);
+              setPricingKpiLoading(false);
+              break;
+            case 1: // ECP Comparison
+              setEcpData(data?.success ? data.data : []);
+              setEcpLoading(false);
+              break;
+            case 2: // ECP by Brand
+              setEcpByBrandData(data?.success ? data.data : []);
+              setEcpByBrandLoading(false);
+              break;
+            case 3: // Brand Price Overview
+              setBrandPriceOverviewData(data?.success ? data.data : []);
+              setBrandPriceOverviewLoading(false);
+              break;
+            case 4: // One View Grid
+              setOneViewPriceGridData(data?.success ? data.data : []);
+              setOneViewPriceGridLoading(false);
+              break;
+            case 5: // Brand Discount Trend
+              setBrandDiscountTrendData(data?.success ? data.data : { months: [], series: [] });
+              setBrandDiscountTrendLoading(false);
+              break;
+            case 6: // ECP by City
+              setEcpByCityData(data?.success ? data.data : []);
+              setEcpByCityLoading(false);
+              break;
+            case 7: // Discount by Category
+              if (data?.success) {
+                setDiscountTrendData(data.data || []);
+                setDiscountPlatforms(data.platforms || []);
+              } else {
+                setDiscountTrendData([]);
+                setDiscountPlatforms([]);
+              }
+              setDiscountTrendLoading(false);
+              break;
+          }
+        });
       } catch (error) {
-        console.error("Error fetching discount by category data:", error);
-        setDiscountTrendData([]);
-        setDiscountPlatforms([]);
-      } finally {
-        setDiscountTrendLoading(false);
+        if (!axiosInstance.isCancel(error)) {
+          console.error("Critical error in Pricing parallel fetch:", error);
+          lastFetchedFiltersRef.current = null;
+        }
       }
     };
 
-    fetchDiscountByCategory();
-  }, filterDeps);
+    fetchData();
+
+    return () => {
+      // Logic handled via ref for stability across fast interactions
+    };
+  }, compareFilterDeps);
+
 
   // Fetch brand-level discount data for a specific category
   const fetchDiscountByBrand = async (category) => {
