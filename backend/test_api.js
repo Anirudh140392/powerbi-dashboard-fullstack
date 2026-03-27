@@ -1,18 +1,19 @@
-import fetch from 'node-fetch';
 
-async function test() {
+import axios from 'axios';
+
+async function testApi() {
     try {
-        const res = await fetch('http://localhost:5000/api/watchtower/competition-brand-trends?platform=Blinkit&location=All&brands=Amul&skus=All&category=All&period=1M&timeStep=Daily');
-        const data = await res.json();
-        
-        if (data.brands && data.brands.Amul) {
-            console.log('Amul SOS first 5 days:', data.brands.Amul.slice(0, 5).map(i => i.sos));
-            console.log('Amul target_sales first 5 days:', data.brands.Amul.slice(0, 5).map(i => i.target_sales));
-        } else {
-            console.log('No data for Amul');
-        }
-    } catch(e) {
-        console.error(e);
+        const res = await axios.get('http://localhost:3000/api/ecom-offtake', {
+            params: {
+                platform: 'Instamart',
+                month: '2026-03-01'
+            }
+        });
+        console.log("API Success:", res.data.currFormatted, res.data.prevFormatted);
+    } catch (err) {
+        console.error("API Failed with status:", err.response?.status);
+        console.error("Error data:", JSON.stringify(err.response?.data, null, 2));
     }
 }
-test();
+
+testApi();

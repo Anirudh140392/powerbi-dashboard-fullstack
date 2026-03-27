@@ -162,10 +162,14 @@ async function getWatchtowerSource() {
             deno: wrap(denoOsaCol),
             buyBoxNeno: wrap(buyBoxNenoCol),
             qty: wrap(qtySoldCol),
+            quantitySold: wrap(qtySoldCol),
             orders: wrap(adQtySoldCol),
+            adQtySold: wrap(adQtySoldCol),
+            adImpressions: wrap(adImpressionsCol),
             sd_gvs: wrap(r('SD_GVs')),
             sd_spend: wrap(r('SD_Spend')),
             sd_sales: wrap(r('SD_Sales')),
+            discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
             mrpVal: wrap(mrpCol),
             actualSales: wrap(salesCol),
             date: dateCol,
@@ -8650,7 +8654,7 @@ const getRcaData = async (filters = {}) => {
             }
             
             // Explicitly requested condition
-            conds.push(`Comp_flag=0`);
+            conds.push(`Comp_flag='0'`);
 
             return conds.join(' AND ');
         };
@@ -8973,12 +8977,19 @@ const getRcaData = async (filters = {}) => {
                     };
                 });
 
-                let filteredResults = results;
+                let validResults = results.filter(r => Math.abs(r.currentVal) > 0 || Math.abs(r.prevVal) > 0);
+                if (activeTab === 'all') {
+                    const gainers = validResults.filter(r => r._delta >= 0).sort((a, b) => b._delta - a._delta).slice(0, 10);
+                    const drainers = validResults.filter(r => r._delta < 0).sort((a, b) => a._delta - b._delta).slice(0, 10);
+                    return { gainers, drainers };
+                }
+
+                let filteredResults = validResults;
                 if (activeTab === 'gainers') {
-                    filteredResults = results.filter(r => r._delta >= 0);
+                    filteredResults = validResults.filter(r => r._delta >= 0);
                     filteredResults.sort((a, b) => b._delta - a._delta);
                 } else if (activeTab === 'drainers') {
-                    filteredResults = results.filter(r => r._delta < 0);
+                    filteredResults = validResults.filter(r => r._delta < 0);
                     filteredResults.sort((a, b) => a._delta - b._delta);
                 }
 
@@ -9124,14 +9135,14 @@ const getRcaData = async (filters = {}) => {
                 0 as sov
                     FROM ${table}
                     WHERE ${conds} ${parentCond}
-                    AND Comp_flag=0
+                    AND Comp_flag='0'
                     GROUP BY name
                     ORDER BY gvs DESC
                     LIMIT 25
                 `;
                 }
                 
-                if (kpiLower === 'sov') {
+                if (kpiLower.includes('sov')) {
                     return `
             SELECT 
                         ${colName} as name,
@@ -9151,7 +9162,7 @@ const getRcaData = async (filters = {}) => {
                 avgIf(${src.f.sov}, ${src.f.sov} > 0) as sov
                     FROM ${table}
                     WHERE ${conds} ${parentCond}
-                    AND Comp_flag=0
+                    AND Comp_flag='0'
                     GROUP BY name
                     ORDER BY sov DESC
                     LIMIT 25
@@ -9181,7 +9192,7 @@ const getRcaData = async (filters = {}) => {
                 SUM(${src.f.sd_sales}) as sd_sales
                     FROM ${table}
                     WHERE ${conds} ${parentCond}
-                    AND Comp_flag=0
+                    AND Comp_flag='0'
                     GROUP BY name
                     ORDER BY sd_gvs DESC
                     LIMIT 25
@@ -9213,7 +9224,7 @@ const getRcaData = async (filters = {}) => {
                 SUM(${src.f.adSales}) as ad_sales
                     FROM ${table}
                     WHERE ${conds} ${parentCond}
-                    AND Comp_flag=0
+                    AND Comp_flag='0'
                     GROUP BY name
                     ORDER BY sales DESC
                     LIMIT 25
@@ -9239,7 +9250,7 @@ const getRcaData = async (filters = {}) => {
                 const getVal = (obj, cat) => {
                     if (cat.includes('offtake')) return parseFloat(obj.sales || 0);
                     if (cat === 'gvs') return parseFloat(obj.gvs || 0);
-                    if (cat === 'sov') return parseFloat(obj.sov || 0);
+                    if (cat.includes('sov')) return parseFloat(obj.sov || 0);
                     if (cat === 'sd') return parseFloat(obj.sd_gvs || 0);
                     if (cat === 'ad') return parseFloat(obj.ad_sales || 0) + parseFloat(obj.sd_sales || 0);
                     if (cat === 'sp' || cat === 'sponsored product') return parseFloat(obj.clicks || 0);
@@ -9285,16 +9296,29 @@ const getRcaData = async (filters = {}) => {
                     currentVal: curV,
                     prevVal: preV,
                     change: (delta >= 0 ? '+' : '') + deltaPct.toFixed(1) + '%',
-                    _delta: delta
+                    _delta: deltaPct
                 };
             });
-            let filteredResults = results;
+            let validResults = results.filter(r => Math.abs(r.currentVal) > 0 || Math.abs(r.prevVal) > 0);
+            if (activeTab === 'all') {
+                const gainers = validResults.filter(r => r._delta >= 0).sort((a, b) => b._delta - a._delta).slice(0, 10);
+                const drainers = validResults.filter(r => r._delta < 0).sort((a, b) => a._delta - b._delta).slice(0, 10);
+                // Return both the segregated lists for pre-fetch and the flat list for the modal
+                return { gainers, drainers, rows: validResults.sort((a, b) => Math.abs(b.currentVal) - Math.abs(a.currentVal)) };
+            }
+
+            let filteredResults = validResults;
             if (activeTab === 'gainers') {
-                filteredResults = results.filter(r => r._delta >= 0);
+                filteredResults = validResults.filter(r => r._delta >= 0);
                 filteredResults.sort((a, b) => b._delta - a._delta);
             } else if (activeTab === 'drainers') {
-                filteredResults = results.filter(r => r._delta < 0);
+                filteredResults = validResults.filter(r => r._delta < 0);
                 filteredResults.sort((a, b) => a._delta - b._delta);
+            }
+
+            // Special case for SOV: if we are in SOV trace, ensure we didn't fall back to sales sort
+            if (activeTab === 'all' && kpiLower.includes('sov')) {
+                filteredResults = validResults.sort((a, b) => Math.abs(b._delta) - Math.abs(a._delta));
             }
 
             return { rows: filteredResults };
@@ -10675,7 +10699,7 @@ const getEcomOfftake = async (filters = {}) => {
             }
 
             // Only our brands (comp_flag = 0)
-            conds.push(`Comp_flag=0`);
+            conds.push(`Comp_flag='0'`);
 
             return conds.join(' AND ');
         };
@@ -10686,41 +10710,43 @@ const getEcomOfftake = async (filters = {}) => {
         // --- Total offtake, gvs & sov ---
         const totalSql = `
             SELECT
-                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sales,
-                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sales,
-                sumIf(${src.f.gvs}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_gvs,
-                sumIf(${src.f.gvs}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_gvs,
-                avgIf(${src.f.sov}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND ${src.f.sov} > 0) as curr_sov,
-                avgIf(${src.f.sov}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND ${src.f.sov} > 0) as prev_sov,
-                sumIf(${src.f.sd_gvs}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_gvs,
-                sumIf(${src.f.sd_gvs}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_gvs,
-                sumIf(${src.f.sd_spend}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_spend,
-                sumIf(${src.f.sd_spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_spend,
-                sumIf(${src.f.sd_sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_sd_sales,
-                sumIf(${src.f.sd_sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_sd_sales,
-                sumIf(${src.f.clicks}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_gvs,
-                sumIf(${src.f.clicks}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_gvs,
-                sumIf(${src.f.spend}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_spend,
-                sumIf(${src.f.spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_spend,
-                sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_sales,
-                sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_sales,
-                sumIf(${src.f.quantitySold}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_qty,
-                sumIf(${src.f.quantitySold}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_qty,
-                sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_impressions,
-                sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_impressions,
-                sumIf(${src.f.neno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_neno,
-                sumIf(${src.f.neno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_neno,
-                sumIf(${src.f.deno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_deno,
-                sumIf(${src.f.deno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_deno,
-                avgIf(${src.f.discount}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_discount,
-                avgIf(${src.f.discount}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_discount,
-                sumIf(${src.f.adQtySold}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_qty,
-                sumIf(${src.f.adQtySold}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_qty,
-                sumIf(${src.f.adImpressions}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_impressions,
-                sumIf(${src.f.adImpressions}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_impressions
+                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_sales,
+                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_sales,
+                sumIf(${src.f.gvs}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_gvs,
+                sumIf(${src.f.gvs}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_gvs,
+                avgIf(${src.f.sov}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND ${src.f.sov} > 0 AND Comp_flag='0') as curr_sov,
+                avgIf(${src.f.sov}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND ${src.f.sov} > 0 AND Comp_flag='0') as prev_sov,
+                sumIf(${src.f.sd_gvs}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_sd_gvs,
+                sumIf(${src.f.sd_gvs}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_sd_gvs,
+                sumIf(${src.f.sd_spend}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_sd_spend,
+                sumIf(${src.f.sd_spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_sd_spend,
+                sumIf(${src.f.sd_sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_sd_sales,
+                sumIf(${src.f.sd_sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_sd_sales,
+                sumIf(${src.f.clicks}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_ad_gvs,
+                sumIf(${src.f.clicks}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_ad_gvs,
+                sumIf(${src.f.spend}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_ad_spend,
+                sumIf(${src.f.spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_ad_spend,
+                sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_ad_sales,
+                sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_ad_sales,
+                sumIf(${src.f.qty}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_qty,
+                sumIf(${src.f.qty}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_qty,
+                sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_impressions,
+                sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_impressions,
+                sumIf(${src.f.neno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_neno,
+                sumIf(${src.f.neno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_neno,
+                sumIf(${src.f.deno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_deno,
+                sumIf(${src.f.deno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_deno,
+                avgIf(${src.f.discount}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_discount,
+                avgIf(${src.f.discount}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_discount,
+                sumIf(${src.f.adQtySold}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_ad_qty,
+                sumIf(${src.f.adQtySold}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_ad_qty,
+                sumIf(${src.f.adImpressions}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}' AND Comp_flag='0') as curr_ad_impressions,
+                sumIf(${src.f.adImpressions}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}' AND Comp_flag='0') as prev_ad_impressions,
+                -- TOTAL CATEGORY (No compression filter)
+                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_cat_sales,
+                sumIf(${src.f.sales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_cat_sales
             FROM ${src.table}
             WHERE (${dateCol} BETWEEN '${startStr}' AND '${endStr}' OR ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}')
-            AND Comp_flag=0
             ${normalizeFilterArray(platform)?.length > 0 ? `AND ${src.f.platform} IN (${normalizeFilterArray(platform).map(p => `'${escapeStr(p)}'`).join(', ')})` : ''}
             ${normalizeFilterArray(category)?.length > 0 ? `AND (${src.f.category}) IN (${normalizeFilterArray(category).map(c => `'${escapeStr(c)}'`).join(', ')})` : ''}
             ${(brand && brand !== 'All' && brand !== 'All Brands') ? `AND ${src.f.brand} LIKE '%${escapeStr(brand)}%'` : ''}
@@ -10749,8 +10775,8 @@ const getEcomOfftake = async (filters = {}) => {
                 sumIf(${src.f.spend}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_spend,
                 sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_ad_sales,
                 sumIf(${src.f.adSales}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_ad_sales,
-                sumIf(${src.f.quantitySold}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_qty,
-                sumIf(${src.f.quantitySold}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_qty,
+                sumIf(${src.f.qty}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_qty,
+                sumIf(${src.f.qty}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_qty,
                 sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_impressions,
                 sumIf(${src.f.impressions}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_impressions,
                 sumIf(${src.f.neno}, ${dateCol} BETWEEN '${startStr}' AND '${endStr}') as curr_neno,
@@ -10763,7 +10789,7 @@ const getEcomOfftake = async (filters = {}) => {
                 sumIf(${src.f.buyBoxNeno}, ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}') as prev_buybox_neno
             FROM ${src.table}
             WHERE (${dateCol} BETWEEN '${startStr}' AND '${endStr}' OR ${dateCol} BETWEEN '${prevStartStr}' AND '${prevEndStr}')
-            AND Comp_flag=0
+            AND Comp_flag='0'
             ${normalizeFilterArray(platform)?.length > 0 ? `AND ${src.f.platform} IN (${normalizeFilterArray(platform).map(p => `'${escapeStr(p)}'`).join(', ')})` : ''}
             ${normalizeFilterArray(category)?.length > 0 ? `AND (${src.f.category}) IN (${normalizeFilterArray(category).map(c => `'${escapeStr(c)}'`).join(', ')})` : ''}
             ${(brand && brand !== 'All' && brand !== 'All Brands') ? `AND ${src.f.brand} LIKE '%${escapeStr(brand)}%'` : ''}
@@ -10779,6 +10805,11 @@ const getEcomOfftake = async (filters = {}) => {
             queryClickHouse(totalSql),
             queryClickHouse(brandSql)
         ]);
+
+        console.log('[getEcomOfftake] Result summary - totalRows:', totalRes?.length, 'brandRows:', brandRes?.length);
+        if (totalRes?.length > 0) {
+            console.log('[getEcomOfftake] First result row:', JSON.stringify(totalRes[0], null, 2));
+        }
 
         const currTotal = parseFloat(totalRes[0]?.curr_sales || 0);
         const prevTotal = parseFloat(totalRes[0]?.prev_sales || 0);
@@ -10889,6 +10920,13 @@ const getEcomOfftake = async (filters = {}) => {
         const currTotalAsp = currTotalQty > 0 ? currTotal / currTotalQty : 0;
         const prevTotalAsp = prevTotalQty > 0 ? prevTotal / prevTotalQty : 0;
         const totalAspVariancePct = prevTotalAsp > 0 ? ((currTotalAsp - prevTotalAsp) / prevTotalAsp) * 100 : (currTotalAsp > 0 ? 100 : 0);
+
+        // --- Category Share ---
+        const currCatSales = parseFloat(totalRes[0]?.curr_cat_sales || 0);
+        const prevCatSales = parseFloat(totalRes[0]?.prev_cat_sales || 0);
+        const currCatShare = currCatSales > 0 ? (currTotal / currCatSales) * 100 : 0;
+        const prevCatShare = prevCatSales > 0 ? (prevTotal / prevCatSales) * 100 : 0;
+        const catShareVar = currCatShare - prevCatShare;
 
         const brandMetrics = brandRes.map(row => {
             const curr = parseFloat(row.curr_sales || 0);
@@ -11137,6 +11175,12 @@ const getEcomOfftake = async (filters = {}) => {
             prevAspFormatted: `₹ ${prevTotalAsp.toFixed(2)}`,
             aspVarianceStr: (totalAspVariancePct >= 0 ? '+' : '') + totalAspVariancePct.toFixed(2) + '%',
             isAspPositive: totalAspVariancePct >= 0,
+
+            // Category Share
+            currCatShareFormatted: formatPctLocal(currCatShare),
+            prevCatShareFormatted: formatPctLocal(prevCatShare),
+            catShareVarStr: (catShareVar >= 0 ? '+' : '') + catShareVar.toFixed(2) + '%',
+            isCatSharePos: catShareVar >= 0,
             
             // GVs Data
             currTotalGvs,

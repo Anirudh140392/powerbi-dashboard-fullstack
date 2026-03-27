@@ -8,6 +8,7 @@ import performanceMarketing from './routes/performanceMarketing.js';
 import contentAnalysis from './routes/contentAnalysis.js';
 import categoryRca from './routes/categoryRca.js';
 import ecomOfftake from './routes/ecomOfftake.js';
+import rcaTreeKpis from './routes/rcaTreeKpis.js';
 import sales from './routes/sales.js';
 import inventoryAnalysis from './routes/inventoryAnalysis.js';
 import reports from './routes/reports.js';
@@ -44,6 +45,9 @@ export default (app) => {
 
     // Ecom Offtake route
     ecomOfftake(app);
+
+    // RCA Tree KPIs route
+    rcaTreeKpis(app);
 
     // Sales routes
     sales(app);

@@ -1,56 +1,39 @@
-import "dotenv/config";
-import { connectDB } from "./src/config/db.js";
-import RbPdpOlap from "./src/models/RbPdpOlap.js";
-import { Op } from "sequelize";
+import { queryClickHouse } from './src/config/clickhouse.js';
 
-async function diagnose() {
-    await connectDB();
-    console.log("✅ DB Connected");
+async function run() {
+    try {
+        const query = `
+            SELECT 
+                Brand,
+                sum(Sales) as total_sales
+            FROM rb_pdp_olap
+            WHERE toDate(DATE) >= '2024-02-01'
+              AND Comp_flag = 0
+            GROUP BY Brand
+            ORDER BY total_sales DESC
+        `;
+        const res = await queryClickHouse(query);
+        console.log("Total Sales per Brand (Comp_flag=0):");
+        console.table(res);
 
-    const countRaw = await RbPdpOlap.count();
-    console.log("TOTAL_RAW_RECORDS:", countRaw);
-
-    const zeptoCount = await RbPdpOlap.count({ where: { Platform: "Zepto" } });
-    console.log("ZEPTO_TOTAL_RECORDS:", zeptoCount);
-
-    const dateInfo = await RbPdpOlap.findAll({
-        attributes: [
-            [RbPdpOlap.sequelize.fn('MIN', RbPdpOlap.sequelize.col('DATE')), 'minDate'],
-            [RbPdpOlap.sequelize.fn('MAX', RbPdpOlap.sequelize.col('DATE')), 'maxDate']
-        ],
-        where: { Platform: "Zepto" },
-        raw: true
-    });
-    console.log("ZEPTO_MIN_DATE:", dateInfo[0].minDate);
-    console.log("ZEPTO_MAX_DATE:", dateInfo[0].maxDate);
-
-    const signalDates = {
-        start: "2025-12-01",
-        end: "2025-12-31",
-        compStart: "2025-09-01",
-        compEnd: "2025-09-06"
-    };
-
-    const currentPeriodCount = await RbPdpOlap.count({
-        where: {
-            Platform: "Zepto",
-            DATE: { [Op.between]: [signalDates.start, signalDates.end] }
-        }
-    });
-    console.log(`ZEPTO_RECOREDS_DECEMBER_2025: ${currentPeriodCount}`);
-
-    const compPeriodCount = await RbPdpOlap.count({
-        where: {
-            Platform: "Zepto",
-            DATE: { [Op.between]: [signalDates.compStart, signalDates.compEnd] }
-        }
-    });
-    console.log(`ZEPTO_RECORDS_SEPTEMBER_2025_COMPARISON: ${compPeriodCount}`);
-
-    process.exit(0);
+        const iamsQuery = `
+            SELECT 
+                toDate(DATE) as d,
+                sum(Sales) as s
+            FROM rb_pdp_olap
+            WHERE Brand LIKE '%IAMS%'
+            GROUP BY d
+            ORDER BY d DESC
+            LIMIT 10
+        `;
+        const res2 = await queryClickHouse(iamsQuery);
+        console.log("IAMS Recent Sales Array:");
+        console.table(res2);
+        
+        process.exit(0);
+    } catch (err) {
+        console.error(err);
+        process.exit(1);
+    }
 }
-
-diagnose().catch(err => {
-    console.error(err);
-    process.exit(1);
-});
+run();

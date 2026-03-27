@@ -1,5 +1,8 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import dayjs from "dayjs";
+
+console.log('[RCATree] component file loaded. Version: 1.0.3 (Dynamic Data Fix)');
+
 import ReactFlow, {
   Controls,
   Handle,
@@ -40,10 +43,14 @@ import {
 } from "@mui/material";
 
 // --- Layout & Typography Tokens ---
-const CARD_WIDTH = 380;
-const CARD_HEIGHT = 280; // Estimated height for vertical centering
-const VERTICAL_GAP = 80;
-const HORIZONTAL_STEP = 550;
+const CARD_WIDTH = 340;
+const CARD_HEIGHT = 240; // Increased to 240 to prevent overlap for nodes with meta rows
+const HORIZONTAL_GAP = 20;
+const VERTICAL_STEP = 450;
+
+// LR Layout Constants
+const LR_X_STEP = 450;
+const LR_Y_GAP = 30; // Increased to 30 for better vertical separation
 
 const COMING_SOON_IDS = [
   'sb', 'dsp', 'organic-gvs', 'seller-listing', 
@@ -56,11 +63,11 @@ const TYPO = {
   primary: "#0f172a",
   secondary: "#475569",
   border: "#e2e8f0",
-  labelSize: "20px",
-  valueSize: "34px",
-  metaSize: "18px",
+  labelSize: "16px",
+  valueSize: "24px",
+  metaSize: "14px",
   minSize: "12px",
-  footerSize: "20px",
+  footerSize: "14px",
   weightHeavy: 800,
   weightBold: 700,
   weightSemibold: 600,
@@ -94,16 +101,17 @@ const formatValue = (val, kpiLabel) => {
   const absVal = Math.abs(num);
   const l = (kpiLabel || "").toLowerCase();
 
-  // Offtake / Revenue logic
-  if (l.includes("offtake")) {
+  // Offtake / Revenue / Spend logic (Currency)
+  if (l.includes("offtake") || l.includes("spend")) {
     if (absVal >= 10000000) return `₹ ${(num / 10000000).toFixed(2)} Cr`;
     if (absVal >= 100000) return `₹ ${(num / 100000).toFixed(2)} lac`;
     return `₹ ${num.toLocaleString()}`;
   }
 
-  // Impressions logic (but NOT keyword labels)
-  if (l.includes("impressions") && !l.includes("keyword")) {
-    if (absVal >= 100000) return `${(num / 100000).toFixed(1)} lac`;
+  // Volume / Count logic (GVs, Impressions) without currency
+  if ((l.includes("impressions") || l.includes("gvs") || l.includes("ad gv") || l.includes("sd gv")) && !l.includes("keyword")) {
+    if (absVal >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`;
+    if (absVal >= 100000) return `${(num / 100000).toFixed(2)} lac`;
     if (absVal >= 1000) return `${(num / 1000).toFixed(1)} K`;
     return num.toLocaleString();
   }
@@ -278,38 +286,35 @@ const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, pl
   const isKeywordKpi = l.includes("impression") || l.includes("conversion") || l.includes("conv") || l.includes("keyword") || l.includes("cvr");
 
   let entityType = isSkuFilterActive ? "City" : isBrandFilterActive ? (isKeywordKpi ? "Keyword" : "Location") : "Brand";
+  // PRE-FETCHED DATA PRIORITY:
+  // If we have specialized pre-fetched data for this node from the /category-rca API (gainers/drainers sorted),
+  // we use it. Otherwise, we calculate from the metrics array.
+  const prefetchedNodeData = prefetchedRows?.[id] || prefetchedRows; // Handle both direct array or object map
+  const hasPrefetchedRows = prefetchedNodeData && (prefetchedNodeData.gainers || prefetchedNodeData.drainers || (Array.isArray(prefetchedNodeData) && prefetchedNodeData.length > 0));
 
-  // Use real metrics if available (backend now provides appropriate level in metrics array)
-  let allEntities = [];
-  // If we have pre-fetched rows from the /category-rca API (page-load fetch), skip metrics derivation
-  const hasPrefetchedRows = prefetchedRows && prefetchedRows.length > 0;
-  if (!hasPrefetchedRows) {
-    if (entityType === "Keyword" && keywordMetrics && keywordMetrics.length > 0) {
-      allEntities = keywordMetrics.map(m => m.keyword);
-    } else if (metrics && metrics.length > 0) {
-      allEntities = metrics.map(m => m.brand || m.label || m.Product).filter(Boolean);
-    } else {
-      // Fallback: No real metrics available
-      allEntities = [];
-    }
-  }
-
-  // Build allRows: use pre-fetched API rows if available, else fall back to metrics-based derivation
   let allRows = [];
   if (hasPrefetchedRows) {
-    // Use the same data as the click modal (/category-rca API rows)
-    allRows = prefetchedRows.map(row => {
-      const changeNum = parseFloat((row.change || '0').replace(/[^-\d.]/g, ''));
+    const rawData = prefetchedNodeData[activeTab] || (Array.isArray(prefetchedNodeData) ? prefetchedNodeData : []);
+    allRows = (rawData || []).map(row => {
+      const changeNum = typeof row._delta === 'number' ? row._delta : parseFloat((row.change || '0').replace(/[^-\d.]/g, ''));
       return {
         name: row.name,
         current: formatValue(row.currentVal, kpiLabel),
         prev: formatValue(row.prevVal, kpiLabel),
         change: changeNum,
         changeStr: row.change || '0%',
-        pos: !row.change?.startsWith('-')
+        pos: changeNum >= 0
       };
     });
   } else {
+    // Derive manually from metrics array (fallback)
+    let allEntities = [];
+    if (entityType === "Keyword" && keywordMetrics && keywordMetrics.length > 0) {
+      allEntities = keywordMetrics.map(m => m.keyword);
+    } else if (metrics && metrics.length > 0) {
+      allEntities = metrics.map(m => m.brand || m.label || m.Product).filter(Boolean);
+    }
+
     allRows = allEntities.map((name, i) => {
       let curVal = 0, delta = 0, prevVal = 0;
 
@@ -364,6 +369,10 @@ const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, pl
           } else if (l.includes("sponsored display") || category === "sd") {
             curVal = match.rawSdGvs || 0;
             prevVal = match.rawPrevSdGvs || 0;
+            delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+          } else if (l.includes("sponsored search") || category === "sponsored-search") {
+            curVal = match.rawSsGvs || 0;
+            prevVal = match.rawPrevSsGvs || 0;
             delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
           } else if ((l.includes("ad gvs") || l.includes("ad ")) && category === "ad") {
             curVal = match.rawTotalAdSales || match.rawAdGvs || 0;
@@ -421,7 +430,7 @@ const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, pl
         position: "absolute",
         ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
         left: "50%", transform: "translateX(-50%)",
-        width: isComingSoon ? "600px" : "1500px", backgroundColor: "#fff", borderRadius: "64px",
+        width: isComingSoon ? "600px" : "850px", backgroundColor: "#fff", borderRadius: "32px",
         padding: "0", zIndex: 100001, pointerEvents: "auto",
         boxShadow: "0 100px 200px -40px rgba(15,23,42,0.5), 0 0 120px rgba(99,102,241,0.35)",
         border: "1px solid rgba(0,0,0,0.2)", overflow: "hidden"
@@ -441,24 +450,24 @@ const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, pl
         </Box>
       ) : (
         <>
-          <Box sx={{ p: 7, bgcolor: "#f8fafc", borderBottom: "1px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ p: 4, bgcolor: "#f8fafc", borderBottom: "1px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
-          <Typography sx={{ fontSize: "38px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "5px" }}>
+          <Typography sx={{ fontSize: "22px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "2px" }}>
             {entityType} Analysis: {category === "ad" ? "Ad " : category === "organic" ? "Organic " : ""}{kpiLabel} {l.includes("keyword") ? "SOS" : ""}
           </Typography>
-          <Typography sx={{ fontSize: "20px", fontWeight: 700, color: "#64748b", mt: 2, textTransform: "uppercase", letterSpacing: "3px" }}>
+          <Typography sx={{ fontSize: "13px", fontWeight: 700, color: "#64748b", mt: 0.5, textTransform: "uppercase", letterSpacing: "1.5px" }}>
             Flagship {entityType} Performance comparison matrix
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 2, borderRadius: "28px", gap: 2.5 }}>
+        <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 1, borderRadius: "16px", gap: 1.5 }}>
           {["gainers", "drainers"].map(t => (
             <Box key={t} onClick={(e) => { e.stopPropagation(); setActiveTab(t); }}
               sx={{
-                px: 6, py: 2, borderRadius: "22px", cursor: 'pointer', transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                px: 3, py: 1, borderRadius: "12px", cursor: 'pointer', transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                 bgcolor: activeTab === t ? (t === 'gainers' ? "#059669" : "#dc2626") : "transparent",
-                color: activeTab === t ? "#fff" : "#64748b", fontWeight: 1000, fontSize: "18px", textTransform: 'uppercase',
-                boxShadow: activeTab === t ? "0 20px 45px rgba(0,0,0,0.3)" : "none",
-                transform: activeTab === t ? "scale(1.12)" : "scale(1)"
+                color: activeTab === t ? "#fff" : "#64748b", fontWeight: 1000, fontSize: "13px", textTransform: 'uppercase',
+                boxShadow: activeTab === t ? "0 8px 20px rgba(0,0,0,0.2)" : "none",
+                transform: activeTab === t ? "scale(1.05)" : "scale(1)"
               }}>
               {t}
             </Box>
@@ -468,43 +477,43 @@ const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, pl
       <Box sx={{ p: 0 }}>
         <Table size="large" sx={{ tableLayout: 'fixed' }}>
           <TableHead>
-            <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 1.0)", "& th": { py: 5 } }}>
-              <TableCell align="left" sx={{ width: '25%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pl: 9, whiteSpace: 'nowrap' }}>{entityType} Name</TableCell>
-              <TableCell align="left" sx={{ width: '25%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Current Period</TableCell>
-              <TableCell align="left" sx={{ width: '30%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Comparison Period</TableCell>
-              <TableCell align="left" sx={{ width: '20%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pr: 11, whiteSpace: 'nowrap' }}>Variance %</TableCell>
+            <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 1.0)", "& th": { py: 2 } }}>
+              <TableCell align="left" sx={{ width: '25%', fontSize: "15px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pl: 4, whiteSpace: 'nowrap' }}>{entityType} Name</TableCell>
+              <TableCell align="left" sx={{ width: '25%', fontSize: "15px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Current Period</TableCell>
+              <TableCell align="left" sx={{ width: '30%', fontSize: "15px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Comparison Period</TableCell>
+              <TableCell align="left" sx={{ width: '20%', fontSize: "15px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pr: 4, whiteSpace: 'nowrap' }}>Variance %</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {displayRows.length > 0 ? displayRows.map((r, i) => (
-              <TableRow key={i} sx={{ "&:hover": { bgcolor: "rgba(99,102,241,0.08)" }, borderBottom: i === displayRows.length - 1 ? "none" : "1px solid #f1f5f9", height: "155px" }}>
-                <TableCell align="left" sx={{ py: 0, pl: 9 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <TableRow key={i} sx={{ "&:hover": { bgcolor: "rgba(99,102,241,0.08)" }, borderBottom: i === displayRows.length - 1 ? "none" : "1px solid #f1f5f9" }}>
+                <TableCell align="left" sx={{ py: 2, pl: 4 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     {canDrillDown && (
                       <Box onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDrillDown(r.name); }}
                         sx={{
-                          width: 54, height: 54, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                          width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
                           bgcolor: "rgba(99,102,241,0.2)", color: "#6366f1", cursor: "pointer",
                           transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-                          "&:hover": { bgcolor: "#6366f1", color: "#fff", transform: "scale(1.3) rotate(180deg)", boxShadow: "0 0 40px rgba(99,102,241,0.7)" }
+                          "&:hover": { bgcolor: "#6366f1", color: "#fff", transform: "scale(1.2) rotate(180deg)", boxShadow: "0 0 15px rgba(99,102,241,0.4)" }
                         }}>
-                        <Plus size={28} strokeWidth={4} />
+                        <Plus size={16} strokeWidth={4} />
                       </Box>
                     )}
-                    {!canDrillDown && <Box sx={{ width: 54 }} />}
-                    <Typography sx={{ fontSize: "34px", fontWeight: 500, color: "#1e293b", letterSpacing: "1px" }}>{r.name}</Typography>
+                    {!canDrillDown && <Box sx={{ width: 28 }} />}
+                    <Typography sx={{ fontSize: "16px", fontWeight: 500, color: "#1e293b", letterSpacing: "0.5px" }}>{r.name}</Typography>
                   </Box>
                 </TableCell>
-                <TableCell align="left" sx={{ fontSize: "30px", fontWeight: 900, color: "#0f172a" }}>{r.current}</TableCell>
-                <TableCell align="left" sx={{ fontSize: "30px", fontWeight: 700, color: "#94a3b8" }}>{r.prev}</TableCell>
-                <TableCell align="left" sx={{ py: 0, pr: 11 }}>
+                <TableCell align="left" sx={{ fontSize: "16px", fontWeight: 900, color: "#0f172a" }}>{r.current}</TableCell>
+                <TableCell align="left" sx={{ fontSize: "16px", fontWeight: 700, color: "#94a3b8" }}>{r.prev}</TableCell>
+                <TableCell align="left" sx={{ py: 2, pr: 4 }}>
                   <Typography sx={{
-                    fontSize: "26px",
+                    fontSize: "14px",
                     fontWeight: 1000,
                     color: r.pos ? "#059669" : "#dc2626",
                     bgcolor: r.pos ? "rgba(5, 150, 105, 0.2)" : "rgba(220, 38, 38, 0.2)",
-                    px: 5, py: 2, borderRadius: "22px", display: "inline-block",
-                    border: `4px solid ${r.pos ? "rgba(5, 150, 105, 0.35)" : "rgba(220, 38, 38, 0.35)"}`
+                    px: 1.8, py: 0.6, borderRadius: "12px", display: "inline-block",
+                    border: `2px solid ${r.pos ? "rgba(5, 150, 105, 0.35)" : "rgba(220, 38, 38, 0.35)"}`
                   }}>
                     {r.changeStr}
                   </Typography>
@@ -522,8 +531,8 @@ const HoverMetricsPopup = ({ id, kpiLabel, category, metrics, keywordMetrics, pl
           </TableBody>
         </Table>
       </Box>
-      <Box sx={{ p: 5, textAlign: "center", bgcolor: "#f8fafc", borderTop: "5px solid #edf2f7" }}>
-        <Typography sx={{ fontSize: "22px", fontWeight: 800, color: "#94a3b8", letterSpacing: "2.5px", textTransform: 'uppercase' }}>
+      <Box sx={{ p: 2.5, textAlign: "center", bgcolor: "#f8fafc", borderTop: "1px solid #edf2f7" }}>
+        <Typography sx={{ fontSize: "12px", fontWeight: 800, color: "#94a3b8", letterSpacing: "1.5px", textTransform: 'uppercase' }}>
           Ultra-Precision Driver Diagnostics • {canDrillDown ? "Use [+] for Deep Entity Trace" : "Absolute Ground Level Analysis"}
         </Typography>
       </Box>
@@ -596,10 +605,10 @@ const KpiDetailModal = ({ open, onClose, id, kpiLabel, category, platform, selec
         platform,
         categoryVal: category, // This is "organic" / "ad"
         category: context?.category || context?.categoryVal || 'All', // This is product category e.g. "GMFC"
-        kpiCategory: category || kpiLabel,
+        kpiCategory: kpiLabel, // Use kpiLabel directly for backend mapping
         drilldownLevel: level,
         drilldownId: parentId,
-        activeTab,
+        activeTab: (level === "brand" && !parentId) ? activeTab : "all",
         brand: selectedBrand || 'All',
         sku: selectedSku || 'All',
         brandScope: selectedBrand || 'All',
@@ -624,15 +633,35 @@ const KpiDetailModal = ({ open, onClose, id, kpiLabel, category, platform, selec
       const res = await axiosInstance.get('/category-rca', { params });
       const data = res.data?.rows || [];
 
-      if (level === "brand" || isInitialLoad) {
+      if (isInitialLoad) {
         // For initial load (whether brand-level or sku-level), set as main rows
-        setRows(data);
+        // If the backend returns gainers/drainers, use the active tab
+        if (res.data?.rows && activeTab === 'all') {
+          setRows(res.data.rows);
+        } else if (res.data?.gainers || res.data?.drainers) {
+          setRows(res.data[activeTab] || []);
+        } else {
+          setRows(data);
+        }
       } else {
         // For subsequent drilldowns (expand within table), set as drilldown data
-        setDrilldownData(prev => ({
-          ...prev,
-          [parentId]: data
-        }));
+        // If the backend returns gainers/drainers, use the active tab
+        if (res.data?.rows) {
+          setDrilldownData(prev => ({
+            ...prev,
+            [parentId]: res.data.rows
+          }));
+        } else if (res.data?.gainers || res.data?.drainers) {
+          setDrilldownData(prev => ({
+            ...prev,
+            [parentId]: res.data[activeTab] || []
+          }));
+        } else {
+          setDrilldownData(prev => ({
+            ...prev,
+            [parentId]: data
+          }));
+        }
       }
     } catch (err) {
       console.error(`[KpiDetailModal] Fetch failed for ${level}:`, err);
@@ -648,20 +677,15 @@ const KpiDetailModal = ({ open, onClose, id, kpiLabel, category, platform, selec
       setExpandedBrand(null);
       setExpandedSku(null);
 
-      // Use pre-fetched rows if available (from page-load fetch), otherwise fetch now
-      if (initialRows && initialRows.length > 0 && !hasSpecificBrand) {
-        setRows(initialRows);
-        setLoading(false);
+      // Always fetch to ensure accurate Gainers/Drainers sorting over the entire dataset
+      setRows([]);
+      if (hasSpecificBrand) {
+        fetchRows(isKeywordDrillDown ? "keyword" : "location", focusedEntity || null, true);
       } else {
-        setRows([]);
-        if (hasSpecificBrand) {
-          fetchRows(isKeywordDrillDown ? "keyword" : "location", focusedEntity || null, true);
-        } else {
-          fetchRows("brand", null, true);
-        }
+        fetchRows("brand", null, true);
       }
     }
-  }, [open, fetchRows, hasSpecificBrand, selectedBrand, isKeywordDrillDown, focusedEntity, initialRows]);
+  }, [open, fetchRows, hasSpecificBrand, selectedBrand, isKeywordDrillDown, focusedEntity]);
 
   const allRows = rows;
   const topRows = allRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
@@ -723,14 +747,14 @@ const KpiDetailModal = ({ open, onClose, id, kpiLabel, category, platform, selec
             </IconButton>
           </Tooltip>
           <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 0.5, borderRadius: "10px" }}>
-            {["gainers", "drainers"].map(t => (
+            {["all", "gainers", "drainers"].map(t => (
               <Box key={t} onClick={() => { setActiveTab(t); setPage(0); }}
                 sx={{
                   px: 2, py: 0.75, borderRadius: "8px", cursor: 'pointer', transition: 'all 0.2s',
-                  bgcolor: activeTab === t ? (t === 'gainers' ? "#059669" : "#dc2626") : "transparent",
+                  bgcolor: activeTab === t ? (t === 'all' ? "#6366f1" : (t === 'gainers' ? "#059669" : "#dc2626")) : "transparent",
                   color: activeTab === t ? "#fff" : "#64748b", fontWeight: 700, fontSize: "12px", textTransform: 'uppercase'
                 }}>
-                {t === 'gainers' ? 'Gainers' : 'Drainers'}
+                {t.charAt(0).toUpperCase() + t.slice(1)}
               </Box>
             ))}
           </Box>
@@ -906,7 +930,9 @@ const StatusDot = ({ status = "healthy" }) => {
   );
 };
 
-const DeltaBadge = ({ change, isPositive }) => (
+const DeltaBadge = ({ change, isPositive }) => {
+  const displayChange = typeof change === 'string' ? change.replace(/^[\+\-]\s*/, '') : change;
+  return (
   <Box
     sx={{
       display: "inline-flex",
@@ -925,9 +951,10 @@ const DeltaBadge = ({ change, isPositive }) => (
       whiteSpace: "nowrap",
     }}
   >
-    {isPositive ? "+" : "-"} {change}
+    {isPositive ? "+" : "-"} {displayChange}
   </Box>
-);
+  );
+};
 
 // --- Custom KPI Node ---
 const KpiNode = ({ data }) => {
@@ -953,6 +980,7 @@ const KpiNode = ({ data }) => {
     metrics,
     keywordMetrics,
     hoveredNodeId, // Single source of truth for global hover
+    isLR,
   } = data;
 
   const isComingSoon = data.id && COMING_SOON_IDS.includes(data.id);
@@ -1028,7 +1056,16 @@ const KpiNode = ({ data }) => {
         onClickDetail(data);
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none", width: 0, height: 0, left: -8, top: "50%" }} />
+      <Handle 
+        type="target" 
+        position={isLR ? Position.Left : Position.Top} 
+        style={{ 
+          background: "transparent", 
+          border: "none", 
+          width: 0, height: 0, 
+          ...(isLR ? { left: -8, top: "50%" } : { top: -8, left: "50%" }) 
+        }} 
+      />
 
       {/* Hover bridge to keep popup open when moving mouse between card and popup */}
       {
@@ -1063,7 +1100,7 @@ const KpiNode = ({ data }) => {
             selectedSku={data.selectedSku || ""}
             selectedCategory={data.selectedCategory || ""}
             position={data.popupPosition}
-            prefetchedRows={data.prefetchedRows || []}
+            prefetchedRows={data.prefetchedRows}
             onDrillDown={(entityToFocus) => {
               onClickDetail({ ...data, focusedEntity: entityToFocus });
             }}
@@ -1134,19 +1171,19 @@ const KpiNode = ({ data }) => {
       <Box sx={{ p: "16px 20px" }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.8 }}>
           <Box sx={{ flex: 1 }}>
-            <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Current</Typography>
-            <Typography sx={{ fontSize: isComingSoon ? "14px" : "24px", color: isComingSoon ? "#6366f1" : TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, textTransform: isComingSoon ? "uppercase" : "none" }}>
+            <Typography sx={{ fontSize: "13px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Current</Typography>
+            <Typography sx={{ fontSize: isComingSoon ? "15px" : "24px", color: isComingSoon ? "#6366f1" : TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, textTransform: isComingSoon ? "uppercase" : "none" }}>
               {isComingSoon ? "Coming Soon" : value}
             </Typography>
           </Box>
           <Box sx={{ width: "1px", height: "35px", bgcolor: TYPO.border, mx: 2 }} />
           <Box sx={{ flex: 1 }}>
-            <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Previous</Typography>
-            <Typography sx={{ fontSize: "18px", color: TYPO.secondary, fontWeight: TYPO.weightBold, lineHeight: 1 }}>{isComingSoon ? "—" : (prevValue || "—")}</Typography>
+            <Typography sx={{ fontSize: "13px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Previous</Typography>
+            <Typography sx={{ fontSize: "17px", color: TYPO.secondary, fontWeight: TYPO.weightBold, lineHeight: 1 }}>{isComingSoon ? "—" : (prevValue || "—")}</Typography>
           </Box>
           <Box sx={{ width: "1px", height: "35px", bgcolor: TYPO.border, mx: 2 }} />
           <Box sx={{ flex: 1, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Variance %</Typography>
+            <Typography sx={{ fontSize: "13px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Variance %</Typography>
             <Box sx={{ mt: "2px" }}>
               {isComingSoon ? (
                 <Typography sx={{ fontSize: "14px", fontWeight: 800, color: "#94a3b8" }}>—</Typography>
@@ -1207,9 +1244,10 @@ const KpiNode = ({ data }) => {
             }}
             style={{
               position: "absolute",
-              right: -28, // Centered on the source handle at right: -8
-              top: "50%",
-              marginTop: -20,
+              ...(isLR 
+                ? { right: -28, top: "50%", marginTop: -20 } 
+                : { bottom: -28, left: "50%", marginLeft: -20 }
+              ),
               width: 40,
               height: 40,
               borderRadius: "50%",
@@ -1229,7 +1267,16 @@ const KpiNode = ({ data }) => {
         )
       }
 
-      <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none", width: 0, height: 0, right: -8 }} />
+      <Handle 
+        type="source" 
+        position={isLR ? Position.Right : Position.Bottom} 
+        style={{ 
+          background: "transparent", 
+          border: "none", 
+          width: 0, height: 0, 
+          ...(isLR ? { right: -8, top: "50%" } : { bottom: -8, left: "50%" })
+        }} 
+      />
     </motion.div >
   );
 };
@@ -1240,7 +1287,8 @@ const KpiNode = ({ data }) => {
 const getDynamicRcaTreeData = (context) => {
   const { platform, channel, category: categoryVal, brand, sku, month, timeStart, compareStart } = context;
 
-  const isEcom = channel?.toLowerCase().includes("e-commerce") || channel?.toLowerCase().includes("ecom") || platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
+  const isEcom = channel?.toLowerCase().includes("e-commerce") || channel?.toLowerCase().includes("ecom") || 
+                 ["amazon", "flipkart", "blinkit", "zepto", "instamart"].includes(platform?.toLowerCase());
 
   // Seed for overall consistency - now including month and custom date ranges
   const dateSeed = timeStart ? timeStart.format('YYYYMMDD') : (month || "All");
@@ -1318,26 +1366,26 @@ const getDynamicRcaTreeData = (context) => {
     return {
       id: "root",
       label: "Offtake",
-      value: "₹ 2.95 Cr",
-      prevValue: "₹ 1.92 Cr",
-      change: "53.73%",
-      isPositive: false,
+      value: "---",
+      prevValue: "---",
+      change: "0%",
+      isPositive: true,
       category: "offtake",
       importance: "outcome",
-      insight: "Critical Decline",
-      meta: [{ label: "Est. Category share", value: "0.00%", change: "2.40%", isPositive: false }],
+      insight: "---",
+      meta: [{ label: "Est. Category share", value: "---", change: "---", isPositive: true }],
       children: [
         {
           id: isFlipkart ? "impressions" : "gvs",
           label: isFlipkart ? "Impressions" : "GVs",
-          value: "115.65K",
-          change: "46.97%",
+          value: "---",
+          change: "---",
           isPositive: false,
           category: "impressions",
           importance: "primary",
           meta: [
-            { label: "Share of Search", value: "45.80%", change: "7.63%", isPositive: false },
-            { label: `${gvLabel} Share`, value: "100.00%", change: "0.00", isPositive: true }
+            { label: "Share of Search", value: "---", change: "---", isPositive: false },
+            { label: `${gvLabel} Share`, value: "---", change: "---", isPositive: true }
           ],
           children: [
             {
@@ -1369,37 +1417,37 @@ const getDynamicRcaTreeData = (context) => {
                 {
                   id: "pla",
                   label: "PLA",
-                  value: "22.45K",
-                  change: "46.74%",
+                  value: "---",
+                  change: "---",
                   isPositive: false,
                   category: "ad",
                   meta: [
-                    { label: "PLA Impressions", value: "22.45K", change: "46.74%", isPositive: false },
-                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false }
+                    { label: "PLA Impressions", value: "---", change: "---", isPositive: false },
+                    { label: "Conversion", value: "---", change: "---", isPositive: false }
                   ]
                 },
                 {
                   id: "pca",
                   label: "PCA",
-                  value: "8.10K",
-                  change: "56.80%",
+                  value: "---",
+                  change: "---",
                   isPositive: false,
                   category: "ad",
                   meta: [
-                    { label: "PCA Impressions", value: "8.10K", change: "56.80%", isPositive: false },
-                    { label: "Conversion", value: "29.21%", change: "6.80%", isPositive: true }
+                    { label: "PCA Impressions", value: "---", change: "---", isPositive: false },
+                    { label: "Conversion", value: "---", change: "---", isPositive: true }
                   ]
                 },
                 {
                   id: "display-ads",
                   label: "Display Ads",
-                  value: "5.00K",
-                  change: "43.79%",
+                  value: "---",
+                  change: "---",
                   isPositive: false,
                   category: "ad",
                   meta: [
-                    { label: "Display Impressions", value: "5.00K", change: "43.79%", isPositive: false },
-                    { label: "Conversion", value: "23.28%", change: "2.18%", isPositive: false }
+                    { label: "Display Impressions", value: "---", change: "---", isPositive: false },
+                    { label: "Conversion", value: "---", change: "---", isPositive: false }
                   ]
                 }
               ] : [
@@ -1415,106 +1463,106 @@ const getDynamicRcaTreeData = (context) => {
                     { label: "Conversion", value: "-- Coming Soon --" }
                   ]
                 },
-                {
-                  id: "sponsored-search",
-                  label: "Sponsored Search",
-                  value: "45.00K",
-                  change: "46.74%",
-                  isPositive: false,
-                  category: "ad",
-                  meta: [
-                    { label: "Search GVs", value: "45.00K", change: "46.74%", isPositive: false },
-                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false }
-                  ],
-                  children: [
                     {
-                      id: "sp",
-                      label: "Sponsored Product",
-                      value: "30.41K",
-                      change: "56.80%",
+                      id: "sponsored-search",
+                      label: "Sponsored Search",
+                      value: "---",
+                      change: "---",
                       isPositive: false,
                       category: "ad",
                       meta: [
-                        { label: "SP GVs", value: "30.41K", change: "56.80%", isPositive: false },
-                        { label: "Conversion", value: "29.21%", change: "6.80%", isPositive: true },
-                        { label: "SP ROAS", value: "2.83", change: "13.85%", isPositive: false },
-                        { label: "SP SPEND", value: "2.61M", change: "55.17%", isPositive: false }
-                      ]
-                    },
-                    {
-                      id: "sb",
-                      label: "Sponsored Brand",
-                      value: "5.48K",
-                      change: "43.79%",
-                      isPositive: false,
-                      category: "ad",
-                      meta: [
-                        { label: "SB All GVs", value: "5.48K", change: "43.79%", isPositive: false },
-                        { label: "Conversion", value: "23.28%", change: "2.18%", isPositive: false },
-                        { label: "SB ROAS", value: "1.50", change: "34.67%", isPositive: false },
-                        { label: "SB SPEND", value: "544.89K", change: "32.99%", isPositive: false }
-                      ]
-                    },
-                    {
-                      id: "sd",
-                      label: "Sponsored Display",
-                      value: "9.11K",
-                      change: "109.94%",
-                      isPositive: true,
-                      category: "sd",
-                      meta: [
-                        { label: "SD GVs", value: "9.11K", change: "109.94%", isPositive: true },
-                        { label: "Conversion", value: "13.98%", change: "24.94%", isPositive: false },
-                        { label: "SD ROAS", value: "5.79", change: "46.13%", isPositive: false },
-                        { label: "SD SPEND", value: "177.33K", change: "63.58%", isPositive: true }
+                        { label: "Search GVs", value: "---", change: "---", isPositive: false },
+                        { label: "Conversion", value: "---", change: "---", isPositive: false }
+                      ],
+                      children: [
+                        {
+                          id: "sp",
+                          label: "Sponsored Product",
+                          value: "---",
+                          change: "---",
+                          isPositive: false,
+                          category: "ad",
+                          meta: [
+                            { label: "SP GVs", value: "---", change: "---", isPositive: false },
+                            { label: "Conversion", value: "---", change: "---", isPositive: true },
+                            { label: "SP ROAS", value: "---", change: "---", isPositive: false },
+                            { label: "SP SPEND", value: "---", change: "---", isPositive: false }
+                          ]
+                        },
+                        {
+                          id: "sb",
+                          label: "Sponsored Brand",
+                          value: "---",
+                          change: "---",
+                          isPositive: false,
+                          category: "ad",
+                          meta: [
+                            { label: "SB All GVs", value: "---", change: "---", isPositive: false },
+                            { label: "Conversion", value: "---", change: "---", isPositive: false },
+                            { label: "SB ROAS", value: "---", change: "---", isPositive: false },
+                            { label: "SB SPEND", value: "---", change: "---", isPositive: false }
+                          ]
+                        },
+                        {
+                          id: "sd",
+                          label: "Sponsored Display",
+                          value: "---",
+                          change: "---",
+                          isPositive: true,
+                          category: "sd",
+                          meta: [
+                            { label: "SD GVs", value: "---", change: "---", isPositive: true },
+                            { label: "Conversion", value: "---", change: "---", isPositive: false },
+                            { label: "SD ROAS", value: "---", change: "---", isPositive: false },
+                            { label: "SD SPEND", value: "---", change: "---", isPositive: true }
+                          ]
+                        }
                       ]
                     }
-                  ]
-                }
               ]
             },
             {
               id: "sov-overall",
               label: "SOV Overall",
-              value: "8.75%",
-              change: "0.0%",
+              value: "---",
+              change: "---",
               isPositive: true,
               category: "sov",
-              meta: [{ label: "SOV", value: "8.75%" }]
+              meta: [{ label: "SOV", value: "---" }]
             }
           ]
         },
         {
           id: "cvr",
           label: "CVR",
-          value: "40.68%",
-          prevValue: "36.00%",
-          change: "13.01%",
+          value: "---",
+          prevValue: "---",
+          change: "---",
           isPositive: true,
-          category: "conversion",
+          category: "cvr",
           importance: "primary",
           children: [
             {
               id: "availability",
               label: "Availability",
-              value: "69.55%",
-              change: "4.60%",
-              isPositive: false,
+              value: "---",
+              change: "---",
+              isPositive: true,
               category: "availability",
               children: [
                 {
                   id: "buybox",
                   label: "BuyBox%",
-                  value: "43.01%",
-                  change: "22.74%",
-                  isPositive: false,
+                  value: "---",
+                  change: "---",
+                  isPositive: true,
                   category: "availability"
                 },
                 {
                   id: "seller-listing",
                   label: "Seller Listing%",
-                  value: "42.85%",
-                  change: "0.0%",
+                  value: "---",
+                  change: "---",
                   isPositive: true,
                   category: "availability"
                 }
@@ -1523,45 +1571,45 @@ const getDynamicRcaTreeData = (context) => {
             {
               id: "delivery-time",
               label: "Delivery Time",
-              value: "Same Day",
-              change: "22.74%",
-              isPositive: false,
+              value: "---",
+              change: "---",
+              isPositive: true,
               category: "segment",
               children: isFlipkart ? [] : [
-                { id: "same-day", label: `Same Day ${pluralGvLabel}%`, value: "100.00%", change: "81.09%", isPositive: true, category: "segment" }
+                { id: "same-day", label: `Same Day ${pluralGvLabel}%`, value: "---", change: "---", isPositive: true, category: "segment" }
               ]
             },
             {
               id: "discounting",
               label: "Discounting%",
-              value: "9.11%",
-              change: "9.45%",
-              isPositive: false,
+              value: "---",
+              change: "---",
+              isPositive: true,
               category: "discounting",
               children: isFlipkart ? [] : [
-                { id: "one-day", label: `1 Day ${pluralGvLabel}%`, value: "0.00%", change: "0.05%", isPositive: false, category: "segment" }
+                { id: "one-day", label: `1 Day ${pluralGvLabel}%`, value: "---", change: "---", isPositive: true, category: "segment" }
               ]
             },
             {
               id: "organic-cvr",
               label: "Organic CVR",
-              value: "47.65%",
-              change: "1.54%",
+              value: "---",
+              change: "---",
               isPositive: true,
               category: "organic",
               children: isFlipkart ? [] : [
-                { id: "two-day", label: `2 Day ${pluralGvLabel}%`, value: "(Blank)", change: "74.95%", isPositive: false, category: "segment" }
+                { id: "two-day", label: `2 Day ${pluralGvLabel}%`, value: "---", change: "---", isPositive: true, category: "segment" }
               ]
             },
             {
               id: "inorganic-cvr",
               label: "Inorganic CVR",
-              value: "29.21%",
-              change: "1.81%",
+              value: "---",
+              change: "---",
               isPositive: true,
               category: "ad",
               children: isFlipkart ? [] : [
-                { id: "greater-two", label: `> 2 Days ${pluralGvLabel}%`, value: "0.00%", change: "6.08%", isPositive: false, category: "segment" }
+                { id: "greater-two", label: `> 2 Days ${pluralGvLabel}%`, value: "---", change: "---", isPositive: true, category: "segment" }
               ]
             }
           ]
@@ -1569,15 +1617,15 @@ const getDynamicRcaTreeData = (context) => {
         {
           id: "asp",
           label: "ASP",
-          value: "626.36",
-          change: "17.02%",
-          isPositive: false,
+          value: "---",
+          change: "---",
+          isPositive: true,
           category: "price",
           importance: "primary",
           children: [
-            { id: "combo-sales", label: "Combo Sales%", value: "42.91%", change: "13.48%", isPositive: true, category: "segment" },
-            { id: "large-sales", label: "Large Sales%", value: "53.41%", change: "17.39%", isPositive: false, category: "segment" },
-            { id: "premium-sales", label: "Premium Sales%", value: "20.85%", change: "4.73%", isPositive: false, category: "segment" }
+            { id: "combo-sales", label: "Combo Sales%", value: "---", change: "---", isPositive: true, category: "segment" },
+            { id: "large-sales", label: "Large Sales%", value: "---", change: "---", isPositive: true, category: "segment" },
+            { id: "premium-sales", label: "Premium Sales%", value: "---", change: "---", isPositive: true, category: "segment" }
           ]
         },
         {
@@ -1587,10 +1635,10 @@ const getDynamicRcaTreeData = (context) => {
           change: "0.00%",
           isPositive: true,
           category: "segment",
-          meta: [{ label: "SnS Sales%", value: "0.00%" }],
+          meta: [{ label: "SnS Sales%", value: "---" }],
           children: [
-            { id: "loyalty", label: "Loyalty/Repeats %", value: "79.62%", change: "1.37%", isPositive: true, category: "segment" },
-            { id: "new-cust", label: "New Customer %", value: "20.38%", change: "1.37%", isPositive: false, category: "segment" }
+            { id: "loyalty", label: "Loyalty/Repeats %", value: "---", change: "---", isPositive: true, category: "segment" },
+            { id: "new-cust", label: "New Customer %", value: "---", change: "---", isPositive: false, category: "segment" }
           ]
         }
       ]
@@ -1759,13 +1807,19 @@ const collectDescendants = (id, childMap) => {
 };
 
 // --- Layout Engine ---
+const computeSubtreeWidth = (node, collapsedNodes) => {
+  if (!node.children || node.children.length === 0 || collapsedNodes.has(node.id)) return CARD_WIDTH;
+  const childWidths = node.children.map((child) => computeSubtreeWidth(child, collapsedNodes));
+  return childWidths.reduce((sum, w, idx) => sum + w + (idx > 0 ? HORIZONTAL_GAP : 0), 0);
+};
+
 const computeSubtreeHeight = (node, collapsedNodes) => {
   if (!node.children || node.children.length === 0 || collapsedNodes.has(node.id)) return CARD_HEIGHT;
   const childHeights = node.children.map((child) => computeSubtreeHeight(child, collapsedNodes));
-  return childHeights.reduce((sum, h, idx) => sum + h + (idx > 0 ? VERTICAL_GAP : 0), 0);
+  return childHeights.reduce((sum, h, idx) => sum + h + (idx > 0 ? LR_Y_GAP : 0), 0);
 };
 
-const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, platform = "", selectedBrand = "", selectedSku = "", selectedCategory = "", currentPeriodLabel = "", comparePeriodLabel = "") => {
+const layoutTreeNodesLR = (node, x, y, collapsedNodes, results, onViewTrends, platform = "", selectedBrand = "", selectedSku = "", selectedCategory = "", currentPeriodLabel = "", comparePeriodLabel = "") => {
   const isCollapsed = collapsedNodes.has(node.id);
   const subtreeHeight = computeSubtreeHeight(node, collapsedNodes);
 
@@ -1788,6 +1842,7 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, plat
       onHover: () => { },
       isDimmed: false,
       onViewTrends,
+      isLR: true,
     },
   });
 
@@ -1815,8 +1870,64 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, plat
         },
       });
 
-      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends, platform, selectedBrand, selectedSku, selectedCategory, currentPeriodLabel, comparePeriodLabel);
-      currentChildY += childHeight + VERTICAL_GAP;
+      layoutTreeNodesLR(child, x + LR_X_STEP, currentChildY, collapsedNodes, results, onViewTrends, platform, selectedBrand, selectedSku, selectedCategory, currentPeriodLabel, comparePeriodLabel);
+      currentChildY += childHeight + LR_Y_GAP;
+    });
+  }
+};
+
+const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, platform = "", selectedBrand = "", selectedSku = "", selectedCategory = "", currentPeriodLabel = "", comparePeriodLabel = "") => {
+  const isCollapsed = collapsedNodes.has(node.id);
+  const subtreeWidth = computeSubtreeWidth(node, collapsedNodes);
+
+  results.nodes.push({
+    id: node.id,
+    type: "kpi",
+    position: { x: x + subtreeWidth / 2 - CARD_WIDTH / 2, y },
+    data: {
+      ...node,
+      platform,
+      selectedBrand,
+      selectedSku,
+      selectedCategory,
+      currentPeriodLabel,
+      comparePeriodLabel,
+      hasChildren: node.children?.length > 0,
+      isCollapsed,
+      onToggle: () => { },
+      onClickDetail: () => { },
+      onHover: () => { },
+      isDimmed: false,
+      onViewTrends,
+    },
+  });
+
+  if (node.children && !isCollapsed) {
+    let currentChildX = x;
+    node.children.forEach((child) => {
+      const childWidth = computeSubtreeWidth(child, collapsedNodes);
+
+      results.edges.push({
+        id: `${node.id}-${child.id}`,
+        source: node.id,
+        target: child.id,
+        type: ConnectionLineType.Step,
+        animated: false,
+        style: {
+          stroke: "rgba(15,23,42,0.35)",
+          strokeWidth: 2.2,
+          strokeDasharray: "5,7",
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "rgba(15,23,42,0.55)",
+          width: 14,
+          height: 14,
+        },
+      });
+
+      layoutTreeNodes(child, currentChildX, y + VERTICAL_STEP, collapsedNodes, results, onViewTrends, platform, selectedBrand, selectedSku, selectedCategory, currentPeriodLabel, comparePeriodLabel);
+      currentChildX += childWidth + HORIZONTAL_GAP;
     });
   }
 };
@@ -1833,6 +1944,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [ecomOfftakeData, setEcomOfftakeData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState(null);
+  const [hasInitializedCollapse, setHasInitializedCollapse] = useState(false);
   const reactFlowInstance = useReactFlow();
 
   const [kpiModalOpen, setKpiModalOpen] = useState(false);
@@ -1845,8 +1957,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
       // Just show a toast or nothing for now as per "click data coming soon"
       // We'll pass a flag to the modal if needed, or just return early.
       // The user wants click data coming soon, so maybe a separate small modal or alert.
-      // For now, let's just show an alert or prevent opening.
-      // Actually, let's let the modal open but handle 'Coming Soon' inside it.
+      // For now, let's let the modal open but handle 'Coming Soon' inside it.
     }
 
     setSelectedKpiModalData({
@@ -1867,7 +1978,8 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const fetchRcaData = useCallback(async () => {
     const platformLower = (context.platform || '').toLowerCase();
     const channelLower = (context.channel || '').toLowerCase();
-    const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
+    const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || 
+                   ['amazon', 'flipkart', 'blinkit', 'zepto', 'instamart'].includes(platformLower);
 
     if (isEcom) {
       // For ecom platforms, fetch real offtake from rb_pdp_olap
@@ -1885,10 +1997,17 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
           params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
           params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
         }
-        const res = await axiosInstance.get('/ecom-offtake', { params });
+        const res = await axiosInstance.get('/rca-tree-kpis', { params });
+        console.log('[RCATree] /rca-tree-kpis call result:', JSON.stringify({
+          currFormatted: res.data?.currFormatted,
+          gvsFormatted: res.data?.currGvsFormatted, 
+          cvrFormatted: res.data?.currCvrFormatted,
+          aspFormatted: res.data?.currAspFormatted,
+          brands: res.data?.brandMetrics?.length
+        }));
         setEcomOfftakeData(res.data || null);
       } catch (err) {
-        console.warn('[RCATree] ecom-offtake fetch failed, using static fallback:', err.message);
+        console.warn('[RCATree] rca-tree-kpis fetch failed:', err.message);
         setEcomOfftakeData(null);
       } finally {
         setApiTreeData(null);
@@ -1960,15 +2079,15 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   // Use API data if available, otherwise fall back to hardcoded.
   // For ecom, patch the root node with real offtake values from the backend.
   const currentTreeData = useMemo(() => {
-    if (apiTreeData) return apiTreeData;
-    const tree = getDynamicRcaTreeData(context);
-
     const isEcom = (context.channel || '').toLowerCase().includes('e-commerce')
       || (context.channel || '').toLowerCase().includes('ecom')
-      || (context.platform || '').toLowerCase() === 'amazon'
-      || (context.platform || '').toLowerCase() === 'flipkart';
+      || ['amazon', 'flipkart', 'blinkit', 'zepto', 'instamart'].includes((context.platform || '').trim().toLowerCase());
+
+    console.log('[RCATree] useMemo re-run. context.platform:', context.platform, 'isEcom:', isEcom, 'hasOfftake:', !!ecomOfftakeData);
+    let tree = apiTreeData || getDynamicRcaTreeData(context);
 
     if (isEcom && ecomOfftakeData) {
+      console.log('[RCATree] PATCHING ROOT with:', ecomOfftakeData.currFormatted);
       const { 
         currFormatted, varianceStr, isPositive, totalVariancePct, 
         currGvsFormatted, prevGvsFormatted, gvsVarianceStr, isGvsPositive,
@@ -1987,15 +2106,25 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         rawPrevSov: bm.rawPrevSov
       }));
 
-      // Patch the Ofstake root node
+      // Patch the Offtake root node
+      console.log('[RCATree] Patching root with real data. ID:', tree.id, 'Value:', currFormatted);
+      
       const patchedTree = {
         ...tree,
-        value: currFormatted,
-        prevValue: ecomOfftakeData.prevFormatted,
-        change: Math.abs(totalVariancePct).toFixed(2) + '%',
+        value: currFormatted || tree.value,
+        prevValue: ecomOfftakeData.prevFormatted || tree.prevValue,
+        change: varianceStr || tree.change,
         isPositive,
         insight: isPositive ? 'Volume Growth' : 'Critical Decline',
         metrics: realMetrics,
+        meta: [
+          { 
+            label: "Est. Category share", 
+            value: ecomOfftakeData.currCatShareFormatted || "---", 
+            change: ecomOfftakeData.catShareVarStr || "---", 
+            isPositive: ecomOfftakeData.isCatSharePos 
+          }
+        ]
       };
 
       // Patch children
@@ -2197,11 +2326,52 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
                   adGvsNode.children[ssIdx] = { ...adGvsNode.children[ssIdx] };
                   const ssNode = adGvsNode.children[ssIdx];
                   
-                  // Make Sponsored Search real (Sum of SP + SB + SD)
-                  ssNode.value = currAdSalesFormatted || '0'; 
-                  ssNode.change = adSalesVarStr || '0%';
-                  ssNode.isPositive = isAdSalesPos;
+                  // Make Sponsored Search real (Sum of SP + SD)
+                  const currSsGvs = parseFloat(ecomOfftakeData.currTotalSpGvs || 0) + parseFloat(ecomOfftakeData.currTotalSdGvs || 0);
+                  const prevSsGvs = parseFloat(ecomOfftakeData.prevTotalSpGvs || 0) + parseFloat(ecomOfftakeData.prevTotalSdGvs || 0);
+                  const ssGvsVar = prevSsGvs > 0 ? ((currSsGvs - prevSsGvs) / prevSsGvs) * 100 : (currSsGvs > 0 ? 100 : 0);
+                  
+                  const formatUnitsLocal = (val) => {
+                      const v = parseFloat(val);
+                      if (isNaN(v)) return '0';
+                      if (v >= 10000000) return `${(v / 10000000).toFixed(2)} Cr`;
+                      if (v >= 100000)   return `${(v / 100000).toFixed(2)} Lac`;
+                      if (v >= 1000)     return `${(v / 1000).toFixed(2)} K`;
+                      return `${v.toFixed(0)}`;
+                  };
+
+                  const currSsGvsFormatted = formatUnitsLocal(currSsGvs);
+                  const ssVarStr = (ssGvsVar >= 0 ? '+' : '') + ssGvsVar.toFixed(2) + '%';
+
+                  ssNode.value = currSsGvsFormatted;
+                  ssNode.change = ssVarStr;
+                  ssNode.isPositive = ssGvsVar >= 0;
                   ssNode.category = "sponsored-search";
+
+                  if (ssNode.meta && ssNode.meta.length > 0) {
+                      ssNode.meta[0].value = currSsGvsFormatted;
+                      ssNode.meta[0].change = ssVarStr;
+                      ssNode.meta[0].isPositive = ssGvsVar >= 0;
+                  }
+
+                  // Brandwise Metrics for Sponsored Search
+                  ssNode.metrics = (ecomOfftakeData.brandMetrics || []).map(bm => {
+                      const sp = parseFloat(bm.rawSpGvs || 0);
+                      const sd = parseFloat(bm.rawSdGvs || 0);
+                      const p_sp = parseFloat(bm.rawPrevSpGvs || 0);
+                      const p_sd = parseFloat(bm.rawPrevSdGvs || 0);
+                      
+                      const rawSsGvs = sp + sd;
+                      const rawPrevSsGvs = p_sp + p_sd;
+                      const ssVariancePct = rawPrevSsGvs > 0 ? ((rawSsGvs - rawPrevSsGvs) / rawPrevSsGvs) * 100 : (rawSsGvs > 0 ? 100 : 0);
+                      
+                      return {
+                          brand: bm.brand,
+                          rawSsGvs,
+                          rawPrevSsGvs,
+                          ssVariancePct
+                      };
+                  });
 
                   if (ssNode.children && ssNode.children.length > 0) {
                     // Sponsored Display (Real)
@@ -2299,11 +2469,71 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         }
       }
 
-      return patchedTree;
+      // Assign to outer tree variable so fallback logic can catch it
+      tree = patchedTree;
+    } // <-- END OF `if (isEcom && ecomOfftakeData)`
+
+    // ==== NEW FRONTEND AGGREGATION LOGIC ===============================
+    // If we have prefetched drilldown data, calculate the card values by 
+    // aggregating the drilldown table rows (sum or avg)!
+    // This perfectly bypasses the backend ecomOfftake API if it fails.
+    if (prefetchedHoverData && Object.keys(prefetchedHoverData).length > 0) {
+      const patchFromPrefetch = (node) => {
+        const nodeData = prefetchedHoverData[node.id];
+        if (nodeData && !COMING_SOON_IDS.includes(node.id)) {
+          const allRows = [...(nodeData.gainers || []), ...(nodeData.drainers || [])];
+          if (allRows.length > 0) {
+            let currTotal = 0;
+            let prevTotal = 0;
+            let validCount = 0;
+
+            // Which KPIs need averaging vs summing?
+            const isAvg = ['cvr', 'indexed-cvr', 'organic-cvr', 'inorganic-cvr', 'availability', 'buybox', 'discounting', 'sov', 'sov-overall', 'asp', 'price', 'share-of-search', 'rating'].includes(node.id) || ['cvr', 'availability', 'price', 'discounting', 'sov'].includes(node.category);
+
+            allRows.forEach(row => {
+              const cur = parseFloat(row.currentVal || 0);
+              const prev = parseFloat(row.prevVal || 0);
+              
+              if (!isNaN(cur)) currTotal += cur;
+              if (!isNaN(prev)) prevTotal += prev;
+              if (row.currentVal !== null && row.currentVal !== undefined && !isNaN(cur)) {
+                  validCount++;
+              }
+            });
+
+            if (isAvg && validCount > 0) {
+              currTotal /= validCount;
+              prevTotal /= validCount;
+            }
+
+            // Set formatted values
+            node.value = formatValue(currTotal, node.label);
+            node.prevValue = formatValue(prevTotal, node.label);
+
+            // Variance Calculation
+            let varianceNum = prevTotal > 0 ? ((currTotal - prevTotal) / prevTotal) * 100 : (currTotal > 0 ? 100 : 0);
+            const varianceStr = (varianceNum >= 0 ? "+" : "") + varianceNum.toFixed(2) + "%";
+            
+            node.change = varianceStr;
+            node.isPositive = varianceNum >= 0;
+
+            if (node.id === 'root' || node.id === 'offtake') {
+              node.insight = varianceNum >= 0 ? 'Volume Growth' : 'Critical Decline';
+            }
+          }
+        }
+        if (node.children) {
+          node.children = node.children.map(child => patchFromPrefetch({ ...child }));
+        }
+        return node;
+      };
+
+      return patchFromPrefetch({ ...tree });
     }
+    // ====================================================================
 
     return tree;
-  }, [apiTreeData, context, ecomOfftakeData]);
+  }, [apiTreeData, context, ecomOfftakeData, prefetchedHoverData]);
 
   // Pre-fetch /category-rca drilldown data for ALL tree nodes on page load
   // This is the same API called on click — now fires on mount for every node
@@ -2311,7 +2541,9 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     if (!context.platform || loading) return;
 
     const fetchAllNodeData = async () => {
-      const allNodes = collectAllNodes(currentTreeData);
+      // Create a structural base to traverse, avoiding currentTreeData to break circular dependency!
+      const structuralTree = apiTreeData || getDynamicRcaTreeData(context);
+      const allNodes = collectAllNodes(structuralTree);
       const results = {};
       console.log(`[RCATree] Pre-fetching category-rca for ${allNodes.length} nodes on page load`);
 
@@ -2323,7 +2555,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
             category: context.category || 'All',
             kpiCategory: node.category || node.label,
             drilldownLevel: 'brand',
-            activeTab: 'gainers',
+            activeTab: 'all', // Fetch both gainers and drainers
             brand: context.brand || 'All',
             sku: context.sku || 'All',
             brandScope: context.brand || 'All',
@@ -2334,26 +2566,28 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
             params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
             params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
           }
+
           const res = await axiosInstance.get('/category-rca', { params });
-          results[node.id] = res.data?.rows || [];
+          if (res.data?.gainers || res.data?.drainers) {
+            results[node.id] = res.data;
+          }
         } catch (err) {
-          console.warn(`[RCATree] Pre-fetch for ${node.id} failed:`, err.message);
-          results[node.id] = [];
+          console.warn(`[RCATree] Failed to pre-fetch for ${node.id}:`, err.message);
         }
       });
 
       await Promise.all(promises);
       setPrefetchedHoverData(results);
       // Also set the root node rows for modal pre-fetch
-      if (results['root']) {
-        setPrefetchedModalRows(results['root']);
+      if (results['root'] || results['offtake']) {
+        setPrefetchedModalRows(results['root'] || results['offtake']);
       }
     };
 
     const timer = setTimeout(fetchAllNodeData, 500);
     return () => clearTimeout(timer);
   }, [
-    currentTreeData,
+    apiTreeData, // Only re-fetch if structural apiTreeData changes
     context.platform,
     context.category,
     context.brand,
@@ -2363,8 +2597,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     context.compareStart,
     context.compareEnd,
     context.compareOn,
-    loading,
-    collectAllNodes
+    loading
   ]);
 
   const index = useMemo(() => buildIndex(currentTreeData), [currentTreeData]);
@@ -2380,11 +2613,27 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const onToggleNode = useCallback((id) => {
     setCollapsedNodes((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        // EXPANDING - Strict Sibling Auto-Collapse
+        next.delete(id);
+        
+        const parentId = index.parent.get(id);
+        if (parentId) {
+          const siblings = index.children.get(parentId) || [];
+          siblings.forEach(sId => {
+            if (sId !== id) {
+              // Collapse sibling and ALL its descendants for total focus
+              next.add(sId);
+            }
+          });
+        }
+      } else {
+        // COLLAPSING
+        next.add(id);
+      }
       return next;
     });
-  }, []);
+  }, [index]);
 
   const handleCardClick = useCallback(
     (data) => {
@@ -2402,16 +2651,21 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const onHover = useCallback((id) => setHoveredNodeId(id), []);
 
   const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
-    const isEcom = context.channel?.toLowerCase().includes("e-commerce") || context.channel?.toLowerCase().includes("ecom") || context.platform?.toLowerCase() === "amazon" || context.platform?.toLowerCase() === "flipkart";
-    const initialGap = isEcom ? 80 : 180;
+    const isEcom = context.channel?.toLowerCase().includes("e-commerce") || context.channel?.toLowerCase().includes("ecom") || 
+                   ["amazon", "flipkart", "blinkit", "zepto", "instamart"].includes(context.platform?.toLowerCase());
     const results = { nodes: [], edges: [] };
-    const rootHeight = computeSubtreeHeight(currentTreeData, collapsedNodes, initialGap);
 
     const fmtDate = (d) => d ? dayjs(d).format("D MMM'YY") : null;
     const curP = (context.timeStart && context.timeEnd) ? `${fmtDate(context.timeStart)} - ${fmtDate(context.timeEnd)}` : "Current Period";
     const comP = (context.compareStart && context.compareEnd) ? `${fmtDate(context.compareStart)} - ${fmtDate(context.compareEnd)}` : "Compare Period";
 
-    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends, context.platform, context.brand, context.sku, context.category, curP, comP);
+    if (isEcom) {
+      const rootHeight = computeSubtreeHeight(currentTreeData, collapsedNodes);
+      layoutTreeNodesLR(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends, context.platform, context.brand, context.sku, context.category, curP, comP);
+    } else {
+      const rootWidth = computeSubtreeWidth(currentTreeData, collapsedNodes);
+      layoutTreeNodes(currentTreeData, -rootWidth / 2, 0, collapsedNodes, results, onViewTrends, context.platform, context.brand, context.sku, context.category, curP, comP);
+    }
 
     const nodesList = results.nodes.map((n) => {
       return {
@@ -2469,12 +2723,36 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
   useEffect(() => {
-    reactFlowInstance.fitView({ padding: 0.15, duration: 800 });
-    const t = setTimeout(() => {
-      reactFlowInstance.fitView({ padding: 0.15, duration: 400 });
-    }, 100);
-    return () => clearTimeout(t);
-  }, [reactFlowInstance, currentTreeData]);
+    if (currentTreeData && !hasInitializedCollapse) {
+      const isEcom = (context.channel || '').toLowerCase().includes('e-commerce')
+        || (context.channel || '').toLowerCase().includes('ecom')
+        || ['amazon', 'flipkart', 'blinkit', 'zepto', 'instamart'].includes((context.platform || '').toLowerCase());
+
+      if (isEcom && currentTreeData.children) {
+        // Collapse all direct children of the root to show only root + children initially
+        const childrenToCollapse = currentTreeData.children.map(c => c.id);
+        setCollapsedNodes(new Set(childrenToCollapse));
+        setHasInitializedCollapse(true);
+      }
+    }
+  }, [currentTreeData, hasInitializedCollapse, context.channel, context.platform, context.category]);
+
+  useEffect(() => {
+    // Reset initialization flag when platform or category changes to re-apply collapse to new data
+    setHasInitializedCollapse(false);
+  }, [context.platform, context.category]);
+
+  useEffect(() => {
+    if (!hasInitializedCollapse) {
+      // Zoom logic ONLY for initial load - using 0.7 maxZoom to prevent "huge node" effect
+      reactFlowInstance.fitView({ padding: 0.3, duration: 800, maxZoom: 0.7 });
+      const t = setTimeout(() => {
+        reactFlowInstance.fitView({ padding: 0.3, duration: 400, maxZoom: 0.7 });
+      }, 100);
+      return () => clearTimeout(t);
+    }
+    // Static camera after initialization: Clicking +/- will strictly toggle children WITHOUT moving the view
+  }, [reactFlowInstance, currentTreeData, hasInitializedCollapse]);
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
