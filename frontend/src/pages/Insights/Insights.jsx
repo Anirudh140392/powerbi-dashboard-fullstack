@@ -77,7 +77,7 @@ const REQUIRED_SIGNAL_TYPES = [
     "Challenger Launch Watch"
 ];
 
-const createEmptySignal = (type) => {
+const createEmptySignal = (type, brandName = "Mars") => {
     const base = {
         id: `empty_${type.replace(/\s+/g, '_')}`,
         type: type,
@@ -88,6 +88,7 @@ const createEmptySignal = (type) => {
         category: "-",
         impactInr: 0,
         impactLabel: "-",
+        brandName: brandName,
         kpis: [],
         whatWeSee: ["-", "-"],
         evidence: []
@@ -96,12 +97,12 @@ const createEmptySignal = (type) => {
     switch (type) {
         case "Competitor OSA Weak Spots":
             base.family = "Performance";
-            base.kpis = [{ label: "Other brand OSA", value: "0%" }, { label: "KW OSA", value: "0%" }, { label: "Cities", value: "0" }];
+            base.kpis = [{ label: "Other brand OSA", value: "0%" }, { label: `${brandName} OSA`, value: "0%" }, { label: "Cities", value: "0" }];
             base.evidence = [{ category: "-", city: "-", skuOrBrand: "-", otherBrandOsa: 0, kwOsa: 0 }];
             break;
         case "Ad Stock Mismatch":
             base.family = "Performance";
-            base.kpis = [{ label: "KW OSA (avg)", value: "0%" }, { label: "Ad SOV", value: "0%" }, { label: "Spend", value: "₹0" }];
+            base.kpis = [{ label: `${brandName} OSA (avg)`, value: "0%" }, { label: "Ad SOV", value: "0%" }, { label: "Spend", value: "₹0" }];
             base.evidence = [{ city: "-", skuOrBrand: "-", kwOsa: 0, adSov: 0, spendInr: 0, estLostSalesInr: 0 }];
             break;
         case "Price Parity Radar":
@@ -195,11 +196,14 @@ const PlatformIconsRow = ({ platforms }) => (
 
 const getCompetitorName = (insight) => {
     const rows = insight.evidence ?? [];
+    const ownBrand = (insight.brandName || "Mars").toLowerCase();
+    
     for (const r of rows) {
         const s = (r.skuOrBrand ?? "").trim();
         if (!s) continue;
         const lower = s.toLowerCase();
-        if (!lower.includes("kwality walls") && !lower.includes("kw ")) return s;
+        // Ignore own brand and its common abbreviations
+        if (!lower.includes(ownBrand) && !lower.includes("kw ") && !lower.includes("kwality walls")) return s;
     }
     return "";
 };
@@ -247,16 +251,17 @@ const DetailBody = ({ insight }) => {
                                     <>
                                         <TableHead>Category</TableHead>
                                         <TableHead>City</TableHead>
+                                        <TableHead>Platform</TableHead>
                                         <TableHead>Competitor</TableHead>
                                         <TableHead className="text-right">Other brand OSA</TableHead>
-                                        <TableHead className="text-right">{insight.brandName || "KW"} OSA</TableHead>
+                                        <TableHead className="text-right">{insight.brandName || "Mars"} OSA</TableHead>
                                     </>
                                 )}
                                 {view === "share" && (
                                     <>
                                         <TableHead>City</TableHead>
                                         <TableHead>Category</TableHead>
-                                        <TableHead className="text-right">{insight.brandName || "KW"} Share</TableHead>
+                                        <TableHead className="text-right">Overall SOS</TableHead>
                                         <TableHead className="text-right">Benchmark</TableHead>
                                         <TableHead className="text-right">Gap</TableHead>
                                         <TableHead className="text-right">Headroom</TableHead>
@@ -268,18 +273,19 @@ const DetailBody = ({ insight }) => {
                                         <TableHead>City</TableHead>
                                         <TableHead>Category</TableHead>
                                         <TableHead>PPU cluster</TableHead>
-                                        <TableHead className="text-right">{insight.brandName || "KW"} PPU</TableHead>
+                                        <TableHead className="text-right">{insight.brandName || "Mars"} PPU</TableHead>
                                         <TableHead className="text-right">Peer PPU</TableHead>
                                         <TableHead className="text-right">Index</TableHead>
                                         <TableHead className="text-right">Cluster share</TableHead>
                                         <TableHead className="text-right">Cluster growth</TableHead>
+                                        <TableHead className="text-right">Headroom</TableHead>
                                     </>
                                 )}
                                 {view === "adStock" && (
                                     <>
                                         <TableHead>City</TableHead>
-                                        <TableHead>{insight.brandName || "KW"} SKU</TableHead>
-                                        <TableHead className="text-right">{insight.brandName || "KW"} OSA</TableHead>
+                                        <TableHead>{insight.brandName || "Mars"} SKU</TableHead>
+                                        <TableHead className="text-right">{insight.brandName || "Mars"} OSA</TableHead>
                                         <TableHead className="text-right">Ad SOV</TableHead>
                                         <TableHead className="text-right">Spend</TableHead>
                                         <TableHead className="text-right">Est. lost sales</TableHead>
@@ -299,7 +305,7 @@ const DetailBody = ({ insight }) => {
                                     <>
                                         <TableHead>Depot / DB</TableHead>
                                         <TableHead>City</TableHead>
-                                        <TableHead>{insight.brandName || "KW"} SKU</TableHead>
+                                        <TableHead>{insight.brandName || "Mars"} SKU</TableHead>
                                         <TableHead className="text-right">Planned</TableHead>
                                         <TableHead className="text-right">Dispatched</TableHead>
                                         <TableHead className="text-right">Fill rate</TableHead>
@@ -328,6 +334,7 @@ const DetailBody = ({ insight }) => {
                                         <>
                                             <TableCell className="font-medium">{d.category ?? insight.category}</TableCell>
                                             <TableCell>{d.city ?? insight.city}</TableCell>
+                                            <TableCell>{d.platform ?? "-"}</TableCell>
                                             <TableCell className="max-w-[320px] truncate">{d.skuOrBrand ?? "-"}</TableCell>
                                             <TableCell className="text-right">{safePct(d.otherBrandOsa)}</TableCell>
                                             <TableCell className="text-right">{safePct(d.kwOsa)}</TableCell>
@@ -354,6 +361,7 @@ const DetailBody = ({ insight }) => {
                                             <TableCell className="text-right">{safeNum(d.priceIndex)}</TableCell>
                                             <TableCell className="text-right">{safePct(d.clusterContributionPct)}</TableCell>
                                             <TableCell className="text-right">{safePct(d.clusterGrowthPct)}</TableCell>
+                                            <TableCell className="text-right">{safeINR(d.headroomInr)}</TableCell>
                                         </>
                                     )}
                                     {view === "adStock" && (
@@ -451,7 +459,7 @@ const PremiumSignalCard = ({ insight, layout, onClick }) => {
 
 // --- MAIN PAGE COMPONENT ---
 
-const KwalityWallsSignalHub = () => {
+const InsightsSignalHub = () => {
     const { refreshFilters, maxDate } = useContext(FilterContext);
 
     const [filters, setFilters] = useState({ platform: "All platforms", city: "All cities", category: "All categories", signal: "All signals" });
@@ -493,12 +501,13 @@ const KwalityWallsSignalHub = () => {
                 };
                 const data = await fetchInsights(apiPayload);
                 const apiResponseList = (data?.success && Array.isArray(data?.data)) ? data.data : [];
+                const apiBrandName = apiResponseList.find(i => i.brandName)?.brandName || "Mars";
 
                 // STRICT ENFORCEMENT: Iterate over the 7 mandatory types.
                 // If the API provided it, use it. If not, generate a zeroed-out fallback.
                 const enforcedInsights = REQUIRED_SIGNAL_TYPES.map(requiredType => {
                     const foundInApi = apiResponseList.find(apiItem => apiItem.type === requiredType);
-                    return foundInApi ? foundInApi : createEmptySignal(requiredType);
+                    return foundInApi ? foundInApi : createEmptySignal(requiredType, apiBrandName);
                 });
 
                 setFetchedInsights(enforcedInsights);
@@ -703,4 +712,4 @@ const KwalityWallsSignalHub = () => {
     );
 };
 
-export default KwalityWallsSignalHub;
+export default InsightsSignalHub;
