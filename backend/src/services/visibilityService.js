@@ -3074,7 +3074,7 @@ class VisibilityService {
                 const keywordTypeCondition = buildCHCondition(keywordTypeFilter, 'keyword_type');
                 const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(keyword, 'keyword');
-                const ownBrandsCondition = ownBrandsOnly ? 'AND flag = 1' : 'AND 1=1';
+                const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
 
                 const dimColumn = viewMode === 'keyword' ? 'keyword' : 'keyword_search_product';
 
