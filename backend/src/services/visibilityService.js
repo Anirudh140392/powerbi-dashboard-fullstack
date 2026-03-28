@@ -1383,7 +1383,7 @@ class VisibilityService {
                     ? (isNationOnlyPlatform ? '' : `AND location_name NOT IN (${EXCLUDED_LOCATIONS})`)
                     : `AND ${locationCondition}`;
 
-                const brandSOSCondition = buildCHCondition(brandCondition, 'brand_name_th', { isBrand: true });
+                const brandSOSCondition = buildCHCondition(brandCondition, 'brand', { isBrand: true });
 
                 // 1. Get latest date
                 const maxDateRes = await queryClickHouse(`
@@ -2309,19 +2309,24 @@ class VisibilityService {
                 const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
                 const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
-                const brandsCondition = buildCHCondition(filters.brands, 'brand');
                 const brandCondition = buildCHCondition(brandFilter, 'brand');
 
-                const allFilters = `
+                // [FIX] Separate filters: volume filters should NOT include the specific brand filter
+                // so that SOS is calculated against the total category volume.
+                const volumeFilters = `
                 AND ${platformCondition}
                 AND ${locationCondition}
                 AND ${formatCondition}
                 AND ${keywordCondition}
                 AND ${keywordTypeCondition}
+            `;
+
+                const allFilters = `
+                ${volumeFilters}
                 AND ${brandCondition}
             `;
 
-                // 1. Get total volume for both periods
+                // 1. Get total volume for both periods (UNFILTERED by specific brand)
                 const volumeQuery = `
                 SELECT 
                     sumIf(toInt32(overall), DATE BETWEEN '${dateFrom}' AND '${dateTo}') as current_total_overall,
@@ -2332,7 +2337,7 @@ class VisibilityService {
                     sumIf(toInt32(organic), DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}') as prev_total_organic
                 FROM rb_kw_olap
                 WHERE (DATE BETWEEN '${dateFrom}' AND '${dateTo}' OR DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}')
-                ${allFilters}
+                ${volumeFilters}
             `;
 
                 const volumeRes = await queryClickHouse(volumeQuery);
@@ -2370,6 +2375,7 @@ class VisibilityService {
                 ORDER BY impressions DESC
                 LIMIT 20
             `;
+
 
                 const brandResults = await queryClickHouse(brandQuery);
 

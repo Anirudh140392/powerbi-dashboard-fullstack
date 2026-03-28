@@ -78,7 +78,7 @@ async function getEcpByCity(filters = {}) {
             p.Location as city,
             p.Brand as brand,
             p.Platform as platform,
-            ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))), 1) as ecp,
+            ROUND(AVG(toFloat64OrZero(toString(p.PPU))) * 100, 1) as ecp,
             ROUND(AVG(toFloat64OrZero(toString(p.MRP))), 1) as mrp,
             ROUND(AVG(toFloat64OrZero(toString(p.Discount))), 1) as discount,
             ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))) / NULLIF(AVG(toFloat64OrZero(toString(p.MRP))), 0), 2) as rpi,

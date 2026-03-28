@@ -117,6 +117,7 @@ async function getEcpByBrand(filters = {}) {
                     / NULLIF(COUNT(CASE WHEN p.Selling_Price IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN 1 END), 0),
                     0
                 ) AS ecp,
+                AVG(ifNull(toFloat64OrZero(toString(p.PPU)), 0)) * 100 AS ecp_per_unit,
                 AVG(
                     CASE 
                         WHEN ${isMars ? '1=0' : "s.gram IS NOT NULL AND s.gram != '' AND s.gram != '0' AND isFinite(ifNull(toFloat64OrZero(toString(s.gram)), 0)) AND ifNull(toFloat64OrZero(toString(s.gram)), 0) > 0"}
@@ -145,9 +146,8 @@ async function getEcpByBrand(filters = {}) {
                 const ecp = parseFloat(row.ecp) || 0;
                 const avgGram = parseFloat(row.avg_gram) || 0;
 
-                // ECP Per Unit = ECP / avg gram (price per gram)
-                // Only calculate if avgGram is valid (> 0)
-                const ecpPerUnit = avgGram > 0 ? ecp / avgGram : 0;
+                // ECP Per Unit = PPU * 100
+                const ecpPerUnit = parseFloat(row.ecp_per_unit) || 0;
 
                 return {
                     id: index + 1,

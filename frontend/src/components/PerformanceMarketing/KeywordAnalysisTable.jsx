@@ -107,8 +107,8 @@ const aggregateForMonthFilter = (keywordObj, monthFilter) => {
 
   const count = months.length;
 
-  // Standardized to match Performance Overview: Conversion = Clicks / Impressions
-  const accurateConversion = sum.impressions > 0 ? (sum.rawClicks / sum.impressions) * 100 : 0;
+  // Standardized to match Performance Overview: Conversion = Orders / Impressions
+  const accurateConversion = sum.impressions > 0 ? (sum.rawOrders / sum.impressions) * 100 : 0;
 
   return {
     impressions: sum.impressions,

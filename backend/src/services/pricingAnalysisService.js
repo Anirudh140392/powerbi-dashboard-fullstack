@@ -56,6 +56,7 @@ async function getPricingSource() {
     const nenoOsaCol = r('neno_osa');
     const denoOsaCol = r('deno_osa');
     const qtySoldCol = r('Qty_Sold');
+    const ppuCol = r('PPU');
 
     const hasWeight = columnExists(cols, 'Weight');
     const weightExpr = hasWeight ? `toFloat64OrZero(extract(toString(p.${weightCol}), '^[0-9.]+'))` : '1';
@@ -97,6 +98,7 @@ async function getPricingSource() {
             wListingPercent: `toFloat64OrZero(toString(p.${listingPercentCol}))`,
             wNenoOsa: wrap(nenoOsaCol),
             wDenoOsa: wrap(denoOsaCol),
+            wPpu: `(${wrap(ppuCol)} * 100)`,
         },
         prodCatSql,
         cityNormSql
@@ -497,7 +499,7 @@ async function getPricingKpis(filters = {}) {
     return await getCachedOrCompute(cacheKey, async () => {
         try {
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
-            const startDate = filters.startDate || dayjs().subtract(15, 'days').format('YYYY-MM-DD');
+            const startDate = filters.startDate || dayjs().startOf('month').format('YYYY-MM-DD');
 
             const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
             const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
@@ -548,7 +550,7 @@ async function getPricingKpis(filters = {}) {
                 NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_curr,
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                    THEN ${f.wSellingPrice} 
+                    THEN ${f.wPpu} 
                     ELSE NULL END) AS price_per_unit_alt_curr,
                 
                 COALESCE(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) /
@@ -568,7 +570,7 @@ async function getPricingKpis(filters = {}) {
                 NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_prev,
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                    THEN ${f.wSellingPrice} 
+                    THEN ${f.wPpu} 
                     ELSE NULL END) AS price_per_unit_alt_prev,
                 
                 COALESCE(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSales} ELSE 0 END) /
@@ -876,7 +878,9 @@ const getDimensionOverview = async (filters = {}) => {
             const category = filters.category || null;
             const channel = filters.channel || null;
 
-            let whereConditions = [];
+            let whereConditions = [
+                `${f.wSellingPrice} > 0`
+            ];
 
             const platforms = parseMultiSelectFilter(platform);
             if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
@@ -912,7 +916,7 @@ const getDimensionOverview = async (filters = {}) => {
                         THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                         ELSE NULL END) AS Discount,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                        THEN ${f.wSellingPrice} 
+                        THEN ${f.wPpu} 
                         ELSE NULL END) AS PricePerUnit,
                     COALESCE(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) /
                     NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.${f.qtySold})) ELSE 0 END), 0),
@@ -924,7 +928,7 @@ const getDimensionOverview = async (filters = {}) => {
                         THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                         ELSE NULL END) AS discount_prev,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                        THEN ${f.wSellingPrice} 
+                        THEN ${f.wPpu} 
                         ELSE NULL END) AS price_per_unit_prev,
                     COALESCE(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSales} ELSE 0 END) /
                     NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.${f.qtySold})) ELSE 0 END), 0),
@@ -1035,7 +1039,7 @@ const getDimensionTrends = async (filters = {}) => {
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(${f.wSellingPrice}) AS price_per_unit,
+            AVG(${f.wPpu}) AS price_per_unit,
             COALESCE(SUM(${f.wSales}) / NULLIF(SUM(toFloat64OrZero(toString(p.${f.qtySold}))), 0), AVG(${f.wSellingPrice})) AS asp
         FROM ${src.table} p
         WHERE ${whereClause}
@@ -1132,7 +1136,7 @@ const getPricingCompetitionTrends = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(${f.wSellingPrice}) AS price_per_unit,
+            AVG(${f.wPpu}) AS price_per_unit,
             COALESCE(SUM(${f.wSales}) / NULLIF(SUM(toFloat64OrZero(toString(p.${f.qtySold}))), 0), AVG(${f.wSellingPrice})) AS asp
         FROM ${src.table} p
         WHERE ${whereClause}
@@ -1245,7 +1249,7 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(${f.wSellingPrice}) AS price_per_unit,
+            AVG(${f.wPpu}) AS price_per_unit,
             COALESCE(SUM(${f.wSales}) / NULLIF(SUM(toFloat64OrZero(toString(p.${f.qtySold}))), 0), AVG(${f.wSellingPrice})) AS asp
         FROM ${src.table} p
         WHERE ${whereClause}
@@ -1263,7 +1267,7 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(${f.wSellingPrice}) AS price_per_unit,
+            AVG(${f.wPpu}) AS price_per_unit,
             COALESCE(SUM(${f.wSales}) / NULLIF(SUM(toFloat64OrZero(toString(p.${f.qtySold}))), 0), AVG(${f.wSellingPrice})) AS asp
         FROM ${src.table} p
         WHERE ${whereClause}

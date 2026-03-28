@@ -751,6 +751,13 @@ const VisiblityAnalysisData = ({
 
   // ---------------- FILTER OPTIONS ----------------
   const TabbedHeatmapTable = ({ apiMatrixData }) => {
+    const { 
+      setPlatform, 
+      setSelectedBrand, 
+      setSelectedLocation, 
+      setSelectedCategory 
+    } = useContext(FilterContext);
+
     const [activeTab, setActiveTab] = useState("platform");
 
     // ---------------- TABS (pure backend data, no fallbacks) ----------------
@@ -810,12 +817,21 @@ const VisiblityAnalysisData = ({
             showPagination={true}
             filterApiUrl="/api/visibility-analysis/filter-options"
             onFilterChange={(appliedFilters) => {
-              // Map matrix internal filter names to global filter names
+              console.log('🔄 [Matrix] Filters applied in modal:', appliedFilters);
+
+              // 1. Update Global Filter Context (Source of Truth)
+              // Handle single/multi-selection based on what's returned from the modal
+              if (appliedFilters.platforms) setPlatform(appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : (appliedFilters.platforms.length === 0 ? 'All' : appliedFilters.platforms));
+              if (appliedFilters.categories) setSelectedCategory(appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : (appliedFilters.categories.length === 0 ? 'All' : appliedFilters.categories));
+              if (appliedFilters.brands) setSelectedBrand(appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : (appliedFilters.brands.length === 0 ? 'All' : appliedFilters.brands));
+              if (appliedFilters.cities) setSelectedLocation(appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : (appliedFilters.cities.length === 0 ? 'All' : appliedFilters.cities));
+
+              // 2. Also update local page state for immediate UI reaction/fetch
               const mapped = {
-                platform: appliedFilters.platforms?.[0] || 'All',
-                category: appliedFilters.categories?.[0] || 'All',
-                brand: appliedFilters.brands?.[0] || 'All',
-                location: appliedFilters.cities?.[0] || 'All'
+                platform: (appliedFilters.platforms && appliedFilters.platforms.length > 0) ? (appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : appliedFilters.platforms) : 'All',
+                category: (appliedFilters.categories && appliedFilters.categories.length > 0) ? (appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : appliedFilters.categories) : 'All',
+                brand: (appliedFilters.brands && appliedFilters.brands.length > 0) ? (appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : appliedFilters.brands) : 'All',
+                location: (appliedFilters.cities && appliedFilters.cities.length > 0) ? (appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : appliedFilters.cities) : 'All'
               };
               onFiltersChange(prev => ({ ...prev, ...mapped }));
             }}

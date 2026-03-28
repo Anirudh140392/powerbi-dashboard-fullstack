@@ -1,0 +1,43 @@
+﻿[ClickHouse] Created client for database: mars
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ΓÜÖ∩╕Å  specify custom .env file path with { path: '/custom/path/.env' }
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ≡ƒ¢í∩╕Å auth for agents: https://vestauth.com
+--- FETCHING KPIS (Pricing Overview) ---
+[PricingAnalysisService] getPricingKpis called with filters: {
+  platform: 'Blinkit',
+  startDate: '2025-11-01',
+  endDate: '2025-11-30',
+  brand: 'All',
+  category: 'All',
+  location: 'All'
+}
+[ClickHouse Debug] DB: mars | Query: DESCRIBE TABLE rb_pdp_olap
+[ClickHouse Debug] Result: 44 rows
+≡ƒöì [ColumnDiscovery] DB=mars, Table=rb_pdp_olap: 44 columns discovered
+[PricingAnalysisService] Executing KPI query...
+[ClickHouse Debug] DB: mars | Query:  SELECT -- Current Period AVG(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 ELSE NULL END) AS discount_curr, SUM(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) / NULLIF(SUM(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0) * 100 AS weighted_discount_curr, AVG(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END) AS price_per_unit_alt_curr, COALESCE(SUM(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) / NULLIF(SUM(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN toFloat64OrZero(toString(p.Qty_Sold)) ELSE 0 END), 0), AVG(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END)) AS asp_curr, -- Previous Period AVG(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 ELSE NULL END) AS discount_prev, SUM(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) / NULLIF(SUM(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0) * 100 AS weighted_discount_prev, AVG(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END) AS price_per_unit_alt_prev, COALESCE(SUM(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) / NULLIF(SUM(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN toFloat64OrZero(toString(p.Qty_Sold)) ELSE 0 END), 0), AVG(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END)) AS asp_prev FROM rb_pdp_olap p WHERE p.DATE BETWEEN '2025-10-02' AND '2025-11-30' AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 AND lower(p.Platform) IN ('blinkit') 
+[ClickHouse Debug] Result: 1 rows
+KPIs ASP: 79.90165464132787
+KPIs Discount: 8.109472776748225
+KPIs PricePerUnit: 106.85728306883071
+
+--- FETCHING DIMENSION OVERVIEW (Category Overview) ---
+[PricingAnalysisService] getDimensionOverview called with filters: {
+  platform: 'Blinkit',
+  startDate: '2025-11-01',
+  endDate: '2025-11-30',
+  brand: 'All',
+  category: 'All',
+  location: 'All',
+  dimension: 'platform'
+}
+[PricingAnalysisService] Executing Dimension Overview query...
+[ClickHouse Debug] DB: mars | Query:  SELECT p.Platform AS dimension, -- Current metrics AVG(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 ELSE NULL END) AS Discount, AVG(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END) AS PricePerUnit, COALESCE(SUM(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) / NULLIF(SUM(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN toFloat64OrZero(toString(p.Qty_Sold)) ELSE 0 END), 0), AVG(CASE WHEN p.DATE BETWEEN '2025-11-01' AND '2025-11-30' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END)) AS ASP, -- Previous metrics for change AVG(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 ELSE NULL END) AS discount_prev, AVG(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END) AS price_per_unit_prev, COALESCE(SUM(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END) / NULLIF(SUM(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN toFloat64OrZero(toString(p.Qty_Sold)) ELSE 0 END), 0), AVG(CASE WHEN p.DATE BETWEEN '2025-10-02' AND '2025-10-31' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END)) AS asp_prev FROM rb_pdp_olap p WHERE p.DATE BETWEEN '2025-10-02' AND '2025-11-30' AND lower(p.Platform) IN ('blinkit') GROUP BY dimension ORDER BY Discount DESC 
+[ClickHouse Debug] Result: 1 rows
+Dimension ASP: 78.71715013247062
+Dimension Discount: 8.109472776748332
+Dimension PricePerUnit: 78.02615280138409
+
+--- COMPARISON ---
+[!] ASP Mismatch: 79.90165464132787 vs 78.71715013247062
+[+] Discount Matches: 8.109472776748225
+[!] PricePerUnit Mismatch: 106.85728306883071 vs 78.02615280138409

@@ -1278,7 +1278,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               id: "MWSales",
-              label: "MW Sales (Cr)",
+              label: "MW Estimated Sales (Cr)",
               color: "#F43F5E",
               axis: "left",
               default: false,
@@ -1323,7 +1323,7 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             { id: "MWMarketShare", label: "MW Market Share%", color: "#14B8A6", default: true },
-            { id: "MWSales", label: "MW Sales (Cr)", color: "#F43F5E", default: false },
+            { id: "MWSales", label: "MW Estimated Sales (Cr)", color: "#F43F5E", default: false },
             { id: "MLMarketShare", label: "ML Market Share%", color: "#8B5CF6", default: false },
             { id: "MLSales", label: "ML Sales (Cr)", color: "#F97316", default: false },
           ],
@@ -1342,7 +1342,7 @@ export default function TrendsCompetitionDrawer({
           columns: [
             { id: "brand", label: "Brand", type: "text" },
             { id: "MWMarketShare", label: "MW Market Share%", type: "metric" },
-            { id: "MWSales", label: "MW Sales (Cr)", type: "metric" },
+            { id: "MWSales", label: "MW Estimated Sales (Cr)", type: "metric" },
             { id: "MLMarketShare", label: "ML Market Share%", type: "metric" },
             { id: "MLSales", label: "ML Sales (Cr)", type: "metric" },
           ],

@@ -53,9 +53,9 @@ const marketShareKpis = [
   },
   {
     id: "ms-mars-wrigley",
-    title: "Our Sales (Cr)",
+    title: "Our Estimated Sales (Cr)",
     value: "₹ 6.90 Cr",
-    subtitle: "Our brand sales performance",
+    subtitle: "Our brand estimated sales performance",
     delta: 38.1,
     deltaLabel: "▲ 38.1% (₹4.88 Cr)",
     icon: PieChart,
@@ -343,7 +343,7 @@ export default function MarketShareAnalysis() {
   const [kpis, setKpis] = useState(() =>
     marketShareKpis.map(k =>
       k.id === 'ms-mars-wrigley'
-        ? { ...k, title: `${dbDisplayName} Sales (Cr)`, subtitle: `${dbDisplayName} brand sales performance` }
+        ? { ...k, title: `${dbDisplayName} Estimated Sales (Cr)`, subtitle: `${dbDisplayName} brand estimated sales performance` }
         : k
     )
   );
