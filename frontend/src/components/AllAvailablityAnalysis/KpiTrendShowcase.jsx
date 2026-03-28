@@ -1008,7 +1008,7 @@ const KPI_KEYS = [
   },
   {
     key: "Discount",
-    label: "MW discount %",
+    label: "Discount %",
     color: "#6366F1",
     unit: "%",
   },
@@ -1024,7 +1024,7 @@ const KPI_KEYS = [
 const PRICING_KPI_KEYS = [
   {
     key: "Discount",
-    label: "MW discount %",
+    label: "Discount %",
     color: "#6366F1",
     unit: "%",
     fmt: (v) => `${v.toFixed(1)}%`,
@@ -1037,27 +1037,11 @@ const PRICING_KPI_KEYS = [
     fmt: (v) => `₹${v < 10 ? v.toFixed(2) : v.toFixed(0)}`,
   },
   {
-    key: "RPI",
-    label: "RPI",
-    color: "#F43F5E",
-    fmt: (v) => v.toFixed(2),
-  },
-  {
     key: "ASP",
-    label: "MW Average Selling Price",
+    label: "Average Selling Price",
     color: "#8B5CF6",
     prefix: "₹",
     fmt: (v) => `₹${v.toFixed(0)}`,
-  },
-  {
-    key: "Offtake",
-    label: "Offtake",
-    color: "#F59E0B",
-    fmt: (v) => {
-      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
-      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
-      return v.toFixed(0);
-    },
   },
 ];
 

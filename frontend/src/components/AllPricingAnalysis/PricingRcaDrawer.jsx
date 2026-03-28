@@ -99,8 +99,6 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
             discountChange: 2.1,
             pricePerUnit: 185.00,
             priceChange: -10.50,
-            rpi: 4.8,
-            rpiChange: 0.3,
             asp: 192.00,
             aspChange: 5.00
         },
@@ -110,8 +108,6 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
             discountChange: -1.2,
             pricePerUnit: 192.50,
             priceChange: 5.20,
-            rpi: 4.2,
-            rpiChange: -0.1,
             asp: 205.00,
             aspChange: 12.00
         },
@@ -121,8 +117,6 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
             discountChange: 3.5,
             pricePerUnit: 178.00,
             priceChange: -15.00,
-            rpi: 5.1,
-            rpiChange: 0.6,
             asp: 188.00,
             aspChange: -2.50
         },
@@ -132,8 +126,6 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
             discountChange: 0.5,
             pricePerUnit: 198.00,
             priceChange: 2.00,
-            rpi: 3.9,
-            rpiChange: 0.1,
             asp: 210.00,
             aspChange: 8.00
         }
@@ -207,13 +199,6 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
                             icon={DollarSign}
                             colorClass="text-emerald-600"
                         />
-                        <KpiCard
-                            title="Overall RPI"
-                            value="4.25"
-                            change="+0.15"
-                            icon={LineChart}
-                            colorClass="text-indigo-600"
-                        />
                     </motion.div>
 
                     {/* Table Section */}
@@ -245,7 +230,6 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
                                         <TableCell sx={{ pl: 4, fontWeight: 800, fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', tracking: '0.1em', bgcolor: 'white' }}>City</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 800, fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', tracking: '0.1em', bgcolor: 'white' }}>Discount %</TableCell>
                                         <TableCell align="right" sx={{ fontWeight: 800, fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', tracking: '0.1em', bgcolor: 'white' }}>Avg Selling Price</TableCell>
-                                        <TableCell align="right" sx={{ fontWeight: 800, fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', tracking: '0.1em', bgcolor: 'white' }}>RPI</TableCell>
                                         <TableCell align="right" sx={{ pr: 4, fontWeight: 800, fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', tracking: '0.1em', bgcolor: 'white' }}>ASP</TableCell>
                                     </TableRow>
                                 </TableHead>
@@ -292,18 +276,6 @@ export default function PricingRcaDrawer({ entityName, dimensionType, onClose })
                                                         )}>
                                                             {city.priceChange >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
                                                             ₹{Math.abs(city.priceChange).toFixed(1)}
-                                                        </span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell align="right" sx={{ py: 3, borderBottom: '1px solid #f8fafc' }}>
-                                                    <div className="flex flex-col items-end">
-                                                        <span className="text-[15px] font-black text-slate-800">{city.rpi}</span>
-                                                        <span className={cn(
-                                                            "text-[11px] font-extrabold flex items-center gap-0.5",
-                                                            city.rpiChange >= 0 ? "text-emerald-500" : "text-rose-500"
-                                                        )}>
-                                                            {city.rpiChange >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
-                                                            {Math.abs(city.rpiChange).toFixed(1)}
                                                         </span>
                                                     </div>
                                                 </TableCell>

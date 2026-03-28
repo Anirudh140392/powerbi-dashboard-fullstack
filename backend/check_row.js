@@ -1,13 +1,13 @@
 import { queryClickHouse } from './src/config/clickhouse.js';
 
-async function listTables() {
+async function checkRow() {
     try {
-        const query = `SHOW TABLES`;
+        const query = `SELECT * FROM rb_pdp_olap LIMIT 1`;
         const results = await queryClickHouse(query);
-        console.log('Tables:', JSON.stringify(results, null, 2));
+        console.log('Sample Row:', JSON.stringify(results[0], null, 2));
     } catch (err) {
         console.error('Error:', err);
     }
 }
 
-listTables();
+checkRow();
