@@ -1407,6 +1407,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
     platform,
     timeStart,
     timeEnd,
+    compareStart,
+    compareEnd,
   } = useContext(FilterContext);
 
   const kpiKeys = useMemo(() => {
@@ -1458,6 +1460,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             period: '1M',
             startDate: timeStart?.format('YYYY-MM-DD'),
             endDate: timeEnd?.format('YYYY-MM-DD'),
+            compareStartDate: compareStart?.format('YYYY-MM-DD'),
+            compareEndDate: compareEnd?.format('YYYY-MM-DD'),
             dimension: dimensionType || 'category',
             dimensionValue: effectiveDimValue || undefined,
             location: isCityFilterActive ? city : undefined,
@@ -1477,6 +1481,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             period: '1M',
             startDate: timeStart?.format('YYYY-MM-DD'),
             endDate: timeEnd?.format('YYYY-MM-DD'),
+            compareStartDate: compareStart?.format('YYYY-MM-DD'),
+            compareEndDate: compareEnd?.format('YYYY-MM-DD'),
             location: isCityFilterActive ? city : undefined,
             category: isCategoryFilterActive ? filters.categories.join(',') : undefined,
             brand: isBrandFilterActive ? filters.brands.join(',') : undefined,
@@ -1497,7 +1503,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
             period: '1M',
             startDate: timeStart?.format('YYYY-MM-DD'),
-            endDate: timeEnd?.format('YYYY-MM-DD')
+            endDate: timeEnd?.format('YYYY-MM-DD'),
+            compareStartDate: compareStart?.format('YYYY-MM-DD'),
+            compareEndDate: compareEnd?.format('YYYY-MM-DD'),
           };
           console.log('[KpiTrendShowcase] Fetching watchtower competition data with params:', params);
           const response = await axiosInstance.get('/watchtower/competition', { params });
@@ -1513,7 +1521,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       }
     };
     fetchCompetitionData();
-  }, [city, filters, platform, timeStart, timeEnd, dynamicKey, dimensionValue, dimensionType]);
+  }, [city, filters, platform, timeStart, timeEnd, compareStart, compareEnd, dynamicKey, dimensionValue, dimensionType]);
 
 
 
