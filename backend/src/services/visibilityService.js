@@ -1303,7 +1303,7 @@ class VisibilityService {
                             max(toInt32(flag)) as is_my_sku,
                             topKIf(1)(brand, brand != '') as best_brand_arr
                         FROM rb_kw_olap
-                        WHERE ${dateCondition} AND ${platformCondition} ${locationFilter} ${typeFilter} ${keywordFilter} ${categoryClause} AND keyword_search_product != ''
+                        WHERE ${dateCondition} AND ${platformCondition} ${locationFilter} ${typeFilter} ${keywordFilter} ${categoryClause} AND keyword_search_product != '' AND toInt32(flag) = 1
                         GROUP BY sku
                         HAVING vol > 0
                         ORDER BY vol DESC
@@ -3124,7 +3124,6 @@ class VisibilityService {
                       AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                     GROUP BY ${dimColumn} ${viewMode === 'keyword' ? ', brand' : ''}
                     ORDER BY impressions DESC
-                    LIMIT 200
                 `;
 
                 const results = await queryClickHouse(mainQuery);
