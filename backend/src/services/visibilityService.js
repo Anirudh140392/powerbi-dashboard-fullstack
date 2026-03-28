@@ -45,6 +45,23 @@ function buildCHCondition(value, column, options = {}) {
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
 
+/**
+ * Shared helper to map keyword types (e.g., Competitor -> [Competitor, Competition])
+ */
+const processKeywordType = (val) => {
+    if (!val || val === 'All' || val === 'all') return null;
+    if (Array.isArray(val)) {
+        return val.filter(t => t !== 'All' && t !== 'all').map(t => {
+            const lower = String(t).toLowerCase();
+            if (lower === 'competitor' || lower === 'competition') return ['Competitor', 'Competition'];
+            return t;
+        }).flat();
+    }
+    const lower = String(val).toLowerCase();
+    if (lower === 'competitor' || lower === 'competition') return ['Competitor', 'Competition'];
+    return val;
+};
+
 
 
 async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, keywordType = null, category = null) {
@@ -1260,13 +1277,15 @@ class VisibilityService {
                 // 2. Aggregate metrics for keywords
                 let typeConds = [];
                 const processType = (val) => {
-                    if (!val || val === 'All') return null;
+                    if (!val || val === 'All' || val === 'all') return null;
                     if (Array.isArray(val)) {
-                        // Handle ['All'] or ['Branded', 'All']
-                        const filtered = val.filter(t => t !== 'All' && t !== 'all').map(t => t === 'Competitor' ? 'Competition' : t);
-                        return filtered.length > 0 ? filtered : null;
+                        return val.filter(t => t !== 'All' && t !== 'all').map(t => {
+                            if (t === 'Competitor' || t === 'Competition') return ['Competitor', 'Competition'];
+                            return t;
+                        }).flat();
                     }
-                    return val === 'Competitor' ? 'Competition' : val;
+                    if (val === 'Competitor' || val === 'Competition') return ['Competitor', 'Competition'];
+                    return val;
                 };
 
                 const widgetType = processType(filters.filter);
@@ -1436,7 +1455,6 @@ class VisibilityService {
 
                     // Resort by volume DESC exactly as fetched
                     terms.sort((a, b) => b._vol - a._vol);
-
                 } else {
                     const limitClause = 'LIMIT 50';
 
@@ -1444,16 +1462,16 @@ class VisibilityService {
                         SELECT 
                             keyword,
                             MAX(keyword_type) as type,
-                            sumIf(toInt32(overall), ${brandSOSCondition}) as rb_overall,
-                            sumIf(toInt32(organic), ${brandSOSCondition}) as rb_organic,
-                            sumIf(toInt32(spons), ${brandSOSCondition}) as rb_sponsored,
+                            sumIf(toInt32(overall), flag = 1) as rb_overall,
+                            sumIf(toInt32(organic), flag = 1) as rb_organic,
+                            sumIf(toInt32(spons), flag = 1) as rb_sponsored,
                             sum(toInt32(overall)) as total_overall,
                             sum(toInt32(organic)) as total_organic,
                             sum(toInt32(spons)) as total_spons,
                             sumIf(toInt32(overall), ${brandSOSCondition}) as brand_filter_overall,
                             ROUND(AVG(POSITION), 1) as avg_overall_pos,
-                            ROUND(avgIf(POSITION, toInt32(organic) = 1 AND ${brandSOSCondition}), 1) as avg_org_pos,
-                            ROUND(avgIf(POSITION, toInt32(spons) = 1 AND ${brandSOSCondition}), 1) as avg_ad_pos
+                            ROUND(avgIf(POSITION, toInt32(organic) = 1 AND flag = 1), 1) as avg_org_pos,
+                            ROUND(avgIf(POSITION, toInt32(spons) = 1 AND flag = 1), 1) as avg_ad_pos
                         FROM rb_kw_olap
                         WHERE ${dateCondition}
                           AND ${platformCondition}
@@ -1462,7 +1480,7 @@ class VisibilityService {
                           ${keywordFilter}
                           ${categoryClause}
                         GROUP BY keyword
-                        ${brand && brand !== 'All' ? 'HAVING brand_filter_overall > 0' : ''}
+                        ${(brand && brand !== 'All' && (!filters || !filters.filter || filters.filter === 'All')) ? 'HAVING brand_filter_overall > 0' : ''}
                         ORDER BY (ifNull(toFloat64OrZero(toString(rb_overall)), 0) / nullIf(total_overall, 0)) DESC, total_overall DESC
                         ${limitClause}
                     `;
@@ -2739,50 +2757,58 @@ class VisibilityService {
                 const platformCond = buildCHCondition(platform, 'platform_name');
                 const locationCond = buildCHCondition(location, 'location_name');
                 const keywordCond = buildCHCondition(keyword, 'keyword');
-                const keywordTypeCond = buildCHCondition(keywordType, 'keyword_type');
+                const keywordTypeCond = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
                 const categoryCond = buildCHCondition(category, 'keyword_category', { isCategory: true });
 
-                const filterClause = `
+                const globalFilterClause = `
                     AND ${platformCond}
                     AND ${locationCond}
+                    AND ${categoryCond}
+                `;
+
+                const filterClause = `
+                    ${globalFilterClause}
                     AND ${keywordCond}
                     AND ${keywordTypeCond}
-                    AND ${categoryCond}
                 `;
 
                 // ── Step 1: Brand-level SOS — grouped by brand AND platform ──
                 const brandQuery = `
-                    SELECT brand, platform_name AS platform, 'current' AS period,
-                        ROUND(sum(toInt32(overall)) * 100.0 /
-                            nullIf((SELECT sum(toInt32(overall)) FROM rb_kw_olap
-                                    WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${filterClause}), 0), 2) AS overall_sos,
-                        ROUND(sum(toInt32(organic)) * 100.0 /
-                            nullIf((SELECT sum(toInt32(organic)) FROM rb_kw_olap
-                                    WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${filterClause}), 0), 2) AS organic_sos,
-                        ROUND(sum(toInt32(spons)) * 100.0 /
-                            nullIf((SELECT sum(toInt32(spons)) FROM rb_kw_olap
-                                    WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${filterClause}), 0), 2) AS paid_sos
+                    SELECT 
+                        brand, 
+                        platform_name AS platform, 
+                        'current' AS period,
+                        sum(toInt32(overall)) as b_overall,
+                        sum(toInt32(organic)) as b_organic,
+                        sum(toInt32(spons)) as b_sponsored,
+                        SUM(b_overall) OVER(PARTITION BY platform_name) as p_overall,
+                        SUM(b_organic) OVER(PARTITION BY platform_name) as p_organic,
+                        SUM(b_sponsored) OVER(PARTITION BY platform_name) as p_sponsored,
+                        ROUND(b_overall * 100.0 / nullIf(p_overall, 0), 2) AS overall_sos,
+                        ROUND(b_organic * 100.0 / nullIf(p_organic, 0), 2) AS organic_sos,
+                        ROUND(b_sponsored * 100.0 / nullIf(p_sponsored, 0), 2) AS paid_sos
                     FROM rb_kw_olap
-                    WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${filterClause}
+                    WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${globalFilterClause}
                     GROUP BY brand, platform_name
 
                     UNION ALL
 
-                    SELECT brand, platform_name AS platform, 'previous' AS period,
-                        ROUND(sum(toInt32(overall)) * 100.0 /
-                            nullIf((SELECT sum(toInt32(overall)) FROM rb_kw_olap
-                                    WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${filterClause}), 0), 2) AS overall_sos,
-                        ROUND(sum(toInt32(organic)) * 100.0 /
-                            nullIf((SELECT sum(toInt32(organic)) FROM rb_kw_olap
-                                    WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${filterClause}), 0), 2) AS organic_sos,
-                        ROUND(sum(toInt32(spons)) * 100.0 /
-                            nullIf((SELECT sum(toInt32(spons)) FROM rb_kw_olap
-                                    WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${filterClause}), 0), 2) AS paid_sos
+                    SELECT 
+                        brand, 
+                        platform_name AS platform, 
+                        'previous' AS period,
+                        sum(toInt32(overall)) as b_overall,
+                        sum(toInt32(organic)) as b_organic,
+                        sum(toInt32(spons)) as b_sponsored,
+                        SUM(b_overall) OVER(PARTITION BY platform_name) as p_overall,
+                        SUM(b_organic) OVER(PARTITION BY platform_name) as p_organic,
+                        SUM(b_sponsored) OVER(PARTITION BY platform_name) as p_sponsored,
+                        ROUND(b_overall * 100.0 / nullIf(p_overall, 0), 2) AS overall_sos,
+                        ROUND(b_organic * 100.0 / nullIf(p_organic, 0), 2) AS organic_sos,
+                        ROUND(b_sponsored * 100.0 / nullIf(p_sponsored, 0), 2) AS paid_sos
                     FROM rb_kw_olap
-                    WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${filterClause}
+                    WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${globalFilterClause}
                     GROUP BY brand, platform_name
-
-                    ORDER BY brand, platform, period
                 `;
 
                 const brandRows = await queryClickHouse(brandQuery);
@@ -3071,85 +3097,69 @@ class VisibilityService {
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const brandCondition = buildCHCondition(brand, 'brand');
                 const locationCondition = buildCHCondition(location, 'location_name');
-                const keywordTypeCondition = buildCHCondition(keywordTypeFilter, 'keyword_type');
+                const keywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
                 const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(keyword, 'keyword');
-                const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
+                const ownBrandsCondition = (ownBrandsOnly || viewMode === 'sku') ? 'AND toInt32(flag) = 1' : 'AND 1=1';
 
                 const dimColumn = viewMode === 'keyword' ? 'keyword' : 'keyword_search_product';
 
-                // Query 1: Get totals for denominator
-                const totalsQuery = `
-                    SELECT 
-                        sum(toInt32(overall)) as total_overall,
-                        sum(toInt32(organic)) as total_organic,
-                        sum(toInt32(spons)) as total_spons
-                    FROM rb_kw_olap
-                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                      AND ${platformCondition}
-                      AND ${locationCondition}
-                      AND ${categoryCondition}
-                      AND ${keywordTypeCondition}
-                      AND ${keywordCondition}
-                `;
-                const totalsRes = await queryClickHouse(totalsQuery);
-                const totals = {
-                    overall: Number(totalsRes[0]?.total_overall) || 1,
-                    organic: Number(totalsRes[0]?.total_organic) || 1,
-                    spons: Number(totalsRes[0]?.total_spons) || 1
-                };
-
                 // Query 2: Get metrics by dimension
-                // Note: leading brand is only relevant for keywords
+                // Now calculates SOS based on viewMode:
+                // Keyword -> Share of Keyword (88/110 pattern)
+                // SKU -> Share of Platform (Latest request)
                 const mainQuery = `
                     SELECT 
                         ${dimColumn} as name,
-                        ${viewMode === 'keyword' ? 'brand as brand_name,' : ''}
-                        ROUND(sum(toInt32(overall)) * 100.0 / ${totals.overall}, 2) AS overall_sos,
-                        ROUND(sum(toInt32(organic)) * 100.0 / ${totals.organic}, 2) AS organic_sos,
-                        ROUND(sum(toInt32(spons)) * 100.0 / ${totals.spons}, 2) AS paid_sos,
+                        ${viewMode === 'keyword' ? "arrayElement(topK(1)(brand), 1) as brand_name," : ""}
+                        sumIf(toInt32(overall), flag = 1) as num_overall,
+                        ${viewMode === 'keyword' ? "sum(toInt32(overall))" : "SUM(sum(toInt32(overall))) OVER()"} as den_overall,
+                        ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+
+                        sumIf(toInt32(organic), flag = 1) as num_organic,
+                        ${viewMode === 'keyword' ? "sum(toInt32(organic))" : "SUM(sum(toInt32(organic))) OVER()"} as den_organic,
+                        ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+
+                        sumIf(toInt32(spons), flag = 1) as num_spons,
+                        ${viewMode === 'keyword' ? "sum(toInt32(spons))" : "SUM(sum(toInt32(spons))) OVER()"} as den_spons,
+                        ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
+
                         count(*) as impressions,
                         0 as max_vol_share,
-                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1), 1) AS ad_position,
-                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1), 1) AS organic_position
+                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1 AND flag = 1), 1) AS ad_position,
+                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1 AND flag = 1), 1) AS organic_position
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                       AND ${platformCondition}
                       AND ${locationCondition}
                       AND ${categoryCondition}
                       AND ${keywordTypeCondition}
-                      AND ${brandCondition}
                       AND ${keywordCondition}
                       ${ownBrandsCondition}
                       AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
-                    GROUP BY ${dimColumn} ${viewMode === 'keyword' ? ', brand' : ''}
+                    GROUP BY ${dimColumn}
                     ORDER BY impressions DESC
                 `;
 
+                console.log('[VisibilityService] getSearchTermsPerformance query:', mainQuery.replace(/\s+/g, ' '));
                 const results = await queryClickHouse(mainQuery);
+                console.log('[VisibilityService] getSearchTermsPerformance results count:', results.length);
 
                 // Group by name if keyword view (since keywords can have multiple brands)
                 // We want the leading brand (one with highest impressions for that keyword)
                 const itemsMap = {};
                 results.forEach(row => {
-                    if (!itemsMap[row.name]) {
-                        itemsMap[row.name] = {
-                            name: row.name,
-                            leadingBrand: row.brand_name || 'Other',
-                            overallSOS: Number(row.overall_sos) || 0,
-                            organicSOS: Number(row.organic_sos) || 0,
-                            paidSOS: Number(row.paid_sos) || 0,
-                            volShare: Number(row.max_vol_share) || 0,
-                            impressions: Number(row.impressions),
-                            adPosition: Number(row.ad_position) || null,
-                            organicPosition: Number(row.organic_position) || null
-                        };
-                    } else if (viewMode === 'keyword') {
-                        // Already exists, just update leading brand if this row has more impressions
-                        if (Number(row.impressions) > itemsMap[row.name].impressions) {
-                            itemsMap[row.name].leadingBrand = row.brand_name;
-                        }
-                    }
+                    itemsMap[row.name] = {
+                        name: row.name,
+                        leadingBrand: row.brand_name || 'Other',
+                        overallSOS: Number(row.overall_sos) || 0,
+                        organicSOS: Number(row.organic_sos) || 0,
+                        paidSOS: Number(row.paid_sos) || 0,
+                        volShare: Number(row.max_vol_share) || 0,
+                        impressions: Number(row.impressions),
+                        adPosition: Number(row.ad_position) || null,
+                        organicPosition: Number(row.organic_position) || null
+                    };
                 });
 
                 const items = Object.values(itemsMap).sort((a, b) => b.overallSOS - a.overallSOS);
@@ -3172,37 +3182,33 @@ class VisibilityService {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const { keyword, sku, platform = 'All', brand = 'All', startDate, endDate } = filters;
+                const platform = filters.platform || 'All';
+                const sku = filters.sku || null;
+                const keyword = filters.keyword || null;
+
+                const startDate = filters.startDate;
+                const endDate = filters.endDate;
+
                 const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
                 const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
                 const dimColumn = sku ? 'keyword_search_product' : 'keyword';
                 const dimValue = sku || keyword;
 
-                // Totals for this specific item across all locations
-                const totalsQuery = `
-                    SELECT 
-                        sum(toInt32(overall)) as total_overall,
-                        sum(toInt32(organic)) as total_organic,
-                        sum(toInt32(spons)) as total_spons
-                    FROM rb_kw_olap
-                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                      AND ${buildCHCondition(platform, 'platform_name')}
-                      AND ${buildCHCondition(dimValue, dimColumn)}
-                `;
-                const totalsRes = await queryClickHouse(totalsQuery);
-                const totals = {
-                    overall: Number(totalsRes[0]?.total_overall) || 1,
-                    organic: Number(totalsRes[0]?.total_organic) || 1,
-                    spons: Number(totalsRes[0]?.total_spons) || 1
-                };
-
                 const query = `
                     SELECT 
                         location_name as city,
-                        ROUND(sum(toInt32(overall)) * 100.0 / ${totals.overall}, 2) AS overall_sos,
-                        ROUND(sum(toInt32(organic)) * 100.0 / ${totals.organic}, 2) AS organic_sos,
-                        ROUND(sum(toInt32(spons)) * 100.0 / ${totals.spons}, 2) AS paid_sos
+                        sumIf(toInt32(overall), flag = 1) as num_overall,
+                        SUM(sum(toInt32(overall))) OVER() as den_overall,
+                        ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+
+                        sumIf(toInt32(organic), flag = 1) as num_organic,
+                        SUM(sum(toInt32(organic))) OVER() as den_organic,
+                        ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+
+                        sumIf(toInt32(spons), flag = 1) as num_spons,
+                        SUM(sum(toInt32(spons))) OVER() as den_spons,
+                        ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                       AND ${buildCHCondition(platform, 'platform_name')}
