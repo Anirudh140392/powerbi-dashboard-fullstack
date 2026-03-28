@@ -16,7 +16,7 @@ export const DiscountDrilldownDate = ({
 }) => {
     const [expandedBrands, setExpandedBrands] = useState([])
     const [dayRange, setDayRange] = useState(7)
-    const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
+    const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount'
     const [searchQuery, setSearchQuery] = useState('')
     const [loading, setLoading] = useState(false)
     const [gridData, setGridData] = useState([])
@@ -71,7 +71,6 @@ export const DiscountDrilldownDate = ({
                         brandMap[brand].skus[sku].days[date] = {
                             ecp: item.ecp,
                             discount: item.discount,
-                            rpi: item.rpi
                         }
                     })
 
@@ -218,7 +217,6 @@ export const DiscountDrilldownDate = ({
     const METRIC_OPTIONS = [
         { key: 'ecp', label: 'ECP', suffix: '₹' },
         { key: 'discount', label: 'Discount', suffix: '%' },
-        { key: 'rpi', label: 'RPI', suffix: '' },
     ]
 
     const toggleBrand = (brand) => {
@@ -274,7 +272,6 @@ export const DiscountDrilldownDate = ({
     const formatValue = (val) => {
         if (val === null || val === undefined) return '—'
         const metric = METRIC_OPTIONS.find(m => m.key === metricType)
-        if (metricType === 'rpi') return val.toFixed(2)
         if (metricType === 'discount') return `${val}%`
         return `₹${val}`
     }
@@ -290,15 +287,8 @@ export const DiscountDrilldownDate = ({
             return 'text-slate-600'
         }
 
-        if (metricType === 'rpi') {
-            if (val >= 1.2) return 'text-emerald-600'
-            if (val >= 0.9) return 'text-slate-600'
-            return 'text-rose-500'
-        }
-
         return 'text-slate-600'
     }
-
 
     const activeMetric = METRIC_OPTIONS.find(m => m.key === metricType)
 

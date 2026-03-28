@@ -13,7 +13,7 @@ const PLATFORMS = [
 
 const DiscountDrilldownCity = ({ data = [], loading = false }) => {
     const [expandedCities, setExpandedCities] = useState([])
-    const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount', 'rpi'
+    const [metricType, setMetricType] = useState('ecp') // 'ecp', 'discount'
     const [searchQuery, setSearchQuery] = useState('')
 
     // Derived platforms from data
@@ -58,7 +58,6 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
     const METRIC_OPTIONS = [
         { key: 'ecp', label: 'ECP', suffix: '₹' },
         { key: 'discount', label: 'Discount', suffix: '%' },
-        { key: 'rpi', label: 'RPI', suffix: '' },
     ]
 
     const toggleCity = (city) => {
@@ -85,7 +84,6 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
 
     const formatValue = (val) => {
         if (val === null || val === undefined) return null
-        if (metricType === 'rpi') return Number(val).toFixed(2)
         if (metricType === 'discount') return `${val}%`
         return `₹${val}`
     }
@@ -95,11 +93,6 @@ const DiscountDrilldownCity = ({ data = [], loading = false }) => {
         if (metricType === 'discount') {
             if (val <= 5) return 'text-emerald-600 font-semibold'
             if (val <= 15) return 'text-amber-500'
-            return 'text-rose-500 font-semibold'
-        }
-        if (metricType === 'rpi') {
-            if (val >= 1.2) return 'text-emerald-600 font-semibold'
-            if (val >= 0.9) return 'text-slate-600'
             return 'text-rose-500 font-semibold'
         }
         return 'text-slate-600'
