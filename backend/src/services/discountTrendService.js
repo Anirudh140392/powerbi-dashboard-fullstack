@@ -57,8 +57,8 @@ async function getDiscountByCategory(filters = {}) {
             p.${catCol} AS Category,
             p.Platform,
             ROUND(AVG(CASE WHEN p.Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(p.Discount)), 0) ELSE NULL END), 1) AS avgDiscount,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(p.PPU)), 0)) * 100, 1) AS avgEcp,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / NULLIF(AVG(ifNull(toFloat64OrZero(toString(p.MRP)), 0)), 0), 2) AS avgRpi
+            ROUND(AVG(CASE WHEN p.Comp_flag = '0' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END), 1) AS avgOurEcp,
+            ROUND(AVG(CASE WHEN p.Comp_flag = '1' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END), 1) AS avgCompEcp
         FROM rb_pdp_olap p
         INNER JOIN (
             SELECT DISTINCT category
@@ -84,8 +84,12 @@ async function getDiscountByCategory(filters = {}) {
             const platform = row.Platform;
 
             let val = 0;
-            if (metricType === 'ecp') val = parseFloat(row.avgEcp) || 0;
-            else if (metricType === 'rpi') val = parseFloat(row.avgRpi) || 0;
+            if (metricType === 'ecp') val = parseFloat(row.avgOurEcp) || 0;
+            else if (metricType === 'rpi') {
+                const ourPrice = parseFloat(row.avgOurEcp) || 0;
+                const compPrice = parseFloat(row.avgCompEcp) || 0;
+                val = compPrice > 0 ? parseFloat((ourPrice / compPrice).toFixed(2)) : 1.0;
+            }
             else val = parseFloat(row.avgDiscount) || 0;
 
             if (!categoryMap[category]) {
@@ -142,15 +146,25 @@ async function getDiscountByBrand(filters = {}) {
         const platforms = platformResults.map(r => r.Platform);
 
         const query = `
+        WITH category_comp_avg AS (
+            SELECT Platform, AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_comp_val
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
+              AND ${catCol} = '${category}'
+              AND Comp_flag = '1'
+              AND ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0
+            GROUP BY Platform
+        )
         SELECT
-            Brand, Platform,
-            ROUND(AVG(CASE WHEN Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(Discount)), 0) ELSE NULL END), 1) AS avgDiscount,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(PPU)), 0)) * 100, 1) AS avgEcp,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / NULLIF(AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)), 0), 2) AS avgRpi
-        FROM rb_pdp_olap
-        WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND ${catCol} = '${category}' AND Brand IS NOT NULL AND Platform IS NOT NULL
-        GROUP BY Brand, Platform
-        ORDER BY Brand, Platform
+            p.Brand, p.Platform,
+            ROUND(AVG(CASE WHEN p.Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(p.Discount)), 0) ELSE NULL END), 1) AS avgDiscount,
+            ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)), 1) AS avgEcp,
+            c.avg_comp_val AS avgCompEcp
+        FROM rb_pdp_olap p
+        LEFT JOIN category_comp_avg c ON p.Platform = c.Platform
+        WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}' AND p.${catCol} = '${category}' AND p.Brand IS NOT NULL AND p.Platform IS NOT NULL
+        GROUP BY p.Brand, p.Platform, c.avg_comp_val
+        ORDER BY p.Brand, p.Platform
         `;
 
         const results = await queryClickHouse(query);
@@ -162,7 +176,11 @@ async function getDiscountByBrand(filters = {}) {
 
             let val = 0;
             if (metricType === 'ecp') val = parseFloat(row.avgEcp) || 0;
-            else if (metricType === 'rpi') val = parseFloat(row.avgRpi) || 0;
+            else if (metricType === 'rpi') {
+                const ourPrice = parseFloat(row.avgEcp) || 0;
+                const compPrice = parseFloat(row.avgCompEcp) || 0;
+                val = compPrice > 0 ? parseFloat((ourPrice / compPrice).toFixed(2)) : 1.0;
+            }
             else val = parseFloat(row.avgDiscount) || 0;
 
             if (!brandMap[brand]) {

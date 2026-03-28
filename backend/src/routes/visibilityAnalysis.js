@@ -3,7 +3,6 @@ import {
     getVisibilityOverview,
     getVisibilityPlatformKpiMatrix,
     getVisibilityKeywordsAtGlance,
-    getVisibilityTopSearchTerms,
     getVisibilityFilterOptions,
     getVisibilityBrandDrilldown,
     getVisibilityLatestAvailableDates,
@@ -14,7 +13,10 @@ import {
     getVisibilityKeywords,
     getVisibilityKeywordTypes,
     getVisibilitySkuDrilldown,
-    getVisibilityCityDrilldown
+    getVisibilityCityDrilldown,
+    getVisibilityGainersAndDrainers,
+    getSearchTermsPerformance,
+    getSearchTermsLocationDrilldown
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
@@ -138,29 +140,7 @@ export default (app) => {
      */
     app.get('/api/visibility-analysis/keywords-at-glance', getVisibilityKeywordsAtGlance);
 
-    /**
-     * @swagger
-     * /api/visibility-analysis/top-search-terms:
-     *   get:
-     *     summary: Get Top Search Terms
-     *     description: Retrieve search terms with SOS metrics
-     *     parameters:
-     *       - in: query
-     *         name: platform
-     *         schema:
-     *           type: string
-     *         description: Filter by platform
-     *       - in: query
-     *         name: filter
-     *         schema:
-     *           type: string
-     *           enum: [All, Branded, Competitor, Generic]
-     *         description: Filter by term type
-     *     responses:
-     *       200:
-     *         description: Successful response with terms array
-     */
-    app.get('/api/visibility-analysis/top-search-terms', getVisibilityTopSearchTerms);
+
 
     /**
      * @swagger
@@ -323,5 +303,12 @@ export default (app) => {
     app.get('/api/visibility-analysis/keyword-types', getVisibilityKeywordTypes);
     app.get('/api/visibility-analysis/sku-drilldown', getVisibilitySkuDrilldown);
     app.get('/api/visibility-analysis/city-drilldown', getVisibilityCityDrilldown);
+
+    // SOS Gainers & Drainers
+    app.get('/api/visibility-analysis/gainers-drainers', getVisibilityGainersAndDrainers);
+
+    // Search Terms Performance (Top Search Terms segment with keyword/SKU modes)
+    app.get('/api/visibility-analysis/search-terms-performance', getSearchTermsPerformance);
+    app.get('/api/visibility-analysis/search-terms-locations', getSearchTermsLocationDrilldown);
 };
 

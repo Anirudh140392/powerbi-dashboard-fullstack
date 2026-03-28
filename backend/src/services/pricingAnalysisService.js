@@ -244,7 +244,8 @@ async function getEcpComparison(filters = {}) {
 
             const categories = parseMultiSelectFilter(category);
             if (categories) {
-                whereConditions.push(`${src.prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                const escaped = categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+                whereConditions.push(`lower(${src.prodCatSql}) IN (${escaped})`);
             }
 
             const whereClause = whereConditions.join(' AND ');
@@ -253,74 +254,47 @@ async function getEcpComparison(filters = {}) {
             // SQL query to calculate ECP, MRP, and Discount for both periods
             // Join with rb_sku_platform to get pack size (gram)
             const query = `
+            WITH comp_avg_ref AS (
+                SELECT 
+                    ${src.f.platform} as Platform, 
+                    ${src.prodCatSql} as Category, 
+                    AVG(ifNull(toFloat64OrZero(toString(${src.f.sellingPrice})), 0)) as avg_comp_val_curr,
+                    AVG(CASE WHEN ${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(${src.f.sellingPrice})), 0) ELSE NULL END) as avg_comp_val_prev
+                FROM ${src.table}
+                WHERE ${src.f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
+                  AND ${src.f.compFlag} = '1'
+                  AND ifNull(toFloat64OrZero(toString(${src.f.sellingPrice})), 0) > 0
+                GROUP BY Platform, Category
+            )
             SELECT
-                p.${f.platform} AS Platform,
-                p.${f.brand} AS Brand,
-                p.${f.product} as product,
-                ${gramCol} AS pack_size,
-                ROUND(
-                    SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSellingPrice} ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wSellingPrice} > 0 THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS ecp_prev,
-                ROUND(
-                    SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSellingPrice} ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wSellingPrice} > 0 THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS ecp_curr,
-                ROUND(
-                    SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS mrp_curr,
-                ROUND(
-                    SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wMrp} ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS mrp_prev,
-                ROUND(
-                    SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDiscount} ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS discount_curr,
-                ROUND(
-                    SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wDiscount} ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS discount_prev
+                p.${src.f.brand} AS Brand,
+                p.${src.prodNameSql} AS product,
+                p.${src.prodPackSizeSql} AS pack_size,
+                p.${src.f.platform} AS Platform,
+                
+                -- Current Period Our Metrics
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.sellingPrice})), 0) ELSE NULL END) AS ecp_curr,
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.mrp})), 0) ELSE NULL END) AS mrp_curr,
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.discount})), 0) ELSE NULL END) AS discount_curr,
+                ANY(c.avg_comp_val_curr) as comp_avg_curr,
+
+                -- Previous Period Our Metrics
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.sellingPrice})), 0) ELSE NULL END) AS ecp_prev,
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.mrp})), 0) ELSE NULL END) AS mrp_prev,
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.discount})), 0) ELSE NULL END) AS discount_prev,
+                ANY(c.avg_comp_val_prev) as comp_avg_prev
             FROM ${src.table} p
             LEFT JOIN rb_sku_platform s ON p.${f.webPid} = s.web_pid
-            WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
-              AND p.${f.brand} IS NOT NULL
-              AND p.${f.platform} IS NOT NULL
-              AND p.${f.product} IS NOT NULL
-              AND p.${f.product} != ''
-              ${platforms ? `AND ${buildInClause(`p.${f.platform}`, platforms)}` : ''}
-              ${locations ? `AND ${buildInClause(`p.${f.location}`, locations)}` : ''}
-              ${channels ? `AND ${buildInClause(`p.${f.channel}`, channels)}` : ''}
-              ${categories ? `AND ${src.prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
-            GROUP BY p.${f.platform}, p.${f.brand}, p.${f.product}, pack_size
+            LEFT JOIN comp_avg_ref c ON p.${src.f.platform} = c.Platform AND ${src.prodCatSql} = c.Category
+            WHERE p.${src.f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
+              AND p.${src.f.brand} IS NOT NULL
+              AND p.${src.f.brand} != ''
+              AND p.${src.f.compFlag} = '0'
+              AND ${whereClause}
+            GROUP BY Brand, product, pack_size, Platform
             HAVING ecp_prev IS NOT NULL AND ecp_curr IS NOT NULL
-            ORDER BY p.${f.platform}, p.${f.brand}, p.${f.product}
-        `;
+            ORDER BY Brand, product
+            `;
 
             console.log('[PricingAnalysisService] Executing enhanced ECP comparison query...');
             const queryStart = Date.now();
@@ -350,9 +324,20 @@ async function getEcpComparison(filters = {}) {
                     trend = 'down';
                 }
 
-                // Calculate RPI
-                const rpiPrev = mrpPrev > 0 ? (ecpPrev / mrpPrev) : 1.0;
-                const rpiCurr = mrpCurr > 0 ? (ecpCurr / mrpCurr) : 1.0;
+                // Calculate RPI: Our Brand SP / Competition Brand SP
+                // In product-level comparison, we compare this specific SKU against the average of competitors in the same context
+                // However, for SKU-level, we might want to keep SP/MRP if it's more relevant?
+                // The user requested RPI as Our Brand / Competition Price.
+                // In getEcpComparison, we have brand/product rows.
+                // We will use SP / MRP for SKU-level as a baseline or implement a competition comparison if possible.
+                // Given the request, I will use SP/MRP for individual SKU items but global RPI for brand overview.
+                // Actually, if it's a "Pricing Overview" segment change, I should focus on the aggregate KPIs first.
+                // But let's stay consistent.
+                const compAvgPrev = parseFloat(row.comp_avg_prev) || 0;
+                const rpiPrev = compAvgPrev > 0 ? (ecpPrev / compAvgPrev) : 1.0;
+
+                const compAvgCurr = parseFloat(row.comp_avg_curr) || 0;
+                const rpiCurr = compAvgCurr > 0 ? (ecpCurr / compAvgCurr) : 1.0;
 
                 return {
                     brand: row.Brand,
@@ -525,57 +510,88 @@ async function getPricingKpis(filters = {}) {
             if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
             const brands = parseMultiSelectFilter(brand);
-            if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
+            // ✅ Removed Brand from WHERE clause to allow RPI comparison against all Competitors (p.Comp_flag = 1)
+            // Brand filters will be applied inside CASE statements for individual KPIs
+            // if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
 
             const categories = parseMultiSelectFilter(category);
-            if (categories) whereConditions.push(`${src.prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+            if (categories) {
+                const escaped = categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+                whereConditions.push(`lower(${src.prodCatSql}) IN (${escaped})`);
+            }
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
             if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
 
             const whereClause = whereConditions.join(' AND ');
 
+            const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
+
             const query = `
             SELECT
-                -- Current Period
+                -- Current Period Our Brands Metrics (Filtered by selected Brands or all Our Brands)
                 AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                          AND ${f.wMrp} > 0 
+                         AND ${brandCondition}
                     THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                     ELSE NULL END) AS discount_curr,
                 
                 SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                          AND ${f.wMrp} > 0 
+                         AND ${brandCondition}
                     THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * ${f.wSales} 
                     ELSE 0 END) / 
-                NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_curr,
+                NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_curr,
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                    THEN ${f.wPpu} 
-                    ELSE NULL END) AS price_per_unit_alt_curr,
+                         AND ${f.weightExpr} > 0 
+                         AND ${brandCondition}
+                    THEN ${f.wSellingPrice} / ${f.weightExpr} 
+                    ELSE NULL END) AS price_per_unit_curr,
                 
-                COALESCE(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) /
-                NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.${f.qtySold})) ELSE 0 END), 0), 
-                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSellingPrice} ELSE NULL END)) AS asp_curr,
+                -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
+                (
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                    /
+                    NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+                ) AS rpi_curr,
+                
+                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                         AND ${brandCondition}
+                    THEN ${f.wSellingPrice} 
+                    ELSE NULL END) AS asp_curr,
  
                 -- Previous Period
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ${f.wMrp} > 0 
+                         AND ${brandCondition}
                     THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                     ELSE NULL END) AS discount_prev,
                 
                 SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ${f.wMrp} > 0 
+                         AND ${brandCondition}
                     THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * ${f.wSales} 
                     ELSE 0 END) / 
-                NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_prev,
+                NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_prev,
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                    THEN ${f.wPpu} 
-                    ELSE NULL END) AS price_per_unit_alt_prev,
+                         AND ${f.weightExpr} > 0 
+                         AND ${brandCondition}
+                    THEN ${f.wSellingPrice} / ${f.weightExpr} 
+                    ELSE NULL END) AS price_per_unit_prev,
                 
-                COALESCE(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSales} ELSE 0 END) /
-                NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.${f.qtySold})) ELSE 0 END), 0),
-                AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSellingPrice} ELSE NULL END)) AS asp_prev
+                -- ✅ NEW RPI Logic (Previous Period)
+                (
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                    /
+                    NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+                ) AS rpi_prev,
+                
+                AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                         AND ${brandCondition}
+                    THEN ${f.wSellingPrice} 
+                    ELSE NULL END) AS asp_prev
 
             FROM ${src.table} p
             WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
@@ -864,9 +880,9 @@ const getDimensionOverview = async (filters = {}) => {
             const isPlatform = dimensionParam === 'platform';
             const isSku = dimensionParam === 'sku';
             const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
-            const groupByExpr = isPlatform ? `p.${f.platform}` : 
-                               isSku ? `p.${f.product}` : 
-                               (isLocation ? src.cityNormSql : src.prodCatSql);
+            const groupByExpr = isPlatform ? `p.${f.platform}` :
+                isSku ? `p.${f.product}` :
+                    (isLocation ? src.cityNormSql : src.prodCatSql);
 
             const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
             const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
@@ -879,7 +895,9 @@ const getDimensionOverview = async (filters = {}) => {
             const channel = filters.channel || null;
 
             let whereConditions = [
-                `${f.wSellingPrice} > 0`
+                `${f.wSellingPrice} > 0`,
+                `p.${f.brand} IS NOT NULL`,
+                `p.${f.brand} != ''`
             ];
 
             const platforms = parseMultiSelectFilter(platform);
@@ -889,7 +907,8 @@ const getDimensionOverview = async (filters = {}) => {
             if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
             const brands = parseMultiSelectFilter(brand);
-            if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
+            // ✅ Removed Brand from WHERE clause to allow RPI comparison against all Competitors
+            // if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
 
             const categories = parseMultiSelectFilter(category);
             if (categories) whereConditions.push(`lower(${src.prodCatSql}) IN (${categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',')})`);
@@ -906,33 +925,66 @@ const getDimensionOverview = async (filters = {}) => {
             }
 
             const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
+            const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
 
             const query = `
                 SELECT
                     ${groupByExpr} AS dimension,
-                    -- Current metrics
+                    -- Current metrics (Subject Brands)
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                              AND ${f.wMrp} > 0 
+                             AND ${brandCondition}
                         THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                         ELSE NULL END) AS Discount,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                        THEN ${f.wPpu} 
+                             AND ${f.weightExpr} > 0 
+                             AND ${brandCondition}
+                        THEN ${f.wSellingPrice} / ${f.weightExpr} 
                         ELSE NULL END) AS PricePerUnit,
-                    COALESCE(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) /
-                    NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN toFloat64OrZero(toString(p.${f.qtySold})) ELSE 0 END), 0),
-                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSellingPrice} ELSE NULL END)) AS ASP,
+                    
+                    -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
+                    (
+                        AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                        /
+                        NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+                    ) AS RPI,
+                    
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                             AND ${brandCondition}
+                        THEN ${f.wSellingPrice} 
+                        ELSE NULL END) AS ASP,
+                    SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                             AND ${brandCondition}
+                        THEN ${f.wSales} 
+                        ELSE 0 END) AS offtake,
                     
                     -- Previous metrics for change
                     AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                              AND ${f.wMrp} > 0 
+                             AND ${brandCondition}
                         THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                         ELSE NULL END) AS discount_prev,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                        THEN ${f.wPpu} 
+                             AND ${f.weightExpr} > 0 
+                             AND ${brandCondition}
+                        THEN ${f.wSellingPrice} / ${f.weightExpr} 
                         ELSE NULL END) AS price_per_unit_prev,
-                    COALESCE(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSales} ELSE 0 END) /
-                    NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN toFloat64OrZero(toString(p.${f.qtySold})) ELSE 0 END), 0),
-                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSellingPrice} ELSE NULL END)) AS asp_prev
+                    
+                    -- ✅ NEW RPI Logic (Previous Period)
+                    (
+                        AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                        /
+                        NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+                    ) AS rpi_prev,
+                    
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                             AND ${brandCondition}
+                        THEN ${f.wSellingPrice} 
+                        ELSE NULL END) AS asp_prev,
+                    SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                             AND ${brandCondition}
+                        THEN ${f.wSales} 
+                        ELSE 0 END) AS offtake_prev
                 FROM ${src.table} p
                 WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
                   AND ${whereClause}
@@ -992,9 +1044,9 @@ const getDimensionTrends = async (filters = {}) => {
         const isPlatform = dimensionParam === 'platform';
         const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === "location" || dimensionParam === "city";
-        const groupByExpr = isPlatform ? `p.${f.platform}` : 
-                           isSku ? `p.${f.product}` : 
-                           (isLocation ? src.cityNormSql : src.prodCatSql);
+        const groupByExpr = isPlatform ? `p.${f.platform}` :
+            isSku ? `p.${f.product}` :
+                (isLocation ? src.cityNormSql : src.prodCatSql);
         const dimensionValue = filters.dimensionValue;
 
         let whereConditions = [
@@ -1014,7 +1066,8 @@ const getDimensionTrends = async (filters = {}) => {
         if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
         const brands = parseMultiSelectFilter(brand);
-        if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
+        // ✅ Removed Brand from WHERE clause to allow RPI comparison against all Competitors
+        // if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
 
         const categoriesArr = parseMultiSelectFilter(category);
         if (categoriesArr) whereConditions.push(`${src.prodCatSql} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
@@ -1033,14 +1086,28 @@ const getDimensionTrends = async (filters = {}) => {
 
         const whereClause = whereConditions.join(' AND ');
 
+        const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
+
         const query = `
         SELECT
             toString(p.${f.date}) AS date,
-            AVG(CASE WHEN ${f.wMrp} > 0
+            -- Current metrics (Subject Brands)
+            AVG(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition}
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(${f.wPpu}) AS price_per_unit,
-            COALESCE(SUM(${f.wSales}) / NULLIF(SUM(toFloat64OrZero(toString(p.${f.qtySold}))), 0), AVG(${f.wSellingPrice})) AS asp
+            AVG(CASE WHEN ${f.weightExpr} > 0 AND ${brandCondition}
+                THEN ${f.wSellingPrice} / ${f.weightExpr}
+                ELSE NULL END) AS price_per_unit,
+            
+            -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
+            (
+                AVG(CASE WHEN ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                /
+                NULLIF(AVG(CASE WHEN p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+            ) AS rpi,
+            
+            AVG(CASE WHEN ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
+            SUM(CASE WHEN ${brandCondition} THEN ${f.wSales} ELSE 0 END) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
         GROUP BY p.${f.date}
@@ -1097,9 +1164,9 @@ const getPricingCompetitionTrends = async (filters) => {
         const isPlatform = dimensionParam === 'platform';
         const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
-        const groupByExpr = isPlatform ? `p.${f.platform}` : 
-                           isSku ? `p.${f.product}` : 
-                           (isLocation ? src.cityNormSql : src.prodCatSql);
+        const groupByExpr = isPlatform ? `p.${f.platform}` :
+            isSku ? `p.${f.product}` :
+                (isLocation ? src.cityNormSql : src.prodCatSql);
         const dimensionValue = filters.dimensionValue;
 
         const platforms = parseMultiSelectFilter(platform);
@@ -1130,16 +1197,33 @@ const getPricingCompetitionTrends = async (filters) => {
         const whereClause = whereConditions.join(' AND ');
 
         const query = `
+        WITH comp_avg_ref AS (
+            SELECT 
+                DATE, 
+                AVG(ifNull(toFloat64OrZero(toString(${f.wSellingPrice})), 0)) as avg_comp_val
+            FROM ${src.table}
+            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
+              AND Platform = '${escapeStr(platform)}' -- Platform is already verified as single or we take the first
+              AND ${src.f.compFlag} = '1'
+              AND ifNull(toFloat64OrZero(toString(${f.wSellingPrice})), 0) > 0
+            GROUP BY DATE
+        )
         SELECT
             toString(p.${f.date}) AS date,
             p.${targetColumn} AS target_name,
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(${f.wPpu}) AS price_per_unit,
-            COALESCE(SUM(${f.wSales}) / NULLIF(SUM(toFloat64OrZero(toString(p.${f.qtySold}))), 0), AVG(${f.wSellingPrice})) AS asp
+            AVG(CASE WHEN ${f.weightExpr} > 0
+                THEN ${f.wSellingPrice} / ${f.weightExpr}
+                ELSE NULL END) AS price_per_unit,
+            AVG(${f.wSellingPrice}) / NULLIF(any(c.avg_comp_val), 0) AS rpi,
+            AVG(${f.wSellingPrice}) AS asp,
+            SUM(${f.wSales}) AS offtake
         FROM ${src.table} p
+        LEFT JOIN comp_avg_ref c ON p.DATE = toDate(c.DATE)
         WHERE ${whereClause}
+          AND p.${f.compFlag} = '0'
         GROUP BY p.${f.date}, p.${targetColumn}
         ORDER BY p.${f.date} ASC
         SETTINGS max_execution_time = 30
@@ -1195,9 +1279,9 @@ const getPricingCompetition = async (filters) => {
         const isPlatform = dimensionParam === 'platform';
         const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === "location" || dimensionParam === "city";
-        const groupByExpr = isPlatform ? `p.${f.platform}` : 
-                           isSku ? `p.${f.product}` : 
-                           (isLocation ? src.cityNormSql : src.prodCatSql);
+        const groupByExpr = isPlatform ? `p.${f.platform}` :
+            isSku ? `p.${f.product}` :
+                (isLocation ? src.cityNormSql : src.prodCatSql);
         const dimensionValue = filters.dimensionValue;
 
         let whereConditions = [
@@ -1243,17 +1327,29 @@ const getPricingCompetition = async (filters) => {
         const whereClause = whereConditions.join(' AND ');
 
         // Brand-level query: Discount, PricePerUnit, RPI, ASP grouped by brand
+        const compAvgQuery = `
+            SELECT AVG(ifNull(toFloat64OrZero(toString(${f.wSellingPrice})), 0)) as avg_comp_sp
+            FROM ${src.table} p
+            WHERE ${whereClause} AND p.${src.f.compFlag} = '1'
+              AND ifNull(toFloat64OrZero(toString(${f.wSellingPrice})), 0) > 0
+        `;
+
         const brandQuery = `
+        WITH ( ${compAvgQuery} ) AS platform_comp_avg
         SELECT
             p.${f.brand} AS brand_name,
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(${f.wPpu}) AS price_per_unit,
-            COALESCE(SUM(${f.wSales}) / NULLIF(SUM(toFloat64OrZero(toString(p.${f.qtySold}))), 0), AVG(${f.wSellingPrice})) AS asp
+            AVG(CASE WHEN ${f.weightExpr} > 0
+                THEN ${f.wSellingPrice} / ${f.weightExpr}
+                ELSE NULL END) AS price_per_unit,
+            AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
+            AVG(${f.wSellingPrice}) AS asp,
+            SUM(${f.wSales}) AS offtake
         FROM ${src.table} p
-        WHERE ${whereClause}
-        GROUP BY brand_name
+        WHERE ${whereClause} AND p.${src.f.compFlag} = '0'
+        GROUP BY brand_name, platform_comp_avg
         ORDER BY discount DESC
         LIMIT 20
         SETTINGS max_execution_time = 30
@@ -1261,19 +1357,25 @@ const getPricingCompetition = async (filters) => {
 
         // SKU-level query: Discount, PricePerUnit, RPI, ASP grouped by product + brand
         const skuQuery = `
+        WITH ( ${compAvgQuery} ) AS platform_comp_avg
         SELECT
             p.${f.product} AS sku_name,
             p.${f.brand} AS brand_name,
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(${f.wPpu}) AS price_per_unit,
-            COALESCE(SUM(${f.wSales}) / NULLIF(SUM(toFloat64OrZero(toString(p.${f.qtySold}))), 0), AVG(${f.wSellingPrice})) AS asp
+            AVG(CASE WHEN ${f.weightExpr} > 0
+                THEN ${f.wSellingPrice} / ${f.weightExpr}
+                ELSE NULL END) AS price_per_unit,
+            AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
+            AVG(${f.wSellingPrice}) AS asp,
+            SUM(${f.wSales}) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
           AND p.${f.product} IS NOT NULL
           AND p.${f.product} != ''
-        GROUP BY p.${f.product}, p.${f.brand}
+          AND p.${f.compFlag} = '0'
+        GROUP BY p.${f.product}, p.${f.brand}, platform_comp_avg
         ORDER BY discount DESC
         LIMIT 40
         SETTINGS max_execution_time = 30

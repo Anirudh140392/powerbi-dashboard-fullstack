@@ -168,61 +168,57 @@ export const VisibilityDrilldownSkeleton = () => {
 /**
  * Skeleton loader for Top Search Terms section
  */
-export const TopSearchTermsSkeleton = () => {
-    return (
-        <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-slate-100 px-4 md:px-6 py-4 bg-white/50 gap-3 md:gap-0">
-                <div className="flex items-center gap-2">
-                    <div className="h-5 w-5 bg-slate-200 rounded animate-pulse"></div>
-                    <div className="h-5 w-36 bg-slate-200 rounded animate-pulse"></div>
+
+
+/**
+ * Skeleton loader for Gainers & Drainers section (two side-by-side tables)
+ */
+export const GainersDrainersSkeleton = () => {
+    const TableSkeleton = () => (
+        <div style={{ flex: 1, background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+            {/* Table header */}
+            <div style={{ padding: 12, borderBottom: '1px solid #eee', background: '#f8fafc' }}>
+                <div className="h-5 w-28 bg-slate-200 rounded animate-pulse"></div>
+            </div>
+            {/* Column header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#f1f5f9' }}>
+                <div className="h-3 w-36 bg-slate-200 rounded animate-pulse"></div>
+                <div className="h-3 w-20 bg-slate-200 rounded animate-pulse"></div>
+            </div>
+            {/* Rows */}
+            {[1, 2, 3, 4, 5].map((row) => (
+                <div key={row} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid #f3f4f6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div className="h-3 w-3 bg-slate-200 rounded animate-pulse shrink-0"></div>
+                        <div className={`h-4 bg-slate-200 rounded animate-pulse`} style={{ width: 80 + row * 12 }}></div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                        <div className="h-4 w-14 bg-slate-200 rounded animate-pulse mb-1 ml-auto"></div>
+                        <div className="h-3 w-10 bg-slate-100 rounded animate-pulse ml-auto"></div>
+                        <div className="h-1.5 w-20 bg-slate-100 rounded-full animate-pulse mt-1 ml-auto"></div>
+                    </div>
                 </div>
-                <div className="h-4 w-32 bg-slate-100 rounded animate-pulse"></div>
+            ))}
+        </div>
+    );
+
+    return (
+        <div style={{ padding: 24, background: '#f8fafc', borderRadius: 20, border: '1px solid #e2e8f0', marginTop: 24 }}>
+            {/* Title */}
+            <div className="h-6 w-72 bg-slate-200 rounded animate-pulse mb-2"></div>
+            <div className="h-4 w-56 bg-slate-100 rounded animate-pulse mb-5"></div>
+
+            {/* Toggle pills */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-9 w-20 bg-slate-200 rounded-full animate-pulse"></div>
+                ))}
             </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50/80">
-                            <th className="px-4 md:px-6 py-4"><div className="h-4 w-16 md:w-20 bg-slate-200 rounded animate-pulse"></div></th>
-                            <th className="px-4 md:px-6 py-4"><div className="h-4 w-20 md:w-24 bg-slate-200 rounded animate-pulse"></div></th>
-                            <th className="px-4 md:px-6 py-4 text-center"><div className="h-4 w-24 md:w-28 bg-slate-200 rounded animate-pulse mx-auto"></div></th>
-                            <th className="px-4 md:px-6 py-4 text-center"><div className="h-4 w-24 md:w-28 bg-slate-200 rounded animate-pulse mx-auto"></div></th>
-                            <th className="px-4 md:px-6 py-4 text-center"><div className="h-4 w-20 md:w-24 bg-slate-200 rounded animate-pulse mx-auto"></div></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((row) => (
-                            <tr key={row} className="border-b border-slate-50">
-                                <td className="px-4 md:px-6 py-4">
-                                    <div className="h-4 w-24 md:w-28 bg-slate-200 rounded animate-pulse"></div>
-                                </td>
-                                <td className="px-4 md:px-6 py-4">
-                                    <div className="h-6 w-20 md:w-24 bg-slate-100 rounded animate-pulse"></div>
-                                </td>
-                                <td className="px-4 md:px-6 py-4">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <div className="h-4 w-10 bg-slate-200 rounded animate-pulse"></div>
-                                        <div className="h-4 w-8 bg-slate-100 rounded animate-pulse"></div>
-                                    </div>
-                                </td>
-                                <td className="px-4 md:px-6 py-4">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <div className="h-4 w-10 bg-slate-200 rounded animate-pulse"></div>
-                                        <div className="h-4 w-8 bg-slate-100 rounded animate-pulse"></div>
-                                    </div>
-                                </td>
-                                <td className="px-4 md:px-6 py-4">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <div className="h-4 w-10 bg-slate-200 rounded animate-pulse"></div>
-                                        <div className="h-4 w-8 bg-slate-100 rounded animate-pulse"></div>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+            {/* Two tables */}
+            <div style={{ display: 'flex', gap: 16 }}>
+                <TableSkeleton />
+                <TableSkeleton />
             </div>
         </div>
     );
@@ -239,9 +235,6 @@ export const VisibilityPageSkeleton = () => {
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <VisibilityDrilldownSkeleton />
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <TopSearchTermsSkeleton />
-            </div>
         </div>
     );
 };
@@ -250,6 +243,7 @@ export default {
     VisibilityOverviewSkeleton,
     TabbedHeatmapTableSkeleton,
     VisibilityDrilldownSkeleton,
-    TopSearchTermsSkeleton,
+    GainersDrainersSkeleton,
     VisibilityPageSkeleton,
 };
+

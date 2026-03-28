@@ -149,9 +149,7 @@ export default function VisibilityAnalysis() {
     metrics: {},
   });
 
-  // Tab for Top Search Terms
-  const [topSearchFilter, setTopSearchFilter] = useState("All");
-  const [topSearchMode, setTopSearchMode] = useState("Keywords"); // "Keywords" or "SKU"
+
 
   // API data state - fetched when filters change
   const [apiData, setApiData] = useState({});
@@ -162,7 +160,7 @@ export default function VisibilityAnalysis() {
     overview: false,
     matrix: false,
     keywords: false,
-    searchTerms: false
+    gainersAndDrainers: false
   });
 
   // Individual segment fetch functions for retry capability
@@ -220,21 +218,23 @@ export default function VisibilityAnalysis() {
     }
   };
 
-  const fetchVisibilitySearchTerms = async (termsParams, signal) => {
+
+
+  const fetchVisibilityGainersAndDrainers = async (queryParams, signal) => {
     try {
-      setLoading(prev => ({ ...prev, searchTerms: true }));
-      setApiErrors(prev => ({ ...prev, searchTerms: null }));
-      const res = await axiosInstance.get(`/visibility-analysis/top-search-terms?${termsParams}`, { signal });
+      setLoading(prev => ({ ...prev, gainersAndDrainers: true }));
+      setApiErrors(prev => ({ ...prev, gainersAndDrainers: null }));
+      const res = await axiosInstance.get(`/visibility-analysis/gainers-drainers?${queryParams}`, { signal });
       const data = res.data;
-      setApiData(prev => ({ ...prev, searchTerms: data }));
+      setApiData(prev => ({ ...prev, gainersAndDrainers: data }));
       return true;
     } catch (err) {
       if (axiosInstance.isCancel(err)) return false;
-      console.error('❌ [Visibility] Top Search Terms fetch error:', err);
-      setApiErrors(prev => ({ ...prev, searchTerms: err.message }));
+      console.error('❌ [Visibility] Gainers & Drainers fetch error:', err);
+      setApiErrors(prev => ({ ...prev, gainersAndDrainers: err.message }));
       return false;
     } finally {
-      setLoading(prev => ({ ...prev, searchTerms: false }));
+      setLoading(prev => ({ ...prev, gainersAndDrainers: false }));
     }
   };
 
@@ -267,17 +267,13 @@ export default function VisibilityAnalysis() {
       startDate: filters.startDate,
       endDate: filters.endDate
     }).toString();
-    const termsParams = new URLSearchParams({
-      ...baseParams,
-      filter: topSearchFilter,
-      viewMode: topSearchMode === "SKU" ? "sku" : "keyword"
-    }).toString();
+
 
     switch (segmentKey) {
       case 'overview': return fetchVisibilityOverview(queryParams);
       case 'matrix': return fetchVisibilityMatrix(matrixParams);
       case 'keywords': return fetchVisibilityKeywords(queryParams);
-      case 'searchTerms': return fetchVisibilitySearchTerms(termsParams);
+      case 'gainersAndDrainers': return fetchVisibilityGainersAndDrainers(queryParams);
       default: return false;
     }
   };
@@ -311,12 +307,8 @@ export default function VisibilityAnalysis() {
       endDate: filters.endDate,
     });
 
-    // Create a stable key to detect actual filter changes (including tabs)
-    const filterKey = JSON.stringify({
-      ...JSON.parse(mainFiltersKey),
-      topSearchFilter: topSearchFilter, // Add tab filter to dependency tracking
-      topSearchMode: topSearchMode // Add view mode strictly
-    });
+    // Create a stable key to detect actual filter changes
+    const filterKey = mainFiltersKey;
 
     // Check if MAIN filters (platform, brand, location, dates) actually changed
     const isMainFilterChange = lastMainFiltersRef.current !== mainFiltersKey;
@@ -351,15 +343,12 @@ export default function VisibilityAnalysis() {
         overview: true,
         matrix: true,
         keywords: true,
-        searchTerms: true
+        gainersAndDrainers: true
       });
       // Update the main ref here to mark this state change
       lastMainFiltersRef.current = mainFiltersKey;
-    } else {
-      console.log('⚡ [Visibility] Only tab changed, isolating update');
-      setApiData(prev => ({ ...prev, searchTerms: undefined }));
-      setLoading(prev => ({ ...prev, searchTerms: true }));
     }
+
 
     const fetchData = async () => {
       try {
@@ -385,24 +374,18 @@ export default function VisibilityAnalysis() {
           startDate: filters.startDate,
           endDate: filters.endDate
         }).toString();
-        const termsParams = new URLSearchParams({
-          ...baseParams,
-          filter: topSearchFilter,
-          viewMode: topSearchMode === "SKU" ? "sku" : "keyword"
-        }).toString();
+
 
         console.log('📡 [Visibility] Fetching segments in parallel...');
 
-        // Fetch all segments in parallel for maximum speed
-        const fetchPromises = [
-          fetchVisibilitySearchTerms(termsParams, abortController.signal)
-        ];
+        const fetchPromises = [];
 
         if (isMainFilterChange) {
           fetchPromises.push(
             fetchVisibilityOverview(queryParams, abortController.signal),
             fetchVisibilityMatrix(matrixParams, abortController.signal),
-            fetchVisibilityKeywords(queryParams, abortController.signal)
+            fetchVisibilityKeywords(queryParams, abortController.signal),
+            fetchVisibilityGainersAndDrainers(queryParams, abortController.signal)
           );
         }
 
@@ -422,7 +405,7 @@ export default function VisibilityAnalysis() {
     return () => {
       // AbortController logic handled via abortControllerRef for stability
     };
-  }, [filters, topSearchFilter, topSearchMode, visibilityDatesReady]); // Wait for visibility dates before fetching
+  }, [filters, visibilityDatesReady]); // Wait for visibility dates before fetching
 
   // REAL Cleanup function to handle component unmount
   useEffect(() => {
@@ -494,10 +477,6 @@ export default function VisibilityAnalysis() {
           onRetry={retrySegment}
           filters={filters}
           onFiltersChange={setFilters}
-          topSearchFilter={topSearchFilter}
-          setTopSearchFilter={setTopSearchFilter}
-          topSearchMode={topSearchMode}
-          setTopSearchMode={setTopSearchMode}
         />
       </CommonContainer>
     </>

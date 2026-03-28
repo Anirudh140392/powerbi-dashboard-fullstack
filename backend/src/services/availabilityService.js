@@ -51,40 +51,6 @@ const getSkuPlatformColumns = async () => {
     };
 };
 
-// Helper to build WHERE clause from filters
-const buildWhereConditions = (filters, includeDate = true) => {
-    const conditions = [];
-    const { platform, brand, location, category, productCategory, startDate, endDate } = filters;
-
-    if (includeDate) {
-        if (startDate && endDate) {
-            conditions.push(`DATE BETWEEN '${dayjs(startDate).format('YYYY-MM-DD')}' AND '${dayjs(endDate).format('YYYY-MM-DD')}'`);
-        } else if (endDate) {
-            conditions.push(`DATE = '${dayjs(endDate).format('YYYY-MM-DD')}'`);
-        }
-    }
-
-    if (platform && platform !== 'All') {
-        conditions.push(`Platform = '${platform}'`);
-    }
-    if (brand && brand !== 'All') {
-        conditions.push(`Brand = '${brand}'`);
-    }
-    if (location && location !== 'All') {
-        conditions.push(`Location = '${location}'`);
-    }
-    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(getCurrentDbName());
-    if (category && category !== 'All') {
-        const catCol = 'Category';
-        conditions.push(`${catCol} = '${category}'`);
-    }
-    if (productCategory && productCategory !== 'All') {
-        const pcCol = 'Product_type';
-        conditions.push(`${pcCol} = '${productCategory}'`);
-    }
-
-    return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-};
 
 // Helper to escape string for SQL
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -119,7 +85,7 @@ const buildPlatformChannelCond = (platform, channel, prefix = '') => {
  * Robust helper to build WHERE clause for availability queries.
  * Supports all advanced filters and correctly handles arrays.
  */
-const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
+const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
     let {
         platform, brand, location, startDate, endDate, dates, months,
         cities, categories, formats, zones, metroFlags, pincodes, productCategory, sku, skus, ownBrandsOnly,
@@ -185,6 +151,21 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
         conditions.push(`lower(replace(${prefix}Location, ' ', '_')) IN (${uniqueLArr.map(l => `'${escapeStr(l.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
     }
 
+    // Dynamically resolve columns and check tables once
+    const pdpColsMap = await getTableColumns('rb_pdp_olap');
+    const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+    const actualPcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+
+    let hasDarkstoreTable = false;
+    if ((zones && zones !== 'All') || (metroFlags && metroFlags !== 'All') || (pincodes && pincodes !== 'All')) {
+        try {
+            const check = await queryClickHouse(`EXISTS TABLE rb_location_darkstore`);
+            hasDarkstoreTable = (Number(check?.[0]?.result) === 1);
+        } catch (e) {
+            hasDarkstoreTable = false;
+        }
+    }
+
     // Category/Format filter
     const cArr = [];
     if (categories && categories !== 'All') {
@@ -223,8 +204,7 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (cArr.length > 0) {
         const uniqueCArr = [...new Set(cArr)];
-        const catCol = 'Category';
-        conditions.push(`lower(trim(BOTH '\t\\n ' FROM ${prefix}${catCol})) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+        conditions.push(`lower(trim(BOTH '\t\\n ' FROM ${prefix}${actualCatCol})) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
     }
 
     // Product Category filter
@@ -248,8 +228,7 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (pcArr.length > 0) {
         const uniquePcArr = [...new Set(pcArr)];
-        const pcCol = 'Product_type';
-        conditions.push(`lower(trim(BOTH '\t\n ' FROM ${prefix}${pcCol})) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+        conditions.push(`lower(trim(BOTH '\t\n ' FROM ${prefix}${actualPcCol})) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
     }
 
     // SKU filter
@@ -288,17 +267,19 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     }
 
     // Advanced filters requiring subqueries on rb_location_darkstore
-    if (zones && zones !== 'All') {
-        const zArr = Array.isArray(zones) ? zones : [zones];
-        conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE region IN (${zArr.map(z => `'${escapeStr(z)}'`).join(',')}))`);
-    }
-    if (metroFlags && metroFlags !== 'All') {
-        const mArr = Array.isArray(metroFlags) ? metroFlags : [metroFlags];
-        conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN (${mArr.map(m => `'${escapeStr(m)}'`).join(',')}))`);
-    }
-    if (pincodes && pincodes !== 'All') {
-        const pArr = Array.isArray(pincodes) ? pincodes : [pincodes];
-        conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE toString(pincode) IN (${pArr.map(p => `'${escapeStr(p)}'`).join(',')}))`);
+    if (hasDarkstoreTable) {
+        if (zones && zones !== 'All') {
+            const zArr = Array.isArray(zones) ? zones : [zones];
+            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE region IN (${zArr.map(z => `'${escapeStr(z)}'`).join(',')}))`);
+        }
+        if (metroFlags && metroFlags !== 'All') {
+            const mArr = Array.isArray(metroFlags) ? metroFlags : [metroFlags];
+            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN (${mArr.map(m => `'${escapeStr(m)}'`).join(',')}))`);
+        }
+        if (pincodes && pincodes !== 'All') {
+            const pArr = Array.isArray(pincodes) ? pincodes : [pincodes];
+            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE toString(pincode) IN (${pArr.map(p => `'${escapeStr(p)}'`).join(',')}))`);
+        }
     }
 
     if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
@@ -408,11 +389,11 @@ const getAbsoluteOsaOverview = async (filters) => {
 
             // Build filter conditions for current period
             const currentFilters = { ...filters, startDate: currentStartDate.format('YYYY-MM-DD'), endDate: currentEndDate.format('YYYY-MM-DD') };
-            const currentWhere = buildAvailabilityWhereClause(currentFilters);
+            const currentWhere = await buildAvailabilityWhereClause(currentFilters);
 
             // Build filter conditions for previous period
             const prevFilters = { ...filters, startDate: prevStartDate.format('YYYY-MM-DD'), endDate: prevEndDate.format('YYYY-MM-DD') };
-            const prevWhere = buildAvailabilityWhereClause(prevFilters);
+            const prevWhere = await buildAvailabilityWhereClause(prevFilters);
 
             const queryTemplate = (where) => `
                 SELECT 
@@ -470,7 +451,7 @@ const getAbsoluteOsaOverview = async (filters) => {
             const overallEndDate = currentEndDate.isAfter(detailEndDate, 'day') ? currentEndDate : dayjs(detailEndDate);
 
             const detailFilters = { ...filters, startDate: overallStartDate.format('YYYY-MM-DD'), endDate: overallEndDate.format('YYYY-MM-DD') };
-            const detailWhere = buildAvailabilityWhereClause(detailFilters);
+            const detailWhere = await buildAvailabilityWhereClause(detailFilters);
 
             const detailQuery = `
                 SELECT 
@@ -612,11 +593,11 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             delete baseFilterParams.dates;
             delete baseFilterParams.months;
 
-            // NOTE: We intentionally keep the grouping column filters (platform/location/category)
+            // Note: We intentionally keep the grouping column filters (platform/location/category)
             // in baseFilterParams so that user-applied segment filters are respected.
             // If the user filters by specific platforms, only those should appear as columns.
 
-            const baseWhereClause = buildAvailabilityWhereClause(baseFilterParams);
+            const baseWhereClause = await buildAvailabilityWhereClause(baseFilterParams);
             const baseFilter = baseWhereClause !== '1=1' ? ` AND ${baseWhereClause}` : '';
 
             console.log('[DEBUG KPI MATRIX] baseFilterParams:', JSON.stringify(baseFilterParams));
@@ -844,7 +825,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             // Only fetch breakdown when explicitly requested (user expanded a row)
             if (includeBreakdown && drillDimension === 'region') {
                 // Determine prefix for breakdown query - use t1 for rb_pdp_olap
-                const breakdownBaseWhere = buildAvailabilityWhereClause(baseFilterParams, 't1');
+                const breakdownBaseWhere = await buildAvailabilityWhereClause(baseFilterParams, 't1');
                 const breakdownBaseFilter = breakdownBaseWhere !== '1=1' ? ` AND ${breakdownBaseWhere}` : '';
 
                 const regionBreakdownQuery = `
@@ -1079,10 +1060,12 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const whereClause = buildAvailabilityWhereClause(effectiveFilters);
+            const whereClause = await buildAvailabilityWhereClause(effectiveFilters);
 
-            const catCol = 'Category';
-            const pcCol = 'Product_type';
+            // Dynamically resolve columns from the PDP table
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const catCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+            const pcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
 
             const query = `
                 SELECT 
@@ -1281,7 +1264,7 @@ const getDOI = async (filters) => {
             delete baseParams.dates;
             delete baseParams.months;
 
-            const baseWhere = buildAvailabilityWhereClause(baseParams);
+            const baseWhere = await buildAvailabilityWhereClause(baseParams);
             const baseFilter = baseWhere !== '1=1' ? ` AND ${baseWhere}` : '';
 
             // Get latest non-zero total inventory and 30-day sales
@@ -1471,17 +1454,14 @@ const getMetroCityStockAvailability = async (filters) => {
             const prevEndDate = currentStartDate.subtract(1, 'day');
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
-            // Build filter conditions using buildAvailabilityWhereClause
-            const currentFilters = { ...filters, startDate: currentStartDate.format('YYYY-MM-DD'), endDate: currentEndDate.format('YYYY-MM-DD') };
-            const prevFilters = { ...filters, startDate: prevStartDate.format('YYYY-MM-DD'), endDate: prevEndDate.format('YYYY-MM-DD') };
-
             // Overwrite location with metro cities for this specific card
             const metroLocations = targetLocations;
             currentFilters.location = metroLocations;
             prevFilters.location = metroLocations;
 
-            const currentWhere = buildAvailabilityWhereClause(currentFilters);
-            const prevWhere = buildAvailabilityWhereClause(prevFilters);
+            // Build filter conditions using buildAvailabilityWhereClause
+            const currentWhere = await buildAvailabilityWhereClause(currentFilters);
+            const prevWhere = await buildAvailabilityWhereClause(prevFilters);
 
             const [currentResult, prevResult] = await Promise.all([
                 queryClickHouse(`
@@ -1546,10 +1526,14 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     if (filterType === 'categories' || filterType === 'formats') {
         try {
+            // Dynamically resolve Category column
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+
             const query = `
-                        SELECT DISTINCT Category as value 
+                        SELECT DISTINCT ${actualCatCol} as value 
                         FROM rb_pdp_olap
-                        WHERE Category IS NOT NULL AND Category != ''
+                        WHERE ${actualCatCol} IS NOT NULL AND ${actualCatCol} != ''
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1562,12 +1546,14 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     if (filterType === 'productCategories') {
         try {
-            const isMars = getCurrentDbName() === 'mars';
-            const pcColForOptions = 'Product_type';
+            // Dynamically resolve Product_type column
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const actualPcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+
             const query = `
-                        SELECT DISTINCT ${pcColForOptions} as value 
+                        SELECT DISTINCT ${actualPcCol} as value 
                         FROM rb_pdp_olap
-                        WHERE ${pcColForOptions} IS NOT NULL AND ${pcColForOptions} != ''
+                        WHERE ${actualPcCol} IS NOT NULL AND ${actualPcCol} != ''
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1706,10 +1692,12 @@ const getOsaDetailByCategory = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const catCol = 'Category';
-            const pcCol = 'Product_type';
-            const whereClause = buildAvailabilityWhereClause(effectiveFilters, 't1');
+            const whereClause = await buildAvailabilityWhereClause(effectiveFilters, 't1');
 
+            // Dynamically resolve columns
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const catCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+            const pcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
             // Query SKU-level data joined with rca_sku_dim to filter by active segments (status=1)
             // Note: rca_sku_dim uses lowercase column names (platform, location, brand_name, category)
             const query = `
@@ -1861,10 +1849,10 @@ const getAvailabilityKpiTrends = async (filters) => {
             // Build filter conditions using the enhanced where clause
             // CRITICAL: We MUST pass the calculated startDate and endDate to buildAvailabilityWhereClause
             // so that the SQL query is restricted to the selected period.
-            const whereClause = buildAvailabilityWhereClause({
+            const whereClause = await buildAvailabilityWhereClause({
                 ...filters,
-                startDate: currentStartDate,
-                endDate: currentEndDate
+                startDate: currentStartDate.format('YYYY-MM-DD'),
+                endDate: currentEndDate.format('YYYY-MM-DD')
             });
 
             console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')}`);
@@ -1948,7 +1936,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 startDate = endDate.subtract(days, 'days');
             }
 
-            const whereClause = buildAvailabilityWhereClause({ ...filters, startDate, endDate });
+            const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
 
             const query = `
                 WITH latest_skus AS (
@@ -2083,20 +2071,24 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const { platform = 'All', location = 'All', category = 'All', brand = 'All' } = filters;
 
         // 1. Build base condition (Platform and Location)
-        const baseWhere = buildAvailabilityWhereClause({ platform, location, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const baseWhere = await buildAvailabilityWhereClause({ platform, location, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const baseCondsStr = baseWhere !== '1=1' ? `${baseWhere} AND ` : '';
 
+        // Dynamically resolve columns
+        const pdpColsMap = await getTableColumns('rb_pdp_olap');
+        const catCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+        const pcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+
         // 2. Build Category conditions (filtered by Platform/Location/Advanced)
-        const catCol = 'Category';
         const catQuery = `SELECT DISTINCT ${catCol} as value FROM rb_pdp_olap WHERE ${baseCondsStr}${catCol} IS NOT NULL AND ${catCol} != '' ORDER BY value`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
-        const brandWhere = buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const brandWhere = await buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const brandCondsStr = brandWhere !== '1=1' ? `${brandWhere} AND ` : '';
         const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandCondsStr}Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
 
         // 4. Build SKU conditions (filtered by Platform/Location/Advanced/Category/Brand)
-        const skuWhere = buildAvailabilityWhereClause({ platform, location, category, brand, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const skuWhere = await buildAvailabilityWhereClause({ platform, location, category, brand, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const skuCondsStr = skuWhere !== '1=1' ? `${skuWhere} AND ` : '';
         const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuCondsStr}Product IS NOT NULL AND Product != '' ORDER BY Product LIMIT 200`;
 
@@ -2151,7 +2143,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     startDate = endDate.subtract(days, 'days');
                 }
 
-                const autoWhereClause = buildAvailabilityWhereClause({ ...filters, brands: undefined, brand: undefined, startDate, endDate });
+                const autoWhereClause = await buildAvailabilityWhereClause({ ...filters, brands: undefined, brand: undefined, startDate, endDate });
                 const topBrandsQuery = `
                     SELECT Brand, SUM(toFloat64OrZero(toString(deno_osa))) as total_deno
                     FROM rb_pdp_olap
@@ -2181,7 +2173,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                 startDate = endDate.subtract(days, 'days');
             }
 
-            const whereClause = buildAvailabilityWhereClause({ ...filters, startDate, endDate });
+            const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
 
             const query = `
                 SELECT 
@@ -2294,7 +2286,7 @@ const getBrandSkuCityDayLevel = async (filters) => {
             delete baseFilterParams.dates;
             delete baseFilterParams.months;
 
-            const baseWhereClause = buildAvailabilityWhereClause(baseFilterParams);
+            const baseWhereClause = await buildAvailabilityWhereClause(baseFilterParams);
             const baseFilter = baseWhereClause !== '1=1' ? ` AND ${baseWhereClause}` : '';
 
             // Query: Brand, Product (SKU), Location (city), DATE, avg Selling_Price, MRP, OSA, Fillrate
