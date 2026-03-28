@@ -36,18 +36,18 @@ const cardSize = {
 /* --- KPI definitions (ROW headers — vertical, left side) --- */
 const kpiDefs = [
     { key: 'categorySize', label: 'Category Size' },
-    { key: 'mwMarketShare', label: 'Market Share%' },
-    { key: 'mwSales', label: 'Sales (Cr)' },
-    { key: 'mlMarketShare', label: 'Market Share%' },
-    { key: 'mlSales', label: 'Sales (Cr)' },
+    { key: 'mwMarketShare', label: 'Mars Market Share%' },
+    { key: 'mwSales', label: 'Mars Sales (Cr)' },
+    { key: 'mlMarketShare', label: 'ML Market Share%' },
+    { key: 'mlSales', label: 'ML Sales' },
 ];
 
 const kpiLabels = {
     categorySize: 'Category Size',
-    mwMarketShare: 'Market Share%',
-    mwSales: 'Sales (Cr)',
-    mlMarketShare: 'Market Share%',
-    mlSales: 'Sales (Cr)',
+    mwMarketShare: 'Mars Market Share%',
+    mwSales: 'Mars Sales (Cr)',
+    mlMarketShare: 'ML Market Share%',
+    mlSales: 'ML Sales',
 };
 
 /* --- Platform entities (COLUMN headers — horizontal, top) --- */
@@ -72,6 +72,8 @@ const MarketCatOverview = ({
         selectedLocation,
         timeStart,
         timeEnd,
+        compareStart,
+        compareEnd,
         categories: contextCategories,
         locations: contextLocations,
         brands: contextBrands,
@@ -114,6 +116,8 @@ const MarketCatOverview = ({
                     brand: selectedBrands ? selectedBrands.join(",") : undefined,
                     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+                    compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+                    compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
                 };
 
 
@@ -131,7 +135,7 @@ const MarketCatOverview = ({
         };
 
         fetchCrossPlatformData();
-    }, [globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, advancedFilters]);
+    }, [globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, advancedFilters]);
 
     const loading = parentLoading || dataLoading;
 

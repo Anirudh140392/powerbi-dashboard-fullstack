@@ -205,6 +205,8 @@ export default function InsightsPricingView({ loading = false }) {
         selectedChannel,
         timeStart,
         timeEnd,
+        compareStart,
+        compareEnd,
         datesInitialized,
     } = useContext(FilterContext);
 
@@ -225,6 +227,8 @@ export default function InsightsPricingView({ loading = false }) {
                 const params = {
                     startDate: timeStart?.format('YYYY-MM-DD'),
                     endDate: timeEnd?.format('YYYY-MM-DD'),
+                    compareStartDate: compareStart?.format('YYYY-MM-DD'),
+                    compareEndDate: compareEnd?.format('YYYY-MM-DD'),
                 };
 
                 const toStr = (v) => Array.isArray(v) ? v.join(',') : v;
@@ -251,7 +255,7 @@ export default function InsightsPricingView({ loading = false }) {
         };
 
         fetchInsights();
-    }, [timeStart, timeEnd, datesInitialized, globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand]);
+    }, [timeStart, timeEnd, compareStart, compareEnd, datesInitialized, globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand]);
 
     const data = useMemo(() => insightsData[activeTab] || [], [activeTab, insightsData]);
 

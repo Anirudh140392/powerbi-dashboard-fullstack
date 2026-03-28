@@ -3,6 +3,21 @@ import { queryClickHouse } from '../config/clickhouse.js';
 
 import fs from 'fs';
 
+const PLATFORMS_SUPPORTING_RATINGS = ['bigbasket', 'flipkart', 'amazon'];
+
+const calculateOverallScore = (title, image, si, desc, rating, platform) => {
+    const scores = [title, image, si, desc];
+    const platLower = (platform || '').toLowerCase();
+    
+    // If platform supports ratings OR if the rating is already positive, include it in the average
+    if (PLATFORMS_SUPPORTING_RATINGS.includes(platLower) || parseFloat(rating) > 0) {
+        scores.push(parseFloat(rating) || 0);
+    }
+    
+    if (scores.length === 0) return 0;
+    return scores.reduce((a, b) => a + b, 0) / scores.length;
+};
+
 export const getContentAnalysisStats = async (filters) => {
     try {
         const { platform, brand, location, startDate, endDate, channel, category } = filters;
@@ -71,14 +86,14 @@ export const getContentAnalysisStats = async (filters) => {
         const result = await queryClickHouse(query);
 
         return result.map(row => {
-            const scores = [
+            const overall = calculateOverallScore(
                 parseFloat(row.titleScore) || 0,
                 parseFloat(row.imageScore) || 0,
                 parseFloat(row.siScore) || 0,
                 parseFloat(row.descScore) || 0,
-                parseFloat(row.ratingScore) || 0
-            ];
-            const overall = scores.reduce((a, b) => a + b, 0) / 5;
+                parseFloat(row.ratingScore) || 0,
+                row.platform
+            );
 
             return {
                 ...row,
@@ -178,7 +193,7 @@ export const getContentAnalysisOverviewStats = async (filters, isCompare = false
             const rating = parseFloat(r.ratingScore) || 0;
             
             // Assuming Overall Score is a straight average of the 5.
-            const overall = (title + image + si + desc + rating) / 5;
+            const overall = calculateOverallScore(title, image, si, desc, rating, platform);
             
             return {
                 titleScore: title,
@@ -226,7 +241,7 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
                         (bulletin_verification + description_verification) / 2.0
                     )
                 ) * 100 AS descScore,
-                AVG(IF(pdp_rating_value >= 4.2, 1.0, 0.0)) * 100 AS ratingScore
+                AVG(IF(lower(Platform) IN ('bigbasket', 'flipkart', 'amazon'), IF(pdp_rating_value >= 4.2, 1.0, 0.0), NULL)) * 100 AS ratingScore
             FROM rb_product_verify
             WHERE Platform != '\\\\N'
         `;
@@ -262,7 +277,7 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
                 const si = parseFloat(row.siScore) || 0;
                 const desc = parseFloat(row.descScore) || 0;
                 const rating = parseFloat(row.ratingScore) || 0;
-                const overall = (title + image + si + desc + rating) / 5;
+                const overall = calculateOverallScore(title, image, si, desc, rating, plat);
 
                 platformMap[plat] = {
                     titleScore: title,
@@ -364,7 +379,7 @@ export const getContentAnalysisTrends = async (filters) => {
             const s = parseFloat(row.siScore) || 0;
             const d = parseFloat(row.descScore) || 0;
             const r = parseFloat(row.ratingScore) || 0;
-            const overall = (t + i + s + d + r) / 5;
+            const overall = calculateOverallScore(t, i, s, d, r, filters.platform);
 
             return {
                 date: row.date,

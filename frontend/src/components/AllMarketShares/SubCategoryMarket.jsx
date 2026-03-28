@@ -109,6 +109,8 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         selectedLocation,
         timeStart,
         timeEnd,
+        compareStart,
+        compareEnd,
     } = useContext(FilterContext);
 
     // Close dropdown on outside click
@@ -138,6 +140,8 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     location: undefined, // Enforced isolation from global location filter
                     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+                    compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+                    compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
                     subCategory: selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined,
                 };
 
@@ -165,7 +169,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
         };
 
         fetchSubCategoryKpi();
-    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedSubCat]);
+    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCat]);
 
     const loading = parentLoading || dataLoading;
 
