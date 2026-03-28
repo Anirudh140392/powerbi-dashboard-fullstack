@@ -11,18 +11,17 @@ const client = createClient({
 
 async function run() {
     const query = `
-SELECT brand, platform, p_overall, b_overall, b_overall * 100.0 / nullIf(p_overall, 0) as sos
-FROM (
-    SELECT 
-        brand, 
-        platform_name AS platform, 
-        sum(toInt32(overall)) as b_overall,
-        SUM(sum(toInt32(overall))) OVER(PARTITION BY platform_name) as p_overall
-    FROM rb_kw_olap
-    WHERE DATE = '2026-03-10'
-    GROUP BY brand, platform_name
-)
-WHERE brand = 'Cadbury' AND platform = 'Blinkit'
+SELECT
+    keyword,
+    sumIf(toInt32(overall), flag = 1) as rb_overall,
+    sum(toInt32(overall)) as total_overall,
+    ROUND(sumIf(toInt32(overall), flag = 1) * 100 / nullIf(sum(toInt32(overall)), 0), 1) as sos
+FROM rb_kw_olap
+WHERE DATE = '2026-03-10'
+AND platform_name = 'Blinkit'
+AND keyword = 'snickers'
+AND keyword_type = 'Branded'
+GROUP BY keyword
     `;
     console.log("Running Query:\n" + query);
     try {

@@ -11,18 +11,19 @@ const client = createClient({
 
 async function run() {
     const query = `
-SELECT brand, platform, p_overall, b_overall, b_overall * 100.0 / nullIf(p_overall, 0) as sos
+SELECT 
+    sku, num, den, ROUND(num * 100.0 / nullIf(den, 0), 2) as sos
 FROM (
     SELECT 
-        brand, 
-        platform_name AS platform, 
-        sum(toInt32(overall)) as b_overall,
-        SUM(sum(toInt32(overall))) OVER(PARTITION BY platform_name) as p_overall
+        keyword_search_product as sku,
+        sumIf(toInt32(overall), flag = 1) as num,
+        SUM(sum(toInt32(overall))) OVER() as den
     FROM rb_kw_olap
-    WHERE DATE = '2026-03-10'
-    GROUP BY brand, platform_name
+    WHERE DATE = '2026-03-10' AND platform_name = 'Blinkit'
+    AND keyword_search_product != ''
+    GROUP BY sku
 )
-WHERE brand = 'Cadbury' AND platform = 'Blinkit'
+WHERE sku = 'Snickers Best of Minis Assorted Chocolate Pack'
     `;
     console.log("Running Query:\n" + query);
     try {
