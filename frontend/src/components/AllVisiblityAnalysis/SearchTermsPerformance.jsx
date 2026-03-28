@@ -127,6 +127,7 @@ export default function SearchTermsPerformance() {
     startDate: timeStart,
     endDate: timeEnd,
     keywordTypeFilter: activeFilter,
+    ownBrandsOnly: activeView === "sku",
   }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, activeFilter]);
 
   useEffect(() => {
