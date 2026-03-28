@@ -81,6 +81,7 @@ export function generateCacheKey(section, filters) {
         productCategory = '',
         // Visibility Analysis
         keywordType = '',
+        keywordTypeFilter = '',
         // Drill-down specific
         drillDimension = '',
         includeBreakdown = '',
@@ -118,6 +119,7 @@ export function generateCacheKey(section, filters) {
     if (sku && sku !== 'all' && sku !== 'All') key += `:sku_${normalize(sku)}`;
     if (city && city !== 'all' && city !== 'All') key += `:cty_${normalize(city)}`;
     if (keywordType && keywordType !== 'all' && keywordType !== 'All') key += `:ktyp_${normalize(keywordType)}`;
+    if (keywordTypeFilter && keywordTypeFilter !== 'all' && keywordTypeFilter !== 'All') key += `:ktypflt_${normalize(keywordTypeFilter)}`;
     if (view) key += `:vw_${normalize(view)}`;
 
     if (drillDimension) key += `:ddim_${normalize(drillDimension)}`;

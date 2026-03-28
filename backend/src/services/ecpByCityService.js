@@ -67,21 +67,18 @@ async function getEcpByCity(filters = {}) {
         }
 
         const brands = parseMultiSelectFilter(filters.brand);
-        if (brands) {
-            whereConditions.push(buildInClause('p.Brand', brands));
-        }
-
-        const whereClause = whereConditions.join(' AND ');
+        const whereClause = [
+            `p.DATE BETWEEN '${startDate}' AND '${endDate}'`,
+            "p.Location IS NOT NULL"
+        ].join(' AND ');
 
         const query = `
         SELECT
             p.Location as city,
             p.Brand as brand,
             p.Platform as platform,
-            ROUND(AVG(toFloat64OrZero(toString(p.PPU))) * 100, 1) as ecp,
-            ROUND(AVG(toFloat64OrZero(toString(p.MRP))), 1) as mrp,
-            ROUND(AVG(toFloat64OrZero(toString(p.Discount))), 1) as discount,
-            ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))) / NULLIF(AVG(toFloat64OrZero(toString(p.MRP))), 0), 2) as rpi,
+            ROUND(AVG(CASE WHEN p.Comp_flag = '0' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END), 1) as avg_our_ecp,
+            ROUND(AVG(CASE WHEN p.Comp_flag = '1' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE NULL END), 1) as avg_comp_ecp,
             any(${gramCol}) as ml
         FROM rb_pdp_olap p
         LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
@@ -98,6 +95,9 @@ async function getEcpByCity(filters = {}) {
         // Group by City
         const cityMap = {};
         results.forEach(row => {
+            // Only process brand if it's in the requested brands (or All)
+            if (brands && !brands.includes(row.brand)) return;
+
             if (!cityMap[row.city]) {
                 cityMap[row.city] = {
                     city: row.city,
@@ -109,14 +109,17 @@ async function getEcpByCity(filters = {}) {
             const cityData = cityMap[row.city];
             const platformKey = (row.platform || 'Unknown').toLowerCase();
 
+            const ourPrice = parseFloat(row.avg_our_ecp) || 0;
+            const compPrice = parseFloat(row.avg_comp_ecp) || 0;
+            const rpi = compPrice > 0 ? parseFloat((ourPrice / compPrice).toFixed(2)) : 1.0;
+
             // Platform totals for city
             if (!cityData.totals[platformKey]) {
-                cityData.totals[platformKey] = { ecp: 0, discount: 0, rpiSum: 0, count: 0 };
+                cityData.totals[platformKey] = { ecp: 0, rpiSum: 0, count: 0 };
             }
             const pTot = cityData.totals[platformKey];
-            pTot.ecp += row.ecp;
-            pTot.discount += row.discount;
-            pTot.rpiSum += row.rpi || 0;
+            pTot.ecp += ourPrice;
+            pTot.rpiSum += rpi;
             pTot.count += 1;
 
             // Brand data for city
@@ -124,20 +127,18 @@ async function getEcpByCity(filters = {}) {
                 cityData.brandsMap[row.brand] = {
                     name: row.brand,
                     ml: row.ml || '—',
-                    total: { ecp: 0, discount: 0, rpiSum: 0, count: 0 }
+                    total: { ecp: 0, rpiSum: 0, count: 0 }
                 };
             }
 
             const brandData = cityData.brandsMap[row.brand];
             brandData[platformKey] = {
-                ecp: row.ecp,
-                discount: row.discount,
-                rpi: row.rpi || 0
+                ecp: ourPrice,
+                rpi: rpi
             };
 
-            brandData.total.ecp += row.ecp;
-            brandData.total.discount += row.discount;
-            brandData.total.rpiSum += row.rpi || 0;
+            brandData.total.ecp += ourPrice;
+            brandData.total.rpiSum += rpi;
             brandData.total.count += 1;
         });
 
@@ -147,7 +148,6 @@ async function getEcpByCity(filters = {}) {
             Object.keys(city.totals).forEach(pk => {
                 const t = city.totals[pk];
                 t.ecp = parseFloat((t.ecp / t.count).toFixed(1));
-                t.discount = parseFloat((t.discount / t.count).toFixed(1));
                 t.rpi = parseFloat((t.rpiSum / t.count).toFixed(2));
                 delete t.rpiSum;
                 delete t.count;
@@ -156,9 +156,8 @@ async function getEcpByCity(filters = {}) {
             // Overall total for city
             const allPlatformValues = Object.values(city.totals);
             city.totals.total = {
-                ecp: parseFloat((allPlatformValues.reduce((sum, v) => sum + v.ecp, 0) / allPlatformValues.length).toFixed(1)),
-                discount: parseFloat((allPlatformValues.reduce((sum, v) => sum + v.discount, 0) / allPlatformValues.length).toFixed(1)),
-                rpi: parseFloat((allPlatformValues.reduce((sum, v) => sum + v.rpi, 0) / allPlatformValues.length).toFixed(2))
+                ecp: allPlatformValues.length > 0 ? parseFloat((allPlatformValues.reduce((sum, v) => sum + v.ecp, 0) / allPlatformValues.length).toFixed(1)) : 0,
+                rpi: allPlatformValues.length > 0 ? parseFloat((allPlatformValues.reduce((sum, v) => sum + v.rpi, 0) / allPlatformValues.length).toFixed(2)) : 0
             };
 
             // Format brands array

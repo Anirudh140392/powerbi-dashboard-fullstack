@@ -97,9 +97,20 @@ async function getOneViewPriceGrid(filters = {}) {
             : '';
 
         // Main SQL query joining rb_pdp_olap and rb_sku_platform
-        // Uses LEFT JOIN (not INNER JOIN) to avoid filtering out products
-        // that don't have a matching web_pid in rb_sku_platform
+        // Uses a CTE to get the average competition price for the same Category/Platform/Date
         const query = `
+            WITH comp_avg_ref AS (
+                SELECT 
+                    DATE, 
+                    Platform, 
+                    Category, 
+                    AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_comp_val
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
+                  AND Comp_flag = '1'
+                  AND ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0
+                GROUP BY DATE, Platform, Category
+            )
             SELECT
                 formatDateTime(p.DATE, '%d %b %Y') as date,
                 p.DATE as rawDate,
@@ -113,9 +124,10 @@ async function getOneViewPriceGrid(filters = {}) {
                 0 as basePrice,
                 ROUND(AVG(toFloat64OrZero(toString(p.Discount))), 1) as discount,
                 ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))), 1) as ecp,
-                ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))) / NULLIF(AVG(toFloat64OrZero(toString(p.MRP))), 0), 2) as rpi
+                ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / NULLIF(any(c.avg_comp_val), 0), 2) as rpi
             FROM rb_pdp_olap p
             LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
+            LEFT JOIN comp_avg_ref c ON p.DATE = c.DATE AND p.Platform = c.Platform AND p.Category = c.Category
             WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
               AND p.Product IS NOT NULL
               AND p.Product != ''

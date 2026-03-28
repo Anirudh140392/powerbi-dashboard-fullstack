@@ -198,7 +198,9 @@ body {
 }
 
 @keyframes colorBlink {
-  0%, 100% {
+
+  0%,
+  100% {
     color: #2563eb;
   }
 }
