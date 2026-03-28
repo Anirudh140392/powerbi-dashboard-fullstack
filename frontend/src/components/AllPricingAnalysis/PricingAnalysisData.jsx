@@ -2374,12 +2374,11 @@ export default function PricingAnalysisData() {
 
 
   const pricingKpis = useMemo(() => {
-    const icons = [Discount, PieChart, Target, Monitor];
+    const icons = [Discount, PieChart, Target];
     const gradients = [
       ['#6366f1', '#8b5cf6'],
       ['#14b8a6', '#06b6d4'],
-      ['#f43f5e', '#ec4899'],
-      ['#8b5cf6', '#a855f7']
+      ['#f43f5e', '#ec4899']
     ];
 
     if (!pricingKpiData) {
@@ -2387,7 +2386,6 @@ export default function PricingAnalysisData() {
         { id: 'vis-0', title: 'Discount', value: '-', subtitle: 'Loading...', icon: icons[0], gradient: gradients[0] },
         { id: 'vis-1', title: 'Weighted Discount', value: '-', subtitle: 'Loading...', icon: icons[1], gradient: gradients[1] },
         { id: 'vis-2', title: 'Average selling price', value: '-', subtitle: 'Loading...', icon: icons[2], gradient: gradients[2] },
-        { id: 'vis-3', title: 'RPI', value: '-', subtitle: 'Loading...', icon: icons[3], gradient: gradients[3] },
       ];
     }
 
@@ -2428,18 +2426,6 @@ export default function PricingAnalysisData() {
         icon: icons[2],
         gradient: gradients[2],
         trendDir: (d.asp?.change || 0) >= 0 ? 'up' : 'down',
-        prevText: 'vs Previous Period'
-      },
-      {
-        id: 'vis-3',
-        title: 'RPI',
-        value: `${(d.rpi?.value || 0).toFixed(2)}`,
-        subtitle: 'Relative Price Index',
-        delta: Math.abs(d.rpi?.change || 0),
-        deltaLabel: `${(d.rpi?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.rpi?.change || 0).toFixed(2)}`,
-        icon: icons[3],
-        gradient: gradients[3],
-        trendDir: (d.rpi?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period'
       }
     ];

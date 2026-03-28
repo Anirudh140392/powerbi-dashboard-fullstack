@@ -57,7 +57,7 @@ async function getDiscountByCategory(filters = {}) {
             p.${catCol} AS Category,
             p.Platform,
             ROUND(AVG(CASE WHEN p.Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(p.Discount)), 0) ELSE NULL END), 1) AS avgDiscount,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)), 1) AS avgEcp,
+            ROUND(AVG(ifNull(toFloat64OrZero(toString(p.PPU)), 0)) * 100, 1) AS avgEcp,
             ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / NULLIF(AVG(ifNull(toFloat64OrZero(toString(p.MRP)), 0)), 0), 2) AS avgRpi
         FROM rb_pdp_olap p
         INNER JOIN (
@@ -145,7 +145,7 @@ async function getDiscountByBrand(filters = {}) {
         SELECT
             Brand, Platform,
             ROUND(AVG(CASE WHEN Discount IS NOT NULL AND ifNull(toFloat64OrZero(toString(Discount)), 0) >= 0 THEN ifNull(toFloat64OrZero(toString(Discount)), 0) ELSE NULL END), 1) AS avgDiscount,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)), 1) AS avgEcp,
+            ROUND(AVG(ifNull(toFloat64OrZero(toString(PPU)), 0)) * 100, 1) AS avgEcp,
             ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) / NULLIF(AVG(ifNull(toFloat64OrZero(toString(MRP)), 0)), 0), 2) AS avgRpi
         FROM rb_pdp_olap
         WHERE DATE BETWEEN '${startDate}' AND '${endDate}' AND ${catCol} = '${category}' AND Brand IS NOT NULL AND Platform IS NOT NULL

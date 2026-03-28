@@ -248,7 +248,7 @@ export default function VisibilityAnalysis() {
     const baseParams = {
       platform: filters.platform || 'All',
       brand: filters.brand || 'All',
-      location: 'All', // Hardcode to 'All' to isolate from global filters
+      location: filters.location || 'All',
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',

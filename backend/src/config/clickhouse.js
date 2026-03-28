@@ -64,7 +64,7 @@ export function getCurrentDbName() {
  * Unified Formula: Orders / Clicks
  */
 export function calculateConversion(orders = 0, impressions = 0, clicks = 0) {
-    return clicks > 0 ? (orders / clicks) * 100 : 0;
+    return impressions > 0 ? (orders / impressions) * 100 : 0;
 }
 
 /**

@@ -1168,8 +1168,8 @@ const performanceMarketingService = {
                                     Math.round(zSpend * 0.9),
                                     Math.round(zSpend * 0.85),
                                     zConv,
-                                    zImpressions > 0 ? ((zOrders / zImpressions) * 100 * 0.95).toFixed(1) + '%' : '0%',
-                                    zImpressions > 0 ? ((zOrders / zImpressions) * 100 * 0.92).toFixed(1) + '%' : '0%'
+                                    calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%',
+                                    calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%'
                                 ],
                                 children: []
                             };
@@ -1183,8 +1183,8 @@ const performanceMarketingService = {
                                 Math.round(kwSpend * 0.9),
                                 Math.round(kwSpend * 0.85),
                                 kwConv,
-                                kwImpressions > 0 ? ((kwOrders / kwImpressions) * 100 * 0.95).toFixed(1) + '%' : '0%',
-                                kwImpressions > 0 ? ((kwOrders / kwImpressions) * 100 * 0.92).toFixed(1) + '%' : '0%'
+                                calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%',
+                                calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%'
                             ],
                             children: zoneChildren
                         };

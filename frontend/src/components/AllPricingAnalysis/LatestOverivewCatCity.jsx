@@ -41,7 +41,7 @@ const cardSize = {
 
 const kpiLabels = {
     discount: 'Discount %',
-    pricePerUnit: 'Price/Unit',
+    pricePerUnit: 'Price/Unit (per 100gm)',
     asp: 'Average Selling Price',
 };
 
@@ -55,7 +55,7 @@ const LatestOverivewCatCity = ({
 }) => {
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount %' },
-        { key: 'pricePerUnit', label: 'Price/Unit' },
+        { key: 'pricePerUnit', label: 'Price/Unit (per 100gm)' },
         { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
 
