@@ -335,6 +335,8 @@ export default function MarketShareAnalysis() {
     selectedLocation,
     timeStart,
     timeEnd,
+    compareStart,
+    compareEnd,
   } = useContext(FilterContext);
 
   // ── Drawer state for MarketCatOverview trends ──────────────────────────────
@@ -358,6 +360,8 @@ export default function MarketShareAnalysis() {
           location: undefined, // Enforced isolation from global location filter
           startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
           endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
+          compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
+          compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
         };
 
         const response = await axiosInstance.get('/market-share', { params });
@@ -456,7 +460,7 @@ export default function MarketShareAnalysis() {
     };
 
     fetchMarketShareData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
 
 
   return (

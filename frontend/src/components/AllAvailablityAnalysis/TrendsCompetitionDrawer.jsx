@@ -1183,7 +1183,7 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             {
-              id: "Promo-My",
+              id: "Discount",
               label: "Promo-My %",
               color: "#6366F1",
               axis: "right",
@@ -1228,7 +1228,7 @@ export default function TrendsCompetitionDrawer({
             { date: "04 Oct'25", Discount: 12.4, PricePerUnit: 185, RPI: 4.8, ASP: 198 },
           ].map((p, idx) => ({
             ...p,
-            'Promo-My': applyVar(p.Discount, idx),
+            Discount: applyVar(p.Discount, idx),
             PricePerUnit: applyVar(p.PricePerUnit, idx),
             RPI: applyVar(p.RPI, idx),
             ASP: applyVar(p.ASP, idx),
@@ -1242,7 +1242,7 @@ export default function TrendsCompetitionDrawer({
           timeSteps: ["Daily", "Weekly", "Monthly"],
           defaultTimeStep: "Daily",
           metrics: [
-            { id: "Promo-My", label: "Promo-My %", color: "#6366F1", default: true },
+            { id: "Discount", label: "Promo-My %", color: "#6366F1", default: true },
             { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
             { id: "RPI", label: "RPI", color: "#F43F5E", default: false },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
@@ -1250,9 +1250,9 @@ export default function TrendsCompetitionDrawer({
           ],
           x: COMPARE_X,
           trendsBySku: {
-            1: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(12, x), PricePerUnit: applyVar(180, x), RPI: applyVar(4.2, x), ASP: applyVar(195, x) })),
-            2: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(14, x), PricePerUnit: applyVar(172, x), RPI: applyVar(3.9, x), ASP: applyVar(188, x) })),
-            3: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(10, x), PricePerUnit: applyVar(190, x), RPI: applyVar(4.6, x), ASP: applyVar(200, x) })),
+            1: COMPARE_X.map(x => ({ x, Discount: applyVar(12, x), PricePerUnit: applyVar(180, x), RPI: applyVar(4.2, x), ASP: applyVar(195, x) })),
+            2: COMPARE_X.map(x => ({ x, Discount: applyVar(14, x), PricePerUnit: applyVar(172, x), RPI: applyVar(3.9, x), ASP: applyVar(188, x) })),
+            3: COMPARE_X.map(x => ({ x, Discount: applyVar(10, x), PricePerUnit: applyVar(190, x), RPI: applyVar(4.6, x), ASP: applyVar(200, x) })),
           },
         },
 
@@ -1262,7 +1262,7 @@ export default function TrendsCompetitionDrawer({
           periodToggle: { primary: "MTD", compare: "Previous Month" },
           columns: [
             { id: "brand", label: "Brand", type: "text" },
-            { id: "Promo-My", label: "Promo-My %", type: "metric" },
+            { id: "Discount", label: "Promo-My %", type: "metric" },
             { id: "PricePerUnit", label: "Price/Unit", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
@@ -1270,7 +1270,7 @@ export default function TrendsCompetitionDrawer({
           ],
           brands: BRAND_OPTIONS.map((b, i) => ({
             brand: b,
-            'Promo-My': { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
+            Discount: { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
             PricePerUnit: { value: applyVar(175 + i * 5), delta: i % 2 === 0 ? 2.5 : -3.0 },
             RPI: { value: applyVar(4.0 + i * 0.2), delta: 0.1 },
             ASP: { value: applyVar(190 + i * 8), delta: i % 2 === 0 ? 3.5 : -2.1 },
@@ -1435,7 +1435,7 @@ export default function TrendsCompetitionDrawer({
             },
             { id: "SOS", label: "SOS", color: "#A855F7", axis: "right" },
             { id: "MarketShare", label: "Market Share", color: "#9333EA", axis: "right" },
-            { id: "Promo-My", label: "Promo-My %", color: "#06B6D4", axis: "right" },
+            { id: "Discount", label: "Promo-My %", color: "#06B6D4", axis: "right" },
             { id: "CPM", label: "CPM", color: "#64748B", axis: "left" },
             { id: "CPC", label: "CPC", color: "#475569", axis: "left" },
           ],
@@ -1443,6 +1443,7 @@ export default function TrendsCompetitionDrawer({
           points: [
             {
               date: "06 Sep'25",
+              Discount: 12.5,
               Offtakes: 57,
               Spend: 18.4,
               ROAS: 7.1,
@@ -1599,6 +1600,7 @@ export default function TrendsCompetitionDrawer({
             },
           ].map((p, idx) => ({
             ...p,
+            Discount: applyVar(p.Discount || p.PromoMyBrand || 10, idx),
             Offtakes: applyVar(p.Offtakes, idx),
             Spend: applyVar(p.Spend, idx),
             ROAS: applyVar(p.ROAS, idx),
@@ -1634,7 +1636,7 @@ export default function TrendsCompetitionDrawer({
             { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
             { id: "CategoryShare", label: "Category Share", color: "#EC4899" },
             { id: "MarketShare", label: "Market Share", color: "#9333EA" },
-            { id: "Promo-My", label: "Promo-My %", color: "#06B6D4" },
+            { id: "Discount", label: "Promo-My %", color: "#06B6D4" },
             { id: "Conversion", label: "Conversion", color: "#F97316" },
           ],
 
@@ -1712,7 +1714,7 @@ export default function TrendsCompetitionDrawer({
             { id: "CategoryShare", label: "Category Share", type: "metric" },
             { id: "MarketShare", label: "Market Share", type: "metric" },
             { id: "OSA", label: "OSA", type: "metric" },
-            { id: "Promo-My", label: "Promo-My %", type: "metric" },
+            { id: "Discount", label: "Promo-My %", type: "metric" },
             { id: "PricePerUnit", label: "Price Per Unit", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
@@ -1724,65 +1726,12 @@ export default function TrendsCompetitionDrawer({
             CategoryShare: { value: applyVar(20 + i, b), delta: 1.2 },
             MarketShare: { value: applyVar(15 + i, b), delta: 0.8 },
             OSA: { value: applyVar(85 + i * 0.5, b), delta: 0.3 },
-            'Promo-My': { value: applyVar(10 + i * 0.2, b), delta: -0.5 },
+            Discount: { value: applyVar(10 + i * 0.2, b), delta: -0.5 },
             PricePerUnit: { value: applyVar(50 + i * 2, b), delta: 1.0 },
             ASP: { value: applyVar(45 + i * 1.5, b), delta: 0.8 },
             RPI: { value: applyVar(1.2 + i * 0.05, b), delta: 0.02 },
           })),
         },
-      };
-    }
-
-    if (dynamicKey === "pricing") {
-      return {
-        trends: {
-          context: {
-            level: "Category",
-            audience: "Platform",
-          },
-
-          rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
-          defaultRange: "1M",
-
-          timeSteps: ["Daily", "Weekly", "Monthly"],
-          defaultTimeStep: "Daily",
-
-          metrics: [
-            {
-              id: "Promo-My",
-              label: "Promo-My %",
-              color: "#6366f1",
-              axis: "right",
-              default: true,
-            },
-            {
-              id: "PricePerUnit",
-              label: "Price Per Unit (₹)",
-              color: "#14b8a6",
-              axis: "left",
-              default: true,
-            },
-            {
-              id: "RPI",
-              label: "RPI",
-              color: "#f43f5e",
-              axis: "right",
-              default: false,
-            },
-            {
-              id: "ASP",
-              label: "Avg Selling Price (₹)",
-              color: "#8b5cf6",
-              axis: "left",
-              default: false,
-            },
-          ],
-
-          points: [],
-        },
-
-        compareSkus: {},
-        competition: {},
       };
     }
     return { trends: {}, compareSkus: {}, competition: {} };
