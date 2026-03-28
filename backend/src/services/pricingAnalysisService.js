@@ -102,6 +102,25 @@ async function getPricingSource() {
 }
 
 /**
+ * Dynamic schema resolution for rb_brand_ms table.
+ */
+async function getBrandMsSource() {
+    const cols = await getTableColumns('rb_brand_ms');
+    const r = (name) => resolveColumn(cols, name);
+
+    return {
+        table: 'rb_brand_ms',
+        cols,
+        f: {
+            webPid: r('web_pid'),
+            createdOn: r('created_on'),
+            sales: r('sales'),
+            location: r('location')
+        }
+    };
+}
+
+/**
  * Helper to parse multiselect filter values
  * Handles: arrays, comma-separated strings, or single values
  * @param {string|array} value - Filter value(s)
@@ -646,6 +665,9 @@ async function getPricingInsights(filters = {}) {
             const src = await getPricingSource();
             const f = src.f;
 
+            const msSrc = await getBrandMsSource();
+            const mf = msSrc.f;
+
             let whereConditions = [
                 `${f.wSellingPrice} > 0`,
                 `p.${f.brand} IS NOT NULL`
@@ -689,7 +711,7 @@ async function getPricingInsights(filters = {}) {
                 -- Coalesce Sales from p (own brand) and m (competitor brand)
                 COALESCE(
                     NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END), 0),
-                    NULLIF(SUM(CASE WHEN m.created_on BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.sales)), 0) ELSE 0 END), 0),
+                    NULLIF(SUM(CASE WHEN m.${mf.createdOn} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.${mf.sales})), 0) ELSE 0 END), 0),
                     0
                 ) AS offtakes_curr,
                 
@@ -698,7 +720,7 @@ async function getPricingInsights(filters = {}) {
                     THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                     ELSE NULL END) AS discount_prev
             FROM ${src.table} p
-            LEFT JOIN rb_brand_ms m ON p.${f.webPid} = m.web_pid AND p.${f.date} = m.created_on
+            LEFT JOIN ${msSrc.table} m ON p.${f.webPid} = m.${mf.webPid} AND p.${f.date} = m.${mf.createdOn}
             WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
             GROUP BY p.${f.brand}, p.${f.product}, Category, p.${f.compFlag}
@@ -762,7 +784,7 @@ async function getPricingInsights(filters = {}) {
                         -- Coalesce Sales from p and m for city level
                         COALESCE(
                             NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END), 0),
-                            NULLIF(SUM(CASE WHEN m.created_on BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.sales)), 0) ELSE 0 END), 0),
+                            NULLIF(SUM(CASE WHEN m.${mf.createdOn} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.${mf.sales})), 0) ELSE 0 END), 0),
                             0
                         ) AS offtakes_curr,
 
@@ -770,7 +792,7 @@ async function getPricingInsights(filters = {}) {
                             THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                             ELSE NULL END) AS discount_prev
                     FROM ${src.table} p
-                    LEFT JOIN rb_brand_ms m ON p.${f.webPid} = m.web_pid AND p.${f.date} = m.created_on AND p.${f.location} = m.location
+                    LEFT JOIN ${msSrc.table} m ON p.${f.webPid} = m.${mf.webPid} AND p.${f.date} = m.${mf.createdOn} AND p.${f.location} = m.${mf.location}
                     WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
                       AND p.${f.product} IN (${productEscaped})
                       ${platforms ? `AND ${buildInClause(`p.${f.platform}`, platforms)}` : ''}
