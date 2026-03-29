@@ -9092,6 +9092,7 @@ const getRcaData = async (filters = {}) => {
             SUM(${src.f.adSales}) as Ad_sales,
             SUM(${src.f.clicks}) as clicks,
             SUM(${src.f.impressions}) as impressions,
+            SUM(${src.f.organicImpressions}) as organic_impressions,
             SUM(${src.f.orders}) as orders,
             SUM(${src.f.neno}) as neno,
             SUM(${src.f.deno}) as deno,
@@ -9184,7 +9185,15 @@ const getRcaData = async (filters = {}) => {
                     sum(CASE WHEN toString(flag) = '1' THEN toInt32(organic) ELSE 0 END) as organic_branded,
                     sum(CASE WHEN toString(flag) = '0' THEN toInt32(organic) ELSE 0 END) as organic_generic,
                     sum(CASE WHEN toString(flag) = '1' THEN toInt32(spons) ELSE 0 END) as ad_branded,
-                    sum(CASE WHEN toString(flag) = '0' THEN 0 ELSE toInt32(spons) END) as ad_comp
+                    sum(CASE WHEN toString(flag) = '0' THEN 0 ELSE toInt32(spons) END) as ad_comp,
+                    
+                    sumIf(toInt32(organic), keyword_type='Branded') as org_branded_neno,
+                    sumIf(toInt32(organic), keyword_type='Generic') as org_generic_neno,
+                    sumIf(toInt32(organic), keyword_type IN ('Competition', 'Competitor')) as org_comp_neno,
+                    
+                    sumIf(toInt32(spons), keyword_type='Branded') as ad_branded_neno,
+                    sumIf(toInt32(spons), keyword_type='Generic') as ad_generic_neno,
+                    sumIf(toInt32(spons), keyword_type IN ('Competition', 'Competitor')) as ad_comp_neno
                 FROM rb_kw_olap
                 WHERE ${baseConditions.join(' AND ')} AND toString(flag) = '1'
                 GROUP BY brand
@@ -9635,7 +9644,9 @@ const getRcaData = async (filters = {}) => {
         // Parse current values
         const cSales = parseFloat(curr.sales || 0);
         const cQty = parseFloat(curr.qty || 0);
-        const cImp = parseFloat(curr.impressions || 0);
+        const cImp = parseFloat(curr.impressions || 0) + parseFloat(curr.organic_impressions || 0);
+        const cAdImpPdp = parseFloat(curr.impressions || 0);
+        const cOrgImpPdp = parseFloat(curr.organic_impressions || 0);
         const cClicks = parseFloat(curr.clicks || 0);
         const cOrders = parseFloat(curr.orders || 0);
         const cAdSales = parseFloat(curr.Ad_sales || 0);
@@ -9649,7 +9660,9 @@ const getRcaData = async (filters = {}) => {
         // Parse previous values
         const pSales = parseFloat(prev.sales || 0);
         const pQty = parseFloat(prev.qty || 0);
-        const pImp = parseFloat(prev.impressions || 0);
+        const pImp = parseFloat(prev.impressions || 0) + parseFloat(prev.organic_impressions || 0);
+        const pAdImpPdp = parseFloat(prev.impressions || 0);
+        const pOrgImpPdp = parseFloat(prev.organic_impressions || 0);
         const pClicks = parseFloat(prev.clicks || 0);
         const pOrders = parseFloat(prev.orders || 0);
         const pAdSales = parseFloat(prev.Ad_sales || 0);
@@ -9676,8 +9689,8 @@ const getRcaData = async (filters = {}) => {
         const pAsp = pQty > 0 ? pSales / pQty : 0;
         const cOsa = cDeno > 0 ? (cNeno / cDeno) * 100 : 0;
         const pOsa = pDeno > 0 ? (pNeno / pDeno) * 100 : 0;
-        const cCvr = cImp > 0 ? (cOrders / cImp) * 100 : 0;
-        const pCvr = pImp > 0 ? (pOrders / pImp) * 100 : 0;
+        const cCvr = calculateConversion(cOrders, cImp, cClicks);
+        const pCvr = calculateConversion(pOrders, pImp, pClicks);
         const cListing = cTotal > 0 ? (cListed / cTotal) * 100 : 0;
         const pListing = pTotal > 0 ? (pListed / pTotal) * 100 : 0;
         const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
@@ -9730,8 +9743,8 @@ const getRcaData = async (filters = {}) => {
         const discDelta = absDelta(cDiscount, pDiscount);
         const sosDelta = absDelta(cSos, pSos);
         const qtyDelta = pctDelta(cQty, pQty);
-        const adImpDelta = pctDelta(cAdKw, parseFloat(kwPrev.ad_kws || 0));
-        const orgImpDelta = pctDelta(cOrgKw, parseFloat(kwPrev.organic_kws || 0));
+        const adImpDelta = pctDelta(cAdImpPdp, pAdImpPdp);
+        const orgImpDelta = pctDelta(cOrgImpPdp, pOrgImpPdp);
         const orgRbDelta = pctDelta(cOrgRbKw, pOrgRbKw);
         const adRbDelta = pctDelta(cAdRbKw, pAdRbKw);
 
@@ -9802,6 +9815,24 @@ const getRcaData = async (filters = {}) => {
             const cOsaB = c.deno > 0 ? (c.neno / c.deno) * 100 : 0;
             const pOsaB = p.deno > 0 ? (p.neno / p.deno) * 100 : 0;
 
+            const brandOrgBrandedSos = safeSos(kc.org_branded_neno, kwCurr.org_branded_deno);
+            const prevBrandOrgBrandedSos = safeSos(kp.org_branded_neno, kwPrev.org_branded_deno);
+
+            const brandOrgGenericSos = safeSos(kc.org_generic_neno, kwCurr.org_generic_deno);
+            const prevBrandOrgGenericSos = safeSos(kp.org_generic_neno, kwPrev.org_generic_deno);
+
+            const brandOrgCompSos = safeSos(kc.org_comp_neno, kwCurr.org_comp_deno);
+            const prevBrandOrgCompSos = safeSos(kp.org_comp_neno, kwPrev.org_comp_deno);
+
+            const brandAdBrandedSos = safeSos(kc.ad_branded_neno, kwCurr.ad_branded_deno);
+            const prevBrandAdBrandedSos = safeSos(kp.ad_branded_neno, kwPrev.ad_branded_deno);
+
+            const brandAdGenericSos = safeSos(kc.ad_generic_neno, kwCurr.ad_generic_deno);
+            const prevBrandAdGenericSos = safeSos(kp.ad_generic_neno, kwPrev.ad_generic_deno);
+
+            const brandAdCompSos = safeSos(kc.ad_comp_neno, kwCurr.ad_comp_deno);
+            const prevBrandAdCompSos = safeSos(kp.ad_comp_neno, kwPrev.ad_comp_deno);
+
             return {
                 brand: brandName,
                 // Direct values for dynamic tooltip columns
@@ -9817,10 +9848,10 @@ const getRcaData = async (filters = {}) => {
                 rawOfftake: parseFloat(c.sales || 0),
                 rawPrevOfftake: parseFloat(p.sales || 0),
 
-                impressions: formatCount(parseFloat(c.impressions || 0)),
-                deltaImpressions: formatCount(parseFloat(c.impressions || 0) - parseFloat(p.impressions || 0)),
-                rawImpressions: parseFloat(c.impressions || 0),
-                rawPrevImpressions: parseFloat(p.impressions || 0),
+                impressions: formatCount(parseFloat(c.impressions || 0) + parseFloat(c.organic_impressions || 0)),
+                deltaImpressions: formatCount((parseFloat(c.impressions || 0) + parseFloat(c.organic_impressions || 0)) - (parseFloat(p.impressions || 0) + parseFloat(p.organic_impressions || 0))),
+                rawImpressions: parseFloat(c.impressions || 0) + parseFloat(c.organic_impressions || 0),
+                rawPrevImpressions: parseFloat(p.impressions || 0) + parseFloat(p.organic_impressions || 0),
 
                 // Granular keyword metrics
                 organic: formatCount(parseFloat(c.organic_impressions || 0)),
@@ -9862,17 +9893,35 @@ const getRcaData = async (filters = {}) => {
                 osa: `${cOsaB.toFixed(1)}% `,
                 prevOsa: `${pOsaB.toFixed(1)}% `,
                 deltaOsa: `${(cOsaB - pOsaB) > 0 ? '+' : ''}${(cOsaB - pOsaB).toFixed(1)}% `,
+                rawOsa: cOsaB,
+                rawPrevOsa: pOsaB,
 
                 // Rating and Listing specific metrics
                 rating: formatCount(parseFloat(c.qty || 0)),
                 prevRating: formatCount(parseFloat(p.qty || 0)),
                 deltaRating: formatDeltaCount(parseFloat(c.qty || 0), parseFloat(p.qty || 0)),
+                rawRating: parseFloat(c.qty || 0),
+                rawPrevRating: parseFloat(p.qty || 0),
 
                 listing: `${(c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0).toFixed(1)}% `,
                 prevListing: `${(p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0).toFixed(1)}% `,
                 deltaListing: `${((c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0) - (p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0)) > 0 ? '+' : ''}${((c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0) - (p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0)).toFixed(1)}% `,
-                rawListing: parseFloat(c.avg_listing_pct || 0),
-                rawPrevListing: parseFloat(p.avg_listing_pct || 0),
+                rawListing: c.total_count > 0 ? (c.listed_count / c.total_count) * 100 : 0,
+                rawPrevListing: p.total_count > 0 ? (p.listed_count / p.total_count) * 100 : 0,
+
+                rawOrgBrandedSos: parseFloat(brandOrgBrandedSos),
+                rawPrevOrgBrandedSos: parseFloat(prevBrandOrgBrandedSos),
+                rawOrgGenericSos: parseFloat(brandOrgGenericSos),
+                rawPrevOrgGenericSos: parseFloat(prevBrandOrgGenericSos),
+                rawOrgCompSos: parseFloat(brandOrgCompSos),
+                rawPrevOrgCompSos: parseFloat(prevBrandOrgCompSos),
+                
+                rawAdBrandedSos: parseFloat(brandAdBrandedSos),
+                rawPrevAdBrandedSos: parseFloat(prevBrandAdBrandedSos),
+                rawAdGenericSos: parseFloat(brandAdGenericSos),
+                rawPrevAdGenericSos: parseFloat(prevBrandAdGenericSos),
+                rawAdCompSos: parseFloat(brandAdCompSos),
+                rawPrevAdCompSos: parseFloat(prevBrandAdCompSos),
 
                 // PPU logic placeholder
                 ppu: `₹${(cAspB / 100).toFixed(1)} `,
@@ -9949,8 +9998,8 @@ const getRcaData = async (filters = {}) => {
                         {
                             id: "organic-impressions",
                             label: "Organic Impressions",
-                            value: formatCount(cOrgKw),
-                            prevValue: formatCount(parseFloat(kwPrev.organic_kws || 0)),
+                            value: formatCount(cOrgImpPdp),
+                            prevValue: formatCount(pOrgImpPdp),
                             change: orgImpDelta.val,
                             isPositive: orgImpDelta.isPos,
                             category: "organic",
@@ -9966,8 +10015,8 @@ const getRcaData = async (filters = {}) => {
                         {
                             id: "ad-impressions",
                             label: "Ad Impressions",
-                            value: formatCount(cAdKw),
-                            prevValue: formatCount(parseFloat(kwPrev.ad_kws || 0)),
+                            value: formatCount(cAdImpPdp),
+                            prevValue: formatCount(pAdImpPdp),
                             change: adImpDelta.val,
                             isPositive: adImpDelta.isPos,
                             category: "ad",
@@ -9996,15 +10045,15 @@ const getRcaData = async (filters = {}) => {
                         {
                             id: "ad-impressions",
                             label: "Ad Impressions",
-                            value: formatCount(cAdKw),
+                            value: formatCount(cAdImpPdp),
                             change: adImpDelta.val,
                             isPositive: adImpDelta.isPos,
                             category: "ad",
                             metrics: allNodeMetrics,
                             meta: [{ label: "Ad SOS", value: cTotalKw > 0 ? `${((cAdRbKw / cTotalKw) * 100).toFixed(2)}% ` : "0.0%", change: adRbDelta.val, isPositive: adRbDelta.isPos }],
                             children: [
-                                { id: "ad-branded", label: "Branded Keywords", value: formatCount(cAdRbKw), change: adRbDelta.val, isPositive: adRbDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: adKwData.br },
-                                { id: "ad-comp", label: "Comp Keywords", value: formatCount(cAdKw - cAdRbKw), change: adImpDelta.val, isPositive: adImpDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: adKwData.co }
+                                { id: "ad-branded", label: "Branded Keyword", value: `${cAdBrandedSos}% `, prevValue: `${pAdBrandedSos}% `, change: adBrandedSosDelta.val, isPositive: adBrandedSosDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: adKwData.br },
+                                { id: "ad-comp", label: "Comp Keyword", value: `${cAdCompSos}% `, prevValue: `${pAdCompSos}% `, change: adCompSosDelta.val, isPositive: adCompSosDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: adKwData.co }
                             ]
                         },
                         { id: "discounting", label: "Wt. Disc %", value: `${cDiscount.toFixed(2)}% `, prevValue: `${pDiscount.toFixed(2)}% `, change: discDelta.val, isPositive: discDelta.isPos, category: "discounting", metrics: allNodeMetrics },

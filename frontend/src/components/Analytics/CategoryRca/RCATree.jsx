@@ -94,8 +94,8 @@ const formatValue = (val, kpiLabel) => {
     return `₹ ${num.toLocaleString()}`;
   }
 
-  // Impressions logic (but NOT keyword labels)
-  if (l.includes("impressions") && !l.includes("keyword")) {
+  // Impressions / Rating Count logic (but NOT keyword labels)
+  if ((l.includes("impressions") || l.includes("rating")) && !l.includes("keyword")) {
     if (absVal >= 100000) return `${(num / 100000).toFixed(1)} lac`;
     if (absVal >= 1000) return `${(num / 1000).toFixed(1)} K`;
     return num.toLocaleString();
@@ -377,10 +377,42 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           curVal = match.rawPrice || 0;
           prevVal = match.rawPrevPrice || 0;
           delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("listing") || l.includes("availability")) {
+        } else if (l.includes("osa")) {
+          // Wt. OSA % — use rawOsa (neno/deno ratio)
+          curVal = match.rawOsa || 0;
+          prevVal = match.rawPrevOsa || 0;
+          delta = (curVal - prevVal); // OSA % variance in absolute points
+        } else if (l.includes("listing")) {
           curVal = match.rawListing || 0;
           prevVal = match.rawPrevListing || 0;
           delta = (curVal - prevVal); // Listing % variance in absolute points
+        } else if (l.includes("comp keyword")) {
+          if (category === "organic") {
+            curVal = match.rawOrgCompSos || 0;
+            prevVal = match.rawPrevOrgCompSos || 0;
+          } else {
+            curVal = match.rawAdCompSos || 0;
+            prevVal = match.rawPrevAdCompSos || 0;
+          }
+          delta = (curVal - prevVal);
+        } else if (l.includes("branded keyword")) {
+          if (category === "organic") {
+            curVal = match.rawOrgBrandedSos || 0;
+            prevVal = match.rawPrevOrgBrandedSos || 0;
+          } else {
+            curVal = match.rawAdBrandedSos || 0;
+            prevVal = match.rawPrevAdBrandedSos || 0;
+          }
+          delta = (curVal - prevVal);
+        } else if (l.includes("generic keyword")) {
+          if (category === "organic") {
+            curVal = match.rawOrgGenericSos || 0;
+            prevVal = match.rawPrevOrgGenericSos || 0;
+          } else {
+            curVal = match.rawAdGenericSos || 0;
+            prevVal = match.rawPrevAdGenericSos || 0;
+          }
+          delta = (curVal - prevVal);
         } else if (l === "inorganic cvr") {
           curVal = match.rawInorganicCvr || 0;
           prevVal = match.rawPrevInorganicCvr || 0;
@@ -401,6 +433,11 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           curVal = match.rawSos || 0;
           prevVal = match.rawPrevSos || 0;
           delta = (curVal - prevVal); // SOS % variance usually absolute points
+        } else if (l.includes("rating")) {
+          // Rating Count — use rawRating (qty)
+          curVal = match.rawRating || 0;
+          prevVal = match.rawPrevRating || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
         } else if (l === "sp") {
           curVal = match.rawSp || 0;
           prevVal = match.rawPrevSp || 0;
