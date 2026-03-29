@@ -526,7 +526,7 @@ export const getInsightsData = async (filters) => {
                     { label: `Avg ${brandLabel} PPU`, value: `₹${price.kw_ppu}`    },
                 ],
                 whatWeSee: hasData ? [
-                    "KW sits above peer pricing in key fast-growing segments.",
+                    `${brandLabel} sits above peer pricing in key fast-growing segments.`,
                     "This directly correlates to a lower conversion rate vs competition.",
                 ] : ["-", "-"],
                 evidence,
@@ -684,7 +684,7 @@ export const getInsightsData = async (filters) => {
                 ],
                 whatWeSee: hasData ? [
                     `${worstCompetitor} is missing on key ${dominantCat} searches (${Number(worstRow.otherBrandOsa).toFixed(0)}% OSA), creating an easy share-grab window.`,
-                    `KW is in stock (${avgKwOsa.toFixed(0)}% OSA), so conversion is mostly limited by visibility, not supply.`,
+                    `${brandLabel} is in stock (${avgKwOsa.toFixed(0)}% OSA), so conversion is mostly limited by visibility, not supply.`,
                 ] : ["-", "-"],
                 evidence: hasData ? compData.map(c => ({
                     category:      c.category,
