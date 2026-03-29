@@ -400,9 +400,9 @@ const DetailBody = ({ insight }) => {
                                             <TableCell className="font-medium">{d.keyword ?? "-"}</TableCell>
                                             <TableCell className="max-w-[240px] truncate">{d.campaign ?? "-"}</TableCell>
                                             <TableCell className="text-right">{typeof d.bid === "number" ? d.bid.toFixed(2) : "-"}</TableCell>
-                                            <TableCell className="text-right">{typeof d.dailyBudget === "number" ? d.dailyBudget.toFixed(0) : "-"}</TableCell>
-                                            <TableCell className="text-right">{typeof d.spend === "number" ? d.spend.toFixed(0) : "-"}</TableCell>
-                                            <TableCell className="text-right">{typeof d.sales === "number" ? d.sales.toFixed(0) : "-"}</TableCell>
+                                            <TableCell className="text-right">{safeINRFull(d.dailyBudget)}</TableCell>
+                                            <TableCell className="text-right">{safeINRFull(d.spend)}</TableCell>
+                                            <TableCell className="text-right">{safeINRFull(d.sales)}</TableCell>
                                             <TableCell className="text-right">{typeof d.acos === "number" ? `${d.acos}%` : "-"}</TableCell>
                                             <TableCell className="text-right">{d.budgetCapped === true ? "Yes" : "No"}</TableCell>
                                         </>
