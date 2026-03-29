@@ -5,7 +5,7 @@ async function run() {
         console.log("COLUMNS:");
         res.forEach(r => console.log(r.name || r.Name));
         process.exit(0);
-    } catch(e) {
+    } catch (e) {
         console.error(e);
         process.exit(1);
     }

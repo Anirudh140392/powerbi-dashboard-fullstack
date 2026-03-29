@@ -1,17 +1,13 @@
-
 import { queryClickHouse } from './src/config/clickhouse.js';
+import fs from 'fs';
 
 async function checkSchema() {
     try {
-        console.log('--- Checking rb_pdp_olap Schema ---');
-        const results = await queryClickHouse(`
-            DESCRIBE rb_pdp_olap
-        `);
-        console.log('Schema:', JSON.stringify(results, null, 2));
-
-    } catch (err) {
-        console.error('Error:', err);
+        const res = await queryClickHouse("DESCRIBE TABLE rb_pdp_olap");
+        fs.writeFileSync('pdp_schema.json', JSON.stringify(res, null, 2));
+        console.log('Schema saved to pdp_schema.json');
+    } catch (e) {
+        console.error(e);
     }
 }
-
 checkSchema();
