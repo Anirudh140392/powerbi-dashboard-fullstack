@@ -3233,6 +3233,57 @@ class VisibilityService {
             }
         }, CACHE_TTL.ONE_HOUR);
     }
+
+    /**
+     * Get Search Terms Brand Breakdown
+     * Returns SOS for all brands for a specific keyword/platform
+     */
+    async getSearchTermsBrandBreakdown(filters = {}) {
+        console.log('[VisibilityService] getSearchTermsBrandBreakdown called');
+        const cacheKey = generateCacheKey('search_terms_brand_breakdown', filters);
+
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                const { platform = 'All', keyword = 'All', startDate, endDate } = filters;
+                if (keyword === 'All') return [];
+
+                const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+
+                const query = `
+                    SELECT 
+                        brand,
+                        sum(toInt32(overall)) as brand_volume,
+                        SUM(sum(toInt32(overall))) OVER() as total_volume,
+                        ROUND(brand_volume * 100.0 / nullIf(total_volume, 0), 2) as overall_sos,
+                        
+                        sum(toInt32(organic)) as org_volume,
+                        ROUND(org_volume * 100.0 / nullIf(total_volume, 0), 2) as organic_sos,
+
+                        sum(toInt32(spons)) as paid_volume,
+                        ROUND(paid_volume * 100.0 / nullIf(total_volume, 0), 2) as paid_sos
+                    FROM rb_kw_olap
+                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                      AND ${buildCHCondition(platform, 'platform_name')}
+                      AND ${buildCHCondition(keyword, 'keyword')}
+                      AND brand IS NOT NULL AND brand != ''
+                    GROUP BY brand
+                    ORDER BY overall_sos DESC
+                `;
+
+                const results = await queryClickHouse(query);
+                return results.map(row => ({
+                    brand: row.brand,
+                    overallSOS: Number(row.overall_sos) || 0,
+                    organicSOS: Number(row.organic_sos) || 0,
+                    paidSOS: Number(row.paid_sos) || 0
+                }));
+            } catch (error) {
+                console.error('[VisibilityService] Error in getSearchTermsBrandBreakdown:', error);
+                return [];
+            }
+        }, CACHE_TTL.ONE_HOUR);
+    }
 }
 
 export default new VisibilityService();
