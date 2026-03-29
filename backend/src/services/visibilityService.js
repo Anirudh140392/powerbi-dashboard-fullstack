@@ -3100,7 +3100,7 @@ class VisibilityService {
                 const keywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
                 const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(keyword, 'keyword');
-                const ownBrandsCondition = (ownBrandsOnly || viewMode === 'sku') ? 'AND toInt32(flag) = 1' : 'AND 1=1';
+                const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
 
                 const dimColumn = viewMode === 'keyword' ? 'keyword' : 'keyword_search_product';
 
@@ -3111,23 +3111,23 @@ class VisibilityService {
                 const mainQuery = `
                     SELECT 
                         ${dimColumn} as name,
-                        ${viewMode === 'keyword' ? "arrayElement(topK(1)(brand), 1) as brand_name," : ""}
-                        sumIf(toInt32(overall), flag = 1) as num_overall,
+                        arrayElement(topK(1)(brand), 1) as brand_name,
+                        ${viewMode === 'keyword' ? "sumIf(toInt32(overall), flag = 1)" : "sum(toInt32(overall))"} as num_overall,
                         ${viewMode === 'keyword' ? "sum(toInt32(overall))" : "SUM(sum(toInt32(overall))) OVER()"} as den_overall,
                         ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
 
-                        sumIf(toInt32(organic), flag = 1) as num_organic,
+                        ${viewMode === 'keyword' ? "sumIf(toInt32(organic), flag = 1)" : "sum(toInt32(organic))"} as num_organic,
                         ${viewMode === 'keyword' ? "sum(toInt32(organic))" : "SUM(sum(toInt32(organic))) OVER()"} as den_organic,
                         ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
 
-                        sumIf(toInt32(spons), flag = 1) as num_spons,
+                        ${viewMode === 'keyword' ? "sumIf(toInt32(spons), flag = 1)" : "sum(toInt32(spons))"} as num_spons,
                         ${viewMode === 'keyword' ? "sum(toInt32(spons))" : "SUM(sum(toInt32(spons))) OVER()"} as den_spons,
                         ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
 
                         count(*) as impressions,
                         0 as max_vol_share,
-                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1 AND flag = 1), 1) AS ad_position,
-                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1 AND flag = 1), 1) AS organic_position
+                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS ad_position,
+                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS organic_position
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                       AND ${platformCondition}

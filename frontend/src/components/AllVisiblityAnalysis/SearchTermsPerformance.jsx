@@ -95,7 +95,17 @@ const SkuModal = ({ skus, title, onClose, loading }) => (
 );
 
 export default function SearchTermsPerformance() {
-  const { platform: globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, platforms: globalPlatforms } = useContext(FilterContext);
+  const {
+    platform: globalPlatform,
+    selectedBrand,
+    selectedLocation,
+    selectedCategory,
+    selectedKeyword,
+    selectedKeywordType,
+    timeStart,
+    timeEnd,
+    platforms: globalPlatforms
+  } = useContext(FilterContext);
 
   const [activeView, setActiveView] = useState("keyword");
   const [activeFilter, setActiveFilter] = useState("All");
@@ -108,27 +118,22 @@ export default function SearchTermsPerformance() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [skuModal, setSkuModal] = useState(null);
 
-  const validPlatforms = useMemo(() => (globalPlatforms || []).filter(p => p !== "All"), [globalPlatforms]);
-  const [skuPlatform, setSkuPlatform] = useState("");
-
-  useEffect(() => {
-    if ((!skuPlatform || !validPlatforms.includes(skuPlatform)) && validPlatforms.length > 0) {
-      setSkuPlatform(validPlatforms[0]);
-    }
-  }, [validPlatforms, skuPlatform]);
-
-  const currentSkuPlatform = skuPlatform || validPlatforms[0] || "Blinkit";
+  // Removed local skuPlatform state - now using global platform filter
+  const currentSkuPlatform = globalPlatform || "All";
 
   const filterParams = useMemo(() => ({
     viewMode: activeView === "keyword" ? "keyword" : "sku",
     platform: activeView === "sku" ? currentSkuPlatform : (globalPlatform || "All"),
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
+    category: selectedCategory || "All",
+    keyword: selectedKeyword || "All",
+    keywordTypeFilter: activeFilter,
+    keywordType: selectedKeywordType || "All",
+    ownBrandsOnly: activeView === "sku",
     startDate: timeStart,
     endDate: timeEnd,
-    keywordTypeFilter: activeFilter,
-    ownBrandsOnly: activeView === "sku",
-  }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, activeFilter]);
+  }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, activeFilter, timeStart, timeEnd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,8 +184,10 @@ export default function SearchTermsPerformance() {
         platform: globalPlatform || "All",
         brand: isMySkus ? (selectedBrand || "All") : "All",
         location: selectedLocation || "All",
+        category: selectedCategory || "All",
         startDate: timeStart, endDate: timeEnd,
         keywordTypeFilter: activeFilter,
+        keywordType: selectedKeywordType || "All",
         keyword: keywordName,
         ownBrandsOnly: isMySkus,
       });
@@ -189,7 +196,7 @@ export default function SearchTermsPerformance() {
       console.error("Error fetching SKU data for keyword:", err);
       setSkuModal({ title, skus: [], loading: false });
     }
-  }, [globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, activeFilter]);
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd]);
 
   const totalPages = Math.max(1, Math.ceil(items.length / rowsPerPage));
   const paginatedItems = items.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
@@ -226,7 +233,7 @@ export default function SearchTermsPerformance() {
           ))}
         </div>
         <div style={{ display: "flex", gap: 7 }}>
-          {activeView === "keyword" ? (
+          {activeView === "keyword" && (
             ["All", "Branded", "Competitor", "Generic"].map(f => (
               <button key={f} onClick={() => setActiveFilter(f)} style={{
                 padding: "6px 16px", borderRadius: 20, cursor: "pointer",
@@ -236,20 +243,6 @@ export default function SearchTermsPerformance() {
                 color: activeFilter === f ? "#fff" : "#475569",
               }}>{f}</button>
             ))
-          ) : (
-            <select
-              value={currentSkuPlatform}
-              onChange={(e) => setSkuPlatform(e.target.value)}
-              style={{
-                padding: "6px 16px", borderRadius: 20, cursor: "pointer",
-                fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif",
-                border: "2px solid #cbd5e1", background: "#fff", color: "#475569", outline: "none", appearance: "auto"
-              }}
-            >
-              {validPlatforms.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
           )}
         </div>
       </div>
