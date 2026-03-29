@@ -424,7 +424,7 @@ const formatCurrency = (value) => {
 
 /**
  * Fetch Conversion KPI from rb_pm_olap
- * Conversion = (SUM(ad_quantity_sold) / SUM(impressions)) * 100
+ * Conversion = (SUM(ad_quantity_sold) / SUM(clicks)) * 100
  */
 const getPmConversion = async (start, end, platformFilter, locationFilter, categoryFilter, brandFilter, channel) => {
     try {

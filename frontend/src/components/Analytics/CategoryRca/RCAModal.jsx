@@ -321,7 +321,6 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                         <SelectBox label="Marketplace Engine" value={platform} onChange={setPlatform} options={platformOptions} />
                         <SelectBox label="Category Vertical" value={category} onChange={setCategory} options={categoryOptions} />
                         <SelectBox label="Brand Identity" value={brand} onChange={setBrand} options={brandOptions} />
-                        <SelectBox label="SKU / ASIN" value={sku} onChange={setSku} options={skuOptions} />
 
                         <Box sx={{ mb: 4.5 }}>
                             <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', mb: 1.5, letterSpacing: '1.5px', textTransform: 'uppercase' }}>

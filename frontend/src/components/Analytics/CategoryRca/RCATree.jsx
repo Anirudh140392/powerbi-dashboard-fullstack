@@ -110,7 +110,7 @@ const formatValue = (val, kpiLabel) => {
   }
 
   // Percent / Conversion logic
-  if (l.includes("%") || l.includes("conv") || l.includes("rate")) return `${num.toFixed(1)}%`;
+  if (l.includes("%") || l.includes("conv") || l.includes("rate") || l.includes("cvr")) return `${num.toFixed(1)}%`;
 
   // Default fallback
   return num.toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -357,17 +357,17 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
     if (metrics && metrics.length > 0) {
       const match = metrics.find(m => m.brand === name);
       if (match) {
-        if (l === "impressions" || l === "indexed-impressions") {
-          curVal = match.rawImpressions || 0;
-          prevVal = match.rawPrevImpressions || 0;
+        if (l === "ad impressions" || l === "ad gvs") {
+          curVal = match.rawAd || 0;
+          prevVal = match.rawPrevAd || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "impressions" || l === "indexed-impressions" || l === "gvs" || l.includes("gv")) {
+          curVal = match.rawGv !== undefined ? match.rawGv : match.rawImpressions || 0;
+          prevVal = match.rawPrevGv !== undefined ? match.rawPrevGv : match.rawPrevImpressions || 0;
           delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
         } else if (l === "organic impressions") {
           curVal = match.rawOrganic || 0;
           prevVal = match.rawPrevOrganic || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "ad impressions") {
-          curVal = match.rawAd || 0;
-          prevVal = match.rawPrevAd || 0;
           delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
         } else if (l.includes("offtake")) {
           curVal = match.rawOfftake || 0;
@@ -381,6 +381,14 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           curVal = match.rawListing || 0;
           prevVal = match.rawPrevListing || 0;
           delta = (curVal - prevVal); // Listing % variance in absolute points
+        } else if (l === "inorganic cvr") {
+          curVal = match.rawInorganicCvr || 0;
+          prevVal = match.rawPrevInorganicCvr || 0;
+          delta = (curVal - prevVal); // CVR variance usually absolute points
+        } else if (l === "organic cvr") {
+          curVal = match.rawOrganicCvr !== undefined ? match.rawOrganicCvr : 0;
+          prevVal = match.rawPrevOrganicCvr !== undefined ? match.rawPrevOrganicCvr : 0;
+          delta = (curVal - prevVal); // CVR variance usually absolute points
         } else if (l === "conversion" || l === "indexed-cvr" || l === "cvr" || l.includes("cvr")) {
           curVal = match.rawCvr || 0;
           prevVal = match.rawPrevCvr || 0;
@@ -393,6 +401,14 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           curVal = match.rawSos || 0;
           prevVal = match.rawPrevSos || 0;
           delta = (curVal - prevVal); // SOS % variance usually absolute points
+        } else if (l === "sp") {
+          curVal = match.rawSp || 0;
+          prevVal = match.rawPrevSp || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "sb") {
+          curVal = match.rawSb || 0;
+          prevVal = match.rawPrevSb || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
         }
       }
     }
@@ -588,8 +604,10 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
   
   const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("keyword");
   const isEcomSos = isEcom && ((kpiLabel || "").toLowerCase().includes("search") || (kpiLabel || "").toLowerCase().includes("sos") || (kpiLabel || "").toLowerCase().includes("visibility"));
+  const kpiLabelLower = (kpiLabel || "").toLowerCase();
+  const isEcomPm = isEcom && (kpiLabelLower === "sp" || kpiLabelLower === "sb" || kpiLabelLower.includes("ad gvs") || kpiLabelLower.includes("ad impressions") || kpiLabelLower.includes("inorganic cvr"));
   const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
-  const isKeywordDrillDown = (isQCPlatform && isKeywordScopedKpi) || isEcomSos;
+  const isKeywordDrillDown = (isQCPlatform && isKeywordScopedKpi) || isEcomSos || isEcomPm;
 
   const fetchRows = useCallback(async (level = "brand", parentId = null, isInitialLoad = false) => {
     try {
@@ -739,7 +757,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
                 } else {
                   const newExpanded = expandedBrand === row.name ? null : row.name;
                   setExpandedBrand(newExpanded);
-                  if (newExpanded && !drilldownData[newExpanded]) fetchRows("sku", newExpanded);
+                  if (newExpanded && !drilldownData[newExpanded]) fetchRows(isKeywordDrillDown ? "keyword" : "sku", newExpanded);
                 }
               };
 
@@ -872,7 +890,10 @@ const StatusDot = ({ status = "healthy" }) => {
   );
 };
 
-const DeltaBadge = ({ change, isPositive }) => (
+const DeltaBadge = ({ change, isPositive }) => {
+  const displayChange = typeof change === 'string' ? change.replace(/^[+-]\s*/, '') : change;
+  
+  return (
   <Box
     sx={{
       display: "inline-flex",
@@ -891,9 +912,10 @@ const DeltaBadge = ({ change, isPositive }) => (
       whiteSpace: "nowrap",
     }}
   >
-    {isPositive ? "+" : "-"} {change}
+    {isPositive ? "+" : "-"} {displayChange}
   </Box>
-);
+  );
+};
 
 // --- Custom KPI Node ---
 const KpiNode = ({ data }) => {
