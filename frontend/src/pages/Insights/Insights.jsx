@@ -528,15 +528,22 @@ const InsightsSignalHub = () => {
 
     const slicerOptions = useMemo(() => {
         const types = Array.from(new Set(allInsights.map((i) => i.type))).sort();
-        const plats = Array.from(new Set(allInsights.flatMap((i) => i.platforms || []))).sort();
+        const plats = Array.from(new Set(allInsights.flatMap((i) => i.platforms || [])))
+            .filter(p => p !== "-")
+            .sort();
 
         return {
             types: ["All signals", ...types],
-            cities: ["All cities", ...(fetchedFilterOptions.geographies.length > 0 ? fetchedFilterOptions.geographies : Array.from(new Set(allInsights.map((i) => i.city))).sort())],
-            categories: ["All categories", ...(fetchedFilterOptions.categories.length > 0 ? fetchedFilterOptions.categories : Array.from(new Set(allInsights.map((i) => i.category))).sort())],
+            cities: ["All cities", ...(fetchedFilterOptions.geographies.length > 0
+                ? fetchedFilterOptions.geographies.filter(g => g !== "-")
+                : Array.from(new Set(allInsights.map((i) => i.city))).filter(c => c !== "-").sort())],
+            categories: ["All categories", ...(fetchedFilterOptions.categories.length > 0
+                ? fetchedFilterOptions.categories.filter(c => c !== "-")
+                : Array.from(new Set(allInsights.map((i) => i.category))).filter(c => c !== "-").sort())],
             platforms: ["All platforms", ...plats],
         };
     }, [allInsights, fetchedFilterOptions]);
+
 
     const filteredInsights = useMemo(() => {
         return allInsights.filter((i) => {
