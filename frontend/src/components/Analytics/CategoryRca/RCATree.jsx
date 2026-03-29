@@ -102,7 +102,7 @@ const formatValue = (val, kpiLabel) => {
   }
 
   // Pricing logic
-  if (l.includes("price") || l.includes("ppu")) return `₹ ${num.toFixed(2)}`;
+  if (l.includes("price") || l.includes("ppu") || l === "asp") return `₹ ${num.toFixed(2)}`;
 
   // Keyword SOS logic — values are percentages (0-100 range)
   if (l.includes("keyword")) {
@@ -258,9 +258,52 @@ const TrendButton = ({ onClick }) => (
  * DETAILED METRICS POPUP (Hover)
  * Shows Brand Identity table with a '+' button to drill down into Modal.
  */
-const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown }) => {
+const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown, nodeValue }) => {
   const isBottom = position === "bottom";
   const [activeTab, setActiveTab] = useState("gainers");
+
+  // Show a clean "Coming Soon" placeholder for nodes without real data
+  const isComingSoon = nodeValue && (String(nodeValue).includes('Coming Soon') || String(nodeValue).includes('--'));
+  if (isComingSoon) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: isBottom ? -20 : 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: isBottom ? -20 : 20 }}
+        style={{
+          position: "absolute",
+          ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
+          left: "50%", transform: "translateX(-50%)",
+          width: "480px", backgroundColor: "#fff", borderRadius: "32px",
+          padding: "0", zIndex: 100001, pointerEvents: "auto",
+          boxShadow: "0 40px 100px -20px rgba(15,23,42,0.35), 0 0 60px rgba(99,102,241,0.2)",
+          border: "1px solid rgba(0,0,0,0.1)", overflow: "hidden"
+        }}
+      >
+        <Box sx={{ p: 5, textAlign: 'center' }}>
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+            <Box sx={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(99,102,241,0.15)'
+            }}>
+              <Zap size={28} color="#6366f1" />
+            </Box>
+          </Box>
+          <Typography sx={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', mb: 1, letterSpacing: '-0.5px' }}>
+            {kpiLabel}
+          </Typography>
+          <Typography sx={{ fontSize: '15px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px' }}>
+            Coming Soon
+          </Typography>
+          <Typography sx={{ fontSize: '13px', color: '#cbd5e1', mt: 1.5 }}>
+            Brand-level analytics for this metric will be available shortly.
+          </Typography>
+        </Box>
+      </motion.div>
+    );
+  }
 
   // Decide which entity level to show based on sidebar selection
   const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands";
@@ -334,11 +377,11 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           curVal = match.rawPrice || 0;
           prevVal = match.rawPrevPrice || 0;
           delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("listing")) {
+        } else if (l.includes("listing") || l.includes("availability")) {
           curVal = match.rawListing || 0;
           prevVal = match.rawPrevListing || 0;
           delta = (curVal - prevVal); // Listing % variance in absolute points
-        } else if (l === "conversion" || l === "indexed-cvr") {
+        } else if (l === "conversion" || l === "indexed-cvr" || l === "cvr" || l.includes("cvr")) {
           curVal = match.rawCvr || 0;
           prevVal = match.rawPrevCvr || 0;
           delta = (curVal - prevVal); // CVR variance usually absolute points
@@ -346,6 +389,10 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           curVal = match.rawDiscount || 0;
           prevVal = match.rawPrevDiscount || 0;
           delta = (curVal - prevVal); // Discount % variance usually absolute points
+        } else if (l === "share of search overall" || l.includes("sos") || l === "sov-overall") {
+          curVal = match.rawSos || 0;
+          prevVal = match.rawPrevSos || 0;
+          delta = (curVal - prevVal); // SOS % variance usually absolute points
         }
       }
     }
@@ -360,6 +407,7 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           prev: match.previous,
           change: match.rawChange || 0,
           changeStr: match.change,
+          rawCurrent: match.rawCurrent || 0,
           pos: match.isPositive
         };
       }
@@ -371,13 +419,17 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
       prev: formatValue(prevVal, kpiLabel),
       change: delta,
       changeStr: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "%",
+      rawCurrent: curVal,
       pos: delta >= 0
     };
   });
 
   // Filter: Gainers = only positive (green), Drainers = only negative (red)
   const filteredRows = allRows.filter(r => activeTab === "gainers" ? r.change > 0 : r.change < 0);
-  const sortedRows = [...filteredRows].sort((a, b) => activeTab === "gainers" ? b.change - a.change : a.change - b.change);
+  
+  // Sort descending by highest value (rawCurrent) instead of variance
+  const sortedRows = [...filteredRows].sort((a, b) => b.rawCurrent - a.rawCurrent);
+  
   const displayRows = sortedRows.slice(0, 5);
 
   const canDrillDown = entityType === "Brand" || (entityType === "SKU");
@@ -530,9 +582,14 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
   };
 
   const isQCPlatform = ["blinkit", "zepto", "instamart"].includes((platform || "").toLowerCase());
+  const platformLower = (platform || '').toLowerCase();
+  const channelLower = (context?.channel || '').toLowerCase();
+  const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
+  
   const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("keyword");
+  const isEcomSos = isEcom && ((kpiLabel || "").toLowerCase().includes("search") || (kpiLabel || "").toLowerCase().includes("sos") || (kpiLabel || "").toLowerCase().includes("visibility"));
   const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
-  const isKeywordDrillDown = isQCPlatform && isKeywordScopedKpi;
+  const isKeywordDrillDown = (isQCPlatform && isKeywordScopedKpi) || isEcomSos;
 
   const fetchRows = useCallback(async (level = "brand", parentId = null, isInitialLoad = false) => {
     try {
@@ -566,7 +623,8 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
       }
 
       console.log("[KpiDetailModal] fetching", params);
-      const res = await axiosInstance.get('/category-rca', { params });
+      const endpoint = isEcom ? '/ecom-rca' : '/category-rca';
+      const res = await axiosInstance.get(endpoint, { params });
       const data = res.data?.rows || [];
 
       if (level === "brand" || isInitialLoad) {
@@ -968,6 +1026,7 @@ const KpiNode = ({ data }) => {
             selectedSku={data.selectedSku || ""}
             selectedCategory={data.selectedCategory || ""}
             position={data.popupPosition}
+            nodeValue={data.value}
             onDrillDown={(entityToFocus) => {
               onClickDetail({ ...data, focusedEntity: entityToFocus });
             }}
@@ -1801,12 +1860,6 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     const channelLower = (context.channel || '').toLowerCase();
     const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
 
-    if (isEcom) {
-      setApiTreeData(null); // Clear any previous QC tree data so ecom tree is used
-      setLoading(false);
-      return;
-    }
-
     setLoading(true);
     setApiError(null);
     try {
@@ -1823,6 +1876,22 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
       if (context.compareOn) {
         if (context.compareStart) params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
         if (context.compareEnd) params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
+      }
+
+      if (isEcom) {
+        try {
+          const res = await axiosInstance.get('/ecom-rca', { params });
+          if (res.data?.tree) {
+            setApiTreeData(res.data.tree);
+          } else {
+            setApiTreeData(null);
+          }
+        } catch (err) {
+          console.warn('[RCATree] E-com API failed, using fallback:', err.message);
+          setApiTreeData(null);
+        }
+        setLoading(false);
+        return;
       }
 
       const res = await axiosInstance.get('/category-rca', { params });
