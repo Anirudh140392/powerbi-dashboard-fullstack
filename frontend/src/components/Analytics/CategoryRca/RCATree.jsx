@@ -311,7 +311,13 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
   const l = (kpiLabel || "").toLowerCase();
   const isKeywordKpi = l.includes("impression") || l.includes("conversion") || l.includes("conv") || l.includes("keyword");
 
-  let entityType = isSkuFilterActive ? "City" : isBrandFilterActive ? (isKeywordKpi ? "Keyword" : "Location") : "Brand";
+  // If SKU is selected, breakdown is City. If Brand is selected, breakdown is SKU. Otherwise Brand.
+  let entityType = isSkuFilterActive ? "City" : isBrandFilterActive ? "SKU" : "Brand";
+
+  // Dedicated keyword breakdown branches (Branded Keyword, Generic Keyword, etc) pass keywordMetrics
+  if (isBrandFilterActive && keywordMetrics && keywordMetrics.length > 0) {
+    entityType = "Keyword";
+  }
 
   // Use real metrics if available (backend now provides appropriate level in metrics array)
   let entities = [];
