@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useRef,
   useLayoutEffect,
+  useContext,
 } from "react";
 import {
   Box,
@@ -35,6 +36,7 @@ import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
 import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
 
 /**
  * ---------------------------------------------------------------------------
@@ -573,6 +575,8 @@ export default function VisibilityTrendsCompetitionDrawer({
   selectedColumn,
   initialAudience,
 }) {
+  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory } = useContext(FilterContext);
+
   const [view, setView] = useState("Trends");
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -606,10 +610,10 @@ export default function VisibilityTrendsCompetitionDrawer({
 
   // Drawer-specific filters for the Effective Filters bar
   const [drawerFilters, setDrawerFilters] = useState({
-    Platform: "All",
-    Format: "All",
-    Brand: "All",
-    City: "All"
+    Platform: globalPlatform || "All",
+    Format: selectedCategory || "All",
+    Brand: selectedBrand || "All",
+    City: selectedLocation || "All"
   });
 
   // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
@@ -618,7 +622,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       setSelectedPlatform(selectedColumn);
 
       // Initialize ONLY the current audience type filter
-      const currentAudience = allTrendMeta.context.audience;
+      const currentAudience = initialAudience || allTrendMeta.context.audience;
       setDrawerFilters(prev => ({
         ...prev,
         [currentAudience]: selectedColumn
@@ -690,8 +694,26 @@ export default function VisibilityTrendsCompetitionDrawer({
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
         const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
-        const cities = (citiesRes.data?.options || []).filter(c => c !== 'All');
         const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
+
+        const TIER_1_CITIES = [
+          "Ahmedabad",
+          "Bangalore",
+          "Chennai",
+          "Delhi",
+          "Hyderabad",
+          "Kolkata",
+          "Mumbai",
+          "Lucknow",
+          "Gurugram",
+          "Chandigarh",
+          "Faridabad",
+          "Pune"
+        ];
+        const defaultCities = (citiesRes.data?.options || [])
+          .filter(c => c !== 'All' && c !== 'All India')
+          .filter(c => TIER_1_CITIES.some(t => c.toLowerCase().includes(t.toLowerCase())));
+        const cities = ["All India", ...defaultCities];
 
         console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length });
 
@@ -733,15 +755,15 @@ export default function VisibilityTrendsCompetitionDrawer({
         const params = {
           period: range,
           timeStep: timeStep,
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
         };
 
         // Determine which pivot filter to apply based on the selected audience
-        const audience = allTrendMeta.context.audience;
-        if (audience === "Platform") params.platform = selectedPlatform || 'All';
-        else if (audience === "Format") params.format = selectedPlatform || 'All';
-        else if (audience === "City") params.location = selectedPlatform || 'All';
-        else if (audience === "Brand") params.brand = selectedPlatform || 'All';
-        else params.platform = selectedPlatform || 'All';
+        // Wait, drawerFilters already reflects the audience because it is synced in useEffect!
+        // So we just send drawerFilters directly.
 
         console.log("[VisibilityTrendsDrawer] Fetching trend data:", params);
         const response = await axiosInstance.get('/visibility-analysis/kpi-trends', { params });
@@ -771,7 +793,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters]);
 
   // ===================== FETCH COMPETITION DATA =====================
   // Fetch competition data when drawer opens (not just when Competition view is selected)
@@ -786,15 +808,15 @@ export default function VisibilityTrendsCompetitionDrawer({
       console.log("[VisibilityTrendsDrawer] Starting fetchCompetitionData...");
       setCompetitionLoading(true);
       try {
-        // Use selectedColumn from main page click, not the internal dropdown selectedPlatform
-        // This ensures competition data reflects the user's main page filter selection
-        const platformToUse = selectedColumn || 'All';
         const params = {
           period: '1M',
-          platform: platformToUse,
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
         };
 
-        console.log("[VisibilityTrendsDrawer] Fetching competition data for platform:", platformToUse);
+        console.log("[VisibilityTrendsDrawer] Fetching competition data with params:", params);
         const response = await axiosInstance.get('/visibility-analysis/competition', { params });
 
         if (cancelled) {
@@ -826,7 +848,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [selectedColumn, open, filterOptions.loading]);
+  }, [selectedColumn, open, filterOptions.loading, drawerFilters]);
 
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({

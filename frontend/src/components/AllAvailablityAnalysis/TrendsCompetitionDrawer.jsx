@@ -428,12 +428,23 @@ export default function TrendsCompetitionDrawer({
   brandOptions,
   initialPlatform = "Blinkit",
   defaultView = "Trends",
+  initialAudience = "Platform",
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
-      audience: "Platform", // default value
+      audience: initialAudience, // default value
     },
   });
+
+  useLayoutEffect(() => {
+    if (open) {
+      allSetTrendMeta((prev) => ({
+        ...prev,
+        context: { ...prev.context, audience: initialAudience },
+      }));
+      setShowPlatformPills(true);
+    }
+  }, [open, initialAudience]);
 
   const { maxDate } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
@@ -479,7 +490,7 @@ export default function TrendsCompetitionDrawer({
       } else {
         setSelectedPlatform(initialPlatform || selectedColumn || "Blinkit");
 
-        const currentAudience = allTrendMeta.context.audience;
+        const currentAudience = initialAudience || allTrendMeta.context.audience;
         setDrawerFilters(prev => ({
           ...prev,
           Platform: initialPlatform || prev.Platform,

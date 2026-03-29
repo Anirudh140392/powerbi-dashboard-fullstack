@@ -1187,6 +1187,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           selectedColumn={selectedColumn}
           selectedLevel={selectedLevel}
           dynamicKey={dynamicKey}
+          initialAudience={title === 'Category' ? 'Format' : title}
         />
       ) : dynamicKey === 'sales_category_table' ? (
         <SalesTrendsDrawer
@@ -1202,6 +1203,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           compMeta={compMetaForDrawer}
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
+          initialAudience={title === 'Category' ? 'Format' : title}
         />
       )
       }
