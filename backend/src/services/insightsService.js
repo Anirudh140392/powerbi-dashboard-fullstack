@@ -434,12 +434,21 @@ export const getInsightsData = async (filters) => {
 
             const totalImpact = hasData ? evidence.reduce((sum, e) => sum + (e.headroomInr || 0), 0) : 0;
 
+            let title1 = "No visibility anomalies detected";
+            if (hasData) {
+                if (vis.org_sos < 10 && vis.ad_sos > 30) {
+                    title1 = `Critical visibility drop: Relying heavily on Paid (${vis.ad_sos}%) as Organic falls to ${vis.org_sos}%`;
+                } else if (vis.overall_sos < 20) {
+                    title1 = `Deteriorating Organic & Sponsored shelf visibility, overall SOS at ${vis.overall_sos}%`;
+                } else {
+                    title1 = "Deteriorating Organic & Sponsored shelf visibility across top categories";
+                }
+            }
+
             insights.push({
                 id:          "dyn_vis_1",
                 type:        "Share Headroom Hotspots",
-                title:       hasData
-                    ? "Deteriorating Organic & Sponsored shelf visibility across top categories"
-                    : "No visibility anomalies detected",
+                title:       title1,
                 family:      "Market",
                 platforms:   hasData ? [...new Set(visData.map(v => v.platform))] : ["-"],
                 city:        filters.city !== "All cities" ? filters.city : "Multi-city",
@@ -488,12 +497,23 @@ export const getInsightsData = async (filters) => {
 
             const totalImpact = hasData ? evidence.reduce((sum, e) => sum + (e.headroomInr || 0), 0) : 0;
 
+            let title2 = "No pricing anomalies detected";
+            if (hasData) {
+                if (price.price_index > 115) {
+                    title2 = `Severe premium pricing (${price.price_index}% index); high conversion risk at ₹${price.kw_ppu}`;
+                } else if (price.price_index > 105) {
+                    title2 = `Premium pricing identified (${price.price_index}% index); potential conversion risk observed`;
+                } else if (price.price_index < 95) {
+                    title2 = `Discount pricing identified (${price.price_index}% index); potential margin leakage`;
+                } else {
+                    title2 = "Pricing variations identified; potential conversion risk observed";
+                }
+            }
+
             insights.push({
                 id:          "dyn_price_1",
                 type:        "Price Parity Radar",
-                title:       hasData
-                    ? "Premium pricing identified; potential conversion risk observed"
-                    : "No pricing anomalies detected",
+                title:       title2,
                 family:      "Pricing",
                 platforms:   hasData ? [...new Set(priceData.map(p => p.platform))] : ["-"],
                 city:        filters.city !== "All cities" ? filters.city : "Multi-city",
@@ -525,12 +545,21 @@ export const getInsightsData = async (filters) => {
                 ? replData.reduce((sum, r) => sum + (Number(r.total_sold) * 0.2 * 150), 0)
                 : 0;
 
+            let title3 = "No replenishment breaks detected";
+            if (hasData) {
+                if (avgFillRate < 50) {
+                    title3 = `Critical stockout risk: ${replData.length} SKUs running extremely low (Avg Fill Rate: ${avgFillRate.toFixed(1)}%)`;
+                } else if (avgFillRate < 80) {
+                    title3 = `Low on-shelf availability (${avgFillRate.toFixed(1)}%) and inventory limits sales velocity`;
+                } else {
+                    title3 = `Inventory constraint on ${replData.length} SKUs limits optimal sales velocity`;
+                }
+            }
+
             insights.push({
                 id:          "dyn_repl_1",
                 type:        "Replenishment Breaks",
-                title:       hasData
-                    ? "Low on-shelf availability and inventory limits sales velocity"
-                    : "No replenishment breaks detected",
+                title:       title3,
                 family:      "Supply",
                 platforms:   hasData ? [...new Set(replData.map(r => r.platform))] : ["-"],
                 city:        filters.city !== "All cities" ? filters.city : "Multi-city",
@@ -571,12 +600,19 @@ export const getInsightsData = async (filters) => {
                 ? adData.reduce((sum, a) => sum + Number(a.total_spend), 0)
                 : 0;
 
+            let title4 = "No keyword efficiency issues detected";
+            if (hasData) {
+                if (Number(avgRoas) < 1.0 && impact > 5000) {
+                    title4 = `Critical Ad Waste: ₹${impact.toLocaleString('en-IN')} spend leaking on ${adData.length} keywords with poor ROAS (${avgRoas})`;
+                } else {
+                    title4 = `Spend is leaking on ${adData.length} keywords with poor ROAS (${avgRoas}) and low OSA`;
+                }
+            }
+
             insights.push({
                 id:          "dyn_ad_1",
                 type:        "Keyword Efficiency and Budget Caps",
-                title:       hasData
-                    ? "Spend is leaking on keywords with poor ROAS and low OSA"
-                    : "No keyword efficiency issues detected",
+                title:       title4,
                 family:      "Performance",
                 platforms:   hasData ? [...new Set(adData.map(a => a.platform))] : ["-"],
                 city:        filters.city !== "All cities" ? filters.city : "Multi-city",
@@ -621,12 +657,19 @@ export const getInsightsData = async (filters) => {
             const worstCompetitor = worstRow.competitor || '-';
             const dominantCat     = worstRow.category   || '-';
 
+            let title5 = "No competitor OSA weak spots detected";
+            if (hasData) {
+                if (Number(worstRow.otherBrandOsa) < 50) {
+                    title5 = `Major vulnerability: ${worstCompetitor} is severely out of stock (${Number(worstRow.otherBrandOsa).toFixed(1)}%), ${brandLabel} can capture share quickly`;
+                } else {
+                    title5 = `${worstCompetitor} is frequently out of stock (${Number(worstRow.otherBrandOsa).toFixed(1)}%), ${brandLabel} can capture share quickly`;
+                }
+            }
+
             insights.push({
                 id:          "dyn_comp_osa_1",
                 type:        "Competitor OSA Weak Spots",
-                title:       hasData
-                    ? `${worstCompetitor} is frequently out of stock, KW can capture share quickly`
-                    : "No competitor OSA weak spots detected",
+                title:       title5,
                 family:      "Performance",
                 platforms:   uniquePlatforms,
                 city:        filters.city !== "All cities" ? filters.city : (hasData ? `${uniqueCities} Cities` : "-"),
@@ -674,12 +717,19 @@ export const getInsightsData = async (filters) => {
             const avgOsa     = hasData ? adStockData.reduce((s, r) => s + Number(r.kwOsa),               0) / adStockData.length : 0;
             const avgSov     = hasData ? adStockData.reduce((s, r) => s + Number(r.adSov),               0) / adStockData.length : 0;
 
+            let title6 = "No ad stock mismatches detected";
+            if (hasData) {
+                if (avgOsa < 50 && totalSpend > 5000) {
+                    title6 = `Critical Ad Waste: ₹${Math.round(totalSpend).toLocaleString('en-IN')} spend driving traffic to SKUs with severe low availability (${avgOsa.toFixed(1)}%)`;
+                } else {
+                    title6 = `Ad spend (₹${Math.round(totalSpend).toLocaleString('en-IN')}) is driving traffic to SKUs with low on-shelf availability (${avgOsa.toFixed(1)}%)`;
+                }
+            }
+
             insights.push({
                 id:          "dyn_adstock_1",
                 type:        "Ad Stock Mismatch",
-                title:       hasData
-                    ? "Ad spend is driving traffic to SKUs with low on-shelf availability"
-                    : "No ad stock mismatches detected",
+                title:       title6,
                 family:      "Performance",
                 platforms:   hasData ? [...new Set(adStockData.map(r => r.platform))] : ["-"],
                 city:        filters.city !== "All cities" ? filters.city : "Multi-city",
@@ -716,12 +766,19 @@ export const getInsightsData = async (filters) => {
             const hasData = challengerData.length > 0;
             const top     = hasData ? challengerData[0] : {};
 
+            let title7 = "No new challenger launches detected";
+            if (hasData) {
+                if (challengerData.length > 3) {
+                    title7 = `High threat: ${challengerData.length} new challenger SKUs detected, led by ${top.skuOrBrand} (${Number(top.newItemShare).toFixed(1)}% share)`;
+                } else {
+                    title7 = `New challenger ${top.skuOrBrand} detected capturing ${Number(top.newItemShare).toFixed(1)}% organic share`;
+                }
+            }
+
             insights.push({
                 id:          "dyn_challenger_1",
                 type:        "Challenger Launch Watch",
-                title:       hasData
-                    ? `New competitor SKUs detected in your category — monitor share impact`
-                    : "No new challenger launches detected",
+                title:       title7,
                 family:      "Competitive",
                 platforms:   hasData ? [...new Set(challengerData.map(r => r.platform))] : ["-"],
                 city:        filters.city !== "All cities" ? filters.city : "Multi-city",
