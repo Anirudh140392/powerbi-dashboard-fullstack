@@ -268,10 +268,10 @@ export const getVisibilityKpiTrends = async (req, res) => {
         const filters = {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            location: req.query.location || req.query.city || 'All',
             keyword: req.query.keyword || 'All',
             keywordType: req.query.keywordType || 'All',
-            category: req.query.category || 'All',
+            category: req.query.category || req.query.format || 'All',
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,
