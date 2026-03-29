@@ -16,7 +16,8 @@ import {
     getVisibilityCityDrilldown,
     getVisibilityGainersAndDrainers,
     getSearchTermsPerformance,
-    getSearchTermsLocationDrilldown
+    getSearchTermsLocationDrilldown,
+    getSearchTermsBrandBreakdown
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
@@ -310,5 +311,6 @@ export default (app) => {
     // Search Terms Performance (Top Search Terms segment with keyword/SKU modes)
     app.get('/api/visibility-analysis/search-terms-performance', getSearchTermsPerformance);
     app.get('/api/visibility-analysis/search-terms-locations', getSearchTermsLocationDrilldown);
+    app.get('/api/visibility-analysis/search-terms-brand-breakdown', getSearchTermsBrandBreakdown);
 };
 

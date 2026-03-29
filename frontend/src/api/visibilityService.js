@@ -174,3 +174,17 @@ export const fetchSearchTermsLocations = async (params) => {
         throw error;
     }
 };
+
+/**
+ * Fetch Search Terms Brand Breakdown (Hover detail for Leading Brand)
+ */
+export const fetchSearchTermsBrandBreakdown = async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+
+    const response = await axiosInstance.get(`/visibility-analysis/search-terms-brand-breakdown?${params.toString()}`);
+    return response.data;
+};

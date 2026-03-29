@@ -642,5 +642,40 @@ export const getSearchTermsLocationDrilldown = async (req, res) => {
     }
 };
 
+/**
+ * Get Search Terms Brand Breakdown
+ * Returns SOS for all brands for a specific keyword
+ */
+export const getSearchTermsBrandBreakdown = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            keyword: req.query.keyword || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('\n========== SEARCH TERMS BRAND BREAKDOWN API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+
+        const cacheKey = generateCacheKey('search_terms_brand_breakdown_v1', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getSearchTermsBrandBreakdown(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Brands count:', data?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('=========================================================\n');
+
+        res.json({ brands: data });
+    } catch (error) {
+        console.error('[ERROR] Search Terms Brand Breakdown:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', brands: [] });
+    }
+};
+
+
 
 
