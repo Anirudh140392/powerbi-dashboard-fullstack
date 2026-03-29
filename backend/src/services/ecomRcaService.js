@@ -339,9 +339,57 @@ export const getEcomRcaData = async (filters = {}) => {
             const kpiLower = (kpiCategory || '').toLowerCase();
             const isVisibility = kpiLower.includes('visibility') || kpiLower.includes('sos') || kpiLower.includes('search');
 
-            const drillSQL = isVisibility ? getKwDrilldownSQL : getDrilldownSQL;
-            const cConds = isVisibility ? currKwConds : currOlapConds;
-            const pConds = isVisibility ? prevKwConds : prevOlapConds;
+            const isPm = kpiLower === 'sp' || kpiLower === 'sb' || kpiLower.includes('ad gvs') || kpiLower.includes('ad impressions') || kpiLower.includes('inorganic cvr');
+            const isOrganicCvr = kpiLower.includes('organic cvr');
+
+            const getPmDrilldownSQL = (conds, level, parentId) => {
+                let colName = 'lower(brand)';
+                let parentCond = '';
+
+                if (level === 'keyword' || level === 'sku') {
+                    colName = 'keyword';
+                    if (parentId) {
+                        parentCond = ` AND lower(brand) = '${escapeStr(parentId.toLowerCase())}'`;
+                    }
+                } else if (level === 'location') {
+                    // rb_pm_olap has keyword_type as a proxy dimension
+                    colName = 'keyword_type';
+                    if (parentId) {
+                        if (filters && filters.drilldownParentLevel === 'brand') {
+                            parentCond = ` AND lower(brand) = '${escapeStr(parentId.toLowerCase())}'`;
+                        } else {
+                            parentCond = ` AND keyword = '${escapeStr(parentId)}'`;
+                        }
+                    }
+                } else if (level === 'brand') {
+                    colName = 'lower(brand)';
+                    if (parentId) {
+                        parentCond = ` AND lower(brand) = '${escapeStr(parentId.toLowerCase())}'`;
+                    }
+                }
+
+                let orderCol = 'ad_clicks';
+                if (kpiLower === 'sp') orderCol = 'sp_clicks';
+                if (kpiLower === 'sb') orderCol = 'sb_clicks';
+
+                return `
+                    SELECT 
+                        ${colName} as name,
+                        SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sp_clicks,
+                        SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks,
+                        SUM(CASE WHEN targeting_type IN ('SPONSORED_PRODUCTS', 'SPONSORED_BRANDS') THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as ad_clicks,
+                        SUM(CASE WHEN targeting_type IN ('SPONSORED_PRODUCTS', 'SPONSORED_BRANDS') THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as ad_orders
+                    FROM rb_pm_olap
+                    WHERE ${conds} ${parentCond} AND ${colName} IS NOT NULL AND ${colName} != ''
+                    GROUP BY name
+                    ORDER BY ${orderCol} DESC
+                    LIMIT 2000
+                `;
+            };
+
+            const drillSQL = isVisibility ? getKwDrilldownSQL : (isPm ? getPmDrilldownSQL : getDrilldownSQL);
+            const cConds = isVisibility ? currKwConds : (isPm ? currPmConds : currOlapConds);
+            const pConds = isVisibility ? prevKwConds : (isPm ? prevPmConds : prevOlapConds);
 
             let cDrillDenom = 1;
             let pDrillDenom = 1;
@@ -354,10 +402,41 @@ export const getEcomRcaData = async (filters = {}) => {
                 pDrillDenom = parseFloat(pTotRes[0]?.tot || 1) || 1;
             }
 
-            const [currDrill, prevDrill] = await Promise.all([
-                queryClickHouse(drillSQL(cConds, drilldownLevel, drilldownId)),
-                queryClickHouse(drillSQL(pConds, drilldownLevel, drilldownId))
-            ]);
+            let currDrill, prevDrill;
+
+            if (isOrganicCvr) {
+                // For Organic CVR, we need data from both PDP (quantity, overall_gv) and PM (ad_clicks, ad_orders)
+                const [cOlap, pOlap, cPm, pPm] = await Promise.all([
+                    queryClickHouse(getDrilldownSQL(currOlapConds, drilldownLevel, drilldownId)),
+                    queryClickHouse(getDrilldownSQL(prevOlapConds, drilldownLevel, drilldownId)),
+                    queryClickHouse(getPmDrilldownSQL(currPmConds, drilldownLevel, drilldownId)),
+                    queryClickHouse(getPmDrilldownSQL(prevPmConds, drilldownLevel, drilldownId))
+                ]);
+
+                const mergePmIntoOlap = (olap, pm) => {
+                    const pmMap = new Map();
+                    pm.forEach(p => {
+                        if (p.name) pmMap.set(p.name.toString().toLowerCase(), p);
+                    });
+                    return olap.map(o => {
+                        const key = o.name ? o.name.toString().toLowerCase() : '';
+                        const matchedPm = pmMap.get(key);
+                        return {
+                            ...o,
+                            ad_clicks: matchedPm?.ad_clicks || 0,
+                            ad_orders: matchedPm?.ad_orders || 0
+                        };
+                    });
+                };
+
+                currDrill = mergePmIntoOlap(cOlap, cPm);
+                prevDrill = mergePmIntoOlap(pOlap, pPm);
+            } else {
+                [currDrill, prevDrill] = await Promise.all([
+                    queryClickHouse(drillSQL(cConds, drilldownLevel, drilldownId)),
+                    queryClickHouse(drillSQL(pConds, drilldownLevel, drilldownId))
+                ]);
+            }
 
             const drillMap = new Map();
             currDrill.forEach(d => drillMap.set(d.name, { curr: d, prev: null }));
@@ -377,8 +456,23 @@ export const getEcomRcaData = async (filters = {}) => {
                         return q > 0 ? s / q : 0;
                     }
                     if (cat.includes('conversion') || cat.includes('cvr')) {
-                        const gv = parseFloat(obj.overall_gv || 0);
-                        return gv > 0 ? (parseFloat(obj.qty || 0) / gv) * 100 : 0;
+                        if (cat.includes('inorganic cvr')) {
+                            const clicks = parseFloat(obj.ad_clicks || 0);
+                            return clicks > 0 ? (parseFloat(obj.ad_orders || 0) / clicks) * 100 : 0;
+                        } else if (cat.includes('organic cvr')) {
+                            // Organic CVR = (Organic Qty / Organic GV) * 100
+                            // Organic Qty = Qty_sold - Ad_Quantity_sold, Organic GV = Overall GV - Ad GV
+                            const totalGv = parseFloat(obj.overall_gv || 0);
+                            const totalQty = parseFloat(obj.qty || 0);
+                            const adClicks = parseFloat(obj.ad_clicks || 0);
+                            const adOrders = parseFloat(obj.ad_orders || 0);
+                            const organicGv = Math.max(totalGv - adClicks, 0);
+                            const organicQty = Math.max(totalQty - adOrders, 0);
+                            return organicGv > 0 ? (organicQty / organicGv) * 100 : 0;
+                        }
+                        // Default: Total CVR
+                        const totalGv = parseFloat(obj.overall_gv || 0);
+                        return totalGv > 0 ? (parseFloat(obj.qty || 0) / totalGv) * 100 : 0;
                     }
                     if (cat.includes('availability') || cat.includes('listing') || cat.includes('osa')) {
                         const neno = parseFloat(obj.neno || 0);
@@ -386,9 +480,9 @@ export const getEcomRcaData = async (filters = {}) => {
                         return deno > 0 ? (neno / deno) * 100 : 0;
                     }
                     if (cat.includes('discount') || cat.includes('disc')) return parseFloat(obj.avg_discount || 0);
+                    if (cat.includes('ad gvs') || cat.includes('ad impressions')) return parseFloat(obj.ad_clicks || 0);
                     if (cat.includes('organic') && cat.includes('impression')) return parseFloat(obj.organic_impressions || 0);
-                    if (cat.includes('ad') && cat.includes('impression')) return parseFloat(obj.impressions || 0);
-                    if (cat.includes('impression') || cat.includes('gv')) return parseFloat(obj.impressions || 0) + parseFloat(obj.organic_impressions || 0);
+                    if (cat.includes('impression') || cat.includes('gv')) return parseFloat(obj.overall_gv || 0);
                     if (cat.includes('visibility') || cat.includes('sos') || cat.includes('search')) {
                         const raw = parseFloat(obj.brand_kws || 0);
                         let denom = isPrev ? pDrillDenom : cDrillDenom;
@@ -400,6 +494,9 @@ export const getEcomRcaData = async (filters = {}) => {
 
                         return denom > 0 ? (raw / denom) * 100 : 0;
                     }
+                    if (cat === 'sp') return parseFloat(obj.sp_clicks || 0);
+                    if (cat === 'sb') return parseFloat(obj.sb_clicks || 0);
+                    if (cat.includes('ad gvs') || cat.includes('ad impressions')) return parseFloat(obj.ad_clicks || 0);
                     if (cat.includes('offtake')) return parseFloat(obj.sales || 0);
                     return parseFloat(obj.sales || 0); // fallback to offtake
                 };
@@ -471,7 +568,9 @@ export const getEcomRcaData = async (filters = {}) => {
             SELECT 
                 SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders,
                 SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as impressions,
-                SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks
+                SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sp_clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks
             FROM rb_pm_olap
             WHERE ${conds}
         `;
@@ -510,12 +609,25 @@ export const getEcomRcaData = async (filters = {}) => {
             GROUP BY brand
         `;
 
+        const pmBrandQuery = (conds) => `
+            SELECT
+                lower(brand) as brand,
+                SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders,
+                SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sp_clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks
+            FROM rb_pm_olap
+            WHERE ${conds} AND brand IS NOT NULL AND brand != ''
+            GROUP BY brand
+        `;
+
         const [
             currOlap, prevOlap,
             currKw, prevKw,
             currPm, prevPm,
             currBrands, prevBrands,
-            currKwBrands, prevKwBrands
+            currKwBrands, prevKwBrands,
+            currPmBrands, prevPmBrands
         ] = await Promise.all([
             queryClickHouse(olapQuery(currOlapConds)),
             queryClickHouse(olapQuery(prevOlapConds)),
@@ -526,7 +638,9 @@ export const getEcomRcaData = async (filters = {}) => {
             queryClickHouse(brandQuery(currOlapConds)),
             queryClickHouse(brandQuery(prevOlapConds)),
             queryClickHouse(kwBrandQuery(currKwConds)),
-            queryClickHouse(kwBrandQuery(prevKwConds))
+            queryClickHouse(kwBrandQuery(prevKwConds)),
+            queryClickHouse(pmBrandQuery(currPmConds)),
+            queryClickHouse(pmBrandQuery(prevPmConds))
         ]);
 
         // -------------------------
@@ -546,11 +660,9 @@ export const getEcomRcaData = async (filters = {}) => {
         
         const cImpAd = parseFloat(c.impressions || 0);
         const pImpAd = parseFloat(p.impressions || 0);
-        const cImpOrg = parseFloat(c.org_impressions || 0);
-        const pImpOrg = parseFloat(p.org_impressions || 0);
         
-        const cTotalGvs = cImpAd + cImpOrg;
-        const pTotalGvs = pImpAd + pImpOrg;
+        const cTotalGvs = parseFloat(c.overall_gv || 0);
+        const pTotalGvs = parseFloat(p.overall_gv || 0);
 
         const cOrders = parseFloat(c.orders || 0);
         const pOrders = parseFloat(p.orders || 0);
@@ -573,8 +685,19 @@ export const getEcomRcaData = async (filters = {}) => {
         // PM data
         const cPmOrders = parseFloat(cpm.orders || 0);
         const cPmImp = parseFloat(cpm.impressions || 0);
+        const cPmClicks = parseFloat(cpm.clicks || 0);
         const pPmOrders = parseFloat(ppm.orders || 0);
         const pPmImp = parseFloat(ppm.impressions || 0);
+        const pPmClicks = parseFloat(ppm.clicks || 0);
+        
+        const cSpClicks = parseFloat(cpm.sp_clicks || 0);
+        const pSpClicks = parseFloat(ppm.sp_clicks || 0);
+        const cSbClicks = parseFloat(cpm.sb_clicks || 0);
+        const pSbClicks = parseFloat(ppm.sb_clicks || 0);
+
+        // Organic GV = Total GV - Ad GV (SP + SB clicks)
+        const cImpOrg = Math.max(cTotalGvs - (cSpClicks + cSbClicks), 0);
+        const pImpOrg = Math.max(pTotalGvs - (pSpClicks + pSbClicks), 0);
 
         // Derived KPIs
         const cAsp = cQty > 0 ? cSales / cQty : 0;
@@ -589,11 +712,16 @@ export const getEcomRcaData = async (filters = {}) => {
         const cCvr = cOverallGv > 0 ? (cQty / cOverallGv) * 100 : 0;
         const pCvr = pOverallGv > 0 ? (pQty / pOverallGv) * 100 : 0;
         
-        const cCvrOrg = cImpOrg > 0 ? (cQty / cImpOrg) * 100 : 0;
-        const pCvrOrg = pImpOrg > 0 ? (pQty / pImpOrg) * 100 : 0;
+        // Organic CVR = (Organic Qty / Organic GV) * 100
+        // Organic Qty = Qty_sold (rb_pdp_olap) - Ad_Quantity_sold (rb_pm_olap)
+        // Organic GV = Overall GV (rb_pdp_olap) - Ad GV (SP + SB clicks from rb_pm_olap)
+        const cOrgQty = Math.max(cQty - cPmOrders, 0);
+        const pOrgQty = Math.max(pQty - pPmOrders, 0);
+        const cCvrOrg = cImpOrg > 0 ? (cOrgQty / cImpOrg) * 100 : 0;
+        const pCvrOrg = pImpOrg > 0 ? (pOrgQty / pImpOrg) * 100 : 0;
         
-        const cCvrAd = cPmImp > 0 ? (cPmOrders / cPmImp) * 100 : 0;
-        const pCvrAd = pPmImp > 0 ? (pPmOrders / pPmImp) * 100 : 0;
+        const cCvrAd = cPmClicks > 0 ? (cPmOrders / cPmClicks) * 100 : 0;
+        const pCvrAd = pPmClicks > 0 ? (pPmOrders / pPmClicks) * 100 : 0;
 
         const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
         const pSos = pTotalKw > 0 ? (pRbKw / pTotalKw) * 100 : 0;
@@ -625,6 +753,8 @@ export const getEcomRcaData = async (filters = {}) => {
 
         const salesDelta = pctDelta(cSales, pSales);
         const aspDelta = pctDelta(cAsp, pAsp);
+        const spDelta = pctDelta(cSpClicks, pSpClicks);
+        const sbDelta = pctDelta(cSbClicks, pSbClicks);
         const gvDelta = pctDelta(cTotalGvs, pTotalGvs);
         const orgGvDelta = pctDelta(cImpOrg, pImpOrg);
         const adGvDelta = pctDelta(cImpAd, pImpAd);
@@ -673,6 +803,22 @@ export const getEcomRcaData = async (filters = {}) => {
             const cSosB = cTotalKw > 0 ? (cBrandKwsB / cTotalKw) * 100 : 0;
             const pSosB = pTotalKw > 0 ? (pBrandKwsB / pTotalKw) * 100 : 0;
 
+            const cpmB = (currPmBrands || []).find(b => b.brand === lowerBrand) || {};
+            const ppmB = (prevPmBrands || []).find(b => b.brand === lowerBrand) || {};
+            
+            const cPmOrdersB = parseFloat(cpmB.orders || 0);
+            const pPmOrdersB = parseFloat(ppmB.orders || 0);
+            const cPmClicksB = parseFloat(cpmB.clicks || 0);
+            const pPmClicksB = parseFloat(ppmB.clicks || 0);
+            
+            const cSpClicksB = parseFloat(cpmB.sp_clicks || 0);
+            const pSpClicksB = parseFloat(ppmB.sp_clicks || 0);
+            const cSbClicksB = parseFloat(cpmB.sb_clicks || 0);
+            const pSbClicksB = parseFloat(ppmB.sb_clicks || 0);
+            
+            const cCvrAdB = cPmClicksB > 0 ? (cPmOrdersB / cPmClicksB) * 100 : 0;
+            const pCvrAdB = pPmClicksB > 0 ? (pPmOrdersB / pPmClicksB) * 100 : 0;
+
             return {
                 brand: brandName,
                 // Offtake fields
@@ -695,6 +841,8 @@ export const getEcomRcaData = async (filters = {}) => {
                 deltaConversion: `${(cCvrB - pCvrB) > 0 ? '+' : ''} ${(cCvrB - pCvrB).toFixed(1)}% `,
                 rawCvr: cCvrB,
                 rawPrevCvr: pCvrB,
+                rawInorganicCvr: cCvrAdB,
+                rawPrevInorganicCvr: pCvrAdB,
 
                 // Availability (Listing) fields
                 rawListing: cListB,
@@ -706,7 +854,39 @@ export const getEcomRcaData = async (filters = {}) => {
 
                 // Share of Search fields
                 rawSos: cSosB,
-                rawPrevSos: pSosB
+                rawPrevSos: pSosB,
+
+                // GVs field for tooltip
+                rawGv: cOverallGvB,
+                rawPrevGv: pOverallGvB,
+
+                // Organic GV = Total GV - Ad GV
+                rawOrganic: Math.max(cOverallGvB - (cSpClicksB + cSbClicksB), 0),
+                rawPrevOrganic: Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0),
+
+                // Organic Qty = Qty_sold - Ad_Quantity_sold
+                rawOrganicQty: Math.max(parseFloat(cb.qty || 0) - cPmOrdersB, 0),
+                rawPrevOrganicQty: Math.max(parseFloat(pb.qty || 0) - pPmOrdersB, 0),
+
+                // Organic CVR
+                rawOrganicCvr: Math.max(cOverallGvB - (cSpClicksB + cSbClicksB), 0) > 0 
+                    ? (Math.max(parseFloat(cb.qty || 0) - cPmOrdersB, 0) / Math.max(cOverallGvB - (cSpClicksB + cSbClicksB), 0)) * 100 
+                    : 0,
+                rawPrevOrganicCvr: Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0) > 0 
+                    ? (Math.max(parseFloat(pb.qty || 0) - pPmOrdersB, 0) / Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0)) * 100 
+                    : 0,
+
+                // SP field for tooltip
+                rawSp: cSpClicksB,
+                rawPrevSp: pSpClicksB,
+
+                // SB field for tooltip
+                rawSb: cSbClicksB,
+                rawPrevSb: pSbClicksB,
+
+                // Ad GV (SP + SB)
+                rawAd: cSpClicksB + cSbClicksB,
+                rawPrevAd: pSpClicksB + pSbClicksB
             };
         });
 
@@ -724,14 +904,8 @@ export const getEcomRcaData = async (filters = {}) => {
         let adBreakdownNodes = [];
         if (isAmazon) {
             adBreakdownNodes = [
-                {
-                    id: "sponsored-search", label: "Sponsored Search", value: phValue, prevValue: phValue, change: "--", isPositive: true, category: "ad",
-                    children: [
-                        { id: "sp", label: "SP", value: phValue, prevValue: phValue, change: "--", isPositive: true, category: "ad" },
-                        { id: "sb", label: "SB", value: phValue, prevValue: phValue, change: "--", isPositive: true, category: "ad" },
-                        { id: "sd", label: "SD", value: phValue, prevValue: phValue, change: "--", isPositive: true, category: "ad" }
-                    ]
-                }
+                { id: "sp", label: "SP", value: formatCount(cSpClicks), prevValue: formatCount(pSpClicks), change: spDelta.val, isPositive: spDelta.isPos, category: "ad", metrics: allNodeMetrics },
+                { id: "sb", label: "SB", value: formatCount(cSbClicks), prevValue: formatCount(pSbClicks), change: sbDelta.val, isPositive: sbDelta.isPos, category: "ad", metrics: allNodeMetrics }
             ];
         } else if (isFlipkart) {
             adBreakdownNodes = [
@@ -762,6 +936,7 @@ export const getEcomRcaData = async (filters = {}) => {
                     isPositive: gvDelta.isPos,
                     category: "impressions",
                     importance: "primary",
+                    metrics: allNodeMetrics,
                     children: [
                         {
                             id: "organic-gvs",
@@ -776,11 +951,12 @@ export const getEcomRcaData = async (filters = {}) => {
                         {
                             id: `ad-${isAmazon ? 'gvs' : 'impressions'}`,
                             label: `Ad ${isAmazon ? 'GVs' : 'Impressions'}`,
-                            value: formatCount(cImpAd),
-                            prevValue: formatCount(pImpAd),
-                            change: adGvDelta.val,
-                            isPositive: adGvDelta.isPos,
+                            value: formatCount(cSpClicks + cSbClicks),
+                            prevValue: formatCount(pSpClicks + pSbClicks),
+                            change: pctDelta(cSpClicks + cSbClicks, pSpClicks + pSbClicks).val,
+                            isPositive: pctDelta(cSpClicks + cSbClicks, pSpClicks + pSbClicks).isPos,
                             category: "ad",
+                            metrics: allNodeMetrics,
                             children: adBreakdownNodes
                         },
                         {
