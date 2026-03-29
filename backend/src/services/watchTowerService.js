@@ -9101,7 +9101,7 @@ const getRcaData = async (filters = {}) => {
             countIf(${src.f.deno} > 0) as listed_count,
             count() as total_count
             FROM ${src.table}
-            WHERE ${conds}
+            WHERE ${conds} AND ${src.f.compFlag} = '0'
         `;
 
         const isBrandFiltered = brand && brand !== 'All' && brand !== 'All Brands';
@@ -9126,7 +9126,7 @@ const getRcaData = async (filters = {}) => {
                 count() as total_count,
                 AVG(${src.f.listingPercent}) as avg_listing_pct
             FROM ${src.table}
-            WHERE ${conds}
+            WHERE ${conds} AND ${src.f.compFlag} = '0'
             GROUP BY brand
             ORDER BY sales DESC
             LIMIT 15
@@ -9186,7 +9186,7 @@ const getRcaData = async (filters = {}) => {
                     sum(CASE WHEN toString(flag) = '1' THEN toInt32(spons) ELSE 0 END) as ad_branded,
                     sum(CASE WHEN toString(flag) = '0' THEN 0 ELSE toInt32(spons) END) as ad_comp
                 FROM rb_kw_olap
-                WHERE ${baseConditions.join(' AND ')}
+                WHERE ${baseConditions.join(' AND ')} AND toString(flag) = '1'
                 GROUP BY brand
             `;
         };
@@ -9290,6 +9290,7 @@ const getRcaData = async (filters = {}) => {
                                 ${platCond}
                                 ${catCond}
                                 ${kwTypeFilter}
+                                AND toString(flag) = '1'
                                 AND brand IS NOT NULL AND brand != ''
                             GROUP BY brand
                             HAVING brand_impressions > 0
@@ -9350,11 +9351,17 @@ const getRcaData = async (filters = {}) => {
                     };
                 });
 
-                if (activeTab === 'gainers') results.sort((a, b) => b._delta - a._delta);
-                else results.sort((a, b) => a._delta - b._delta);
+                let filteredResults = results;
+                if (activeTab === 'gainers') {
+                    filteredResults = results.filter(r => r._delta > 0);
+                    filteredResults.sort((a, b) => b._delta - a._delta);
+                } else {
+                    filteredResults = results.filter(r => r._delta < 0);
+                    filteredResults.sort((a, b) => a._delta - b._delta);
+                }
 
-                console.log(`[getRcaData] Returning ${results.length} rows for level=${drilldownLevel}. Sample:`, results.slice(0, 3));
-                return { rows: results };
+                console.log(`[getRcaData] Returning ${filteredResults.length} rows for level=${drilldownLevel}. Sample:`, filteredResults.slice(0, 3));
+                return { rows: filteredResults };
             }
 
             const getDrilldownSQL = (conds, level, parentId) => {
@@ -9455,7 +9462,7 @@ const getRcaData = async (filters = {}) => {
                                 ELSE 0 END) * 100 as avg_discount,
                 AVG(${src.f.listingPercent}) as avg_listing_pct
                     FROM ${table}
-                    WHERE ${conds} ${parentCond}
+                    WHERE ${conds} ${parentCond} AND ${src.f.compFlag} = '0'
                     GROUP BY name
                     ORDER BY sales DESC
                     LIMIT 25
@@ -9506,10 +9513,16 @@ const getRcaData = async (filters = {}) => {
                 };
             });
 
-            if (activeTab === 'gainers') results.sort((a, b) => b._delta - a._delta);
-            else results.sort((a, b) => a._delta - b._delta);
+            let filteredResults = results;
+            if (activeTab === 'gainers') {
+                filteredResults = results.filter(r => r._delta > 0);
+                filteredResults.sort((a, b) => b._delta - a._delta);
+            } else {
+                filteredResults = results.filter(r => r._delta < 0);
+                filteredResults.sort((a, b) => a._delta - b._delta);
+            }
 
-            return { rows: results };
+            return { rows: filteredResults };
         }
 
         // Execute all queries in parallel for main tree
