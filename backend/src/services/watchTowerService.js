@@ -6807,7 +6807,7 @@ const getKpiTrends = async (filters) => {
                 COUNT(DISTINCT ${src.f.skuCode}) as assortment_count,
                 AVG(${src.f.sellingPrice}) as avg_selling_price,
                 AVG(${src.f.mrp}) as avg_mrp,
-                (SUM(CASE WHEN ${src.f.mrp} > 0 AND ${src.f.neno} > 0 THEN ${src.f.mrp} ELSE 0 END) - SUM(CASE WHEN ${src.f.mrp} > 0 AND ${src.f.neno} > 0 THEN ${src.f.sellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${src.f.mrp} > 0 AND ${src.f.neno} > 0 THEN ${src.f.mrp} ELSE 0 END), 0) * 100 as avg_discount,
+                (SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END) - SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.mrp} ELSE 0 END), 0) * 100 as avg_discount,
                 SUM(CASE WHEN ${src.f.mrp} > 0 THEN ${src.f.sales} ELSE 0 END) as sales_with_mrp,
                 SUM(if(${src.f.mrp} > 0, ${src.f.mrp} * ${src.f.quantitySold}, 0)) as mrp_sales_valid,
                 SUM(${src.f.sellingPrice}) as sum_selling_price,
@@ -7070,7 +7070,8 @@ const getKpiTrends = async (filters) => {
             marketShare: parseFloat(marketShare.toFixed(2)),
             CategoryShare: parseFloat(categoryShare.toFixed(2)),
             categoryShare: parseFloat(categoryShare.toFixed(2)),
-            PromoMyBrand: 0,  // Placeholder
+            PromoMyBrand: parseFloat(discount.toFixed(2)),
+            Discount: parseFloat(discount.toFixed(2)),
             PromoCompete: 0,  // Placeholder
             DspSales: 0       // Placeholder
         };

@@ -103,6 +103,18 @@ const DASHBOARD_DATA = {
         color: "#9333EA",
         axis: "right",
       },
+      {
+        id: "PromoMyBrand",
+        label: "Promo-My %",
+        color: "#F59E0B",
+        axis: "right",
+      },
+      {
+        id: "PromoCompete",
+        label: "Promo-Compete %",
+        color: "#D97706",
+        axis: "right",
+      },
 
       { id: "CPM", label: "CPM", color: "#64748B", axis: "right" },
       { id: "CPC", label: "CPC", color: "#475569", axis: "right" },
