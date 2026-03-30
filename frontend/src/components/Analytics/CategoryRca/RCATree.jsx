@@ -643,20 +643,35 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
   }, [open, selectedBrand, activeTab, focusedEntity]);
 
   const handleDownload = () => {
-    const allData = generateRows("", "brand", 20); // Get more brands
-    let csv = `Entity,Value,Current Period,Comparison Period,Change\n`;
-    allData.forEach(b => {
-      csv += `${b.name},${b.currentStr},${b.currentStr},${b.prevStr},${b.change}\n`;
-      const skus = generateRows(b.name, isKeywordDrillDown ? "sku" : "sku", 10);
-      skus.forEach(s => {
-        csv += `  - ${s.name},${s.currentStr},${s.currentStr},${s.prevStr},${s.change}\n`;
-      });
+    let csv = `Entity,Current Period,Comparison Period,Change\n`;
+    
+    const escapeCSV = (val) => {
+      if (val === undefined || val === null) return "";
+      const str = String(val);
+      return str.includes(',') ? `"${str}"` : str;
+    };
+
+    rows.forEach(row => {
+      csv += `${escapeCSV(row.name)},${escapeCSV(formatValue(row.currentVal, kpiLabel))},${escapeCSV(formatValue(row.prevVal, kpiLabel))},${escapeCSV(row.change)}\n`;
+      
+      if (drilldownData[row.name]) {
+        drilldownData[row.name].forEach(sr => {
+          csv += `  - ${escapeCSV(sr.name)},${escapeCSV(formatValue(sr.currentVal, kpiLabel))},${escapeCSV(formatValue(sr.prevVal, kpiLabel))},${escapeCSV(sr.change)}\n`;
+          
+          if (drilldownData[sr.name]) {
+            drilldownData[sr.name].forEach(ssr => {
+              csv += `    - ${escapeCSV(ssr.name)},${escapeCSV(formatValue(ssr.currentVal, kpiLabel))},${escapeCSV(formatValue(ssr.prevVal, kpiLabel))},${escapeCSV(ssr.change)}\n`;
+            });
+          }
+        });
+      }
     });
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Diagnostic_Trace_${kpiLabel.replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.csv`;
+    a.download = `Diagnostic_Trace_${(kpiLabel || 'Metrics').replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.csv`;
     a.click();
   };
 
@@ -1181,18 +1196,18 @@ const KpiNode = ({ data }) => {
         </Box>
       </Box>
 
-      <Box sx={{ p: "44px 72px" }}>
+      <Box sx={{ p: "56px 60px" }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 5.5 }}>
           <Box sx={{ flex: 1, minWidth: "fit-content" }}>
             <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Current</Typography>
             <Typography sx={{ fontSize: TYPO.valueSize, color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{value}</Typography>
           </Box>
-          <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 10, flexShrink: 0 }} />
+          <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 6, flexShrink: 0 }} />
           <Box sx={{ flex: 1, minWidth: "fit-content" }}>
             <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Previous</Typography>
             <Typography sx={{ fontSize: "68px", color: TYPO.secondary, fontWeight: TYPO.weightBold, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{prevValue || "—"}</Typography>
           </Box>
-          <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 10, flexShrink: 0 }} />
+          <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 6, flexShrink: 0 }} />
           <Box sx={{ flex: 1, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: "fit-content" }}>
             <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Variance %</Typography>
             <Box sx={{ mt: "16px", fontFamily: TYPO.fontMono }}><DeltaBadge change={change} isPositive={isPositive} /></Box>
