@@ -76,7 +76,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
         const query = `
             SELECT 
                 ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
+                ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
                 ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
@@ -132,7 +132,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
             SELECT 
                 DATE as crawl_date,
                 ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
+                ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
                 ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
@@ -811,7 +811,7 @@ class VisibilityService {
                         SELECT 
                             ${dimColumn} as ${dimAlias},
                             ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
                             ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
@@ -825,7 +825,7 @@ class VisibilityService {
                         SELECT 
                             ${dimColumn} as ${dimAlias},
                             ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
                             ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
@@ -838,7 +838,7 @@ class VisibilityService {
                             ${dimColumn} as ${dimAlias},
                             DATE as date,
                             ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
+                            ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
                             ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
