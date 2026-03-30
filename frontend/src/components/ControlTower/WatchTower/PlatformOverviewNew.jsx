@@ -173,22 +173,42 @@ const PlatformOverviewNew = ({
         { key: 'marketShare', label: 'Market Share' },
         { key: 'categorySize', label: 'Category Size' },
     ]
-    // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
+
+    const isBoatUser = useMemo(() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            return u?.dbName?.toLowerCase() === 'boat';
+        } catch {
+            return false;
+        }
+    }, []);
 
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
-        if (dimension === 'sku') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'shareOfVolume' && k.key !== 'ad_sov' && k.key !== 'organic_sov');
+        if (dimension === 'sku') {
+            return kpis.filter(k => {
+                if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
+                if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
+                return true;
+            });
+        }
         if (dimension === 'brand') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return kpis;
-    }, [dimension, kpis]);
+    }, [dimension, kpis, isBoatUser]);
 
     const defaultKpiKeys = useMemo(() => {
         const base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
-        if (dimension === 'sku') return base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov');
+        if (dimension === 'sku') {
+            return base.filter(k => {
+                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+                return true;
+            });
+        }
         if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         return base;
-    }, [dimension]);
+    }, [dimension, isBoatUser]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -215,16 +235,30 @@ const PlatformOverviewNew = ({
     // Re-sync glanceKpis when dimension changes
     useEffect(() => {
         if (dimension === 'sku') {
-            setGlanceKpis(prev => prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume'));
+            setGlanceKpis(prev => prev.filter(k => {
+                if (k === 'categorySize' || k === 'shareOfVolume') return false;
+                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+                return true;
+            }));
         } else if (dimension === 'brand') {
-            setGlanceKpis(prev => prev.filter(k => k !== 'categorySize' && k !== 'marketShare'));
-        } else if (dimension === 'platform') {
             setGlanceKpis(prev => {
-                if (!prev.includes('categorySize')) return [...prev, 'categorySize'];
-                return prev;
+                let next = prev.filter(k => k !== 'categorySize' && k !== 'marketShare');
+                if (!next.includes('spend')) next.push('spend');
+                if (!next.includes('conversion')) next.push('conversion');
+                return next;
+            });
+        } else {
+            // platform, month, category
+            setGlanceKpis(prev => {
+                let next = [...prev];
+                if (!next.includes('categorySize')) next.push('categorySize');
+                if (!next.includes('spend')) next.push('spend');
+                if (!next.includes('conversion')) next.push('conversion');
+                if (!next.includes('marketShare')) next.push('marketShare');
+                return next;
             });
         }
-    }, [dimension]);
+    }, [dimension, isBoatUser]);
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {

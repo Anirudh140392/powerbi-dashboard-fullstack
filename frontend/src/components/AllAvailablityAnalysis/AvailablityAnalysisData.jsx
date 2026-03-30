@@ -15,7 +15,7 @@ import SimpleTableWithTabs from "../CommonLayout/SimpleTableWithTabs";
 import DrillHeatTable from "../CommonLayout/DrillHeatTable";
 import KpiTrendShowcase from "./KpiTrendShowcase";
 import OsaHeatmapTable from "./OsaDetailView";
-
+import { SignalLabVisibility } from "../AllVisiblityAnalysis/SignalLabVisibility";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 import {
   Layers,
@@ -1243,6 +1243,15 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
   const [localLoading, setLocalLoading] = useState(false);
+  
+  const isBoatUser = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user'));
+      return u?.dbName?.toLowerCase() === 'boat';
+    } catch {
+      return false;
+    }
+  }, []);
 
   const {
     selectedBrand,
@@ -1371,7 +1380,12 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
           />
         )}
 
-
+        {/* Signal Lab Availability Segment */}
+        {!isBoatUser && (
+          <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
+            <SignalLabVisibility type="availability" loading={isLoading} />
+          </div>
+        )}
 
         {isLoading ? (
           <PlatformKpiMatrixSkeleton />

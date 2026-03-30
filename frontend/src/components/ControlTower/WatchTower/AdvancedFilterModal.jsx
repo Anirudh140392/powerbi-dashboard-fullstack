@@ -226,10 +226,24 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 // MAIN ADVANCED FILTER MODAL
 // ========================================
 export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
+    const isBoatUser = useMemo(() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            return u?.dbName?.toLowerCase() === 'boat';
+        } catch {
+            return false;
+        }
+    }, []);
+
     // Filter out "Category size" (key: 'categorySize') when on SKU dimension
     const baseKpiOptions = propKpiOptions || kpiOptions;
     const kpisToUse = currentDimension === 'sku'
-        ? baseKpiOptions.filter(k => k.key !== 'categorySize')
+        ? baseKpiOptions.filter(k => {
+            if (k.key === 'categorySize') return false;
+            // Also exclude Spend and Conversion for boat users on SKU dimension
+            if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
+            return true;
+        })
         : baseKpiOptions;
 
     // Local filter state (applied on confirm)
@@ -241,7 +255,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         dateFrom: '',
         dateTo: '',
         kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
-            if (currentDimension === 'sku') return k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov';
+            if (currentDimension === 'sku') {
+                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+                return true;
+            }
             if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
             return true;
         }),
@@ -280,7 +298,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             platforms: [],
             skus: [],
             kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
-                if (currentDimension === 'sku') return k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov';
+                if (currentDimension === 'sku') {
+                    if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                    if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+                    return true;
+                }
                 if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
                 return true;
             }),
