@@ -253,11 +253,15 @@ const getMapIntellectData = async (filters) => {
     // ── Fetch Market Share data ──
     if (msSrc) {
         try {
-            const allowedMsCities = [
+            const currentDb = getCurrentDbName()?.toLowerCase() || '';
+            let allowedMsCities = [
                 "Delhi", "Ahmedabad", "Bengaluru", "Bangalore", "Chandigarh", "Chennai",
                 "Faridabad", "Gurugram", "Gurgaon", "Hyderabad", "Kolkata", "Lucknow",
                 "Mumbai", "Pune"
             ];
+            if (currentDb === 'mamaearth') {
+                allowedMsCities = allowedMsCities.filter(c => c !== "Ahmedabad");
+            }
             const cityConditions = allowedMsCities.map(c => `${msSrc.f.location} LIKE '%${escapeStr(c)}%'`).join(' OR ');
 
             let brandsCondition = 'FALSE';
