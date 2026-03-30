@@ -1197,17 +1197,6 @@ const getPricingCompetitionTrends = async (filters) => {
         const whereClause = whereConditions.join(' AND ');
 
         const query = `
-        WITH comp_avg_ref AS (
-            SELECT 
-                DATE, 
-                AVG(ifNull(toFloat64OrZero(toString(${f.wSellingPrice})), 0)) as avg_comp_val
-            FROM ${src.table}
-            WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
-              AND Platform = '${escapeStr(platform)}' -- Platform is already verified as single or we take the first
-              AND ${src.f.compFlag} = '1'
-              AND ifNull(toFloat64OrZero(toString(${f.wSellingPrice})), 0) > 0
-            GROUP BY DATE
-        )
         SELECT
             toString(p.${f.date}) AS date,
             p.${targetColumn} AS target_name,
@@ -1221,9 +1210,18 @@ const getPricingCompetitionTrends = async (filters) => {
             AVG(${f.wSellingPrice}) AS asp,
             SUM(${f.wSales}) AS offtake
         FROM ${src.table} p
-        LEFT JOIN comp_avg_ref c ON p.DATE = toDate(c.DATE)
+        LEFT JOIN (
+            SELECT 
+                p.${f.date} AS date_key, 
+                AVG(${f.wSellingPrice}) as avg_comp_val
+            FROM ${src.table} p
+            WHERE p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
+              AND p.${src.f.compFlag} = '1'
+              AND ${f.wSellingPrice} > 0
+              ${platforms ? `AND ${buildInClause(`p.${f.platform}`, platforms)}` : ''}
+            GROUP BY date_key
+        ) c ON p.${f.date} = c.date_key
         WHERE ${whereClause}
-          AND p.${f.compFlag} = '0'
         GROUP BY p.${f.date}, p.${targetColumn}
         ORDER BY p.${f.date} ASC
         SETTINGS max_execution_time = 30
@@ -1348,7 +1346,7 @@ const getPricingCompetition = async (filters) => {
             AVG(${f.wSellingPrice}) AS asp,
             SUM(${f.wSales}) AS offtake
         FROM ${src.table} p
-        WHERE ${whereClause} AND p.${src.f.compFlag} = '0'
+        WHERE ${whereClause}
         GROUP BY brand_name, platform_comp_avg
         ORDER BY discount DESC
         LIMIT 20
@@ -1374,7 +1372,6 @@ const getPricingCompetition = async (filters) => {
         WHERE ${whereClause}
           AND p.${f.product} IS NOT NULL
           AND p.${f.product} != ''
-          AND p.${f.compFlag} = '0'
         GROUP BY p.${f.product}, p.${f.brand}, platform_comp_avg
         ORDER BY discount DESC
         LIMIT 40
