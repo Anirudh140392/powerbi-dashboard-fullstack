@@ -39,24 +39,34 @@ import {
   CircularProgress
 } from "@mui/material";
 
+/* ─── Fonts ───────────────── */
+const FontLoader = () => (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400&family=DM+Mono:wght@400;500;600&display=swap');
+    `}</style>
+);
+
 // --- Layout & Typography Tokens ---
-const CARD_WIDTH = 380;
-const CARD_HEIGHT = 280; // Estimated height for vertical centering
-const VERTICAL_GAP = 80;
-const HORIZONTAL_STEP = 480;
+const CARD_WIDTH = 1200;
+const CARD_HEIGHT = 440;
+const VERTICAL_GAP = 320;
+const HORIZONTAL_STEP = 2200;
 
 const TYPO = {
-  primary: "#0f172a",
-  secondary: "#475569",
-  border: "#e2e8f0",
-  labelSize: "20px",
-  valueSize: "34px",
-  metaSize: "18px",
-  minSize: "12px",
-  footerSize: "20px",
+  fontMain: "'DM Sans', sans-serif",
+  fontMono: "'DM Mono', monospace",
+  primary: "#1e293b",
+  secondary: "#64748b",
+  border: "#f1f5f9",
+  labelSize: "72px",
+  valueSize: "110px",
+  metaSize: "42px",
+  minSize: "24px",
+  footerSize: "52px",
   weightHeavy: 800,
   weightBold: 700,
   weightSemibold: 600,
+  weightNormal: 500,
 };
 
 const COLORS = {
@@ -185,27 +195,28 @@ const AiInsightBadge = ({ text }) => (
     transition={{ duration: 2, repeat: Infinity }}
     style={{
       position: "absolute",
-      top: -24,
+      top: -84,
       left: "50%",
       transform: "translateX(-50%)",
       backgroundColor: "#FFD54F", // Blinkit Yellow
       color: "black",
-      padding: "10px 22px",
-      borderRadius: "18px",
-      fontSize: "13px",
+      padding: "28px 64px",
+      borderRadius: "40px",
+      fontSize: "48px",
       fontWeight: 900,
       whiteSpace: "nowrap",
       textTransform: "uppercase",
-      letterSpacing: "1.2px",
+      letterSpacing: "1.5px",
       display: "flex",
       alignItems: "center",
-      gap: "6px",
+      gap: "20px",
       zIndex: 50,
-      boxShadow: "0 12px 24px rgba(139, 92, 246, 0.5)",
-      border: "1.5px solid rgba(255, 255, 255, 0.45)",
+      boxShadow: "0 30px 60px rgba(139, 92, 246, 0.55)",
+      border: "5px solid rgba(255, 255, 255, 0.55)",
+      fontFamily: TYPO.fontMain,
     }}
   >
-    <Zap size={11} fill="white" strokeWidth={3} />
+    <Zap size={56} fill="white" strokeWidth={3} />
     {text}
   </motion.div>
 );
@@ -215,7 +226,7 @@ const TrendButton = ({ onClick }) => (
     animate={{
       boxShadow: [
         "0 0 0px rgba(124, 58, 237, 0)",
-        "0 0 15px rgba(124, 58, 237, 0.6)",
+        "0 0 35px rgba(124, 58, 237, 0.8)",
         "0 0 0px rgba(124, 58, 237, 0)",
       ],
       scale: [1, 1.05, 1],
@@ -223,8 +234,8 @@ const TrendButton = ({ onClick }) => (
     transition={{ duration: 2, repeat: Infinity }}
     style={{
       position: "absolute",
-      top: 10,
-      right: 15,
+      top: 40,
+      right: 64,
       zIndex: 15,
     }}
   >
@@ -237,16 +248,16 @@ const TrendButton = ({ onClick }) => (
       sx={{
         bgcolor: "#7c3aed",
         color: "white",
-        width: 34,
-        height: 34,
-        borderRadius: "12.5px",
+        width: 120,
+        height: 120,
+        borderRadius: "40px",
         "&:hover": { bgcolor: "#6d28d9", transform: "scale(1.1)" },
-        boxShadow: "0 8px 16px rgba(124, 58, 237, 0.3)",
-        border: "1.5px solid rgba(255, 255, 255, 0.4)",
+        boxShadow: "0 25px 50px rgba(124, 58, 237, 0.5)",
+        border: "4px solid rgba(255, 255, 255, 0.45)",
         transition: "all 0.2s ease"
       }}
     >
-      <LineChart size={18} strokeWidth={3.5} />
+      <LineChart size={68} strokeWidth={7.0} />
     </IconButton>
   </motion.div>
 );
@@ -267,17 +278,19 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
   if (isComingSoon) {
     return (
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: isBottom ? -20 : 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: isBottom ? -20 : 20 }}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
         style={{
           position: "absolute",
-          ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
-          left: "50%", transform: "translateX(-50%)",
-          width: "480px", backgroundColor: "#fff", borderRadius: "32px",
+          bottom: "calc(100% + 180px)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          right: "auto",
+          width: "2000px", backgroundColor: "#fff", borderRadius: "100px",
           padding: "0", zIndex: 100001, pointerEvents: "auto",
-          boxShadow: "0 40px 100px -20px rgba(15,23,42,0.35), 0 0 60px rgba(99,102,241,0.2)",
-          border: "1px solid rgba(0,0,0,0.1)", overflow: "hidden"
+          boxShadow: "0 150px 300px -60px rgba(15,23,42,0.5)",
+          border: "3px solid rgba(0,0,0,0.1)", overflow: "hidden"
         }}
       >
         <Box sx={{ p: 5, textAlign: 'center' }}>
@@ -495,37 +508,44 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: isBottom ? -20 : 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95, y: isBottom ? -20 : 20 }}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
       style={{
         position: "absolute",
-        ...(isBottom ? { top: "calc(100% + 40px)" } : { bottom: "calc(100% + 40px)" }),
-        left: "50%", transform: "translateX(-50%)",
-        width: "1500px", backgroundColor: "#fff", borderRadius: "64px",
-        padding: "0", zIndex: 100001, pointerEvents: "auto",
-        boxShadow: "0 100px 200px -40px rgba(15,23,42,0.5), 0 0 120px rgba(99,102,241,0.35)",
-        border: "1px solid rgba(0,0,0,0.2)", overflow: "hidden"
+        bottom: "calc(100% + 180px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        right: "auto",
+        width: "3600px",
+        backgroundColor: "#fff",
+        borderRadius: "150px",
+        padding: "0",
+        zIndex: 100001,
+        pointerEvents: "auto",
+        boxShadow: "0 250px 500px -120px rgba(15,23,42,0.8), 0 0 300px rgba(99,102,241,0.65)",
+        border: "6px solid rgba(0,0,0,0.18)",
+        overflow: "hidden"
       }}
     >
-      <Box sx={{ p: 7, bgcolor: "#f8fafc", borderBottom: "1px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <Box sx={{ p: 20, bgcolor: "#f8fafc", borderBottom: "2px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
-          <Typography sx={{ fontSize: "38px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "5px" }}>
+          <Typography sx={{ fontSize: "110px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "14px" }}>
             {entityType} Analysis: {category === "ad" ? "Ad " : category === "organic" ? "Organic " : ""}{kpiLabel} {l.includes("keyword") ? "SOS" : ""}
           </Typography>
-          <Typography sx={{ fontSize: "20px", fontWeight: 700, color: "#64748b", mt: 2, textTransform: "uppercase", letterSpacing: "3px" }}>
+          <Typography sx={{ fontSize: "60px", fontWeight: 700, color: "#64748b", mt: 8, textTransform: "uppercase", letterSpacing: "6px" }}>
             Flagship {entityType} Performance comparison matrix
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 2, borderRadius: "28px", gap: 2.5 }}>
+        <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 7.5, borderRadius: "80px", gap: 9 }}>
           {["gainers", "drainers"].map(t => (
             <Box key={t} onClick={(e) => { e.stopPropagation(); setActiveTab(t); }}
               sx={{
-                px: 6, py: 2, borderRadius: "22px", cursor: 'pointer', transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                px: 12, py: 5, borderRadius: "48px", cursor: 'pointer', transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                 bgcolor: activeTab === t ? (t === 'gainers' ? "#059669" : "#dc2626") : "transparent",
-                color: activeTab === t ? "#fff" : "#64748b", fontWeight: 1000, fontSize: "18px", textTransform: 'uppercase',
-                boxShadow: activeTab === t ? "0 20px 45px rgba(0,0,0,0.3)" : "none",
-                transform: activeTab === t ? "scale(1.12)" : "scale(1)"
+                color: activeTab === t ? "#fff" : "#64748b", fontWeight: 1000, fontSize: "42px", textTransform: 'uppercase',
+                boxShadow: activeTab === t ? "0 40px 80px rgba(0,0,0,0.45)" : "none",
+                transform: activeTab === t ? "scale(1.2)" : "scale(1)"
               }}>
               {t}
             </Box>
@@ -535,43 +555,43 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
       <Box sx={{ p: 0 }}>
         <Table size="large" sx={{ tableLayout: 'fixed' }}>
           <TableHead>
-            <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 1.0)", "& th": { py: 5 } }}>
-              <TableCell align="left" sx={{ width: '25%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pl: 9, whiteSpace: 'nowrap' }}>{entityType} Name</TableCell>
-              <TableCell align="left" sx={{ width: '25%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Current Period</TableCell>
-              <TableCell align="left" sx={{ width: '30%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Comparison Period</TableCell>
-              <TableCell align="left" sx={{ width: '20%', fontSize: "28px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pr: 11, whiteSpace: 'nowrap' }}>Variance %</TableCell>
+            <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 1.0)", "& th": { py: 15 } }}>
+              <TableCell align="left" sx={{ width: '25%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pl: 25, whiteSpace: 'nowrap' }}>{entityType} Name</TableCell>
+              <TableCell align="left" sx={{ width: '25%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Current Period</TableCell>
+              <TableCell align="left" sx={{ width: '30%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Comparison Period</TableCell>
+              <TableCell align="left" sx={{ width: '20%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pr: 35, whiteSpace: 'nowrap' }}>Variance %</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {displayRows.map((r, i) => (
-              <TableRow key={i} sx={{ "&:hover": { bgcolor: "rgba(99,102,241,0.08)" }, borderBottom: i === displayRows.length - 1 ? "none" : "1px solid #f1f5f9", height: "155px" }}>
-                <TableCell align="left" sx={{ py: 0, pl: 9 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <TableRow key={i} sx={{ "&:hover": { bgcolor: "rgba(99,102,241,0.08)" }, borderBottom: i === displayRows.length - 1 ? "none" : "1px solid #f1f5f9", height: "420px" }}>
+                <TableCell align="left" sx={{ py: 0, pl: 25 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 15 }}>
                     {canDrillDown && (
                       <Box onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDrillDown(r.name); }}
                         sx={{
-                          width: 54, height: 54, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                          width: 140, height: 140, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
                           bgcolor: "rgba(99,102,241,0.2)", color: "#6366f1", cursor: "pointer",
                           transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-                          "&:hover": { bgcolor: "#6366f1", color: "#fff", transform: "scale(1.3) rotate(180deg)", boxShadow: "0 0 40px rgba(99,102,241,0.7)" }
+                          "&:hover": { bgcolor: "#6366f1", color: "#fff", transform: "scale(1.3) rotate(180deg)", boxShadow: "0 0 100px rgba(99,102,241,0.7)" }
                         }}>
-                        <Plus size={28} strokeWidth={4} />
+                        <Plus size={72} strokeWidth={4} />
                       </Box>
                     )}
-                    {!canDrillDown && <Box sx={{ width: 54 }} />}
-                    <Typography sx={{ fontSize: "34px", fontWeight: 500, color: "#1e293b", letterSpacing: "1px" }}>{r.name}</Typography>
+                    {!canDrillDown && <Box sx={{ width: 140 }} />}
+                    <Typography sx={{ fontSize: "96px", fontWeight: 500, color: "#1e293b", letterSpacing: "3.5px" }}>{r.name}</Typography>
                   </Box>
                 </TableCell>
-                <TableCell align="left" sx={{ fontSize: "30px", fontWeight: 900, color: "#0f172a" }}>{r.current}</TableCell>
-                <TableCell align="left" sx={{ fontSize: "30px", fontWeight: 700, color: "#94a3b8" }}>{r.prev}</TableCell>
-                <TableCell align="left" sx={{ py: 0, pr: 11 }}>
+                <TableCell align="left" sx={{ fontSize: "84px", fontWeight: 900, color: "#0f172a" }}>{r.current}</TableCell>
+                <TableCell align="left" sx={{ fontSize: "84px", fontWeight: 700, color: "#94a3b8" }}>{r.prev}</TableCell>
+                <TableCell align="left" sx={{ py: 0, pr: 35 }}>
                   <Typography sx={{
-                    fontSize: "26px",
+                    fontSize: "64px",
                     fontWeight: 1000,
                     color: r.pos ? "#059669" : "#dc2626",
                     bgcolor: r.pos ? "rgba(5, 150, 105, 0.2)" : "rgba(220, 38, 38, 0.2)",
-                    px: 5, py: 2, borderRadius: "22px", display: "inline-block",
-                    border: `4px solid ${r.pos ? "rgba(5, 150, 105, 0.35)" : "rgba(220, 38, 38, 0.35)"}`
+                    px: 15, py: 6, borderRadius: "64px", display: "inline-block",
+                    border: `10px solid ${r.pos ? "rgba(5, 150, 105, 0.35)" : "rgba(220, 38, 38, 0.35)"}`
                   }}>
                     {r.changeStr}
                   </Typography>
@@ -581,8 +601,8 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           </TableBody>
         </Table>
       </Box>
-      <Box sx={{ p: 5, textAlign: "center", bgcolor: "#f8fafc", borderTop: "5px solid #edf2f7" }}>
-        <Typography sx={{ fontSize: "22px", fontWeight: 800, color: "#94a3b8", letterSpacing: "2.5px", textTransform: 'uppercase' }}>
+      <Box sx={{ p: 15, textAlign: "center", bgcolor: "#f8fafc", borderTop: "12px solid #edf2f7" }}>
+        <Typography sx={{ fontSize: "60px", fontWeight: 800, color: "#94a3b8", letterSpacing: "6px", textTransform: 'uppercase' }}>
           Ultra-Precision Driver Diagnostics • {canDrillDown ? "Use [+] for Deep Entity Trace" : "Absolute Ground Level Analysis"}
         </Typography>
       </Box>
@@ -951,7 +971,7 @@ const DeltaBadge = ({ change, isPositive }) => {
       fontWeight: TYPO.weightBold,
       border: `1px solid ${isPositive ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)"
         }`,
-      fontFamily: "inherit",
+      fontFamily: TYPO.fontMain,
       whiteSpace: "nowrap",
     }}
   >
@@ -1024,12 +1044,14 @@ const KpiNode = ({ data }) => {
         border: isDimmed ? baseBorder : `2.5px solid ${accentColor}`,
       }}
       style={{
-        width: CARD_WIDTH,
+        minWidth: CARD_WIDTH,
+        width: "fit-content",
+        maxWidth: 1600,
         backgroundColor: "#ffffff",
-        borderRadius: "32px",
+        borderRadius: "64px",
         border: baseBorder,
         overflow: "visible",
-        fontFamily: '"Outfit","Inter",sans-serif',
+        fontFamily: TYPO.fontMain,
         cursor: "pointer",
         position: "relative",
         boxShadow: localHover && !isDimmed
@@ -1067,7 +1089,7 @@ const KpiNode = ({ data }) => {
               position: "absolute",
               left: 0,
               right: 0,
-              height: "45px", // Slightly more than the 40px gap
+              height: "200px", // Galactic gap bridge
               zIndex: 99999,
               background: "transparent",
               ...(data.popupPosition === "bottom"
@@ -1118,17 +1140,17 @@ const KpiNode = ({ data }) => {
 
       <Box
         sx={{
-          p: 2.3,
-          pb: 1.8,
+          p: 5,
+          pb: 4,
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "space-between",
-          borderBottom: `1px solid ${TYPO.border}`,
+          borderBottom: `2px solid ${TYPO.border}`,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, pt: 0.8 }}>
-          <Box sx={{ width: 10, height: 10, borderRadius: "4px", bgcolor: accentColor, boxShadow: `0 0 10px ${accentColor}55` }} />
-          <Typography sx={{ fontSize: TYPO.labelSize, fontWeight: TYPO.weightBold, color: TYPO.primary, letterSpacing: "-0.2px" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 4.5, pt: 3.0 }}>
+          <Box sx={{ width: 36, height: 36, borderRadius: "12px", bgcolor: accentColor, boxShadow: `0 0 35px ${accentColor}55` }} />
+          <Typography sx={{ fontSize: TYPO.labelSize, fontWeight: TYPO.weightBold, color: TYPO.primary, letterSpacing: "-1.0px" }}>
             {label}
           </Typography>
         </Box>
@@ -1159,21 +1181,21 @@ const KpiNode = ({ data }) => {
         </Box>
       </Box>
 
-      <Box sx={{ p: "16px 20px" }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1.8 }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Current</Typography>
-            <Typography sx={{ fontSize: "24px", color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1 }}>{value}</Typography>
+      <Box sx={{ p: "44px 72px" }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 5.5 }}>
+          <Box sx={{ flex: 1, minWidth: "fit-content" }}>
+            <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Current</Typography>
+            <Typography sx={{ fontSize: TYPO.valueSize, color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{value}</Typography>
           </Box>
-          <Box sx={{ width: "1px", height: "35px", bgcolor: TYPO.border, mx: 2 }} />
-          <Box sx={{ flex: 1 }}>
-            <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Previous</Typography>
-            <Typography sx={{ fontSize: "18px", color: TYPO.secondary, fontWeight: TYPO.weightBold, lineHeight: 1 }}>{prevValue || "—"}</Typography>
+          <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 10, flexShrink: 0 }} />
+          <Box sx={{ flex: 1, minWidth: "fit-content" }}>
+            <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Previous</Typography>
+            <Typography sx={{ fontSize: "68px", color: TYPO.secondary, fontWeight: TYPO.weightBold, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{prevValue || "—"}</Typography>
           </Box>
-          <Box sx={{ width: "1px", height: "35px", bgcolor: TYPO.border, mx: 2 }} />
-          <Box sx={{ flex: 1, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <Typography sx={{ fontSize: "10px", color: TYPO.secondary, fontWeight: TYPO.weightHeavy, textTransform: "uppercase", mb: 0.8, letterSpacing: "0.5px" }}>Variance %</Typography>
-            <Box sx={{ mt: "2px" }}><DeltaBadge change={change} isPositive={isPositive} /></Box>
+          <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 10, flexShrink: 0 }} />
+          <Box sx={{ flex: 1, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: "fit-content" }}>
+            <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Variance %</Typography>
+            <Box sx={{ mt: "16px", fontFamily: TYPO.fontMono }}><DeltaBadge change={change} isPositive={isPositive} /></Box>
           </Box>
         </Box>
 
@@ -1182,10 +1204,10 @@ const KpiNode = ({ data }) => {
             sx={{
               display: "flex",
               flexDirection: "column",
-              gap: 1.4,
+              gap: 1.8,
               bgcolor: "rgba(15, 23, 42, 0.04)",
-              p: 2.0,
-              borderRadius: "18px",
+              p: 2.5,
+              borderRadius: "22px",
               border: `1px solid ${TYPO.border}`,
             }}
           >
@@ -2071,7 +2093,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         style: {
           ...(e.style || {}),
           stroke: "rgba(10, 15, 28, 0.8)",
-          strokeWidth: 3.5,
+          strokeWidth: 4.5,
           strokeDasharray: "0",
           pointerEvents: "none",
           transition: "stroke 0.3s ease",
@@ -2079,8 +2101,8 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         markerEnd: {
           ...(e.markerEnd || {}),
           color: "rgba(15, 23, 42, 0.6)",
-          width: 18,
-          height: 18,
+          width: 24,
+          height: 24,
         },
       };
     });
@@ -2092,20 +2114,40 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
 
   useEffect(() => {
-    setNodes(computedNodes);
+    setNodes((nds) =>
+      computedNodes.map((newNode) => {
+        const oldNode = nds.find((n) => n.id === newNode.id);
+        // SMART PERSISTENCE: Only keep current position if it was explicitly moved by user
+        if (oldNode && oldNode.data?.wasManuallyMoved) {
+          return {
+            ...newNode,
+            position: oldNode.position,
+            data: { ...newNode.data, wasManuallyMoved: true }
+          };
+        }
+        // Force the fresh, tree-wise layout for everything else
+        return newNode;
+      })
+    );
     setEdges(computedEdges);
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
+  // Reset all positions when platform or level changes to ensure a clean tree-wise layout
   useEffect(() => {
-    reactFlowInstance.fitView({ padding: 0.15, duration: 800 });
+    setNodes(computedNodes);
+  }, [context.platform, context.brand, context.category, setNodes, computedNodes]);
+
+  useEffect(() => {
+    reactFlowInstance.fitView({ padding: 0.05, duration: 800 });
     const t = setTimeout(() => {
-      reactFlowInstance.fitView({ padding: 0.15, duration: 400 });
+      reactFlowInstance.fitView({ padding: 0.05, duration: 400 });
     }, 100);
     return () => clearTimeout(t);
   }, [reactFlowInstance, currentTreeData]);
 
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <FontLoader />
       <CoolGreyBackground />
       <MagicCursor />
 
@@ -2144,6 +2186,15 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
         elevateNodesOnSelect={true}
+        onNodeDragStop={(event, node) => {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === node.id
+                ? { ...n, data: { ...n.data, wasManuallyMoved: true } }
+                : n
+            )
+          );
+        }}
       >
         <Controls
           position="bottom-left"

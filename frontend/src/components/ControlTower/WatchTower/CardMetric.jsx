@@ -176,8 +176,8 @@ const MiniChartCard = ({
     <Card
       sx={{
         flexShrink: 0,
-        width: scrollNeeded ? 250 : `${100 / Math.min(totalCards, 5) - 1}%`,
-        borderRadius: 3,
+        width: scrollNeeded ? 550 : `${100 / Math.min(totalCards, 4) - 1}%`,
+        borderRadius: 5,
         scrollSnapAlign: "start",
         transition: "0.25s",
         "&:hover": { transform: "translateY(-5px)", boxShadow: 6 },
@@ -186,28 +186,28 @@ const MiniChartCard = ({
       onClick={onClick}
     >
       <CardContent>
-        <Typography variant="body2" color="text.secondary" fontSize={16}>
+        <Typography variant="body1" color="text.secondary" fontSize={28} sx={{ mb: 1.0, fontWeight: 600 }}>
           {card.title}
         </Typography>
-
-        <Typography variant="h6" fontWeight={600}>
+ 
+        <Typography variant="h3" fontWeight={800} sx={{ mb: 1.5 }}>
           {card.value}{" "}
-          <Typography component="span" color="text.secondary" fontSize={15}>
+          <Typography component="span" color="text.secondary" fontSize={24}>
             {card.sub}
           </Typography>
         </Typography>
-
-        <Typography variant="body3" sx={{ color: card.changeColor, mt: 1 }}>
+ 
+        <Typography variant="body1" sx={{ color: card.changeColor, mt: 2.0, fontWeight: 700, fontSize: 24 }}>
           {card.change}{" "}
-          <Typography component="span" color="text.secondary" fontSize={15}>
+          <Typography component="span" color="text.secondary" fontSize={20}>
             {card.prevText}
           </Typography>
         </Typography>
 
         {card.extra && (
-          <Typography variant="body2" color="text.secondary" mt={0.5} fontSize={15}>
+          <Typography variant="body1" color="text.secondary" mt={1.5} fontSize={24}>
             {card.extra}{" "}
-            <span style={{ color: card.extraChangeColor }}>
+            <span style={{ color: card.extraChangeColor, fontWeight: 700 }}>
               {card.extraChange}
             </span>
           </Typography>

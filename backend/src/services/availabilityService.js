@@ -1454,10 +1454,19 @@ const getMetroCityStockAvailability = async (filters) => {
             const prevEndDate = currentStartDate.subtract(1, 'day');
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
-            // Overwrite location with metro cities for this specific card
-            const metroLocations = targetLocations;
-            currentFilters.location = metroLocations;
-            prevFilters.location = metroLocations;
+            // Build filter objects for current and previous periods
+            const currentFilters = {
+                ...filters,
+                startDate: currentStartDate.format('YYYY-MM-DD'),
+                endDate: currentEndDate.format('YYYY-MM-DD'),
+                location: targetLocations
+            };
+            const prevFilters = {
+                ...filters,
+                startDate: prevStartDate.format('YYYY-MM-DD'),
+                endDate: prevEndDate.format('YYYY-MM-DD'),
+                location: targetLocations
+            };
 
             // Build filter conditions using buildAvailabilityWhereClause
             const currentWhere = await buildAvailabilityWhereClause(currentFilters);
