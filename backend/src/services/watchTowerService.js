@@ -5020,8 +5020,21 @@ const getPlatformOverview = async (filters) => {
     const prevMsDenomMap = new Map(prevMsDenom.map(r => [r.platform?.toLowerCase(), parseFloat(r.total_sales || 0)]));
 
     // Calculate sumCatSize from all query results (not just those in platformDefinitions)
-    const sumCatSize = currCatSizeByPlatform.reduce((sum, r) => sum + parseFloat(r.cat_size || 0), 0);
-    const prevSumCatSize = prevCatSizeByPlatform.reduce((sum, r) => sum + parseFloat(r.cat_size || 0), 0);
+    let filteredCurrCatSize = currCatSizeByPlatform;
+    let filteredPrevCatSize = prevCatSizeByPlatform;
+
+    if (platformArr && platformArr.length > 0) {
+        const requestedPlatformsLower = platformArr.map(p => p.toLowerCase());
+        const filterCatSize = (arr) => arr.filter(r => {
+            const platformLower = (r.platform || '').toLowerCase();
+            return requestedPlatformsLower.some(rp => platformLower.includes(rp) || rp.includes(platformLower));
+        });
+        filteredCurrCatSize = filterCatSize(currCatSizeByPlatform);
+        filteredPrevCatSize = filterCatSize(prevCatSizeByPlatform);
+    }
+
+    const sumCatSize = filteredCurrCatSize.reduce((sum, r) => sum + parseFloat(r.cat_size || 0), 0);
+    const prevSumCatSize = filteredPrevCatSize.reduce((sum, r) => sum + parseFloat(r.cat_size || 0), 0);
 
     // Map platform category sizes for fuzzy matching later
     const currCatSizeByPlatformMap = new Map(currCatSizeByPlatform.map(r => [r.platform?.toLowerCase(), parseFloat(r.cat_size || 0)]));
@@ -5274,7 +5287,16 @@ const getPlatformOverview = async (filters) => {
     let sumMsNum = 0, sumMsDenom = 0;
     let prevSumMsNum = 0, prevSumMsDenom = 0;
 
-    platformDefinitions.forEach(p => {
+    let platformsForMsAll = platformDefinitions;
+    if (platformArr && platformArr.length > 0) {
+        const requestedPlatformsLower = platformArr.map(p => p.toLowerCase());
+        platformsForMsAll = platformDefinitions.filter(p => {
+            const labelLower = (p.label || '').toLowerCase();
+            return requestedPlatformsLower.some(rp => labelLower.includes(rp) || rp.includes(labelLower));
+        });
+    }
+
+    platformsForMsAll.forEach(p => {
         const key = p.label.toLowerCase();
         sumMsNum += currMsNumMap.get(key) || 0;
         sumMsDenom += currMsDenomMap.get(key) || 0;
@@ -5950,13 +5972,16 @@ const getCategoryOverview = async (filters) => {
     const currSosConds = buildSosCatConds(startDate, endDate);
     const prevSosConds = buildSosCatConds(momStart, momEnd);
 
+    const brandInClause = (brandArr && brandArr.length > 0)
+        ? `(${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`
+        : `(SELECT DISTINCT lower(brand_name) FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL)`;
+
     // ⚡ RUN ALL QUERIES IN PARALLEL
     const [
         distinctCategories,
         currCatData, prevCatData,
         currPmCatData, prevPmCatData,
-        currMsNum, currMsDenom, prevMsNum, prevMsDenom,
-        currCatSizeByCat, prevCatSizeByCat
+        currMsData, prevMsData
     ] = await Promise.all([
         // Query 1: Distinct categories
         queryClickHouse(`
@@ -6000,24 +6025,35 @@ const getCategoryOverview = async (filters) => {
             SUM(${pmSrc.f.impressions}) as total_impressions,
             SUM(${pmSrc.f.orders}) as total_orders
         FROM ${pmSrc.table} WHERE ${buildPmCatConds(momStart, momEnd)} GROUP BY Category`),
-        // Market Share
-        queryClickHouse(`SELECT category, SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE ${buildMsCatConds(startDate, endDate, validBrandNamesForCat)} GROUP BY category`),
-        queryClickHouse(`SELECT category, SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE ${buildMsCatConds(startDate, endDate, null)} GROUP BY category`),
-        queryClickHouse(`SELECT category, SUM(toFloat64OrZero(toString(sales))) as our_sales FROM rb_ms_olap WHERE ${buildMsCatConds(momStart, momEnd, validBrandNamesForCat)} GROUP BY category`),
-        queryClickHouse(`SELECT category, SUM(toFloat64OrZero(toString(sales))) as total_sales FROM rb_ms_olap WHERE ${buildMsCatConds(momStart, momEnd, null)} GROUP BY category`),
-        // Category Size
+        // COMBINED Market Share & Category Size Query
         queryClickHouse(`
-                    SELECT category, SUM(toFloat64OrZero(toString(sales))) as cat_size
-                    FROM rb_ms_olap
-                    WHERE ${buildMsCatConds(startDate, endDate, null)}
-                    GROUP BY category
-                `),
+            SELECT 
+                category,
+                SUM(if(lower(group_brand) IN ${brandInClause}, toFloat64OrZero(toString(sales)), 0)) AS our_sales,
+                SUM(toFloat64OrZero(toString(sales))) AS total_sales,
+                if(SUM(toFloat64OrZero(toString(sales))) > 0, 
+                   (SUM(if(lower(group_brand) IN ${brandInClause}, toFloat64OrZero(toString(sales)), 0)) / SUM(toFloat64OrZero(toString(sales)))) * 100, 
+                   0) AS market_share_percentage
+            FROM rb_ms_olap
+            WHERE ${buildMsCatConds(startDate, endDate, null)}
+            GROUP BY category
+            ORDER BY total_sales DESC
+            LIMIT 100
+        `),
         queryClickHouse(`
-                    SELECT category, SUM(toFloat64OrZero(toString(sales))) as cat_size
-                    FROM rb_ms_olap
-                    WHERE ${buildMsCatConds(momStart, momEnd, null)}
-                    GROUP BY category
-                `)
+            SELECT 
+                category,
+                SUM(if(lower(group_brand) IN ${brandInClause}, toFloat64OrZero(toString(sales)), 0)) AS our_sales,
+                SUM(toFloat64OrZero(toString(sales))) AS total_sales,
+                if(SUM(toFloat64OrZero(toString(sales))) > 0, 
+                   (SUM(if(lower(group_brand) IN ${brandInClause}, toFloat64OrZero(toString(sales)), 0)) / SUM(toFloat64OrZero(toString(sales)))) * 100, 
+                   0) AS market_share_percentage
+            FROM rb_ms_olap
+            WHERE ${buildMsCatConds(momStart, momEnd, null)}
+            GROUP BY category
+            ORDER BY total_sales DESC
+            LIMIT 100
+        `)
     ]);
 
     // SOS Current - Simple sumIf(overall) / sum(overall) per category
@@ -6082,16 +6118,14 @@ const getCategoryOverview = async (filters) => {
     const currOrgSovMap = buildSosMap(currOrgSovData);
     const prevOrgSovMap = buildSosMap(prevOrgSovData);
 
-    const currMsNumMap = buildMap(currMsNum, 'category', 'our_sales');
-    const currMsDenomMap = buildMap(currMsDenom, 'category', 'total_sales');
-    const prevMsNumMap = buildMap(prevMsNum, 'category', 'our_sales');
-    const prevMsDenomMap = buildMap(prevMsDenom, 'category', 'total_sales');
-    const currCatSizeCatMap = buildMap(currCatSizeByCat, 'category', 'cat_size');
-    const prevCatSizeCatMap = buildMap(prevCatSizeByCat, 'category', 'cat_size');
+    const currMsMap = buildMap(currMsData, 'category', 'market_share_percentage');
+    const prevMsMap = buildMap(prevMsData, 'category', 'market_share_percentage');
+    const currCatSizeCatMap = buildMap(currMsData, 'category', 'total_sales');
+    const prevCatSizeCatMap = buildMap(prevMsData, 'category', 'total_sales');
 
     // Calculate total Category Size across all computed categories to use as denominator for percentage
-    const totalCurrCatSize = currCatSizeByCat.reduce((sum, row) => sum + parseFloat(row.cat_size || 0), 0);
-    const totalPrevCatSize = prevCatSizeByCat.reduce((sum, row) => sum + parseFloat(row.cat_size || 0), 0);
+    const totalCurrCatSize = currMsData.reduce((sum, row) => sum + parseFloat(row.total_sales || 0), 0);
+    const totalPrevCatSize = prevMsData.reduce((sum, row) => sum + parseFloat(row.total_sales || 0), 0);
 
     // Fetch Bulk PM Conversion Maps by Category
     const [currPmConvMap, prevPmConvMap] = await Promise.all([
@@ -6129,9 +6163,7 @@ const getCategoryOverview = async (filters) => {
         const sos = sosDataObj.den > 0 ? (sosDataObj.num / sosDataObj.den) * 100 : 0;
 
         // Market Share via rb_ms_olap results (respected platform filter)
-        const msNum = currMsNumMap.get(catKey) || 0;
-        const msDenom = currMsDenomMap.get(catKey) || 0;
-        const marketShare = msDenom > 0 ? (msNum / msDenom) * 100 : 0;
+        const marketShare = currMsMap.get(catKey) || 0;
 
         // Previous
         const prevOfftake = parseFloat(prev.total_sales || 0);
@@ -6151,9 +6183,7 @@ const getCategoryOverview = async (filters) => {
         const prevSosDataObj = prevSosMap.get(catKey) || { num: 0, den: 0 };
         const prevSos = prevSosDataObj.den > 0 ? (prevSosDataObj.num / prevSosDataObj.den) * 100 : 0;
 
-        const prevMsNum = prevMsNumMap.get(catKey) || 0;
-        const prevMsDenom = prevMsDenomMap.get(catKey) || 0;
-        const prevMarketShare = prevMsDenom > 0 ? (prevMsNum / prevMsDenom) * 100 : 0;
+        const prevMarketShare = prevMsMap.get(catKey) || 0;
 
         const promoMyBrand = parseFloat(curr.my_mrp_val || 0) > 0
             ? ((parseFloat(curr.my_mrp_val) - parseFloat(curr.my_actual_sales)) / parseFloat(curr.my_mrp_val)) * 100

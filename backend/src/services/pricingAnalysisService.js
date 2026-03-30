@@ -673,9 +673,6 @@ async function getPricingInsights(filters = {}) {
             const src = await getPricingSource();
             const f = src.f;
 
-            const msSrc = await getBrandMsSource();
-            const mf = msSrc.f;
-
             let whereConditions = [
                 `${f.wSellingPrice} > 0`,
                 `p.${f.brand} IS NOT NULL`
@@ -716,19 +713,14 @@ async function getPricingInsights(filters = {}) {
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
                  NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                 
-                -- Coalesce Sales from p (own brand) and m (competitor brand)
-                COALESCE(
-                    NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END), 0),
-                    NULLIF(SUM(CASE WHEN m.${mf.createdOn} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.${mf.sales})), 0) ELSE 0 END), 0),
-                    0
-                ) AS offtakes_curr,
+                -- Take Sales directly from rb_pdp_olap
+                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) AS offtakes_curr,
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ${f.wMrp} > 0 
                     THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                     ELSE NULL END) AS discount_prev
             FROM ${src.table} p
-            LEFT JOIN ${msSrc.table} m ON p.${f.webPid} = m.${mf.webPid} AND p.${f.date} = m.${mf.createdOn}
             WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
             GROUP BY p.${f.brand}, p.${f.product}, Category, p.${f.compFlag}
@@ -789,18 +781,13 @@ async function getPricingInsights(filters = {}) {
                         (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
                          NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                         
-                        -- Coalesce Sales from p and m for city level
-                        COALESCE(
-                            NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END), 0),
-                            NULLIF(SUM(CASE WHEN m.${mf.createdOn} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.${mf.sales})), 0) ELSE 0 END), 0),
-                            0
-                        ) AS offtakes_curr,
+                        -- Take Sales directly from rb_pdp_olap for city level
+                        SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) AS offtakes_curr,
 
                         AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 
                             THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                             ELSE NULL END) AS discount_prev
                     FROM ${src.table} p
-                    LEFT JOIN ${msSrc.table} m ON p.${f.webPid} = m.${mf.webPid} AND p.${f.date} = m.${mf.createdOn} AND p.${f.location} = m.${mf.location}
                     WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
                       AND p.${f.product} IN (${productEscaped})
                       ${platforms ? `AND ${buildInClause(`p.${f.platform}`, platforms)}` : ''}
