@@ -1,52 +1,39 @@
 
+import { createClient } from '@clickhouse/client';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createClient } from '@clickhouse/client';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const clickhouse = createClient({
-    url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
-    username: process.env.CLICKHOUSE_USER || 'default',
-    password: process.env.CLICKHOUSE_PASSWORD || '',
-    database: process.env.CLICKHOUSE_DB || 'mars',
-});
+const url = "http://13.200.55.131:8123";
+const username = "readonly_user";
+const password = "Readonly@123";
 
-async function verifySql() {
+async function verifyQuery() {
     try {
-        console.log('--- Direct SQL Verification of Category Filtering ---');
-        
-        // 1. Standard Case
-        const res1 = await clickhouse.query({
-            query: "SELECT count(*) as count FROM rb_kw_olap WHERE keyword_category = 'Chocolates (Non Gifting)' AND DATE BETWEEN '2026-02-15' AND '2026-02-21'",
-            format: 'JSONEachRow'
-        });
-        const count1 = (await res1.json())[0].count;
-        console.log(`Count (Standard Case): ${count1}`);
-
-        // 2. Case Insensitive (using my new logic)
-        const res2 = await clickhouse.query({
-            query: "SELECT count(*) as count FROM rb_kw_olap WHERE LOWER(keyword_category) IN ('chocolates (non gifting)') AND DATE BETWEEN '2026-02-15' AND '2026-02-21'",
-            format: 'JSONEachRow'
-        });
-        const count2 = (await res2.json())[0].count;
-        console.log(`Count (Case Insensitive): ${count2}`);
-
-        if (count1 === count2 && count1 > 0) {
-            console.log('✅ SUCCESS: Case-insensitive SQL logic works correctly.');
-        } else {
-            console.log('❌ FAILURE: Counts do not match or are zero.');
-        }
-        
-        process.exit(0);
-    } catch (err) {
-        console.error(err);
-        process.exit(1);
+        const client = createClient({ url, username, password, database: 'mars' });
+        const query = `
+            SELECT 
+              SUM(neno_osa) / NULLIF(SUM(deno_osa), 0) * 100 AS metro_stock_availability,
+              SUM(neno_osa) as sumNeno,
+              SUM(deno_osa) as sumDeno
+            FROM rb_pdp_olap
+            WHERE Location IN (
+              SELECT location 
+              FROM rb_location_darkstore 
+              WHERE tier = 'Tier 1'
+            )
+            AND DATE BETWEEN '2025-03-01' AND '2025-03-28'
+        `;
+        const result = await client.query({ query, format: 'JSONEachRow' });
+        const data = await result.json();
+        console.log(JSON.stringify(data, null, 2));
+    } catch(e) {
+        console.error(e);
     }
 }
 
-verifySql();
+verifyQuery().then(() => process.exit());

@@ -1475,10 +1475,11 @@ const getMetroCityStockAvailability = async (filters) => {
             const currentFilters = { ...filters, startDate: currentStartDate.format('YYYY-MM-DD'), endDate: currentEndDate.format('YYYY-MM-DD') };
             const prevFilters = { ...filters, startDate: prevStartDate.format('YYYY-MM-DD'), endDate: prevEndDate.format('YYYY-MM-DD') };
 
-            // Overwrite location with metro cities for this specific card
-            const metroLocations = targetLocations;
-            currentFilters.location = metroLocations;
-            prevFilters.location = metroLocations;
+            // Overwrite filter to use subquery for Tier 1 instead of long list of cities
+            currentFilters.metroFlags = ['Tier 1'];
+            prevFilters.metroFlags = ['Tier 1'];
+            currentFilters.location = location;
+            prevFilters.location = location;
 
             const currentWhere = buildAvailabilityWhereClause(currentFilters);
             const prevWhere = buildAvailabilityWhereClause(prevFilters);

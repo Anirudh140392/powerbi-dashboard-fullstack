@@ -1834,6 +1834,10 @@ export default function TrendsCompetitionDrawer({
           emphasis: { focus: "series" },
           data: dataSource.map((p) => p[m.id] ?? null),
           itemStyle: { color: m.color },
+          tooltip: {
+            valueFormatter: (value) =>
+              value == null ? "-" : value.toFixed(2),
+          },
         });
       });
 
@@ -1901,6 +1905,10 @@ export default function TrendsCompetitionDrawer({
             lineStyle: { width: 1 },
             itemStyle: { color: m.color },
             data: trend.map((pt) => pt[m.id]) || [],
+            tooltip: {
+              valueFormatter: (value) =>
+                value == null ? "-" : value.toFixed(2),
+            },
           });
         });
     });

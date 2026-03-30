@@ -65,6 +65,10 @@ export default function CompareSKUs() {
         symbolSize: 6,
         lineStyle: { width: 3, color: metricObj.color },
         itemStyle: { color: metricObj.color },
+        tooltip: {
+          valueFormatter: (value) =>
+            value == null ? "-" : value.toFixed(2),
+        },
       }
     ]
   }), [activeMetric]);

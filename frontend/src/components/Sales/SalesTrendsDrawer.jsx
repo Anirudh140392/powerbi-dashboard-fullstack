@@ -356,6 +356,10 @@ export default function SalesTrendsDrawer({
                 name: m.label, type: "line", smooth: true, symbol: "circle", symbolSize: 6,
                 yAxisIndex: m.axis === "right" ? 1 : 0, data: trendPoints.map(p => p[m.id] ?? null),
                 itemStyle: { color: m.color },
+                tooltip: {
+                    valueFormatter: (value) =>
+                        value == null ? "-" : value.toFixed(2),
+                },
             })),
         };
     }, [trendPoints, activeMetrics, trendMeta]);
