@@ -93,6 +93,7 @@ const SparklineCell = ({ data, kpiId, children }) => {
 
 const SubCategoryMarket = ({ loading: parentLoading }) => {
     const [colsPerPage, setColsPerPage] = useState(5);
+    const [currentPage, setCurrentPage] = useState(1);
     const [selectedSubCat, setSelectedSubCat] = useState([]); // Array for multi-select
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -172,6 +173,22 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
     }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCat]);
 
     const loading = parentLoading || dataLoading;
+
+    // Reset pagination when data updates or colsPerPage changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [brandsData, colsPerPage]);
+
+    const totalPages = Math.max(1, Math.ceil(brandsData.length / colsPerPage));
+    const currentData = brandsData.slice((currentPage - 1) * colsPerPage, currentPage * colsPerPage);
+
+    const handleNextPage = () => {
+        if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+    };
+
+    const handlePrevPage = () => {
+        if (currentPage > 1) setCurrentPage(currentPage - 1);
+    };
 
     const kpiColumns = [
         { id: 'marketShare', label: 'Market Share %' },
@@ -319,14 +336,14 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                                     <td className="px-6 py-4"><Skeleton variant="rounded" height={32} /></td>
                                 </tr>
                             ))
-                        ) : brandsData.length === 0 ? (
+                        ) : currentData.length === 0 ? (
                             <tr>
                                 <td colSpan={4} className="px-8 py-12 text-center text-slate-400 text-sm">
                                     No data available for the selected filters.
                                 </td>
                             </tr>
                         ) : (
-                            brandsData.map((brandInfo) => (
+                            currentData.map((brandInfo) => (
                                 <tr key={brandInfo.brand} className="group hover:bg-slate-50/50 transition-colors border-b border-slate-50 last:border-0 font-roboto">
                                     <td className="px-8 py-4 sticky left-0 bg-white z-10 group-hover:bg-slate-50/50 transition-colors border-r border-slate-50/50">
                                         <span className="text-[11px] font-extrabold text-slate-900 tracking-widest uppercase">
@@ -369,11 +386,23 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
             <div className="px-6 py-5 flex items-center justify-between border-t border-slate-100 bg-white shadow-[0_-4px_20px_-12px_rgba(0,0,0,0.1)]">
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-1.5">
-                        <button className="p-1 text-slate-300 hover:text-slate-500 transition-colors"><ChevronLeft size={18} /></button>
+                        <button 
+                            onClick={handlePrevPage}
+                            disabled={currentPage === 1}
+                            className="p-1 text-slate-300 hover:text-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
                         <span className="text-[13px] font-bold text-slate-400">
-                            Page <span className="text-slate-900">1</span> / 1
+                            Page <span className="text-slate-900">{currentPage}</span> / {totalPages}
                         </span>
-                        <button className="p-1 text-slate-300 hover:text-slate-500 transition-colors"><ChevronRight size={18} /></button>
+                        <button 
+                            onClick={handleNextPage}
+                            disabled={currentPage === totalPages}
+                            className="p-1 text-slate-300 hover:text-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight size={18} />
+                        </button>
                     </div>
                 </div>
 
