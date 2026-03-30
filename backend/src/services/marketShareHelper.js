@@ -753,7 +753,6 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             AND group_brand IS NOT NULL AND group_brand != ''
             GROUP BY group_brand
             ORDER BY total_sales DESC
-            LIMIT 10
         `;
 
         // 3. Previous period brand KPIs (for delta)
