@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, useContext, useMemo } from 'react'
-import { FilterContext } from '../../../utils/FilterContext'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     X,
@@ -13,57 +12,14 @@ import {
     Filter,
     RotateCcw,
     Calendar,
+    MapPin,
 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
 // ========================================
-// MOCK DATA (replace with API/DB later)
+// KPI Options for Compare SKU
 // ========================================
-const mockBrands = [
-    { id: 'amul', name: 'Amul' },
-    { id: 'mother-dairy', name: 'Mother Dairy' },
-    { id: 'vadilal', name: 'Vadilal' },
-    { id: 'havmor', name: 'Havmor' },
-    { id: 'baskin-robbins', name: 'Baskin Robbins' },
-    { id: 'london-dairy', name: 'London Dairy' },
-    { id: 'kwality-walls', name: 'Kwality Walls' },
-]
-
-const mockCategories = [
-    { id: 'cone', name: 'Cone' },
-    { id: 'cup', name: 'Cup' },
-    { id: 'stick', name: 'Stick' },
-    { id: 'tub', name: 'Tub' },
-    { id: 'bar', name: 'Bar' },
-    { id: 'family-pack', name: 'Family Pack' },
-]
-
-const mockSkus = [
-    { id: 'amul-tricone', name: 'Amul Tricone 120ml' },
-    { id: 'md-cup', name: 'Mother Dairy Vanilla Cup' },
-    { id: 'vadilal-bombay', name: 'Vadilal Bombay Kulfi' },
-    { id: 'havmor-block', name: 'Havmor Choco Block' },
-    { id: 'br-scoop', name: 'BR Gold Medal Ribbon' },
-    { id: 'london-tub', name: 'London Dairy Tiramisu' },
-]
-
-const mockCategoriesAlt = [
-    { id: 'cat1', name: 'Cookware' },
-    { id: 'cat2', name: 'Kitchen Appliances' },
-    { id: 'cat3', name: 'Home Appliances' },
-    { id: 'cat4', name: 'Lighting' },
-    { id: 'cat5', name: 'Personal Care' },
-]
-
-const mockPlatforms = [
-    { id: 'blinkit', name: 'Blinkit' },
-    { id: 'zepto', name: 'Zepto' },
-    { id: 'instamart', name: 'Swiggy Instamart' },
-    { id: 'amazon', name: 'Amazon' },
-    { id: 'flipkart', name: 'Flipkart' },
-]
-
-const kpiOptions = [
+const defaultKpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
     { key: 'spend', label: 'Spend' },
     { key: 'categorySize', label: 'Category size' },
@@ -73,20 +29,19 @@ const kpiOptions = [
     { key: 'shareOfVolume', label: 'Share of Search' },
     { key: 'ad_sov', label: 'Ad SOV' },
     { key: 'organic_sov', label: 'Organic SOV' },
-    { key: 'marketShare', label: 'Market share' },
+    { key: 'marketShare', label: 'Est Market share' },
     { key: 'cpm', label: 'CPM' },
     { key: 'cpc', label: 'CPC' },
 ]
 
 // ========================================
-// MULTI-SELECT DROPDOWN COMPONENT
+// MULTI-SELECT DROPDOWN (self-contained)
 // ========================================
-function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder }) {
+function CskuMultiSelectDropdown({ label, icon: Icon, options, selected = [], onChange, placeholder }) {
     const [isOpen, setIsOpen] = useState(false)
     const [search, setSearch] = useState('')
     const dropdownRef = useRef(null)
 
-    // Close on outside click
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -223,9 +178,10 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
     )
 }
 
-// MAIN ADVANCED FILTER MODAL
 // ========================================
-export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
+// COMPARE SKU FILTER MODAL (standalone)
+// ========================================
+export default function CompareSkuFilterModal({ isOpen, onClose, filters, onApply, brands = null, categories = null, platforms = null, locations = null, kpiOptions: propKpiOptions = null }) {
     const isBoatUser = useMemo(() => {
         try {
             const u = JSON.parse(localStorage.getItem('user'));
@@ -235,39 +191,32 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         }
     }, []);
 
-    // Filter out "Category size" (key: 'categorySize') when on SKU dimension
-    const baseKpiOptions = propKpiOptions || kpiOptions;
-    const kpisToUse = currentDimension === 'sku'
-        ? baseKpiOptions.filter(k => {
-            if (k.key === 'categorySize') return false;
-            // Also exclude Spend and Conversion for boat users on SKU dimension
-            if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
-            return true;
-        })
-        : baseKpiOptions;
+    // For Compare SKU, dimension is always 'sku'
+    const currentDimension = 'sku';
+
+    const baseKpiOptions = propKpiOptions || defaultKpiOptions;
+    const kpisToUse = baseKpiOptions.filter(k => {
+        if (k.key === 'categorySize') return false;
+        if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
+        return true;
+    });
 
     // Local filter state (applied on confirm)
     const [localFilters, setLocalFilters] = useState({
         brands: [],
         categories: [],
         platforms: [],
+        locations: [],
         skus: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
-            if (currentDimension === 'sku') {
-                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
-                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
-                return true;
-            }
-            if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
+        kpis: ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'].filter(k => {
+            if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+            if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
             return true;
         }),
         filterLogic: 'OR',
     })
-
-    const { maxDate } = useContext(FilterContext)
-    const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate])
 
     // Sync with parent filters when modal opens
     useEffect(() => {
@@ -296,14 +245,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             brands: [],
             categories: [],
             platforms: [],
+            locations: [],
             skus: [],
-            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
-                if (currentDimension === 'sku') {
-                    if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
-                    if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
-                    return true;
-                }
-                if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
+            kpis: ['offtakes', 'spend', 'availability', 'marketShare', 'conversion'].filter(k => {
+                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                 return true;
             }),
             filterLogic: 'OR',
@@ -315,26 +261,13 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         onClose()
     }
 
-    // Determine which filters to show based on current dimension
-    const showPlatformFilter = currentDimension !== 'platform'
-    const showBrandFilter = currentDimension !== 'brand'
-    const showCategoryFilter = currentDimension !== 'category'
-    const showSkuFilter = currentDimension !== 'sku'
-
+    // Compare SKU always shows Brand, Category, Platform filters (dimension is 'sku')
     const activeFilterCount = [
-        showBrandFilter && localFilters.brands.length > 0,
-        showCategoryFilter && localFilters.categories.length > 0,
-        showPlatformFilter && localFilters.platforms.length > 0,
-        showSkuFilter && localFilters.skus.length > 0,
+        localFilters.brands.length > 0,
+        localFilters.categories.length > 0,
+        localFilters.platforms.length > 0,
+        localFilters.locations.length > 0,
     ].filter(Boolean).length
-
-    // Get dimension label for context
-    const dimensionLabels = {
-        platform: 'Platform',
-        brand: 'Brand',
-        category: 'Category',
-        sku: 'Sku',
-    }
 
     return (
         <AnimatePresence>
@@ -365,11 +298,11 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                         <SlidersHorizontal size={18} className="text-white" />
                                     </div>
                                     <div>
-                                        <h2 className="text-base font-bold text-slate-900">Advanced Filters</h2>
+                                        <h2 className="text-base font-bold text-slate-900">Compare SKU Filters</h2>
                                         <p className="text-xs text-slate-400">
                                             {activeFilterCount > 0
                                                 ? `${activeFilterCount} filter${activeFilterCount > 1 ? 's' : ''} active`
-                                                : 'Customize your view'}
+                                                : 'Customize your SKU comparison'}
                                         </p>
                                     </div>
                                 </div>
@@ -387,85 +320,45 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                 <div>
                                     <div className="flex items-center gap-2 mb-3">
                                         <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
-                                            Filter by {dimensionLabels[currentDimension]} Entities
+                                            Filter by Entities
                                         </span>
                                         <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">
-                                            Viewing: {dimensionLabels[currentDimension]}
+                                            Compare SKU
                                         </span>
                                     </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {showBrandFilter && (
-                                            <MultiSelectDropdown
-                                                label="Brand"
-                                                icon={Tag}
-                                                options={brands && brands.length ? brands : mockBrands}
-                                                selected={localFilters.brands}
-                                                onChange={(val) => updateFilter('brands', val)}
-                                                placeholder="All Brands"
-                                            />
-                                        )}
-                                        {showCategoryFilter && (
-                                            <MultiSelectDropdown
-                                                label="Category"
-                                                icon={Package}
-                                                options={categories && categories.length ? categories : mockCategories}
-                                                selected={localFilters.categories}
-                                                onChange={(val) => updateFilter('categories', val)}
-                                                placeholder="All Categories"
-                                            />
-                                        )}
-                                        {showPlatformFilter && (
-                                            <MultiSelectDropdown
-                                                label="Platform"
-                                                icon={Monitor}
-                                                options={platforms && platforms.length ? platforms : mockPlatforms}
-                                                selected={localFilters.platforms}
-                                                onChange={(val) => updateFilter('platforms', val)}
-                                                placeholder="All Platforms"
-                                            />
-                                        )}
-                                        {showSkuFilter && (
-                                            <MultiSelectDropdown
-                                                label="Sku"
-                                                icon={Package}
-                                                options={skus && skus.length ? skus : []}
-                                                selected={localFilters.skus}
-                                                onChange={(val) => updateFilter('skus', val)}
-                                                placeholder="All Skus"
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Date Range Filter */}
-                                <div>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <Calendar size={14} className="text-slate-400" />
-                                        <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
-                                            Date Range
-                                        </span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="relative">
-                                            <label className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1 block">From</label>
-                                            <input
-                                                type="date"
-                                                value={localFilters.dateFrom}
-                                                onChange={(e) => updateFilter('dateFrom', e.target.value)}
-                                                max={maxDateStr}
-                                                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
-                                            />
-                                        </div>
-                                        <div className="relative">
-                                            <label className="text-[10px] text-slate-400 uppercase tracking-wider font-medium mb-1 block">To</label>
-                                            <input
-                                                type="date"
-                                                value={localFilters.dateTo}
-                                                onChange={(e) => updateFilter('dateTo', e.target.value)}
-                                                max={maxDateStr}
-                                                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
-                                            />
-                                        </div>
+                                        <CskuMultiSelectDropdown
+                                            label="Brand"
+                                            icon={Tag}
+                                            options={brands && brands.length ? brands : []}
+                                            selected={localFilters.brands}
+                                            onChange={(val) => updateFilter('brands', val)}
+                                            placeholder="All Brands"
+                                        />
+                                        <CskuMultiSelectDropdown
+                                            label="Category"
+                                            icon={Package}
+                                            options={categories && categories.length ? categories : []}
+                                            selected={localFilters.categories}
+                                            onChange={(val) => updateFilter('categories', val)}
+                                            placeholder="All Categories"
+                                        />
+                                        <CskuMultiSelectDropdown
+                                            label="Platform"
+                                            icon={Monitor}
+                                            options={platforms && platforms.length ? platforms : []}
+                                            selected={localFilters.platforms}
+                                            onChange={(val) => updateFilter('platforms', val)}
+                                            placeholder="All Platforms"
+                                        />
+                                        <CskuMultiSelectDropdown
+                                            label="Location"
+                                            icon={MapPin}
+                                            options={locations && locations.length ? locations : []}
+                                            selected={localFilters.locations}
+                                            onChange={(val) => updateFilter('locations', val)}
+                                            placeholder="All Locations"
+                                        />
                                     </div>
                                 </div>
 
