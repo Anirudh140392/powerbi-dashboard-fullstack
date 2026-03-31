@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useMemo } from "react";
+import { FilterContext } from "../../utils/FilterContext";
 import { Inbox } from "lucide-react";
 import { GainersDrainersSkeleton } from './VisibilitySkeletons';
 
@@ -43,7 +44,7 @@ function SosCell({ value, delta, color }) {
 }
 
 /* ─── Expand Row ───────────────── */
-function ExpandableRow({ title, children, indentLevel = 0 }) {
+function ExpandableRow({ title, children, indentLevel = 0, disableExpand = false }) {
   const [open, setOpen] = useState(false);
 
   // Brand-level row (indentLevel 0): show "+ Show Keywords" / "+ Hide Keywords" below the row
@@ -79,13 +80,13 @@ function ExpandableRow({ title, children, indentLevel = 0 }) {
   return (
     <>
       <tr
-        onClick={() => setOpen(!open)}
+        onClick={() => { if (!disableExpand) setOpen(!open); }}
         style={{
-          cursor: "pointer",
+          cursor: disableExpand ? "default" : "pointer",
           borderBottom: "1px solid #f3f4f6",
           transition: "background 0.1s"
         }}
-        className="hover:bg-slate-50"
+        className={disableExpand ? "" : "hover:bg-slate-50"}
       >
         <td style={{
           padding: "12px 14px",
@@ -93,27 +94,31 @@ function ExpandableRow({ title, children, indentLevel = 0 }) {
           fontWeight: 500,
           fontSize: 14 - (indentLevel * 1)
         }}>
-          <span style={{
-            display: "inline-block",
-            width: 14,
-            transition: "transform 0.2s",
-            transform: open ? "rotate(90deg)" : "rotate(0deg)"
-          }}>
-            ▶
-          </span> {title}
+          {!disableExpand ? (
+            <span style={{
+              display: "inline-block",
+              width: 14,
+              transition: "transform 0.2s",
+              transform: open ? "rotate(90deg)" : "rotate(0deg)"
+            }}>
+              ▶
+            </span>
+          ) : (
+            <span style={{ display: "inline-block", width: 14 }}></span>
+          )} {title}
         </td>
         <td style={{ padding: 10 }}>
           {children[0]}
         </td>
       </tr>
 
-      {open && children.slice(1)}
+      {open && !disableExpand && children.slice(1)}
     </>
   );
 }
 
 /* ─── Table ───────────────── */
-function SOSTable({ data, type, isGain, title }) {
+function SOSTable({ data, type, isGain, title, shouldShowDrilldown }) {
 
   const getVal = (b) => {
     if (type === "organic") return [b.organic, b.dOrganic];
@@ -168,10 +173,10 @@ function SOSTable({ data, type, isGain, title }) {
                   const [kVal, kDelta] = getKwVal(k);
 
                   return (
-                    <ExpandableRow key={ki} title={k.kw} indentLevel={1}>
+                    <ExpandableRow key={ki} title={k.kw} indentLevel={1} disableExpand={!shouldShowDrilldown}>
                       <SosCell value={kVal} delta={kDelta} color={isGain ? "#22863a" : "#e24b4a"} />
 
-                      {(k.locations || []).map((l, li) => {
+                      {(k.locations || []).filter(l => l.loc && l.loc.toLowerCase() !== 'other' && l.loc.toLowerCase() !== 'others').map((l, li) => {
                         const [lVal, lDelta] = getKwVal(l);
 
                         return (
@@ -199,6 +204,23 @@ function SOSTable({ data, type, isGain, title }) {
 
 /* ─── Main ───────────────── */
 export default function KeywordVisibilityDashboard({ apiData, loading }) {
+  const { platform: globalPlatform } = useContext(FilterContext);
+
+  const shouldShowDrilldown = useMemo(() => {
+    if (!globalPlatform || globalPlatform === "All") return true;
+    const plats = typeof globalPlatform === "string" 
+      ? globalPlatform.split(",").map(p => p.trim().toLowerCase()) 
+      : (Array.isArray(globalPlatform) ? globalPlatform.map(p => typeof p === 'string' ? p.toLowerCase() : String(p).toLowerCase()) : []);
+      
+    if (plats.length === 0) return true;
+    
+    const isEcomOnly = plats.every(p => 
+      p.includes("ecom") || p.includes("e-com") || p.includes("ecommerce") || p === "amazon" || p === "flipkart" || p === "myntra" || p === "nykaa"
+    );
+    
+    return !isEcomOnly;
+  }, [globalPlatform]);
+
   const [type, setType] = useState("overall");
 
   // Show skeleton while loading
@@ -250,8 +272,8 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
 
       {/* Tables */}
       <div style={{ display: "flex", gap: 16, flexDirection: "row" }}>
-        <SOSTable data={apiData.gain || []} type={type} isGain={true} title="Top Gainers" />
-        <SOSTable data={apiData.drain || []} type={type} isGain={false} title="Top Drainers" />
+        <SOSTable data={apiData.gain || []} type={type} isGain={true} title="Top Gainers" shouldShowDrilldown={shouldShowDrilldown} />
+        <SOSTable data={apiData.drain || []} type={type} isGain={false} title="Top Drainers" shouldShowDrilldown={shouldShowDrilldown} />
       </div>
     </div>
   );

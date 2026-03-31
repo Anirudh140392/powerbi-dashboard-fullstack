@@ -1581,7 +1581,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         WHERE ${offtakeCondStr} AND ${src.f.compFlag} = '0' AND ${src.f.product} IS NOT NULL AND ${src.f.product} != ''
                         GROUP BY sku_name
                         ORDER BY sku_gmv DESC
-                        LIMIT 10
                     `);
                     return result;
                 } catch (error) {
@@ -7898,9 +7897,9 @@ const getCompetitionData = async (filters = {}) => {
             };
         });
 
-        // Sort by OSA descending and limit to top 10
+        // Sort by OSA descending
         skuMetrics.sort((a, b) => (b.OSA?.value || 0) - (a.OSA?.value || 0));
-        const topSkus = skuMetrics.slice(0, 10);
+        const topSkus = skuMetrics;
 
         console.log(`[getCompetitionData] Returning ${topBrands.length} brands and ${topSkus.length} SKUs`);
 
@@ -10262,7 +10261,6 @@ const getSkuOverview = async (filters) => {
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
             GROUP BY Product
             ORDER BY total_sales DESC
-            LIMIT 50
                 `),
         queryClickHouse(`
             SELECT ${src.isAgg ? 'brand' : 'Product'} as Product,
