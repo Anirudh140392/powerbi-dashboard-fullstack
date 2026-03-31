@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
     X, 
     Search, 
@@ -6,10 +6,14 @@ import {
     ChevronDown,
     Plus,
     Award,
-    Check
+    Check,
+    Loader2,
+    RefreshCw,
+    AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../../lib/utils';
+import axiosInstance from '../../../api/axiosInstance';
 
 // Mock Data
 const MOCK_PLATFORMS = [
@@ -54,89 +58,7 @@ const MOCK_BRANDS = [
     { id: 'ponds', name: "Pond's" },
 ];
 
-const MOCK_PRODUCTS = [
-    { 
-        id: 101, 
-        name: 'Dot & Key Vitamin C + E Super Bright Sunscreen (Spf 50 Pa++++)', 
-        size: '50 g', 
-        category: 'Sunscreen',
-        platform: 'blinkit',
-        brand: 'dot_and_key',
-        ppu: 450
-    },
-    { 
-        id: 102, 
-        name: 'NIVEA Nourishing Body Lotion Body Milk | 48 H Moisturization | For Very Dry Skin...', 
-        size: '600 ml', 
-        category: 'Body Lotion',
-        platform: 'instamart',
-        brand: 'nivea',
-        ppu: 350
-    },
-    { 
-        id: 103, 
-        name: 'Dove Deeply Nourishing Body Wash', 
-        size: '800 ml', 
-        category: 'Shower Gel',
-        platform: 'zepto',
-        brand: 'dove',
-        ppu: 420
-    },
-    { 
-        id: 104, 
-        name: 'Cetaphil Gentle Skin Cleanser Face Wash', 
-        size: '250 ml', 
-        category: 'Face Wash',
-        platform: 'blinkit',
-        brand: 'cetaphil',
-        ppu: 520
-    },
-    { 
-        id: 105, 
-        name: "L'Oreal Paris Moisture Sealing Conditioner, With Hyaluronic Acid, For Dry Hair...", 
-        size: '180 ml', 
-        category: 'Conditioner',
-        platform: 'zepto',
-        brand: 'loreal',
-        ppu: 280
-    },
-    { 
-        id: 106, 
-        name: 'NIVEA Soft Vit E Non-Sticky Moisturizer- Fresh & Hydrated Skin', 
-        size: '300 ml', 
-        category: 'Face Moisturizer',
-        platform: 'instamart',
-        brand: 'nivea',
-        ppu: 190
-    },
-    { 
-        id: 107, 
-        name: 'Cetaphil Gentle Skin Cleanser Face Wash', 
-        size: '125 ml', 
-        category: 'Face Wash',
-        platform: 'blinkit',
-        brand: 'cetaphil',
-        ppu: 320
-    },
-    { 
-        id: 108, 
-        name: 'Dove Cream Beauty Bathing Bar B4G1 Free', 
-        size: '525 g', 
-        category: 'Soap',
-        platform: 'zepto',
-        brand: 'dove',
-        ppu: 150
-    },
-    { 
-        id: 109, 
-        name: "L'Oréal Professionnel Absolut Repair Mask For Dry and Damaged Hair...", 
-        size: '250 g', 
-        category: 'Hair Mask',
-        platform: 'instamart',
-        brand: 'loreal',
-        ppu: 720
-    }
-];
+
 
 const FilterSection = ({ title, expanded, onToggle, children }) => (
     <div className="border-b border-slate-100/60 py-4">
@@ -264,13 +186,13 @@ const CheckboxItem = ({ label, count, color, icon, defaultChecked = false }) => 
 
 const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedProductIds, setSelectedProductIds] = useState([]);
+    const [selectedItems, setSelectedItems] = useState([]);
     // Filter collapse states
     const [openFilters, setOpenFilters] = useState({
         platforms: true,
         category: true,
         brands: true,
-        ppu: true,
+        asp: true,
         grammage: true
     });
     
@@ -278,14 +200,76 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
     const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
     const [isBrandsExpanded, setIsBrandsExpanded] = useState(false);
 
+    // Filter Options from API
+    const [filterOptions, setFilterOptions] = useState({ platforms: [], categories: [], brands: [] });
+    
     // Filter States
-    const [selectedPlatforms, setSelectedPlatforms] = useState(['blinkit']); // Default select
+    const [selectedPlatforms, setSelectedPlatforms] = useState([]); 
     const [selectedCategories, setSelectedCategories] = useState([]);
     const [selectedBrands, setSelectedBrands] = useState([]);
     const [selectedGrammages, setSelectedGrammages] = useState([]);
-    const [ppuRange, setPpuRange] = useState({ min: 3, max: 631696 });
+    const [aspRange, setAspRange] = useState({ min: 0, max: 10000 });
     const [categorySearch, setCategorySearch] = useState('');
     const [brandSearch, setBrandSearch] = useState('');
+
+    const [products, setProducts] = useState([]);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+    const [totalProducts, setTotalProducts] = useState(0);
+    const [productsError, setProductsError] = useState(false);
+
+    // Fetch filter options on mount
+    useEffect(() => {
+        const fetchFilterOptions = async () => {
+            if (!isOpen) return;
+            try {
+                const { data } = await axiosInstance.get('/watchtower/compare-sku/filters');
+                setFilterOptions({
+                    platforms: data.platforms || [],
+                    categories: data.categories || [],
+                    brands: data.brands || []
+                });
+            } catch (error) {
+                console.error('[AddSkuDrawer] Error fetching filters:', error);
+            }
+        };
+        fetchFilterOptions();
+    }, [isOpen]);
+
+    // Fetch products based on filters
+    useEffect(() => {
+        const fetchProducts = async () => {
+            if (!isOpen) return;
+            try {
+                setIsLoadingProducts(true);
+                setProductsError(false);
+                const params = new URLSearchParams();
+                if (searchQuery) params.set('search', searchQuery);
+                if (selectedPlatforms.length) selectedPlatforms.forEach(p => params.append('platform[]', p));
+                if (selectedBrands.length) selectedBrands.forEach(b => params.append('brand[]', b));
+                if (selectedCategories.length) selectedCategories.forEach(c => params.append('category[]', c));
+                
+                // Add ASP Range Filter
+                if (aspRange.min !== 0 || aspRange.max !== 10000) {
+                    params.set('minAsp', aspRange.min);
+                    params.set('maxAsp', aspRange.max);
+                }
+
+                params.set('limit', '20000'); // User requested no limit
+
+                const { data } = await axiosInstance.get(`/watchtower/compare-sku/products?${params.toString()}`);
+                setProducts(data.products || []);
+                setTotalProducts(data.total || 0);
+            } catch (error) {
+                console.error('[AddSkuDrawer] Error fetching products:', error);
+                setProductsError(true);
+            } finally {
+                setIsLoadingProducts(false);
+            }
+        };
+
+        const timeout = setTimeout(fetchProducts, 300); // debounce API calls
+        return () => clearTimeout(timeout);
+    }, [isOpen, searchQuery, selectedPlatforms, selectedBrands, selectedCategories, aspRange]);
 
     const togglePlatform = (id) => {
         setSelectedPlatforms(prev => 
@@ -316,18 +300,20 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
     };
 
     const toggleProductSelection = (product) => {
-        setSelectedProductIds(prev => 
-            prev.includes(product.id) 
-                ? prev.filter(id => id !== product.id) 
-                : [...prev, product.id]
-        );
+        setSelectedItems(prev => {
+            const exists = prev.some(p => p.id === product.id);
+            if (exists) {
+                return prev.filter(p => p.id !== product.id);
+            } else {
+                return [...prev, product];
+            }
+        });
     };
 
     const handleBulkAdd = () => {
-        const selectedProducts = MOCK_PRODUCTS.filter(p => selectedProductIds.includes(p.id));
-        if (selectedProducts.length > 0) {
-            onAddSkus(selectedProducts);
-            setSelectedProductIds([]);
+        if (selectedItems.length > 0) {
+            onAddSkus(selectedItems);
+            setSelectedItems([]);
         }
     };
 
@@ -357,7 +343,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                     Add SKUs 
                                     <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50/50 border border-blue-100/30 text-blue-600 shadow-sm shadow-blue-500/5">
                                         <Plus size={14} strokeWidth={3} />
-                                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">{MOCK_PRODUCTS.length * 10}+ Items</span>
+                                        <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">{totalProducts > 1000 ? '1000+' : totalProducts} Items</span>
                                     </div>
                                 </h2>
                                 <p className="text-[12.5px] text-slate-400 font-medium mt-1 tracking-tight">Curate and compare products in real-time</p>
@@ -414,7 +400,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                 exit={{ height: 0, opacity: 0 }}
                                                 className="overflow-hidden space-y-2 pt-1"
                                             >
-                                                {MOCK_PLATFORMS.map(p => (
+                                                {filterOptions.platforms.map(p => (
                                                     <button 
                                                         key={p.id}
                                                         onClick={() => togglePlatform(p.id)}
@@ -432,12 +418,11 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                             )}>
                                                                 {selectedPlatforms.includes(p.id) && <Check size={12} strokeWidth={4} className="text-white" />}
                                                             </div>
-                                                            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }}></div>
                                                             <span className={cn("text-[12px] font-semibold transition-colors", selectedPlatforms.includes(p.id) ? "text-slate-900" : "text-slate-500 group-hover:text-slate-700")}>
                                                                 {p.name}
                                                             </span>
                                                         </div>
-                                                        <span className="text-[10px] font-bold text-slate-300 group-hover:text-slate-400">1.2k</span>
+                                                        <span className="text-[10px] font-bold text-slate-300 group-hover:text-slate-400">{p.count}</span>
                                                     </button>
                                                 ))}
                                             </motion.div>
@@ -479,7 +464,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                     </div>
                                                 )}
                                                 <div className="flex flex-wrap gap-1.5">
-                                                    {(isCategoriesExpanded ? MOCK_CATEGORIES : MOCK_CATEGORIES.slice(0, 8)).filter(c => !categorySearch || c.name.toLowerCase().includes(categorySearch.toLowerCase())).map(c => (
+                                                    {(isCategoriesExpanded ? filterOptions.categories : filterOptions.categories.slice(0, 8)).filter(c => !categorySearch || c.name.toLowerCase().includes(categorySearch.toLowerCase())).map(c => (
                                                         <button 
                                                             key={c.id}
                                                             onClick={() => toggleCategory(c.id)}
@@ -493,12 +478,12 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                             {c.name}
                                                         </button>
                                                     ))}
-                                                    {!isCategoriesExpanded && (
+                                                    {!isCategoriesExpanded && filterOptions.categories.length > 8 && (
                                                         <button 
                                                             onClick={() => setIsCategoriesExpanded(true)}
                                                             className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                                                         >
-                                                            +18 More
+                                                            +{filterOptions.categories.length - 8} More
                                                         </button>
                                                     )}
                                                 </div>
@@ -532,7 +517,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                     />
                                                 </div>
                                                 <div className="max-h-[220px] overflow-y-auto no-scrollbar pr-1 space-y-1">
-                                                    {(isBrandsExpanded ? MOCK_BRANDS : MOCK_BRANDS.slice(0, 6)).filter(b => !brandSearch || b.name.toLowerCase().includes(brandSearch.toLowerCase())).map(b => (
+                                                    {(isBrandsExpanded ? filterOptions.brands : filterOptions.brands.slice(0, 6)).filter(b => !brandSearch || b.name.toLowerCase().includes(brandSearch.toLowerCase())).map(b => (
                                                         <div 
                                                             key={b.id} 
                                                             onClick={() => toggleBrand(b.id)}
@@ -552,15 +537,15 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                                     {b.name}
                                                                 </span>
                                                             </div>
-                                                            <span className="text-[10px] font-bold text-slate-300">124</span>
+                                                            <span className="text-[10px] font-bold text-slate-300">{b.count}</span>
                                                         </div>
                                                     ))}
-                                                    {!isBrandsExpanded && (
+                                                    {!isBrandsExpanded && filterOptions.brands.length > 6 && (
                                                         <button 
                                                             onClick={() => setIsBrandsExpanded(true)}
                                                             className="w-full p-2 text-center text-[10px] font-bold text-blue-600 hover:bg-blue-50 rounded-xl transition-colors mt-1"
                                                         >
-                                                            + 674 More
+                                                            + {filterOptions.brands.length - 6} More
                                                         </button>
                                                     )}
                                                 </div>
@@ -569,14 +554,14 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                     </AnimatePresence>
                                 </div>
 
-                                {/* PPU Section - Professional Slider */}
+                                {/* ASP Section - Professional Slider */}
                                 <div className="space-y-3">
-                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('ppu')}>
-                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">PPU (x100)</h3>
-                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.ppu && "rotate-180")} />
+                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('asp')}>
+                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">ASP Range</h3>
+                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.asp && "rotate-180")} />
                                     </div>
                                     <AnimatePresence>
-                                        {openFilters.ppu && (
+                                        {openFilters.asp && (
                                             <motion.div 
                                                 initial={{ height: 0, opacity: 0 }}
                                                 animate={{ height: 'auto', opacity: 1 }}
@@ -584,76 +569,65 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                 className="overflow-hidden space-y-4 pt-4 px-2"
                                             >
                                                 <PriceRangeSlider 
-                                                    min={3} 
-                                                    max={631696} 
-                                                    onChange={setPpuRange} 
+                                                    min={0} 
+                                                    max={10000} 
+                                                    onChange={setAspRange} 
                                                 />
                                                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase pt-2">
-                                                    <span>INR 3</span>
-                                                    <span>INR 6.3L</span>
+                                                    <span>₹0</span>
+                                                    <span>₹10,000</span>
                                                 </div>
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
                                 </div>
 
-                                {/* Grammage Section - Pill Cloud */}
-                                <div className="space-y-3 pb-8">
-                                    <div className="flex items-center justify-between group cursor-pointer" onClick={() => toggleFilter('grammage')}>
-                                        <h3 className="text-[13px] font-bold text-slate-800 tracking-tight">Grammage</h3>
-                                        <ChevronDown size={14} className={cn("text-slate-400 transition-transform", openFilters.grammage && "rotate-180")} />
-                                    </div>
-                                    <AnimatePresence>
-                                        {openFilters.grammage && (
-                                            <motion.div 
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                className="overflow-hidden pt-1"
-                                            >
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {['0.35 g', '5 g', '10 ml', '15 ml', '30 ml', '50 g', '100 g'].map(g => (
-                                                        <button 
-                                                            key={g} 
-                                                            onClick={() => toggleGrammage(g)}
-                                                            className={cn(
-                                                                "px-2.5 py-1.5 rounded-lg text-[10px] font-semibold border transition-all active:scale-95",
-                                                                selectedGrammages.includes(g)
-                                                                    ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-200"
-                                                                    : "bg-white border-slate-100 text-slate-500 hover:border-slate-300"
-                                                            )}
-                                                        >
-                                                            {g}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </div>
+                                {/* Empty space for bottom padding */}
+                                <div className="pb-8"></div>
                             </div>
 
                             {/* Main Content Area - Grid Results (6 Columns) */}
                             <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar bg-[#f8fafc] pb-32">
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                                    {MOCK_PRODUCTS
-                                        .filter(p => {
-                                            const matchesSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
-                                            const matchesPlatform = selectedPlatforms.length === 0 || selectedPlatforms.includes(p.platform);
-                                            const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(p.category.toLowerCase().replace(/ /g, '_'));
-                                            const matchesBrand = selectedBrands.length === 0 || selectedBrands.includes(p.brand);
-                                            const matchesPrice = p.ppu >= ppuRange.min && p.ppu <= ppuRange.max;
-                                            
-                                            return matchesSearch && matchesPlatform && matchesCategory && matchesBrand && matchesPrice;
-                                        })
-                                        .map((product, idx) => {
-                                            const isSelected = selectedProductIds.includes(product.id);
+                                {isLoadingProducts ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                                        <Loader2 size={32} className="animate-spin mb-4 text-blue-500" />
+                                        <p className="font-semibold">Loading SKUs...</p>
+                                    </div>
+                                ) : productsError ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center gap-4">
+                                        <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center">
+                                            <AlertTriangle size={28} className="text-rose-400" />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-sm font-semibold text-slate-700">Failed to load SKUs</p>
+                                            <p className="text-xs text-slate-400 mt-1">Please try again</p>
+                                        </div>
+                                        <button
+                                            onClick={() => { setProductsError(false); }}
+                                            className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-[12px] font-bold rounded-xl shadow-lg shadow-slate-900/10 hover:bg-slate-800 hover:-translate-y-0.5 transition-all active:scale-95"
+                                        >
+                                            <RefreshCw size={14} strokeWidth={2.5} />
+                                            Refresh
+                                        </button>
+                                    </div>
+                                ) : products.length === 0 ? (
+                                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                                        <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+                                            <Search size={24} className="text-slate-300" />
+                                        </div>
+                                        <p className="font-semibold text-slate-500">No SKUs found</p>
+                                        <p className="text-sm mt-1">Try adjusting your filters</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+                                        {products.map((product, idx) => {
+                                            const isSelected = selectedItems.some(item => item.id === product.id);
                                             return (
                                                 <motion.div 
                                                     layout
                                                     initial={{ opacity: 0, scale: 0.9 }}
                                                     animate={{ opacity: 1, scale: 1 }}
-                                                    transition={{ delay: idx * 0.02 }}
+                                                    transition={{ delay: Math.min(idx * 0.02, 0.5) }}
                                                     key={product.id}
                                                     onClick={() => toggleProductSelection(product)}
                                                     className={cn(
@@ -683,11 +657,13 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                         </div>
                                                         
                                                         {/* Badge on Card */}
-                                                        <div className="absolute bottom-2 left-2">
-                                                            <span className="px-1.5 py-0.5 rounded-lg bg-white/80 backdrop-blur-sm border border-slate-100 shadow-sm text-[8px] font-bold text-slate-800 tracking-tighter uppercase whitespace-nowrap">
-                                                                {product.size}
-                                                            </span>
-                                                        </div>
+                                                        {product.size && (
+                                                            <div className="absolute bottom-2 left-2">
+                                                                <span className="px-1.5 py-0.5 rounded-lg bg-white/80 backdrop-blur-sm border border-slate-100 shadow-sm text-[8px] font-bold text-slate-800 tracking-tighter uppercase whitespace-nowrap">
+                                                                    {product.size}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     {/* Details */}
@@ -700,10 +676,10 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                         </div>
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                             <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-[8px] font-medium text-slate-400 uppercase tracking-[0.1em] border border-slate-100 group-hover:bg-blue-50 group-hover:text-blue-500 group-hover:border-blue-100 transition-all duration-300">
-                                                                {product.category}
+                                                                {product.category || 'NA'}
                                                             </div>
                                                             <div className="w-1 h-1 rounded-full bg-slate-200"></div>
-                                                            <span className="text-[11px] font-medium text-slate-400 tabular-nums">₹{product.ppu}</span>
+                                                            <span className="text-[11px] font-medium text-slate-400 tabular-nums">₹{product.ppu || '--'}</span>
                                                         </div>
                                                     </div>
 
@@ -719,15 +695,15 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                     </div>
                                                 </motion.div>
                                             );
-                                        })
-                                    }
-                                </div>
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                         {/* Floating Action Menu */}
                         <AnimatePresence>
-                            {selectedProductIds.length > 0 && (
+                            {selectedItems.length > 0 && (
                                 <motion.div 
                                     initial={{ y: 150, opacity: 0, scale: 0.9 }}
                                     animate={{ y: 0, opacity: 1, scale: 1 }}
@@ -736,14 +712,14 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                 >
                                     <div className="bg-slate-950/95 backdrop-blur-xl p-2.5 rounded-[32px] border border-white/10 shadow-[0_40px_80px_rgba(0,0,0,0.5)] flex items-center gap-4 pr-4">
                                         <div className="flex -space-x-3 pl-3">
-                                            {[...Array(Math.min(3, selectedProductIds.length))].map((_, i) => (
+                                            {[...Array(Math.min(3, selectedItems.length))].map((_, i) => (
                                                 <div key={i} className="w-10 h-10 rounded-xl bg-white border-2 border-slate-900 flex items-center justify-center shadow-lg transform rotate-[-3deg]">
                                                     <div className="w-4 h-8 bg-blue-500 rounded-sm"></div>
                                                 </div>
                                             ))}
-                                            {selectedProductIds.length > 3 && (
+                                            {selectedItems.length > 3 && (
                                                 <div className="w-10 h-10 rounded-xl bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-white text-[10px] font-bold shadow-lg">
-                                                    +{selectedProductIds.length - 3}
+                                                    +{selectedItems.length - 3}
                                                 </div>
                                             )}
                                         </div>
@@ -755,7 +731,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                             className="bg-blue-600 hover:bg-blue-500 active:scale-[0.98] text-white pl-8 pr-10 py-3.5 rounded-[22px] text-[14px] font-bold shadow-xl flex items-center gap-3 transition-all group relative overflow-hidden"
                                         >
                                             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite] pointer-events-none"></div>
-                                            Add {selectedProductIds.length} SKUs
+                                            Add {selectedItems.length} SKUs
                                             <Check size={18} strokeWidth={4} className="text-white bg-white/20 p-0.5 rounded-full" />
                                         </button>
                                     </div>
