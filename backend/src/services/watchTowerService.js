@@ -10338,6 +10338,9 @@ const getSkuOverview = async (filters) => {
     const prevOrgSovNumSkuMap = buildSkuKwMap(prevOrgSovNumSku);
     const prevOrgSovDenomSkuMap = buildSkuKwMap(prevOrgSovDenomSku);
 
+    // Calculate total offtake for all returned SKUs to determine Offtake Share
+    const currTotalSkuSales = currSkuMetrics.reduce((sum, item) => sum + parseFloat(item.total_sales || 0), 0);
+
     const skuOverview = currSkuMetrics.map((dataRaw, idx) => {
         const skuName = (dataRaw.Product || 'Unknown').trim().replace(/\s+/g, ' ');
         const data = scaleMarsMetrics(dataRaw, skuName);
@@ -10418,11 +10421,14 @@ const getSkuOverview = async (filters) => {
         const prevOrgSovDenom = prevOrgSovDenomSkuMap.get(skuKeyLower) || 0;
         const prevOrganicSov = prevOrgSovDenom > 0 ? (prevOrgSovNum / prevOrgSovDenom) * 100 : 0;
 
+        const offtakeShare = currTotalSkuSales > 0 ? (offtake / currTotalSkuSales) * 100 : 0;
+
         return {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)} `,
             label: skuName,
             type: "SKU",
             logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png",
+            offtakeShare: parseFloat(offtakeShare.toFixed(2)),
             columns: generateKpiColumns({
                 offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, promoMyBrand, promoCompete, categorySize: currSkuCategorySize, adSov, organicSov,
                 prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevSkuCategorySize, prevAdSov, prevOrganicSov,
