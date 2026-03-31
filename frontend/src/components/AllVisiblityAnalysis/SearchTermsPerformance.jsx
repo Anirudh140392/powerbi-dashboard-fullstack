@@ -200,7 +200,8 @@ export default function SearchTermsPerformance() {
         if (activeView === "keyword") params.keyword = itemName;
         else params.sku = itemName;
         const data = await fetchSearchTermsLocations(params);
-        setLocationData(prev => ({ ...prev, [itemName]: data.locations || [] }));
+        const filteredLocs = (data.locations || []).filter(l => l.city && l.city.toLowerCase() !== 'other' && l.city.toLowerCase() !== 'others');
+        setLocationData(prev => ({ ...prev, [itemName]: filteredLocs }));
       } catch (err) {
         console.error("Error fetching location drilldown:", err);
         setLocationData(prev => ({ ...prev, [itemName]: [] }));
@@ -234,6 +235,21 @@ export default function SearchTermsPerformance() {
     }
   }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd]);
 
+  const shouldShowDrilldown = useMemo(() => {
+    if (!globalPlatform || globalPlatform === "All") return true;
+    const plats = typeof globalPlatform === "string" 
+      ? globalPlatform.split(",").map(p => p.trim().toLowerCase()) 
+      : (Array.isArray(globalPlatform) ? globalPlatform.map(p => typeof p === 'string' ? p.toLowerCase() : String(p).toLowerCase()) : []);
+      
+    if (plats.length === 0) return true;
+    
+    const isEcomOnly = plats.every(p => 
+      p.includes("ecom") || p.includes("e-com") || p.includes("ecommerce") || p === "amazon" || p === "flipkart" || p === "myntra" || p === "nykaa"
+    );
+    
+    return !isEcomOnly;
+  }, [globalPlatform]);
+
   const totalPages = Math.max(1, Math.ceil(items.length / rowsPerPage));
   const paginatedItems = items.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const GRID = activeView === "keyword"
@@ -258,7 +274,7 @@ export default function SearchTermsPerformance() {
       {/* Controls Row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2 }}>
-          {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "SKU" }].map(v => (
+          {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }].map(v => (
             <button key={v.id} onClick={() => setActiveView(v.id)} style={{
               padding: "7px 20px", borderRadius: 8, border: "none", cursor: "pointer",
               fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
@@ -311,18 +327,22 @@ export default function SearchTermsPerformance() {
             {paginatedItems.map((row, rowIdx) => (
               <div key={row.name + rowIdx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                 {/* Main Row */}
-                <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "16px 24px", alignItems: "center", gap: 8, background: expandedRows[row.name] ? "#fafbff" : "#fff", transition: "background 0.15s", cursor: "pointer" }}
-                  onClick={() => toggleRow(row.name)}>
+                <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "16px 24px", alignItems: "center", gap: 8, background: expandedRows[row.name] ? "#fafbff" : "#fff", transition: "background 0.15s", cursor: shouldShowDrilldown ? "pointer" : "default" }}
+                  onClick={() => shouldShowDrilldown && toggleRow(row.name)}>
 
                   {/* Name Cell */}
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                      <button className="drill-btn" onClick={(e) => { e.stopPropagation(); toggleRow(row.name); }} title="Show location breakdown"
-                        style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${expandedRows[row.name] ? "#0f172a" : "#cbd5e1"}`, background: expandedRows[row.name] ? "#0f172a" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0, transition: "all 0.18s" }}>
-                        <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: expandedRows[row.name] ? "rotate(90deg)" : "none", transition: "transform 0.18s" }}>
-                          <path d="M3 2L7 5L3 8" stroke={expandedRows[row.name] ? "#fff" : "#475569"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                        </svg>
-                      </button>
+                      {shouldShowDrilldown ? (
+                        <button className="drill-btn" onClick={(e) => { e.stopPropagation(); toggleRow(row.name); }} title="Show location breakdown"
+                          style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${expandedRows[row.name] ? "#0f172a" : "#cbd5e1"}`, background: expandedRows[row.name] ? "#0f172a" : "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0, transition: "all 0.18s" }}>
+                          <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: expandedRows[row.name] ? "rotate(90deg)" : "none", transition: "transform 0.18s" }}>
+                            <path d="M3 2L7 5L3 8" stroke={expandedRows[row.name] ? "#fff" : "#475569"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <div style={{ width: 22, height: 22, flexShrink: 0 }} />
+                      )}
                       <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>{row.name}</span>
                       {row.volShare > 0 && activeView === "keyword" && (
                         <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>{row.volShare}% VOL.</span>
