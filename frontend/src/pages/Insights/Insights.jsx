@@ -81,7 +81,7 @@ const SIGNAL_META = {
         colorBorder: "#c7d2fe",
         FamilyIcon: BarChart3,
         metricKey: "impactInr",
-        metricLabel: "Potential Sales Impact",
+        metricLabel: "Offtake Loss Impact",
         countLabel: "Platforms",
     },
     "Price Parity Radar": {
@@ -202,9 +202,21 @@ const createEmptySignal = (type, brandName = "Brand") => {
             base.kpis = [
                 { label: "Cities", value: "0" },
                 { label: "Avg share gap", value: "0%" },
-                { label: "Headroom", value: "₹0" },
+                { label: "Offtake Loss", value: "₹0" },
             ];
-            base.evidence = [{ city: "-", category: "-", kwShare: 0, benchmarkShare: 0, shareGap: 0, headroomInr: 0, driverTag: "-" }];
+            base.evidence = [{
+                city: "-",
+                category: "-",
+                brandOsa: 0,
+                marketShare: 0,
+                marketShareMoM: 0,
+                psl: 0,
+                offtake: 0,
+                offtakeMoM: 0,
+                myTopSku: "-",
+                competitorSku: "-",
+                possibleCause: "-"
+            }];
             break;
         case "Challenger Launch Watch":
             base.kpis = [
@@ -258,7 +270,7 @@ const buildAISegments = (insight) => {
         highText = `Prime shelf-space void: ${ev.skuOrBrand || "Key competitors"} are seeing an OSA crash to ${safePct(ev.otherBrandOsa) || "low levels"}.`;
         focusText = `Capitalize on competitor stockouts in ${city}. Your OSA for ${brand} remains healthy at ${safePct(ev.kwOsa) || "benchmark"}, providing a structural advantage.`;
         recText = `Instruct field teams in ${city} to aggressively push ${brand} facings. Increase quick-commerce digital shelf visibility while competitor stock is dried up.`;
-    // Replace the existing `else if (type === "Share Headroom Hotspots")` block with this:
+        // Replace the existing `else if (type === "Share Headroom Hotspots")` block with this:
 
     } else if (type === "Share Headroom Hotspots") {
         const t = insight.aiTrendData || {};
@@ -493,9 +505,8 @@ const OverviewSignalCard = ({ insight, isSelected, onClick, index }) => {
                 onClick={onClick}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                className={`relative rounded-2xl border border-transparent cursor-pointer transition-all duration-400 overflow-hidden group h-full flex flex-col ${
-                    isSelected || isHovered ? "shadow-[0_15px_80px_rgba(0,0,0,0.22)]" : "shadow-[0_8px_50px_rgba(0,0,0,0.14)]"
-                }`}
+                className={`relative rounded-2xl border border-transparent cursor-pointer transition-all duration-400 overflow-hidden group h-full flex flex-col ${isSelected || isHovered ? "shadow-[0_15px_80px_rgba(0,0,0,0.22)]" : "shadow-[0_8px_50px_rgba(0,0,0,0.14)]"
+                    }`}
                 style={{
                     background: isEmpty ? "#fafafa" : "white",
                     opacity: isEmpty ? 0.55 : 1,
@@ -564,17 +575,21 @@ const getEvidenceView = (type) => {
     return "osa";
 };
 
-const EvidenceTable = ({ insight }) => {
+const EvidenceTable = ({ insight, activePlatform }) => {
     const view = getEvidenceView(insight.type);
     const [search, setSearch] = useState("");
 
     const filtered = useMemo(() => {
-        if (!search.trim()) return insight.evidence;
+        let data = insight.evidence || [];
+        if (activePlatform && activePlatform !== "-" && activePlatform !== "All platforms") {
+            data = data.filter((e) => !e.platform || e.platform === activePlatform || e.platform === "-");
+        }
+        if (!search.trim()) return data;
         const q = search.toLowerCase();
-        return insight.evidence.filter((row) =>
+        return data.filter((row) =>
             Object.values(row).some((v) => String(v).toLowerCase().includes(q))
         );
-    }, [insight.evidence, search]);
+    }, [insight.evidence, search, activePlatform]);
 
     return (
         <div>
@@ -603,19 +618,24 @@ const EvidenceTable = ({ insight }) => {
                             <TableRow className="bg-slate-50/90 hover:bg-slate-50/90">
                                 {view === "osa" && (<>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Category</TableHead>
+                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Platform</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">City</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Competitor</TableHead>
                                     <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">Other brand OSA</TableHead>
                                     <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">{insight.brandName} OSA</TableHead>
                                 </>)}
                                 {view === "share" && (<>
-                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">City</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Category</TableHead>
-                                    <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">Overall SOS</TableHead>
-                                    <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">Benchmark</TableHead>
-                                    <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">Gap</TableHead>
-                                    <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">Headroom</TableHead>
-                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Driver</TableHead>
+                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Platform</TableHead>
+                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">City</TableHead>
+                                    {/* Replaced Overall SOS with dynamic Brand OSA */}
+                                    <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">{insight.brandName} OSA</TableHead>
+                                    <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">Market Share (MoM delta)</TableHead>
+                                    <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">PSI / PSL</TableHead>
+                                    <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">Offtake (Delta MoM)</TableHead>
+                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5 pl-4">My Brand Loser SKU</TableHead>
+                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5 pl-4">Competitor Hero SKU</TableHead>
+                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Possible Cause</TableHead>
                                 </>)}
                                 {view === "pricing" && (<>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">City</TableHead>
@@ -637,6 +657,7 @@ const EvidenceTable = ({ insight }) => {
                                     <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">Est. Lost Sales</TableHead>
                                 </>)}
                                 {view === "newEntry" && (<>
+                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Platform</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">City</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Category</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Competitor SKU</TableHead>
@@ -645,6 +666,7 @@ const EvidenceTable = ({ insight }) => {
                                     <TableHead className="text-right text-[11px] font-semibold text-slate-500 py-2.5">First Seen</TableHead>
                                 </>)}
                                 {view === "supply" && (<>
+                                    <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Platform</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">Depot / DB</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">City</TableHead>
                                     <TableHead className="text-[11px] font-semibold text-slate-500 py-2.5">{insight.brandName} SKU</TableHead>
@@ -667,79 +689,149 @@ const EvidenceTable = ({ insight }) => {
                         </TableHeader>
                         <TableBody>
                             {filtered.map((d, idx) => (
-                                <TableRow key={idx} className="hover:bg-slate-50/60 transition-colors">
-                                    {view === "osa" && (<>
-                                        <TableCell className="text-[12px] font-medium">{d.category ?? insight.category}</TableCell>
-                                        <TableCell className="text-[12px]">{d.city ?? insight.city}</TableCell>
-                                        <TableCell className="text-[12px] max-w-[260px] truncate">{d.skuOrBrand ?? "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-orange-600">{safePct(d.otherBrandOsa)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-indigo-600">{safePct(d.kwOsa)}</TableCell>
-                                    </>)}
-                                    {view === "share" && (<>
-                                        <TableCell className="text-[12px] font-medium">{d.city ?? insight.city}</TableCell>
-                                        <TableCell className="text-[12px]">{d.category ?? insight.category}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-indigo-600">{safePct(d.kwShare)}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{safePct(d.benchmarkShare)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-rose-600">{safePct(d.shareGap)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safeINR(d.headroomInr)}</TableCell>
-                                        <TableCell className="text-[12px] max-w-[160px] truncate">{d.driverTag ?? "-"}</TableCell>
-                                    </>)}
-                                    {view === "pricing" && (<>
-                                        <TableCell className="text-[12px] font-medium">{d.city ?? insight.city}</TableCell>
-                                        <TableCell className="text-[12px]">{d.category ?? insight.category}</TableCell>
-                                        <TableCell className="text-[12px] max-w-[180px] truncate">{d.clusterName ?? "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-sky-600">{safeNum(d.kwPpu)}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{safeNum(d.peerPpu)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium">{safeNum(d.priceIndex)}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{safePct(d.clusterContributionPct)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safePct(d.clusterGrowthPct)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safeINR(d.headroomInr)}</TableCell>
-                                    </>)}
-                                    {view === "adStock" && (<>
-                                        <TableCell className="text-[12px] font-medium">{d.city ?? insight.city}</TableCell>
-                                        <TableCell className="text-[12px] max-w-[300px] truncate">{d.skuOrBrand ?? "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-indigo-600">{safePct(d.kwOsa)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-orange-600">{safePct(d.adSov)}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{safeINRFull(d.spendInr)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-rose-600">{safeINRFull(d.estLostSalesInr)}</TableCell>
-                                    </>)}
-                                    {view === "newEntry" && (<>
-                                        <TableCell className="text-[12px] font-medium">{d.city ?? insight.city}</TableCell>
-                                        <TableCell className="text-[12px]">{d.category ?? insight.category}</TableCell>
-                                        <TableCell className="text-[12px] max-w-[260px] truncate">{d.skuOrBrand ?? "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safePct(d.newItemShare)}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{safeNum(d.ppu)}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{d.firstSeen ?? "-"}</TableCell>
-                                    </>)}
-                                    {view === "supply" && (<>
-                                        <TableCell className="text-[12px] font-medium">{d.depotOrDb ?? "-"}</TableCell>
-                                        <TableCell className="text-[12px]">{d.city ?? insight.city}</TableCell>
-                                        <TableCell className="text-[12px] max-w-[260px] truncate">{d.skuOrBrand ?? "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{typeof d.plannedQty === "number" ? d.plannedQty : "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-violet-600">{typeof d.dispatchedQty === "number" ? d.dispatchedQty : "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safePct(d.fillRate)}</TableCell>
-                                        <TableCell className="text-right text-[12px]">
-                                            {d.poCreated === true
-                                                ? <span className="text-emerald-600 font-medium">{d.poNo ?? "Created"}</span>
-                                                : d.poCreated === false
-                                                    ? <span className="text-rose-500 font-medium">Missing</span>
-                                                    : "-"}
-                                        </TableCell>
-                                    </>)}
-                                    {view === "keyword" && (<>
-                                        <TableCell className="text-[12px] font-medium">{d.keyword ?? "-"}</TableCell>
-                                        <TableCell className="text-[12px] max-w-[200px] truncate">{d.campaign ?? "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{typeof d.bid === "number" ? d.bid.toFixed(2) : "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px]">{safeINRFull(d.dailyBudget)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-orange-600">{safeINRFull(d.spend)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safeINRFull(d.sales)}</TableCell>
-                                        <TableCell className="text-right text-[12px] font-medium">{typeof d.acos === "number" ? `${d.acos}%` : "-"}</TableCell>
-                                        <TableCell className="text-right text-[12px]">
-                                            {d.budgetCapped === true
-                                                ? <span className="inline-flex items-center gap-1 text-rose-500 font-medium"><AlertTriangle className="h-3 w-3" />Yes</span>
-                                                : <span className="text-slate-400">No</span>}
-                                        </TableCell>
-                                    </>)}
+                                <TableRow key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                    {view === "osa" && (
+                                        <>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.category}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-500">{d.platform ?? "-"}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.city}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.skuOrBrand}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">{safePct(d.otherBrandOsa)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-blue-600">{safePct(d.kwOsa)}</TableCell>
+                                        </>
+                                    )}
+                                    {view === "share" && (
+                                        <>
+                                            <TableCell>
+                                                <div className="flex flex-col items-start gap-1.5 py-1">
+                                                    <span className="text-[12px] font-medium text-slate-900">{d.category ?? insight.category}</span>
+                                                    <button className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-semibold hover:bg-blue-100 transition-colors">
+                                                        Show
+                                                    </button>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-500">{d.platform ?? "-"}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.city ?? insight.city}</TableCell>
+
+                                            {/* Render OSA instead of kwShare */}
+                                            <TableCell className="text-right text-[12px] font-medium text-indigo-600">{safePct(d.brandOsa)}</TableCell>
+
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">
+                                                {safePct(d.marketShare)}{" "}
+                                                <span className={d.marketShareMoM < 0 ? "text-rose-500" : "text-emerald-500"}>
+                                                    ({d.marketShareMoM > 0 ? '+' : ''}{safePct(d.marketShareMoM)})
+                                                </span>
+                                            </TableCell>
+
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">{safeINR(d.psl)}</TableCell>
+
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">
+                                                {safeINR(d.offtake)}{" "}
+                                                <span className={(d.offtakeDelta || 0) < 0 ? "text-rose-500" : "text-emerald-500"}>
+                                                    ({(d.offtakeDelta || 0) > 0 ? '+' : ''}{safeINR(d.offtakeDelta)} / {safePct(d.offtakeMoM)})
+                                                </span>
+                                            </TableCell>
+
+                                            {/* Our Top Impacted SKU */}
+                                            <TableCell className="pl-4">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="h-9 w-9 rounded-md bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
+                                                        <ShoppingBag className="h-4 w-4 text-slate-300" />
+                                                    </div>
+                                                    <span className="text-[12px] font-medium text-slate-800 line-clamp-2 max-w-[150px]">
+                                                        {d.myTopSku || "-"}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+
+                                            {/* Competitor Hero SKU */}
+                                            <TableCell className="pl-4">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className="h-9 w-9 rounded-md bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">
+                                                        <TrendingUp className="h-4 w-4 text-rose-300" />
+                                                    </div>
+                                                    <span className="text-[12px] font-medium text-slate-800 line-clamp-2 max-w-[150px]">
+                                                        {d.competitorSku || "-"}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.possibleCause || "-"}</TableCell>
+                                        </>
+                                    )}
+                                    {view === "pricing" && (
+                                        <>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.city}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.category}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.clusterName}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">₹{d.kwPpu}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">₹{d.peerPpu}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-amber-600">{d.priceIndex}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">{safePct(d.clusterContributionPct)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">{safePct(d.clusterGrowthPct)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safeINR(d.headroomInr)}</TableCell>
+                                        </>
+                                    )}
+                                    {view === "adStock" && (
+                                        <>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.city}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-800">{d.skuOrBrand}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-rose-600">{safePct(d.kwOsa)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-amber-600">{safePct(d.adSov)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">{safeINR(d.spendInr)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-rose-500">{safeINR(d.estLostSalesInr)}</TableCell>
+                                        </>
+                                    )}
+                                    {view === "newEntry" && (
+                                        <>
+                                            <TableCell className="text-[12px] font-medium text-slate-500">{d.platform ?? "-"}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.city}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.category}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-800">{d.skuOrBrand}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safePct(d.newItemShare)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">₹{d.ppu}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-400">{d.firstSeen}</TableCell>
+                                        </>
+                                    )}
+                                    {view === "supply" && (
+                                        <>
+                                            <TableCell className="text-[12px] font-medium text-slate-500">{d.platform ?? "-"}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-800">{d.depotOrDb}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.city}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-800">{d.skuOrBrand}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-400">{d.plannedQty}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">{d.dispatchedQty}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-rose-600">{safePct(d.fillRate)}</TableCell>
+                                            <TableCell className="text-right">
+                                                {d.poCreated ? (
+                                                    <div className="flex flex-col items-end">
+                                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Created</Badge>
+                                                        <span className="text-[9px] text-slate-400 mt-0.5">{d.poNo}</span>
+                                                    </div>
+                                                ) : (
+                                                    <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">Missing</Badge>
+                                                )}
+                                            </TableCell>
+                                        </>
+                                    )}
+                                    {view === "keyword" && (
+                                        <>
+                                            <TableCell className="text-[12px] font-medium text-slate-900">{d.keyword}</TableCell>
+                                            <TableCell className="text-[12px] font-medium text-slate-500 max-w-[150px] truncate">{d.campaign}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-900">₹{d.bid?.toFixed(1)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-slate-400">{safeINR(d.dailyBudget)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-amber-600">{safeINR(d.spend)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-emerald-600">{safeINR(d.sales)}</TableCell>
+                                            <TableCell className="text-right text-[12px] font-medium text-indigo-600">{safePct(d.acos)}</TableCell>
+                                            <TableCell className="text-right">
+                                                {d.budgetCapped ? (
+                                                    <Badge className="bg-rose-500 text-white text-[10px]">Capped</Badge>
+                                                ) : (
+                                                    <span className="text-slate-300 text-[10px]">Active</span>
+                                                )}
+                                            </TableCell>
+                                        </>
+                                    )}
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -792,12 +884,18 @@ const PlatformTag = ({ platform, active, onClick }) => {
     );
 };
 
-const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel }) => {
-    const [activePlatform, setActivePlatform] = useState((insight?.platforms || [])[0] || null);
+const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel, hubPlatform = "All platforms" }) => {
+    const [activePlatform, setActivePlatform] = useState(hubPlatform !== "All platforms" ? hubPlatform : "All platforms");
 
     useEffect(() => {
-        if (insight) setActivePlatform((insight.platforms || [])[0] || null);
-    }, [insight]);
+        if (insight) {
+            if (hubPlatform !== "All platforms") {
+                setActivePlatform(hubPlatform);
+            } else {
+                setActivePlatform("All platforms");
+            }
+        }
+    }, [insight, hubPlatform]);
 
     if (!insight) return null;
 
@@ -809,7 +907,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
             <DialogContent className="max-w-5xl w-[95vw] p-0 gap-0 rounded-2xl overflow-hidden border-0 shadow-2xl shadow-black/20 outline-none [&>button]:hidden">
-            <DialogTitle className="sr-only">{insight.type} Dashboard</DialogTitle>
+                <DialogTitle className="sr-only">{insight.type} Dashboard</DialogTitle>
                 <motion.div
                     initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
                     animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -849,6 +947,16 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                     {/* Platform tabs */}
                     {platforms.length > 1 && (
                         <div className="flex items-center gap-2 px-6 py-3 border-b border-slate-100 bg-white shrink-0">
+                            <button
+                                onClick={() => setActivePlatform("All platforms")}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border transition-all ${activePlatform === "All platforms"
+                                    ? "bg-slate-900 text-white border-slate-900"
+                                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                                    }`}
+                            >
+                                <LayoutGrid className="h-3 w-3" />
+                                All Platforms
+                            </button>
                             {platforms.map((p) => (
                                 <PlatformTag
                                     key={p}
@@ -929,7 +1037,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                     No data available for this signal.
                                 </div>
                             ) : (
-                                <EvidenceTable insight={insight} />
+                                <EvidenceTable insight={insight} activePlatform={activePlatform} />
                             )}
                         </div>
                     </div>
