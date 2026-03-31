@@ -3083,6 +3083,7 @@ class VisibilityService {
                     platform = 'All',
                     brand = 'All',
                     location = 'All',
+                    keywordType = 'All',
                     keywordTypeFilter = 'All',
                     keyword = 'All',
                     ownBrandsOnly = false,
@@ -3098,7 +3099,8 @@ class VisibilityService {
                 const platformCondition = buildCHCondition(platform, 'platform_name');
                 const brandCondition = buildCHCondition(brand, 'brand');
                 const locationCondition = buildCHCondition(location, 'location_name');
-                const keywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
+                const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
+                const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
                 const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(keyword, 'keyword');
                 const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
@@ -3134,7 +3136,8 @@ class VisibilityService {
                       AND ${platformCondition}
                       AND ${locationCondition}
                       AND ${categoryCondition}
-                      AND ${keywordTypeCondition}
+                      AND ${globalKeywordTypeCondition}
+                      AND ${localKeywordTypeCondition}
                       AND ${keywordCondition}
                       ${ownBrandsCondition}
                       AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
