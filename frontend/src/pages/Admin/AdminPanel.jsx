@@ -22,10 +22,10 @@ const AdminPanel = () => {
     const { logout, user } = useAuth();
 
     const menuItems = [
-        // { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
         { id: "users", label: "User Management", icon: Users },
-        // { id: "roles", label: "Permissions", icon: ShieldAlert },
-        // { id: "access", label: "Access Mapping", icon: Network },
+        { id: "roles", label: "Permissions", icon: ShieldAlert },
+        { id: "access", label: "Access Mapping", icon: Network },
     ];
 
     const renderContent = () => {

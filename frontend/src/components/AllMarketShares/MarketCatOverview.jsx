@@ -70,6 +70,9 @@ const MarketCatOverview = ({
         try {
             const u = JSON.parse(localStorage.getItem('user'));
             if (u?.dbName) {
+                if (u.dbName.toLowerCase() === 'mamaearth') {
+                    return 'The Derma Co.';
+                }
                 return u.dbName
                     .replace(/_/g, ' ')
                     .replace(/\b\w/g, c => c.toUpperCase());
@@ -314,7 +317,7 @@ const MarketCatOverview = ({
                                         {/* KPI Label (row header) + Trend/RCA buttons */}
                                         <div className="w-48 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
                                             <span
-                                                className="text-[12px] font-bold text-slate-600 flex-1 whitespace-nowrap uppercase tracking-wide"
+                                                className="text-[12px] font-bold text-slate-600 flex-1 whitespace-normal leading-tight uppercase tracking-wide"
                                                 style={{ fontFamily: 'Roboto, sans-serif' }}
                                             >
                                                 {kpiLabels[kpi.key] || kpi.label}

@@ -1296,7 +1296,7 @@ const CHART_COLORS = [
 
 const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTable, onSwitchToKpi, period, timeStep, selectedLevel }) => {
   const { user } = useAuth();
-  const isMars = user?.dbName === 'mars' || user?.dbName === 'mars_petcare';
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const getInitialMetric = () => {
     if (!selectedLevel) return "osa";
     const mapping = {
@@ -1415,7 +1415,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
         <div className="flex items-center justify-between w-full">
           <Box display="flex" gap={1} flexWrap="wrap">
             {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos'))
-              .filter(m => !isMars || m.key !== 'marketShare')
+              .filter(m => !hideMarketShare || m.key !== 'marketShare')
               .map((m) => (
               <MetricChip
                 key={m.key}
@@ -1694,7 +1694,7 @@ const KPI_KEYS = [
 
 const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTrend, period, timeStep }) => {
   const { user } = useAuth();
-  const isMars = user?.dbName === 'mars' || user?.dbName === 'mars_petcare';
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const isBrandMode = mode === "brand";
 
   const selectedIds = useMemo(() => {
@@ -1799,7 +1799,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
 
       <CardContent className="grid max-h-[420px] gap-4 overflow-y-auto pt-4 md:grid-cols-2">
         {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(k => k.key !== 'sos'))
-          .filter(k => !isMars || k.key !== 'marketShare')
+          .filter(k => !hideMarketShare || k.key !== 'marketShare')
           .map((kpi) => (
           <Card
             key={kpi.key}
@@ -1869,7 +1869,7 @@ const formatLargeNumber = (value) => {
 
 const BrandTable = ({ rows, loading }) => {
   const { user } = useAuth();
-  const isMars = user?.dbName === 'mars' || user?.dbName === 'mars_petcare';
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -1891,12 +1891,12 @@ const BrandTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[24%]" : "w-[20%]")}>Brand</th>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[19%]" : "w-[16%]")}>OSA</th>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[19%]" : "w-[16%]")}>SOS</th>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[19%]" : "w-[16%]")}>Price</th>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[19%]" : "w-[16%]")}>Promo-My %</th>
-                {!isMars && <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>}
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[24%]" : "w-[20%]")}>Brand</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>OSA</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>SOS</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Price</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Promo-My %</th>
+                {!hideMarketShare && <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>}
               </tr>
             </thead>
 
@@ -1908,7 +1908,7 @@ const BrandTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  {!isMars && <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
+                  {!hideMarketShare && <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -1955,7 +1955,7 @@ const BrandTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
-                  {!isMars && (
+                  {!hideMarketShare && (
                     <td className="px-3 py-2 text-right text-slate-900">
                       <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <span>{(Number(row.MarketShare?.value) || 0).toFixed(1)}%</span>
@@ -1971,7 +1971,7 @@ const BrandTable = ({ rows, loading }) => {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={isMars ? 5 : 6}
+                    colSpan={hideMarketShare ? 5 : 6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -2000,7 +2000,7 @@ const BrandTable = ({ rows, loading }) => {
 
 const SkuTable = ({ rows, loading }) => {
   const { user } = useAuth();
-  const isMars = user?.dbName === 'mars' || user?.dbName === 'mars_petcare';
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -2022,12 +2022,12 @@ const SkuTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[20%]" : "w-[16%]")}>SKU</th>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[20%]" : "w-[16%]")}>Brand</th>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[20%]" : "w-[17%]")}>OSA</th>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[20%]" : "w-[17%]")}>Price</th>
-                <th className={cn("px-3 py-2 text-center", isMars ? "w-[20%]" : "w-[17%]")}>Promo-My %</th>
-                {!isMars && <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>}
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[16%]")}>SKU</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[16%]")}>Brand</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>OSA</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Price</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Promo-My %</th>
+                {!hideMarketShare && <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>}
               </tr>
             </thead>
 
@@ -2039,7 +2039,7 @@ const SkuTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  {!isMars && <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
+                  {!hideMarketShare && <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -2081,7 +2081,7 @@ const SkuTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
-                  {!isMars && (
+                  {!hideMarketShare && (
                     <td className="px-3 py-2 text-center text-slate-900 font-medium">
                       <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
                         <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
@@ -2099,7 +2099,7 @@ const SkuTable = ({ rows, loading }) => {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={isMars ? 5 : 6}
+                    colSpan={hideMarketShare ? 5 : 6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
