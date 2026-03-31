@@ -49,11 +49,11 @@ export const getInsightsData = async (filters) => {
         `if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', ` +
         `'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others'))`;
 
-    let endDate   = filters.endDate   ? dayjs(filters.endDate)   : dayjs();
+    let endDate = filters.endDate ? dayjs(filters.endDate) : dayjs();
     let startDate = filters.startDate ? dayjs(filters.startDate) : endDate.subtract(30, 'day');
 
     const dateFrom = startDate.format('YYYY-MM-DD');
-    const dateTo   = endDate.format('YYYY-MM-DD');
+    const dateTo = endDate.format('YYYY-MM-DD');
 
     const insights = [];
 
@@ -73,7 +73,7 @@ export const getInsightsData = async (filters) => {
         FROM rb_kw_olap
         WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
           AND ${buildCHCondition(filters.platform, 'platform_name')}
-          AND ${buildCHCondition(filters.city,     'location_name')}
+          AND ${buildCHCondition(filters.city, 'location_name')}
           AND ${buildCHCondition(filters.category, 'keyword_category', { isCategory: true })}
         GROUP BY city, platform, category
         ORDER BY total_volume DESC
@@ -91,7 +91,7 @@ export const getInsightsData = async (filters) => {
         FROM rb_kw_olap
         WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
           AND ${buildCHCondition(filters.platform, 'platform_name')}
-          AND ${buildCHCondition(filters.city,     'location_name')}
+          AND ${buildCHCondition(filters.city, 'location_name')}
           AND ${buildCHCondition(filters.category, 'keyword_category', { isCategory: true })}
     `;
 
@@ -113,9 +113,9 @@ export const getInsightsData = async (filters) => {
         FROM rb_pdp_olap
         WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
           AND Comp_flag IN (0, '0')
-          AND ${buildCHCondition(filters.platform, 'Platform',  { isPdp: true })}
-          AND ${buildCHCondition(filters.city,     'Location',  { isPdp: true })}
-          AND ${buildCHCondition(filters.category, 'Category',  { isCategory: true, isPdp: true })}
+          AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
+          AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
+          AND ${buildCHCondition(filters.category, 'Category', { isCategory: true, isPdp: true })}
         GROUP BY city, platform, category
         LIMIT 5
     `;
@@ -138,7 +138,7 @@ export const getInsightsData = async (filters) => {
         WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
           AND Comp_flag IN (0, '0')
           AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-          AND ${buildCHCondition(filters.city,     'Location', { isPdp: true })}
+          AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
           AND ${buildCHCondition(filters.category, 'Category', { isCategory: true, isPdp: true })}
         GROUP BY city, platform, skuOrBrand
         HAVING fillRate < 80 OR avg_inventory < 10
@@ -210,7 +210,7 @@ export const getInsightsData = async (filters) => {
               AND Comp_flag IN (0, '0') 
               AND Location IS NOT NULL
               AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-              AND ${buildCHCondition(filters.city,     'Location', { isPdp: true })}
+              AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
               AND ${buildCHCondition(filters.category, 'Category', { isCategory: true, isPdp: true })}
             GROUP BY city, platform, category 
             HAVING kw_osa > 0
@@ -232,7 +232,7 @@ export const getInsightsData = async (filters) => {
               AND Brand != '' 
               AND Location IS NOT NULL
               AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-              AND ${buildCHCondition(filters.city,     'Location', { isPdp: true })}
+              AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
               AND ${buildCHCondition(filters.category, 'Category', { isCategory: true, isPdp: true })}
             GROUP BY city, platform, category, competitor
         )
@@ -341,7 +341,7 @@ export const getInsightsData = async (filters) => {
           AND p.Product IS NOT NULL
           AND p.Product != ''
           AND ${buildCHCondition(filters.platform, 'p.Platform', { isPdp: true })}
-          AND ${buildCHCondition(filters.city,     'p.Location', { isPdp: true })}
+          AND ${buildCHCondition(filters.city, 'p.Location', { isPdp: true })}
           AND ${buildCHCondition(filters.category, 'p.Category', { isCategory: true, isPdp: true })}
         GROUP BY city, platform, skuOrBrand
         HAVING kwOsa < 75 AND spendInr > 500
@@ -371,7 +371,7 @@ export const getInsightsData = async (filters) => {
           AND Brand   IS NOT NULL AND Brand   != ''
           AND Product IS NOT NULL AND Product != ''
           AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-          AND ${buildCHCondition(filters.city,     'Location', { isPdp: true })}
+          AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
           AND ${buildCHCondition(filters.category, 'Category', { isCategory: true, isPdp: true })}
         GROUP BY city, platform, category, skuOrBrand, productName
         HAVING MIN(DATE) >= '${dateFrom}'
@@ -380,15 +380,194 @@ export const getInsightsData = async (filters) => {
         LIMIT 10
     `;
 
-    try {
-        const safeQuery = async (query, label) => {
-            try { return await queryClickHouse(query); }
-            catch (err) {
-                console.error(`[Insights] ${label} query failed:`, err.message);
-                return [];
-            }
-        };
+    // -------------------------------------------------------------------------
+    // QUERY 8 — COMPETITOR MARKET SHARE TREND (powers: AI Report for Headroom)
+    // Uses rb_ms_olap for sales share and rb_kw_olap for SOS changes.
+    //
+    // FLAG CONVENTION (rb_ms_olap): flag=1 = our brand, flag=0 = competitor
+    //
+    // Returns:
+    //   • Our brand's current share & Δ share
+    //   • Top 5 competitor brands that GAINED share (flag=1, share_change > 0)
+    //   • For each competitor: their hero SKU, ad/org SOS, and SOS Δ
+    //   • Whether the competitor overtook our brand's share
+    // -------------------------------------------------------------------------
+    const prevStartDate = startDate.subtract(30, 'day').format('YYYY-MM-DD');
+    const prevEndDate = startDate.subtract(1, 'day').format('YYYY-MM-DD');
 
+    // 8a — Our brand share (flag=1 = own brand in rb_ms_olap)
+    const ownShareQuery = `
+        WITH
+            curr AS (
+                SELECT group_brand        AS brand_name,
+                       argMax(item_name, sales) AS top_sku,
+                       SUM(toFloat64OrZero(toString(sales))) AS brand_sales
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND flag = 1
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+                GROUP BY brand_name
+            ),
+            prev AS (
+                SELECT group_brand AS brand_name,
+                       SUM(toFloat64OrZero(toString(sales))) AS brand_sales
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                  AND flag = 1
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+                GROUP BY brand_name
+            ),
+            total_curr AS (
+                SELECT SUM(toFloat64OrZero(toString(sales))) AS v
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+            ),
+            total_prev AS (
+                SELECT SUM(toFloat64OrZero(toString(sales))) AS v
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+            )
+        SELECT
+            c.brand_name                                                          AS brandName,
+            c.top_sku                                                             AS topSku,
+            ROUND((c.brand_sales / nullIf((SELECT v FROM total_curr), 0)) * 100, 2) AS currSharePct,
+            ROUND((ifNull(p.brand_sales, 0) / nullIf((SELECT v FROM total_prev), 0)) * 100, 2) AS prevSharePct,
+            ROUND(
+                ((c.brand_sales / nullIf((SELECT v FROM total_curr), 0))
+                - (ifNull(p.brand_sales, 0) / nullIf((SELECT v FROM total_prev), 0))) * 100,
+            2) AS shareChangePpt
+        FROM curr c
+        LEFT JOIN prev p ON c.brand_name = p.brand_name
+        ORDER BY currSharePct DESC
+        LIMIT 1
+    `;
+
+    // 8b — Competitor brands who GAINED share (flag=0 = competitor in rb_ms_olap)
+    const compShareQuery = `
+        WITH
+            curr AS (
+                SELECT group_brand        AS brand_name,
+                       argMax(item_name, sales) AS top_sku,
+                       argMax(web_pid, sales)   AS top_web_pid,
+                       SUM(toFloat64OrZero(toString(sales))) AS brand_sales
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND flag = 0
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+                GROUP BY brand_name
+            ),
+            prev AS (
+                SELECT group_brand AS brand_name,
+                       SUM(toFloat64OrZero(toString(sales))) AS brand_sales
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                  AND flag = 0
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+                GROUP BY brand_name
+            ),
+            total_curr AS (
+                SELECT SUM(toFloat64OrZero(toString(sales))) AS v
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+            ),
+            total_prev AS (
+                SELECT SUM(toFloat64OrZero(toString(sales))) AS v
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+            )
+        SELECT
+            c.brand_name     AS brandName,
+            c.top_sku        AS topSku,
+            ROUND((c.brand_sales / nullIf((SELECT v FROM total_curr), 0)) * 100, 2) AS currSharePct,
+            ROUND((ifNull(p.brand_sales, 0) / nullIf((SELECT v FROM total_prev), 0)) * 100, 2) AS prevSharePct,
+            ROUND(
+                ((c.brand_sales / nullIf((SELECT v FROM total_curr), 0))
+                - (ifNull(p.brand_sales, 0) / nullIf((SELECT v FROM total_prev), 0))) * 100,
+            2) AS shareChangePpt
+        FROM curr c
+        LEFT JOIN prev p ON c.brand_name = p.brand_name
+        HAVING shareChangePpt > 0
+        ORDER BY shareChangePpt DESC
+        LIMIT 5
+    `;
+
+    // 8c — SOS (Ad & Organic) from rb_kw_olap for each brand, current + previous 30d
+    const sosTrendQuery = `
+        WITH
+            curr_kw AS (
+                SELECT brand,
+                       SUM(toFloat64OrZero(toString(spons)))   AS ad_vol,
+                       SUM(toFloat64OrZero(toString(organic))) AS org_vol,
+                       SUM(toFloat64OrZero(toString(overall))) AS total_vol
+                FROM rb_kw_olap
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND brand IS NOT NULL AND brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform_name')}
+                  AND ${buildCHCondition(filters.city, 'location_name')}
+                  AND ${buildCHCondition(filters.category, 'keyword_category', { isCategory: true })}
+                GROUP BY brand
+            ),
+            prev_kw AS (
+                SELECT brand,
+                       SUM(toFloat64OrZero(toString(spons)))   AS ad_vol,
+                       SUM(toFloat64OrZero(toString(organic))) AS org_vol,
+                       SUM(toFloat64OrZero(toString(overall))) AS total_vol
+                FROM rb_kw_olap
+                WHERE DATE BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                  AND brand IS NOT NULL AND brand != ''
+                  AND ${buildCHCondition(filters.platform, 'platform_name')}
+                  AND ${buildCHCondition(filters.city, 'location_name')}
+                  AND ${buildCHCondition(filters.category, 'keyword_category', { isCategory: true })}
+                GROUP BY brand
+            )
+        SELECT
+            ck.brand                                                                    AS brandName,
+            ROUND((ck.ad_vol  / nullIf(ck.total_vol, 0)) * 100, 2)                    AS currAdSos,
+            ROUND((ck.org_vol / nullIf(ck.total_vol, 0)) * 100, 2)                    AS currOrgSos,
+            ROUND((ifNull(pk.ad_vol, 0)  / nullIf(ifNull(pk.total_vol, 1), 0)) * 100, 2) AS prevAdSos,
+            ROUND((ifNull(pk.org_vol, 0) / nullIf(ifNull(pk.total_vol, 1), 0)) * 100, 2) AS prevOrgSos
+        FROM curr_kw ck
+        LEFT JOIN prev_kw pk ON ck.brand = pk.brand
+    `;
+
+    const safeQuery = async (query, label) => {
+        try {
+            return await queryClickHouse(query);
+        } catch (err) {
+            console.error(`[Insights] ${label} query failed:`, err.message);
+            return [];
+        }
+    };
+
+    try {
         const [
             visData,
             visTotalsData,
@@ -398,16 +577,88 @@ export const getInsightsData = async (filters) => {
             compData,
             adStockData,
             challengerData,
+            ownShareRows,
+            compShareRows,
+            sosRows
         ] = await Promise.all([
-            safeQuery(visibilityQuery,       'Visibility'),
+            safeQuery(visibilityQuery, 'Visibility'),
             safeQuery(visibilityTotalsQuery, 'VisibilityTotals'),
-            safeQuery(pricingQuery,          'Pricing'),
-            safeQuery(replenishmentQuery,    'Replenishment'),
-            safeQuery(adStockQuery,          'KeywordEfficiency'),
-            safeQuery(competitorOsaQuery,    'CompetitorOSA'),
-            safeQuery(adStockMismatchQuery,  'AdStockMismatch'),
+            safeQuery(pricingQuery, 'Pricing'),
+            safeQuery(replenishmentQuery, 'Replenishment'),
+            safeQuery(adStockQuery, 'KeywordEfficiency'),
+            safeQuery(competitorOsaQuery, 'CompetitorOSA'),
+            safeQuery(adStockMismatchQuery, 'AdStockMismatch'),
             safeQuery(challengerLaunchQuery, 'ChallengerLaunch'),
+            safeQuery(ownShareQuery, 'OwnShare'),
+            safeQuery(compShareQuery, 'CompShare'),
+            safeQuery(sosTrendQuery, 'SOSTrend')
         ]);
+
+        // Build SOS lookup by brand
+        const sosMap = {};
+        for (const r of sosRows) {
+            sosMap[r.brandName] = {
+                currAdSos:  Number(r.currAdSos)  || 0,
+                currOrgSos: Number(r.currOrgSos) || 0,
+                prevAdSos:  Number(r.prevAdSos)  || 0,
+                prevOrgSos: Number(r.prevOrgSos) || 0,
+                adSosChange:  (Number(r.currAdSos) || 0) - (Number(r.prevAdSos) || 0),
+                orgSosChange: (Number(r.currOrgSos) || 0) - (Number(r.prevOrgSos) || 0),
+            };
+        }
+
+        // Own brand share
+        const ownBrandRow = ownShareRows?.[0] || null;
+        const ownBrandShare = ownBrandRow ? {
+            brandName:      ownBrandRow.brandName,
+            topSku:         ownBrandRow.topSku,
+            currSharePct:   Number(ownBrandRow.currSharePct)   || 0,
+            prevSharePct:   Number(ownBrandRow.prevSharePct)   || 0,
+            shareChangePpt: Number(ownBrandRow.shareChangePpt) || 0,
+            ...(sosMap[ownBrandRow.brandName] || { currAdSos: 0, currOrgSos: 0, prevAdSos: 0, prevOrgSos: 0, adSosChange: 0, orgSosChange: 0 }),
+        } : null;
+
+        // Competitor brands that gained share, enriched with SOS data
+        const competitorThreats = (compShareRows || []).map(r => {
+            const sos = sosMap[r.brandName] || { currAdSos: 0, currOrgSos: 0, prevAdSos: 0, prevOrgSos: 0, adSosChange: 0, orgSosChange: 0 };
+            let primaryDriver = 'organic';
+            if (sos.adSosChange > 0 && sos.orgSosChange > 0) {
+                primaryDriver = sos.adSosChange >= sos.orgSosChange ? 'ad' : 'organic';
+            } else if (sos.adSosChange > 0) {
+                primaryDriver = 'ad';
+            }
+            return {
+                brandName:      r.brandName,
+                topSku:         r.topSku,
+                currSharePct:   Number(r.currSharePct)   || 0,
+                prevSharePct:   Number(r.prevSharePct)   || 0,
+                shareChangePpt: Number(r.shareChangePpt) || 0,
+                overtook:       ownBrandShare ? (Number(r.currSharePct) || 0) > ownBrandShare.currSharePct : false,
+                shareAheadBy:   ownBrandShare ? Number(((Number(r.currSharePct) || 0) - ownBrandShare.currSharePct).toFixed(2)) : null,
+                currAdSos:      sos.currAdSos,
+                currOrgSos:     sos.currOrgSos,
+                adSosChange:    sos.adSosChange,
+                orgSosChange:   sos.orgSosChange,
+                primaryDriver,
+            };
+        });
+
+        // Build the enriched aiTrendData payload for the signal card
+        const trendData = {
+            ownBrand:     ownBrandShare,
+            competitors:  competitorThreats,
+            topThreat:    competitorThreats[0] || null,
+            // Keep backwards-compatible flat fields for the top threat
+            brandName:    competitorThreats[0]?.brandName   || null,
+            skuProduct:   competitorThreats[0]?.topSku      || null,
+            currShare:    competitorThreats[0]?.currSharePct || null,
+            shareChange:  competitorThreats[0]?.shareChangePpt || null,
+            adSosChange:  competitorThreats[0]?.adSosChange || 0,
+            orgSosChange: competitorThreats[0]?.orgSosChange || 0,
+            currAdSos:    competitorThreats[0]?.currAdSos   || 0,
+            currOrgSos:   competitorThreats[0]?.currOrgSos  || 0,
+            primaryDriver: competitorThreats[0]?.primaryDriver || null,
+        };
 
         // ---------------------------------------------------------------------
         // SIGNAL 1 — Share Headroom Hotspots
@@ -416,19 +667,19 @@ export const getInsightsData = async (filters) => {
             const hasData = visData.length > 0;
             const hasTotals = visTotalsData && visTotalsData.length > 0;
             const vis = hasTotals ? visTotalsData[0] : { overall_sos: 0, ad_sos: 0, org_sos: 0 };
-            
+
             const evidence = hasData ? visData.map(v => {
                 const kwShare = Number(v.overall_sos) || 0;
                 const compShare = Number(v.comp_overall_sos) || 0;
                 const benchmarkShare = Math.max(kwShare, compShare);
                 return {
-                    city:           v.city,
-                    category:       v.category,
+                    city: v.city,
+                    category: v.category,
                     kwShare,
                     benchmarkShare,
-                    shareGap:       Number((kwShare - benchmarkShare).toFixed(1)),
-                    headroomInr:    Number(v.total_volume) * 10,
-                    driverTag:      "Visibility",
+                    shareGap: Number((kwShare - benchmarkShare).toFixed(1)),
+                    headroomInr: Number(v.total_volume) * 10,
+                    driverTag: "Visibility",
                 };
             }) : [{ city: '-', category: '-', kwShare: 0, benchmarkShare: 0, shareGap: 0, headroomInr: 0, driverTag: '-' }];
 
@@ -446,26 +697,27 @@ export const getInsightsData = async (filters) => {
             }
 
             insights.push({
-                id:          "dyn_vis_1",
-                type:        "Share Headroom Hotspots",
-                title:       title1,
-                family:      "Market",
-                platforms:   hasData ? [...new Set(visData.map(v => v.platform))] : ["-"],
-                city:        filters.city !== "All cities" ? filters.city : "Multi-city",
-                category:    filters.category !== "All categories" ? filters.category : "Overall",
-                impactInr:   totalImpact,
+                id: "dyn_vis_1",
+                type: "Share Headroom Hotspots",
+                title: title1,
+                family: "Market",
+                platforms: hasData ? [...new Set(visData.map(v => v.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: totalImpact,
                 impactLabel: "Headroom",
-                brandName:   brandLabel,
+                brandName: brandLabel,
                 kpis: [
                     { label: "Overall SOS", value: `${vis.overall_sos}%` },
-                    { label: "Ad SOS",      value: `${vis.ad_sos}%`      },
-                    { label: "Org SOS",     value: `${vis.org_sos}%`     },
+                    { label: "Ad SOS", value: `${vis.ad_sos}%` },
+                    { label: "Org SOS", value: `${vis.org_sos}%` },
                 ],
                 whatWeSee: hasData ? [
                     "Organic search positions have dropped below the baseline on average.",
                     "Volume share is heavily reliant on sponsored placements.",
                 ] : ["-", "-"],
                 evidence,
+                aiTrendData: trendData,
             });
         }
 
@@ -478,20 +730,20 @@ export const getInsightsData = async (filters) => {
 
             const evidence = hasData ? priceData.map(p => {
                 const gap = Math.max(0, Number(p.price_index) - 100);
-                const headroom = gap > 0 
-                    ? (Number(p.total_sales) * gap / 100) 
+                const headroom = gap > 0
+                    ? (Number(p.total_sales) * gap / 100)
                     : (Number(p.total_sales) * 0.05); // Default 5% impact if listed
-                
+
                 return {
-                    city:                   p.city,
-                    category:               p.category,
-                    clusterName:            "Premium Segment",
-                    kwPpu:                  p.kw_ppu,
-                    peerPpu:                p.peer_ppu,
-                    priceIndex:             p.price_index,
+                    city: p.city,
+                    category: p.category,
+                    clusterName: "Premium Segment",
+                    kwPpu: p.kw_ppu,
+                    peerPpu: p.peer_ppu,
+                    priceIndex: p.price_index,
                     clusterContributionPct: 25.4,
-                    clusterGrowthPct:       12.1,
-                    headroomInr:            Math.round(headroom),
+                    clusterGrowthPct: 12.1,
+                    headroomInr: Math.round(headroom),
                 };
             }) : [{ city: '-', category: '-', clusterName: '-', kwPpu: 0, peerPpu: 0, priceIndex: 0, clusterContributionPct: 0, clusterGrowthPct: 0, headroomInr: 0 }];
 
@@ -511,19 +763,19 @@ export const getInsightsData = async (filters) => {
             }
 
             insights.push({
-                id:          "dyn_price_1",
-                type:        "Price Parity Radar",
-                title:       title2,
-                family:      "Pricing",
-                platforms:   hasData ? [...new Set(priceData.map(p => p.platform))] : ["-"],
-                city:        filters.city !== "All cities" ? filters.city : "Multi-city",
-                category:    filters.category !== "All categories" ? filters.category : "Overall",
-                impactInr:   totalImpact,
+                id: "dyn_price_1",
+                type: "Price Parity Radar",
+                title: title2,
+                family: "Pricing",
+                platforms: hasData ? [...new Set(priceData.map(p => p.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: totalImpact,
                 impactLabel: "Headroom",
-                brandName:   brandLabel,
+                brandName: brandLabel,
                 kpis: [
-                    { label: "Price index",        value: String(price.price_index) },
-                    { label: `Avg ${brandLabel} PPU`, value: `₹${price.kw_ppu}`    },
+                    { label: "Price index", value: String(price.price_index) },
+                    { label: `Avg ${brandLabel} PPU`, value: `₹${price.kw_ppu}` },
                 ],
                 whatWeSee: hasData ? [
                     `${brandLabel} sits above peer pricing in key fast-growing segments.`,
@@ -557,18 +809,18 @@ export const getInsightsData = async (filters) => {
             }
 
             insights.push({
-                id:          "dyn_repl_1",
-                type:        "Replenishment Breaks",
-                title:       title3,
-                family:      "Supply",
-                platforms:   hasData ? [...new Set(replData.map(r => r.platform))] : ["-"],
-                city:        filters.city !== "All cities" ? filters.city : "Multi-city",
-                category:    filters.category !== "All categories" ? filters.category : "Overall",
-                impactInr:   impact,
+                id: "dyn_repl_1",
+                type: "Replenishment Breaks",
+                title: title3,
+                family: "Supply",
+                platforms: hasData ? [...new Set(replData.map(r => r.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: impact,
                 impactLabel: "Loss",
-                brandName:   brandLabel,
+                brandName: brandLabel,
                 kpis: [
-                    { label: "Avg Fill rate", value: `${avgFillRate.toFixed(1)}%`        },
+                    { label: "Avg Fill rate", value: `${avgFillRate.toFixed(1)}%` },
                     { label: "Affected SKUs", value: hasData ? `${replData.length}` : "0" },
                 ],
                 whatWeSee: hasData ? [
@@ -576,14 +828,14 @@ export const getInsightsData = async (filters) => {
                     "On-Shelf Availability (OSA) is falling below the acceptable 80% threshold.",
                 ] : ["-", "-"],
                 evidence: hasData ? replData.map(r => ({
-                    depotOrDb:     "Local DC",
-                    city:          r.city,
-                    skuOrBrand:    r.skuOrBrand,
-                    plannedQty:    Math.floor(r.total_sold * 1.5),
+                    depotOrDb: "Local DC",
+                    city: r.city,
+                    skuOrBrand: r.skuOrBrand,
+                    plannedQty: Math.floor(r.total_sold * 1.5),
                     dispatchedQty: Math.floor(r.avg_inventory),
-                    fillRate:      r.fillRate,
-                    poCreated:     r.fillRate > 50,
-                    poNo:          r.fillRate > 50 ? "PO-GEN" : null,
+                    fillRate: r.fillRate,
+                    poCreated: r.fillRate > 50,
+                    poNo: r.fillRate > 50 ? "PO-GEN" : null,
                 })) : [{ depotOrDb: '-', city: '-', skuOrBrand: '-', plannedQty: 0, dispatchedQty: 0, fillRate: 0, poCreated: false, poNo: '-' }],
             });
         }
@@ -610,32 +862,32 @@ export const getInsightsData = async (filters) => {
             }
 
             insights.push({
-                id:          "dyn_ad_1",
-                type:        "Keyword Efficiency and Budget Caps",
-                title:       title4,
-                family:      "Performance",
-                platforms:   hasData ? [...new Set(adData.map(a => a.platform))] : ["-"],
-                city:        filters.city !== "All cities" ? filters.city : "Multi-city",
-                category:    filters.category !== "All categories" ? filters.category : "Overall",
-                impactInr:   impact,
+                id: "dyn_ad_1",
+                type: "Keyword Efficiency and Budget Caps",
+                title: title4,
+                family: "Performance",
+                platforms: hasData ? [...new Set(adData.map(a => a.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: impact,
                 impactLabel: "Ad Waste",
-                brandName:   brandLabel,
+                brandName: brandLabel,
                 kpis: [
                     { label: "Waste keywords", value: hasData ? adData.length.toString() : "0" },
-                    { label: "Avg ROAS",       value: avgRoas                                   },
+                    { label: "Avg ROAS", value: avgRoas },
                 ],
                 whatWeSee: hasData ? [
                     "Performance marketing is driving traffic to keywords with critically low availability.",
                     "Ad waste is accumulating due to poor conversion on these terms.",
                 ] : ["-", "-"],
                 evidence: hasData ? adData.map(a => ({
-                    keyword:      a.keyword,
-                    campaign:     `Primary | ${a.platform} | Target`,
-                    bid:          Number(a.total_spend) / (Number(a.total_sales) || 1),
-                    dailyBudget:  Number(a.total_spend) * 1.5,
-                    spend:        Number(a.total_spend),
-                    sales:        Number(a.total_sales),
-                    acos:         a.acos != null ? Number(a.acos) : (a.roas > 0 ? (1 / a.roas) * 100 : 0),
+                    keyword: a.keyword,
+                    campaign: `Primary | ${a.platform} | Target`,
+                    bid: Number(a.total_spend) / (Number(a.total_sales) || 1),
+                    dailyBudget: Number(a.total_spend) * 1.5,
+                    spend: Number(a.total_spend),
+                    sales: Number(a.total_sales),
+                    acos: a.acos != null ? Number(a.acos) : (a.roas > 0 ? (1 / a.roas) * 100 : 0),
                     budgetCapped: Number(a.roas) < 2.0,
                 })) : [{ keyword: '-', campaign: '-', bid: 0, dailyBudget: 0, spend: 0, sales: 0, acos: 0, budgetCapped: false }],
             });
@@ -647,15 +899,15 @@ export const getInsightsData = async (filters) => {
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Competitor OSA Weak Spots') {
             const hasData = compData.length > 0;
 
-            const uniqueCities    = hasData ? new Set(compData.map(c => c.city)).size : 0;
+            const uniqueCities = hasData ? new Set(compData.map(c => c.city)).size : 0;
             const uniquePlatforms = hasData ? [...new Set(compData.map(c => c.platform))] : ["-"];
-            const avgKwOsa        = hasData ? compData.reduce((sum, c) => sum + Number(c.kwOsa),         0) / compData.length : 0;
-            const avgOtherOsa     = hasData ? compData.reduce((sum, c) => sum + Number(c.otherBrandOsa), 0) / compData.length : 0;
-            const totalPsl        = hasData ? compData.reduce((sum, c) => sum + Number(c.psl || 0),      0) : 0;
+            const avgKwOsa = hasData ? compData.reduce((sum, c) => sum + Number(c.kwOsa), 0) / compData.length : 0;
+            const avgOtherOsa = hasData ? compData.reduce((sum, c) => sum + Number(c.otherBrandOsa), 0) / compData.length : 0;
+            const totalPsl = hasData ? compData.reduce((sum, c) => sum + Number(c.psl || 0), 0) : 0;
 
-            const worstRow        = hasData ? compData[0] : { competitor: '-', category: '-', otherBrandOsa: 0 };
+            const worstRow = hasData ? compData[0] : { competitor: '-', category: '-', otherBrandOsa: 0 };
             const worstCompetitor = worstRow.competitor || '-';
-            const dominantCat     = worstRow.category   || '-';
+            const dominantCat = worstRow.category || '-';
 
             let title5 = "No competitor OSA weak spots detected";
             if (hasData) {
@@ -667,33 +919,33 @@ export const getInsightsData = async (filters) => {
             }
 
             insights.push({
-                id:          "dyn_comp_osa_1",
-                type:        "Competitor OSA Weak Spots",
-                title:       title5,
-                family:      "Performance",
-                platforms:   uniquePlatforms,
-                city:        filters.city !== "All cities" ? filters.city : (hasData ? `${uniqueCities} Cities` : "-"),
-                category:    filters.category !== "All categories" ? filters.category : dominantCat,
-                impactInr:   Math.round(totalPsl),
+                id: "dyn_comp_osa_1",
+                type: "Competitor OSA Weak Spots",
+                title: title5,
+                family: "Performance",
+                platforms: uniquePlatforms,
+                city: filters.city !== "All cities" ? filters.city : (hasData ? `${uniqueCities} Cities` : "-"),
+                category: filters.category !== "All categories" ? filters.category : dominantCat,
+                impactInr: Math.round(totalPsl),
                 impactLabel: "Headroom",
-                brandName:   brandLabel,
+                brandName: brandLabel,
                 kpis: [
                     { label: "Other brand OSA", value: `${avgOtherOsa.toFixed(1)}%` },
-                    { label: `${brandLabel} OSA`, value: `${avgKwOsa.toFixed(1)}%`  },
-                    { label: "Cities",            value: uniqueCities.toString()     },
+                    { label: `${brandLabel} OSA`, value: `${avgKwOsa.toFixed(1)}%` },
+                    { label: "Cities", value: uniqueCities.toString() },
                 ],
                 whatWeSee: hasData ? [
                     `${worstCompetitor} is missing on key ${dominantCat} searches (${Number(worstRow.otherBrandOsa).toFixed(0)}% OSA), creating an easy share-grab window.`,
                     `${brandLabel} is in stock (${avgKwOsa.toFixed(0)}% OSA), so conversion is mostly limited by visibility, not supply.`,
                 ] : ["-", "-"],
                 evidence: hasData ? compData.map(c => ({
-                    category:      c.category,
-                    city:          c.city,
-                    platform:      c.platform,
-                    skuOrBrand:    c.competitor,
+                    category: c.category,
+                    city: c.city,
+                    platform: c.platform,
+                    skuOrBrand: c.competitor,
                     otherBrandOsa: Number(c.otherBrandOsa),
-                    kwOsa:         Number(c.kwOsa),
-                    headroomInr:   Number(c.psl || 0),
+                    kwOsa: Number(c.kwOsa),
+                    headroomInr: Number(c.psl || 0),
                 })) : [{ category: '-', city: '-', platform: '-', skuOrBrand: '-', otherBrandOsa: 0, kwOsa: 0, headroomInr: 0 }],
             });
         }
@@ -711,11 +963,11 @@ export const getInsightsData = async (filters) => {
         //   • Sales is Nullable(Decimal) — toString cast kept for safety.
         // ---------------------------------------------------------------------
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Ad Stock Mismatch') {
-            const hasData    = adStockData.length > 0;
-            const totalSpend = hasData ? adStockData.reduce((s, r) => s + Number(r.spendInr),            0) : 0;
-            const totalLost  = hasData ? adStockData.reduce((s, r) => s + Number(r.estLostSalesInr || 0), 0) : 0;
-            const avgOsa     = hasData ? adStockData.reduce((s, r) => s + Number(r.kwOsa),               0) / adStockData.length : 0;
-            const avgSov     = hasData ? adStockData.reduce((s, r) => s + Number(r.adSov),               0) / adStockData.length : 0;
+            const hasData = adStockData.length > 0;
+            const totalSpend = hasData ? adStockData.reduce((s, r) => s + Number(r.spendInr), 0) : 0;
+            const totalLost = hasData ? adStockData.reduce((s, r) => s + Number(r.estLostSalesInr || 0), 0) : 0;
+            const avgOsa = hasData ? adStockData.reduce((s, r) => s + Number(r.kwOsa), 0) / adStockData.length : 0;
+            const avgSov = hasData ? adStockData.reduce((s, r) => s + Number(r.adSov), 0) / adStockData.length : 0;
 
             let title6 = "No ad stock mismatches detected";
             if (hasData) {
@@ -727,31 +979,31 @@ export const getInsightsData = async (filters) => {
             }
 
             insights.push({
-                id:          "dyn_adstock_1",
-                type:        "Ad Stock Mismatch",
-                title:       title6,
-                family:      "Performance",
-                platforms:   hasData ? [...new Set(adStockData.map(r => r.platform))] : ["-"],
-                city:        filters.city !== "All cities" ? filters.city : "Multi-city",
-                category:    filters.category !== "All categories" ? filters.category : "Overall",
-                impactInr:   Math.round(totalLost),
+                id: "dyn_adstock_1",
+                type: "Ad Stock Mismatch",
+                title: title6,
+                family: "Performance",
+                platforms: hasData ? [...new Set(adStockData.map(r => r.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: Math.round(totalLost),
                 impactLabel: "Est. Lost Sales",
-                brandName:   brandLabel,
+                brandName: brandLabel,
                 kpis: [
-                    { label: `${brandLabel} OSA (avg)`, value: `${avgOsa.toFixed(1)}%`                   },
-                    { label: "Ad SOV",                  value: `${avgSov.toFixed(1)}%`                   },
-                    { label: "Spend",                   value: `₹${totalSpend.toLocaleString('en-IN')}`  },
+                    { label: `${brandLabel} OSA (avg)`, value: `${avgOsa.toFixed(1)}%` },
+                    { label: "Ad SOV", value: `${avgSov.toFixed(1)}%` },
+                    { label: "Spend", value: `₹${totalSpend.toLocaleString('en-IN')}` },
                 ],
                 whatWeSee: hasData ? [
                     "Ad budget is actively sending shoppers to listings that frequently show out-of-stock.",
                     "Fixing OSA before increasing bids would convert the existing spend far more efficiently.",
                 ] : ["-", "-"],
                 evidence: hasData ? adStockData.map(r => ({
-                    city:            r.city,
-                    skuOrBrand:      r.skuOrBrand,
-                    kwOsa:           Number(r.kwOsa),
-                    adSov:           Number(r.adSov),
-                    spendInr:        Number(r.spendInr),
+                    city: r.city,
+                    skuOrBrand: r.skuOrBrand,
+                    kwOsa: Number(r.kwOsa),
+                    adSov: Number(r.adSov),
+                    spendInr: Number(r.spendInr),
                     estLostSalesInr: Number(r.estLostSalesInr || 0),
                 })) : [{ city: '-', skuOrBrand: '-', kwOsa: 0, adSov: 0, spendInr: 0, estLostSalesInr: 0 }],
             });
@@ -764,7 +1016,7 @@ export const getInsightsData = async (filters) => {
         // ---------------------------------------------------------------------
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Challenger Launch Watch') {
             const hasData = challengerData.length > 0;
-            const top     = hasData ? challengerData[0] : {};
+            const top = hasData ? challengerData[0] : {};
 
             let title7 = "No new challenger launches detected";
             if (hasData) {
@@ -776,32 +1028,32 @@ export const getInsightsData = async (filters) => {
             }
 
             insights.push({
-                id:          "dyn_challenger_1",
-                type:        "Challenger Launch Watch",
-                title:       title7,
-                family:      "Competitive",
-                platforms:   hasData ? [...new Set(challengerData.map(r => r.platform))] : ["-"],
-                city:        filters.city !== "All cities" ? filters.city : "Multi-city",
-                category:    filters.category !== "All categories" ? filters.category : (top.category || "Overall"),
-                impactInr:   0,
+                id: "dyn_challenger_1",
+                type: "Challenger Launch Watch",
+                title: title7,
+                family: "Competitive",
+                platforms: hasData ? [...new Set(challengerData.map(r => r.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : (top.category || "Overall"),
+                impactInr: 0,
                 impactLabel: "Watch",
-                brandName:   brandLabel,
+                brandName: brandLabel,
                 kpis: [
-                    { label: "Share",      value: hasData ? `${Number(top.newItemShare).toFixed(1)}%` : "0%" },
-                    { label: "First seen", value: hasData ? String(top.firstSeen)                     : "-"  },
-                    { label: "PPU",        value: hasData ? `₹${top.ppu}`                             : "0"  },
+                    { label: "Share", value: hasData ? `${Number(top.newItemShare).toFixed(1)}%` : "0%" },
+                    { label: "First seen", value: hasData ? String(top.firstSeen) : "-" },
+                    { label: "PPU", value: hasData ? `₹${top.ppu}` : "0" },
                 ],
                 whatWeSee: hasData ? [
                     `${challengerData.length} new competitor SKU(s) entered your category within the selected window.`,
                     `The fastest-growing challenger (${top.skuOrBrand}) is already capturing ${Number(top.newItemShare).toFixed(1)}% organic share.`,
                 ] : ["-", "-"],
                 evidence: hasData ? challengerData.map(r => ({
-                    city:         r.city,
-                    category:     r.category,
-                    skuOrBrand:   r.skuOrBrand,
+                    city: r.city,
+                    category: r.category,
+                    skuOrBrand: r.skuOrBrand,
                     newItemShare: Number(r.newItemShare),
-                    ppu:          Number(r.ppu),
-                    firstSeen:    String(r.firstSeen),
+                    ppu: Number(r.ppu),
+                    firstSeen: String(r.firstSeen),
                 })) : [{ city: '-', category: '-', skuOrBrand: '-', newItemShare: 0, ppu: 0, firstSeen: '-' }],
             });
         }
@@ -823,12 +1075,218 @@ export const getInsightsFilterOptions = async () => {
         ]);
 
         return {
-            categories:   catData.map(r => r.category),
+            categories: catData.map(r => r.category),
             productLines: prodData.map(r => r.Product),
-            geographies:  locData.map(r => r.location),
+            geographies: locData.map(r => r.location),
         };
     } catch (e) {
         console.error("Error fetching insights filter options:", e);
         return { categories: [], productLines: [], geographies: [] };
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPETITOR MARKET SHARE TREND
+//
+// Returns, for the trailing 30 days vs the prior 30 days:
+//   • your brand's current share and Δ-share
+//   • each competitor brand's current share, Δ-share, top SKU
+//   • competitor's curr Ad SOS, curr Org SOS and the Δ of each
+//   • a "primaryDriver" field: "ad" | "organic" | "both" telling you which SOS
+//     type is responsible for the share gain
+//   • "overtook" boolean — true if the competitor's share now EXCEEDS yours
+// ─────────────────────────────────────────────────────────────────────────────
+export const getCompetitorMarketShareTrend = async (filters = {}) => {
+    const prevEndDate = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+    const prevStartDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+    const curr_end = dayjs().format('YYYY-MM-DD');
+    const curr_start = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+
+    // Use filters if provided, fall back to no restriction
+    const platformCond = filters.platform
+        ? buildCHCondition(filters.platform, 'platform')
+        : '1=1';
+    const locationCond = filters.city
+        ? buildCHCondition(filters.city, 'location')
+        : '1=1';
+    const categoryCond = filters.category
+        ? buildCHCondition(filters.category, 'category', { isCategory: true })
+        : '1=1';
+
+    const kw_platformCond = filters.platform
+        ? buildCHCondition(filters.platform, 'platform_name')
+        : '1=1';
+    const kw_locationCond = filters.city
+        ? buildCHCondition(filters.city, 'location_name')
+        : '1=1';
+    const kw_categoryCond = filters.category
+        ? buildCHCondition(filters.category, 'keyword_category', { isCategory: true })
+        : '1=1';
+
+    // ------------------------------------------------------------------
+    // STEP 1 — Market share from rb_ms_olap
+    // Calculates brand-level share (brand_sales / total_sales) for both
+    // our brand (flag=1) and competitors (flag=0), current and previous 30d.
+    // ------------------------------------------------------------------
+    const shareQuery = `
+        WITH
+            curr_all AS (
+                SELECT group_brand AS brand, flag,
+                       argMax(item_name, sales)      AS top_sku,
+                       SUM(toFloat64OrZero(toString(sales))) AS brand_sales
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${curr_start}' AND '${curr_end}'
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${platformCond}
+                  AND ${locationCond}
+                  AND ${categoryCond}
+                GROUP BY brand, flag
+            ),
+            prev_all AS (
+                SELECT group_brand AS brand,
+                       SUM(toFloat64OrZero(toString(sales))) AS brand_sales
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                  AND group_brand IS NOT NULL AND group_brand != ''
+                  AND ${platformCond}
+                  AND ${locationCond}
+                  AND ${categoryCond}
+                GROUP BY brand
+            ),
+            total_curr AS (SELECT SUM(brand_sales) AS v FROM curr_all),
+            total_prev AS (SELECT SUM(brand_sales) AS v FROM prev_all)
+
+        SELECT
+            c.brand                                                                       AS brandName,
+            c.flag,
+            c.top_sku                                                                     AS topSku,
+            ROUND((c.brand_sales / nullIf((SELECT v FROM total_curr), 0)) * 100, 2)      AS currSharePct,
+            ROUND((ifNull(p.brand_sales, 0) / nullIf((SELECT v FROM total_prev), 0)) * 100, 2) AS prevSharePct,
+            ROUND(
+                ((c.brand_sales / nullIf((SELECT v FROM total_curr), 0)) -
+                 (ifNull(p.brand_sales, 0) / nullIf((SELECT v FROM total_prev), 0))) * 100,
+            2) AS shareChangePpt
+        FROM curr_all c
+        LEFT JOIN prev_all p ON c.brand = p.brand
+        ORDER BY currSharePct DESC
+    `;
+
+    // ------------------------------------------------------------------
+    // STEP 2 — Ad SOS & Organic SOS from rb_kw_olap, current + previous
+    // ------------------------------------------------------------------
+    const sosQuery = `
+        WITH
+            curr_kw AS (
+                SELECT brand,
+                       SUM(toFloat64OrZero(toString(spons)))   AS ad_vol,
+                       SUM(toFloat64OrZero(toString(organic))) AS org_vol,
+                       SUM(toFloat64OrZero(toString(overall))) AS total_vol
+                FROM rb_kw_olap
+                WHERE DATE BETWEEN '${curr_start}' AND '${curr_end}'
+                  AND brand IS NOT NULL AND brand != ''
+                  AND ${kw_platformCond}
+                  AND ${kw_locationCond}
+                  AND ${kw_categoryCond}
+                GROUP BY brand
+            ),
+            prev_kw AS (
+                SELECT brand,
+                       SUM(toFloat64OrZero(toString(spons)))   AS ad_vol,
+                       SUM(toFloat64OrZero(toString(organic))) AS org_vol,
+                       SUM(toFloat64OrZero(toString(overall))) AS total_vol
+                FROM rb_kw_olap
+                WHERE DATE BETWEEN '${prevStartDate}' AND '${prevEndDate}'
+                  AND brand IS NOT NULL AND brand != ''
+                  AND ${kw_platformCond}
+                  AND ${kw_locationCond}
+                  AND ${kw_categoryCond}
+                GROUP BY brand
+            )
+        SELECT
+            ck.brand                                                                AS brandName,
+            ROUND((ck.ad_vol  / nullIf(ck.total_vol, 0)) * 100, 2)                AS currAdSos,
+            ROUND((ck.org_vol / nullIf(ck.total_vol, 0)) * 100, 2)                AS currOrgSos,
+            ROUND((ifNull(pk.ad_vol,  0) / nullIf(ifNull(pk.total_vol, ck.total_vol), 0)) * 100, 2) AS prevAdSos,
+            ROUND((ifNull(pk.org_vol, 0) / nullIf(ifNull(pk.total_vol, ck.total_vol), 0)) * 100, 2) AS prevOrgSos
+        FROM curr_kw ck
+        LEFT JOIN prev_kw pk ON ck.brand = pk.brand
+    `;
+
+    try {
+        const [shareRows, sosRows] = await Promise.all([
+            queryClickHouse(shareQuery),
+            queryClickHouse(sosQuery),
+        ]);
+
+        // Build a lookup for SOS by brand name
+        const sosMap = {};
+        for (const r of sosRows) {
+            sosMap[r.brandName] = {
+                currAdSos: Number(r.currAdSos) || 0,
+                currOrgSos: Number(r.currOrgSos) || 0,
+                prevAdSos: Number(r.prevAdSos) || 0,
+                prevOrgSos: Number(r.prevOrgSos) || 0,
+                adSosChange: Number(r.currAdSos) - Number(r.prevAdSos),
+                orgSosChange: Number(r.currOrgSos) - Number(r.prevOrgSos),
+            };
+        }
+
+        // Separate our brand (flag=1) and competitors (flag=0)
+        const ownBrandRow = shareRows.find(r => Number(r.flag) === 1);
+        const competitorRows = shareRows.filter(r => Number(r.flag) === 0);
+
+        const ownShare = ownBrandRow ? {
+            brandName: ownBrandRow.brandName,
+            topSku: ownBrandRow.topSku,
+            currSharePct: Number(ownBrandRow.currSharePct),
+            prevSharePct: Number(ownBrandRow.prevSharePct),
+            shareChangePpt: Number(ownBrandRow.shareChangePpt),
+            ...(sosMap[ownBrandRow.brandName] || { currAdSos: 0, currOrgSos: 0, prevAdSos: 0, prevOrgSos: 0, adSosChange: 0, orgSosChange: 0 }),
+        } : null;
+
+        const competitors = competitorRows.map(r => {
+            const sos = sosMap[r.brandName] || { currAdSos: 0, currOrgSos: 0, prevAdSos: 0, prevOrgSos: 0, adSosChange: 0, orgSosChange: 0 };
+
+            // Determine which SOS type is the primary driver of share gain
+            let primaryDriver = 'organic';
+            if (sos.adSosChange > 0 && sos.orgSosChange > 0) {
+                primaryDriver = sos.adSosChange >= sos.orgSosChange ? 'ad' : 'organic';
+            } else if (sos.adSosChange > 0) {
+                primaryDriver = 'ad';
+            } else if (sos.orgSosChange > 0) {
+                primaryDriver = 'organic';
+            }
+
+            return {
+                brandName: r.brandName,
+                topSku: r.topSku,
+                currSharePct: Number(r.currSharePct),
+                prevSharePct: Number(r.prevSharePct),
+                shareChangePpt: Number(r.shareChangePpt),
+                overtook: ownShare ? Number(r.currSharePct) > ownShare.currSharePct : false,
+                shareAheadBy: ownShare ? Number((Number(r.currSharePct) - ownShare.currSharePct).toFixed(2)) : null,
+                currAdSos: sos.currAdSos,
+                currOrgSos: sos.currOrgSos,
+                adSosChange: sos.adSosChange,
+                orgSosChange: sos.orgSosChange,
+                primaryDriver,   // "ad" | "organic"
+            };
+        });
+
+        // Sort: brands that gained most share first
+        competitors.sort((a, b) => b.shareChangePpt - a.shareChangePpt);
+
+        return {
+            ownBrand: ownShare,
+            competitors,
+            // Top competitor who gained the most share
+            topThreat: competitors[0] || null,
+            dateRange: { from: curr_start, to: curr_end },
+            prevRange: { from: prevStartDate, to: prevEndDate },
+        };
+
+    } catch (err) {
+        console.error('[InsightsService] getCompetitorMarketShareTrend failed:', err.message);
+        return { ownBrand: null, competitors: [], topThreat: null };
     }
 };
