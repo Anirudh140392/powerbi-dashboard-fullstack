@@ -467,6 +467,9 @@ export default function TrendsCompetitionDrawer({
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
+  const isEcom = selectedPlatform?.toLowerCase() === "amazon" || selectedPlatform?.toLowerCase() === "flipkart";
+
+
   // Drawer-specific filters for the Effective Filters bar
   const [drawerFilters, setDrawerFilters] = useState({
     Platform: "All",
@@ -1756,12 +1759,20 @@ export default function TrendsCompetitionDrawer({
     // Set default active metrics based on dynamicKey and the DASHBOARD_DATA config
     if (activeMetrics.length === 0) {
       if (dynamicKey === 'availability') {
-        setActiveMetrics(['Osa', 'Listing']);
+        setActiveMetrics(isEcom ? ['Osa'] : ['Osa', 'Listing']);
       } else if (DASHBOARD_DATA.trends?.metrics) {
         setActiveMetrics(DASHBOARD_DATA.trends.metrics.filter(m => m.default).map(m => m.id));
       }
     }
-  }, [DASHBOARD_DATA, dynamicKey, open]);
+  }, [DASHBOARD_DATA, dynamicKey, open, isEcom]);
+
+  // Sync active metrics: remove Listing if platform becomes Ecom
+  useEffect(() => {
+    if (isEcom && activeMetrics.includes('Listing')) {
+      setActiveMetrics(prev => prev.filter(m => m !== 'Listing'));
+    }
+  }, [isEcom, activeMetrics]);
+
 
   const platformRef = useRef(null);
 
@@ -2355,21 +2366,24 @@ export default function TrendsCompetitionDrawer({
                 mb={2}
               >
                 <Box display="flex" gap={1} flexWrap="wrap">
-                  {trendMeta.metrics.map((m) => (
-                    <MetricChip
-                      key={m.id}
-                      label={m.label}
-                      color={m.color}
-                      active={activeMetrics.includes(m.id)}
-                      onClick={() =>
-                        setActiveMetrics((prev) =>
-                          prev.includes(m.id)
-                            ? prev.filter((x) => x !== m.id)
-                            : [...prev, m.id]
-                        )
-                      }
-                    />
-                  ))}
+                  {trendMeta.metrics
+                    .filter(m => !(isEcom && m.id === 'Listing'))
+                    .map((m) => (
+                      <MetricChip
+                        key={m.id}
+                        label={m.label}
+                        color={m.color}
+                        active={activeMetrics.includes(m.id)}
+                        onClick={() =>
+                          setActiveMetrics((prev) =>
+                            prev.includes(m.id)
+                              ? prev.filter((x) => x !== m.id)
+                              : [...prev, m.id]
+                          )
+                        }
+                      />
+                    ))}
+
                 </Box>
 
               </Box>
