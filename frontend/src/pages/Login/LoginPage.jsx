@@ -26,15 +26,16 @@ const LoginPage = () => {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    const { login, isLoggedIn } = useAuth();
+    const { login, isLoggedIn, user } = useAuth();
     const navigate = useNavigate();
 
     // Auto-redirect if already logged in
     useEffect(() => {
         if (isLoggedIn) {
-            navigate("/watch-tower", { replace: true });
+            const redirectPath = user?.role === 'admin' ? "/admin" : "/watch-tower";
+            navigate(redirectPath, { replace: true });
         }
-    }, [isLoggedIn, navigate]);
+    }, [isLoggedIn, navigate, user]);
 
     const handleLogin = async (e) => {
         if (e) e.preventDefault();
@@ -44,9 +45,10 @@ const LoginPage = () => {
         const result = await login({ email, password });
 
         if (result.success) {
-            // No more timer or nuclear reload - AuthContext update will trigger isLoggedIn change
-            // which the useEffect above will catch and navigate smoothly.
-            navigate("/watch-tower", { replace: true });
+            // Check role from AuthContext user if not immediately available in result
+            // though login service returns them
+            // Let's rely on the useEffect above or do it here
+            // navigate(userData.role === 'admin' ? "/admin" : "/watch-tower", { replace: true });
         } else {
             setError(result.error || "Invalid email or password");
             setLoading(false);

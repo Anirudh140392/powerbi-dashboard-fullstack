@@ -14,6 +14,7 @@ import {
     MapPin,
     SlidersHorizontal,
     Scale,
+    PieChart,
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
@@ -175,40 +176,29 @@ const PlatformOverviewNew = ({
     ]
     const [dimension, setDimension] = useState('platform')
 
-    const isBoatUser = useMemo(() => {
-        try {
-            const u = JSON.parse(localStorage.getItem('user'));
-            return u?.dbName?.toLowerCase() === 'boat';
-        } catch {
-            return false;
-        }
-    }, []);
-
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
         if (dimension === 'sku') {
             return kpis.filter(k => {
                 if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
-                if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
                 return true;
             });
         }
         if (dimension === 'brand') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return kpis;
-    }, [dimension, kpis, isBoatUser]);
+    }, [dimension, kpis]);
 
     const defaultKpiKeys = useMemo(() => {
         const base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
         if (dimension === 'sku') {
             return base.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
-                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                 return true;
             });
         }
         if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         return base;
-    }, [dimension, isBoatUser]);
+    }, [dimension]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -239,7 +229,6 @@ const PlatformOverviewNew = ({
         if (dimension === 'sku') {
             setGlanceKpis(prev => prev.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume') return false;
-                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                 return true;
             }));
         } else if (dimension === 'brand') {
@@ -260,7 +249,7 @@ const PlatformOverviewNew = ({
                 return next;
             });
         }
-    }, [dimension, isBoatUser]);
+    }, [dimension]);
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
@@ -452,6 +441,7 @@ const PlatformOverviewNew = ({
                     name,
                     logoSrc,
                     color,
+                    offtakeShare: apiEntity.offtakeShare,
                     data: mapApiEntityToFrontend(apiEntity)
                 }
             })
@@ -735,13 +725,23 @@ const PlatformOverviewNew = ({
                                                         {e.name.slice(0, 2).toUpperCase()}
                                                     </div>
                                                 )}
-                                                <span
-                                                    className="text-[11px] sm:text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                    style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
-                                                    title={e.name}
-                                                >
-                                                    {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
-                                                </span>
+                                                <div className="flex flex-col flex-1 overflow-hidden justify-center">
+                                                    <span
+                                                        className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
+                                                        title={e.name}
+                                                    >
+                                                        {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
+                                                    </span>
+                                                    {dimension === 'sku' && e.offtakeShare !== undefined && (
+                                                        <div className="flex items-center gap-1 mt-0.5" title="Offtake Share">
+                                                            <div className="flex items-center gap-1 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50 text-sky-600 font-bold" style={{ fontSize: '9px' }}>
+                                                                <PieChart size={10} className="text-sky-500" />
+                                                                {e.offtakeShare}% Share
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
 
                                                 {/* Trend & RCA buttons */}
                                                 <div className="hidden sm:flex items-center gap-1">
