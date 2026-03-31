@@ -14,6 +14,7 @@ import {
     MapPin,
     SlidersHorizontal,
     Scale,
+    PieChart,
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
@@ -452,6 +453,7 @@ const PlatformOverviewNew = ({
                     name,
                     logoSrc,
                     color,
+                    offtakeShare: apiEntity.offtakeShare,
                     data: mapApiEntityToFrontend(apiEntity)
                 }
             })
@@ -735,13 +737,23 @@ const PlatformOverviewNew = ({
                                                         {e.name.slice(0, 2).toUpperCase()}
                                                     </div>
                                                 )}
-                                                <span
-                                                    className="text-[11px] sm:text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                    style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
-                                                    title={e.name}
-                                                >
-                                                    {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
-                                                </span>
+                                                <div className="flex flex-col flex-1 overflow-hidden justify-center">
+                                                    <span
+                                                        className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
+                                                        title={e.name}
+                                                    >
+                                                        {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
+                                                    </span>
+                                                    {dimension === 'sku' && e.offtakeShare !== undefined && (
+                                                        <div className="flex items-center gap-1 mt-0.5" title="Offtake Share">
+                                                            <div className="flex items-center gap-1 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50 text-sky-600 font-bold" style={{ fontSize: '9px' }}>
+                                                                <PieChart size={10} className="text-sky-500" />
+                                                                {e.offtakeShare}% Share
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
 
                                                 {/* Trend & RCA buttons */}
                                                 <div className="hidden sm:flex items-center gap-1">
