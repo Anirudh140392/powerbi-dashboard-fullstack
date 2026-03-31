@@ -1214,6 +1214,13 @@ export default function TrendsCompetitionDrawer({
               axis: "left",
               default: false,
             },
+            {
+              id: "Offtake",
+              label: "Offtake",
+              color: "#F59E0B",
+              axis: "left",
+              default: false,
+            },
           ],
           points: [
             { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, ASP: 190 },
@@ -1241,6 +1248,7 @@ export default function TrendsCompetitionDrawer({
             { id: "Discount", label: "Promo-My %", color: "#6366F1", default: true },
             { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
+            { id: "Offtake", label: "Offtake", color: "#F59E0B", default: false },
           ],
           x: COMPARE_X,
           trendsBySku: {
@@ -1824,6 +1832,49 @@ export default function TrendsCompetitionDrawer({
     return filtered.map(({ _dateObj, ...rest }) => rest);
   }, [trendMeta, range]);
 
+  const formatTooltipValue = (val, seriesName) => {
+    if (val === undefined || val === null) return '-';
+    let formatted = val;
+    if (typeof val === 'number') {
+      const absVal = Math.abs(val);
+      if (absVal >= 10000000) {
+        formatted = `${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+      } else if (absVal >= 100000) {
+        formatted = `${(val / 100000).toFixed(2).replace(/\.00$/, '')} lac`;
+      } else if (absVal >= 1000) {
+        formatted = `${(val / 1000).toFixed(2).replace(/\.00$/, '')} K`;
+      } else {
+        formatted = val.toFixed(2).replace(/\.00$/, '');
+      }
+    }
+    
+    if (seriesName.includes('%') || seriesName.toLowerCase().includes('rate')) {
+      return `${formatted}%`;
+    }
+    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales')) {
+      return `₹ ${formatted}`;
+    }
+    return formatted;
+  };
+
+  const createTooltipFormatter = (params) => {
+    if (!params || !params.length) return '';
+    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${params[0].axisValue}</div>`;
+    params.forEach(param => {
+      const formattedValue = formatTooltipValue(param.value, param.seriesName);
+      html += `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${param.color};"></span>
+            <span style="font-size:12px;color:#6B7280;">${param.seriesName}</span>
+          </div>
+          <span style="font-size:13px;font-weight:600;color:#111827;">${formattedValue}</span>
+        </div>
+      `;
+    });
+    return html;
+  };
+
   const trendOption = useMemo(() => {
     const dataSource = (chartData && chartData.length > 0) ? chartData : (dynamicKey === 'availability' ? [] : trendPoints);
     const xData = dataSource.map((p) => p.date);
@@ -1850,7 +1901,7 @@ export default function TrendsCompetitionDrawer({
 
     return {
       grid: { left: 60, right: 80, top: 32, bottom: 40 },
-      tooltip: { trigger: "axis" },
+      tooltip: { trigger: "axis", formatter: createTooltipFormatter },
       xAxis: {
         type: "category",
         data: xData,
@@ -1917,7 +1968,7 @@ export default function TrendsCompetitionDrawer({
     });
 
     return {
-      tooltip: { trigger: "axis" },
+      tooltip: { trigger: "axis", formatter: createTooltipFormatter },
       grid: { left: 40, right: 20, top: 20, bottom: 40 },
       xAxis: { type: "category", data: x },
       yAxis: {

@@ -10154,6 +10154,10 @@ const getSkuOverview = async (filters) => {
         const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
         const conds = [`${dateCol} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
 
+        if (src.f && src.f.compFlagMapping) {
+            conds.push(`${src.f.compFlagMapping} = 0`);
+        }
+
         const brandCol = src.isAgg ? 'brand' : 'Brand';
         if (brandArr && brandArr.length > 0) {
             conds.push(`(${brandArr.map(b => `${brandCol} LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
