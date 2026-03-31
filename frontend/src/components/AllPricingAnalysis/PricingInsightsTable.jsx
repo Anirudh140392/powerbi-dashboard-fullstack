@@ -136,7 +136,7 @@ const PricingInsightsTable = ({ sku, onClose, insightType }) => {
             }}>
                 <Box>
                     <Typography sx={{ fontSize: '16px', fontWeight: 600, color: '#1e293b', letterSpacing: '-0.01em' }}>
-                        City Impacts for <span style={{ color: '#3b82f6' }}>"{sku?.title}"</span>
+                        City Impacts for <span style={{ color: '#3b82f6' }}>"{sku?.title}"</span> on <span className="capitalize" style={{ color: '#6366f1' }}>{sku?.platform}</span>
                     </Typography>
                 </Box>
 

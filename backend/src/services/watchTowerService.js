@@ -10264,6 +10264,7 @@ const getSkuOverview = async (filters) => {
             FROM ${src.table}
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
             GROUP BY Product
+            HAVING (total_neno > 0 OR total_deno > 0)
             ORDER BY total_sales DESC
                 `),
         queryClickHouse(`
