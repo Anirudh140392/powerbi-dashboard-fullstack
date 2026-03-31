@@ -331,6 +331,9 @@ export default function MarketShareAnalysis() {
     try {
       const u = JSON.parse(localStorage.getItem('user'));
       if (u?.dbName) {
+        if (u.dbName.toLowerCase() === 'mamaearth') {
+            return 'The Derma Co.';
+        }
         return u.dbName
           .replace(/_/g, ' ')
           .replace(/\b\w/g, c => c.toUpperCase());
