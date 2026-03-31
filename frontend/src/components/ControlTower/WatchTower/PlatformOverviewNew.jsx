@@ -213,6 +213,8 @@ const PlatformOverviewNew = ({
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(50)
     const [apiData, setApiData] = useState({})
     const [apiLoading, setApiLoading] = useState(true)
     const [apiError, setApiError] = useState(null)
@@ -367,6 +369,7 @@ const PlatformOverviewNew = ({
         setPrevFilterKey(filterKey);
         setApiLoading(true);
         setApiError(null);
+        setCurrentPage(1);
     }
 
     useEffect(() => {
@@ -473,6 +476,12 @@ const PlatformOverviewNew = ({
 
         return result
     }, [apiData, dimension, globalPlatform])
+
+    // Pagination logic
+    const totalPages = Math.ceil(entities.length / pageSize)
+    const paginatedEntities = useMemo(() => {
+        return entities.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    }, [entities, currentPage, pageSize])
 
     const SectionWrapper = ({
         title,
@@ -704,7 +713,7 @@ const PlatformOverviewNew = ({
 
                                 {/* Entity Rows */}
                                 <div className="space-y-2 sm:space-y-3 px-1">
-                                    {entities.map((e) => (
+                                    {paginatedEntities.map((e) => (
                                         <motion.div
                                             key={e.key}
                                             className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
@@ -802,6 +811,34 @@ const PlatformOverviewNew = ({
                                         </motion.div>
                                     ))}
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Generic Pagination Controls */}
+                    {entities.length > pageSize && (
+                        <div className="mt-4 pt-3 sm:pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <span className="text-xs sm:text-sm text-slate-500">
+                                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, entities.length)} of {entities.length} entries
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 border border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-xs font-bold text-slate-700 px-2">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 border border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                                >
+                                    Next
+                                </button>
                             </div>
                         </div>
                     )}

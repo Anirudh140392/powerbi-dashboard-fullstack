@@ -924,9 +924,9 @@ const getDimensionOverview = async (filters = {}) => {
                         THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                         ELSE NULL END) AS Discount,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                             AND ${f.weightExpr} > 0 
+                             AND ${f.wPpu} > 0 
                              AND ${brandCondition}
-                        THEN ${f.wSellingPrice} / ${f.weightExpr} 
+                        THEN ${f.wPpu} 
                         ELSE NULL END) AS PricePerUnit,
                     
                     -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
@@ -952,9 +952,9 @@ const getDimensionOverview = async (filters = {}) => {
                         THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
                         ELSE NULL END) AS discount_prev,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                             AND ${f.weightExpr} > 0 
+                             AND ${f.wPpu} > 0 
                              AND ${brandCondition}
-                        THEN ${f.wSellingPrice} / ${f.weightExpr} 
+                        THEN ${f.wPpu} 
                         ELSE NULL END) AS price_per_unit_prev,
                     
                     -- ✅ NEW RPI Logic (Previous Period)
@@ -1110,6 +1110,7 @@ const getDimensionTrends = async (filters = {}) => {
             Discount: parseFloat(r.discount) || 0,
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
             ASP: parseFloat(r.asp) || 0,
+            Offtake: parseFloat(r.offtake) || 0,
         }));
 
         return { success: true, timeSeries };
@@ -1234,6 +1235,7 @@ const getPricingCompetitionTrends = async (filters) => {
                 Discount: parseFloat(r.discount) || 0,
                 PricePerUnit: parseFloat(r.price_per_unit) || 0,
                 ASP: parseFloat(r.asp) || 0,
+                Offtake: parseFloat(r.offtake) || 0,
             };
         });
 

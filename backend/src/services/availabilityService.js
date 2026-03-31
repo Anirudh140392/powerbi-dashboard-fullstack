@@ -1218,6 +1218,11 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     };
                 }).sort((a, b) => a.name.localeCompare(b.name));
 
+                // Filter out products where both neno and deno over the selected period are 0
+                if (totalNeno === 0 && totalDeno === 0) {
+                    return null;
+                }
+
                 return {
                     name: item.name,
                     sku: item.sku,
@@ -1232,7 +1237,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     status: status,
                     cities: sortedCities
                 };
-            }).sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
+            }).filter(Boolean).sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
 
             return formattedData;
         } catch (error) {
@@ -1776,13 +1781,19 @@ const getOsaDetailByCategory = async (filters) => {
                     skuMap[skuId] = {
                         name: row.name,
                         sku: row.sku,
-                        dailyOsa: {}
+                        dailyOsa: {},
+                        totalNeno: 0,
+                        totalDeno: 0
                     };
                 }
                 skuMap[skuId].dailyOsa[dateStr] = parseFloat(osa.toFixed(1));
+                skuMap[skuId].totalNeno += neno;
+                skuMap[skuId].totalDeno += deno;
             });
 
-            const categories = Object.values(skuMap).map(item => {
+            const categories = Object.values(skuMap)
+                .filter(item => item.totalNeno > 0 || item.totalDeno > 0)
+                .map(item => {
                 // Map to sortedDates and fill gaps with 0
                 const values = sortedDates.map(d => item.dailyOsa[d] ?? 0);
 
