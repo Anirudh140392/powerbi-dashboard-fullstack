@@ -176,40 +176,29 @@ const PlatformOverviewNew = ({
     ]
     const [dimension, setDimension] = useState('platform')
 
-    const isBoatUser = useMemo(() => {
-        try {
-            const u = JSON.parse(localStorage.getItem('user'));
-            return u?.dbName?.toLowerCase() === 'boat';
-        } catch {
-            return false;
-        }
-    }, []);
-
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
         if (dimension === 'sku') {
             return kpis.filter(k => {
                 if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
-                if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
                 return true;
             });
         }
         if (dimension === 'brand') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return kpis;
-    }, [dimension, kpis, isBoatUser]);
+    }, [dimension, kpis]);
 
     const defaultKpiKeys = useMemo(() => {
         const base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
         if (dimension === 'sku') {
             return base.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
-                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                 return true;
             });
         }
         if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         return base;
-    }, [dimension, isBoatUser]);
+    }, [dimension]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -240,7 +229,6 @@ const PlatformOverviewNew = ({
         if (dimension === 'sku') {
             setGlanceKpis(prev => prev.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume') return false;
-                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
                 return true;
             }));
         } else if (dimension === 'brand') {
@@ -261,7 +249,7 @@ const PlatformOverviewNew = ({
                 return next;
             });
         }
-    }, [dimension, isBoatUser]);
+    }, [dimension]);
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
