@@ -188,13 +188,13 @@ Higher % = better stock management.
 
 ### Formula
 ```sql
-SOS = (COUNT(rb_kw WHERE brand_name = 'Brand X') / COUNT(rb_kw)) × 100
+SOS = (COUNT(rb_kw_olap WHERE brand_name = 'Brand X') / COUNT(rb_kw_olap)) × 100
 ```
 
 ### Database Details
 | Component | Value |
 |-----------|-------|
-| **Table** | `rb_kw` |
+| **Table** | `rb_kw_olap` |
 | **Key Columns** | `brand_name`, `kw_crawl_date` |
 | **Filter Columns** | `platform_name`, `location_name`, `keyword_category`, `spons_flag` |
 | **Aggregation** | COUNT (rows) |
@@ -209,14 +209,14 @@ SOS = (COUNT(rb_kw WHERE brand_name = 'Brand X') / COUNT(rb_kw)) × 100
 ```sql
 -- Numerator: Brand keyword count
 SELECT COUNT(*) as Brand_Count
-FROM rb_kw
+FROM rb_kw_olap
 WHERE brand_name = 'Cinthol'
   AND kw_crawl_date BETWEEN '2025-01-01' AND '2025-01-31'
   AND LOWER(platform_name) = 'zepto';
 
 -- Denominator: All brands keyword count
 SELECT COUNT(*) as Total_Count
-FROM rb_kw
+FROM rb_kw_olap
 WHERE kw_crawl_date BETWEEN '2025-01-01' AND '2025-01-31'
   AND LOWER(platform_name) = 'zepto';
 
@@ -290,7 +290,7 @@ WHERE Comp_flag = 0
 | **Filter Column** | `Comp_flag = 0` (own brand) |
 | **Aggregation** | AVG |
 | **Data Type** | String (requires CAST to DECIMAL) |
-| **Result Format** | Percentage |
+| **Result Format** | Percentage |Promo
 
 ### SQL Example
 ```sql
@@ -445,6 +445,84 @@ Lower % = more efficient marketing spend.
 
 ---
 
+## 14. DOI (Days of Inventory)
+
+### Formula
+```sql
+DOI = (Latest_Inventory / SUM(Qty_Sold in last 30 days)) × 30
+```
+
+### Database Details
+| Component | Value |
+|-----------|-------|
+| **Table** | `rb_pdp_olap` |
+| **Inventory Column** | `Inventory` |
+| **Sales Column** | `Qty_Sold` |
+| **Lookback Period** | 30 Days |
+| **Aggregation** | argMax for Inventory, SUM for Qty_Sold |
+| **Result Format** | Decimal (Days) |
+
+### SQL Example (ClickHouse)
+```sql
+-- Calculate Latest Inventory and 30-day Sales
+SELECT 
+  argMax(Inventory, DATE) as latest_inv,
+  SUM(Qty_Sold) as total_sales_30d,
+  (latest_inv / NULLIF(total_sales_30d, 0)) * 30 as DOI
+FROM rb_pdp_olap
+WHERE DATE BETWEEN subtractDays(today(), 30) AND today();
+```
+
+### Interpretation
+Estimated number of days the current inventory will last based on recent sales velocity.
+Lower DOI = faster stock turnover. High DOI = potential overstock.
+
+---
+
+## 15. Fill Rate %
+
+### Formula
+```sql
+Fill Rate % = (SUM(rb_pdp_olap.buy_box_neno_osa) / SUM(rb_pdp_olap.deno_osa)) × 100
+```
+
+### Database Details
+| Component | Value |
+|-----------|-------|
+| **Table** | `rb_pdp_olap` |
+| **Numerator Column** | `buy_box_neno_osa` |
+| **Denominator Column** | `deno_osa` |
+| **Aggregation** | SUM for both |
+| **Result Format** | Percentage |
+
+### Interpretation
+Percentage of demand met by products that also own the "Buy Box". 
+Critical for platforms like Amazon/Flipkart where multiple sellers compete for the same listing.
+
+---
+
+## 16. PSL % (Potential Service Level)
+
+### Formula
+```sql
+PSL % = (Latest_Inventory / SUM(rb_pdp_olap.MSL)) × 100
+```
+
+### Database Details
+| Component | Value |
+|-----------|-------|
+| **Table** | `rb_pdp_olap` |
+| **Numerator Column** | `Inventory` (Latest) |
+| **Denominator Column** | `MSL` (Minimum Stock Level) |
+| **Proxy Calculation** | If MSL is 0, use `Availability % * 0.95` |
+| **Result Format** | Percentage |
+
+### Interpretation
+Measures how current stock levels compare to the ideal "Minimum Stock Level" (MSL).
+100%+ = Well stocked against targets. < 100% = Potential for out-of-stock soon.
+
+---
+
 ## 📋 Quick Reference Table
 
 | # | KPI Name | Table | Key Columns | Formula Type |
@@ -455,13 +533,16 @@ Lower % = more efficient marketing spend.
 | 4 | Inorganic Sales % | rb_pdp_olap | Ad_sales, Sales | Percentage |
 | 5 | Conversion % | rb_pdp_olap | Ad_Orders, Ad_Clicks | Percentage |
 | 6 | Availability % | rb_pdp_olap | neno_osa, deno_osa | Percentage |
-| 7 | Share of Search | rb_kw | brand_name, kw_crawl_date | Count Ratio |
+| 7 | Share of Search | rb_kw_olap | brand_name, kw_crawl_date | Count Ratio |
 | 8 | Market Share | rb_brand_ms | market_share | AVG |
 | 9 | Promo My Brand | rb_pdp_olap | MRP, Selling_Price, Comp_flag | AVG % |
 | 10 | Promo Compete | rb_pdp_olap | MRP, Selling_Price, Comp_flag | AVG % |
 | 11 | CPM | rb_pdp_olap | Ad_Spend, Ad_Impressions | Cost/1000 |
 | 12 | CPC | rb_pdp_olap | Ad_Spend, Ad_Clicks | Average Cost |
 | 13 | BMI/Sales Ratio | rb_pdp_olap | Ad_Spend, Sales | Percentage |
+| 14 | DOI | rb_pdp_olap | Inventory, Qty_Sold | Inventory Days |
+| 15 | Fill Rate % | rb_pdp_olap | buy_box_neno_osa, deno_osa | Percentage |
+| 16 | PSL % | rb_pdp_olap | Inventory, MSL | Target Stock % |
 
 ---
 
@@ -478,6 +559,10 @@ Columns Used:
 - Ad_Impressions     (INTEGER)    - Ad impressions
 - neno_osa           (INTEGER)    - Availability numerator
 - deno_osa           (INTEGER)    - Availability denominator
+- buy_box_neno_osa   (INTEGER)    - Buy Box availability numerator
+- Inventory          (DECIMAL)    - Current stock level
+- Qty_Sold           (DECIMAL)    - Quantity sold
+- MSL                (DECIMAL)    - Minimum Stock Level target
 - MRP                (STRING)     - Maximum Retail Price
 - Selling_Price      (STRING)     - Actual selling price
 - Comp_flag          (INTEGER)    - 0=own brand, 1=competitor
@@ -488,7 +573,7 @@ Columns Used:
 - Category           (STRING)     - Product category
 ```
 
-### Table: `rb_kw`
+### Table: `rb_kw_olap`
 ```sql
 Columns Used:
 - brand_name         (STRING)     - Brand name

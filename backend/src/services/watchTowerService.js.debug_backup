@@ -377,7 +377,7 @@ const computeSummaryMetrics = async (filters) => {
                             'Platform',
                             [Sequelize.fn('SUM', Sequelize.col('Sales')), 'sales'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'spend'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'ad_sales'],
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'Ad_sales'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'clicks'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'impressions'],
                             [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'neno'],
@@ -414,7 +414,7 @@ const computeSummaryMetrics = async (filters) => {
                             'Platform',
                             [Sequelize.fn('SUM', Sequelize.col('Sales')), 'sales'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'spend'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'ad_sales'],
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'Ad_sales'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'clicks'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'impressions'],
                             [Sequelize.fn('SUM', Sequelize.col('neno_osa')), 'neno'],
@@ -462,7 +462,7 @@ const computeSummaryMetrics = async (filters) => {
                         curr: {
                             sales: parseFloat(c?.sales || 0),
                             spend: parseFloat(c?.spend || 0),
-                            adSales: parseFloat(c?.ad_sales || 0),
+                            adSales: parseFloat(c?.Ad_sales || 0),
                             clicks: parseFloat(c?.clicks || 0),
                             impressions: parseFloat(c?.impressions || 0),
                             neno: parseFloat(c?.neno || 0),
@@ -472,7 +472,7 @@ const computeSummaryMetrics = async (filters) => {
                         prev: {
                             sales: parseFloat(pv?.sales || 0),
                             spend: parseFloat(pv?.spend || 0),
-                            adSales: parseFloat(pv?.ad_sales || 0),
+                            adSales: parseFloat(pv?.Ad_sales || 0),
                             clicks: parseFloat(pv?.clicks || 0),
                             impressions: parseFloat(pv?.impressions || 0),
                             neno: parseFloat(pv?.neno || 0),
@@ -898,13 +898,13 @@ const computeSummaryMetrics = async (filters) => {
                 const result = await RbPdpOlap.findOne({
                     attributes: [
                         [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
-                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales']
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales']
                     ],
                     where,
                     raw: true
                 });
                 const totalSales = parseFloat(result?.total_sales || 0);
-                const totalAdSales = parseFloat(result?.total_ad_sales || 0);
+                const totalAdSales = parseFloat(result?.total_Ad_sales || 0);
                 return totalSales > 0 ? (totalAdSales / totalSales) * 100 : 0;
             };
 
@@ -983,13 +983,13 @@ const computeSummaryMetrics = async (filters) => {
                 };
                 const result = await RbPdpOlap.findOne({
                     attributes: [
-                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales'],
                         [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend']
                     ],
                     where,
                     raw: true
                 });
-                const adSales = parseFloat(result?.total_ad_sales || 0);
+                const adSales = parseFloat(result?.total_Ad_sales || 0);
                 const spend = parseFloat(result?.total_spend || 0);
                 return spend > 0 ? adSales / spend : 0;
             };
@@ -1578,7 +1578,7 @@ const computeSummaryMetrics = async (filters) => {
                     attributes: [
                         [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                         [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                        [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales'],
                         [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
                         [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
                     ],
@@ -1587,7 +1587,7 @@ const computeSummaryMetrics = async (filters) => {
                 });
                 const moOfftake = parseFloat(moOfftakeResult?.total_sales || 0);
                 const moSpend = parseFloat(moOfftakeResult?.total_spend || 0);
-                const moAdSales = parseFloat(moOfftakeResult?.total_ad_sales || 0);
+                const moAdSales = parseFloat(moOfftakeResult?.total_Ad_sales || 0);
                 const moClicks = parseFloat(moOfftakeResult?.total_clicks || 0);
                 const moImpressions = parseFloat(moOfftakeResult?.total_impressions || 0);
 
@@ -1692,7 +1692,7 @@ const computeSummaryMetrics = async (filters) => {
                         attributes: [
                             [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                            [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_clicks'],
                             [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_impressions']
                         ],
@@ -1741,7 +1741,7 @@ const computeSummaryMetrics = async (filters) => {
 
                 const catOfftake = parseFloat(catOfftakeResult?.total_sales || 0);
                 const catSpend = parseFloat(catOfftakeResult?.total_spend || 0);
-                const catAdSales = parseFloat(catOfftakeResult?.total_ad_sales || 0); // Inorg Sales
+                const catAdSales = parseFloat(catOfftakeResult?.total_Ad_sales || 0); // Inorg Sales
                 const catClicks = parseFloat(catOfftakeResult?.total_clicks || 0);
                 const catImpressions = parseFloat(catOfftakeResult?.total_ad_impressions || 0);
                 const catMarketShare = parseFloat(catMsResult?.avg_ms || 0);
@@ -1926,7 +1926,7 @@ const computeSummaryMetrics = async (filters) => {
                     'Brand',
                     [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_ad_orders'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
@@ -1963,7 +1963,7 @@ const computeSummaryMetrics = async (filters) => {
                     ['manufacturer_name', 'Brand'],
                     [Sequelize.fn('SUM', Sequelize.literal('CAST(qty_sold AS DECIMAL(10,2)) * CAST(mrp AS DECIMAL(10,2))')), 'total_sales'],
                     [Sequelize.literal('0'), 'total_spend'],
-                    [Sequelize.literal('0'), 'total_ad_sales'],
+                    [Sequelize.literal('0'), 'total_Ad_sales'],
                     [Sequelize.literal('0'), 'total_ad_orders'],
                     [Sequelize.literal('0'), 'total_ad_clicks'],
                     [Sequelize.literal('0'), 'total_ad_impressions'],
@@ -1983,7 +1983,7 @@ const computeSummaryMetrics = async (filters) => {
                     'Brand',
                     [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_ad_orders'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
@@ -2013,7 +2013,7 @@ const computeSummaryMetrics = async (filters) => {
                     'Brand',
                     [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Spend')), 'total_spend'],
-                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_ad_sales'],
+                    [Sequelize.fn('SUM', Sequelize.col('Ad_sales')), 'total_Ad_sales'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Orders')), 'total_ad_orders'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Clicks')), 'total_ad_clicks'],
                     [Sequelize.fn('SUM', Sequelize.col('Ad_Impressions')), 'total_ad_impressions'],
@@ -2119,8 +2119,8 @@ const computeSummaryMetrics = async (filters) => {
             const spendTrend = calcTrend(currSpend, prevSpend);
 
             // ROAS
-            const currAdSales = findMetric(boOfftakeMap, brandName, 'total_ad_sales');
-            const prevAdSales = findMetric(boPrevOfftakeMap, brandName, 'total_ad_sales');
+            const currAdSales = findMetric(boOfftakeMap, brandName, 'total_Ad_sales');
+            const prevAdSales = findMetric(boPrevOfftakeMap, brandName, 'total_Ad_sales');
             const currRoas = currSpend > 0 ? currAdSales / currSpend : 0;
             const prevRoas = prevSpend > 0 ? prevAdSales / prevSpend : 0;
             const roasTrend = calcTrend(currRoas, prevRoas);
@@ -2943,7 +2943,7 @@ const getKpiTrends = async (filters) => {
                 [sequelize.fn('MAX', sequelize.col('DATE')), 'ref_date'],
                 // For Inorganic Sales, ROAS, BMI/Sales Ratio
                 [sequelize.fn('SUM', sequelize.col('Sales')), 'total_sales'],
-                [sequelize.fn('SUM', sequelize.col('ad_sales')), 'total_ad_sales'],
+                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_Ad_sales'],
                 [sequelize.fn('SUM', sequelize.col('ad_spend')), 'total_ad_spend'],
                 // For Conversion
                 [sequelize.fn('SUM', sequelize.col('ad_orders')), 'total_ad_orders'],
@@ -3018,7 +3018,7 @@ const getKpiTrends = async (filters) => {
 
             // Extract values
             const totalSales = parseFloat(row.total_sales || 0);
-            const adSales = parseFloat(row.total_ad_sales || 0);
+            const adSales = parseFloat(row.total_Ad_sales || 0);
             const adSpend = parseFloat(row.total_ad_spend || 0);
             const adOrders = parseFloat(row.total_ad_orders || 0);
             const adClicks = parseFloat(row.total_ad_clicks || 0);
@@ -3309,7 +3309,7 @@ const getCompetitionData = async (filters = {}) => {
                 'Brand',
                 [sequelize.fn('SUM', sequelize.col('Sales')), 'total_offtakes'],
                 [sequelize.fn('SUM', sequelize.col('Ad_Spend')), 'total_spend'],
-                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_ad_sales'],
+                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_Ad_sales'],
             ],
             where: whereClause,
             group: ['Brand'],
@@ -3342,7 +3342,7 @@ const getCompetitionData = async (filters = {}) => {
                 'Brand',
                 [sequelize.fn('SUM', sequelize.col('Sales')), 'total_offtakes'],
                 [sequelize.fn('SUM', sequelize.col('Ad_Spend')), 'total_spend'],
-                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_ad_sales'],
+                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_Ad_sales'],
             ],
             where: momWhereClause,
             group: ['Brand'],
@@ -3377,7 +3377,7 @@ const getCompetitionData = async (filters = {}) => {
         const brandMetrics = currentBrands.map(brand => {
             const offtakes = parseFloat(brand.total_offtakes || 0);
             const spend = parseFloat(brand.total_spend || 0);
-            const adSales = parseFloat(brand.total_ad_sales || 0);
+            const adSales = parseFloat(brand.total_Ad_sales || 0);
             const roas = spend > 0 ? adSales / spend : 0;
 
             // Calculate availability
@@ -3388,7 +3388,7 @@ const getCompetitionData = async (filters = {}) => {
             const prevBrand = prevMap.get(brand.Brand) || {};
             const prevOfftakes = parseFloat(prevBrand.total_offtakes || 0);
             const prevSpend = parseFloat(prevBrand.total_spend || 0);
-            const prevAdSales = parseFloat(prevBrand.total_ad_sales || 0);
+            const prevAdSales = parseFloat(prevBrand.total_Ad_sales || 0);
             const prevRoas = prevSpend > 0 ? prevAdSales / prevSpend : 0;
 
             // Calculate deltas
@@ -3460,7 +3460,7 @@ const getCompetitionData = async (filters = {}) => {
                 'Brand',
                 [sequelize.fn('SUM', sequelize.col('Sales')), 'total_offtakes'],
                 [sequelize.fn('SUM', sequelize.col('Ad_Spend')), 'total_spend'],
-                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_ad_sales'],
+                [sequelize.fn('SUM', sequelize.col('Ad_sales')), 'total_Ad_sales'],
             ],
             where: whereClause,
             group: ['Product', 'Brand'],
@@ -3486,7 +3486,7 @@ const getCompetitionData = async (filters = {}) => {
         const skuMetrics = currentSkus.map(sku => {
             const offtakes = parseFloat(sku.total_offtakes || 0);
             const spend = parseFloat(sku.total_spend || 0);
-            const adSales = parseFloat(sku.total_ad_sales || 0);
+            const adSales = parseFloat(sku.total_Ad_sales || 0);
             const roas = spend > 0 ? adSales / spend : 0;
 
             const osaData = skuOsaMap.get(sku.Product);

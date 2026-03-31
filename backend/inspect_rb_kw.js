@@ -14,15 +14,15 @@ async function inspectTable() {
         console.log(`Connecting to ${process.env.CLICKHOUSE_URL} (DB: ${process.env.CLICKHOUSE_DB})...`);
 
         const schemaResult = await clickhouse.query({
-            query: "SELECT name, type FROM system.columns WHERE table = 'rb_kw' AND database = currentDatabase()",
+            query: "SELECT name, type FROM system.columns WHERE table = 'rb_kw_olap' AND database = currentDatabase()",
             format: 'JSONEachRow',
         });
         const columns = await schemaResult.json();
-        console.log('--- rb_kw Schema ---');
+        console.log('--- rb_kw_olap Schema ---');
         console.table(columns);
 
         const sampleResult = await clickhouse.query({
-            query: "SELECT * FROM rb_kw LIMIT 1",
+            query: "SELECT * FROM rb_kw_olap LIMIT 1",
             format: 'JSONEachRow',
         });
         const samples = await sampleResult.json();

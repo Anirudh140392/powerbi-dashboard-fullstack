@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import eyLogo from "../../assets/sidebar_logo.png";
-const trailyticsLogo = "/Trailytics.jpg";
+import marsLogo from "../../assets/mars2.svg";
+import mamaearthLogo from "../../assets/mamaearth.jpeg";
+import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
+import boatLogo from "../../assets/Boat.png";
+import zydusLogo from "../../assets/zyduslogo.png";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -58,7 +62,24 @@ const Sidebar = ({
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+
+  // Dynamic logo based on user's database
+  const activeLogo = useMemo(() => {
+    if (user?.dbName === 'mamaearth') return mamaearthLogo;
+    if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
+    if (user?.dbName === 'boat') return boatLogo;
+    if (user?.dbName === 'zydus') return zydusLogo;
+    return marsLogo;
+  }, [user?.dbName]);
+
+  const activeLogoAlt = useMemo(() => {
+    if (user?.dbName === 'mamaearth') return 'Mamaearth Logo';
+    if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
+    if (user?.dbName === 'boat') return 'Boat Logo';
+    if (user?.dbName === 'zydus') return 'Zydus Logo';
+    return 'Mars Logo';
+  }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
@@ -67,25 +88,25 @@ const Sidebar = ({
 
   const menuSections = {
     "MAIN MENU": [
-      { label: "Watch Tower", path: "/watch-tower", icon: <DashboardIcon sx={{ fontSize: '1.1rem' }} /> },
-      { label: "Map Intellect", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Business Overview", path: "/watch-tower", icon: <DashboardIcon sx={{ fontSize: '1.1rem' }} /> },
+      { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
+      // { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
-      { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
+      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['boat', 'mars_petcare'] },
+      //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
+      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
+      //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
+      { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
+      // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
+      // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Scheduled Reports", path: "/scheduled-reports", icon: <ScheduleIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Ad Auto", path: "https://demo.adauto.in/", icon: <CampaignIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Rating", path: "https://prestige-lac.vercel.app/", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Supply", path: "https://sku360.up.railway.app", icon: <LocalShippingIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Content", path: "https://content-pied-psi.vercel.app/", icon: <DescriptionIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Ad Auto", path: "https://frontend-mamaearth.onrender.com", icon: <CampaignIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars', 'boat', 'zydus', 'mars_petcare'] },
+      //{ label: "Rating", path: "https://prestige-lac.vercel.app/", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
+      //{ label: "Supply", path: "https://sku360.up.railway.app", icon: <LocalShippingIcon sx={{ fontSize: '1rem' }} /> },
+      //{ label: "Content", path: "https://content-pied-psi.vercel.app/", icon: <DescriptionIcon sx={{ fontSize: '1rem' }} /> },
     ],
   };
 
@@ -141,7 +162,7 @@ const Sidebar = ({
             justifyContent: 'center', // Center logo horizontally
             transition: 'all 0.3s ease',
             width: '100%',
-            height: 48,
+            height: (user?.dbName === 'mars_petcare' && !isCollapsed) ? 150 : (user?.dbName === 'mamaearth' && !isCollapsed ? 100 : (user?.dbName === 'zydus' && !isCollapsed ? 80 : 60)),
           }}
         >
           {/* EY Logo Container */}
@@ -157,14 +178,16 @@ const Sidebar = ({
             }}
           >
             <img
-              src={trailyticsLogo}
-              alt="Trailytics Logo"
+              src={activeLogo}
+              alt={activeLogoAlt}
               style={{
-                height: 'auto',
-                width: '100%',
-                maxWidth: isCollapsed ? '42px' : '160px',
+                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
+                width: isCollapsed ? '100%' : 'auto',
+                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
                 objectFit: 'contain',
-                display: 'block'
+                padding: '0',
+                display: 'block',
+                borderRadius: user?.dbName === 'mamaearth' ? '6px' : '0',
               }}
             />
           </Box>
@@ -243,7 +266,14 @@ const Sidebar = ({
                 {sectionName}
               </Typography>
             )}
-            {items.map((item) => {
+            {items.filter((item) => {
+              const dbName = user?.dbName;
+              // If showOnlyForDb is provided, check if current db is in the list
+              if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
+              // If hideForDb is provided, check if current db is in the list
+              if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
+              return true;
+            }).map((item) => {
               const isActive = currentPath === item.path;
               const isPiy = item.isPiy;
 
@@ -331,16 +361,26 @@ const Sidebar = ({
         bgcolor: isCollapsed ? "transparent" : "rgba(248, 250, 252, 0.5)"
       }}>
         {isCollapsed ? (
-          <Typography
-            sx={{
-              fontSize: '9px',
-              fontWeight: 700,
-              color: 'rgba(0, 0, 0, 0.15)',
-              letterSpacing: '1px'
-            }}
-          >
-            TR
-          </Typography>
+          <Tooltip title="Sign Out" placement="right">
+            <IconButton
+              onClick={() => {
+                logout();
+                localStorage.clear();
+                navigate('/login');
+              }}
+              sx={{
+                color: "#ef4444",
+                bgcolor: "rgba(239, 68, 68, 0.05)",
+                "&:hover": {
+                  bgcolor: "#ef4444",
+                  color: "#fff",
+                },
+                transition: "all 0.2s ease",
+              }}
+            >
+              <LogoutIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Typography
@@ -366,10 +406,10 @@ const Sidebar = ({
             <Button
               variant="outlined"
               size="small"
-              onClick={(e) => {
-                e.stopPropagation();
+              onClick={() => {
                 logout();
-                navigate("/login");
+                localStorage.clear();
+                navigate('/login');
               }}
               startIcon={<LogoutIcon sx={{ fontSize: "1rem" }} />}
               sx={{
@@ -379,11 +419,10 @@ const Sidebar = ({
                 borderColor: "rgba(239, 68, 68, 0.2)",
                 textTransform: "none",
                 fontSize: "0.65rem",
+                px: 1.5,
                 fontWeight: 600,
                 borderRadius: "8px",
-                px: 1,
-                py: 0.2,
-                bgcolor: "rgba(239, 68, 68, 0.02)",
+                transition: "all 0.2s ease",
                 "&:hover": {
                   bgcolor: "#ef4444",
                   color: "#fff",
@@ -391,7 +430,6 @@ const Sidebar = ({
                   transform: "translateY(-1px)",
                   boxShadow: "0 2px 8px rgba(239, 68, 68, 0.2)",
                 },
-                transition: "all 0.2s ease",
               }}
             >
               SignOut

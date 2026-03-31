@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect, useRef } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import VisiblityAnalysisData from "../../components/AllVisiblityAnalysis/VisiblityAnalysisData";
 import { FilterContext } from "../../utils/FilterContext";
+import axiosInstance from "../../api/axiosInstance";
 import dayjs from "dayjs";
 
 export default function VisibilityAnalysis() {
@@ -10,6 +11,9 @@ export default function VisibilityAnalysis() {
     platform,
     selectedBrand,
     selectedLocation,
+    selectedKeyword,
+    selectedKeywordType,
+    selectedCategory,
     timeStart,
     timeEnd,
     refreshFilters,
@@ -17,14 +21,17 @@ export default function VisibilityAnalysis() {
 
   const [showTrends, setShowTrends] = useState(false);
 
-  // Track if visibility-specific dates have been initialized from rb_kw table
+  // Track if visibility-specific dates have been initialized from rb_kw_olap table
   const [visibilityDatesReady, setVisibilityDatesReady] = useState(false);
 
   // Initialize filters with empty dates - will be set after fetching from backend
   const [filters, setFilters] = useState({
     platform: platform || "Blinkit",
     brand: selectedBrand || "All",
-    location: selectedLocation || "All",
+    location: "All",
+    keyword: selectedKeyword || "All",
+    keywordType: selectedKeywordType || "All",
+    category: selectedCategory || "All",
     months: 6,
     timeStep: "Weekly",
     startDate: null,  // Will be set after fetching latest available dates
@@ -34,6 +41,7 @@ export default function VisibilityAnalysis() {
   // Ref to track last fetched filters to prevent duplicate API calls
   const lastFetchedFiltersRef = useRef(null);
   const lastMainFiltersRef = useRef(null); // Track only global filters
+  const abortControllerRef = useRef(null); // Persistent ref to handle abortions manually
 
   // ============ CRITICAL: Fetch visibility-specific dates FIRST on mount ============
   useEffect(() => {
@@ -42,9 +50,9 @@ export default function VisibilityAnalysis() {
 
     const fetchVisibilityDates = async () => {
       try {
-        console.log('🗓️ [Visibility] Fetching latest available dates from rb_kw table...');
-        const response = await fetch('/api/visibility-analysis/latest-available-dates');
-        const data = await response.json();
+        console.log('🗓️ [Visibility] Fetching latest available dates from rb_kw_olap table...');
+        const response = await axiosInstance.get('/visibility-analysis/latest-available-dates');
+        const data = response.data;
 
         let startDate, endDate;
         if (data.available) {
@@ -86,34 +94,49 @@ export default function VisibilityAnalysis() {
     fetchVisibilityDates();
   }, [visibilityDatesReady]);
 
-  // Sync platform/brand/location AND dates with FilterContext
-  // When user changes dates in the header, update our local filters
+  // Sync platform/brand/location/keyword/category AND dates with FilterContext
+  // When user changes any global filter in the header, update our local filters
   useEffect(() => {
-    setFilters(prev => {
-      const updates = {
+    // Only update if filters actually changed to avoid unnecessary re-renders/aborts
+    const currentPlatform = platform || filters.platform;
+    const currentBrand = selectedBrand || filters.brand;
+    const currentKeyword = selectedKeyword || filters.keyword;
+    const currentKeywordType = selectedKeywordType || filters.keywordType;
+    const currentCategory = selectedCategory || filters.category;
+    const currentStartDate = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : filters.startDate;
+    const currentEndDate = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : filters.endDate;
+
+    if (
+      currentPlatform !== filters.platform ||
+      currentBrand !== filters.brand ||
+      currentKeyword !== filters.keyword ||
+      currentKeywordType !== filters.keywordType ||
+      currentCategory !== filters.category ||
+      currentStartDate !== filters.startDate ||
+      currentEndDate !== filters.endDate
+    ) {
+      console.log('🗓️ [Visibility] Syncing filters from global context');
+      setFilters(prev => ({
         ...prev,
-        platform: platform || prev.platform,
-        brand: selectedBrand || prev.brand,
-        location: selectedLocation || prev.location,
-      };
+        platform: currentPlatform,
+        brand: currentBrand,
+        location: selectedLocation || "All",
+        keyword: currentKeyword,
+        keywordType: currentKeywordType,
+        category: currentCategory,
+        startDate: currentStartDate,
+        endDate: currentEndDate
+      }));
+    }
+  }, [platform, selectedBrand, selectedLocation, selectedKeyword, selectedKeywordType, selectedCategory, timeStart, timeEnd]);
 
-      // Sync dates from FilterContext if they're changed by user in the header
-      // Only update if timeStart/timeEnd are valid dayjs objects
-      if (timeStart && timeEnd) {
-        const newStartDate = dayjs(timeStart).format('YYYY-MM-DD');
-        const newEndDate = dayjs(timeEnd).format('YYYY-MM-DD');
-
-        // Only update if dates have actually changed to avoid unnecessary re-renders
-        if (newStartDate !== prev.startDate || newEndDate !== prev.endDate) {
-          console.log('🗓️ [Visibility] Syncing dates from header:', newStartDate, 'to', newEndDate);
-          updates.startDate = newStartDate;
-          updates.endDate = newEndDate;
-        }
-      }
-
-      return updates;
-    });
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd]);
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -126,72 +149,92 @@ export default function VisibilityAnalysis() {
     metrics: {},
   });
 
-  // Tab for Top Search Terms
-  const [topSearchFilter, setTopSearchFilter] = useState("All");
+
 
   // API data state - fetched when filters change
   const [apiData, setApiData] = useState({});
   // Per-segment error tracking
   const [apiErrors, setApiErrors] = useState({});
+  // Per-segment loading state
+  const [loading, setLoading] = useState({
+    overview: false,
+    matrix: false,
+    keywords: false,
+    gainersAndDrainers: false
+  });
 
   // Individual segment fetch functions for retry capability
-  const fetchVisibilityOverview = async (queryParams) => {
+  const fetchVisibilityOverview = async (queryParams, signal) => {
     try {
+      setLoading(prev => ({ ...prev, overview: true }));
       setApiErrors(prev => ({ ...prev, overview: null }));
-      const res = await fetch(`/api/visibility-analysis/visibility-overview?${queryParams}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const res = await axiosInstance.get(`/visibility-analysis/visibility-overview?${queryParams}`, { signal });
+      const data = res.data;
       setApiData(prev => ({ ...prev, overview: data }));
       return true;
     } catch (err) {
+      if (axiosInstance.isCancel(err)) return false;
       console.error('❌ [Visibility] Overview fetch error:', err);
       setApiErrors(prev => ({ ...prev, overview: err.message }));
       return false;
+    } finally {
+      setLoading(prev => ({ ...prev, overview: false }));
     }
   };
 
-  const fetchVisibilityMatrix = async (matrixParams) => {
+  const fetchVisibilityMatrix = async (matrixParams, signal) => {
     try {
+      setLoading(prev => ({ ...prev, matrix: true }));
       setApiErrors(prev => ({ ...prev, matrix: null }));
-      const res = await fetch(`/api/visibility-analysis/platform-kpi-matrix?${matrixParams}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${matrixParams}`, { signal });
+      const data = res.data;
       setApiData(prev => ({ ...prev, matrix: data }));
       return true;
     } catch (err) {
+      if (axiosInstance.isCancel(err)) return false;
       console.error('❌ [Visibility] Platform KPI Matrix fetch error:', err);
       setApiErrors(prev => ({ ...prev, matrix: err.message }));
       return false;
+    } finally {
+      setLoading(prev => ({ ...prev, matrix: false }));
     }
   };
 
-  const fetchVisibilityKeywords = async (queryParams) => {
+  const fetchVisibilityKeywords = async (queryParams, signal) => {
     try {
+      setLoading(prev => ({ ...prev, keywords: true }));
       setApiErrors(prev => ({ ...prev, keywords: null }));
-      const res = await fetch(`/api/visibility-analysis/keywords-at-glance?${queryParams}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const res = await axiosInstance.get(`/visibility-analysis/keywords-at-glance?${queryParams}`, { signal });
+      const data = res.data;
       setApiData(prev => ({ ...prev, keywords: data }));
       return true;
     } catch (err) {
+      if (axiosInstance.isCancel(err)) return false;
       console.error('❌ [Visibility] Keywords at Glance fetch error:', err);
       setApiErrors(prev => ({ ...prev, keywords: err.message }));
       return false;
+    } finally {
+      setLoading(prev => ({ ...prev, keywords: false }));
     }
   };
 
-  const fetchVisibilitySearchTerms = async (termsParams) => {
+
+
+  const fetchVisibilityGainersAndDrainers = async (queryParams, signal) => {
     try {
-      setApiErrors(prev => ({ ...prev, searchTerms: null }));
-      const res = await fetch(`/api/visibility-analysis/top-search-terms?${termsParams}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setApiData(prev => ({ ...prev, searchTerms: data }));
+      setLoading(prev => ({ ...prev, gainersAndDrainers: true }));
+      setApiErrors(prev => ({ ...prev, gainersAndDrainers: null }));
+      const res = await axiosInstance.get(`/visibility-analysis/gainers-drainers?${queryParams}`, { signal });
+      const data = res.data;
+      setApiData(prev => ({ ...prev, gainersAndDrainers: data }));
       return true;
     } catch (err) {
-      console.error('❌ [Visibility] Top Search Terms fetch error:', err);
-      setApiErrors(prev => ({ ...prev, searchTerms: err.message }));
+      if (axiosInstance.isCancel(err)) return false;
+      console.error('❌ [Visibility] Gainers & Drainers fetch error:', err);
+      setApiErrors(prev => ({ ...prev, gainersAndDrainers: err.message }));
       return false;
+    } finally {
+      setLoading(prev => ({ ...prev, gainersAndDrainers: false }));
     }
   };
 
@@ -206,28 +249,31 @@ export default function VisibilityAnalysis() {
       platform: filters.platform || 'All',
       brand: filters.brand || 'All',
       location: filters.location || 'All',
+      keyword: filters.keyword || 'All',
+      keywordType: filters.keywordType || 'All',
+      category: filters.category || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
     };
 
     const queryParams = new URLSearchParams(baseParams).toString();
     const matrixParams = new URLSearchParams({
-      platform: 'All',
+      platform: filters.platform || 'All',
       brand: filters.brand || 'All',
       location: filters.location || 'All',
+      keyword: filters.keyword || 'All',
+      keywordType: filters.keywordType || 'All',
+      category: filters.category || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
     }).toString();
-    const termsParams = new URLSearchParams({
-      ...baseParams,
-      filter: topSearchFilter
-    }).toString();
+
 
     switch (segmentKey) {
       case 'overview': return fetchVisibilityOverview(queryParams);
       case 'matrix': return fetchVisibilityMatrix(matrixParams);
       case 'keywords': return fetchVisibilityKeywords(queryParams);
-      case 'searchTerms': return fetchVisibilitySearchTerms(termsParams);
+      case 'gainersAndDrainers': return fetchVisibilityGainersAndDrainers(queryParams);
       default: return false;
     }
   };
@@ -253,29 +299,38 @@ export default function VisibilityAnalysis() {
     const mainFiltersKey = JSON.stringify({
       platform: filters.platform,
       brand: filters.brand,
-      location: filters.location,
+      location: filters.location || 'All',
+      keyword: filters.keyword,
+      keywordType: filters.keywordType,
+      category: filters.category,
       startDate: filters.startDate,
       endDate: filters.endDate,
     });
 
-    // Create a stable key to detect actual filter changes (including tabs)
-    const filterKey = JSON.stringify({
-      ...JSON.parse(mainFiltersKey),
-      topSearchFilter: topSearchFilter // Add tab filter to dependency tracking
-    });
+    // Create a stable key to detect actual filter changes
+    const filterKey = mainFiltersKey;
 
     // Check if MAIN filters (platform, brand, location, dates) actually changed
     const isMainFilterChange = lastMainFiltersRef.current !== mainFiltersKey;
 
     // Skip if we already fetched with these same FINAL filters (including tabs)
+    // Check if we already have a fetch in progress for THIS EXACT filter set
     if (lastFetchedFiltersRef.current === filterKey) {
-      console.log('⏭️ [Visibility] Skipping duplicate fetch: Filters unchanged');
+      console.log('⏭️ [Visibility] Skipping redundant fetch: Filter key matches active/last success');
       return;
     }
 
     console.log('✅ [Visibility] Proceeding with fetch - filterKey:', filterKey);
 
-    // Mark these filters as being fetched (to prevent immediate logical loop)
+    // ABORT PREVIOUS FETCH (Different key)
+    if (abortControllerRef.current) {
+      console.log('🛑 [Visibility] Aborting previous fetch due to new key');
+      abortControllerRef.current.abort();
+    }
+
+    // CREATE NEW CONTROLLER FOR THIS KEY
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
     lastFetchedFiltersRef.current = filterKey;
 
     // Only reset all data (triggering all skeleton loaders) if MAIN filters changed.
@@ -283,13 +338,17 @@ export default function VisibilityAnalysis() {
       console.log('🔄 [Visibility] Main filters changed, resetting all data');
       setApiData({});
       setApiErrors({});
+      // Set all loading states to true
+      setLoading({
+        overview: true,
+        matrix: true,
+        keywords: true,
+        gainersAndDrainers: true
+      });
       // Update the main ref here to mark this state change
       lastMainFiltersRef.current = mainFiltersKey;
-    } else {
-      console.log('⚡ [Visibility] Only tab changed, isolating update');
-      // Optionally clear only searchTerms to show its specific loader
-      setApiData(prev => ({ ...prev, searchTerms: undefined }));
     }
+
 
     const fetchData = async () => {
       try {
@@ -297,49 +356,66 @@ export default function VisibilityAnalysis() {
           platform: filters.platform || 'All',
           brand: filters.brand || 'All',
           location: filters.location || 'All',
+          keyword: filters.keyword || 'All',
+          keywordType: filters.keywordType || 'All',
+          category: filters.category || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         };
 
-        // 1. ALWAYS fetch Top Search Terms if tab OR main filters changed
-        const termsParams = new URLSearchParams({
-          ...baseParams,
-          filter: topSearchFilter
-        }).toString();
-
-        console.log('📡 [Visibility] Fetching Top Search Terms:', topSearchFilter);
-        fetchVisibilitySearchTerms(termsParams);
-
-        // 2. Only fetch OTHER segments if it was a main filter change
-        if (!isMainFilterChange) {
-          console.log('⏭️ [Visibility] Skipping non-tab fetches (main filters unchanged)');
-          return;
-        }
-
         const queryParams = new URLSearchParams(baseParams).toString();
         const matrixParams = new URLSearchParams({
-          platform: 'All',
+          platform: filters.platform || 'All',
           brand: filters.brand || 'All',
           location: filters.location || 'All',
+          keyword: filters.keyword || 'All',
+          keywordType: filters.keywordType || 'All',
+          category: filters.category || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         }).toString();
 
-        console.log('📡 [Visibility] Fetching ALL segments (main filters changed)');
 
-        // Fetch all segments (errors are tracked per-segment)
-        await Promise.allSettled([
-          fetchVisibilityOverview(queryParams),
-          fetchVisibilityMatrix(matrixParams),
-          fetchVisibilityKeywords(queryParams)
-        ]);
+        console.log('📡 [Visibility] Fetching segments in parallel...');
+
+        const fetchPromises = [];
+
+        if (isMainFilterChange) {
+          fetchPromises.push(
+            fetchVisibilityOverview(queryParams, abortController.signal),
+            fetchVisibilityMatrix(matrixParams, abortController.signal),
+            fetchVisibilityKeywords(queryParams, abortController.signal),
+            fetchVisibilityGainersAndDrainers(queryParams, abortController.signal)
+          );
+        }
+
+        await Promise.allSettled(fetchPromises);
       } catch (error) {
-        console.error("[Visibility] Error setting up data fetch:", error);
+        if (axiosInstance.isCancel(error)) {
+          console.log('Fetch operation cancelled by AbortController');
+        } else {
+          console.error("[Visibility] Error setting up data fetch:", error);
+          lastFetchedFiltersRef.current = null;
+        }
       }
     };
 
     fetchData();
-  }, [filters, topSearchFilter, visibilityDatesReady]); // Wait for visibility dates before fetching
+
+    return () => {
+      // AbortController logic handled via abortControllerRef for stability
+    };
+  }, [filters, visibilityDatesReady]); // Wait for visibility dates before fetching
+
+  // REAL Cleanup function to handle component unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        console.log('🧹 [Visibility] Final cleanup: Aborting all fetches on unmount');
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleViewTrends = (card) => {
     console.log("card clicked", card);
@@ -397,10 +473,10 @@ export default function VisibilityAnalysis() {
         <VisiblityAnalysisData
           apiData={apiData}
           apiErrors={apiErrors}
+          loading={loading}
           onRetry={retrySegment}
           filters={filters}
-          topSearchFilter={topSearchFilter}
-          setTopSearchFilter={setTopSearchFilter}
+          onFiltersChange={setFilters}
         />
       </CommonContainer>
     </>

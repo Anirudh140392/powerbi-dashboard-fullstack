@@ -13,8 +13,10 @@ import {
 
 import dayjs from "dayjs";
 import DateRangeComparePicker from "../../CommonLayout/DateRangeComparePicker";
+import { FilterContext } from "../../../utils/FilterContext";
 
 const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
+  const { maxDate } = React.useContext(FilterContext);
   // Default date range: 1st of current month to today
   const [timeStart, setTimeStart] = React.useState(dayjs().startOf('month'));
   const [timeEnd, setTimeEnd] = React.useState(dayjs());
@@ -78,6 +80,7 @@ const RCAHeader = ({ title = "Blinkit > RCA Category", onMenuClick }) => {
               timeEnd={timeEnd}
               compareStart={compareStart}
               compareEnd={compareEnd}
+              maxDate={maxDate}
               onApply={(start, end, cStart, cEnd, compareOn) => {
                 setTimeStart(start);
                 setTimeEnd(end);

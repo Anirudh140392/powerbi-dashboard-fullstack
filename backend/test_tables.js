@@ -1,13 +1,19 @@
-import { createClient } from '@clickhouse/client';
-const client = createClient({
-    url: 'http://13.200.55.131:8123',
-    username: 'readonly_user',
-    password: 'Readonly@123',
-    database: 'colpal',
-});
+import { config } from 'dotenv';
+config({ path: '/home/asus/Music/powerbi-dashboard-fullstack/backend/.env' });
+import { queryClickHouse } from './src/config/clickhouse.js';
+
 async function run() {
-    const rs = await client.query({ query: "SHOW TABLES", format: 'JSONEachRow' });
-    console.log(await rs.json());
+    try {
+        const q1 = `SHOW TABLES LIKE '%sku_breakdown%'`;
+        const res1 = await queryClickHouse(q1);
+        console.log("sku_breakdown tables:", res1);
+
+        const q2 = `DESCRIBE rb_brand_ms`;
+        const res2 = await queryClickHouse(q2);
+        console.log("rb_brand_ms columns:", res2.map(r => r.name));
+    } catch (e) {
+        console.error(e);
+    }
     process.exit(0);
 }
 run();

@@ -6,15 +6,15 @@ const client = createClient({
     database: 'colpal',
 });
 async function run() {
-    const rs = await client.query({ 
+    const rs = await client.query({
         query: `
             SELECT DATE, Ad_Spend, Sales, Ad_sales
             FROM rb_pdp_olap
             WHERE Brand='Oral-B'
             ORDER BY DATE DESC
             LIMIT 10
-        `, 
-        format: 'JSONEachRow' 
+        `,
+        format: 'JSONEachRow'
     });
     console.log(await rs.json());
     process.exit(0);

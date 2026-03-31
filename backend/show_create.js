@@ -12,7 +12,7 @@ const clickhouse = createClient({
 async function showCreate() {
     try {
         const result = await clickhouse.query({
-            query: "SHOW CREATE TABLE rb_kw",
+            query: "SHOW CREATE TABLE rb_kw_olap",
             format: 'JSONEachRow',
         });
         const data = await result.json();

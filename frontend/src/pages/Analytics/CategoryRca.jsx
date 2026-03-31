@@ -1,10 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import { FilterContext } from "../../utils/FilterContext";
 import RCATable from "../../components/Analytics/CategoryRca/RCATable";
 import { motion } from "framer-motion";
 import RcaCardTable from "@/components/Analytics/CategoryRca/RcaCardTable";
 
 export default function CategoryRca() {
+  const { refreshFilters } = useContext(FilterContext);
+
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
   const [filters, setFilters] = useState({
     platform: "Blinkit",
   });
@@ -27,10 +37,10 @@ export default function CategoryRca() {
       filters={filters}
       onFiltersChange={setFilters}
     >
-      <div className="flex justify-center" style={{margin: '10px'}}>
+      <div className="flex justify-center" style={{ margin: '10px' }}>
         <div className="relative w-full md:w-[420px]">
           <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
-            
+
             {/* ACTIVE SLIDER */}
             <motion.div
               layout
@@ -57,12 +67,11 @@ export default function CategoryRca() {
                   key={option.key}
                   type="button"
                   onClick={() => setTableView(option.key)}
-                  className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${
-                    isActive
+                  className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${isActive
                       ? "text-slate-900"
                       : "text-slate-500 hover:text-slate-700"
-                  }`}
-                  style={{cursor: 'pointer'}}
+                    }`}
+                  style={{ cursor: 'pointer' }}
                 >
                   {option.label}
                 </button>

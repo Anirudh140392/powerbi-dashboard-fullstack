@@ -5,6 +5,7 @@ import { KpiFilterPanel } from "@/components/KpiFilterPanel";
 import { Badge } from "@/components/ui/badge";
 import TrendsCompetitionDrawer from "./TrendsCompetitionDrawer";
 import { PlatformKpiMatrixSkeleton } from "./AvailabilitySkeletons";
+import { formatNumber } from "../../utils/formatters";
 
 function cn(...classes) {
     return classes.filter(Boolean).join(" ");
@@ -15,7 +16,7 @@ function cn(...classes) {
 // ========================================
 const reportTypes = [
     { key: "platform", label: "Platform" },
-    { key: "format", label: "Format" },
+    { key: "format", label: "Category" },
     { key: "city", label: "City" },
 ];
 
@@ -27,14 +28,12 @@ const drillDownOptions = [
 
 const kpis = [
     { key: "osa", label: "OSA" },
-    { key: "fillrate", label: "FILLRATE" },
     { key: "doi", label: "DOI" },
-    { key: "assortment", label: "ASSORTMENT" },
     { key: "psl", label: "PSL" },
 ];
 
 // ✅ Only OSA can drill down when competitors is selected, otherwise all KPIs can drill
-const DRILLDOWN_ENABLED_KPIS = new Set(["osa"]);
+const DRILLDOWN_ENABLED_KPIS = new Set(["osa", "psl"]);
 
 // Filter options are fetched dynamically from the backend API
 
@@ -173,8 +172,11 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     // Dynamic filter options fetched from backend (lazy-loaded when panel opens)
     const [filterOptions, setFilterOptions] = useState([
         { id: 'platform', label: 'Platform', options: [] },
+        { id: 'format', label: 'Category', options: [] },
         { id: 'city', label: 'City', options: [] },
-        { id: 'format', label: 'Format', options: [] },
+        { id: 'brand', label: 'Brand', options: [] },
+        { id: 'month', label: 'Month', options: [] },
+        { id: 'metroFlag', label: 'Metro Flag', options: [] },
     ]);
     const [filterOptionsLoaded, setFilterOptionsLoaded] = useState(false);
 
@@ -185,14 +187,20 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
     const [tentativeFilters, setTentativeFilters] = useState({
         platform: [],
-        city: [],
         format: [],
+        city: [],
+        brand: [],
+        month: [],
+        metroFlag: [],
     });
 
     const [appliedFilters, setAppliedFilters] = useState({
         platform: [],
-        city: [],
         format: [],
+        city: [],
+        brand: [],
+        month: [],
+        metroFlag: [],
     });
 
     const appliedCount = Object.values(appliedFilters).flat().length;
@@ -204,8 +212,11 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
             try {
                 const filterTypes = [
                     { id: 'platform', apiType: 'platforms', label: 'Platform' },
+                    { id: 'format', apiType: 'formats', label: 'Category' },
                     { id: 'city', apiType: 'cities', label: 'City' },
-                    { id: 'format', apiType: 'formats', label: 'Format' },
+                    { id: 'brand', apiType: 'brands', label: 'Brand' },
+                    { id: 'month', apiType: 'months', label: 'Month' },
+                    { id: 'metroFlag', apiType: 'metroFlags', label: 'Metro Flag' },
                 ];
 
                 // Build query params from global filters to narrow down options
@@ -223,7 +234,9 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     filterTypes.map(async (ft) => {
                         const qp = new URLSearchParams(filterQueryParams);
                         qp.set('filterType', ft.apiType);
-                        const res = await fetch(`/api/availability-analysis/filter-options?${qp.toString()}`);
+                        const res = await fetch(`/api/availability-analysis/filter-options?${qp.toString()}`, {
+                            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                        });
                         if (!res.ok) return { id: ft.id, label: ft.label, options: [] };
                         const data = await res.json();
                         const opts = (data.options || []).map(v => ({ id: v, label: v }));
@@ -263,11 +276,21 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
         if (appliedFilters.format?.length > 0) {
             combined.formats = appliedFilters.format;
-            // Remove global category to ensure formats override it
             delete combined.category;
         } else if (globalFilters.category) {
-            // Fallback to global category mapped to 'formats' for consistency
             combined.formats = globalFilters.category;
+        }
+
+        if (appliedFilters.brand?.length > 0) {
+            combined.brand = appliedFilters.brand;
+        }
+
+        if (appliedFilters.month?.length > 0) {
+            combined.months = appliedFilters.month;
+        }
+
+        if (appliedFilters.metroFlag?.length > 0) {
+            combined.metroFlags = appliedFilters.metroFlag;
         }
 
         return combined;
@@ -310,7 +333,12 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     }
                 });
 
-                const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`);
+                // Force ownBrandsOnly to match Watch Tower KPIs identically
+                params.append('ownBrandsOnly', 'true');
+
+                const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const result = await res.json();
                 setApiData(result);
@@ -364,8 +392,11 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     const resetFilters = () => {
         setTentativeFilters({
             platform: [],
-            city: [],
             format: [],
+            city: [],
+            brand: [],
+            month: [],
+            metroFlag: [],
         });
     };
 
@@ -546,7 +577,13 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                         </thead>
 
                         <tbody>
-                            {kpis.map((kpi, kIdx) => {
+                            {kpis.filter(kpi => {
+                                if (!appliedFilters.kpi || appliedFilters.kpi.length === 0) return true;
+                                // Case-insensitive match between kpi.label and appliedFilters.kpi array
+                                return appliedFilters.kpi.some(selectedKpi =>
+                                    selectedKpi.toLowerCase() === kpi.label.toLowerCase()
+                                );
+                            }).map((kpi, kIdx) => {
                                 const drillEnabled = isDrillEnabled(kpi.key);
                                 const isRowExpanded = expandedRows.includes(kpi.key);
 
@@ -609,7 +646,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                             )}
                                                             whileHover={{ scale: 1.01 }}
                                                         >
-                                                            <span className="text-sm font-semibold text-slate-800">{cell.value}{['doi', 'assortment', 'psl'].includes(kpi.key) ? '' : '%'}</span>
+                                                            <span className="text-sm font-semibold text-slate-800">{kpi.key === 'psl' ? `₹${formatNumber(cell.value)}` : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}</span>
                                                             <span
                                                                 className={cn(
                                                                     "text-xs font-medium",
@@ -617,7 +654,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                                 )}
                                                             >
                                                                 {cell.delta >= 0 ? "↑" : "↓"}
-                                                                {Math.abs(cell.delta)}
+                                                                {kpi.key === 'psl' ? formatNumber(Math.abs(cell.delta)) : Math.abs(cell.delta)}
                                                             </span>
                                                         </motion.div>
                                                     </td>
@@ -674,7 +711,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                                                             <span className="text-slate-400" title={item}>
                                                                                                 {item.includes('Zone') ? item.split(' ')[0] : (item.length > 8 ? item.substring(0, 8) + '..' : item)}
                                                                                             </span>
-                                                                                            <span className="ml-1 font-medium text-slate-700">{drillData.value}{['doi', 'assortment', 'psl'].includes(kpi.key) ? '' : '%'}</span>
+                                                                                            <span className="ml-1 font-medium text-slate-700">{kpi.key === 'psl' ? `₹${formatNumber(drillData.value)}` : `${drillData.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}</span>
                                                                                         </div>
                                                                                     );
                                                                                 })

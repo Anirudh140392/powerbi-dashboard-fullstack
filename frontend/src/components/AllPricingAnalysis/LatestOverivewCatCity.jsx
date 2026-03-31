@@ -1,4 +1,6 @@
-import { useState, useMemo, useContext } from 'react'
+import { useState, useMemo, useContext, useEffect } from 'react'
+import axiosInstance from '../../api/axiosInstance'
+import { Skeleton } from '@mui/material'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../utils/FilterContext'
 import {
@@ -8,9 +10,16 @@ import {
     MapPin,
     SlidersHorizontal,
     LineChart,
+    LayoutGrid,
+    Package,
+    ChevronLeft,
+    ChevronRight,
+    ArrowLeft,
+    ChevronDown,
 } from 'lucide-react'
 import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
+import { formatNumber } from '../../utils/formatters'
 import { cn } from '../../lib/utils'
 
 /* --- HELPERS --- */
@@ -24,35 +33,29 @@ const copy = (title, value) => {
 };
 
 const cardSize = {
-    minW: 'min-w-[155px]',
-    py: 'py-2.5',
-    text: 'text-[15px]',
-    delta: 'text-[10px]'
+    minW: 'min-w-[100px] sm:min-w-[125px]',
+    py: 'py-2 sm:py-3',
+    text: 'text-[13px]',
+    delta: 'text-[10px] sm:text-[11px]'
 };
 
 const kpiLabels = {
-    discount: 'Discount',
-    pricePerUnit: 'Price per Unit',
-    rpi: 'RPI',
+    discount: 'Discount %',
+    pricePerUnit: 'Price/Unit (per 100gm)',
     asp: 'Average Selling Price',
 };
 
-const CITY_TIERS = {
-    T1: ['mumbai', 'delhi', 'bangalore', 'hyderabad', 'ahmedabad'],
-    T2: ['kolkata', 'pune', 'chennai', 'lucknow', 'jaipur'],
-    T3: ['patna', 'indore', 'bhopal', 'chandigarh', 'ranchi'],
-    T4: ['varanasi', 'kanpur', 'meerut', 'agra', 'noida']
-};
+
 
 const LatestOverivewCatCity = ({
     onViewTrends = () => { },
     onViewRca = () => { },
     kpis: propKpis = [],
+    loading = false,
 }) => {
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
-        { key: 'discount', label: 'Discount' },
-        { key: 'pricePerUnit', label: 'Price per Unit' },
-        { key: 'rpi', label: 'RPI' },
+        { key: 'discount', label: 'Discount %' },
+        { key: 'pricePerUnit', label: 'Price/Unit (per 100gm)' },
         { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
 
@@ -63,130 +66,228 @@ const LatestOverivewCatCity = ({
         selectedCategory,
         selectedLocation,
         timeStart,
-        timeEnd
+        timeEnd,
+        datesInitialized,
+        brands: contextBrands,
+        platforms: contextPlatforms,
+        categories: contextCategories,
+        locations: contextLocations,
     } = useContext(FilterContext);
 
     // ✅ Dimension + Tier State
-    const [dimension, setDimension] = useState('category')
-    const [selectedTier, setSelectedTier] = useState('T1')
-    const [glanceKpis, setGlanceKpis] = useState(['discount', 'pricePerUnit', 'rpi', 'asp'])
+    const [dimension, setDimension] = useState('platform')
+    const [glanceKpis, setGlanceKpis] = useState(['discount', 'pricePerUnit', 'asp'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     const [advancedFilters, setAdvancedFilters] = useState({
+        brands: [],
         categories: [],
-        cities: [],
+        platforms: [],
+        skus: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['discount', 'pricePerUnit', 'rpi', 'asp'],
+        kpis: ['discount', 'pricePerUnit', 'asp'],
         filterLogic: 'OR',
     })
 
-    // ✅ Entity list — ice cream categories & brands
-    const dimensionData = {
+    const [apiData, setApiData] = useState([])
+    const [isLoading, setIsLoading] = useState(true)
+    const [currentPage, setCurrentPage] = useState(1)
+    const [expandedSku, setExpandedSku] = useState(null)
+    const [expandedCityData, setExpandedCityData] = useState({})
+    const [isCityLoading, setIsCityLoading] = useState(false)
+    const itemsPerPage = 10;
+
+    // ✅ Entity list — dynamically built from FilterContext
+    const dimensionData = useMemo(() => ({
+        platform: {
+            label: 'Platform',
+            icon: LayoutGrid,
+            entities: (contextPlatforms || []).filter(p => p && p !== 'All').map(p => ({
+                key: p,
+                name: p,
+            })),
+        },
         category: {
             label: 'Category',
             icon: Grid3X3,
-            entities: [
-                { key: 'cassata', name: 'Cassata' },
-                { key: 'core_tubs', name: 'Core Tubs' },
-                { key: 'cup', name: 'Cup' },
-                { key: 'sandwich', name: 'Sandwich' },
-                { key: 'stick', name: 'Stick / Bar' },
-                // { key: 'cone', name: 'Cone' },
-            ]
+            entities: (contextCategories || []).filter(c => c && c !== 'All').map(c => ({
+                key: c, // Use raw name for direct matching
+                name: c,
+            })),
         },
-        city: {
-            label: 'City',
-            icon: MapPin,
-            entities: [
-                { key: 'mumbai', name: 'Mumbai' },
-                { key: 'delhi', name: 'Delhi NCR' },
-                { key: 'bangalore', name: 'Bengaluru' },
-                { key: 'kolkata', name: 'Kolkata' },
-                { key: 'hyderabad', name: 'Hyderabad' },
-                { key: 'ahmedabad', name: 'Ahmedabad' },
-                { key: 'pune', name: 'Pune' },
-                { key: 'chennai', name: 'Chennai' },
-                { key: 'lucknow', name: 'Lucknow' },
-                { key: 'jaipur', name: 'Jaipur' },
-                { key: 'patna', name: 'Patna' },
-                { key: 'indore', name: 'Indore' },
-                { key: 'bhopal', name: 'Bhopal' },
-                { key: 'chandigarh', name: 'Chandigarh' },
-                { key: 'ranchi', name: 'Ranchi' },
-                { key: 'varanasi', name: 'Varanasi' },
-                { key: 'kanpur', name: 'Kanpur' },
-                { key: 'meerut', name: 'Meerut' },
-                { key: 'agra', name: 'Agra' },
-                { key: 'noida', name: 'Noida' },
-            ]
+        sku: {
+            label: 'Sku',
+            icon: Package,
+            entities: [], // Will be filled by API data
         },
-    }
+    }), [contextPlatforms, contextCategories]);
 
+    // Dynamic options for AdvancedFilterModal dropdowns
+    const brandOptions = useMemo(() =>
+        (contextBrands || []).filter(b => b && b !== 'All').map(b => ({ id: b.toLowerCase().replace(/\s+/g, '_'), name: b })),
+        [contextBrands]
+    );
+    const platformOptions = useMemo(() =>
+        (contextPlatforms || []).filter(p => p && p !== 'All').map(p => ({ id: p.toLowerCase().replace(/\s+/g, '_'), name: p })),
+        [contextPlatforms]
+    );
 
-    // ✅ Mock generator (same pattern as your existing logic)
-    function generateEntityData(entityKey, entityIdx, context, currentDimensionKey) {
-        const data = {}
+    const skuOptions = useMemo(() => 
+        apiData.map(item => ({ id: item.key, name: item.name })), 
+        [apiData]
+    );
 
-        kpis.forEach((kpi) => {
-            const seed = { ...context, entityKey, entityIdx, kpi: kpi.key };
-            const base = getLogicalKpiValue(kpi.key, seed);
-            const isUp = getLogicalKpiValue(kpi.key + 'dir', seed) > 50;
+    useEffect(() => {
+        if (!datesInitialized) return;
+        let isMounted = true;
+        
+        const toParam = (val) => {
+            if (!val) return null;
+            if (Array.isArray(val)) return val.length > 0 ? val.join(',') : null;
+            return val;
+        };
 
-            let value, deltaVal;
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const params = new URLSearchParams();
+                
+                // Use advanced filters if sets, otherwise fall back to global context filters
+                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : globalPlatform); 
+                if (pl) params.append('platform', pl);
+                
+                const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
+                if (br) params.append('brand', br);
+                
+                const ca = toParam(advancedFilters.categories?.length > 0 ? advancedFilters.categories : selectedCategory); 
+                if (ca) params.append('category', ca);
+                
+                const lo = toParam(selectedLocation); 
+                if (lo) params.append('location', lo);
+                
+                const ch = toParam(selectedChannel); 
+                if (ch) params.append('channel', ch);
 
-            switch (kpi.key) {
-                case 'discount': {
-                    // 5% - 30%
-                    const v = 5 + (base % 26);
-                    value = `${v.toFixed(1)}%`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break;
+                params.append('dimension', dimension);
+                // if (drilldownSku) params.append('sku', drilldownSku); // No longer needed for main list
+                
+                // Date overrides from advanced filters
+                const start = advancedFilters.dateFrom || (typeof timeStart === 'string' ? timeStart : timeStart?.format('YYYY-MM-DD'));
+                const end = advancedFilters.dateTo || (typeof timeEnd === 'string' ? timeEnd : timeEnd?.format('YYYY-MM-DD'));
+                
+                if (start) params.append('startDate', start);
+                if (end) params.append('endDate', end);
+
+                const url = `/pricing-analysis/dimension-overview?${params.toString()}`;
+                console.log('[CategoryOverview] Fetching:', url);
+                const response = await axiosInstance.get(url);
+                
+                if (isMounted && response.data?.success) {
+                    setApiData(response.data.data);
                 }
-                case 'pricePerUnit': {
-                    // ₹80 - ₹399
-                    const v = 80 + (base % 320);
-                    value = `₹${v.toFixed(2)}`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break;
-                }
-                case 'rpi': {
-                    // 1.5 - 7.5
-                    const v = 1.5 + ((base % 61) / 10);
-                    value = `${v.toFixed(1)}`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 20).toFixed(1)}%`
-                    break;
-                }
-                case 'asp': {
-                    // ₹60 - ₹349
-                    const v = 60 + (base % 290);
-                    value = `₹${v.toFixed(2)}`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                    break;
-                }
-                default: {
-                    value = `${base}`;
-                    deltaVal = `${isUp ? '+' : '-'}${(getLogicalKpiValue(kpi.key + 'delta', seed) / 10).toFixed(1)}%`
-                }
+            } catch (error) {
+                console.error("[CategoryOverview] Failed to fetch:", error);
+            } finally {
+                if (isMounted) setIsLoading(false);
             }
+        };
+        fetchData();
+        return () => { isMounted = false; };
+    }, [dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
 
-            data[kpi.key] = {
-                value,
-                delta: { value: deltaVal, dir: isUp ? 'up' : 'down' }
-            }
-        })
-
-        return data
-    }
+    // Reset pagination when dimension or filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [dimension, advancedFilters, selectedBrand, selectedCategory, globalPlatform, expandedSku]);
 
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
         setGlanceKpis(filters.kpis)
     }
 
+    const handleToggleExpand = async (skuName) => {
+        if (expandedSku === skuName) {
+            setExpandedSku(null);
+            return;
+        }
+
+        setExpandedSku(skuName);
+        if (expandedCityData[skuName]) return;
+
+        setIsCityLoading(true);
+        try {
+            const params = new URLSearchParams();
+            
+            // Re-use logic for filters but target 'city' dimension for specific SKU
+            const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : globalPlatform); 
+            if (pl) params.append('platform', pl);
+            
+            const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
+            if (br) params.append('brand', br);
+            
+            const ca = toParam(advancedFilters.categories?.length > 0 ? advancedFilters.categories : selectedCategory); 
+            if (ca) params.append('category', ca);
+            
+            const ch = toParam(selectedChannel); 
+            if (ch) params.append('channel', ch);
+
+            params.append('dimension', 'city');
+            params.append('sku', skuName);
+            
+            const start = advancedFilters.dateFrom || (typeof timeStart === 'string' ? timeStart : timeStart?.format('YYYY-MM-DD'));
+            const end = advancedFilters.dateTo || (typeof timeEnd === 'string' ? timeEnd : timeEnd?.format('YYYY-MM-DD'));
+            
+            if (start) params.append('startDate', start);
+            if (end) params.append('endDate', end);
+
+            const url = `/pricing-analysis/dimension-overview?${params.toString()}`;
+            const response = await axiosInstance.get(url);
+            
+            if (response.data?.success) {
+                // Format the city data like we do for entities
+                const formattedCities = response.data.data.map(city => {
+                    const formattedData = {};
+                    kpis.forEach(kpi => {
+                        const cell = city.data[kpi.key];
+                        if (cell) {
+                            let valStr = cell.value;
+                            if (kpi.key === 'discount') valStr = `${cell.value.toFixed(1)}%`;
+                            else if (kpi.key === 'asp' || kpi.key === 'pricePerUnit') valStr = `₹${cell.value.toFixed(2)}`;
+                            else valStr = cell.value.toFixed(2);
+
+                            formattedData[kpi.key] = {
+                                value: valStr,
+                                delta: { value: `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`, dir: cell.dir }
+                            };
+                        } else {
+                            formattedData[kpi.key] = { value: '-', delta: { value: '-', dir: 'neutral' } };
+                        }
+                    });
+                    return { ...city, data: formattedData };
+                });
+                setExpandedCityData(prev => ({ ...prev, [skuName]: formattedCities }));
+            }
+        } catch (error) {
+            console.error("[CategoryOverview] Expansion failed:", error);
+        } finally {
+            setIsCityLoading(false);
+        }
+    };
+
+    const toParam = (val) => {
+        if (!val) return null;
+        if (Array.isArray(val)) return val.length > 0 ? val.join(',') : null;
+        return val;
+    };
+
     const activeDimensionFilters = [
+        advancedFilters.brands?.length > 0,
         advancedFilters.categories?.length > 0,
-        advancedFilters.cities?.length > 0,
+        advancedFilters.platforms?.length > 0,
+        advancedFilters.skus?.length > 0,
+        advancedFilters.dateFrom !== '',
+        advancedFilters.dateTo !== '',
     ].filter(Boolean).length
 
     const currentDimension = dimensionData[dimension]
@@ -194,35 +295,57 @@ const LatestOverivewCatCity = ({
     const kpiCount = selectedKpis.length
 
     const entities = useMemo(() => {
-        const context = { selectedChannel, platform: globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd };
+        let list = [...apiData];
 
-        let list = currentDimension.entities.slice()
-
-        // Apply dimension-specific advanced filters
-        if (dimension === 'category' && advancedFilters.categories?.length > 0) {
-            list = list.filter(e => advancedFilters.categories.includes(e.key))
-        }
-        if (dimension === 'city') {
-            // Apply Tier filter first
-            const tierCities = CITY_TIERS[selectedTier] || []
-            list = list.filter(e => tierCities.includes(e.key))
-
-            // Then apply advanced filters if any
-            if (advancedFilters.cities?.length > 0) {
-                list = list.filter(e => advancedFilters.cities.includes(e.key))
-            }
+        // Apply dimension-specific advanced filters locally
+        if ((dimension === 'category' || dimension === 'platform' || dimension === 'sku') && advancedFilters.skus?.length > 0) {
+            list = list.filter(e => advancedFilters.skus.includes(e.key));
         }
 
-        return list.map((e, idx) => ({
-            ...e,
-            data: generateEntityData(e.key, idx, context, dimension)
-        }))
-    }, [
-        currentDimension,
-        selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd,
-        advancedFilters,
-        dimension
-    ])
+        // Format to match the component's expected display formatting
+        return list.map((e) => {
+            const formattedData = {};
+            kpis.forEach(kpi => {
+                const cell = e.data[kpi.key];
+                if (cell) {
+                    let valStr = cell.value;
+                    let deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`;
+
+                    if (kpi.key === 'discount') {
+                        valStr = `${cell.value.toFixed(1)}%`;
+                    } else if (kpi.key === 'pricePerUnit' || kpi.key === 'asp') {
+                        valStr = `₹${cell.value.toFixed(2)}`;
+                    } else if (kpi.key === 'rpi') {
+                        valStr = `${cell.value.toFixed(1)}`;
+                        deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%`;
+                    } else if (kpi.key === 'offtake') {
+                        // Large number formatting for offtake using centralized formatter
+                        valStr = formatNumber(cell.value, 1);
+                    } else {
+                        valStr = cell.value.toFixed(2);
+                    }
+
+                    formattedData[kpi.key] = {
+                        value: valStr,
+                        delta: { value: deltaStr, dir: cell.dir }
+                    };
+                } else {
+                    formattedData[kpi.key] = { value: '-', delta: { value: '-', dir: 'neutral' } };
+                }
+            });
+            return {
+                ...e,
+                data: formattedData
+            };
+        });
+    }, [apiData, dimension, advancedFilters, kpis]);
+
+    const paginatedEntities = useMemo(() => {
+        if (dimension !== 'sku') return entities;
+        return entities.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    }, [entities, dimension, currentPage, itemsPerPage]);
+
+    const totalPages = Math.ceil(entities.length / itemsPerPage);
 
     const SectionWrapper = ({
         title,
@@ -246,9 +369,11 @@ const LatestOverivewCatCity = ({
                             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
                                 <Icon size={20} className="text-blue-600" />
                             </div>
-                            <span className="text-[17px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                                {title}
-                            </span>
+                            <div className="flex flex-col">
+                                <span className="text-[20px] font-bold text-slate-900" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                    {title}
+                                </span>
+                            </div>
                         </div>
 
                         {headerRight && (
@@ -282,9 +407,12 @@ const LatestOverivewCatCity = ({
                                         return (
                                             <button
                                                 key={key}
-                                                onClick={() => setDimension(key)}
+                                                onClick={() => {
+                                                    setDimension(key);
+                                                    setExpandedSku(null);
+                                                }}
                                                 className={cn(
-                                                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[12px] font-bold transition-all',
+                                                    'flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-[14px] font-bold transition-all',
                                                     isSelected
                                                         ? 'bg-white text-blue-600 shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
                                                         : 'text-slate-500 hover:text-slate-800'
@@ -297,37 +425,13 @@ const LatestOverivewCatCity = ({
                                         )
                                     })}
                                 </div>
-
-                                {/* ✅ T1-T4 Tier Toggle */}
-                                {dimension === 'city' && (
-                                    <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2 duration-300">
-                                        {Object.keys(CITY_TIERS).map((tier) => {
-                                            const isSelected = selectedTier === tier
-                                            return (
-                                                <button
-                                                    key={tier}
-                                                    onClick={() => setSelectedTier(tier)}
-                                                    className={cn(
-                                                        'px-3.5 py-1.5 rounded-xl text-[12px] font-bold transition-all',
-                                                        isSelected
-                                                            ? 'bg-blue-600 text-white shadow-[0_4px_12px_rgba(37,99,235,0.25)]'
-                                                            : 'text-slate-500 hover:text-blue-600'
-                                                    )}
-                                                    style={{ fontFamily: 'Roboto, sans-serif' }}
-                                                >
-                                                    {tier}
-                                                </button>
-                                            )
-                                        })}
-                                    </div>
-                                )}
                             </div>
 
                             {/* Filters */}
                             <motion.button
                                 onClick={() => setIsFilterModalOpen(true)}
                                 className={cn(
-                                    'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 border',
+                                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border',
                                     activeDimensionFilters > 0
                                         ? 'bg-slate-900 text-white border-slate-900 shadow-md'
                                         : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:shadow-sm'
@@ -364,7 +468,7 @@ const LatestOverivewCatCity = ({
                             {/* KPI Header */}
                             <div className="flex items-center gap-2 mb-4 px-1">
                                 <div className="w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
-                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
+                                    <span className="text-sm font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                 </div>
                                 {selectedKpis.map(kpi => (
                                     <div
@@ -374,7 +478,7 @@ const LatestOverivewCatCity = ({
                                             cardSize.minW
                                         )}
                                     >
-                                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em]">
+                                        <div className="text-[12px] font-bold text-slate-500 uppercase tracking-[0.12em]">
                                             {kpiLabels[kpi.key] || kpi.label}
                                         </div>
                                     </div>
@@ -383,45 +487,69 @@ const LatestOverivewCatCity = ({
 
                             {/* Rows */}
                             <div className="space-y-3 px-1">
-                                {entities.map((e) => (
-                                    <motion.div
-                                        key={e.key}
-                                        className="flex items-center gap-2 p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                    >
-                                        {/* ✅ Entity TEXT ONLY (no logo) */}
-                                        <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
-                                            <span
-                                                className="text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap"
-                                                style={{ fontFamily: 'Roboto, sans-serif' }}
-                                            >
-                                                {e.name}
-                                            </span>
-
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    onClick={(evt) => {
-                                                        evt.stopPropagation();
-                                                        onViewTrends(e.name, dimensionData[dimension].label);
-                                                    }}
-                                                    className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                    title={`View ${e.name} Trend`}
-                                                >
-                                                    <LineChart size={13} className="text-slate-400" />
-                                                </button>
-                                                <button
-                                                    onClick={(evt) => {
-                                                        evt.stopPropagation();
-                                                        // onViewRca(e.name);
-                                                    }}
-                                                    className="h-6.5 w-6.5 rounded-md bg-white border border-slate-100 hover:border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-all hover:shadow-[0_2px_8px_rgba(0,0,0,0.05)]"
-                                                    title={`View ${e.name} RCA`}
-                                                >
-                                                    <MapPin size={13} className="text-slate-400" />
-                                                </button>
+                                {isLoading ? (
+                                    Array(5).fill(0).map((_, i) => (
+                                        <div key={i} className="flex items-center gap-2 p-2 rounded-xl">
+                                            <div className="w-56 flex-shrink-0 flex items-center gap-2 h-10 pr-4">
+                                                <Skeleton variant="text" width="80%" height={24} />
                                             </div>
+                                            {selectedKpis.map(kpi => (
+                                                <div key={kpi.key} className={cn("flex-1 px-3", cardSize.minW, cardSize.py)}>
+                                                    <Skeleton variant="rounded" width="100%" height={48} className="rounded-xl" />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))
+                                ) : entities.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center p-8 text-slate-500">
+                                        <Grid3X3 size={32} className="text-slate-300 mb-2" />
+                                        <p className="text-sm font-medium">No data available for the selected filters.</p>
+                                    </div>
+                                ) : paginatedEntities.map((e) => (
+                                    <div key={e.key} className="space-y-1">
+                                        <motion.div
+                                            className={cn(
+                                                "flex items-center gap-2 p-2 rounded-xl transition-all group cursor-pointer",
+                                                expandedSku === e.key ? "bg-slate-50 shadow-sm" : "hover:bg-slate-50/50"
+                                            )}
+                                            onClick={() => dimension === 'sku' && handleToggleExpand(e.key)}
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                        >
+                                            <div className="w-56 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                                {dimension === 'sku' && (
+                                                    <div className="flex-shrink-0 p-1 rounded-lg bg-slate-50 text-slate-400 group-hover:text-blue-600 transition-colors">
+                                                        {expandedSku === e.key ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-col flex-1 truncate">
+                                                    <span
+                                                        className="text-[13px] font-bold text-slate-700 truncate"
+                                                        style={{ fontFamily: 'Roboto, sans-serif' }}
+                                                        title={e.name}
+                                                    >
+                                                        {e.name}
+                                                    </span>
+                                                    {dimension === 'sku' && (
+                                                        <span className="text-[13px] text-slate-400 font-medium truncate uppercase tracking-wider">
+                                                            {e.key}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-1">
+                                                    <button
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            onViewTrends(e.name, currentDimension.label, dimension);
+                                                        }}
+                                                        className="p-1.5 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                                                        title="View Trends"
+                                                    >
+                                                        <LineChart size={14} />
+                                                    </button>
+                                                </div>
                                         </div>
 
                                         {/* KPI Cards */}
@@ -452,7 +580,7 @@ const LatestOverivewCatCity = ({
                                                         'absolute inset-0 opacity-10 rounded-xl',
                                                         isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
                                                     )} />
-                                                    <div className={cn('font-bold text-slate-900 tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                                    <div className={cn('font-bold text-black tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
                                                         {cell?.value}
                                                     </div>
                                                     <div className={cn('font-bold flex items-center justify-center gap-0.5 mt-0.5 relative z-10', textColor, cardSize.delta)}>
@@ -462,11 +590,115 @@ const LatestOverivewCatCity = ({
                                                 </motion.button>
                                             )
                                         })}
-                                    </motion.div>
+                                        </motion.div>
+
+                                        {/* Nested City Rows */}
+                                        {expandedSku === e.key && (
+                                            <div className="ml-8 space-y-1 mt-1 border-l-2 border-slate-100/60 pl-2">
+                                                {(isCityLoading && !expandedCityData[e.key]) ? (
+                                                    Array(3).fill(0).map((_, i) => (
+                                                        <div key={i} className="flex items-center gap-2 p-1.5 opacity-50">
+                                                            <div className="w-56 flex-shrink-0 h-6">
+                                                                <Skeleton variant="text" width="60%" height={24} />
+                                                            </div>
+                                                            {selectedKpis.map(kpi => (
+                                                                <div key={kpi.key} className={cn("flex-1", cardSize.minW)}>
+                                                                    <Skeleton variant="rounded" width="100%" height={32} />
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ))
+                                                ) : expandedCityData[e.key]?.map((city) => (
+                                                    <motion.div
+                                                        key={city.key}
+                                                        className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-50/30 hover:bg-slate-50 transition-colors"
+                                                        initial={{ opacity: 0, y: -5 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                    >
+                                                        <div className="w-56 flex-shrink-0 flex items-center pr-4">
+                                                            <span className="text-[13px] font-medium text-slate-500 italic pl-6">{city.name}</span>
+                                                        </div>
+
+                                                        {selectedKpis.map(kpi => {
+                                                            const cell = city.data[kpi.key]
+                                                            const isUp = cell?.delta?.dir === 'up'
+                                                            return (
+                                                                <div
+                                                                    key={kpi.key}
+                                                                    className={cn(
+                                                                        "flex-1 py-1.5 px-2 text-center rounded-lg border border-slate-100/50 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.02)]",
+                                                                        cardSize.minW
+                                                                    )}
+                                                                >
+                                                                    <div className="text-[13px] font-bold text-slate-800">{cell?.value}</div>
+                                                                    <div className={cn("text-[9px] font-bold", getStatusText(cell?.delta))}>
+                                                                        {isUp ? '↑' : '↓'} {cell?.delta?.value?.replace(/[+-]/, '')}
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </motion.div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
+
+                            {/* Pagination for SKU level (or any dimension with many results) */}
+                            {totalPages > 1 && (
+                                <div className="mt-6 flex items-center justify-between px-2 py-4 border-t border-slate-100">
+                                    <div className="text-sm text-slate-500">
+                                        Showing <span className="font-semibold text-slate-700">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-semibold text-slate-700">{Math.min(currentPage * itemsPerPage, entities.length)}</span> of <span className="font-semibold text-slate-700">{entities.length}</span> results
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                            disabled={currentPage === 1}
+                                            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronLeft size={18} className="text-slate-600" />
+                                        </button>
+                                        
+                                        <div className="flex items-center gap-1">
+                                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                // Page number logic for 5 visible slots
+                                                let pageNum = i + 1;
+                                                if (totalPages > 5 && currentPage > 3) {
+                                                    pageNum = currentPage - 2 + i;
+                                                    if (pageNum + (4 - i) > totalPages) pageNum = totalPages - (4 - i);
+                                                }
+                                                
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => setCurrentPage(pageNum)}
+                                                        className={cn(
+                                                            "w-9 h-9 rounded-lg text-sm font-medium transition-colors",
+                                                            currentPage === pageNum 
+                                                                ? "bg-blue-600 text-white shadow-sm" 
+                                                                : "text-slate-600 hover:bg-slate-50"
+                                                        )}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                            disabled={currentPage === totalPages}
+                                            className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <ChevronRight size={18} className="text-slate-600" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
-                    </div>
+                        </div>
+                    
 
                     {/* Footer */}
                     <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
@@ -495,27 +727,19 @@ const LatestOverivewCatCity = ({
                 </SectionWrapper>
             </div>
 
-            {/* AdvancedFilterModal (kept same; just pass category+city options) */}
-            {(() => {
-                const categoryOptions = (dimensionData.category?.entities || []).map(e => ({ id: e.key, name: e.name }))
-                const cityOptions = (dimensionData.city?.entities || []).map(e => ({ id: e.key, name: e.name }))
-
-                return (
-                    <AdvancedFilterModal
-                        isOpen={isFilterModalOpen}
-                        onClose={() => setIsFilterModalOpen(false)}
-                        filters={advancedFilters}
-                        onApply={handleApplyFilters}
-                        currentDimension={dimension}
-                        brands={[]}               // not used now
-                        categories={categoryOptions}
-                        platforms={[]}            // not used now
-                        skus={[]}                 // not used now
-                        cities={cityOptions}      // ✅ if your modal supports cities
-                        kpiOptions={kpis}
-                    />
-                )
-            })()}
+            {/* AdvancedFilterModal — fully dynamic from FilterContext + API */}
+            <AdvancedFilterModal
+                isOpen={isFilterModalOpen}
+                onClose={() => setIsFilterModalOpen(false)}
+                filters={advancedFilters}
+                onApply={handleApplyFilters}
+                currentDimension={dimension}
+                brands={brandOptions}
+                categories={(dimensionData.category?.entities || []).map(e => ({ id: e.key, name: e.name }))}
+                platforms={platformOptions}
+                skus={skuOptions}
+                kpiOptions={kpis}
+            />
         </>
     )
 }

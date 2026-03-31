@@ -3,13 +3,21 @@ import {
     getVisibilityOverview,
     getVisibilityPlatformKpiMatrix,
     getVisibilityKeywordsAtGlance,
-    getVisibilityTopSearchTerms,
     getVisibilityFilterOptions,
     getVisibilityBrandDrilldown,
     getVisibilityLatestAvailableDates,
     getVisibilityKpiTrends,
     getVisibilityCompetition,
-    getBrandComparisonTrends
+    getBrandComparisonTrends,
+    getVisibilityCategories,
+    getVisibilityKeywords,
+    getVisibilityKeywordTypes,
+    getVisibilitySkuDrilldown,
+    getVisibilityCityDrilldown,
+    getVisibilityGainersAndDrainers,
+    getSearchTermsPerformance,
+    getSearchTermsLocationDrilldown,
+    getSearchTermsBrandBreakdown
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
@@ -38,7 +46,7 @@ export default (app) => {
      * /api/visibility-analysis/latest-available-dates:
      *   get:
      *     summary: Get latest available dates for Visibility Analysis
-     *     description: Returns the date range of the latest month that has data in rb_kw table. Call this first before fetching visibility data.
+     *     description: Returns the date range of the latest month that has data in rb_kw_olap table. Call this first before fetching visibility data.
      *     responses:
      *       200:
      *         description: Date range for available visibility data
@@ -133,29 +141,7 @@ export default (app) => {
      */
     app.get('/api/visibility-analysis/keywords-at-glance', getVisibilityKeywordsAtGlance);
 
-    /**
-     * @swagger
-     * /api/visibility-analysis/top-search-terms:
-     *   get:
-     *     summary: Get Top Search Terms
-     *     description: Retrieve search terms with SOS metrics
-     *     parameters:
-     *       - in: query
-     *         name: platform
-     *         schema:
-     *           type: string
-     *         description: Filter by platform
-     *       - in: query
-     *         name: filter
-     *         schema:
-     *           type: string
-     *           enum: [All, Branded, Competitor, Generic]
-     *         description: Filter by term type
-     *     responses:
-     *       200:
-     *         description: Successful response with terms array
-     */
-    app.get('/api/visibility-analysis/top-search-terms', getVisibilityTopSearchTerms);
+
 
     /**
      * @swagger
@@ -311,5 +297,20 @@ export default (app) => {
     // Alias routes for frontend compatibility
     app.get('/api/visibility-analysis/visibility-signals', getSalesVisibilitySignals);
     app.get('/api/visibility-analysis/visibility-signals/city-details', getSalesVisibilitySignalCityDetails);
+
+    // Dynamic dropdown routes for Visibility Analysis
+    app.get('/api/visibility-analysis/categories', getVisibilityCategories);
+    app.get('/api/visibility-analysis/keywords', getVisibilityKeywords);
+    app.get('/api/visibility-analysis/keyword-types', getVisibilityKeywordTypes);
+    app.get('/api/visibility-analysis/sku-drilldown', getVisibilitySkuDrilldown);
+    app.get('/api/visibility-analysis/city-drilldown', getVisibilityCityDrilldown);
+
+    // SOS Gainers & Drainers
+    app.get('/api/visibility-analysis/gainers-drainers', getVisibilityGainersAndDrainers);
+
+    // Search Terms Performance (Top Search Terms segment with keyword/SKU modes)
+    app.get('/api/visibility-analysis/search-terms-performance', getSearchTermsPerformance);
+    app.get('/api/visibility-analysis/search-terms-locations', getSearchTermsLocationDrilldown);
+    app.get('/api/visibility-analysis/search-terms-brand-breakdown', getSearchTermsBrandBreakdown);
 };
 

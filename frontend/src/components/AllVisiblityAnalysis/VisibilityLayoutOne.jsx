@@ -733,29 +733,29 @@ const MOCK_SIGNALS = {
   drainer: {
     keyword: [
       {
-        id: "KW-KW-D01", level: "keyword", type: "drainer", keyword: "family pack ice cream", platform: "Blinkit", impact: "-5.8%",
+        id: "KW-KW-D01", level: "keyword", type: "drainer", keyword: "family pack ice cream", platform: "Blinkit", impact: "-5.8%", metricType: "visibility",
         kpis: { adSos: "10%", organicSos: "7%", overallSos: "8.3%", volumeShare: "5.4%", adPosition: "4", organicPosition: "12" },
         cities: [{ city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" }, { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" }]
       },
       {
-        id: "KW-KW-D02", level: "keyword", type: "drainer", keyword: "chocolate ice cream", platform: "Blinkit", impact: "-4.9%",
+        id: "KW-KW-D02", level: "keyword", type: "drainer", keyword: "chocolate ice cream", platform: "Blinkit", impact: "-4.9%", metricType: "visibility",
         kpis: { adSos: "9%", organicSos: "6%", overallSos: "7.5%", volumeShare: "4.7%", adPosition: "3", organicPosition: "15" },
         cities: [{ city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" }, { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" }]
       },
       {
-        id: "KW-KW-D03", level: "keyword", type: "drainer", keyword: "kulfi", platform: "Blinkit", impact: "-3.7%",
+        id: "KW-KW-D03", level: "keyword", type: "drainer", keyword: "kulfi", platform: "Blinkit", impact: "-3.7%", metricType: "visibility",
         kpis: { adSos: "8%", organicSos: "5%", overallSos: "6.2%", volumeShare: "3.9%", adPosition: "5", organicPosition: "19" },
         cities: [{ city: "Mumbai", metric: "Sos 6.4%", change: "-2.6%" }, { city: "Thane", metric: "Vol 4.9%", change: "-1.9%" }]
       },
       {
-        id: "KW-KW-D04", level: "keyword", type: "drainer", keyword: "ice cream combo pack", platform: "Blinkit", impact: "-4.3%",
+        id: "KW-KW-D04", level: "keyword", type: "drainer", keyword: "ice cream combo pack", platform: "Blinkit", impact: "-4.3%", metricType: "visibility",
         kpis: { adSos: "9%", organicSos: "6%", overallSos: "7.0%", volumeShare: "4.3%", adPosition: "4", organicPosition: "14" },
         cities: [{ city: "Chennai", metric: "Sos 5.7%", change: "-2.0%" }, { city: "Coimbatore", metric: "Vol 3.9%", change: "-1.5%" }]
       }
     ],
     sku: [
       {
-        id: "KW-SKU-D01", level: "sku", type: "drainer", skuCode: "SKU-001", skuName: "Butterscotch 700ml", platform: "Blinkit", impact: "-7.3%",
+        id: "KW-SKU-D01", level: "sku", type: "drainer", skuCode: "SKU-001", skuName: "Butterscotch 700ml", platform: "Blinkit", impact: "-7.3%", metricType: "visibility",
         kpis: { indexScore: "62", placementScore: "54", adPosition: "4", organicPosition: "23" },
         cities: [{ city: "Mumbai", metric: "Placement 51", change: "-2.9%" }, { city: "Pune", metric: "Index 59", change: "-1.8%" }]
       }
@@ -764,14 +764,14 @@ const MOCK_SIGNALS = {
   gainer: {
     keyword: [
       {
-        id: "KW-KW-G01", level: "keyword", type: "gainer", keyword: "cone ice cream", platform: "Blinkit", impact: "+8.1%",
+        id: "KW-KW-G01", level: "keyword", type: "gainer", keyword: "cone ice cream", platform: "Blinkit", impact: "+8.1%", metricType: "visibility",
         kpis: { adSos: "28%", organicSos: "21%", overallSos: "26%", volumeShare: "19%", adPosition: "1", organicPosition: "5" },
         cities: [{ city: "Hyderabad", metric: "Sos 31%", change: "+6.2%" }, { city: "Bangalore", metric: "Vol 22%", change: "+4.4%" }]
       }
     ],
     sku: [
       {
-        id: "KW-SKU-G01", level: "sku", type: "gainer", skuCode: "SKU-501", skuName: "Cornetto Double Choco", platform: "Blinkit", impact: "+5.7%",
+        id: "KW-SKU-G01", level: "sku", type: "gainer", skuCode: "SKU-501", skuName: "Cornetto Double Choco", platform: "Blinkit", impact: "+5.7%", metricType: "visibility",
         kpis: { indexScore: "91", placementScore: "88", adPosition: "1", organicPosition: "6" },
         cities: [{ city: "Delhi", metric: "Index 93", change: "+3.4%" }, { city: "Gurgaon", metric: "Placement 90", change: "+2.1%" }]
       }
@@ -806,7 +806,8 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
     timeStart,
     timeEnd,
     compareStart,
-    compareEnd
+    compareEnd,
+    selectedKeyword
   } = useContext(FilterContext);
 
   // Fetch visibility signals from API
@@ -824,7 +825,8 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
           startDate: timeStart ? timeStart.format('YYYY-MM-DD') : '',
           endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : '',
           compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : '',
-          compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : ''
+          compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : '',
+          keyword: selectedKeyword && selectedKeyword !== 'All' ? selectedKeyword : ''
         });
 
         console.log('[VisibilityLayoutOne] Fetching signals with params:', queryParams.toString());
@@ -852,7 +854,7 @@ export function VisibilityLayoutOne({ data, isPricing = false }) {
     };
 
     fetchSignals();
-  }, [signalType, level, platform, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
+  }, [signalType, level, platform, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedKeyword]);
 
   return (
     <div className="w-full">

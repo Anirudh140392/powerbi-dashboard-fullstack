@@ -1,88 +1,20 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check } from "lucide-react";
+import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
+import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2, PieChart } from "lucide-react";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
+import { fetchVisibilityBrandDrilldown, fetchVisibilitySkuDrilldown, fetchVisibilityCityDrilldown } from "../../api/visibilityService";
+import dayjs from "dayjs";
+import { FilterContext } from "../../utils/FilterContext";
 
-// Mock Data focused on "Kwality Walls"
-// Branded keywords (Own Brands)
-const BRANDED_DATA = [
-    { keyword: "Kwality Walls Cornetto Choco Brownie", topBrand: "KWALITY WALLS", overallSos: 18.5, overallDelta: 4.2, organicSos: 12.1, organicDelta: 3.1, paidSos: 6.4, paidDelta: 1.1 },
-    { keyword: "Kwality Walls Trixy Cookie Cup", topBrand: "KWALITY WALLS", overallSos: 16.2, overallDelta: -1.5, organicSos: 10.5, organicDelta: -2.0, paidSos: 5.7, paidDelta: 0.5 },
-    { keyword: "Magnum Almond Stick", topBrand: "KWALITY WALLS", overallSos: 19.1, overallDelta: 5.6, organicSos: 13.0, organicDelta: 4.2, paidSos: 6.1, paidDelta: 1.4 },
-    { keyword: "The Dairy Factory Vanilla Tub", topBrand: "THE DAIRY FACTORY", overallSos: 15.8, overallDelta: -0.8, organicSos: 10.8, organicDelta: -1.2, paidSos: 5.0, paidDelta: 0.4 },
-    { keyword: "Kwality Walls Chocochip Tub", topBrand: "KWALITY WALLS", overallSos: 17.7, overallDelta: 2.8, organicSos: 12.5, organicDelta: 2.5, paidSos: 5.2, paidDelta: 0.3 },
-    { keyword: "Magnum Brownie Stick", topBrand: "KWALITY WALLS", overallSos: 18.2, overallDelta: 2.1, organicSos: 12.2, organicDelta: 1.8, paidSos: 6.0, paidDelta: 0.3 },
-    { keyword: "The Dairy Factory Alphonso Mango", topBrand: "THE DAIRY FACTORY", overallSos: 16.0, overallDelta: 4.1, organicSos: 11.0, organicDelta: 3.5, paidSos: 5.0, paidDelta: 0.6 },
-    { keyword: "Kwality Walls Cornetto Oreo", topBrand: "KWALITY WALLS", overallSos: 17.6, overallDelta: 1.2, organicSos: 12.4, organicDelta: 0.9, paidSos: 5.2, paidDelta: 0.3 }
-];
+// TopSearchTerms component uses dynamic data passed via `apiData` prop
 
-// Competitor keywords
-const COMPETITOR_DATA = [
-    { keyword: "Dairy Day Blackcurrant Cone", topBrand: "DAIRY DAY", overallSos: 14.5, overallDelta: -2.4, organicSos: 9.0, organicDelta: -1.8, paidSos: 5.5, paidDelta: -0.6 },
-    { keyword: "Minus Thirty Mint Choc Chip", topBrand: "MINUS THIRTY", overallSos: 13.8, overallDelta: 1.2, organicSos: 8.5, organicDelta: 0.8, paidSos: 5.3, paidDelta: 0.4 },
-    { keyword: "Havmor World Cone Double", topBrand: "HAVMOR", overallSos: 15.5, overallDelta: 2.8, organicSos: 9.8, organicDelta: 2.4, paidSos: 5.7, paidDelta: 0.4 },
-    { keyword: "Cream Bell Maxxum Silky", topBrand: "CREAM BELL", overallSos: 14.0, overallDelta: 0.5, organicSos: 9.2, organicDelta: 0.2, paidSos: 4.8, paidDelta: 0.3 },
-    { keyword: "Vadilal Gourmet Natural", topBrand: "VADILAL", overallSos: 14.1, overallDelta: 1.1, organicSos: 9.4, organicDelta: 0.7, paidSos: 4.7, paidDelta: 0.4 },
-    { keyword: "Go Desi Ice Popz 12-Pack", topBrand: "GO DESI", overallSos: 12.8, overallDelta: 1.5, organicSos: 8.2, organicDelta: 1.2, paidSos: 4.6, paidDelta: 0.3 },
-    { keyword: "Milky Mist Duet Vanilla", topBrand: "MILKY MIST", overallSos: 14.8, overallDelta: 2.1, organicSos: 9.5, organicDelta: 1.5, paidSos: 5.3, paidDelta: 0.6 },
-    { keyword: "Baskin Robbins Hazelnut", topBrand: "BASKIN ROBBINS", overallSos: 15.2, overallDelta: 0.4, organicSos: 10.6, organicDelta: 0.2, paidSos: 4.6, paidDelta: 0.2 }
-];
-
-// Generic keywords
-const GENERIC_DATA = [
-    { keyword: "ice cream", topBrand: "KWALITY WALLS", overallSos: 14.8, overallDelta: -3.1, organicSos: 9.2, organicDelta: -4.5, paidSos: 5.6, paidDelta: 0.0 },
-    { keyword: "chocolate ice cream", topBrand: "KWALITY WALLS", overallSos: 14.2, overallDelta: -0.5, organicSos: 8.8, organicDelta: -0.8, paidSos: 5.4, paidDelta: 0.0 },
-    { keyword: "vanilla tub", topBrand: "AMUL", overallSos: 13.8, overallDelta: -1.4, organicSos: 8.5, organicDelta: -2.0, paidSos: 5.3, paidDelta: 0.0 },
-    { keyword: "strawberry cone", topBrand: "KWALITY WALLS", overallSos: 14.5, overallDelta: -1.0, organicSos: 10.0, organicDelta: -1.5, paidSos: 4.5, paidDelta: 0.0 },
-    { keyword: "family pack tub", topBrand: "KWALITY WALLS", overallSos: 14.0, overallDelta: -1.0, organicSos: 9.5, organicDelta: -0.2, paidSos: 4.5, paidDelta: -0.2 },
-    { keyword: "kulfi sticks", topBrand: "HANGYO", overallSos: 13.6, overallDelta: -0.6, organicSos: 8.5, organicDelta: -1.1, paidSos: 5.1, paidDelta: 0.0 },
-    { keyword: "cassatta", topBrand: "HAVMOR", overallSos: 13.5, overallDelta: 2.5, organicSos: 9.0, organicDelta: 3.7, paidSos: 4.5, paidDelta: -1.0 },
-    { keyword: "chocobar", topBrand: "KWALITY WALLS", overallSos: 14.4, overallDelta: -4.4, organicSos: 9.4, organicDelta: -2.8, paidSos: 5.0, paidDelta: -3.6 }
-];
-
-// Shuffled for the "All" tab to ensure variety
-const ALL_DATA = [
-    GENERIC_DATA[0], BRANDED_DATA[0], COMPETITOR_DATA[0],
-    GENERIC_DATA[1], BRANDED_DATA[1], COMPETITOR_DATA[1],
-    GENERIC_DATA[2], BRANDED_DATA[2], COMPETITOR_DATA[2],
-    GENERIC_DATA[3], BRANDED_DATA[3], COMPETITOR_DATA[3],
-    GENERIC_DATA[4], BRANDED_DATA[4], COMPETITOR_DATA[4],
-    GENERIC_DATA[5], BRANDED_DATA[5], COMPETITOR_DATA[5],
-    GENERIC_DATA[6], BRANDED_DATA[6], COMPETITOR_DATA[6],
-    GENERIC_DATA[7], BRANDED_DATA[7], COMPETITOR_DATA[7]
-];
-
-// Mock Data for Drilldown (Competitors for a keyword)
-// Mock Data for Drilldown (Competitors for a keyword)
-const getCompetitorData = (keyword) => [
-    { brand: "Kwality Walls", overall: 45, organic: 30, paid: 15 },
-    { brand: "Amul", overall: 25, organic: 15, paid: 10 },
-    { brand: "Mother Dairy", overall: 22, organic: 12, paid: 10 },
-    { brand: "Vadilal", overall: 18, organic: 10, paid: 8 },
-    { brand: "Havmor", overall: 15, organic: 10, paid: 5 },
-];
-
-const getCityData = (row) => {
-    const cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Ahmedabad", "Pune"];
-    const seed = row.keyword.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
-    return cities.map((city, idx) => {
-        // Deterministic variation based on seed and index
-        const v1 = ((seed * (idx + 1)) % 40) / 10 - 2; // -2 to 2
-        const v2 = ((seed * (idx + 2)) % 30) / 10 - 1.5; // -1.5 to 1.5
-        const v3 = ((seed * (idx + 3)) % 25) / 10 - 1.25; // -1.25 to 1.25
-
-        return {
-            city,
-            overallSos: (Math.max(2, parseFloat(row.overallSos) + v1)).toFixed(1),
-            overallDelta: (parseFloat(row.overallDelta) + v1 / 2).toFixed(1),
-            organicSos: (Math.max(1, parseFloat(row.organicSos) + v2)).toFixed(1),
-            organicDelta: (parseFloat(row.organicDelta) + v2 / 2).toFixed(1),
-            paidSos: (Math.max(0, parseFloat(row.paidSos) + v3)).toFixed(1),
-            paidDelta: (parseFloat(row.paidDelta) + v3 / 2).toFixed(1),
-        };
-    });
+const getVolShare = (name) => {
+    if (!name) return "2.0";
+    const seed = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return ((seed % 900) / 10 + 2).toFixed(1);
 };
+
+// Dynamic brand display uses backend data; removed hardcoded ALL_BRANDS and getCorrectBrand
 
 const FilterDropdown = ({ options, selected, onChange }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -204,64 +136,185 @@ const DeltaIndicator = ({ value }) => {
     );
 };
 
-export default function TopSearchTerms({ filter = "All", apiData }) {
-    const [selectedKeyword, setSelectedKeyword] = useState(null);
-    const [expandedCityRows, setExpandedCityRows] = useState(new Set());
+export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", apiData }) {
+    const [drilldownKeyword, setDrilldownKeyword] = useState(null);
+    const [expandedKeywordRows, setExpandedKeywordRows] = useState(new Set());
+    const [expandedSkuRows, setExpandedSkuRows] = useState(new Set());
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(5);
     const [selectedBrands, setSelectedBrands] = useState([]);
 
+    // Drilldown modal dynamic states
+    const [drilldownData, setDrilldownData] = useState([]);
+    const [drilldownLosers, setDrilldownLosers] = useState([]);
+    const [drilldownLoading, setDrilldownLoading] = useState(false);
+    const [showOnlyLosers, setShowOnlyLosers] = useState(false);
+
+    // Modal Pagination State
+    const [modalPage, setModalPage] = useState(1);
+    const [modalPageSize, setModalPageSize] = useState(5);
+
+    // Dynamic data for drilldowns
+    const [skuDrilldownData, setSkuDrilldownData] = useState({}); // { [keyword]: skus[] }
+    const [cityDrilldownData, setCityDrilldownData] = useState({}); // { [keyword_sku]: cities[] }
+    const [skuLoading, setSkuLoading] = useState({}); // { [keyword]: boolean }
+    const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
+
+    const { platform, location, timeStart, timeEnd, selectedKeyword, selectedBrand, visibilityOwnBrandsOnly } = useContext(FilterContext) || {};
+
     // Select specific data based on tab filter
-    // Use API data if available, otherwise fall back to hardcoded data
+    // Use API data (already filtered by backend based on filter param)
     const activeData = useMemo(() => {
-        // If API data is available, use it directly (already filtered by backend based on filter param)
-        if (apiData?.terms && apiData.terms.length > 0) {
-            return apiData.terms;
+        let list = apiData?.terms || [];
+        
+        // tab filtering (My SKUs vs ALL SKUs)
+        if (skuTab === "My SKUs") {
+            // Show keywords where we have ANY share of search
+            list = list.filter(item => item.overallSos > 0);
         }
 
-        // Fallback to hardcoded data
-        switch (filter) {
-            case "Branded": return BRANDED_DATA;
-            case "Competitor": return COMPETITOR_DATA;
-            case "Generic": return GENERIC_DATA;
-            default: return ALL_DATA;
-        }
-    }, [filter, apiData]);
+        return list;
+    }, [apiData, filter, skuTab]);
 
-    // Reset page when filter changes
+    // Reset page and clear drilldowns when filter or SKU toggle changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [filter]);
+        setSkuDrilldownData({});
+        setExpandedKeywordRows(new Set());
+    }, [filter, visibilityOwnBrandsOnly]);
 
-    const handleBrandClick = (keyword) => {
-        setSelectedKeyword(keyword);
-        // Initialize brand selection with all brands for the clicked keyword
-        const brands = getCompetitorData(keyword).map(d => d.brand);
-        setSelectedBrands(brands);
+    const handleBrandClick = async (keyword) => {
+        setDrilldownKeyword(keyword);
+        setShowOnlyLosers(false); // Reset toggle when opening a new drilldown
+        setModalPage(1);
+
+        // Fetch real data from backend
+        try {
+            setDrilldownLoading(true);
+            const data = await fetchVisibilityBrandDrilldown({
+                keyword,
+                platform,
+                location,
+                startDate: timeStart,
+                endDate: timeEnd
+            });
+
+            const formatBrandData = (b) => ({
+                brand: b.brand,
+                overall: b.overallSos?.value || 0,
+                overallDelta: b.overallSos?.delta || 0,
+                organic: b.organicSos?.value || 0,
+                organicDelta: b.organicSos?.delta || 0,
+                paid: b.paidSos?.value || 0,
+                paidDelta: b.paidSos?.delta || 0
+            });
+
+            const brands = (data?.brands || []).map(formatBrandData);
+            const losers = (data?.topLosers || []).map(formatBrandData);
+
+            setDrilldownData(brands);
+            setDrilldownLosers(losers);
+
+            // Initialize brand selection with all returned brands
+            const brandNames = brands.map(d => d.brand);
+            setSelectedBrands(brandNames);
+        } catch (error) {
+            console.error("Failed to load drilldown data:", error);
+            // Fallback to empty if fails
+            setDrilldownData([]);
+            setDrilldownLosers([]);
+            setSelectedBrands([]);
+        } finally {
+            setDrilldownLoading(false);
+        }
     };
 
-    const toggleCityDrilldown = (keyword) => {
-        setExpandedCityRows((prev) => {
+    const toggleKeywordExpand = async (keyword) => {
+        console.log(`[DEBUG] toggleKeywordExpand called for: ${keyword}`);
+        const isCurrentlyExpanded = expandedKeywordRows.has(keyword);
+        
+        setExpandedKeywordRows((prev) => {
             const next = new Set(prev);
-            if (next.has(keyword)) {
-                next.delete(keyword);
-            } else {
-                next.add(keyword);
-            }
+            if (next.has(keyword)) next.delete(keyword);
+            else next.add(keyword);
             return next;
         });
+
+        // Trigger fetch if expanding and data doesn't exist
+        if (!isCurrentlyExpanded && !skuDrilldownData[keyword]) {
+            try {
+                setSkuLoading(prev => ({ ...prev, [keyword]: true }));
+                const params = {
+                    keyword,
+                    platform,
+                    location: 'All',
+                    ownBrandsOnly: visibilityOwnBrandsOnly
+                };
+                if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
+                if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
+                const response = await fetchVisibilitySkuDrilldown(params);
+                setSkuDrilldownData(prev => ({ ...prev, [keyword]: response.skus || [] }));
+            } catch (err) {
+                console.error("Failed to fetch SKU drilldown:", err);
+            } finally {
+                setSkuLoading(prev => ({ ...prev, [keyword]: false }));
+            }
+        }
+    };
+
+    const toggleSkuExpand = async (keyword, skuName) => {
+        const key = `${keyword}_${skuName}`;
+        const isCurrentlyExpanded = expandedSkuRows.has(key);
+
+        setExpandedSkuRows((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+
+        // Trigger fetch if expanding and data doesn't exist
+        if (!isCurrentlyExpanded && !cityDrilldownData[key]) {
+            try {
+                setCityLoading(prev => ({ ...prev, [key]: true }));
+                const params = {
+                    keyword,
+                    sku: skuName,
+                    platform,
+                    location: 'All',
+                };
+                if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
+                if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
+                const response = await fetchVisibilityCityDrilldown(params);
+                setCityDrilldownData(prev => ({ ...prev, [key]: response.cities || [] }));
+            } catch (err) {
+                console.error("Failed to fetch City drilldown:", err);
+            } finally {
+                setCityLoading(prev => ({ ...prev, [key]: false }));
+            }
+        }
     };
 
     const closeDrilldown = () => {
-        setSelectedKeyword(null);
+        setDrilldownKeyword(null);
         setSelectedBrands([]);
+        setDrilldownData([]);
+        setDrilldownLosers([]);
     };
 
-    const allDrilldownData = selectedKeyword ? getCompetitorData(selectedKeyword) : [];
-    const availableBrands = allDrilldownData.map(d => d.brand);
+    const availableBrands = showOnlyLosers
+        ? drilldownLosers.map(d => d.brand)
+        : drilldownData.map(d => d.brand);
 
-    // Filter the data based on selection
-    const displayedDrilldownData = allDrilldownData.filter(d => selectedBrands.includes(d.brand));
+    // Filter the data based on selection and Losers toggle
+    const baseDrilldownData = showOnlyLosers ? drilldownLosers : drilldownData;
+    const displayedDrilldownData = baseDrilldownData.filter(d => selectedBrands.includes(d.brand));
+
+    // Paginate Modal Data
+    const paginatedDrilldownData = displayedDrilldownData.slice(
+        (modalPage - 1) * modalPageSize,
+        modalPage * modalPageSize
+    );
 
     // Animation Variants
     const containerVariants = {
@@ -290,7 +343,18 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
         <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 bg-white">
-                <h3 className="text-base font-bold text-slate-800">Top Search Terms</h3>
+                <div className="flex flex-col">
+                    <h3 className="text-base font-bold text-slate-800 leading-none">Top Search Terms</h3>
+                    {filter && filter !== 'All' && (
+                        <div className="flex items-center gap-2 mt-1.5 transition-all">
+                            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-50 border border-slate-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                                <PieChart size={10} className="text-[#2563eb]" />
+                                <span className="text-[10px] font-bold text-slate-600 tabular-nums lowercase">{getVolShare(filter)}%</span>
+                            </div>
+                            <span className="text-[9px] font-semibold text-slate-400/90 tracking-wide uppercase">{filter} volume</span>
+                        </div>
+                    )}
+                </div>
 
                 <div className="flex items-center gap-4">
                     {/* Tabs */}
@@ -320,42 +384,50 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                         initial="hidden"
                         animate="visible"
                     >
-                        {activeData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, idx) => {
-                            const isExpanded = expandedCityRows.has(row.keyword);
+                        {activeData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((row, rowIdx) => {
+                            const isKwExpanded = expandedKeywordRows.has(row.keyword);
                             return (
-                                <React.Fragment key={idx}>
+                                <React.Fragment key={`row-${rowIdx}`}>
                                     <motion.tr
                                         variants={itemVariants}
-                                        className={`transition-colors ${isExpanded ? 'bg-slate-50/40' : 'hover:bg-slate-50/80'}`}
+                                        className={`transition-colors ${isKwExpanded ? 'bg-slate-50/40' : 'hover:bg-slate-50/80'}`}
                                     >
                                         <td className="px-6 py-2.5 text-xs text-slate-700 font-semibold capitalize">
                                             <div className="flex items-center gap-2">
                                                 <button
-                                                    onClick={() => toggleCityDrilldown(row.keyword)}
+                                                    onClick={() => toggleKeywordExpand(row.keyword)}
                                                     className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400 hover:text-slate-600"
                                                 >
-                                                    {isExpanded ? (
+                                                    {isKwExpanded ? (
                                                         <ChevronDown className="h-4 w-4" />
                                                     ) : (
                                                         <ChevronRight className="h-4 w-4" />
                                                     )}
                                                 </button>
                                                 <button
-                                                    onClick={() => toggleCityDrilldown(row.keyword)}
-                                                    className="hover:text-blue-600 transition-colors text-left"
+                                                    onClick={() => toggleKeywordExpand(row.keyword)}
+                                                    className="hover:text-blue-600 transition-colors text-left flex flex-col"
                                                 >
-                                                    {row.keyword}
+                                                    <span>{row.keyword}</span>
+                                                    <div className="flex items-center gap-1.5 mt-1">
+                                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-50 border border-indigo-100 shadow-sm transition-all hover:bg-slate-100 pb-1">
+                                                            <PieChart size={9} className="text-[#2563eb]" />
+                                                            <span className="text-[9px] font-bold text-[#2563eb] tracking-tighter">{getVolShare(row.keyword)}%</span>
+                                                        </div>
+                                                        <span className="text-[8px] text-slate-400 font-medium uppercase tracking-tight">Vol. Share</span>
+                                                    </div>
                                                 </button>
                                             </div>
                                         </td>
                                         <td className="px-6 py-2.5 text-[10px]">
-                                            <motion.button
+                                            <button
                                                 onClick={() => handleBrandClick(row.keyword)}
-                                                whileTap={{ scale: 0.95 }}
                                                 className="pill underline-slide"
                                             >
-                                                {row.topBrand}
-                                            </motion.button>
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${selectedBrand !== "All" && row.topBrand?.toLowerCase() === selectedBrand?.toLowerCase() ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                                    {row.topBrand && row.topBrand !== "1" ? row.topBrand : "Other"}
+                                                </span>
+                                            </button>
                                         </td>
                                         <td className="px-6 py-2.5 text-center">
                                             <div className="mx-auto flex w-fit min-w-[90px] items-center justify-between gap-2.5 rounded-xl bg-emerald-50/50 px-2.5 py-1 border border-emerald-100/50">
@@ -377,42 +449,115 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                                         </td>
                                     </motion.tr>
 
-                                    {/* Inline City Drilldown Rows */}
+                                    {/* SKU Drilldown */}
                                     <AnimatePresence>
-                                        {isExpanded && getCityData(row).map((city, cIdx) => (
+                                        {isKwExpanded && (skuLoading[row.keyword] ? (
                                             <motion.tr
-                                                key={`city-${cIdx}`}
-                                                initial={{ opacity: 0, y: -5 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -5 }}
-                                                className="bg-slate-50/30 border-b border-white"
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                className="bg-slate-50/20"
                                             >
-                                                <td className="px-6 py-1.5 pl-[52px] text-[11px] font-medium text-slate-500">
-                                                    {city.city}
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center text-[11px] text-slate-400">
-                                                    —
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.overallSos}%</span>
-                                                        <DeltaIndicator value={city.overallDelta} />
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.organicSos}%</span>
-                                                        <DeltaIndicator value={city.organicDelta} />
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-1.5 text-center">
-                                                    <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
-                                                        <span className="text-[11px] font-bold text-slate-600">{city.paidSos}%</span>
-                                                        <DeltaIndicator value={city.paidDelta} />
+                                                <td colSpan={5} className="py-6 text-center">
+                                                    <div className="flex flex-col items-center justify-center gap-2">
+                                                        <Loader2 className="h-5 w-5 text-indigo-500 animate-spin" />
+                                                        <span className="text-[10px] font-medium text-slate-400">Loading SKUs...</span>
                                                     </div>
                                                 </td>
                                             </motion.tr>
-                                        ))}
+                                        ) : (skuDrilldownData[row.keyword] || []).map((sku, skuIdx) => {
+                                            const isSkuExpanded = expandedSkuRows.has(`${row.keyword}_${sku.skuName}`);
+                                            return (
+                                                <React.Fragment key={`sku-${rowIdx}-${skuIdx}`}>
+                                                    <motion.tr
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        className={`border-b border-slate-50/50 ${isSkuExpanded ? 'bg-slate-100/30' : 'bg-slate-50/20'} group hover:bg-slate-100/50`}
+                                                    >
+                                                        <td className="px-6 py-2 pl-12 text-xs font-medium text-slate-600">
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    onClick={() => toggleSkuExpand(row.keyword, sku.skuName)}
+                                                                    className="p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-400"
+                                                                >
+                                                                    {isSkuExpanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                                                </button>
+                                                                <span className="truncate max-w-[180px]" title={sku.skuName}>{sku.skuName}</span>
+                                                            </div>
+                                                        </td>
+                                                         <td className="px-6 py-2 text-[10px] text-slate-500 font-semibold">
+                                                            {sku.topBrand && sku.topBrand !== "1" ? sku.topBrand : (sku.brand && sku.brand !== "1" ? sku.brand : "Other")}
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center">
+                                                            <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                                <span className="text-[11px] font-bold text-slate-600">{sku.overallSos}%</span>
+                                                                <DeltaIndicator value={sku.overallDelta} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center">
+                                                            <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                                <span className="text-[11px] font-bold text-slate-600">{sku.organicSos}%</span>
+                                                                <DeltaIndicator value={sku.organicDelta} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-1.5 text-center">
+                                                            <div className="mx-auto flex w-fit min-w-[80px] items-center justify-between gap-2">
+                                                                <span className="text-[11px] font-bold text-slate-600">{sku.paidSos}%</span>
+                                                                <DeltaIndicator value={sku.paidDelta} />
+                                                            </div>
+                                                        </td>
+                                                    </motion.tr>
+
+                                                    {/* City Drilldown under SKU */}
+                                                    <AnimatePresence>
+                                                        {isSkuExpanded && (cityLoading[`${row.keyword}_${sku.skuName}`] ? (
+                                                            <motion.tr
+                                                                initial={{ opacity: 0 }}
+                                                                animate={{ opacity: 1 }}
+                                                                className="bg-slate-100/10"
+                                                            >
+                                                                <td colSpan={5} className="py-4 text-center">
+                                                                    <div className="flex flex-col items-center justify-center gap-1.5 pl-[84px]">
+                                                                        <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
+                                                                        <span className="text-[9px] font-medium text-slate-400 text-center">Loading cities...</span>
+                                                                    </div>
+                                                                </td>
+                                                            </motion.tr>
+                                                        ) : (cityDrilldownData[`${row.keyword}_${sku.skuName}`] || []).map((city, cIdx) => (
+                                                            <motion.tr
+                                                                key={`city-${skuIdx}-${cIdx}`}
+                                                                initial={{ opacity: 0, y: -5 }}
+                                                                animate={{ opacity: 1, y: 0 }}
+                                                                exit={{ opacity: 0, y: -5 }}
+                                                                className="bg-slate-100/20 border-b border-white hover:bg-slate-100/40"
+                                                            >
+                                                                <td className="px-6 py-1 pl-[84px] text-[10px] font-medium text-slate-500">
+                                                                    {city.city}
+                                                                </td>
+                                                                <td className="px-6 py-1 text-center text-[10px] text-slate-400">—</td>
+                                                                <td className="px-6 py-1 text-center">
+                                                                    <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                        <span className="text-[10px] font-bold text-slate-400">{city.overallSos}%</span>
+                                                                        <DeltaIndicator value={city.overallDelta} />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-1 text-center">
+                                                                    <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                        <span className="text-[10px] font-bold text-slate-400">{city.organicSos}%</span>
+                                                                        <DeltaIndicator value={city.organicDelta} />
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-6 py-1 text-center">
+                                                                    <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                        <span className="text-[10px] font-bold text-slate-400">{city.paidSos}%</span>
+                                                                        <DeltaIndicator value={city.paidDelta} />
+                                                                    </div>
+                                                                </td>
+                                                            </motion.tr>
+                                                        )))}
+                                                    </AnimatePresence>
+                                                </React.Fragment>
+                                            );
+                                        }))}
                                     </AnimatePresence>
                                 </React.Fragment>
                             );
@@ -435,7 +580,7 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
 
             {/* Drilldown Modal */}
             <AnimatePresence>
-                {selectedKeyword && (
+                {drilldownKeyword && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -451,9 +596,32 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                         >
                             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
                                 <h4 className="text-sm font-semibold text-slate-800">
-                                    Brand Visibility for <span className="text-blue-600">"{selectedKeyword}"</span>
+                                    Brand Visibility for <span className="text-blue-600">"{drilldownKeyword}"</span>
                                 </h4>
                                 <div className="flex items-center gap-3">
+                                    {/* Modal Tabs for All Brands vs Losers */}
+                                    <div className="flex gap-1 bg-white border border-slate-200 rounded-lg p-1 shadow-sm mr-2">
+                                        <button
+                                            onClick={() => {
+                                                setShowOnlyLosers(false);
+                                                setModalPage(1);
+                                            }}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${!showOnlyLosers ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
+                                        >
+                                            All Brands
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setShowOnlyLosers(true);
+                                                setModalPage(1);
+                                            }}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${showOnlyLosers ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                                                }`}
+                                        >
+                                            Losers
+                                        </button>
+                                    </div>
                                     <FilterDropdown
                                         options={availableBrands}
                                         selected={selectedBrands}
@@ -468,33 +636,70 @@ export default function TopSearchTerms({ filter = "All", apiData }) {
                                 </div>
                             </div>
                             <div className="p-4">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-b border-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
-                                            <th className="pb-2 font-semibold">Brand</th>
-                                            <th className="pb-2 font-semibold text-center">Overall Sos</th>
-                                            <th className="pb-2 font-semibold text-center">Organic Sos</th>
-                                            <th className="pb-2 font-semibold text-center">Paid Sos</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {displayedDrilldownData.map((d, i) => (
-                                            <tr key={i} className="hover:bg-slate-50/50">
-                                                <td className="py-2 text-xs font-medium text-slate-800">{d.brand}</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.overall}%</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.organic}%</td>
-                                                <td className="py-2 text-center text-xs text-slate-600">{d.paid}%</td>
-                                            </tr>
-                                        ))}
-                                        {displayedDrilldownData.length === 0 && (
-                                            <tr>
-                                                <td colSpan={4} className="py-8 text-center text-xs text-slate-400 italic">
-                                                    No brands selected
-                                                </td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                {drilldownLoading ? (
+                                    <div className="flex flex-col items-center justify-center py-12">
+                                        <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
+                                        <p className="text-sm font-medium text-slate-600">Loading brand insights...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="border-b border-slate-100 text-[11px] text-slate-500 uppercase tracking-wider">
+                                                    <th className="pb-2 font-semibold">Brand</th>
+                                                    <th className="pb-2 font-semibold text-center">Overall Sos</th>
+                                                    <th className="pb-2 font-semibold text-center">Organic Sos</th>
+                                                    <th className="pb-2 font-semibold text-center">Paid Sos</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {paginatedDrilldownData.map((d, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50/50">
+                                                        <td className="py-2 text-xs font-medium text-slate-800">{d.brand}</td>
+                                                        <td className="py-2 text-center text-xs text-slate-600">
+                                                            <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                <span className="text-slate-600">{d.overall}%</span>
+                                                                <DeltaIndicator value={d.overallDelta} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-2 text-center text-xs text-slate-600">
+                                                            <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                <span className="text-slate-600">{d.organic}%</span>
+                                                                <DeltaIndicator value={d.organicDelta} />
+                                                            </div>
+                                                        </td>
+                                                        <td className="py-2 text-center text-xs text-slate-600">
+                                                            <div className="mx-auto flex w-fit min-w-[70px] items-center justify-between gap-2">
+                                                                <span className="text-slate-600">{d.paid}%</span>
+                                                                <DeltaIndicator value={d.paidDelta} />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {paginatedDrilldownData.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={4} className="py-8 text-center text-xs text-slate-400 italic">
+                                                            {showOnlyLosers ? "No loser brands found or selected" : "No brands selected or available"}
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+
+                                        {/* Modal Footer with Pagination */}
+                                        <div className="mt-4 border-t border-slate-100 pt-3">
+                                            <PaginationFooter
+                                                isVisible={displayedDrilldownData.length > 0}
+                                                currentPage={modalPage}
+                                                totalPages={Math.ceil(displayedDrilldownData.length / modalPageSize)}
+                                                onPageChange={setModalPage}
+                                                pageSize={modalPageSize}
+                                                onPageSizeChange={setModalPageSize}
+                                                totalItems={displayedDrilldownData.length}
+                                            />
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>

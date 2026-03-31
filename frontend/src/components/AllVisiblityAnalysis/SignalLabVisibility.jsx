@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useContext, useEffect } from "react";
+import React, { useState, useMemo, useContext, useEffect, useCallback } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import CityDetailedTable from "./CityDetailedTable";
 import { KpiFilterPanel } from "../KpiFilterPanel";
+import { fetchVisibilitySignals } from "../../api/signalLabService";
 import {
     X,
     SlidersHorizontal,
@@ -12,23 +13,44 @@ import {
     Zap,
     TrendingUp,
     Package,
-    MapPin
+    MapPin,
+    AlertCircle,
+    RefreshCw,
+    Info
 } from "lucide-react";
+
+const ErrorWithRefresh = ({ onRetry, message }) => (
+    <div className="flex flex-col items-center justify-center py-12 px-3 text-center">
+        <div className="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center mb-3">
+            <AlertCircle size={32} className="text-rose-500" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-800 mb-1">
+            API Reference Error
+        </h3>
+        <p className="text-sm text-slate-500 mb-4 max-w-[300px]">
+            {message || "We encountered an issue while fetching the latest data for this segment."}
+        </p>
+        <button
+            onClick={onRetry}
+            className="flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-bold text-white shadow-lg hover:bg-slate-800 transition-all active:scale-95"
+        >
+            <RefreshCw size={16} />
+            Try Refreshing
+        </button>
+    </div>
+);
 
 /* ------------------------------------------------------
    KPI ORDER CONFIG
 -------------------------------------------------------*/
 const visibilityKpiOrder = [
-    "adPosition",
     "adSos",
-    "organicPosition",
-    "overallSos",
-    "volumeShare",
     "organicSos",
+    "overallSos",
+    "weightedOsa",
 ];
 
 const availabilityKpiOrder = [
-    "assortment",
     "soh",
     "doi",
     "stockoutRisk",
@@ -49,6 +71,8 @@ const performanceKpiOrder = [
 ];
 
 const inventoryKpiOrder = [
+    "soh",
+    "doi",
     "drr",
     "oos",
     "expiryRisk",
@@ -69,9 +93,10 @@ const KPI_LABELS = {
     soh: "SOH",
     doi: "DOI",
     stockoutRisk: "Stock-out Risk",
-    weightedOsa: "Weighted OSA",
+    weightedOsa: "Wt. OSA",
     potentialSalesLoss: "Potential Sales Loss",
     fillrate: "Fillrate",
+    offtakeShare: "MS (Offtake Share)",
 
     orders: "Orders",
     asp: "ASP",
@@ -90,16 +115,22 @@ const KPI_LABELS = {
 /* ------------------------------------------------------
    Impact Pill (Green/Red)
 -------------------------------------------------------*/
-function ImpactPill({ value }) {
+function ImpactPill({ value, theme }) {
     const isPositive = value?.trim().startsWith("+");
     const isNegative = value?.trim().startsWith("-");
 
     let classes =
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border shadow-sm ";
 
-    if (isPositive) classes += "bg-emerald-50 text-emerald-700 border-emerald-200";
-    else if (isNegative) classes += "bg-rose-50 text-rose-700 border-rose-200";
-    else classes += "bg-slate-100 text-slate-700 border-slate-200";
+    if (theme === 'drainer') {
+        classes += "bg-rose-50 text-rose-700 border-rose-200";
+    } else if (theme === 'gainer') {
+        classes += "bg-emerald-50 text-emerald-700 border-emerald-200";
+    } else {
+        if (isPositive) classes += "bg-emerald-50 text-emerald-700 border-emerald-200";
+        else if (isNegative) classes += "bg-rose-50 text-rose-700 border-rose-200";
+        else classes += "bg-slate-100 text-slate-700 border-slate-200";
+    }
 
     return <span className={classes}>{value}</span>;
 }
@@ -571,12 +602,12 @@ const SAMPLE_SKUS = [
             weightedOsa: "96.8%",
         },
         topCities: [
-            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%" },
-            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%" },
-            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%" },
-            { city: "Ahmedabad", metric: "OSA 98.3%", change: "+1.9%" },
-
+            { city: "Hyderabad", metric: "Fillrate 99.1%", change: "+2.8%", weightage: "18.2%" },
+            { city: "Vizag", metric: "OSA 98.8%", change: "+2.1%", weightage: "12.4%" },
+            { city: "Mumbai", metric: "Assortment 99%", change: "+2.7%", weightage: "15.1%" },
+            { city: "Pune", metric: "OSA 97.5%", change: "+1.5%", weightage: "10.8%" },
         ],
+        offtakeShare: "8.4%",
     },
     {
         id: "AVL-G04",
@@ -1149,7 +1180,7 @@ const SAMPLE_SKUS = [
 -------------------------------------------------------*/
 // Skeleton card for loading state
 const SkeletonCard = () => (
-    <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white shadow-sm px-4 py-3 w-full animate-pulse">
+    <div className="flex-none flex flex-col justify-between rounded-2xl border border-slate-100 bg-white shadow-sm px-4 py-3 w-[260px] animate-pulse">
         <div className="flex justify-between items-start">
             <div className="w-full">
                 <div className="h-4 bg-slate-200 rounded w-3/4 mb-2"></div>
@@ -1194,11 +1225,10 @@ function SignalCard({ sku, metricType, onShowDetails }) {
     const primaryValue = primary.key === "offtakeValue" ? sku.offtakeValue : (sku.kpis[primary.key] || sku.offtakeValue);
 
     return (
-        <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 w-full capitalize">
+        <div className="flex-none flex flex-col justify-between rounded-2xl border border-slate-200 bg-white shadow px-4 py-3 w-[260px] capitalize">
             <div>
                 <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
                     <div className="flex items-center gap-2">
-                        <span className="font-semibold">{sku.skuCode}</span>
                         <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-50 border">
                             {sku.categoryTag}
                         </span>
@@ -1209,20 +1239,25 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                 </div>
 
                 <div>
-                    <div className="text-sm font-semibold">{sku.skuName}</div>
-                    <div className="text-xs text-slate-500">{sku.packSize}</div>
+                    {sku.groupBy === 'brand' && (
+                        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Brand</div>
+                    )}
+                    <div className="text-sm font-semibold line-clamp-2" title={sku.skuName}>{sku.skuName}</div>
+                    {sku.packSize && sku.packSize !== '-' && (
+                        <div className="text-xs text-slate-500">{sku.packSize}</div>
+                    )}
                 </div>
 
-                <div className="mt-3 flex justify-between text-xs">
+                <div className="mt-3 flex justify-between items-end text-xs">
                     <div>
                         <div className="text-slate-400">
                             {metricType === "inventory" ? "DOI" : "Offtakes"}
                         </div>
                         <div className="text-base font-semibold">
-                            {metricType === "inventory" ? sku.kpis.doi : sku.offtakeValue}
+                            {metricType === "inventory" ? (sku.kpis?.doi || '-') : sku.offtakeValue}
                         </div>
                     </div>
-                    <ImpactPill value={sku.impact} />
+                    <ImpactPill value={sku.impact} theme={sku.type} />
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5">
@@ -1239,27 +1274,38 @@ function SignalCard({ sku, metricType, onShowDetails }) {
                             </div>
                         ) : null
                     )}
+
+                    {sku.offtakeShare && (
+                        <div className="flex items-center gap-1 px-2.5 py-1 text-[10px] bg-slate-50 border rounded-full">
+                            <span className="text-slate-500">Offtake Share :</span>
+                            <span className="font-semibold text-slate-800 text-[11px]">{sku.offtakeShare}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
             <div className="mt-4 pt-3 border-t">
                 <div className="text-[11px] font-semibold mb-2">
-                    Top impacted cities
+                    Top Impacted Cities
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    {citiesToShow.map((c) => (
-                        <div key={c.city} className="p-2 border rounded-xl bg-slate-50 flex flex-col items-center text-center">
-                            <div className="font-medium">{c.city}</div>
-                            <div className="text-[10px] text-slate-500">{c.metric?.toString().replace("%", "")}</div>
-                            <ImpactPill value={c.change} />
+                    {sku.topCities?.slice(0, 2).map((c) => (
+                        <div key={c.city} className="p-1.5 border rounded-xl bg-slate-50/50 flex flex-col items-center text-center">
+                            <div className="font-semibold text-slate-700 text-[10px] truncate w-full px-1" title={c.city}>
+                                {c.city}
+                            </div>
+                            <div className="text-[9px] text-slate-500 my-0.5 leading-tight">
+                                {c.metric?.toString().replace("%", "")}
+                            </div>
+                            <ImpactPill value={c.change} theme={sku.type} />
                         </div>
                     ))}
                 </div>
 
-                <div className="mt-2 flex justify-end">
+                <div className="mt-3 flex items-center justify-end">
                     <button
                         onClick={onShowDetails}
-                        className="text-[12px] font-semibold text-sky-600 hover:underline"
+                        className="text-[10px] font-bold text-sky-600 hover:text-sky-700 underline underline-offset-2 flex items-center gap-0.5 transition-all active:scale-95"
                     >
                         More cities
                     </button>
@@ -1272,80 +1318,216 @@ function SignalCard({ sku, metricType, onShowDetails }) {
 /* ------------------------------------------------------
    BASE COMPONENT FOR BOTH VIEWS
 -------------------------------------------------------*/
-function SignalLabBase({ metricType, usePagination = true }) {
+function SignalLabBase({ metricType, usePagination = true, loading = false }) {
     const [signalType, setSignalType] = useState("drainer");
     const [selectedSkuForDetails, setSelectedSkuForDetails] = useState(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isInternalLoading, setIsInternalLoading] = useState(true);
+
+    const isLoading = isInternalLoading || loading;
 
     const {
         platform: globalPlatform,
         selectedCategory,
-        selectedLocation
+        selectedLocation,
+        selectedBrand,
+        selectedChannel,
+        timeStart,
+        timeEnd,
+        selectedKeyword
     } = useContext(FilterContext);
 
-    const [rowsPerPage, setRowsPerPage] = useState(4);
+    const [rowsPerPage, setRowsPerPage] = useState(5);
     const [page, setPage] = useState(1);
 
-    // Simulated loading delay on filter change
+    // State for real API data
+    const [apiSkus, setApiSkus] = useState(null); // null = not fetched yet
+    const [totalCount, setTotalCount] = useState(0);
+    const [apiError, setApiError] = useState(null);
+    const [retryCount, setRetryCount] = useState(0);
+
+    // Fetch real data from backend API
     useEffect(() => {
-        setIsLoading(true);
-        const timer = setTimeout(() => {
-            setIsLoading(false);
-        }, 600);
-        return () => clearTimeout(timer);
-    }, [globalPlatform, selectedCategory, selectedLocation, signalType]);
+        let cancelled = false;
+        setIsInternalLoading(true);
+        setApiError(null);
+        setPage(1); // Reset to page 1 on filter change
 
-    const filtered = useMemo(() => {
-        return SAMPLE_SKUS.filter((sku) => {
-            const matchesMetric = sku.metricType === metricType;
-            const matchesSignal = sku.type === signalType;
+        const fetchSignalLab = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const params = new URLSearchParams();
+                params.append('type', metricType);
+                params.append('signalType', signalType);
+                params.append('page', '1');
+                params.append('limit', String(rowsPerPage));
 
-            // Platform Filter
-            const matchesPlatform = !globalPlatform || (
-                Array.isArray(globalPlatform)
-                    ? globalPlatform.some(p => sku.platform.toLowerCase() === String(p).toLowerCase())
-                    : sku.platform.toLowerCase() === String(globalPlatform).toLowerCase()
-            );
+                if (globalPlatform && globalPlatform !== 'All') {
+                    if (Array.isArray(globalPlatform)) {
+                        params.append('platform', globalPlatform.join(','));
+                    } else {
+                        params.append('platform', globalPlatform);
+                    }
+                }
+                if (selectedLocation && selectedLocation !== 'All') {
+                    if (Array.isArray(selectedLocation)) {
+                        params.append('location', selectedLocation.join(','));
+                    } else {
+                        params.append('location', selectedLocation);
+                    }
+                }
+                if (selectedBrand && selectedBrand !== 'All') {
+                    if (Array.isArray(selectedBrand)) {
+                        params.append('brand', selectedBrand.join(','));
+                    } else {
+                        params.append('brand', selectedBrand);
+                    }
+                }
+                if (selectedChannel && selectedChannel !== 'All') {
+                    params.append('channel', selectedChannel);
+                }
+                if (selectedCategory && selectedCategory !== 'All') {
+                    if (Array.isArray(selectedCategory)) {
+                        params.append('category', selectedCategory.join(','));
+                    } else {
+                        params.append('category', selectedCategory);
+                    }
+                }
+                if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
+                if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
+                if (selectedKeyword && selectedKeyword !== 'All') params.append('keyword', selectedKeyword);
 
-            // Category Filter (with mapping)
-            const catMap = { "Core Tub": "Tub" };
-            const matchesCategory = !selectedCategory || selectedCategory === "All" || (
-                Array.isArray(selectedCategory)
-                    ? selectedCategory.some(cat => (catMap[cat] || String(cat)).toLowerCase() === sku.categoryTag.toLowerCase())
-                    : (catMap[selectedCategory] || String(selectedCategory)).toLowerCase() === sku.categoryTag.toLowerCase()
-            );
+                // Group by brand for visibility, otherwise group by SKU
+                const groupByValue = (metricType === 'visibility') ? 'brand' : 'sku';
+                params.append('groupBy', groupByValue);
 
-            // Location Filter: Only filter if selectedLocation is NOT "All" and NOT null/undefined
-            const matchesLocation = !selectedLocation || selectedLocation === "All" || (
-                Array.isArray(selectedLocation)
-                    ? selectedLocation.some(loc => sku.topCities.some(c => c.city.toLowerCase() === String(loc).toLowerCase()))
-                    : sku.topCities.some(c => c.city.toLowerCase() === String(selectedLocation).toLowerCase())
-            );
+                const res = await fetch(`/api/availability-analysis/signal-lab?${params.toString()}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
 
-            // Platform and Category filters are already safe. 
-            // We want to make sure if no category matches, we are not empty if the user didn't explicitly select something other than default.
-            // But actually fixing the data is better.
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
 
-            return matchesMetric && matchesSignal && matchesPlatform && matchesCategory && matchesLocation;
-        });
-    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation]);
+                if (!cancelled) {
+                    setApiSkus(data.skus || []);
+                    setTotalCount(data.totalCount || 0);
+                }
+            } catch (err) {
+                console.error('[SignalLab] API error, falling back to sample data:', err);
+                if (!cancelled) {
+                    setApiError(err.message);
+                    // Fallback to filtered SAMPLE_SKUS
+                    const fallback = SAMPLE_SKUS.filter(s => s.metricType === metricType && s.type === signalType);
+                    setApiSkus(fallback);
+                    setTotalCount(fallback.length);
+                }
+            } finally {
+                if (!cancelled) setIsInternalLoading(false);
+            }
+        };
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
+        fetchSignalLab();
+        return () => { cancelled = true; };
+    }, [metricType, signalType, globalPlatform, selectedCategory, selectedLocation, selectedBrand, selectedChannel, timeStart, timeEnd, selectedKeyword, retryCount]);
+
+    // Fetch when page or rowsPerPage changes (server-side pagination)
+    useEffect(() => {
+        // Skip initial render (handled by the filter useEffect above)
+        if (apiSkus === null) return;
+
+        let cancelled = false;
+        setIsInternalLoading(true);
+
+        const fetchPage = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const params = new URLSearchParams();
+                params.append('type', metricType);
+                params.append('signalType', signalType);
+                params.append('page', String(page));
+                params.append('limit', String(rowsPerPage));
+
+                if (globalPlatform && globalPlatform !== 'All') {
+                    if (Array.isArray(globalPlatform)) {
+                        params.append('platform', globalPlatform.join(','));
+                    } else {
+                        params.append('platform', globalPlatform);
+                    }
+                }
+                if (selectedLocation && selectedLocation !== 'All') {
+                    if (Array.isArray(selectedLocation)) {
+                        params.append('location', selectedLocation.join(','));
+                    } else {
+                        params.append('location', selectedLocation);
+                    }
+                }
+                if (selectedBrand && selectedBrand !== 'All') {
+                    if (Array.isArray(selectedBrand)) {
+                        params.append('brand', selectedBrand.join(','));
+                    } else {
+                        params.append('brand', selectedBrand);
+                    }
+                }
+                if (selectedChannel && selectedChannel !== 'All') {
+                    params.append('channel', selectedChannel);
+                }
+                if (selectedCategory && selectedCategory !== 'All') {
+                    if (Array.isArray(selectedCategory)) {
+                        params.append('category', selectedCategory.join(','));
+                    } else {
+                        params.append('category', selectedCategory);
+                    }
+                }
+                if (timeStart) params.append('startDate', typeof timeStart === 'string' ? timeStart : timeStart.format('YYYY-MM-DD'));
+                if (timeEnd) params.append('endDate', typeof timeEnd === 'string' ? timeEnd : timeEnd.format('YYYY-MM-DD'));
+                if (selectedKeyword && selectedKeyword !== 'All') params.append('keyword', selectedKeyword);
+                // Group by brand for visibility, otherwise group by SKU (same logic as initial fetch)
+                const groupByValue = (metricType === 'visibility') ? 'brand' : 'sku';
+                params.append('groupBy', groupByValue);
+
+                const res = await fetch(`/api/availability-analysis/signal-lab?${params.toString()}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {}
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+
+                if (!cancelled) {
+                    setApiSkus(data.skus || []);
+                    setTotalCount(data.totalCount || 0);
+                }
+            } catch (err) {
+                console.error('[SignalLab] Pagination fetch error:', err);
+            } finally {
+                if (!cancelled) setIsInternalLoading(false);
+            }
+        };
+
+        fetchPage();
+        return () => { cancelled = true; };
+    }, [page, rowsPerPage, selectedKeyword, retryCount]);
+
+    const filtered = apiSkus || [];
+    const totalPages = Math.max(1, Math.ceil(totalCount / rowsPerPage));
     const safePage = Math.max(1, Math.min(page, totalPages));
 
+    // For API data, pagination is server-side so pageRows = filtered directly
     const pageRows = useMemo(() => {
-        if (!usePagination) return filtered;
-        const start = (safePage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        return filtered.slice(start, end);
-    }, [filtered, safePage, rowsPerPage, usePagination]);
+        return filtered;
+    }, [filtered]);
 
 
     return (
         <>
             <div className="flex justify-between items-center flex-wrap gap-4">
-                <h2 className="text-lg font-semibold capitalize">
-                    Signal Lab — Kwality Wall&apos;s ({metricType === "performance" ? "Performance Marketing" : metricType})
+                <h2 className="text-lg font-semibold capitalize flex items-center gap-2">
+                    Signal Lab - {(() => { try { const u = JSON.parse(localStorage.getItem('user')); return u?.dbName ? u.dbName.charAt(0).toUpperCase() + u.dbName.slice(1) : 'Brand'; } catch { return 'Brand'; } })()} ({metricType === "performance" ? "Performance Marketing" : metricType})
+                    <div className="group relative cursor-help">
+                        <Info size={16} className="text-slate-400 hover:text-sky-500 transition-colors" />
+                        <div className="absolute left-0 top-full mt-2 w-64 p-3 bg-slate-900 text-white text-[11px] rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 font-normal normal-case leading-relaxed">
+                            <div className="font-bold mb-1 border-b border-white/10 pb-1">Signal Logic</div>
+                            Gainers and Drainers are calculated based on a minimum <b>5% increment or decrement</b> in OSA (On-Shelf Availability) compared to the previous period.
+                        </div>
+                    </div>
                 </h2>
 
                 <SegmentedSwitch
@@ -1360,18 +1542,23 @@ function SignalLabBase({ metricType, usePagination = true }) {
 
             <div className="mt-5 min-h-[400px]">
                 {isLoading ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
-                        {[1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+                    <div className="flex overflow-x-auto gap-4 items-start pb-4 snap-x">
+                        {[1, 2, 3, 4, 5].map((i) => <div key={i} className="snap-start"><SkeletonCard /></div>)}
                     </div>
+                ) : apiError ? (
+                    <ErrorWithRefresh onRetry={() => {
+                        setRetryCount(c => c + 1);
+                    }} message={apiError} />
                 ) : filtered.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+                    <div className="flex overflow-x-auto gap-4 items-stretch border-b border-t py-4 snap-x custom-scrollbar">
                         {pageRows.map((s) => (
-                            <SignalCard
-                                key={s.id}
-                                sku={s}
-                                metricType={metricType}
-                                onShowDetails={() => setSelectedSkuForDetails(s)}
-                            />
+                            <div key={s.id} className="snap-start">
+                                <SignalCard
+                                    sku={s}
+                                    metricType={metricType}
+                                    onShowDetails={() => setSelectedSkuForDetails(s)}
+                                />
+                            </div>
                         ))}
                     </div>
                 ) : (
@@ -1420,9 +1607,9 @@ function SignalLabBase({ metricType, usePagination = true }) {
                                 }}
                                 className="ml-1 rounded-full border border-slate-200 px-2 py-1 bg-white outline-none focus:border-slate-400 text-slate-700"
                             >
-                                <option value={4}>4</option>
-                                <option value={8}>8</option>
-                                <option value={12}>12</option>
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={15}>15</option>
                                 <option value={20}>20</option>
                             </select>
                         </div>
@@ -1443,7 +1630,7 @@ function SignalLabBase({ metricType, usePagination = true }) {
 }
 
 
-export function SignalLabVisibility({ type, usePagination = true }) {
-    return <SignalLabBase metricType={type} usePagination={usePagination} />;
+export function SignalLabVisibility({ type, usePagination = true, loading = false }) {
+    return <SignalLabBase metricType={type} usePagination={usePagination} loading={loading} />;
 }
 

@@ -33,7 +33,6 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
     const [selectedMetrics, setSelectedMetrics] = useState({
         discount: true,
         pricePerUnit: true,
-        rpi: true,
         asp: true
     });
 
@@ -49,7 +48,6 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
         ...d,
         discount: 10 + Math.random() * 20,
         pricePerUnit: 150 + Math.random() * 100,
-        rpi: 1.2 + Math.random() * 5,
         asp: 180 + Math.random() * 150
     }));
 
@@ -85,15 +83,13 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
                     </Box>
                     {payload.map((entry, index) => {
                         const labelMap = {
-                            discount: 'Discount',
-                            pricePerUnit: 'Price Per Unit',
-                            rpi: 'RPI',
-                            asp: 'ASP'
+                            discount: 'Discount %',
+                            pricePerUnit: 'Price/Unit (per 100gm)',
+                            asp: 'Average Selling Price'
                         };
                         const unitMap = {
                             discount: '%',
                             pricePerUnit: '₹',
-                            rpi: '',
                             asp: '₹'
                         };
                         const isCurrency = unitMap[entry.dataKey] === '₹';
@@ -117,9 +113,8 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
     };
 
     const metricsList = [
-        { key: 'discount', label: 'Discount', color: '#6366f1' },
-        { key: 'pricePerUnit', label: 'Price Per Unit', color: '#14b8a6' },
-        { key: 'rpi', label: 'RPI', color: '#f43f5e' },
+        { key: 'discount', label: 'Discount %', color: '#6366f1' },
+        { key: 'pricePerUnit', label: 'Price/Unit (per 100gm)', color: '#14b8a6' },
         { key: 'asp', label: 'Average Selling Price', color: '#8b5cf6' }
     ];
 
@@ -364,17 +359,6 @@ const PricingTrendsDrawer = ({ open, onClose, entityName, dimensionType, platfor
                                         strokeWidth={2.5}
                                         dot={{ r: 3.5, fill: "#14b8a6", strokeWidth: 0 }}
                                         activeDot={{ r: 5, fill: "#14b8a6", strokeWidth: 2, stroke: theme.palette.background.paper }}
-                                    />
-                                )}
-                                {selectedMetrics.rpi && (
-                                    <Line
-                                        yAxisId="left"
-                                        type="monotone"
-                                        dataKey="rpi"
-                                        stroke="#f43f5e"
-                                        strokeWidth={2.5}
-                                        dot={{ r: 3.5, fill: "#f43f5e", strokeWidth: 0 }}
-                                        activeDot={{ r: 5, fill: "#f43f5e", strokeWidth: 2, stroke: theme.palette.background.paper }}
                                     />
                                 )}
                                 {selectedMetrics.asp && (

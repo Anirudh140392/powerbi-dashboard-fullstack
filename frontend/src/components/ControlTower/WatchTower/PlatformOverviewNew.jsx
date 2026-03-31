@@ -1,4 +1,4 @@
-import { useState, useMemo, useContext, useEffect, useCallback } from 'react'
+import { useState, useMemo, useContext, useEffect, useCallback, useRef } from 'react'
 import axiosInstance from '../../../api/axiosInstance'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../../utils/FilterContext'
@@ -13,8 +13,10 @@ import {
     LineChart,
     MapPin,
     SlidersHorizontal,
+    Scale,
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
+import { useNavigate } from 'react-router-dom'
 import { cn } from '../../../lib/utils'
 import FlipkartLogo from '@/lib/Flipkart logo.png'
 
@@ -68,37 +70,36 @@ const cardSize = {
 const kpiLabels = {
     offtakes: 'Offtakes',
     spend: 'Spend',
-    roas: 'Category size',
     availability: 'Availability',
     marketShare: 'Market share',
     conversion: 'Conversion',
-    shareOfVolume: 'Share of Volume',
+    shareOfVolume: 'SHARE OF SEARCH',
     ad_sov: 'Ad SOV',
     organic_sov: 'Organic SOV',
     inorgSales: 'Inorganic Sales',
     dspSales: 'DSP Sales',
-    promoMyBrand: 'Promo - My Brand',
-    promoCompete: 'Promo - Compete',
-    cpm: 'CPM',
-    cpc: 'CPC',
-    asp: 'ASP'
+    asp: 'ASP',
+    categorySize: 'Category Size',
+    discount: 'Promo'
 };
 
 // Map backend KPI title → frontend kpiKey
 const BACKEND_TITLE_TO_KEY = {
     'Offtakes': 'offtakes',
-    'Category Size': 'roas',
     'Spend': 'spend',
     'ROAS': 'roas_x',
     'Inorg Sales': 'inorgSales',
     'Conversion': 'conversion',
     'Availability': 'availability',
     'SOS': 'shareOfVolume',
+    'Share of Search': 'shareOfVolume',
+    'Ad SOV': 'ad_sov',
+    'Organic SOV': 'organic_sov',
     'Market Share': 'marketShare',
-    'Promo My Brand': 'promoMyBrand',
-    'Promo Compete': 'promoCompete',
+    'Category Size': 'categorySize',
     'CPM': 'cpm',
     'CPC': 'cpc',
+    'Promo': 'discount'
 }
 
 // Map backend API response entity → frontend entity format
@@ -149,31 +150,76 @@ const PlatformOverviewNew = ({
         selectedLocation,
         platforms: globalPlatforms,
         timeStart,
-        timeEnd
+        timeEnd,
+        compareStart,
+        compareEnd,
+        datesFetched,
+        platformsFetched
     } = useContext(FilterContext);
 
     const kpis = [
         { key: 'offtakes', label: 'Offtakes' },
         { key: 'spend', label: 'Spend' },
-        { key: 'roas', label: 'Category size' },
         { key: 'inorgSales', label: 'Inorg Sales' },
+        { key: 'dspSales', label: 'DSP Sales' },
         { key: 'conversion', label: 'Conversion' },
         { key: 'availability', label: 'Availability' },
-        { key: 'shareOfVolume', label: 'Share of Volume' },
-        { key: 'marketShare', label: 'Market share' },
-        { key: 'promoMyBrand', label: 'Promo - My Brand' },
-        { key: 'promoCompete', label: 'Promo - Compete' },
+        { key: 'shareOfVolume', label: 'Share of Search' },
+        { key: 'ad_sov', label: 'Ad SOV' },
+        { key: 'organic_sov', label: 'Organic SOV' },
         { key: 'cpm', label: 'CPM' },
         { key: 'cpc', label: 'CPC' },
+        { key: 'asp', label: 'ASP' },
+        { key: 'marketShare', label: 'Market Share' },
+        { key: 'categorySize', label: 'Category Size' },
     ]
-    // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'])
+
+    const isBoatUser = useMemo(() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            return u?.dbName?.toLowerCase() === 'boat';
+        } catch {
+            return false;
+        }
+    }, []);
+
+    // Filter out unwanted KPIs
+    const filteredKpis = useMemo(() => {
+        if (dimension === 'sku') {
+            return kpis.filter(k => {
+                if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
+                if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
+                return true;
+            });
+        }
+        if (dimension === 'brand') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
+        return kpis;
+    }, [dimension, kpis, isBoatUser]);
+
+    const defaultKpiKeys = useMemo(() => {
+        const base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
+        if (dimension === 'sku') {
+            return base.filter(k => {
+                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+                return true;
+            });
+        }
+        if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
+        return base;
+    }, [dimension, isBoatUser]);
+
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+    const navigate = useNavigate()
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(50)
     const [apiData, setApiData] = useState({})
-    const [apiLoading, setApiLoading] = useState(false)
+    const [apiLoading, setApiLoading] = useState(true)
     const [apiError, setApiError] = useState(null)
     const [isRetrying, setIsRetrying] = useState(false)
+    const [productOptions, setProductOptions] = useState([])
     const [advancedFilters, setAdvancedFilters] = useState({
         brands: [],
         categories: [],
@@ -183,9 +229,38 @@ const PlatformOverviewNew = ({
         skuCode: '',
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
+        kpis: defaultKpiKeys,
         filterLogic: 'OR',
     })
+    const fetchIdRef = useRef(0)
+
+    // Re-sync glanceKpis when dimension changes
+    useEffect(() => {
+        if (dimension === 'sku') {
+            setGlanceKpis(prev => prev.filter(k => {
+                if (k === 'categorySize' || k === 'shareOfVolume') return false;
+                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+                return true;
+            }));
+        } else if (dimension === 'brand') {
+            setGlanceKpis(prev => {
+                let next = prev.filter(k => k !== 'categorySize' && k !== 'marketShare');
+                if (!next.includes('spend')) next.push('spend');
+                if (!next.includes('conversion')) next.push('conversion');
+                return next;
+            });
+        } else {
+            // platform, month, category
+            setGlanceKpis(prev => {
+                let next = [...prev];
+                if (!next.includes('categorySize')) next.push('categorySize');
+                if (!next.includes('spend')) next.push('spend');
+                if (!next.includes('conversion')) next.push('conversion');
+                if (!next.includes('marketShare')) next.push('marketShare');
+                return next;
+            });
+        }
+    }, [dimension, isBoatUser]);
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
@@ -199,84 +274,140 @@ const PlatformOverviewNew = ({
     // Known platform logos for enriching API data
     const platformLogos = {
         'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2f/Blinkit-yellow-app-icon.svg',
-        'instamart': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
-        'swiggy instamart': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+        'instamart': '\instamart_photo.png',
+        'swiggy instamart': '\instamart_photo.png',
+        'swiggy': '\instamart_photo.png',
         'zepto': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Zepto_Logo.svg',
         'flipkart': FlipkartLogo,
         'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
     }
     const platformColors = {
-        'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316',
+        'blinkit': '#fbbf24', 'instamart': '#f97316', 'swiggy instamart': '#f97316', 'swiggy': '#f97316',
         'zepto': '#8b5cf6', 'flipkart': '#2874f0', 'amazon': '#f59e0b',
     }
 
-    // Fetch data from backend API when dimension or filters change
-    const fetchDimensionData = useCallback(async () => {
+    // Generate a stable key for current filter state to avoid redundant fetches
+    const filterKey = useMemo(() => {
+        const reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
+            : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
+        const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',') : '';
+        const reqCategory = advancedFilters.categories?.length > 0 ? advancedFilters.categories.join(',')
+            : (selectedCategory === 'All' ? 'All' : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
+        const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
+        const reqEndDate = advancedFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : '');
+        const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
+        const reqChannel = selectedChannel || 'All';
+
+        return JSON.stringify({
+            dimension,
+            reqPlatform,
+            reqBrand,
+            reqCategory,
+            reqLocation,
+            reqStartDate,
+            reqEndDate,
+            reqChannel,
+            advancedFilters: {
+                skuName: advancedFilters.skuName,
+                skuCode: advancedFilters.skuCode,
+                filterLogic: advancedFilters.filterLogic
+            }
+        });
+    }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters]);
+
+    // Fetch data from backend API when filters change (stable version)
+    const fetchDimensionData = useCallback(async (currentFetchId) => {
         const endpoint = DIMENSION_API_MAP[dimension]
         if (!endpoint) return
 
-        setApiLoading(true)
         setApiError(null)
         try {
-            // Priority: Local Advanced Filters > Global Context Filters
-            const reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
-                : (globalPlatform === 'All' ? undefined : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
-
-            const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',')
-                : undefined;
-
-            const reqCategory = advancedFilters.categories?.length > 0 ? advancedFilters.categories.join(',')
-                : (selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
-
-            const reqStartDate = advancedFilters.dateFrom ? advancedFilters.dateFrom
-                : (timeStart ? timeStart.format('YYYY-MM-DD') : undefined);
-
-            const reqEndDate = advancedFilters.dateTo ? advancedFilters.dateTo
-                : (timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined);
-
-            // Combine SKUs filter mapping specifically
-            let skuNameParam, skuCodeParam;
-            if (advancedFilters.skus?.length > 0) {
-                skuNameParam = advancedFilters.skus.join(',');
-            } else if (advancedFilters.skuName) {
-                skuNameParam = advancedFilters.skuName;
-            }
-            skuCodeParam = advancedFilters.skuCode || undefined;
-
+            const parsed = JSON.parse(filterKey);
             const params = {
-                platform: reqPlatform,
-                brand: reqBrand,
-                category: reqCategory,
-                location: selectedLocation === 'All' ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation),
-                startDate: reqStartDate,
-                endDate: reqEndDate,
-                channel: selectedChannel || undefined,
-                skuName: skuNameParam,
-                skuCode: skuCodeParam,
-                filterLogic: advancedFilters.filterLogic || 'OR'
+                platform: parsed.reqPlatform === 'All' ? undefined : parsed.reqPlatform,
+                brand: parsed.reqBrand || undefined,
+                category: parsed.reqCategory === 'All' ? undefined : parsed.reqCategory,
+                location: parsed.reqLocation === 'All' ? undefined : parsed.reqLocation,
+                startDate: parsed.reqStartDate || undefined,
+                endDate: parsed.reqEndDate || undefined,
+                compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+                compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
+                channel: parsed.reqChannel === 'All' ? undefined : parsed.reqChannel,
+                skuName: parsed.advancedFilters.skuName || undefined,
+                skuCode: parsed.advancedFilters.skuCode || undefined,
+                filterLogic: parsed.advancedFilters.filterLogic || 'OR'
             }
-            console.log(`[PlatformOverviewNew] Fetching ${dimension} data from ${endpoint}`, params)
+
+            console.log(`[PlatformOverviewNew] Fetching ${dimension} data`, params)
             const res = await axiosInstance.get(endpoint, { params, timeout: 60000 })
 
+            // Only update state if this is still the most recent fetch
+            if (currentFetchId !== fetchIdRef.current) return;
+
             if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                console.log(`[PlatformOverviewNew] Got ${res.data.length} ${dimension} entities from API`)
+                console.log(`[PlatformOverviewNew] Got ${res.data.length} ${dimension} entities`)
                 setApiData(prev => ({ ...prev, [dimension]: res.data }))
             } else {
-                console.warn(`[PlatformOverviewNew] Empty response for ${dimension}`)
                 setApiData(prev => ({ ...prev, [dimension]: [] }))
             }
         } catch (err) {
-            console.error(`[PlatformOverviewNew] API error for ${dimension}:`, err.message)
-            setApiError(err.message || `Failed to load ${dimension} data`)
-            setApiData(prev => ({ ...prev, [dimension]: null }))
+            if (currentFetchId === fetchIdRef.current) {
+                console.error(`[PlatformOverviewNew] API error:`, err.message)
+                setApiError(err.message || `Failed to load ${dimension} data`)
+                setApiData(prev => ({ ...prev, [dimension]: null }))
+            }
         } finally {
-            setApiLoading(false)
+            if (currentFetchId === fetchIdRef.current) {
+                setApiLoading(false)
+            }
         }
-    }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters])
+    }, [dimension, filterKey, compareStart, compareEnd]);
+
+    // Sync loading state with filterKey changes to prevent flicker
+    const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+    if (prevFilterKey !== filterKey) {
+        setPrevFilterKey(filterKey);
+        setApiLoading(true);
+        setApiError(null);
+        setCurrentPage(1);
+    }
 
     useEffect(() => {
-        fetchDimensionData()
-    }, [fetchDimensionData])
+        // Wait for essential context data
+        if (!datesFetched || !platformsFetched) return;
+
+        const currentFetchId = ++fetchIdRef.current;
+        // The synchronous state update above handles the initial setApiLoading(true)
+        // without waiting for the useEffect/paint cycle.
+
+        const debounceTimer = setTimeout(() => {
+            if (currentFetchId !== fetchIdRef.current) return;
+            fetchDimensionData(currentFetchId)
+        }, 1000);
+
+        return () => clearTimeout(debounceTimer);
+    }, [filterKey, datesFetched, platformsFetched, fetchDimensionData]);
+
+    // Fetch product/SKU options from DB for the filter dropdown
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const params = {};
+                if (globalPlatform && globalPlatform !== 'All') {
+                    params.platform = Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform;
+                }
+                const res = await axiosInstance.get('/watchtower/products', { params });
+                if (res.data && Array.isArray(res.data)) {
+                    setProductOptions(res.data.map(p => ({ id: p, name: p })));
+                }
+            } catch (err) {
+                console.warn('[PlatformOverviewNew] Failed to fetch products for filter:', err.message);
+            }
+        };
+        if (datesFetched) {
+            fetchProducts();
+        }
+    }, [datesFetched, globalPlatform])
 
     // Retry function for error state
     const retryFetch = async () => {
@@ -301,7 +432,7 @@ const PlatformOverviewNew = ({
 
     const currentDimension = dimensionMeta[dimension] || dimensionMeta.platform
     // Get selected KPIs in order
-    const selectedKpis = kpis.filter(k => glanceKpis.includes(k.key))
+    const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
     // Build entities from API data only — NO hardcoded fallback
@@ -345,6 +476,12 @@ const PlatformOverviewNew = ({
 
         return result
     }, [apiData, dimension, globalPlatform])
+
+    // Pagination logic
+    const totalPages = Math.ceil(entities.length / pageSize)
+    const paginatedEntities = useMemo(() => {
+        return entities.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    }, [entities, currentPage, pageSize])
 
     const SectionWrapper = ({
         title,
@@ -539,8 +676,8 @@ const PlatformOverviewNew = ({
                                 )}
                             </button>
                         </div>
-                    ) : entities.length === 0 ? (
-                        /* No data state */
+                    ) : entities.length === 0 && apiData[dimension] !== undefined ? (
+                        /* No data state - only show if fetch completed and returned nothing */
                         <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-200 p-8 flex flex-col items-center justify-center min-h-[150px] gap-2">
                             <p className="text-sm text-slate-400 font-medium">No data available for the current selection</p>
                         </div>
@@ -550,8 +687,20 @@ const PlatformOverviewNew = ({
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
                                 <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
-                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between">
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
+                                        {/* {dimension === 'sku' && (
+                                            <motion.button 
+                                                onClick={() => navigate('/compare-skus')}
+                                                className="px-3 py-1.5 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-600 to-blue-500 text-[10px] sm:text-[11px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.3)] hover:-translate-y-0.5 transition-all uppercase tracking-wider flex items-center gap-1.5 relative overflow-hidden group"
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                            >
+                                                <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-[-20deg]"></div>
+                                                <Scale size={13} className="text-blue-100" strokeWidth={2.5}/>
+                                                <span>Compare SKU</span>
+                                            </motion.button>
+                                        )} */}
                                     </div>
                                     {selectedKpis.map(kpi => (
                                         <div key={kpi.key} className={cn('flex-1 text-center py-2 px-2 rounded-lg bg-white border border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]', cardSize.minW)}>
@@ -564,7 +713,7 @@ const PlatformOverviewNew = ({
 
                                 {/* Entity Rows */}
                                 <div className="space-y-2 sm:space-y-3 px-1">
-                                    {entities.map((e) => (
+                                    {paginatedEntities.map((e) => (
                                         <motion.div
                                             key={e.key}
                                             className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
@@ -666,6 +815,34 @@ const PlatformOverviewNew = ({
                         </div>
                     )}
 
+                    {/* Generic Pagination Controls */}
+                    {entities.length > pageSize && (
+                        <div className="mt-4 pt-3 sm:pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <span className="text-xs sm:text-sm text-slate-500">
+                                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, entities.length)} of {entities.length} entries
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 border border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-xs font-bold text-slate-700 px-2">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 border border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Footer - Summary Stats */}
                     <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
                         <div className="flex items-center gap-2 sm:gap-4">
@@ -692,13 +869,15 @@ const PlatformOverviewNew = ({
                     </div>
                 </SectionWrapper>
             </div>
+
             {/* Prepare options for advanced filter dropdowns */}
             {(() => {
                 const brandOptions = globalBrands.map(b => ({ id: b, name: b }))
                 const categoryOptions = globalCategories.map(c => ({ id: c, name: c }))
                 const platformOptions = globalPlatforms.map(p => ({ id: p, name: p }))
                 // SKUs: if current dimension is sku, use them, else empty (fetching all SKUs is too heavy)
-                const skuOptions = dimension === 'sku' ? entities.map(e => ({ id: e.key, name: e.name })) : []
+                const skuOptions = productOptions.length > 0 ? productOptions
+                    : (dimension === 'sku' ? entities.map(e => ({ id: e.key, name: e.name })) : [])
 
                 return (
                     <AdvancedFilterModal

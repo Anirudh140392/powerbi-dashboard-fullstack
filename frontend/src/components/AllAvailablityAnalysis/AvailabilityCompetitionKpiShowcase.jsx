@@ -463,29 +463,11 @@ const KPI_KEYS = [
         unit: "%",
     },
     {
-        key: "Osa",
-        label: "OSA",
-        color: "#F97316",
+        key: "Listing",
+        label: "Listing %",
+        color: "#0EA5E9",
         unit: "%",
     },
-    {
-        key: "Fillrate",
-        label: "Fillrate",
-        color: "#22C55E",
-        unit: "%",
-    },
-    {
-        key: "Assortment",
-        label: "Assortment",
-        color: "#3B82F6",
-        unit: "",
-    },
-    {
-        key: "Psl",
-        label: "PSL",
-        color: "#EC4899",
-        unit: "%",
-    }
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -507,18 +489,13 @@ const BrandTable = ({ rows, loading }) => {
                             <tr>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
-                                <th className="px-3 py-2 text-center">Fillrate</th>
-                                <th className="px-3 py-2 text-center">Assortment</th>
-                                <th className="px-3 py-2 text-center">PSL</th>
+                                <th className="px-3 py-2 text-center">Listing %</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && Array.from({ length: 5 }).map((_, idx) => (
                                 <tr key={`skeleton-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                                    <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                     <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                                 </tr>
                             ))}
@@ -539,18 +516,8 @@ const BrandTable = ({ rows, loading }) => {
                                         </span>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-medium text-slate-400 italic">
-                                            Coming Soon
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700">
-                                            {(row.assortment || 0)}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">
-                                            {(row.psl || 0).toFixed(1)}%
+                                        <span className="font-semibold text-slate-700">
+                                            {(row.listing || 0).toFixed(1)}%
                                         </span>
                                     </td>
                                 </tr>
@@ -558,7 +525,7 @@ const BrandTable = ({ rows, loading }) => {
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={6}
+                                        colSpan={3}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
                                         No brands matching current filters.
@@ -589,15 +556,13 @@ const SkuTable = ({ rows, loading }) => {
                                 <th className="px-3 py-2 text-left">SKU</th>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
-                                <th className="px-3 py-2 text-center">Fillrate</th>
-                                <th className="px-3 py-2 text-center">Assortment</th>
-                                <th className="px-3 py-2 text-center">PSL</th>
+                                <th className="px-3 py-2 text-center">Listing %</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={6} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={4} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
@@ -622,18 +587,8 @@ const SkuTable = ({ rows, loading }) => {
                                         </span>
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="font-medium text-slate-400 italic">
-                                            Coming Soon
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="inline-flex items-center justify-center rounded-md bg-blue-50 px-2 py-1 font-semibold text-blue-700">
-                                            {(row.assortment || 0)}
-                                        </span>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-[12px]">
-                                        <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700">
-                                            {(row.psl || 0).toFixed(1)}%
+                                        <span className="font-semibold text-slate-700">
+                                            {(row.listing || 0).toFixed(1)}%
                                         </span>
                                     </td>
                                 </tr>
@@ -641,7 +596,7 @@ const SkuTable = ({ rows, loading }) => {
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={7}
+                                        colSpan={4}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
                                         No SKUs matching current filters.
@@ -919,15 +874,17 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 const response = await axiosInstance.get('/availability-analysis/competition', { params });
                 if (response.data) {
                     setCompetitionData(response.data);
-                }
 
-                // Also fetch trend data if viewMode is trend
-                if (viewMode === 'trend') {
-                    const trendResponse = await axiosInstance.get('/availability-analysis/competition-brand-trends', {
-                        params: { ...params, brands: params.brand }
-                    });
-                    if (trendResponse.data) {
-                        setTrendData(trendResponse.data);
+                    // Fetch trend data using actual brand names from competition results
+                    if (viewMode === 'trend') {
+                        const brandNames = (response.data.brands || []).map(b => b.brand).filter(Boolean);
+                        const trendBrands = brandNames.length > 0 ? brandNames.slice(0, 5).join(',') : 'All';
+                        const trendResponse = await axiosInstance.get('/availability-analysis/competition-brand-trends', {
+                            params: { ...params, brands: trendBrands }
+                        });
+                        if (trendResponse.data) {
+                            setTrendData(trendResponse.data);
+                        }
                     }
                 }
             } catch (error) {
@@ -947,6 +904,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             id: b.brand || `brand-${idx}`,
             name: b.brand || 'Unknown',
             osa: b.osa || 0,
+            listing: b.listing || 0,
             doi: b.doi || 0,
             fillrate: b.fillrate || 0,
             assortment: b.assortment || 0,
@@ -960,6 +918,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             name: s.sku_name || 'Unknown',
             brandName: s.brand_name || 'Unknown',
             osa: s.osa || 0,
+            listing: s.listing || 0,
             doi: s.doi || 0,
             fillrate: s.fillrate || 0,
             assortment: s.assortment || 0,

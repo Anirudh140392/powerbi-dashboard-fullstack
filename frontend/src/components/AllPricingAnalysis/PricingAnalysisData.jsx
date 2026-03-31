@@ -319,7 +319,7 @@ const ownVsCompColumns = [
       />
     ),
   },
-  { id: "format", label: "Format", sortable: true },
+  { id: "format", label: "Category", sortable: true },
   { id: "ml", label: "ML", sortable: true, numeric: true },
 ];
 
@@ -1150,6 +1150,9 @@ export default function PricingAnalysisData() {
   // Get global filters from FilterContext
   const {
     platform: globalPlatform,
+    selectedBrand,
+    selectedCategory,
+    selectedChannel,
     selectedLocation,
     timeStart,
     timeEnd,
@@ -1158,8 +1161,37 @@ export default function PricingAnalysisData() {
     datesInitialized,
   } = useContext(FilterContext);
 
-  const [filters, setFilters] = useState(defaultFilters);
-  const [selectedBrand, setSelectedBrand] = useState(null);
+  const [filters, setFilters] = useState({ brand: selectedBrand || 'All', range: [0, 100], format: 'All' });
+
+  // Helper: convert array or string filter to comma-separated string for API
+  const toFilterString = (val) => Array.isArray(val) ? val.join(',') : val;
+
+  // Centralized query params builder
+  const buildQueryParams = (includeCompare = false) => {
+    const params = {
+      startDate: timeStart?.format('YYYY-MM-DD'),
+      endDate: timeEnd?.format('YYYY-MM-DD'),
+    };
+    if (includeCompare) {
+      params.compareStartDate = compareStart?.format('YYYY-MM-DD');
+      params.compareEndDate = compareEnd?.format('YYYY-MM-DD');
+    }
+    if (globalPlatform && globalPlatform !== 'All') params.platform = toFilterString(globalPlatform);
+    if (selectedLocation && selectedLocation !== 'All') params.location = toFilterString(selectedLocation);
+    if (selectedCategory && selectedCategory !== 'All') params.category = toFilterString(selectedCategory);
+
+    const brandFilter = selectedBrand || filters.brand;
+    if (brandFilter && brandFilter !== 'All') params.brand = toFilterString(brandFilter);
+
+    if (selectedChannel && selectedChannel !== 'All') params.channel = toFilterString(selectedChannel);
+
+    return params;
+  };
+
+  // Refs for tracking and cancelling requests
+  const abortControllerRef = useRef(null);
+  const lastFetchedFiltersRef = useRef(null);
+
 
   // ECP Comparison state
   const [ecpData, setEcpData] = useState([]);
@@ -1185,241 +1217,9 @@ export default function PricingAnalysisData() {
   const [ecpByCityData, setEcpByCityData] = useState([]);
   const [ecpByCityLoading, setEcpByCityLoading] = useState(true);
 
-  // Fetch ECP comparison data when filters change
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchEcpComparison = async () => {
-      setEcpLoading(true);
-      try {
-        const params = {
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD'),
-          compareStartDate: compareStart?.format('YYYY-MM-DD'),
-          compareEndDate: compareEnd?.format('YYYY-MM-DD'),
-        };
-
-        if (globalPlatform && globalPlatform !== 'All') {
-          params.platform = globalPlatform;
-        }
-        if (selectedLocation && selectedLocation !== 'All') {
-          params.location = selectedLocation;
-        }
-
-        console.log("[PricingAnalysisData] Fetching ECP comparison with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/ecp-comparison', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] ECP data received:", response.data.data.length, "items");
-          setEcpData(response.data.data);
-        } else {
-          setEcpData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching ECP comparison data:", error);
-        setEcpData([]);
-      } finally {
-        setEcpLoading(false);
-      }
-    };
-
-    fetchEcpComparison();
-  }, [globalPlatform, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, datesInitialized]);
-
-  // Fetch ECP by Brand data when filters change
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchEcpByBrand = async () => {
-      setEcpByBrandLoading(true);
-      try {
-        const params = {
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD'),
-        };
-
-        if (globalPlatform && globalPlatform !== 'All') {
-          params.platform = globalPlatform;
-        }
-        if (selectedLocation && selectedLocation !== 'All') {
-          params.location = selectedLocation;
-        }
-
-        console.log("[PricingAnalysisData] Fetching ECP by Brand with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/ecp-by-brand', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] ECP by Brand data received:", response.data.data.length, "items");
-          setEcpByBrandData(response.data.data);
-        } else {
-          setEcpByBrandData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching ECP by Brand data:", error);
-        setEcpByBrandData([]);
-      } finally {
-        setEcpByBrandLoading(false);
-      }
-    };
-
-    fetchEcpByBrand();
-  }, [globalPlatform, selectedLocation, timeStart, timeEnd, datesInitialized]);
-
-  // Fetch Brand Price Overview data when page loads/dates change or platform filter changes
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchBrandPriceOverview = async () => {
-      setBrandPriceOverviewLoading(true);
-      try {
-        const params = {
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD'),
-        };
-
-        // Add platform filter if a specific platform is selected
-        if (globalPlatform && globalPlatform !== 'All') {
-          params.platform = globalPlatform;
-        }
-
-        console.log("[PricingAnalysisData] Fetching Brand Price Overview with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/brand-price-overview', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] Brand Price Overview data received:", response.data.data.length, "items");
-          setBrandPriceOverviewData(response.data.data);
-        } else {
-          setBrandPriceOverviewData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching Brand Price Overview data:", error);
-        setBrandPriceOverviewData([]);
-      } finally {
-        setBrandPriceOverviewLoading(false);
-      }
-    };
-
-    fetchBrandPriceOverview();
-  }, [timeStart, timeEnd, datesInitialized, globalPlatform]);
-
-  // Fetch One View Price Grid data when page loads/dates/platform change
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchOneViewPriceGrid = async () => {
-      setOneViewPriceGridLoading(true);
-      try {
-        const params = {
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD'),
-        };
-
-        // Add platform filter if a specific platform is selected
-        if (globalPlatform && globalPlatform !== 'All') {
-          params.platform = globalPlatform;
-        }
-
-        console.log("[PricingAnalysisData] Fetching One View Price Grid with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/one-view-price-grid', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] One View Price Grid data received:", response.data.data.length, "items");
-          setOneViewPriceGridData(response.data.data);
-        } else {
-          setOneViewPriceGridData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching One View Price Grid data:", error);
-        setOneViewPriceGridData([]);
-      } finally {
-        setOneViewPriceGridLoading(false);
-      }
-    };
-
-    fetchOneViewPriceGrid();
-  }, [timeStart, timeEnd, datesInitialized, globalPlatform]);
-
-  // Fetch Brand Discount Trend data for Price Intelligence chart
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchBrandDiscountTrend = async () => {
-      setBrandDiscountTrendLoading(true);
-      try {
-        const params = {
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD'),
-        };
-
-        // Add platform filter if a specific platform is selected
-        if (globalPlatform && globalPlatform !== 'All') {
-          params.platform = globalPlatform;
-        }
-
-        console.log("[PricingAnalysisData] Fetching Brand Discount Trend with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/brand-discount-trend', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] Brand Discount Trend data received:", response.data.data);
-          setBrandDiscountTrendData(response.data.data);
-        } else {
-          setBrandDiscountTrendData({ months: [], series: [] });
-        }
-      } catch (error) {
-        console.error("Error fetching Brand Discount Trend data:", error);
-        setBrandDiscountTrendData({ months: [], series: [] });
-      } finally {
-        setBrandDiscountTrendLoading(false);
-      }
-    };
-
-    fetchBrandDiscountTrend();
-  }, [timeStart, timeEnd, datesInitialized, globalPlatform]);
-
-  // Fetch ECP by City data when filters change
-  useEffect(() => {
-    if (!datesInitialized) return;
-
-    const fetchEcpByCity = async () => {
-      setEcpByCityLoading(true);
-      try {
-        const params = {
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD'),
-        };
-
-        if (globalPlatform && globalPlatform !== 'All') {
-          params.platform = globalPlatform;
-        }
-        if (selectedLocation && selectedLocation !== 'All') {
-          params.city = selectedLocation;
-        }
-
-        // Add brand filter if selected
-        const brandFilter = selectedBrand || filters.brand;
-        if (brandFilter && brandFilter !== 'All') {
-          params.brand = brandFilter;
-        }
-
-        console.log("[PricingAnalysisData] Fetching ECP by City with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/ecp-by-city', { params });
-
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] ECP by City data received:", response.data.data.length, "items");
-          setEcpByCityData(response.data.data);
-        } else {
-          setEcpByCityData([]);
-        }
-      } catch (error) {
-        console.error("Error fetching ECP by City data:", error);
-        setEcpByCityData([]);
-      } finally {
-        setEcpByCityLoading(false);
-      }
-    };
-
-    fetchEcpByCity();
-  }, [globalPlatform, selectedLocation, timeStart, timeEnd, datesInitialized, selectedBrand, filters.brand]);
+  // Pricing KPIs state
+  const [pricingKpiData, setPricingKpiData] = useState(null);
+  const [pricingKpiLoading, setPricingKpiLoading] = useState(true);
 
   // Discount Trend state
   const [discountTrendData, setDiscountTrendData] = useState([]);
@@ -1428,41 +1228,132 @@ export default function PricingAnalysisData() {
   const [categoryLoading, setCategoryLoading] = useState({}); // { [category]: boolean }
   const [discountPlatforms, setDiscountPlatforms] = useState([]); // Dynamic platforms from API
 
-  // Fetch discount by category data when page loads
+  // Filter Dependency Array Helper
+  const filterDeps = [globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand, filters.brand, timeStart, timeEnd, datesInitialized];
+  const compareFilterDeps = [...filterDeps, compareStart, compareEnd];
+
+  // Unified Fetcher for all segments to prevent race conditions and redundant renders
   useEffect(() => {
     if (!datesInitialized) return;
 
-    const fetchDiscountByCategory = async () => {
+    // Build the query params and a stable key for dependency tracking
+    const params = buildQueryParams(true);
+    const filterKey = JSON.stringify(params);
+
+    // Skip if we already fetched with these exact filters
+    if (lastFetchedFiltersRef.current === filterKey) return;
+
+    // Abort any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    lastFetchedFiltersRef.current = filterKey;
+
+    const fetchData = async () => {
+      // Set all loading states
+      setPricingKpiLoading(true);
+      setEcpLoading(true);
+      setEcpByBrandLoading(true);
+      setBrandPriceOverviewLoading(true);
+      setOneViewPriceGridLoading(true);
+      setBrandDiscountTrendLoading(true);
+      setEcpByCityLoading(true);
       setDiscountTrendLoading(true);
+
+      const signal = abortController.signal;
+
       try {
-        const params = {
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD'),
-        };
+        console.log("[PricingAnalysisData] Fetching all segments in parallel...");
+        
+        const fetchers = [
+          // 0: KPIs
+          axiosInstance.get('/pricing-analysis/kpis', { params, signal }),
+          // 1: ECP Comparison
+          axiosInstance.get('/pricing-analysis/ecp-comparison', { params, signal }),
+          // 2: ECP by Brand
+          axiosInstance.get('/pricing-analysis/ecp-by-brand', { params: buildQueryParams(false), signal }),
+          // 3: Brand Price Overview
+          axiosInstance.get('/pricing-analysis/brand-price-overview', { params: buildQueryParams(false), signal }),
+          // 4: One View Grid
+          axiosInstance.get('/pricing-analysis/one-view-price-grid', { params: buildQueryParams(false), signal }),
+          // 5: Brand Discount Trend
+          axiosInstance.get('/pricing-analysis/brand-discount-trend', { params: buildQueryParams(false), signal }),
+          // 6: ECP by City
+          axiosInstance.get('/pricing-analysis/ecp-by-city', { params: buildQueryParams(false), signal }),
+          // 7: Discount by Category
+          axiosInstance.get('/pricing-analysis/discount-by-category', { params: buildQueryParams(false), signal })
+        ];
 
-        console.log("[PricingAnalysisData] Fetching discount by category with params:", params);
-        const response = await axiosInstance.get('/pricing-analysis/discount-by-category', { params });
+        const results = await Promise.allSettled(fetchers);
 
-        if (response.data?.success && response.data?.data) {
-          console.log("[PricingAnalysisData] Discount by category data received:", response.data.data.length, "items");
-          console.log("[PricingAnalysisData] Available platforms:", response.data.platforms);
-          setDiscountTrendData(response.data.data);
-          setDiscountPlatforms(response.data.platforms || []);
-        } else {
-          setDiscountTrendData([]);
-          setDiscountPlatforms([]);
-        }
+        // Process results
+        results.forEach((result, idx) => {
+          if (result.status === 'rejected') {
+            if (axiosInstance.isCancel(result.reason)) return;
+            console.error(`Error fetching segment ${idx}:`, result.reason);
+          }
+
+          const data = result.value?.data;
+          
+          switch(idx) {
+            case 0: // KPIs
+              setPricingKpiData(data?.success ? data.data : null);
+              setPricingKpiLoading(false);
+              break;
+            case 1: // ECP Comparison
+              setEcpData(data?.success ? data.data : []);
+              setEcpLoading(false);
+              break;
+            case 2: // ECP by Brand
+              setEcpByBrandData(data?.success ? data.data : []);
+              setEcpByBrandLoading(false);
+              break;
+            case 3: // Brand Price Overview
+              setBrandPriceOverviewData(data?.success ? data.data : []);
+              setBrandPriceOverviewLoading(false);
+              break;
+            case 4: // One View Grid
+              setOneViewPriceGridData(data?.success ? data.data : []);
+              setOneViewPriceGridLoading(false);
+              break;
+            case 5: // Brand Discount Trend
+              setBrandDiscountTrendData(data?.success ? data.data : { months: [], series: [] });
+              setBrandDiscountTrendLoading(false);
+              break;
+            case 6: // ECP by City
+              setEcpByCityData(data?.success ? data.data : []);
+              setEcpByCityLoading(false);
+              break;
+            case 7: // Discount by Category
+              if (data?.success) {
+                setDiscountTrendData(data.data || []);
+                setDiscountPlatforms(data.platforms || []);
+              } else {
+                setDiscountTrendData([]);
+                setDiscountPlatforms([]);
+              }
+              setDiscountTrendLoading(false);
+              break;
+          }
+        });
       } catch (error) {
-        console.error("Error fetching discount by category data:", error);
-        setDiscountTrendData([]);
-        setDiscountPlatforms([]);
-      } finally {
-        setDiscountTrendLoading(false);
+        if (!axiosInstance.isCancel(error)) {
+          console.error("Critical error in Pricing parallel fetch:", error);
+          lastFetchedFiltersRef.current = null;
+        }
       }
     };
 
-    fetchDiscountByCategory();
-  }, [timeStart, timeEnd, datesInitialized]);
+    fetchData();
+
+    return () => {
+      // Logic handled via ref for stability across fast interactions
+    };
+  }, compareFilterDeps);
+
 
   // Fetch brand-level discount data for a specific category
   const fetchDiscountByBrand = async (category) => {
@@ -1470,11 +1361,7 @@ export default function PricingAnalysisData() {
 
     setCategoryLoading(prev => ({ ...prev, [category]: true }));
     try {
-      const params = {
-        category,
-        startDate: timeStart?.format('YYYY-MM-DD'),
-        endDate: timeEnd?.format('YYYY-MM-DD'),
-      };
+      const params = { ...buildQueryParams(false), category };
 
       console.log("[PricingAnalysisData] Fetching discount by brand for category:", category);
       const response = await axiosInstance.get('/pricing-analysis/discount-by-brand', { params });
@@ -1629,13 +1516,7 @@ export default function PricingAnalysisData() {
     const fetchEcpWeekdayWeekend = async () => {
       setEcpWeekdayWeekendLoading(true);
       try {
-        const params = {
-          platform: globalPlatform !== 'All' ? globalPlatform : undefined,
-          location: selectedLocation !== 'All' ? selectedLocation : undefined,
-          startDate: timeStart?.format('YYYY-MM-DD'),
-          endDate: timeEnd?.format('YYYY-MM-DD'),
-          brand: activeBrand || undefined
-        };
+        const params = buildQueryParams(false);
 
         console.log("[PricingAnalysisData] Fetching ECP weekday/weekend with params:", params);
         const response = await axiosInstance.get('/pricing-analysis/ecp-weekday-weekend', { params });
@@ -1658,7 +1539,7 @@ export default function PricingAnalysisData() {
     };
 
     fetchEcpWeekdayWeekend();
-  }, [globalPlatform, selectedLocation, timeStart, timeEnd, datesInitialized, activeBrand]);
+  }, filterDeps);
 
   const renderTrendChip = (trend) => (
     <Chip
@@ -1982,6 +1863,14 @@ export default function PricingAnalysisData() {
     const gridColor = chartThemeMode === "light" ? "#e5e7eb" : "#374151";
     const bgColor = chartThemeMode === "light" ? "#ffffff" : "#020617";
 
+    // Use live API data from ecpByBrandData or fallback to mock
+    const liveData = ecpByBrandData.length > 0
+      ? [...ecpByBrandData].sort((a, b) => (a.rpi || 0) - (b.rpi || 0))
+      : RPI_BRAND_DATA;
+
+    const categories = liveData.map((d) => d.brand);
+    const seriesData = liveData.map((d) => Number(d.rpi || 0).toFixed(2));
+
     return {
       backgroundColor: bgColor,
       title: {
@@ -2005,7 +1894,7 @@ export default function PricingAnalysisData() {
       },
       yAxis: {
         type: "category",
-        data: RPI_BRAND_DATA.map((d) => d.brand),
+        data: categories,
         axisLine: { show: false },
         axisTick: { show: false },
         axisLabel: {
@@ -2016,7 +1905,7 @@ export default function PricingAnalysisData() {
       series: [
         {
           type: "bar",
-          data: RPI_BRAND_DATA.map((d) => d.rpi),
+          data: seriesData,
           barWidth: "45%",
           itemStyle: {
             opacity: 0.9,
@@ -2043,7 +1932,7 @@ export default function PricingAnalysisData() {
         data: [{ xAxis: 1 }],
       },
     };
-  }, [chartThemeMode]);
+  }, [chartThemeMode, ecpByBrandData]);
 
   // Popup filter UI
   const FilterPopup = (
@@ -2244,7 +2133,7 @@ export default function PricingAnalysisData() {
     { id: "brand", label: "Brand", sortable: true },
     { id: "product", label: "Product", sortable: true },
     { id: "skuType", label: "SKU Type", sortable: true },
-    { id: "format", label: "Format", sortable: true },
+    { id: "format", label: "Category", sortable: true },
     { id: "flavour", label: "Flavour", sortable: true },
     { id: "ml", label: "ML", sortable: true, numeric: true },
     { id: "mrp", label: "MRP (₹)", sortable: true, numeric: true },
@@ -2314,7 +2203,7 @@ export default function PricingAnalysisData() {
     { id: "brand", label: "Brand", sortable: true },
     { id: "product", label: "Product", sortable: true },
     { id: "skuType", label: "SKU Type", sortable: true },
-    { id: "format", label: "Format", sortable: true },
+    { id: "format", label: "Category", sortable: true },
     { id: "ml", label: "ML", sortable: true, numeric: true },
     {
       id: "mrp",
@@ -2484,104 +2373,70 @@ export default function PricingAnalysisData() {
   }, [ecpData]);
 
 
-  const cards = [
-    {
-      title: "Discount",
-      value: "12.4%",
-      sub: "Average discount across active SKUs",
-      change: "▲2.1% (from 10.3%)",
-      changeColor: "green",
-      prevText: "vs Previous Period",
-      extra: "Max discount SKU: 28%",
-      extraChange: "▲1.4%",
-      extraChangeColor: "green",
-    },
-    {
-      title: "Price Per Unit",
-      value: "₹185.50",
-      sub: "Average selling price per unit",
-      change: "▼3.6% (from ₹192.40)",
-      changeColor: "red",
-      prevText: "vs Previous Period",
-      extra: "Price variance across platforms: ₹12",
-      extraChange: "",
-      extraChangeColor: "red",
-    },
-    {
-      title: "RPI",
-      value: "₹142.30",
-      sub: "Revenue generated per impression",
-      change: "▲5.8% (from ₹134.50)",
-      changeColor: "green",
-      prevText: "vs Previous Period",
-      extra: "Top performing SKU RPI: ₹188",
-      extraChange: "Above average",
-      extraChangeColor: "orange",
-    },
-    {
-      title: "Average Selling Price",
-      value: "₹198.75",
-      sub: "Overall average selling price",
-      change: "▲1.9% (from ₹195.10)",
-      changeColor: "green",
-      prevText: "vs Previous Period",
-      extra: "Premium SKU contribution: 32%",
-      extraChange: "▲3.2%",
-      extraChangeColor: "green",
-    },
-  ];
-
   const pricingKpis = useMemo(() => {
-    // User request: restrict Visibility Overview cards to ONLY change on Platform
-    const platformContext = { platform: globalPlatform };
-
-    const icons = [PieChart, Target, TrendingUpLucide, Monitor];
+    const icons = [Discount, PieChart, Target];
     const gradients = [
       ['#6366f1', '#8b5cf6'],
       ['#14b8a6', '#06b6d4'],
-      ['#f43f5e', '#ec4899'],
-      ['#8b5cf6', '#a855f7']
+      ['#f43f5e', '#ec4899']
     ];
 
-    // Map titles to keys that exist in data center or fall back to defaults
-    const titleToKey = {
-      "Discount": "discount",
-      "Price Per Unit": "priceperunit",
-      "RPI": "rpi",
-      "Average Selling Price": "averagesellingprice"
-    };
+    if (!pricingKpiData) {
+      return [
+        { id: 'vis-0', title: 'Discount', value: '-', subtitle: 'Loading...', icon: icons[0], gradient: gradients[0] },
+        { id: 'vis-1', title: 'Weighted Discount', value: '-', subtitle: 'Loading...', icon: icons[1], gradient: gradients[1] },
+        { id: 'vis-2', title: 'Average selling price', value: '-', subtitle: 'Loading...', icon: icons[2], gradient: gradients[2] },
+      ];
+    }
 
-    return cards.map((card, idx) => {
-      const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
-      const val = getLogicalKpiValue(kpiKey, platformContext);
-      const isUp = getLogicalKpiValue(kpiKey + 'dir', platformContext) > 50;
-      const delta = (getLogicalKpiValue(kpiKey + 'delta', platformContext) / 20).toFixed(1);
+    const d = pricingKpiData;
 
-      return {
-        id: `vis-${idx}`,
-        title: card.title,
-        value: `${val.toFixed(1)}%`,
-        subtitle: card.sub,
-        delta: parseFloat(delta),
-        deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
-        icon: icons[idx] || PieChart,
-        gradient: gradients[idx % gradients.length],
-        trend: getLogicalKpiTrend(kpiKey, platformContext),
-
-        extra: card.extra,
-        extraChange: card.extraChange,
-        extraChangeColor: card.extraChangeColor,
-        prevText: card.prevText
-      };
-    });
-  }, [globalPlatform]);
+    return [
+      {
+        id: 'vis-0',
+        title: 'Discount',
+        value: `${(d.discount?.value || 0).toFixed(1)}%`,
+        subtitle: 'Average discount across active SKUs',
+        delta: Math.abs(d.discount?.change || 0),
+        deltaLabel: `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
+        icon: icons[0],
+        gradient: gradients[0],
+        trendDir: (d.discount?.change || 0) >= 0 ? 'up' : 'down',
+        prevText: 'vs Previous Period'
+      },
+      {
+        id: 'vis-1',
+        title: 'Weighted Discount',
+        value: `${(d.weightedDiscount?.value || 0).toFixed(1)}%`,
+        subtitle: 'Discount weighted by sales',
+        delta: Math.abs(d.weightedDiscount?.change || 0),
+        deltaLabel: `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
+        icon: icons[1],
+        gradient: gradients[1],
+        trendDir: (d.weightedDiscount?.change || 0) >= 0 ? 'up' : 'down',
+        prevText: 'vs Previous Period'
+      },
+      {
+        id: 'vis-2',
+        title: 'Average selling price',
+        value: `₹${(d.asp?.value || 0).toFixed(2)}`,
+        subtitle: 'Average selling price of SKUs',
+        delta: Math.abs(d.asp?.change || 0),
+        deltaLabel: `${(d.asp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.asp?.change || 0).toFixed(1)}%`,
+        icon: icons[2],
+        gradient: gradients[2],
+        trendDir: (d.asp?.change || 0) >= 0 ? 'up' : 'down',
+        prevText: 'vs Previous Period'
+      }
+    ];
+  }, [pricingKpiData, pricingKpiLoading]);
 
   // ── Drawer state for LatestOverivewCatCity ──────────────────────────────
   const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
   const [rcaDrawer, setRcaDrawer] = useState({ open: false, entity: '', dimension: '' });
 
-  const handleViewTrends = (entityName, dimensionLabel) => {
-    setTrendsDrawer({ open: true, entity: entityName, dimension: dimensionLabel });
+  const handleViewTrends = (entityName, dimensionLabel, dimensionType) => {
+    setTrendsDrawer({ open: true, entity: entityName, dimension: dimensionLabel, dimensionType: dimensionType || 'category' });
   };
 
   const handleViewRca = (entityName, dimensionLabel) => {
@@ -2591,10 +2446,11 @@ export default function PricingAnalysisData() {
   // MAIN RETURN
   return (
     <Box sx={{ p: 3, bgcolor: "white", minHeight: "100vh" }}>
+      {/* KPIs Section */}
       <SnapshotOverview
         title="Pricing Overview"
         icon={LayoutGrid}
-        chip="All Platforms"
+
         headerRight={
           <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
             vs Previous Period
@@ -2602,7 +2458,10 @@ export default function PricingAnalysisData() {
         }
         kpis={pricingKpis}
         variant="detailed"
+        loading={pricingKpiLoading}
       />
+
+      {/* Insights Section */}
       <Card
         sx={{
           mb: 3,
@@ -2610,10 +2469,13 @@ export default function PricingAnalysisData() {
           borderRadius: 8,
           boxShadow: 4,
           background: "linear-gradient(120deg,#ffffff,#f3f5ff)",
+          minHeight: 300
         }}
       >
-        <InsightsPricingView />
+        <InsightsPricingView loading={ecpLoading} />
       </Card>
+
+      {/* ECP Comparison Section */}
       <Card
         sx={{
           mb: 3,
@@ -2621,9 +2483,11 @@ export default function PricingAnalysisData() {
           borderRadius: 8,
           boxShadow: 4,
           background: "linear-gradient(120deg,#ffffff,#f3f5ff)",
+          minHeight: 400
         }}
       >
         <LatestOverivewCatCity
+          loading={ecpLoading}
           onViewTrends={handleViewTrends}
           onViewRca={handleViewRca}
         />
@@ -2633,9 +2497,10 @@ export default function PricingAnalysisData() {
       <TrendsCompetitionDrawer
         dynamicKey="pricing"
         open={trendsDrawer.open}
-        onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '' })}
+        onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '', dimensionType: '' })}
         selectedColumn={trendsDrawer.entity}
         selectedLevel={trendsDrawer.dimension}
+        dimensionType={trendsDrawer.dimensionType}
       />
 
       {/* Pricing RCA Drawer */}

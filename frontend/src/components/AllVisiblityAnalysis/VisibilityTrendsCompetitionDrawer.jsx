@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useRef,
   useLayoutEffect,
+  useContext,
 } from "react";
 import {
   Box,
@@ -35,6 +36,7 @@ import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
 import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
 
 /**
  * ---------------------------------------------------------------------------
@@ -114,13 +116,6 @@ const DASHBOARD_DATA = {
         id: "organic_sos",
         label: "Organic SOS",
         color: "#6366F1",
-        axis: "left",
-        default: false,
-      },
-      {
-        id: "display_sos",
-        label: "Display SOS",
-        color: "#22C55E",
         axis: "left",
         default: false,
       },
@@ -361,12 +356,6 @@ const DASHBOARD_DATA = {
         color: "#6366F1",
         default: false,
       },
-      {
-        id: "display_sos",
-        label: "Display SOS",
-        color: "#22C55E",
-        default: false,
-      },
     ],
 
     x: COMPARE_X,
@@ -399,7 +388,6 @@ const DASHBOARD_DATA = {
       { id: "overall_sos", label: "Overall SOS", type: "metric" },
       { id: "sponsored_sos", label: "Sponsored SOS", type: "metric" },
       { id: "organic_sos", label: "Organic SOS", type: "metric" },
-      { id: "display_sos", label: "Display SOS", type: "metric" },
     ],
 
     brands: [
@@ -587,6 +575,8 @@ export default function VisibilityTrendsCompetitionDrawer({
   selectedColumn,
   initialAudience,
 }) {
+  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory } = useContext(FilterContext);
+
   const [view, setView] = useState("Trends");
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
@@ -620,10 +610,10 @@ export default function VisibilityTrendsCompetitionDrawer({
 
   // Drawer-specific filters for the Effective Filters bar
   const [drawerFilters, setDrawerFilters] = useState({
-    Platform: "All",
-    Format: "All",
-    Brand: "All",
-    City: "All"
+    Platform: globalPlatform || "All",
+    Format: selectedCategory || "All",
+    Brand: selectedBrand || "All",
+    City: selectedLocation || "All"
   });
 
   // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
@@ -632,7 +622,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       setSelectedPlatform(selectedColumn);
 
       // Initialize ONLY the current audience type filter
-      const currentAudience = allTrendMeta.context.audience;
+      const currentAudience = initialAudience || allTrendMeta.context.audience;
       setDrawerFilters(prev => ({
         ...prev,
         [currentAudience]: selectedColumn
@@ -699,21 +689,39 @@ export default function VisibilityTrendsCompetitionDrawer({
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms' } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats' } }),
           axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands' } })
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', ownBrandsOnly: true } })
         ]);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
         const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
-        const cities = (citiesRes.data?.options || []).filter(c => c !== 'All');
         const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
+
+        const TIER_1_CITIES = [
+          "Ahmedabad",
+          "Bangalore",
+          "Chennai",
+          "Delhi",
+          "Hyderabad",
+          "Kolkata",
+          "Mumbai",
+          "Lucknow",
+          "Gurugram",
+          "Chandigarh",
+          "Faridabad",
+          "Pune"
+        ];
+        const defaultCities = (citiesRes.data?.options || [])
+          .filter(c => c !== 'All' && c !== 'All India')
+          .filter(c => TIER_1_CITIES.some(t => c.toLowerCase().includes(t.toLowerCase())));
+        const cities = ["All India", ...defaultCities];
 
         console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length });
 
         setFilterOptions({
-          platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart", "BigBasket"],
-          formats: formats.length > 0 ? formats : ["Cassata", "Core Tubs", "Premium"],
+          platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart"],
+          formats: formats.length > 0 ? formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
           cities: cities.length > 0 ? cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"],
-          brands: brands.length > 0 ? brands : ["Amul", "Mother Dairy", "Nestle", "Britannia"],
+          brands: brands.length > 0 ? brands : [],
           loading: false
         });
 
@@ -724,10 +732,10 @@ export default function VisibilityTrendsCompetitionDrawer({
       } catch (error) {
         console.error("[VisibilityTrendsDrawer] Error fetching filter options:", error);
         setFilterOptions({
-          platforms: ["Blinkit", "Zepto", "Instamart", "BigBasket"],
-          formats: ["Cassata", "Core Tubs", "Premium"],
+          platforms: ["Blinkit", "Zepto", "Instamart"],
+          formats: ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
           cities: ["Delhi", "Mumbai", "Bangalore", "Chennai"],
-          brands: ["Amul", "Mother Dairy", "Nestle", "Britannia"],
+          brands: [],
           loading: false
         });
       }
@@ -747,15 +755,15 @@ export default function VisibilityTrendsCompetitionDrawer({
         const params = {
           period: range,
           timeStep: timeStep,
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
         };
 
         // Determine which pivot filter to apply based on the selected audience
-        const audience = allTrendMeta.context.audience;
-        if (audience === "Platform") params.platform = selectedPlatform || 'All';
-        else if (audience === "Format") params.format = selectedPlatform || 'All';
-        else if (audience === "City") params.location = selectedPlatform || 'All';
-        else if (audience === "Brand") params.brand = selectedPlatform || 'All';
-        else params.platform = selectedPlatform || 'All';
+        // Wait, drawerFilters already reflects the audience because it is synced in useEffect!
+        // So we just send drawerFilters directly.
 
         console.log("[VisibilityTrendsDrawer] Fetching trend data:", params);
         const response = await axiosInstance.get('/visibility-analysis/kpi-trends', { params });
@@ -785,7 +793,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters]);
 
   // ===================== FETCH COMPETITION DATA =====================
   // Fetch competition data when drawer opens (not just when Competition view is selected)
@@ -800,15 +808,15 @@ export default function VisibilityTrendsCompetitionDrawer({
       console.log("[VisibilityTrendsDrawer] Starting fetchCompetitionData...");
       setCompetitionLoading(true);
       try {
-        // Use selectedColumn from main page click, not the internal dropdown selectedPlatform
-        // This ensures competition data reflects the user's main page filter selection
-        const platformToUse = selectedColumn || 'All';
         const params = {
           period: '1M',
-          platform: platformToUse,
+          platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
+          format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
         };
 
-        console.log("[VisibilityTrendsDrawer] Fetching competition data for platform:", platformToUse);
+        console.log("[VisibilityTrendsDrawer] Fetching competition data with params:", params);
         const response = await axiosInstance.get('/visibility-analysis/competition', { params });
 
         if (cancelled) {
@@ -840,7 +848,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [selectedColumn, open, filterOptions.loading]);
+  }, [selectedColumn, open, filterOptions.loading, drawerFilters]);
 
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({
@@ -985,9 +993,9 @@ export default function VisibilityTrendsCompetitionDrawer({
 
   // Use dynamic filter options from API, with fallbacks
   const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : ["Blinkit", "Zepto", "Instamart", "BigBasket"];
-  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Cassata", "Core Tubs", "Premium"];
+  const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
-  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : ["Amul", "Mother Dairy", "Nestle", "Britannia"];
+  const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : [];
 
   if (!open) return null;
 
@@ -1309,26 +1317,28 @@ export default function VisibilityTrendsCompetitionDrawer({
                 </Box>
 
                 <Box>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    endIcon={<ChevronDown size={14} />}
-                    sx={{
-                      textTransform: "none",
-                      borderRadius: "999px",
-                      borderColor: "#E2E8F0",
-                      color: "#3b82f6",
-                      backgroundColor: "#eff6ff",
-                      fontSize: "0.75rem",
-                      px: 2,
-                      "&:hover": {
-                        borderColor: "#3b82f6",
-                        backgroundColor: "#dbeafe",
-                      }
-                    }}
-                  >
-                    +{Math.max(trendMeta.metrics.length - 4, 0)} more
-                  </Button>
+                  {trendMeta.metrics.length > 4 && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      endIcon={<ChevronDown size={14} />}
+                      sx={{
+                        textTransform: "none",
+                        borderRadius: "999px",
+                        borderColor: "#E2E8F0",
+                        color: "#3b82f6",
+                        backgroundColor: "#eff6ff",
+                        fontSize: "0.75rem",
+                        px: 2,
+                        "&:hover": {
+                          borderColor: "#3b82f6",
+                          backgroundColor: "#dbeafe",
+                        }
+                      }}
+                    >
+                      +{trendMeta.metrics.length - 4} more
+                    </Button>
+                  )}
                 </Box>
               </Box>
 

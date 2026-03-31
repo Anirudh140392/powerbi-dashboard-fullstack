@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
-import { Container, Box, useTheme } from "@mui/material";
+import { Container, Box, useTheme, Skeleton } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -167,8 +167,12 @@ export default function WatchTower() {
     },
 
     topMetrics: [],
-    skuTable: [],
+    performanceMetricsKpis: [],
   });
+
+  const [categoryDataLoading, setCategoryDataLoading] = useState(true);
+  const [categoryOverview, setCategoryOverview] = useState([]);
+  const [performanceLoading, setPerformanceLoading] = useState(true);
 
   const {
     selectedBrand,
@@ -182,8 +186,17 @@ export default function WatchTower() {
     selectedLocation,
     selectedChannel,
     datesFetched,
-    platformsFetched
+    platformsFetched,
+    refreshFilters
   } = React.useContext(FilterContext);
+
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
 
   // --- DETERMINISTIC JITTER FOR FRONTEND-ONLY VARIATION ---
   const getJitter = (baseVal, kpiKey) => {
@@ -260,7 +273,7 @@ export default function WatchTower() {
         id: 'offtake', title: 'Offtakes',
         value: `₹${getJitter(getLogicalKpiValue('offtake', context), 'offtake')}Cr`,
         delta: getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta'),
-        deltaLabel: `+₹${(getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta') * 5.8).toFixed(1)}L`,
+        deltaLabel: `+₹${(getJitter(getLogicalKpiValue('offtakedelta', context), 'offtakedelta') * 5.8).toFixed(1)} lac`,
         icon: ShoppingCart, gradient: ['#6366f1', '#8b5cf6'],
         trend: getLogicalKpiTrend('offtake', context)
       },
@@ -292,7 +305,7 @@ export default function WatchTower() {
         id: 'promo', title: 'Promo',
         value: `${getJitter(8.5, 'promo')}%`,
         delta: getJitter(1.2, 'promodelta'),
-        deltaLabel: `+${getJitter(1.2, 'promodelta').toFixed(1)} pp`,
+        deltaLabel: `+${getJitter(1.2, 'promodelta').toFixed(1)}%`,
         icon: Percent, gradient: ['#f59e0b', '#fbbf24'],
         trend: getLogicalKpiTrend('osa', context) // Reuse OSA trend for mock variety
       }
@@ -300,14 +313,22 @@ export default function WatchTower() {
   }, [dashboardData, selectedChannel, platform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd]);
 
   const FORMAT_ROWS = useMemo(() => {
-    if (dashboardData?.categoryOverview?.length > 0) {
-      return dashboardData.categoryOverview.map(cat => {
+    if (categoryOverview?.length > 0) {
+      return categoryOverview.map(cat => {
         const getColVal = (title) => {
           const col = cat.columns?.find(c => c.title.toLowerCase().includes(title.toLowerCase()));
           if (!col || !col.value) return 0;
-          const strVal = String(col.value).replace(/,/g, '');
+          const strVal = String(col.value).replace(/,/g, '').replace(/₹/g, '').trim();
           const numMatch = strVal.match(/-?[\d.]+/);
-          return numMatch ? parseFloat(numMatch[0]) : 0;
+          let val = numMatch ? parseFloat(numMatch[0]) : 0;
+
+          // Reverse-parse backend formatted strings back to raw numbers
+          if (strVal.toLowerCase().includes('cr')) val *= 10000000;
+          else if (strVal.toLowerCase().includes('lac') || strVal.toLowerCase().includes('lak')) val *= 100000;
+          else if (strVal.toLowerCase().includes('k')) val *= 1000;
+          // If no suffix, treat as raw number
+
+          return val;
         };
 
         return {
@@ -326,16 +347,27 @@ export default function WatchTower() {
       }).sort((a, b) => b.offtakes - a.offtakes);
     }
 
+    if (categoryDataLoading) {
+      return [{
+        name: "Loading...",
+        offtakes: 0, spend: 0, roas: 0, inorgSalesPct: 0, conversionPct: 0,
+        marketSharePct: 0, promoMyBrandPct: 0, promoCompetePct: 0, cpm: 0, cpc: 0
+      }];
+    }
+
     // Default safe row to prevent undefined errors when dashboardData is empty
     return [{
       name: "Loading...",
       offtakes: 0, spend: 0, roas: 0, inorgSalesPct: 0, conversionPct: 0,
       marketSharePct: 0, promoMyBrandPct: 0, promoCompetePct: 0, cpm: 0, cpc: 0
     }];
-  }, [dashboardData]);
+  }, [categoryOverview, categoryDataLoading]);
 
 
-  // Update filters when context changes
+  const [fetchError, setFetchError] = useState(null);
+  const fetchIdRef = useRef(0);
+
+  // Sync filters state from context (used only by child props, NOT for triggering fetches)
   useEffect(() => {
     setFilters((prev) => ({
       ...prev,
@@ -348,65 +380,144 @@ export default function WatchTower() {
       compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
       compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
     }));
-  }, [
-    selectedCategory,
-    timeStart,
-    timeEnd,
-    compareStart,
-    compareEnd,
-    platform,
-    selectedKeyword,
-    selectedLocation,
-  ]);
-  const [fetchError, setFetchError] = useState(null);
+  }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  const fetchData = useCallback(async () => {
+  // Sync loading state with filter changes to prevent one-frame flicker
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
+
+  if (prevFilterKey !== currentFilterKey) {
+    setPrevFilterKey(currentFilterKey);
     setLoading(true);
+    setCategoryDataLoading(true);
+    setPerformanceLoading(true);
     setFetchError(null);
-    try {
-      const params = {
-        ...filters,
-        platform: filters.platform === "All" ? undefined : (Array.isArray(filters.platform) ? filters.platform.join(",") : filters.platform),
-        category: filters.category === "All" ? undefined : (Array.isArray(filters.category) ? filters.category.join(",") : filters.category),
-        location: filters.location === "All" ? undefined : (Array.isArray(filters.location) ? filters.location.join(",") : filters.location),
-        brand: filters.brand === "All" ? undefined : (Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand),
-      };
-      const response = await axiosInstance.get("/watchtower", {
-        params,
-      });
-      if (response.data) {
-        console.log("Fetched Watch Tower data:", response.data);
-        setDashboardData(response.data);
-      }
-    } catch (error) {
-      console.error("Error fetching Watch Tower data:", error);
-      setFetchError(error.message || "Failed to load Watch Tower data");
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
+  }
 
+  // Single debounced data-fetch effect — reads context directly, no intermediate state
   useEffect(() => {
-    // Prevent fetching if core context data hasn't loaded yet
     if (!datesFetched || !platformsFetched) {
       console.log("[WatchTower] Waiting for context to initialize dates/platforms...");
       return;
     }
 
-    // Use a small timeout to debounce the initial rapid filter updates 
-    // caused by the context syncing dynamic dates/platforms
-    const debounceTimer = setTimeout(() => {
-      fetchData();
-    }, 500);
+    const currentFetchId = ++fetchIdRef.current;
+
+    const debounceTimer = setTimeout(async () => {
+      // If another update arrived while we were waiting, skip this one
+      if (currentFetchId !== fetchIdRef.current) return;
+
+      const params = {
+        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+        brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
+        category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+        location: undefined, // Enforced isolation from global location filter
+        keyword: selectedKeyword || undefined,
+        startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+        endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+        compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+        compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
+      };
+
+      // 1. Fetch fast overview data
+      axiosInstance.get("/watchtower/overview", { params })
+        .then(response => {
+          if (currentFetchId === fetchIdRef.current && response.data) {
+            console.log("Fetched Watch Tower Overview:", response.data);
+            setDashboardData(prev => ({
+              ...prev,
+              ...response.data
+            }));
+            setLoading(false);
+          }
+        })
+        .catch(error => {
+          if (currentFetchId === fetchIdRef.current) {
+            console.error("Error fetching Watch Tower Overview:", error);
+            setFetchError(error.message || "Failed to load Overview data");
+            setLoading(false);
+          }
+        });
+
+      // 2. Fetch Category performance data independently
+      axiosInstance.get("/watchtower/category-overview", { params })
+        .then(response => {
+          if (currentFetchId === fetchIdRef.current && response.data) {
+            console.log("Fetched Category Overview:", response.data);
+            setCategoryOverview(response.data);
+            setCategoryDataLoading(false);
+          }
+        })
+        .catch(error => {
+          if (currentFetchId === fetchIdRef.current) {
+            console.error("Error fetching Category Overview:", error);
+            setCategoryDataLoading(false);
+          }
+        });
+
+      // 3. Fetch Performance Metrics KPIs independently
+      axiosInstance.get("/watchtower/performance-metrics", { params })
+        .then(response => {
+          if (currentFetchId === fetchIdRef.current && response.data) {
+            console.log("Fetched Performance Metrics KPIs:", response.data);
+            setDashboardData(prev => ({
+              ...prev,
+              performanceMetricsKpis: response.data.performanceMetricsKpis || []
+            }));
+            setPerformanceLoading(false);
+          }
+        })
+        .catch(error => {
+          console.error("Error fetching Performance Metrics:", error);
+          setPerformanceLoading(false);
+        });
+
+    }, 1000);
 
     return () => clearTimeout(debounceTimer);
-  }, [filters, datesFetched, platformsFetched, fetchData]); // Refetch when filters change
+  }, [platform, selectedBrand, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd, compareStart, compareEnd, datesFetched, platformsFetched]);
 
+  // Memoize the PerformanceBreakdownProvider filters to prevent child re-renders
+  const perfBreakdownFilters = useMemo(() => ({
+    companyId: localStorage.getItem('selectedCompanyId') || '',
+    platform: filters.platform ? [filters.platform].flat() : [],
+    dateStart: filters.startDate || undefined,
+    dateEnd: filters.endDate || undefined,
+    channel: selectedChannel || undefined,
+    category: filters.category ? [filters.category].flat() : [],
+    brand: selectedBrand || undefined,
+    location: filters.location ? [filters.location].flat() : [],
+  }), [filters.platform, filters.startDate, filters.endDate, selectedChannel, filters.category, selectedBrand, filters.location]);
+
+  // Retry handler for error overlay — bumps fetchIdRef to trigger the effect
+  const retryFetch = useCallback(() => {
+    fetchIdRef.current++; // force a new cycle
+    // Trigger re-render by toggling a dummy dependency — we simply re-call the effect
+    setFetchError(null);
+    setLoading(true);
+    const params = {
+      platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+      category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+      location: undefined, // Enforced isolation from global location filter
+      keyword: selectedKeyword || undefined,
+      startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+      endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+    };
+    axiosInstance.get("/watchtower", { params }).then(response => {
+      if (response.data) {
+        setDashboardData(response.data);
+      }
+    }).catch(error => {
+      setFetchError(error.message || "Failed to load Watch Tower data");
+    }).finally(() => {
+      setLoading(false);
+    });
+  }, [platform, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd]);
 
   return (
     <>
       <CommonContainer
-        title="Watch Tower"
+        title="Business Overview"
         filters={filters}
         onFiltersChange={setFilters}
       >
@@ -421,10 +532,10 @@ export default function WatchTower() {
         )} */}
 
         {fetchError && !loading && !dashboardData?.performanceMetricsKpis?.length ? (
-          <ErrorRetryOverlay onRetry={fetchData} message={fetchError} />
+          <ErrorRetryOverlay onRetry={retryFetch} message={fetchError} />
         ) : (
           <SnapshotOverview
-            title="Watchtower Overview"
+            title="Business Overview"
             icon={LayoutGrid}
             chip="All Platforms"
             headerRight={
@@ -437,7 +548,7 @@ export default function WatchTower() {
             seed={`${platform}-${selectedCategory}-${selectedBrand}`}
             loading={loading}
             performanceData={dashboardData?.performanceMetricsKpis || []}
-            performanceLoading={loading}
+            performanceLoading={performanceLoading}
           />
         )}
 
@@ -544,7 +655,7 @@ export default function WatchTower() {
             />
           </Box>
         </Box> */}
-        <Box
+        {/* <Box
           sx={{
             bgcolor: (theme) => theme.palette.background.paper,
             borderRadius: 2,
@@ -553,7 +664,7 @@ export default function WatchTower() {
           }}
         >
           <TopActionsLayoutsShowcase />
-        </Box>
+        </Box> */}
         {/* Category / SKU Tabs */}
         <Box
           sx={{
@@ -589,7 +700,7 @@ export default function WatchTower() {
             />
           </Box> */}
 
-          <FormatPerformanceStudio rows={FORMAT_ROWS} />
+          <FormatPerformanceStudio rows={FORMAT_ROWS} loading={categoryDataLoading} />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -602,12 +713,7 @@ export default function WatchTower() {
         <Box sx={{ mb: 4 }}>
           <PerformanceBreakdownProvider
             darkMode={false}
-            filters={{
-              companyId: localStorage.getItem('selectedCompanyId') || '',
-              platform: filters.platform ? [filters.platform].flat() : [],
-              dateStart: filters.startDate || undefined,
-              dateEnd: filters.endDate || undefined,
-            }}
+            filters={perfBreakdownFilters}
           >
             <AggregatedViewTable />
           </PerformanceBreakdownProvider>
@@ -628,6 +734,7 @@ export default function WatchTower() {
         selectedLevel={selectedTrendLevel}
         dynamicKey="platform_overview_tower"
         brandOptions={defaultBrands.map(b => b.label)}
+        initialPlatform={filters.platform}
       />
 
       <RCAModal
@@ -640,12 +747,16 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows }) => {
+const FormatPerformanceStudio = ({ rows, loading }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
   const active = useMemo(
-    () => rows.find((f) => f.name === activeName) ?? rows[0],
+    () => rows.find((f) => f.name === activeName) ?? rows[0] ?? {
+      name: "Loading...", offtakes: 0, spend: 0, roas: 0, inorgSalesPct: 0,
+      conversionPct: 0, marketSharePct: 0, promoMyBrandPct: 0,
+      promoCompetePct: 0, cpm: 0, cpc: 0
+    },
     [activeName, rows]
   );
   const compare = useMemo(
@@ -668,38 +779,47 @@ const FormatPerformanceStudio = ({ rows }) => {
   const visibleItems = rows.slice(0, visibleCount);
   const total = rows.length;
 
+  const formatCurrencyShort = (val) => {
+    if (!Number.isFinite(val) || val === 0) return "0";
+    const absVal = Math.abs(val);
+    if (absVal >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
+    if (absVal >= 100000) return `${(val / 100000).toFixed(2)} Lac`;
+    if (absVal >= 1000) return `${(val / 1000).toFixed(2)} K`;
+    return val.toFixed(2);
+  };
+
   const kpiBands = [
     {
       key: "offtakes",
       label: "Offtakes",
       activeValue: active.offtakes,
       compareValue: compare?.offtakes ?? null,
-      max: 100,
-      format: (v) => `${v} Cr`,
+      max: 100000000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "spend",
       label: "Spend",
       activeValue: active.spend,
       compareValue: compare?.spend ?? null,
-      max: 20,
-      format: (v) => `₹${v} L`,
+      max: 2000000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "roas",
       label: "ROAS",
       activeValue: active.roas,
       compareValue: compare?.roas ?? null,
-      max: 15,
-      format: (v) => `${v.toFixed(1)}x`,
+      max: 10,
+      format: (v) => `${v}x`,
     },
     {
       key: "inorgSalesPct",
       label: "Inorg Sales",
       activeValue: active.inorgSalesPct,
       compareValue: compare?.inorgSalesPct ?? null,
-      max: 100,
-      format: (v) => `${v}%`,
+      max: 50000000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "conversionPct",
@@ -718,37 +838,20 @@ const FormatPerformanceStudio = ({ rows }) => {
       format: (v) => `${v}%`,
     },
     {
-      key: "promoMyBrandPct",
-      label: "Promo My Brand",
-      activeValue: active.promoMyBrandPct,
-      compareValue: compare?.promoMyBrandPct ?? null,
-      max: 100,
-      format: (v) => `${v}%`,
-    },
-    {
-      key: "promoCompetePct",
-      label: "Promo Compete",
-      activeValue: active.promoCompetePct,
-      compareValue: compare?.promoCompetePct ?? null,
-      max: 100,
-      format: (v) => `${v}%`,
-    },
-    {
       key: "cpm",
       label: "CPM",
       activeValue: active.cpm,
       compareValue: compare?.cpm ?? null,
-      max: 800,
-      format: (v) => `${v}`,
+      max: 800000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "cpc",
       label: "CPC",
       activeValue: active.cpc,
       compareValue: compare?.cpc ?? null,
-      max: 5000,
-      format: (v) =>
-        Number.isFinite(v) ? v.toLocaleString("en-IN") : "Infinity",
+      max: 5000000,
+      format: (v) => `₹${formatCurrencyShort(v)}`,
     },
   ];
   return (
@@ -786,241 +889,266 @@ const FormatPerformanceStudio = ({ rows }) => {
         </div>
 
         <div className="space-y-2 max-h-150 overflow-y-auto pr-1 ">
-          {rows.map((f, index) => {
-            const isActive = f.name === activeName;
+          {loading ? (
+            Array.from(new Array(5)).map((_, index) => (
+              <Box key={`skeleton-row-${index}`} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1, mb: 1, border: '1px solid', borderColor: 'grey.200', borderRadius: 4 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Skeleton variant="circular" width={32} height={24} sx={{ borderRadius: 4 }} />
+                  <Box>
+                    <Skeleton variant="text" width={120} height={20} />
+                    <Skeleton variant="text" width={180} height={14} />
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  <Skeleton variant="text" width={60} height={14} />
+                  <Skeleton variant="text" width={50} height={14} />
+                </Box>
+              </Box>
+            ))
+          ) : (
+            rows.map((f, index) => {
+              const isActive = f.name === activeName;
 
-            return (
-              <motion.button
-                key={f.name}
-                onMouseEnter={() => setActiveName(f.name)}
-                onClick={() => setActiveName(f.name)}
-                className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
-                  ? "border-sky-400 bg-sky-50 shadow-sm"
-                  : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                  }`}
-                whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
-                transition={{ type: "spring", stiffness: 260, damping: 20 }}
-              >
-                {/* LEFT SIDE */}
-                <div className="flex items-center gap-2">
-                  {/* NUMBER BADGE */}
-                  <div
-                    className="px-3 h-6 rounded-full bg-slate-100 text-gray-500
-             text-[11px] font-semibold flex items-center justify-center
-             transition-colors duration-100
-             group-hover:bg-sky-500 group-hover:text-white"
-                  >
-                    #{index + 1}
-                  </div>
-
-                  {/* TEXT */}
-                  <div className="text-left">
-                    <div
-                      className="font-medium"
-                      style={{
-                        fontFamily: "Roboto, sans-serif",
-                        fontWeight: 700,
-                        fontSize: "0.95rem",
-                      }}
-                    >
-                      {f.name}
-                    </div>
-                    <div
-                      className="text-[10px] text-slate-500"
-                      style={{
-                        fontFamily: "Roboto, sans-serif",
-                        fontWeight: 400,
-                        fontSize: "0.75rem",
-                      }}
-                    >
-                      Offtakes {f.offtakes} Cr · ROAS {f.roas.toFixed(1)}x
-                    </div>
-                  </div>
-                </div>
-
-                {/* RIGHT SIDE */}
-                <div
-                  className="flex flex-col items-end text-[10px] text-slate-500"
-                  style={{
-                    fontFamily: "Roboto, sans-serif",
-                    fontWeight: 500,
-                    fontSize: "0.75rem",
-                  }}
+              return (
+                <motion.button
+                  key={f.name}
+                  onMouseEnter={() => setActiveName(f.name)}
+                  onClick={() => setActiveName(f.name)}
+                  className={`group w-full flex items-center justify-between rounded-2xl px-3 py-2 text-xs border ${isActive
+                    ? "border-sky-400 bg-sky-50 shadow-sm"
+                    : "border-slate-200 bg-white/70 hover:bg-slate-50"
+                    }`}
+                  whileHover={{ boxShadow: "0 0 12px rgba(0,0,0,0.08)" }}
+                  transition={{ type: "spring", stiffness: 260, damping: 20 }}
                 >
-                  <span>MS {f.marketSharePct}%</span>
-                  <span>Conv {f.conversionPct}%</span>
-                </div>
-              </motion.button>
-            );
-          })}
+                  {/* LEFT SIDE */}
+                  <div className="flex items-center gap-2">
+                    {/* NUMBER BADGE */}
+                    <div
+                      className="px-3 h-6 rounded-full bg-slate-100 text-gray-500
+               text-[11px] font-semibold flex items-center justify-center
+               transition-colors duration-100
+               group-hover:bg-sky-500 group-hover:text-white"
+                    >
+                      #{index + 1}
+                    </div>
+
+                    {/* TEXT */}
+                    <div className="text-left">
+                      <div
+                        className="font-medium"
+                        style={{
+                          fontFamily: "Roboto, sans-serif",
+                          fontWeight: 700,
+                          fontSize: "0.95rem",
+                        }}
+                      >
+                        {f.name}
+                      </div>
+                      <div
+                        className="text-[10px] text-slate-500"
+                        style={{
+                          fontFamily: "Roboto, sans-serif",
+                          fontWeight: 400,
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {f.roas.toFixed(1)}x
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RIGHT SIDE */}
+                  <div
+                    className="flex flex-col items-end text-[10px] text-slate-500"
+                    style={{
+                      fontFamily: "Roboto, sans-serif",
+                      fontWeight: 500,
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    <span>MS {f.marketSharePct}%</span>
+                    <span>Conv {f.conversionPct}%</span>
+                  </div>
+                </motion.button>
+              );
+            })
+          )}
         </div>
       </div>
 
       <div className="md:col-span-3 relative">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={active.name + (compare?.name ?? "")}
-            className="h-full rounded-3xl bg-gradient-to-br bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.35 }}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
-                  {compare ? "Focus format · VS mode" : "Focus format"}
+        {loading ? (
+          <Box className="h-full rounded-3xl bg-gradient-to-br bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4 items-center justify-center">
+            <Skeleton variant="circular" width={160} height={160} />
+            <Skeleton variant="text" width={200} height={30} sx={{ mt: 2 }} />
+            <Skeleton variant="rectangular" width="100%" height={100} sx={{ mt: 2, borderRadius: 2 }} />
+          </Box>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={active.name + (compare?.name ?? "")}
+              className="h-full rounded-3xl bg-gradient-to-br bg-white border border-slate-200/70 shadow-lg p-4 lg:p-6 flex flex-col gap-4"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.35 }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
+                    {compare ? "Focus format · VS mode" : "Focus format"}
+                  </div>
+                  <div className="text-xl font-semibold">
+                    {active.name}
+                    {compare && (
+                      <span className="text-sm font-normal text-slate-500">
+                        {" "}
+                        vs {compare.name}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Offtakes, ROAS, conversion and share in one view.
+                  </p>
                 </div>
-                <div className="text-xl font-semibold">
-                  {active.name}
+                <div className="flex flex-col items-end gap-1 text-right">
+                  <div className="text-[10px] text-slate-500">Offtakes</div>
+                  <div className="text-lg font-semibold">
+                    ₹{formatCurrencyShort(active.offtakes)}
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-500">
+                    Market share
+                  </div>
+                  <div className="text-sm font-medium">
+                    {active.marketSharePct}%
+                  </div>
                   {compare && (
-                    <span className="text-sm font-normal text-slate-500">
-                      {" "}
-                      vs {compare.name}
-                    </span>
+                    <div className="mt-1 text-[10px] text-rose-500">
+                      Delta ROAS{" "}
+                      {Number.isFinite(compare.roas)
+                        ? (active.roas - compare.roas).toFixed(1)
+                        : "-"}
+                      x vs {compare.name}
+                    </div>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Offtakes, ROAS, conversion and share in one view.
-                </p>
               </div>
-              <div className="flex flex-col items-end gap-1 text-right">
-                <div className="text-[10px] text-slate-500">Offtakes</div>
-                <div className="text-lg font-semibold">
-                  {formatNumber(active.offtakes)} Cr
-                </div>
-                <div className="mt-1 text-[10px] text-slate-500">
-                  Market share
-                </div>
-                <div className="text-sm font-medium">
-                  {active.marketSharePct}%
-                </div>
-                {compare && (
-                  <div className="mt-1 text-[10px] text-rose-500">
-                    Delta ROAS{" "}
-                    {Number.isFinite(compare.roas)
-                      ? (active.roas - compare.roas).toFixed(1)
-                      : "-"}
-                    x vs {compare.name}
-                  </div>
-                )}
-              </div>
-            </div>
 
-            <div className="flex gap-4">
-              <div className="relative h-24 w-24">
-                <svg viewBox="0 0 100 100" className="h-full w-full">
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="38"
-                    stroke="rgba(148,163,184,0.25)"
-                    strokeWidth="8"
-                    fill="none"
-                  />
-                  {compare && Number.isFinite(compare.roas) && (
+              <div className="flex gap-4">
+                <div className="relative h-24 w-24">
+                  <svg viewBox="0 0 100 100" className="h-full w-full">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="38"
+                      stroke="rgba(148,163,184,0.25)"
+                      strokeWidth="8"
+                      fill="none"
+                    />
+                    {compare && Number.isFinite(compare.roas) && (
+                      <motion.circle
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        stroke="#a855f7"
+                        strokeWidth="4"
+                        fill="none"
+                        strokeLinecap="round"
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: clamp01(compare.roas / 12) }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                        style={{ transformOrigin: "50% 50%", rotate: "-90deg" }}
+                        opacity={0.6}
+                      />
+                    )}
                     <motion.circle
                       cx="50"
                       cy="50"
                       r="38"
-                      stroke="#a855f7"
-                      strokeWidth="4"
+                      stroke="url(#roasGradient)"
+                      strokeWidth="8"
                       fill="none"
                       strokeLinecap="round"
                       initial={{ pathLength: 0 }}
-                      animate={{ pathLength: clamp01(compare.roas / 12) }}
+                      animate={{ pathLength: clamp01(active.roas / 12) }}
                       transition={{ duration: 0.6, ease: "easeOut" }}
                       style={{ transformOrigin: "50% 50%", rotate: "-90deg" }}
-                      opacity={0.6}
                     />
-                  )}
-                  <motion.circle
-                    cx="50"
-                    cy="50"
-                    r="38"
-                    stroke="url(#roasGradient)"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeLinecap="round"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: clamp01(active.roas / 12) }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    style={{ transformOrigin: "50% 50%", rotate: "-90deg" }}
-                  />
-                  <defs>
-                    <linearGradient
-                      id="roasGradient"
-                      x1="0"
-                      x2="1"
-                      y1="0"
-                      y2="1"
-                    >
-                      <stop offset="0%" stopColor="#0ea5e9" />
-                      <stop offset="100%" stopColor="#6366f1" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
-                  <div className="text-[10px] text-slate-500">ROAS</div>
-                  <div className="text-lg font-semibold">
-                    {active.roas.toFixed(1)}x
-                  </div>
-                  {compare && (
-                    <div className="text-[9px] text-violet-600 mt-0.5">
-                      vs {compare.roas.toFixed(1)}x
+                    <defs>
+                      <linearGradient
+                        id="roasGradient"
+                        x1="0"
+                        x2="1"
+                        y1="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#0ea5e9" />
+                        <stop offset="100%" stopColor="#6366f1" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
+                    <div className="text-[10px] text-slate-500">ROAS</div>
+                    <div className="text-lg font-semibold">
+                      {active.roas.toFixed(1)}x
                     </div>
-                  )}
+                    {compare && (
+                      <div className="text-[9px] text-violet-600 mt-0.5">
+                        vs {compare.roas.toFixed(1)}x
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  {kpiBands.map((k) => {
+                    const activeRatio = clamp01(k.activeValue / k.max);
+                    const compareRatio =
+                      k.compareValue != null
+                        ? clamp01(k.compareValue / k.max)
+                        : null;
+                    return (
+                      <div key={k.key} className="space-y-1">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-600">{k.label}</span>
+                          <div className="flex items-center gap-2">
+                            {compareRatio != null &&
+                              Number.isFinite(k.compareValue) && (
+                                <span className="text-[10px] text-violet-600">
+                                  {k.format(k.compareValue)}
+                                </span>
+                              )}
+                            <span className="font-medium">
+                              {Number.isFinite(k.activeValue)
+                                ? k.format(k.activeValue)
+                                : "NaN"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">
+                          {compareRatio != null && (
+                            <motion.div
+                              className="absolute inset-y-[3px] left-0 rounded-full bg-violet-300/70"
+                              initial={{ width: 0 }}
+                              animate={{ width: `${compareRatio * 100}%` }}
+                              transition={{ duration: 0.45, ease: "easeOut" }}
+                            />
+                          )}
+                          <motion.div
+                            className="relative h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${activeRatio * 100}%` }}
+                            transition={{ duration: 0.5, ease: "easeOut" }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="flex-1 space-y-2">
-                {kpiBands.map((k) => {
-                  const activeRatio = clamp01(k.activeValue / k.max);
-                  const compareRatio =
-                    k.compareValue != null
-                      ? clamp01(k.compareValue / k.max)
-                      : null;
-                  return (
-                    <div key={k.key} className="space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-600">{k.label}</span>
-                        <div className="flex items-center gap-2">
-                          {compareRatio != null &&
-                            Number.isFinite(k.compareValue) && (
-                              <span className="text-[10px] text-violet-600">
-                                {k.format(k.compareValue)}
-                              </span>
-                            )}
-                          <span className="font-medium">
-                            {Number.isFinite(k.activeValue)
-                              ? k.format(k.activeValue)
-                              : "NaN"}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">
-                        {compareRatio != null && (
-                          <motion.div
-                            className="absolute inset-y-[3px] left-0 rounded-full bg-violet-300/70"
-                            initial={{ width: 0 }}
-                            animate={{ width: `${compareRatio * 100}%` }}
-                            transition={{ duration: 0.45, ease: "easeOut" }}
-                          />
-                        )}
-                        <motion.div
-                          className="relative h-full rounded-full bg-gradient-to-r from-sky-400 to-indigo-500"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${activeRatio * 100}%` }}
-                          transition={{ duration: 0.5, ease: "easeOut" }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* <div className="mt-2 flex flex-wrap gap-2 justify-center">
+              {/* <div className="mt-2 flex flex-wrap gap-2 justify-center">
               {FORMAT_ROWS.map((f) => {
                 const weight = clamp01(f.roas / 12);
                 const isCompare = compareName === f.name;
@@ -1059,77 +1187,78 @@ const FormatPerformanceStudio = ({ rows }) => {
                 );
               })}
             </div> */}
-            <div className="mt-2 flex flex-wrap gap-2 justify-center">
-              {/* PILLS */}
-              {visibleItems.map((f) => {
-                const weight = clamp01(f.roas / 12);
-                const isCompare = compareName === f.name;
-                const isActive = activeName === f.name;
+              <div className="mt-2 flex flex-wrap gap-2 justify-center">
+                {/* PILLS */}
+                {visibleItems.map((f) => {
+                  const weight = clamp01(f.roas / 12);
+                  const isCompare = compareName === f.name;
+                  const isActive = activeName === f.name;
 
-                return (
-                  <motion.button
-                    key={f.name}
-                    onClick={() =>
-                      setCompareName((prev) =>
-                        prev === f.name ? null : f.name
-                      )
-                    }
-                    className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
-                      ? "border-violet-500 bg-violet-50 shadow-sm"
-                      : "border-slate-200 bg-white/80 hover:bg-slate-50"
-                      }`}
-                    whileHover={{ y: -2 }}
-                  >
-                    <div
-                      className="h-2 w-10 rounded-full"
-                      style={{
-                        background: `linear-gradient(to right,
+                  return (
+                    <motion.button
+                      key={f.name}
+                      onClick={() =>
+                        setCompareName((prev) =>
+                          prev === f.name ? null : f.name
+                        )
+                      }
+                      className={`px-4 py-2 rounded-full text-[11px] border backdrop-blur-sm flex items-center gap-2 ${isCompare
+                        ? "border-violet-500 bg-violet-50 shadow-sm"
+                        : "border-slate-200 bg-white/80 hover:bg-slate-50"
+                        }`}
+                      whileHover={{ y: -2 }}
+                    >
+                      <div
+                        className="h-2 w-10 rounded-full"
+                        style={{
+                          background: `linear-gradient(to right,
                 rgba(14,165,233,${0.3 + weight * 0.4}),
                 rgba(99,102,241,${0.2 + weight * 0.5})
               )`,
-                      }}
-                    />
+                        }}
+                      />
 
-                    <span
-                      className={`truncate ${isActive ? "font-semibold" : "font-normal"
-                        }`}
-                    >
-                      {f.name}
-                    </span>
+                      <span
+                        className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                          }`}
+                      >
+                        {f.name}
+                      </span>
 
-                    {isCompare && (
-                      <span className="text-[9px] text-violet-600">VS</span>
-                    )}
-                  </motion.button>
-                );
-              })}
+                      {isCompare && (
+                        <span className="text-[9px] text-violet-600">VS</span>
+                      )}
+                    </motion.button>
+                  );
+                })}
 
-              {/* ------------------------------- */}
-              {/*        ADD MORE & SHOW LESS     */}
-              {/* ------------------------------- */}
+                {/* ------------------------------- */}
+                {/*        ADD MORE & SHOW LESS     */}
+                {/* ------------------------------- */}
 
-              {/* ADD MORE (only if not all shown) */}
-              {visibleCount < total && (
-                <button
-                  onClick={() => setVisibleCount((prev) => prev + 7)}
-                  className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
-                >
-                  + Add more
-                </button>
-              )}
+                {/* ADD MORE (only if not all shown) */}
+                {visibleCount < total && (
+                  <button
+                    onClick={() => setVisibleCount((prev) => prev + 7)}
+                    className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
+                  >
+                    + Add more
+                  </button>
+                )}
 
-              {/* SHOW LESS (only when all are visible) */}
-              {visibleCount >= total && total > 7 && (
-                <button
-                  onClick={() => setVisibleCount(7)}
-                  className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
-                >
-                  Show less
-                </button>
-              )}
-            </div>
-          </motion.div>
-        </AnimatePresence>
+                {/* SHOW LESS (only when all are visible) */}
+                {visibleCount >= total && total > 7 && (
+                  <button
+                    onClick={() => setVisibleCount(7)}
+                    className="px-4 py-2 rounded-full text-[11px] border border-slate-300 bg-white hover:bg-slate-100"
+                  >
+                    Show less
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        )}
       </div>
     </motion.div>
   );

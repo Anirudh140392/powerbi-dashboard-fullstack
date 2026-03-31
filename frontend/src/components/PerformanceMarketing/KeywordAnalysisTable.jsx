@@ -21,6 +21,7 @@ import {
   Button,
   InputAdornment,
   CircularProgress,
+  Skeleton
 } from "@mui/material";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Minus, ChevronUp, ChevronDown, LineChart, Search, SlidersHorizontal, X } from "lucide-react";
@@ -85,6 +86,8 @@ const aggregateForMonthFilter = (keywordObj, monthFilter) => {
       spend: 0,
       cpm: 0,
       roas: 0,
+      rawOrders: 0,
+      rawClicks: 0,
     };
   }
 
@@ -95,19 +98,30 @@ const aggregateForMonthFilter = (keywordObj, monthFilter) => {
       acc.spend += m.spend || 0;
       acc.cpm += m.cpm || 0;
       acc.roas += m.roas || 0;
+      acc.rawOrders += m.orders || 0;
+      acc.rawClicks += m.clicks || 0;
+      acc.rawRevenue += m.revenue || 0;
       return acc;
     },
-    { impressions: 0, conversion: 0, spend: 0, cpm: 0, roas: 0 }
+    { impressions: 0, conversion: 0, spend: 0, cpm: 0, roas: 0, rawOrders: 0, rawClicks: 0, rawRevenue: 0 }
   );
 
   const count = months.length;
 
+  // Standardized to match Performance Overview: Conversion = Orders / Clicks
+  const accurateConversion = sum.rawClicks > 0 ? (sum.rawOrders / sum.rawClicks) * 100 : 0;
+  
+  const accurateRoas = sum.spend > 0 ? (sum.rawRevenue / sum.spend) : 0;
+  const accurateCpm = sum.impressions > 0 ? (sum.spend / sum.impressions) * 1000 : 0;
+
   return {
     impressions: sum.impressions,
-    conversion: sum.conversion / count,
+    conversion: accurateConversion,
     spend: sum.spend,
-    cpm: sum.cpm / count,
-    roas: sum.roas / count,
+    cpm: accurateCpm,
+    roas: accurateRoas,
+    rawOrders: sum.rawOrders,
+    rawClicks: sum.rawClicks,
   };
 };
 
@@ -127,20 +141,21 @@ const buildAggTree = (node, monthFilter) => {
 
 const filterTree = (node, search, minImp, categoryFilter, activeFilters) => {
   const matchesSearch =
-    !search || node.keyword.toLowerCase().includes(search.toLowerCase());
-  const matchesImp = !minImp || node.agg.impressions >= minImp;
+    !search || (node.keyword && node.keyword.toLowerCase().includes(search.toLowerCase()));
+  const matchesImp = !minImp || (node.agg?.impressions || 0) >= minImp;
 
-  // existing single-select category filter
-  const matchesCategorySelect = !categoryFilter || categoryFilter === "All" || node.category === categoryFilter;
+  // matchesCategory depends on level. For Keyword or Month nodes, we might need different logic.
+  // But usually category is part of the node data.
+  const matchesCategorySelect = !categoryFilter || node.category === categoryFilter;
 
-  // new multi-select filters from modal
   const matchesMultiCategory =
     !activeFilters?.categories?.length ||
-    activeFilters.categories.includes(node.category);
+    (node.category && activeFilters.categories.includes(node.category)) ||
+    (node.isKeyword); // Keywords match automatically to show children
 
   const matchesMultiKeyword =
     !activeFilters?.keywords?.length ||
-    activeFilters.keywords.includes(node.keyword);
+    (node.isKeyword ? activeFilters.keywords.includes(node.keyword) : true);
 
   // Combine matches
   const isMatch = matchesSearch && matchesImp && matchesCategorySelect && matchesMultiCategory && matchesMultiKeyword;
@@ -183,7 +198,7 @@ export default function KeywordAnalysisTable() {
   const [expandedNodes, setExpandedNodes] = useState({});
   const [search, setSearch] = useState("");
   const [monthFilter, setMonthFilter] = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [minImpressions, setMinImpressions] = useState("");
   const [backendCategories, setBackendCategories] = useState([]);
   const [apiData, setApiData] = useState([]);
@@ -203,11 +218,12 @@ export default function KeywordAnalysisTable() {
   });
 
   const {
-    pmSelectedPlatform,
-    pmSelectedBrand,
-    selectedZone,
+    platform,
+    selectedCategory,
+    selectedLocation,
     timeStart,
     timeEnd,
+    selectedProductCategory,
   } = useContext(FilterContext);
 
   useEffect(() => {
@@ -216,9 +232,10 @@ export default function KeywordAnalysisTable() {
       try {
         const response = await axiosInstance.get('/performance-marketing/keyword-analysis', {
           params: {
-            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
-            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
-            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
+            platform: Array.isArray(platform) ? platform.join(',') : platform,
+            brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+            zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+            productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD"),
             weekendFlag: activeFilters.weekendFlag
@@ -235,7 +252,7 @@ export default function KeywordAnalysisTable() {
       }
     };
     fetchKeywordData();
-  }, [pmSelectedPlatform, pmSelectedBrand, selectedZone, timeStart, timeEnd, activeFilters.weekendFlag]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, activeFilters.weekendFlag, selectedProductCategory]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -276,7 +293,12 @@ export default function KeywordAnalysisTable() {
 
     const traverse = (nodes) => {
       nodes.forEach((node) => {
-        opts.keywords.set(node.keyword, { id: node.keyword, label: node.keyword, value: 0 });
+        if (node.isKeyword) {
+          opts.keywords.set(node.keyword, { id: node.keyword, label: node.keyword, value: 0 });
+        }
+        if (node.category) {
+          opts.categories.set(node.category, { id: node.category, label: node.category, value: 0 });
+        }
         if (node.months) {
           node.months.forEach(m => {
             opts.months.set(m.month, { id: m.month, label: m.month, value: 0 });
@@ -361,7 +383,7 @@ export default function KeywordAnalysisTable() {
 
   const visibleHierarchyCols = Math.max(
     1,
-    Math.min(expandedDepth + 1, maxDepth + 1)
+    Math.min(expandedDepth + 1, maxDepth)
   );
 
   const LEVEL_TITLES = ["Keyword", "Category", "Month"];
@@ -398,7 +420,7 @@ export default function KeywordAnalysisTable() {
   const renderNode = (node, level = 0, path = "") => {
     const key = path || node.keyword;
     const isOpen = expandedNodes[key];
-    const heat = getHeatColor(node.agg.conversion);
+    const heat = node.agg ? getHeatColor(node.agg.conversion) : { bg: "transparent", color: "inherit" };
 
     const hasChildren = node.children && node.children.length > 0;
 
@@ -467,27 +489,29 @@ export default function KeywordAnalysisTable() {
           })}
 
 
-          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.impressions)}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg ? formatIndianNumber(node.agg.impressions) : "–"}</TableCell>
 
           <TableCell align="center">
-            <Box
-              sx={{
-                px: 1,
-                py: "2px",
-                borderRadius: 1,
-                background: heat.bg,
-                color: heat.color,
-                fontSize: 11,
-                fontWeight: 600,
-                display: "inline-flex",
-              }}
-            >
-              {node.agg.conversion.toFixed(1)}%
-            </Box>
+            {node.agg ? (
+              <Box
+                sx={{
+                  px: 1,
+                  py: "2px",
+                  borderRadius: 1,
+                  background: heat.bg,
+                  color: heat.color,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  display: "inline-flex",
+                }}
+              >
+                {node.agg.conversion.toFixed(1)}%
+              </Box>
+            ) : "–"}
           </TableCell>
-          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.spend)}</TableCell>
-          <TableCell align="center" sx={{ fontSize: 11 }}>{formatIndianNumber(node.agg.cpm)}</TableCell>
-          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg.roas.toFixed(1)}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg ? formatIndianNumber(node.agg.spend) : "–"}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg ? formatIndianNumber(node.agg.cpm) : "–"}</TableCell>
+          <TableCell align="center" sx={{ fontSize: 11 }}>{node.agg ? node.agg.roas.toFixed(1) : "–"}</TableCell>
         </TableRow>
 
         {isOpen &&
@@ -577,46 +601,6 @@ export default function KeywordAnalysisTable() {
             <Typography sx={{ fontSize: { xs: 16, md: 18 }, fontWeight: 700, color: "#0f172a" }}>
               Keyword Analysis
             </Typography>
-            <Select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              displayEmpty
-              variant="standard"
-              disableUnderline
-              sx={{
-                fontSize: { xs: 11, md: 12 },
-                borderRadius: 999,
-                px: { xs: 1.2, md: 1.5 },
-                height: { xs: 30, md: 32 },
-                width: { xs: "100%", sm: "auto" },
-                backgroundColor: "#f1f5f9",
-                color: "#334155",
-                border: "1px solid #e2e8f0",
-                cursor: "pointer",
-                "&:hover": { backgroundColor: "#e2e8f0" },
-                "& .MuiSelect-select": {
-                  paddingRight: "24px !important",
-                  py: 0.5,
-                  display: "flex",
-                  alignItems: "center",
-                },
-                minWidth: { xs: "100%", sm: 120 },
-              }}
-              MenuProps={{
-                PaperProps: {
-                  sx: { borderRadius: 2, mt: 1 },
-                },
-              }}
-            >
-              <MenuItem value="All" sx={{ fontSize: 12, fontWeight: 500 }}>
-                All Categories
-              </MenuItem>
-              {filterOptions.categories.map((c) => (
-                <MenuItem key={c.label} value={c.label} sx={{ fontSize: 12 }}>
-                  {c.label}
-                </MenuItem>
-              ))}
-            </Select>
           </Box>
           <Typography sx={{ fontSize: { xs: 10, md: 11 }, color: "#94a3b8", mt: { xs: 0.5, md: 0 } }}>
             Keyword → Category → Month
@@ -735,14 +719,20 @@ export default function KeywordAnalysisTable() {
 
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={visibleHierarchyCols + 4} align="center" sx={{ py: 10 }}>
-                  <CircularProgress size={40} sx={{ color: "#10b981" }} />
-                  <Typography sx={{ mt: 2, color: "#64748b", fontSize: 14 }}>
-                    Fetching keyword performance...
-                  </Typography>
-                </TableCell>
-              </TableRow>
+              Array.from({ length: 5 }).map((_, idx) => (
+                <TableRow key={`skeleton-${idx}`}>
+                  {Array.from({ length: visibleHierarchyCols }).map((_, i) => (
+                    <TableCell key={i} sx={i === 0 ? { position: "sticky", left: 0, background: "white", zIndex: 10 } : {}}>
+                      <Skeleton variant="text" width="80%" />
+                    </TableCell>
+                  ))}
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                  <TableCell align="center"><Skeleton variant="text" /></TableCell>
+                </TableRow>
+              ))
             ) : paginated.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={visibleHierarchyCols + 4} align="center" sx={{ py: 10 }}>

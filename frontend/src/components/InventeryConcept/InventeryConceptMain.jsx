@@ -336,8 +336,10 @@ function InventeryConceptMain() {
     timeEnd,
     compareStart,
     compareEnd,
+    maxDate,
   } = useContext(FilterContext);
 
+  const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
   const [dateFrom, setDateFrom] = useState("2025-12-01");
   const [dateTo, setDateTo] = useState("2025-12-12");
   const [drrUplift, setDrrUplift] = useState(20);
@@ -742,6 +744,7 @@ function InventeryConceptMain() {
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
+                  max={maxDateStr}
                   className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs"
                 />
               </div>
@@ -752,6 +755,7 @@ function InventeryConceptMain() {
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
+                  max={maxDateStr}
                   className="w-full rounded-xl border border-slate-200 px-2 py-1 text-xs"
                 />
               </div>

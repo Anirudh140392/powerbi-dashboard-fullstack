@@ -18,151 +18,149 @@ import VisibilityAnalysis from "./pages/AllVisibilityAnalysis/VisibilityAnalysis
 import PiyConcept from "./pages/PiyConcept/PiyConcept";
 
 import { FilterProvider } from "./utils/FilterContext";
-import { AuthProvider } from "./utils/AuthContext";
+import { AuthProvider, useAuth } from "./utils/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/Login/LoginPage";
 import InventeryConceptMains from "./pages/InventeryConcept/InventeryConceptMains";
 import ScheduledReports from "./pages/Reports/ScheduledReports";
 import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
-import AdminPanel from "./pages/Admin/AdminPanel";
-import { useAuth } from "./utils/AuthContext";
+import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
 
-const RootPath = () => {
+function AppContent() {
   const { isLoggedIn, user } = useAuth();
 
-  if (!isLoggedIn) {
-    return <Navigate to="/login" replace />;
-  }
+  // 🔥 NUCLEAR RESET: The 'key' attribute forces React to destroy and 
+  // remount the entire FilterProvider (and all its children) whenever 
+  // the user logs in or out. This ensures NO stale data leaks.
+  const sessionKey = isLoggedIn ? (user?.email || "authenticated") : "guest";
 
-  if (user?.role === "admin") {
-    return <Navigate to="/admin" replace />;
-  }
+  return (
+    <FilterProvider key={sessionKey}>
+      <HashRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
 
-  return <Navigate to="/watch-tower" replace />;
-};
+          <Route path="/" element={<Navigate to="/watch-tower" replace />} />
+
+          <Route path="/watch-tower" element={
+            <ProtectedRoute>
+              <WatchTower />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/insights" element={
+            <ProtectedRoute>
+              <Insights />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/category-rca" element={
+            <ProtectedRoute>
+              <CategoryRca />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/volume-cohort" element={
+            <ProtectedRoute>
+              <VolumeCohort />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/price-per-pack" element={
+            <ProtectedRoute>
+              <PricePerPack />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/price-analysis" element={
+            <ProtectedRoute>
+              <PriceAnalysis />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/performance-marketing" element={
+            <ProtectedRoute>
+              <MainPerformanceMarketings />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/availability-analysis" element={
+            <ProtectedRoute>
+              <AvailablityAnalysis />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/visibility-anlysis" element={
+            <ProtectedRoute>
+              <VisibilityAnalysis />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/content-score" element={
+            <ProtectedRoute>
+              <ContentScoreDashboards />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/pricing-analysis" element={
+            <ProtectedRoute>
+              <PricingAnalysis />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/market-share" element={
+            <ProtectedRoute>
+              <MarketShares />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/sales" element={
+            <ProtectedRoute>
+              <SalesMainPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/piy" element={
+            <ProtectedRoute>
+              <PiyConcept />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/inventory" element={
+            <ProtectedRoute>
+              <InventeryConceptMains />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/scheduled-reports" element={
+            <ProtectedRoute>
+              <ScheduledReports />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/geo-intelligence" element={
+            <ProtectedRoute>
+              <GeoIntelligenceMap />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/compare-skus" element={
+            <ProtectedRoute>
+              <CompareSkuMatrix onClose={() => window.history.back()} />
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </HashRouter>
+    </FilterProvider>
+  );
+}
 
 export default function App() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <AuthProvider>
-        <FilterProvider>
-          <HashRouter>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-
-              <Route path="/" element={<RootPath />} />
-
-              <Route path="/admin" element={
-                <ProtectedRoute>
-                  <AdminPanel />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/watch-tower" element={
-                <ProtectedRoute>
-                  <WatchTower />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/insights" element={
-                <ProtectedRoute>
-                  <Insights />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/category-rca" element={
-                <ProtectedRoute>
-                  <CategoryRca />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/volume-cohort" element={
-                <ProtectedRoute>
-                  <VolumeCohort />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/price-per-pack" element={
-                <ProtectedRoute>
-                  <PricePerPack />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/price-analysis" element={
-                <ProtectedRoute>
-                  <PriceAnalysis />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/performance-marketing" element={
-                <ProtectedRoute>
-                  <MainPerformanceMarketings />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/availability-analysis" element={
-                <ProtectedRoute>
-                  <AvailablityAnalysis />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/visibility-anlysis" element={
-                <ProtectedRoute>
-                  <VisibilityAnalysis />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/content-score" element={
-                <ProtectedRoute>
-                  <ContentScoreDashboards />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/pricing-analysis" element={
-                <ProtectedRoute>
-                  <PricingAnalysis />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/market-share" element={
-                <ProtectedRoute>
-                  <MarketShares />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/sales" element={
-                <ProtectedRoute>
-                  <SalesMainPage />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/piy" element={
-                <ProtectedRoute>
-                  <PiyConcept />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/inventory" element={
-                <ProtectedRoute>
-                  <InventeryConceptMains />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/scheduled-reports" element={
-                <ProtectedRoute>
-                  <ScheduledReports />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/geo-intelligence" element={
-                <ProtectedRoute>
-                  <GeoIntelligenceMap />
-                </ProtectedRoute>
-              } />
-            </Routes>
-          </HashRouter>
-        </FilterProvider>
+        <AppContent />
       </AuthProvider>
     </LocalizationProvider>
   );

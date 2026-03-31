@@ -4,37 +4,53 @@
  */
 
 import dayjs from 'dayjs';
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
+import { getTableColumns, columnExists, resolveColumn } from '../utils/schemaHelper.js';
 
-// Helper to build WHERE clause from filters
-const buildWhereConditions = (filters, includeDate = true) => {
-    const conditions = [];
-    const { platform, brand, location, category, startDate, endDate } = filters;
-
-    if (includeDate) {
-        if (startDate && endDate) {
-            conditions.push(`DATE BETWEEN '${dayjs(startDate).format('YYYY-MM-DD')}' AND '${dayjs(endDate).format('YYYY-MM-DD')}'`);
-        } else if (endDate) {
-            conditions.push(`DATE = '${dayjs(endDate).format('YYYY-MM-DD')}'`);
+/**
+ * Helper to get table column mappings based on the current tenant's database.
+ * This handles inconsistencies in column naming/casing across different ClickHouse DBs.
+ */
+const getColumnMapping = (dbName) => {
+    const isMars = !['colpal', 'gcpl', 'cinthol'].includes(dbName);
+    // Default mappings (based on colpal/gcpl)
+    const mapping = {
+        rca_sku_dim: {
+            category: (isMars || dbName === 'colpal' || dbName === 'gcpl') ? 'category' : 'category'
+        },
+        rb_sku_platform: {
+            brand_name: isMars ? 'brand' : 'brand_name',
+            category: isMars ? 'product_category' : 'Product_type',
+            format: isMars ? 'product_category' : 'Category'
         }
+    };
+    // Ensure rca_sku_dim category is correct for all
+    if (dbName === 'colpal' || dbName === 'gcpl') {
+        mapping.rca_sku_dim.category = 'Category';
     }
-
-    if (platform && platform !== 'All') {
-        conditions.push(`Platform = '${platform}'`);
-    }
-    if (brand && brand !== 'All') {
-        conditions.push(`Brand = '${brand}'`);
-    }
-    if (location && location !== 'All') {
-        conditions.push(`Location = '${location}'`);
-    }
-    if (category && category !== 'All') {
-        conditions.push(`Category = '${category}'`);
-    }
-
-    return conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    return mapping;
 };
+
+/**
+ * Dynamically resolve rb_sku_platform column names by querying the DB schema.
+ * This replaces the hardcoded getColumnMapping() approach for rb_sku_platform
+ * and works across all DB schemas (mamaearth, mars, colpal, gcpl, etc.).
+ */
+const getSkuPlatformColumns = async () => {
+    const skuPlatCols = await getTableColumns('rb_sku_platform');
+    const findCol = (possibleNames) => {
+        for (const name of possibleNames) {
+            if (columnExists(skuPlatCols, name)) return resolveColumn(skuPlatCols, name);
+        }
+        return possibleNames[0]; // fallback to first candidate
+    };
+    return {
+        brandCol: findCol(['brand_name', 'brand']),
+        categoryCol: findCol(['brand_category', 'sub_category', 'product_category', 'Product_type', 'Category'])
+    };
+};
+
 
 // Helper to escape string for SQL
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
@@ -69,11 +85,22 @@ const buildPlatformChannelCond = (platform, channel, prefix = '') => {
  * Robust helper to build WHERE clause for availability queries.
  * Supports all advanced filters and correctly handles arrays.
  */
-const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
-    const {
+const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
+    let {
         platform, brand, location, startDate, endDate, dates, months,
-        cities, categories, formats, zones, metroFlags, pincodes
+        cities, categories, formats, zones, metroFlags, pincodes, productCategory, sku, skus, ownBrandsOnly,
+        dimension, dimensionValue
     } = filters;
+
+    // Apply dashboard drill-down dimension override overrides base filters
+    if (dimension && dimensionValue && dimensionValue !== 'All') {
+        const dimKey = dimension.toLowerCase();
+        if (dimKey === 'platform') platform = dimensionValue;
+        else if (dimKey === 'brand') brand = dimensionValue;
+        else if (dimKey === 'city' || dimKey === 'location') location = dimensionValue;
+        else if (dimKey === 'category' || dimKey === 'format') categories = dimensionValue;
+    }
+
     const conditions = [];
 
     const prefix = tableAlias ? `${tableAlias}.` : '';
@@ -91,26 +118,28 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     // City/Location filter
     const lArr = [];
-    if (location && location !== 'All') {
+    const isAllIndia = (val) => val === 'All' || val === 'all' || val === 'All India' || val === 'all india' || val === 'all_india';
+
+    if (location && !isAllIndia(location)) {
         if (Array.isArray(location)) {
-            const filtered = location.filter(v => v !== 'All' && v !== 'all');
+            const filtered = location.filter(v => v && !isAllIndia(v));
             lArr.push(...filtered);
         } else {
             lArr.push(location);
         }
     }
-    if (cities && cities !== 'All') {
+    if (cities && !isAllIndia(cities)) {
         if (Array.isArray(cities)) {
-            const filtered = cities.filter(v => v !== 'All' && v !== 'all');
+            const filtered = cities.filter(v => v && !isAllIndia(v));
             lArr.push(...filtered);
         } else {
             lArr.push(cities);
         }
     }
     // Backward compatibility for 'city' key
-    if (filters.city && filters.city !== 'All') {
+    if (filters.city && !isAllIndia(filters.city)) {
         if (Array.isArray(filters.city)) {
-            const filtered = filters.city.filter(v => v !== 'All' && v !== 'all');
+            const filtered = filters.city.filter(v => v && !isAllIndia(v));
             lArr.push(...filtered);
         } else {
             lArr.push(filters.city);
@@ -120,6 +149,21 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     if (lArr.length > 0) {
         const uniqueLArr = [...new Set(lArr)];
         conditions.push(`lower(replace(${prefix}Location, ' ', '_')) IN (${uniqueLArr.map(l => `'${escapeStr(l.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+    }
+
+    // Dynamically resolve columns and check tables once
+    const pdpColsMap = await getTableColumns('rb_pdp_olap');
+    const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+    const actualPcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+
+    let hasDarkstoreTable = false;
+    if ((zones && zones !== 'All') || (metroFlags && metroFlags !== 'All') || (pincodes && pincodes !== 'All')) {
+        try {
+            const check = await queryClickHouse(`EXISTS TABLE rb_location_darkstore`);
+            hasDarkstoreTable = (Number(check?.[0]?.result) === 1);
+        } catch (e) {
+            hasDarkstoreTable = false;
+        }
     }
 
     // Category/Format filter
@@ -160,7 +204,55 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
 
     if (cArr.length > 0) {
         const uniqueCArr = [...new Set(cArr)];
-        conditions.push(`lower(replace(${prefix}Category, ' ', '_')) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`);
+        conditions.push(`lower(trim(BOTH '\t\\n ' FROM ${prefix}${actualCatCol})) IN (${uniqueCArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+    }
+
+    // Product Category filter
+    const pcArr = [];
+    if (productCategory && productCategory !== 'All') {
+        if (Array.isArray(productCategory)) {
+            const filtered = productCategory.filter(v => v !== 'All' && v !== 'all');
+            pcArr.push(...filtered);
+        } else {
+            pcArr.push(productCategory);
+        }
+    }
+    if (filters.productCategory && !productCategory) { // Handle case where it's not array destructured
+        if (Array.isArray(filters.productCategory)) {
+            const filtered = filters.productCategory.filter(v => v !== 'All' && v !== 'all');
+            pcArr.push(...filtered);
+        } else if (filters.productCategory !== 'All' && filters.productCategory !== 'all') {
+            pcArr.push(filters.productCategory);
+        }
+    }
+
+    if (pcArr.length > 0) {
+        const uniquePcArr = [...new Set(pcArr)];
+        conditions.push(`lower(trim(BOTH '\t\n ' FROM ${prefix}${actualPcCol})) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+    }
+
+    // SKU filter
+    const sArr = [];
+    if (sku && sku !== 'All') {
+        if (Array.isArray(sku)) {
+            const filtered = sku.filter(v => v !== 'All' && v !== 'all');
+            sArr.push(...filtered);
+        } else {
+            sArr.push(sku);
+        }
+    }
+    if (skus && skus !== 'All') {
+        if (Array.isArray(skus)) {
+            const filtered = skus.filter(v => v !== 'All' && v !== 'all');
+            sArr.push(...filtered);
+        } else {
+            sArr.push(skus);
+        }
+    }
+
+    if (sArr.length > 0) {
+        const uniqueSArr = [...new Set(sArr)];
+        conditions.push(`${prefix}Web_Pid IN (${uniqueSArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
     }
 
     // Date/Month range
@@ -175,17 +267,23 @@ const buildAvailabilityWhereClause = (filters, tableAlias = '') => {
     }
 
     // Advanced filters requiring subqueries on rb_location_darkstore
-    if (zones && zones !== 'All') {
-        const zArr = Array.isArray(zones) ? zones : [zones];
-        conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE region IN (${zArr.map(z => `'${escapeStr(z)}'`).join(',')}))`);
+    if (hasDarkstoreTable) {
+        if (zones && zones !== 'All') {
+            const zArr = Array.isArray(zones) ? zones : [zones];
+            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE region IN (${zArr.map(z => `'${escapeStr(z)}'`).join(',')}))`);
+        }
+        if (metroFlags && metroFlags !== 'All') {
+            const mArr = Array.isArray(metroFlags) ? metroFlags : [metroFlags];
+            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN (${mArr.map(m => `'${escapeStr(m)}'`).join(',')}))`);
+        }
+        if (pincodes && pincodes !== 'All') {
+            const pArr = Array.isArray(pincodes) ? pincodes : [pincodes];
+            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE toString(pincode) IN (${pArr.map(p => `'${escapeStr(p)}'`).join(',')}))`);
+        }
     }
-    if (metroFlags && metroFlags !== 'All') {
-        const mArr = Array.isArray(metroFlags) ? metroFlags : [metroFlags];
-        conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN (${mArr.map(m => `'${escapeStr(m)}'`).join(',')}))`);
-    }
-    if (pincodes && pincodes !== 'All') {
-        const pArr = Array.isArray(pincodes) ? pincodes : [pincodes];
-        conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE toString(pincode) IN (${pArr.map(p => `'${escapeStr(p)}'`).join(',')}))`);
+
+    if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
+        conditions.push(`${prefix}Comp_flag = 0`);
     }
 
     return conditions.length > 0 ? conditions.join(' AND ') : '1=1';
@@ -291,17 +389,17 @@ const getAbsoluteOsaOverview = async (filters) => {
 
             // Build filter conditions for current period
             const currentFilters = { ...filters, startDate: currentStartDate.format('YYYY-MM-DD'), endDate: currentEndDate.format('YYYY-MM-DD') };
-            const currentWhere = buildAvailabilityWhereClause(currentFilters);
+            const currentWhere = await buildAvailabilityWhereClause(currentFilters);
 
             // Build filter conditions for previous period
             const prevFilters = { ...filters, startDate: prevStartDate.format('YYYY-MM-DD'), endDate: prevEndDate.format('YYYY-MM-DD') };
-            const prevWhere = buildAvailabilityWhereClause(prevFilters);
+            const prevWhere = await buildAvailabilityWhereClause(prevFilters);
 
             const queryTemplate = (where) => `
                 SELECT 
-                    SUM(toFloat64(neno_osa)) as sumNenoOsa,
-                    SUM(toFloat64(deno_osa)) as sumDenoOsa,
-                    SUM(toFloat64(buy_box_neno_osa)) as sumBuyBoxNeno
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNenoOsa,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDenoOsa,
+                    SUM(ifNull(toFloat64OrZero(toString(buy_box_neno_osa)), 0)) as sumBuyBoxNeno
                 FROM rb_pdp_olap
                 WHERE ${where}
             `;
@@ -329,7 +427,7 @@ const getAbsoluteOsaOverview = async (filters) => {
             const fillRate = currSumDeno > 0 ? (currSumBuyBox / currSumDeno) * 100 : 0;
             const prevFillRate = prevSumDeno > 0 ? (prevSumBuyBox / prevSumDeno) * 100 : 0;
 
-            return {
+            const result = {
                 section: "availability_overview",
                 stockAvailability: parseFloat(stockAvailability.toFixed(2)),
                 prevStockAvailability: parseFloat(prevStockAvailability.toFixed(2)),
@@ -342,6 +440,119 @@ const getAbsoluteOsaOverview = async (filters) => {
                 comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
                 timestamp: new Date().toISOString()
             };
+
+            // ---- ADD OSA DETAIL DATA ----
+            // We need 31 days of data backwards from the current end date for trends
+            const detailStartDate = currentEndDate.subtract(30, 'day').format('YYYY-MM-DD');
+            const detailEndDate = currentEndDate.format('YYYY-MM-DD');
+
+            // Query should span from the earliest of currentStartDate and detailStartDate
+            const overallStartDate = currentStartDate.isBefore(detailStartDate, 'day') ? currentStartDate : dayjs(detailStartDate);
+            const overallEndDate = currentEndDate.isAfter(detailEndDate, 'day') ? currentEndDate : dayjs(detailEndDate);
+
+            const detailFilters = { ...filters, startDate: overallStartDate.format('YYYY-MM-DD'), endDate: overallEndDate.format('YYYY-MM-DD') };
+            const detailWhere = await buildAvailabilityWhereClause(detailFilters);
+
+            const detailQuery = `
+                SELECT 
+                    Web_Pid as sku,
+                    Product as name,
+                    Platform as platform,
+                    Brand as brand,
+                    Category as format,
+                    DATE as date,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
+                FROM rb_pdp_olap
+                WHERE ${detailWhere} AND Web_Pid IS NOT NULL AND Web_Pid != ''
+                GROUP BY Web_Pid, Product, Platform, Brand, Category, DATE
+                ORDER BY Web_Pid, DATE
+            `;
+
+            console.log('[getAbsoluteOsaOverview] Fetching detail data');
+            const detailResult = await queryClickHouse(detailQuery);
+
+            // Structure: { sku: { name: '', values: [0..0] (31 length), cities: [], avg7, avg31, avgSelected, status } }
+            const skuMap = {};
+            const daysArr = Array.from({ length: 31 }, (_, i) => currentEndDate.subtract(30 - i, 'day').format('YYYY-MM-DD'));
+
+            detailResult.forEach(row => {
+                if (!skuMap[row.sku]) {
+                    skuMap[row.sku] = {
+                        name: row.name || 'Unknown Product',
+                        sku: row.sku,
+                        platform: row.platform,
+                        brand: row.brand,
+                        format: row.format,
+                        dateMap: {},
+                        values: new Array(31).fill(null),
+                    };
+                }
+                const neno = parseFloat(row.sumNeno) || 0;
+                const deno = parseFloat(row.sumDeno) || 0;
+                const osa = deno > 0 ? Math.round((neno / deno) * 100) : 0;
+
+                skuMap[row.sku].dateMap[row.date] = { osa, neno, deno };
+            });
+
+            // Calculate aggregates and fill values array
+            const osaDetail = Object.values(skuMap).map(item => {
+                let totalNeno31 = 0, totalDeno31 = 0;
+                let totalNeno7 = 0, totalDeno7 = 0;
+                let totalNenoSelected = 0, totalDenoSelected = 0;
+
+                // For the last 31 days trend
+                daysArr.forEach((dateStr, index) => {
+                    const data = item.dateMap[dateStr];
+                    if (data) {
+                        item.values[index] = data.osa;
+                        totalNeno31 += data.neno;
+                        totalDeno31 += data.deno;
+                        if (index >= 24) { // Last 7 days
+                            totalNeno7 += data.neno;
+                            totalDeno7 += data.deno;
+                        }
+                    } else {
+                        item.values[index] = 0;
+                    }
+                });
+
+                // For the selected range aggregate
+                Object.keys(item.dateMap).forEach(dateStr => {
+                    const d = dayjs(dateStr);
+                    if (!d.isBefore(currentStartDate, 'day') && !d.isAfter(currentEndDate, 'day')) {
+                        totalNenoSelected += item.dateMap[dateStr].neno;
+                        totalDenoSelected += item.dateMap[dateStr].deno;
+                    }
+                });
+
+                const avg31 = totalDeno31 > 0 ? Math.round((totalNeno31 / totalDeno31) * 100) : 0;
+                const avg7 = totalDeno7 > 0 ? Math.round((totalNeno7 / totalDeno7) * 100) : 0;
+                const avgSelected = totalDenoSelected > 0 ? Math.round((totalNenoSelected / totalDenoSelected) * 100) : 0;
+                // Status based on selected period instead of 7 days to match selected dates accuracy
+                const status = avgSelected >= 85 ? "Healthy" : avgSelected >= 70 ? "Watch" : "Action";
+
+                return {
+                    name: item.name,
+                    sku: item.sku,
+                    platform: item.platform,
+                    brand: item.brand,
+                    format: item.format,
+                    values: item.values,
+                    avg7,
+                    avg31,
+                    avgSelected,
+                    status,
+                    cities: []
+                };
+            });
+
+            // Sort by worst avgSelected descending or name
+            osaDetail.sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
+
+            result.osaDetail = osaDetail;
+
+            return result;
         } catch (error) {
             console.error('[getAbsoluteOsaOverview] Error:', error);
             throw error;
@@ -357,6 +568,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
     return getCachedOrCompute(cacheKey, async () => {
         try {
             const { viewMode = 'Platform', platform, brand, location, startDate, endDate } = filters;
+            console.log(`\n[DEBUG KPI MATRIX] viewMode: "${viewMode}"`);
 
             // Date calculations
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
@@ -366,9 +578,14 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
             // Determine group column based on viewMode
-            const groupColumn = viewMode === 'Format' ? 'Category' :
-                viewMode === 'City' ? 'Location' : 'Platform';
+            const isMars = getCurrentDbName() === 'mars';
+            const vMode = (viewMode || 'Platform').toLowerCase();
+            console.log(`\n[DEBUG KPI MATRIX] viewMode: "${viewMode}", normalized: "${vMode}"`);
 
+            const groupColumn = vMode === 'platform' ? 'Platform' :
+                (vMode === 'format' || vMode === 'category') ? 'Category' :
+                        'Location';
+            console.log(`[DEBUG KPI MATRIX] groupColumn: "${groupColumn}"`);
             // Build base filter conditions using the helper (excluding date as it's handled separately for current/prev)
             const baseFilterParams = { ...filters };
             delete baseFilterParams.startDate;
@@ -376,11 +593,11 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             delete baseFilterParams.dates;
             delete baseFilterParams.months;
 
-            // NOTE: We intentionally keep the grouping column filters (platform/location/category)
+            // Note: We intentionally keep the grouping column filters (platform/location/category)
             // in baseFilterParams so that user-applied segment filters are respected.
             // If the user filters by specific platforms, only those should appear as columns.
 
-            const baseWhereClause = buildAvailabilityWhereClause(baseFilterParams);
+            const baseWhereClause = await buildAvailabilityWhereClause(baseFilterParams);
             const baseFilter = baseWhereClause !== '1=1' ? ` AND ${baseWhereClause}` : '';
 
             console.log('[DEBUG KPI MATRIX] baseFilterParams:', JSON.stringify(baseFilterParams));
@@ -392,7 +609,12 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             let additionalCategoryFilter = '';
             if (viewMode === 'Format') {
                 // Pre-fetch valid categories to avoid correlated subquery (not supported in ClickHouse)
-                const validCatResult = await queryClickHouse(`SELECT DISTINCT category FROM rca_sku_dim WHERE status = 1 AND category IS NOT NULL AND category != ''`);
+                const dbName = getCurrentDbName();
+                const colMap = getColumnMapping(dbName);
+                const rcaCatCol = colMap.rca_sku_dim.category;
+
+                console.log(`[DEBUG KPI MATRIX] Format view. Fetching active categories from rca_sku_dim.${rcaCatCol}`);
+                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim WHERE status = 1 AND ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
                 const validCategories = validCatResult.map(r => r.category).filter(Boolean);
                 if (validCategories.length > 0) {
                     additionalCategoryFilter = ` AND ${groupColumn} IN (${validCategories.map(c => `'${escapeStr(c)}'`).join(',')})`;
@@ -429,15 +651,15 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             // Calculate KPIs for all columns in a single optimized query
             // OSA uses the selected period
             // DOI uses latest inventory and a 30-day sales lookback (from currentEndDate)
-            const doiLookbackDate = currentEndDate.subtract(30, 'day').format('YYYY-MM-DD');
-            const prevDoiLookbackDate = prevEndDate.subtract(30, 'day').format('YYYY-MM-DD');
+            const doiLookbackDate = currentEndDate.subtract(29, 'day').format('YYYY-MM-DD');
+            const prevDoiLookbackDate = prevEndDate.subtract(29, 'day').format('YYYY-MM-DD');
 
             const kpiQuery = `
                 WITH daily_stats AS (
                     SELECT 
                         DATE,
                         ${groupColumn} as col_value,
-                        SUM(toFloat64(Inventory)) as daily_inv
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                       AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -449,14 +671,16 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         col_value,
                         argMax(daily_inv, DATE) as latest_inventory
                     FROM daily_stats
+                    WHERE daily_inv > 0
                     GROUP BY col_value
                 )
                 SELECT 
                     t1.${groupColumn} as col_value,
-                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                    SUM(toFloat64(t1.deno_osa)) as sum_deno,
-                    SUM(toFloat64(t1.buy_box_neno_osa)) as sum_buybox_neno,
-                    SUM(toFloat64(t1.MSL)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory
                 FROM rb_pdp_olap t1
@@ -472,7 +696,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SELECT 
                         DATE,
                         ${groupColumn} as col_value,
-                        SUM(toFloat64(Inventory)) as daily_inv
+                        SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as daily_inv
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                       AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -484,14 +708,16 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         col_value,
                         argMax(daily_inv, DATE) as latest_inventory
                     FROM daily_stats
+                    WHERE daily_inv > 0
                     GROUP BY col_value
                 )
                 SELECT 
                     t1.${groupColumn} as col_value,
-                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                    SUM(toFloat64(t1.deno_osa)) as sum_deno,
-                    SUM(toFloat64(t1.buy_box_neno_osa)) as sum_buybox_neno,
-                    SUM(toFloat64(t1.MSL)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory
                 FROM rb_pdp_olap t1
@@ -506,7 +732,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const doiSalesQuery = `
                 SELECT 
                     ${groupColumn} as col_value,
-                    SUM(toFloat64(Qty_Sold)) as total_qty_sold
+                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold
                 FROM rb_pdp_olap
                 WHERE DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                   AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -517,7 +743,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const prevDoiSalesQuery = `
                 SELECT 
                     ${groupColumn} as col_value,
-                    SUM(toFloat64(Qty_Sold)) as total_qty_sold
+                    SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) as total_qty_sold
                 FROM rb_pdp_olap
                 WHERE DATE BETWEEN '${prevDoiLookbackDate}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                   AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -548,7 +774,6 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 osa: { kpi: 'OSA', trend: {} },
                 doi: { kpi: 'DOI', trend: {} },
                 fillrate: { kpi: 'FILLRATE', trend: {} },
-                assortment: { kpi: 'ASSORTMENT', trend: {} },
                 psl: { kpi: 'PSL', trend: {} }
             };
 
@@ -572,8 +797,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     ? (parseFloat(curr.latest_inventory) / currSalesVal) * 30 : 0;
                 const prevDoi = (prevSalesVal > 0)
                     ? (parseFloat(prev.latest_inventory) / prevSalesVal) * 30 : 0;
-                kpiRows.doi[colValue] = Math.round(currDoi);
-                kpiRows.doi.trend[colValue] = Math.round(currDoi - prevDoi);
+                kpiRows.doi[colValue] = parseFloat(currDoi.toFixed(1));
+                kpiRows.doi.trend[colValue] = parseFloat((currDoi - prevDoi).toFixed(1));
 
                 // Fillrate: (SUM(buy_box_neno_osa) / SUM(deno_osa)) * 100
                 const currFillrate = (parseFloat(curr.sum_deno) > 0)
@@ -583,21 +808,15 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 kpiRows.fillrate[colValue] = Math.round(currFillrate);
                 kpiRows.fillrate.trend[colValue] = Math.round(currFillrate - prevFillrate);
 
-                // Assortment
-                kpiRows.assortment[colValue] = parseInt(curr.assortment_count, 10) || 0;
-                kpiRows.assortment.trend[colValue] = (parseInt(curr.assortment_count, 10) || 0) - (parseInt(prev.assortment_count, 10) || 0);
+                // PSL: (SUM(Sales) / OSA_Percentage) - SUM(Sales)  [currency format]
+                const currSalesTotal = parseFloat(curr.sum_sales) || 0;
+                const prevSalesTotal = parseFloat(prev.sum_sales) || 0;
 
-                // PSL: (Latest Inventory / SUM(MSL)) * 100 if MSL > 0, else proxy or 0
-                const currMsl = parseFloat(curr.sum_msl) || 0;
-                const prevMsl = parseFloat(prev.sum_msl) || 0;
-                const currInv = parseFloat(curr.latest_inventory) || 0;
-                const prevInv = parseFloat(prev.latest_inventory) || 0;
+                const currPsl = currOsa > 0 ? (currSalesTotal / (currOsa / 100)) - currSalesTotal : 0;
+                const prevPsl = prevOsa > 0 ? (prevSalesTotal / (prevOsa / 100)) - prevSalesTotal : 0;
 
-                const currPsl = currMsl > 0 ? (currInv / currMsl) * 100 : (currOsa * 0.95); // Using proxy if MSL is 0
-                const prevPsl = prevMsl > 0 ? (prevInv / prevMsl) * 100 : (prevOsa * 0.95);
-
-                kpiRows.psl[colValue] = Math.round(currPsl);
-                kpiRows.psl.trend[colValue] = Math.round(currPsl - prevPsl);
+                kpiRows.psl[colValue] = parseFloat(currPsl.toFixed(2));
+                kpiRows.psl.trend[colValue] = parseFloat((currPsl - prevPsl).toFixed(2));
             }
 
             // --- BREAKDOWN LOGIC ---
@@ -606,7 +825,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             // Only fetch breakdown when explicitly requested (user expanded a row)
             if (includeBreakdown && drillDimension === 'region') {
                 // Determine prefix for breakdown query - use t1 for rb_pdp_olap
-                const breakdownBaseWhere = buildAvailabilityWhereClause(baseFilterParams, 't1');
+                const breakdownBaseWhere = await buildAvailabilityWhereClause(baseFilterParams, 't1');
                 const breakdownBaseFilter = breakdownBaseWhere !== '1=1' ? ` AND ${breakdownBaseWhere}` : '';
 
                 const regionBreakdownQuery = `
@@ -620,17 +839,17 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         t1.${groupColumn} as col_value,
                         l.mapped_region as drill_item,
                         -- KPI Components for selected period
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.neno_osa), 0)) as sum_neno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.deno_osa), 0)) as sum_deno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.buy_box_neno_osa), 0)) as sum_buybox_neno,
-                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.MSL), 0)) as sum_msl,
-                        COUNT(DISTINCT if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', t1.Web_Pid, NULL)) as assortment_count,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_neno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_deno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as sum_buybox_neno,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.MSL)), 0), 0)) as sum_msl,
+                        SUM(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Sales)), 0), 0)) as sum_sales,
                         
                         -- DOI / Sales components (30-day lookback)
-                        SUM(if(t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}', toFloat64(t1.Qty_Sold), 0)) as doi_total_qty_sold,
+                        SUM(if(t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Qty_Sold)), 0), 0)) as doi_total_qty_sold,
                         
-                        -- Latest Inventory (across selected period)
-                        argMax(toFloat64(t1.Inventory), t1.DATE) as latest_inventory
+                        -- Latest Inventory (across selected period, prioritized by non-zero)
+                        argMax(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0), if(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0) > 0, t1.DATE, toDate('1970-01-01'))) as latest_inventory
                     FROM rb_pdp_olap t1
                     LEFT JOIN location_mapping l ON lower(t1.Location) = l.l_key
                     WHERE t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
@@ -653,7 +872,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 breakdownResults.forEach(r => {
                     const {
                         col_value, drill_item, sum_neno, sum_deno, sum_buybox_neno,
-                        sum_msl, assortment_count, doi_total_qty_sold, latest_inventory
+                        sum_msl, sum_sales, doi_total_qty_sold, latest_inventory
                     } = r;
                     const item = drill_item || 'Unknown';
 
@@ -668,16 +887,13 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     if (kpiRows.doi.breakdown[col_value]) {
                         const drr = parseFloat(doi_total_qty_sold) / 30;
                         const doi = drr > 0 ? parseFloat(latest_inventory) / drr : 0;
-                        kpiRows.doi.breakdown[col_value][item] = Math.round(doi);
-                    }
-                    if (kpiRows.assortment.breakdown[col_value]) {
-                        kpiRows.assortment.breakdown[col_value][item] = parseInt(assortment_count, 10) || 0;
+                        kpiRows.doi.breakdown[col_value][item] = parseFloat(doi.toFixed(1));
                     }
                     if (kpiRows.psl.breakdown[col_value]) {
-                        const msl = parseFloat(sum_msl) || 0;
-                        const inv = parseFloat(latest_inventory) || 0;
-                        const psl = msl > 0 ? (inv / msl) * 100 : (kpiRows.osa.breakdown[col_value][item] * 0.95);
-                        kpiRows.psl.breakdown[col_value][item] = Math.round(psl);
+                        const salesVal = parseFloat(sum_sales) || 0;
+                        const osaVal = kpiRows.osa.breakdown[col_value][item] || 0;
+                        const psl = osaVal > 0 ? (salesVal / (osaVal / 100)) - salesVal : 0;
+                        kpiRows.psl.breakdown[col_value][item] = parseFloat(psl.toFixed(2));
                     }
                     drillItemsSet.add(item);
                 });
@@ -697,28 +913,24 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SELECT 
                         t1.${groupColumn} as col_value,
                         -- Yesterday
-                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.neno_osa), 0)) as neno_yesterday,
-                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.deno_osa), 0)) as deno_yesterday,
-                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_yesterday,
-                        COUNT(DISTINCT if(toDate(t1.DATE) = '${yesterdayStr}', t1.Web_Pid, NULL)) as assortment_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as neno_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as deno_yesterday,
+                        SUM(if(toDate(t1.DATE) = '${yesterdayStr}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as buybox_neno_yesterday,
                         
                         -- Last Week
-                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_lastweek,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_lastweek,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_lastweek,
-                        COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as neno_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as deno_lastweek,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${lastWeekStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as buybox_neno_lastweek,
                         
                         -- MTD
-                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_mtd,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_mtd,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_mtd,
-                        COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as neno_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as deno_mtd,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${mtdStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as buybox_neno_mtd,
                         
                         -- L3M
-                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.neno_osa), 0)) as neno_l3m,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.deno_osa), 0)) as deno_l3m,
-                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', toFloat64(t1.buy_box_neno_osa), 0)) as buybox_neno_l3m,
-                        COUNT(DISTINCT if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', t1.Web_Pid, NULL)) as assortment_l3m
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as neno_l3m,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as deno_l3m,
+                        SUM(if(toDate(t1.DATE) BETWEEN '${l3mStr}' AND '${latestStr}', ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0), 0)) as buybox_neno_l3m
                     FROM rb_pdp_olap t1
                     WHERE t1.DATE BETWEEN '${l3mStr}' AND '${latestStr}'
                       AND t1.${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -754,18 +966,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         'L3M': r.deno_l3m > 0 ? (r.buybox_neno_l3m / r.deno_l3m) * 100 : 0
                     };
 
-                    const assortmentMetrics = {
-                        'Yesterday': parseInt(r.assortment_yesterday, 10) || 0,
-                        'Last Week': parseInt(r.assortment_lastweek, 10) || 0,
-                        'MTD': parseInt(r.assortment_mtd, 10) || 0,
-                        'L3M': parseInt(r.assortment_l3m, 10) || 0
-                    };
-
                     // Update breakdowns
                     ['Yesterday', 'Last Week', 'MTD', 'L3M'].forEach(periodKey => {
                         if (kpiRows.osa.breakdown[cv]) kpiRows.osa.breakdown[cv][periodKey] = Math.round(osaMetrics[periodKey] || 0);
                         if (kpiRows.fillrate.breakdown[cv]) kpiRows.fillrate.breakdown[cv][periodKey] = Math.round(frMetrics[periodKey] || 0);
-                        if (kpiRows.assortment.breakdown[cv]) kpiRows.assortment.breakdown[cv][periodKey] = assortmentMetrics[periodKey] || 0;
 
                         // For DOI and PSL, we maintain the overall current value for now in period breakdown 
                         // as they involve complex lookbacks per period
@@ -779,10 +983,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 const topCompQuery = `
                     SELECT 
                         Brand,
-                        SUM(toFloat64(deno_osa)) as total_deno
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as total_deno
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                      AND Comp_flag = 1
                       ${baseFilter}
                     GROUP BY Brand
                     ORDER BY total_deno DESC
@@ -804,7 +1007,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SELECT 
                             ${groupColumn} as col_value,
                             Brand as drill_item,
-                            (SUM(toFloat64(neno_osa)) / nullIf(SUM(toFloat64(deno_osa)), 0)) * 100 as osa
+                            (SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) / nullIf(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)) * 100 as osa
                         FROM rb_pdp_olap
                         WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                           AND ${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})
@@ -829,7 +1032,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 section: "platform_kpi_matrix",
                 viewMode,
                 columns: ['KPI', ...columnValues],
-                rows: [kpiRows.osa, kpiRows.doi, kpiRows.fillrate, kpiRows.assortment, kpiRows.psl],
+                rows: [kpiRows.osa, kpiRows.doi, kpiRows.fillrate, kpiRows.psl],
                 applicableDrillItems: kpiRows.applicableDrillItems || [],
                 currentPeriod: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') },
                 comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
@@ -857,26 +1060,32 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const whereClause = buildAvailabilityWhereClause(effectiveFilters, 't1');
+            const whereClause = await buildAvailabilityWhereClause(effectiveFilters);
 
-            // Query SKU and Location-level data joined with rca_sku_dim to filter by active segments (status=1)
+            // Dynamically resolve columns from the PDP table
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const catCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+            const pcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+
             const query = `
                 SELECT 
-                    t1.Product as name,
-                    t1.Web_Pid as sku,
-                    t1.Location as city,
-                    t1.DATE,
-                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                    SUM(toFloat64(t1.deno_osa)) as sum_deno
-                FROM rb_pdp_olap t1
-                JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
-                    AND lower(t1.Location) = lower(t2.location) 
-                    AND lower(t1.Brand) = lower(t2.brand_name) 
-                    AND lower(t1.Category) = lower(t2.category)
+                    Product as name,
+                    Web_Pid as sku,
+                    Brand as brand,
+                    Location as city,
+                    Platform as platform,
+                    ${catCol} as category_name,
+                    ${pcCol} as product_category_name,
+                    DATE,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
+                FROM rb_pdp_olap
                 WHERE ${whereClause}
-                  AND t2.status = 1
-                GROUP BY t1.Product, t1.Web_Pid, t1.Location, t1.DATE
-                ORDER BY t1.Product, t1.Web_Pid, t1.Location, t1.DATE
+                  AND Product != '0'
+                  AND Product != ''
+                  AND length(trim(Product)) > 0
+                GROUP BY Product, Web_Pid, Brand, Location, Platform, ${catCol}, ${pcCol}, DATE
+                ORDER BY Product, Web_Pid, Brand, Location, DATE
             `;
 
             const results = await queryClickHouse(query);
@@ -924,6 +1133,10 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     skuMap[skuId] = {
                         name: row.name,
                         sku: row.sku,
+                        brand: row.brand,
+                        platform: row.platform,
+                        category_name: row.category_name,
+                        product_category_name: row.product_category_name,
                         days: {}, // Overall SKU daily aggregations: { date: { neno, deno } }
                         cities: {} // Nested city data: { city: { date: osa } }
                     };
@@ -941,24 +1154,34 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     if (!skuMap[skuId].cities[cityStr]) {
                         skuMap[skuId].cities[cityStr] = {};
                     }
-                    const cityOsa = deno > 0 ? parseFloat(((neno / deno) * 100).toFixed(1)) : 0;
-                    skuMap[skuId].cities[cityStr][dateStr] = cityOsa;
+                    if (!skuMap[skuId].cities[cityStr][dateStr]) {
+                        skuMap[skuId].cities[cityStr][dateStr] = { neno: 0, deno: 0 };
+                    }
+                    skuMap[skuId].cities[cityStr][dateStr].neno += neno;
+                    skuMap[skuId].cities[cityStr][dateStr].deno += deno;
                 }
             });
 
             // Map data into final format: [{ name, sku, values: [...], avg31, status, cities: [{ name, values: [...], avg31 }] }]
             const formattedData = Object.values(skuMap).map(item => {
+                let totalNeno = 0;
+                let totalDeno = 0;
+
                 // Determine overall SKU daily OSA
                 const skuValues = sortedDates.map(d => {
                     const dayData = item.days[d];
-                    if (dayData && dayData.deno > 0) {
-                        return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
+                    if (dayData) {
+                        totalNeno += dayData.neno;
+                        totalDeno += dayData.deno;
+                        if (dayData.deno > 0) {
+                            return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
+                        }
                     }
-                    return 0;
+                    return 0; // fallback UI
                 });
 
-                const skuTotal = skuValues.reduce((a, b) => a + b, 0);
-                const skuAvg31 = skuValues.length > 0 ? Math.round(skuTotal / skuValues.length) : 0;
+                const skuAvg31 = totalDeno > 0 ? Math.round((totalNeno / totalDeno) * 100) : 0;
+                const avgSelected = skuAvg31;
 
                 const last7Values = skuValues.slice(-7);
                 const avg7 = last7Values.length > 0
@@ -966,32 +1189,55 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     : skuAvg31;
 
                 let status = "Healthy";
-                if (avg7 < 70) status = "Action";
-                else if (avg7 < 85) status = "Watch";
+                if (avgSelected < 70) status = "Action"; // Status based on selected period
+                else if (avgSelected < 85) status = "Watch";
 
                 // Format nested cities
                 const sortedCities = Object.entries(item.cities).map(([cityName, cityDays]) => {
-                    const cityValues = sortedDates.map(d => cityDays[d] ?? 0);
-                    const cityTotal = cityValues.reduce((a, b) => a + b, 0);
-                    const cityAvg31 = cityValues.length > 0 ? Math.round(cityTotal / cityValues.length) : 0;
+                    let cityNeno = 0;
+                    let cityDeno = 0;
+                    const cityValues = sortedDates.map(d => {
+                        const dayData = cityDays[d];
+                        if (dayData) {
+                            cityNeno += dayData.neno;
+                            cityDeno += dayData.deno;
+                            if (dayData.deno > 0) {
+                                return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
+                            }
+                        }
+                        return 0;
+                    });
+                    const cityAvg31 = cityDeno > 0 ? Math.round((cityNeno / cityDeno) * 100) : 0;
+                    const cityAvgSelected = cityAvg31;
 
                     return {
                         name: cityName,
                         values: cityValues,
-                        avg31: cityAvg31
+                        avg31: cityAvg31,
+                        avgSelected: cityAvgSelected
                     };
                 }).sort((a, b) => a.name.localeCompare(b.name));
+
+                // Filter out products where both neno and deno over the selected period are 0
+                if (totalNeno === 0 && totalDeno === 0) {
+                    return null;
+                }
 
                 return {
                     name: item.name,
                     sku: item.sku,
+                    brand: item.brand,
+                    platform: item.platform,
+                    format: item.category_name,
+                    productCategory: item.product_category_name,
                     values: skuValues,
                     avg7: avg7,
                     avg31: skuAvg31,
+                    avgSelected: avgSelected,
                     status: status,
                     cities: sortedCities
                 };
-            }).sort((a, b) => a.name.localeCompare(b.name));
+            }).filter(Boolean).sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
 
             return formattedData;
         } catch (error) {
@@ -1011,8 +1257,8 @@ const getDOI = async (filters) => {
             const { platform, brand, location, startDate, endDate } = filters;
 
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
-            const thirtyDaysAgo = currentEndDate.subtract(30, 'day');
-            const prevEndDate = thirtyDaysAgo.subtract(1, 'day');
+            const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
+            const prevEndDate = currentEndDate.subtract(30, 'day').subtract(1, 'day');
             const prevStartDate = prevEndDate.subtract(29, 'day');
 
             // Build filter conditions using buildAvailabilityWhereClause
@@ -1023,63 +1269,93 @@ const getDOI = async (filters) => {
             delete baseParams.dates;
             delete baseParams.months;
 
-            const baseWhere = buildAvailabilityWhereClause(baseParams);
+            const baseWhere = await buildAvailabilityWhereClause(baseParams);
             const baseFilter = baseWhere !== '1=1' ? ` AND ${baseWhere}` : '';
 
-            // Get today's inventory
-            const invQuery = `
-                SELECT SUM(toFloat64(Inventory)) as totalInventory
-                FROM rb_pdp_olap
-                WHERE DATE = '${currentEndDate.format('YYYY-MM-DD')}'
-                ${baseFilter}
-            `;
-            let invResult = await queryClickHouse(invQuery);
-            let todayInventory = parseFloat(invResult[0]?.totalInventory) || 0;
-
-            // Fallback to last 7 days average
-            if (todayInventory === 0) {
-                const last7Query = `
-                    SELECT 
-                        SUM(toFloat64(Inventory)) as totalInventory,
-                        COUNT(DISTINCT DATE) as daysCount
-                    FROM rb_pdp_olap
-                    WHERE DATE BETWEEN '${currentEndDate.subtract(7, 'day').format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
-                    ${baseFilter}
-                `;
-                const last7Result = await queryClickHouse(last7Query);
-                const totalInv = parseFloat(last7Result[0]?.totalInventory) || 0;
-                const daysCount = parseFloat(last7Result[0]?.daysCount) || 1;
-                todayInventory = daysCount > 0 ? totalInv / daysCount : 0;
-            }
-
-            // Get last 30 days Qty_Sold and previous period data in parallel
-            const [qtySoldResult, prevInvResult, prevQtySoldResult] = await Promise.all([
-                queryClickHouse(`
-                    SELECT SUM(toFloat64(Qty_Sold)) as totalQtySold
+            // Get latest non-zero total inventory and 30-day sales
+            // This query follows the exact logic requested:
+            // Latest Inventory (where total > 0) divided by 30rd Qty_Sold, times 30.
+            const thirtyDaysAgo = currentEndDate.subtract(29, 'day');
+            
+            const mainDoiQuery = `
+                SELECT
+                    latest_inventory,
+                    total_qty_sold_30d,
+                    if(total_qty_sold_30d > 0, (latest_inventory / total_qty_sold_30d) * 30, 0) AS DOI
+                FROM
+                (
+                    -- Latest Inventory (non-zero, latest date)
+                    SELECT
+                        argMax(total_inventory, DATE) AS latest_inventory
+                    FROM
+                    (
+                        SELECT
+                            DATE,
+                            sum(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
+                        FROM rb_pdp_olap
+                        WHERE DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
+                        ${baseFilter}
+                        GROUP BY DATE
+                    )
+                    WHERE total_inventory > 0
+                ) inv
+                CROSS JOIN
+                (
+                    -- Total Qty Sold in last 30 days
+                    SELECT
+                        sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS total_qty_sold_30d
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${thirtyDaysAgo.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
                     ${baseFilter}
-                `),
-                queryClickHouse(`
-                    SELECT SUM(toFloat64(Inventory)) as totalInventory
-                    FROM rb_pdp_olap
-                    WHERE DATE = '${prevEndDate.format('YYYY-MM-DD')}'
-                    ${baseFilter}
-                `),
-                queryClickHouse(`
-                    SELECT SUM(toFloat64(Qty_Sold)) as totalQtySold
+                ) sales
+            `;
+
+            // Previous period DOI query
+            const prevDoiQuery = `
+                SELECT
+                    latest_inventory,
+                    total_qty_sold_30d,
+                    if(total_qty_sold_30d > 0, (latest_inventory / total_qty_sold_30d) * 30, 0) AS DOI
+                FROM
+                (
+                    -- Latest Inventory (non-zero, latest date)
+                    SELECT
+                        argMax(total_inventory, DATE) AS latest_inventory
+                    FROM
+                    (
+                        SELECT
+                            DATE,
+                            sum(ifNull(toFloat64OrZero(toString(Inventory)), 0)) AS total_inventory
+                        FROM rb_pdp_olap
+                        WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
+                        ${baseFilter}
+                        GROUP BY DATE
+                    )
+                    WHERE total_inventory > 0
+                ) inv
+                CROSS JOIN
+                (
+                    -- Total Qty Sold in last 30 days
+                    SELECT
+                        sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS total_qty_sold_30d
                     FROM rb_pdp_olap
                     WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
                     ${baseFilter}
-                `)
+                ) sales
+            `;
+
+            const [mainDoiResult, prevDoiResult] = await Promise.all([
+                queryClickHouse(mainDoiQuery),
+                queryClickHouse(prevDoiQuery)
             ]);
 
-            const totalQtySold = parseFloat(qtySoldResult[0]?.totalQtySold) || 0;
-            const currentDOI = totalQtySold > 0 ? (todayInventory / totalQtySold) * 30 : 0;
+            const todayInventory = parseFloat(mainDoiResult[0]?.latest_inventory) || 0;
+            const totalQtySold = parseFloat(mainDoiResult[0]?.total_qty_sold_30d) || 0;
+            const currentDOI = parseFloat(mainDoiResult[0]?.DOI) || 0;
 
-            const prevInventory = parseFloat(prevInvResult[0]?.totalInventory) || 0;
-            const prevTotalQtySold = parseFloat(prevQtySoldResult[0]?.totalQtySold) || 0;
-            const prevDOI = prevTotalQtySold > 0 ? (prevInventory / prevTotalQtySold) * 30 : 0;
+            const prevInventory = parseFloat(prevDoiResult[0]?.latest_inventory) || 0;
+            const prevTotalQtySold = parseFloat(prevDoiResult[0]?.total_qty_sold_30d) || 0;
+            const prevDOI = parseFloat(prevDoiResult[0]?.DOI) || 0;
 
             const changePercent = prevDOI > 0 ? ((currentDOI - prevDOI) / prevDOI) * 100 : 0;
 
@@ -1183,30 +1459,36 @@ const getMetroCityStockAvailability = async (filters) => {
             const prevEndDate = currentStartDate.subtract(1, 'day');
             const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
 
+            // Build filter objects for current and previous periods
+            const currentFilters = {
+                ...filters,
+                startDate: currentStartDate.format('YYYY-MM-DD'),
+                endDate: currentEndDate.format('YYYY-MM-DD'),
+                location: targetLocations
+            };
+            const prevFilters = {
+                ...filters,
+                startDate: prevStartDate.format('YYYY-MM-DD'),
+                endDate: prevEndDate.format('YYYY-MM-DD'),
+                location: targetLocations
+            };
+
             // Build filter conditions using buildAvailabilityWhereClause
-            const currentFilters = { ...filters, startDate: currentStartDate.format('YYYY-MM-DD'), endDate: currentEndDate.format('YYYY-MM-DD') };
-            const prevFilters = { ...filters, startDate: prevStartDate.format('YYYY-MM-DD'), endDate: prevEndDate.format('YYYY-MM-DD') };
-
-            // Overwrite location with metro cities for this specific card
-            const metroLocations = targetLocations;
-            currentFilters.location = metroLocations;
-            prevFilters.location = metroLocations;
-
-            const currentWhere = buildAvailabilityWhereClause(currentFilters);
-            const prevWhere = buildAvailabilityWhereClause(prevFilters);
+            const currentWhere = await buildAvailabilityWhereClause(currentFilters);
+            const prevWhere = await buildAvailabilityWhereClause(prevFilters);
 
             const [currentResult, prevResult] = await Promise.all([
                 queryClickHouse(`
                     SELECT 
-                        SUM(toFloat64(neno_osa)) as sumNeno,
-                        SUM(toFloat64(deno_osa)) as sumDeno
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
                     FROM rb_pdp_olap
                     WHERE ${currentWhere}
                 `),
                 queryClickHouse(`
                     SELECT 
-                        SUM(toFloat64(neno_osa)) as sumNeno,
-                        SUM(toFloat64(deno_osa)) as sumDeno
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNeno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDeno
                     FROM rb_pdp_olap
                     WHERE ${prevWhere}
                 `)
@@ -1237,52 +1519,71 @@ const getMetroCityStockAvailability = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, city, location, months, metroFlag }) => {
+const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, productCategory, city, location, months, metroFlag, ownBrandsOnly }) => {
     const pKey = Array.isArray(platform) ? platform.join(',') : (platform || 'all');
     const bKey = Array.isArray(brand) ? brand.join(',') : (brand || 'all');
     const cKey = Array.isArray(category) ? category.join(',') : (category || 'all');
+    const pcKey = Array.isArray(productCategory) ? productCategory.join(',') : (productCategory || 'all');
     const ctKey = Array.isArray(city) ? city.join(',') : (city || 'all');
     const mKey = Array.isArray(months) ? months.join(',') : (months || 'all');
     const mfKey = Array.isArray(metroFlag) ? metroFlag.join(',') : (metroFlag || 'all');
+    const obKey = ownBrandsOnly ? 'own' : 'all';
 
-    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}`;
+    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${pcKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}:${obKey}`;
+
+    // Helper to build IN clause or equality
+    const buildInClause = (col, val) => {
+        const arr = Array.isArray(val) ? val : [val];
+        if (arr.length === 1) return `${col} = '${escapeStr(arr[0])}'`;
+        return `${col} IN (${arr.map(v => `'${escapeStr(v)}'`).join(',')})`;
+    };
+
+    if (filterType === 'categories' || filterType === 'formats') {
+        try {
+            // Dynamically resolve Category column
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+
+            const query = `
+                        SELECT DISTINCT ${actualCatCol} as value 
+                        FROM rb_pdp_olap
+                        WHERE ${actualCatCol} IS NOT NULL AND ${actualCatCol} != ''
+                        ORDER BY value
+                    `;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
+        } catch (error) {
+            console.error('[getAvailabilityFilterOptions] Categories Error:', error);
+            return { options: [] };
+        }
+    }
+
+    if (filterType === 'productCategories') {
+        try {
+            // Dynamically resolve Product_type column
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const actualPcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+
+            const query = `
+                        SELECT DISTINCT ${actualPcCol} as value 
+                        FROM rb_pdp_olap
+                        WHERE ${actualPcCol} IS NOT NULL AND ${actualPcCol} != ''
+                        ORDER BY value
+                    `;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
+        } catch (error) {
+            console.error('[getAvailabilityFilterOptions] Product Categories Error:', error);
+            return { options: [] };
+        }
+    }
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
             console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
 
-            // Helper to build IN clause or equality
-            const buildInClause = (col, val) => {
-                const arr = Array.isArray(val) ? val : [val];
-                if (arr.length === 1) return `${col} = '${escapeStr(arr[0])}'`;
-                return `${col} IN (${arr.map(v => `'${escapeStr(v)}'`).join(',')})`;
-            };
-
-            // Build cascading filter conditions
-            const conditions = [];
-            if (platform && platform !== 'All') conditions.push(buildInClause('Platform', platform));
-            if (category && category !== 'All') conditions.push(buildInClause('Category', category));
-            const cityFilter = city || location;
-            if (cityFilter && cityFilter !== 'All') conditions.push(buildInClause('Location', cityFilter));
-            const baseFilter = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-
             if (filterType === 'platforms') {
-                const query = `SELECT DISTINCT Platform as value FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' ORDER BY Platform`;
-                const results = await queryClickHouse(query);
-                return { options: results.map(r => r.value).filter(Boolean) };
-            }
-
-            if (filterType === 'categories' || filterType === 'formats') {
-                const catConditions = [`status = 1`, `category IS NOT NULL`, `category != ''`];
-                if (platform && platform !== 'All') catConditions.push(buildInClause('platform', platform)); // rca_sku_dim uses lowercase platform
-                if (city && city !== 'All') catConditions.push(buildInClause('location', city)); // rca_sku_dim uses lowercase location
-
-                const query = `
-                    SELECT DISTINCT category as value 
-                    FROM rca_sku_dim
-                    WHERE ${catConditions.join(' AND ')}
-                    ORDER BY value
-                `;
+                const query = `SELECT DISTINCT platform as value FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
@@ -1311,48 +1612,43 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             }
 
             if (filterType === 'kpis') {
-                return { options: ['OSA', 'DOI', 'Fillrate', 'Assortment', 'PSL'] };
+                return { options: ['OSA', 'DOI', 'Fillrate', 'PSL'] };
             }
 
             if (filterType === 'cities') {
-                // rb_pdp_olap uses uppercase Location, Platform, Brand
                 const cityConditions = [];
-                if (platform && platform !== 'All') cityConditions.push(buildInClause('Platform', platform));
-                if (brand && brand !== 'All') cityConditions.push(buildInClause('Brand', brand));
-                if (category && category !== 'All') cityConditions.push(buildInClause('Category', category));
+                if (platform && platform !== 'All') cityConditions.push(buildInClause('platform', platform));
+                if (brand && brand !== 'All') cityConditions.push(buildInClause('brand_name', brand));
 
-                // Join with rb_location_darkstore for tier (metroFlag) filtering
-                if (metroFlag && metroFlag !== 'All') {
-                    // This requires a join or a subquery. Since we're fetching from rb_pdp_olap, 
-                    // we'll use a subquery for simplicity if filtering by metroFlag.
-                    const tierArr = Array.isArray(metroFlag) ? metroFlag : [metroFlag];
-                    const metroCitiesQuery = `SELECT DISTINCT location FROM rb_location_darkstore WHERE tier IN (${tierArr.map(t => `'${escapeStr(t)}'`).join(',')})`;
-                    const metroCitiesResult = await queryClickHouse(metroCitiesQuery);
-                    const metroCities = metroCitiesResult.map(r => r.location).filter(Boolean);
-
-                    if (metroCities.length > 0) {
-                        cityConditions.push(`Location IN (${metroCities.map(c => `'${escapeStr(c)}'`).join(',')})`);
-                    } else {
-                        return { options: [] };
-                    }
+                if (category && category !== 'All') {
+                    cityConditions.push(buildInClause('category', category));
                 }
 
-                cityConditions.push(`Location IS NOT NULL AND Location != ''`);
+                cityConditions.push(`location IS NOT NULL AND location != ''`);
+                cityConditions.push(`comp_flag = 0`);
+
                 const whereClause = cityConditions.length > 0 ? `WHERE ${cityConditions.join(' AND ')}` : '';
-                const query = `SELECT DISTINCT Location as value FROM rb_pdp_olap ${whereClause} ORDER BY Location`;
+                const query = `SELECT DISTINCT location as value FROM rca_sku_dim ${whereClause} ORDER BY location`;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
 
             if (filterType === 'brands') {
                 const brandConditions = [];
-                if (platform && platform !== 'All') brandConditions.push(buildInClause('Platform', platform));
-                if (city && city !== 'All') brandConditions.push(buildInClause('Location', city));
-                if (category && category !== 'All') brandConditions.push(buildInClause('Category', category));
+                if (platform && platform !== 'All') brandConditions.push(buildInClause('platform', platform));
+                if (city && city !== 'All') brandConditions.push(buildInClause('location', city));
+
+                if (category && category !== 'All') {
+                    brandConditions.push(buildInClause('category', category));
+                }
+
+                if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
+                    brandConditions.push(`Comp_flag = 0`);
+                }
 
                 brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
                 const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
-                const query = `SELECT DISTINCT Brand as value FROM rb_pdp_olap ${whereClause} ORDER BY Brand`;
+                const query = `SELECT DISTINCT brand_name as value FROM rca_sku_dim ${whereClause} ORDER BY value`;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
@@ -1410,8 +1706,12 @@ const getOsaDetailByCategory = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const whereClause = buildAvailabilityWhereClause(effectiveFilters, 't1');
+            const whereClause = await buildAvailabilityWhereClause(effectiveFilters, 't1');
 
+            // Dynamically resolve columns
+            const pdpColsMap = await getTableColumns('rb_pdp_olap');
+            const catCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+            const pcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
             // Query SKU-level data joined with rca_sku_dim to filter by active segments (status=1)
             // Note: rca_sku_dim uses lowercase column names (platform, location, brand_name, category)
             const query = `
@@ -1419,13 +1719,13 @@ const getOsaDetailByCategory = async (filters) => {
                     t1.Product as name,
                     t1.Web_Pid as sku,
                     t1.DATE,
-                    SUM(toFloat64(t1.neno_osa)) as sum_neno,
-                    SUM(toFloat64(t1.deno_osa)) as sum_deno
+                    SUM(ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0)) as sum_deno
                 FROM rb_pdp_olap t1
                 JOIN rca_sku_dim t2 ON lower(t1.Platform) = lower(t2.platform) 
                     AND lower(t1.Location) = lower(t2.location) 
                     AND lower(t1.Brand) = lower(t2.brand_name) 
-                    AND lower(t1.Category) = lower(t2.category)
+                    AND lower(t1.${catCol}) = lower(t2.category)
                 WHERE ${whereClause}
                   AND t2.status = 1
                 GROUP BY t1.Product, t1.Web_Pid, t1.DATE
@@ -1481,13 +1781,19 @@ const getOsaDetailByCategory = async (filters) => {
                     skuMap[skuId] = {
                         name: row.name,
                         sku: row.sku,
-                        dailyOsa: {}
+                        dailyOsa: {},
+                        totalNeno: 0,
+                        totalDeno: 0
                     };
                 }
                 skuMap[skuId].dailyOsa[dateStr] = parseFloat(osa.toFixed(1));
+                skuMap[skuId].totalNeno += neno;
+                skuMap[skuId].totalDeno += deno;
             });
 
-            const categories = Object.values(skuMap).map(item => {
+            const categories = Object.values(skuMap)
+                .filter(item => item.totalNeno > 0 || item.totalDeno > 0)
+                .map(item => {
                 // Map to sortedDates and fill gaps with 0
                 const values = sortedDates.map(d => item.dailyOsa[d] ?? 0);
 
@@ -1535,7 +1841,18 @@ const getAvailabilityKpiTrends = async (filters) => {
 
     return getCachedOrCompute(cacheKey, async () => {
         try {
-            const { platform, brand, location, category, period = '1M', timeStep = 'daily', startDate: filterStart, endDate: filterEnd } = filters;
+            let { platform, brand, location, category, period = '1M', timeStep = 'daily', startDate: filterStart, endDate: filterEnd, dimension, dimensionValue } = filters;
+            
+            // Apply dimension overrides
+            if (dimension && dimensionValue && dimensionValue !== 'All') {
+                const dimKey = dimension.toLowerCase();
+                if (dimKey === 'platform') platform = dimensionValue;
+                else if (dimKey === 'brand') brand = dimensionValue;
+                else if (dimKey === 'city' || dimKey === 'location') location = dimensionValue;
+                else if (dimKey === 'category' || dimKey === 'format') category = dimensionValue;
+            }
+
+            console.log(`\n[DEBUG TRENDS] Filters:`, JSON.stringify(filters));
 
             const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
             const days = periodDays[period] || 30;
@@ -1552,10 +1869,10 @@ const getAvailabilityKpiTrends = async (filters) => {
             // Build filter conditions using the enhanced where clause
             // CRITICAL: We MUST pass the calculated startDate and endDate to buildAvailabilityWhereClause
             // so that the SQL query is restricted to the selected period.
-            const whereClause = buildAvailabilityWhereClause({
+            const whereClause = await buildAvailabilityWhereClause({
                 ...filters,
-                startDate: currentStartDate,
-                endDate: currentEndDate
+                startDate: currentStartDate.format('YYYY-MM-DD'),
+                endDate: currentEndDate.format('YYYY-MM-DD')
             });
 
             console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')}`);
@@ -1565,9 +1882,12 @@ const getAvailabilityKpiTrends = async (filters) => {
                     DATE as ref_date,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales,
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
-                    COUNT(DISTINCT Web_Pid) as assortment_count
+                    SUM(toFloat64OrZero(toString(MSL))) as total_msl,
+                    COUNT(DISTINCT Web_Pid) as assortment_count,
+                    AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                 GROUP BY DATE
@@ -1576,36 +1896,23 @@ const getAvailabilityKpiTrends = async (filters) => {
 
             const results = await queryClickHouse(query);
 
-            // Get total active assortment from rb_sku_platform for Listing % calculation
-            // Note: rb_sku_platform only has brand_name, brand_category, web_pid, status (no platform column)
-            const masterAssortmentConds = [`status = 1`];
-            // Platform filter is omitted as rb_sku_platform doesn't have a platform column
-            if (category && category !== 'All') masterAssortmentConds.push(`lower(brand_category) = '${escapeStr(category.toLowerCase())}'`);
-            if (brand && brand !== 'All') masterAssortmentConds.push(`lower(brand_name) = '${escapeStr(brand.toLowerCase())}'`);
-
-            const masterQuery = `
-                SELECT count(DISTINCT web_pid) as total_master
-                FROM rb_sku_platform
-                WHERE ${masterAssortmentConds.join(' AND ')}
-            `;
-            const masterResult = await queryClickHouse(masterQuery);
-            const masterCount = parseInt(masterResult[0]?.total_master, 10) || 0;
-
-
-
             const timeSeries = results.map(row => {
                 const neno = parseFloat(row.total_neno) || 0;
                 const deno = parseFloat(row.total_deno) || 0;
                 const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
 
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
-                const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
+                const listing = parseFloat(row.avg_listing_percent) || 0;
+
+                const totalSales = parseFloat(row.sum_sales) || 0;
+                const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
                 return {
                     date: dayjs(row.ref_date).format("DD MMM'YY"),
                     Osa: parseFloat(osa.toFixed(1)),
                     Listing: parseFloat(listing.toFixed(1)),
-                    Assortment: dailyUniquePids
+                    Assortment: dailyUniquePids,
+                    Psl: parseFloat(psl.toFixed(1))
                 };
             });
 
@@ -1613,7 +1920,8 @@ const getAvailabilityKpiTrends = async (filters) => {
                 metrics: [
                     { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
                     { id: 'Listing', label: 'Listing %', color: '#0EA5E9', default: true },
-                    { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false }
+                    { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false },
+                    { id: 'Psl', label: 'PSL (₹)', color: '#8B5CF6', default: false }
                 ],
                 timeSeries,
                 period,
@@ -1648,31 +1956,30 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 startDate = endDate.subtract(days, 'days');
             }
 
-            const whereClause = buildAvailabilityWhereClause({ ...filters, startDate, endDate });
+            const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
 
             const query = `
                 WITH latest_skus AS (
-                    SELECT 
+                    SELECT
                         Brand,
                         Web_Pid,
-                        argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_inv
+                        argMax(toFloat64OrZero(toString(Inventory)), if(toFloat64OrZero(toString(Inventory)) > 0, DATE, toDate('1970-01-01'))) as latest_inv
                     FROM rb_pdp_olap
                     WHERE ${whereClause}
-                      AND Comp_flag = 1
                     GROUP BY Brand, Web_Pid
                 )
-                SELECT 
+                SELECT
                     Brand as brand_name,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
                     SUM(latest_inv) as total_inventory,
-                    COUNT(DISTINCT Web_Pid) as assortment_count
+                    SUM(toFloat64OrZero(toString(Sales))) as total_sales,
+                    COUNT(DISTINCT Web_Pid) as assortment_count,
+                    AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                 FROM rb_pdp_olap
                 LEFT JOIN latest_skus ON rb_pdp_olap.Web_Pid = latest_skus.Web_Pid AND rb_pdp_olap.Brand = latest_skus.Brand
                 WHERE ${whereClause}
-                  AND Brand IS NOT NULL AND Brand != ''
-                  AND Comp_flag = 1
                 GROUP BY Brand
                 ORDER BY total_deno DESC
                 LIMIT 10
@@ -1681,46 +1988,25 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
 
             const results = await queryClickHouse(query);
 
-            // Get master counts from rb_sku_platform for all brands in the results to calculate Listing %
-            const foundBrands = results.map(r => r.brand_name).filter(Boolean);
-            let brandMasterCounts = {};
-
-            if (foundBrands.length > 0) {
-                const brandListStr = foundBrands.map(b => `'${escapeStr(b)}'`).join(', ');
-                const masterConds = [`status = 1`, `brand_name IN (${brandListStr})`];
-                // Platform filter is omitted as rb_sku_platform doesn't have a platform column
-                if (category && category !== 'All') masterConds.push(`lower(brand_category) = '${escapeStr(category.toLowerCase())}'`);
-
-                const masterQuery = `
-                    SELECT brand_name, count(DISTINCT web_pid) as total_master
-                    FROM rb_sku_platform
-                    WHERE ${masterConds.join(' AND ')}
-                    GROUP BY brand_name
-                `;
-                const masterResults = await queryClickHouse(masterQuery);
-                masterResults.forEach(r => {
-                    brandMasterCounts[r.brand_name] = parseInt(r.total_master, 10) || 0;
-                });
-            }
-
-
-
             const brands = results.map((row, idx) => {
                 const neno = parseFloat(row.total_neno) || 0;
                 const deno = parseFloat(row.total_deno) || 0;
                 const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
                 const brandName = row.brand_name;
-                const masterCount = brandMasterCounts[brandName] || 0;
 
                 const totalQtySold = parseFloat(row.total_qty_sold) || 0;
                 const totalBrandInv = parseFloat(row.total_inventory) || 0;
+                const totalSales = parseFloat(row.total_sales) || 0;
 
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
-                const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
+                const listing = parseFloat(row.avg_listing_percent) || 0;
 
                 // DOI = (Current Inventory / Total Sales in Period) * period_days
                 // Assuming 1M period (30 days) as default
                 const doi = totalQtySold > 0 ? (totalBrandInv / totalQtySold) * 30 : 0;
+
+                // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
+                const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
                 return {
                     rank: idx + 1,
@@ -1733,7 +2019,7 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     assortmentDelta: 0,
                     doi: parseFloat(doi.toFixed(1)),
                     fillrate: 'Coming Soon',
-                    psl: parseFloat(listing.toFixed(1))
+                    psl: parseFloat(psl.toFixed(2))
                 };
             });
 
@@ -1744,11 +2030,12 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
-                    argMax(toFloat64OrZero(toString(Inventory)), DATE) as latest_sku_inventory
+                    SUM(toFloat64OrZero(toString(Sales))) as total_sales,
+                    AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent,
+                    argMax(toFloat64OrZero(toString(Inventory)), if(toFloat64OrZero(toString(Inventory)) > 0, DATE, toDate('1970-01-01'))) as latest_sku_inventory
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
                   AND Product IS NOT NULL AND Product != ''
-                  AND Comp_flag = 1
                 GROUP BY Product, Brand
                 ORDER BY total_deno DESC
                 LIMIT 8
@@ -1761,9 +2048,14 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                 const deno = parseFloat(s.total_deno) || 0;
                 const totalQtySold = parseFloat(s.total_qty_sold) || 0;
                 const latestInv = parseFloat(s.latest_sku_inventory) || 0;
+                const totalSales = parseFloat(s.total_sales) || 0;
 
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const listing = parseFloat(s.avg_listing_percent) || 0;
                 const doi = totalQtySold > 0 ? (latestInv / totalQtySold) * 30 : 0;
+
+                // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
+                const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
                 return {
                     sku_name: s.sku_name,
@@ -1773,7 +2065,8 @@ const getAvailabilityCompetitionData = async (filters = {}) => {
                     doi: parseFloat(doi.toFixed(1)),
                     fillrate: 'Coming Soon',
                     assortment: 1,
-                    psl: 0
+                    psl: parseFloat(psl.toFixed(2)),
+                    listing: parseFloat(listing.toFixed(1))
                 };
             });
 
@@ -1798,27 +2091,29 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const { platform = 'All', location = 'All', category = 'All', brand = 'All' } = filters;
 
         // 1. Build base condition (Platform and Location)
-        const baseWhere = buildAvailabilityWhereClause({ platform, location, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
-        const baseConds = baseWhere !== '1=1' ? [baseWhere] : [];
-        baseConds.push('Comp_flag = 1');
+        const baseWhere = await buildAvailabilityWhereClause({ platform, location, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const baseCondsStr = baseWhere !== '1=1' ? `${baseWhere} AND ` : '';
+
+        // Dynamically resolve columns
+        const pdpColsMap = await getTableColumns('rb_pdp_olap');
+        const catCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+        const pcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
 
         // 2. Build Category conditions (filtered by Platform/Location/Advanced)
-        const catQuery = `SELECT DISTINCT Category as value FROM rb_pdp_olap WHERE ${baseConds.join(' AND ')} AND Category IS NOT NULL AND Category != '' ORDER BY Category`;
+        const catQuery = `SELECT DISTINCT ${catCol} as value FROM rb_pdp_olap WHERE ${baseCondsStr}${catCol} IS NOT NULL AND ${catCol} != '' ORDER BY value`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
-        const brandWhere = buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
-        const brandConds = brandWhere !== '1=1' ? [brandWhere] : [];
-        brandConds.push('Comp_flag = 1');
-        const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandConds.join(' AND ')} AND Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
+        const brandWhere = await buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const brandCondsStr = brandWhere !== '1=1' ? `${brandWhere} AND ` : '';
+        const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandCondsStr}Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
 
         // 4. Build SKU conditions (filtered by Platform/Location/Advanced/Category/Brand)
-        const skuWhere = buildAvailabilityWhereClause({ platform, location, category, brand, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
-        const skuConds = skuWhere !== '1=1' ? [skuWhere] : [];
-        skuConds.push('Comp_flag = 1');
-        const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuConds.join(' AND ')} AND Product IS NOT NULL AND Product != '' ORDER BY Product LIMIT 200`;
+        const skuWhere = await buildAvailabilityWhereClause({ platform, location, category, brand, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const skuCondsStr = skuWhere !== '1=1' ? `${skuWhere} AND ` : '';
+        const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuCondsStr}Product IS NOT NULL AND Product != '' ORDER BY Product LIMIT 200`;
 
         const [locationResults, categoryResults, brandResults, skuResults] = await Promise.all([
-            queryClickHouse(`SELECT DISTINCT Location as value FROM rb_pdp_olap WHERE Comp_flag = 1 AND Location IS NOT NULL AND Location != '' ORDER BY Location`),
+            queryClickHouse(`SELECT DISTINCT Location as value FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' ORDER BY Location`),
             queryClickHouse(catQuery),
             queryClickHouse(brandQuery),
             queryClickHouse(skuQuery)
@@ -1854,8 +2149,37 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     brandList = brands.split(',').map(b => b.trim());
                 }
             }
+
+            // If no specific brands selected, auto-fetch top 5 brands by volume
             if (brandList.length === 0) {
-                return { metrics: [], timeSeries: {}, brands: [] };
+                let startDate, endDate;
+                if (fStart && fEnd) {
+                    startDate = dayjs(fStart);
+                    endDate = dayjs(fEnd);
+                } else {
+                    const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                    const days = periodDays[period] || 30;
+                    endDate = await getLatestDate();
+                    startDate = endDate.subtract(days, 'days');
+                }
+
+                const autoWhereClause = await buildAvailabilityWhereClause({ ...filters, brands: undefined, brand: undefined, startDate, endDate });
+                const topBrandsQuery = `
+                    SELECT Brand, SUM(toFloat64OrZero(toString(deno_osa))) as total_deno
+                    FROM rb_pdp_olap
+                    WHERE ${autoWhereClause}
+                      AND Brand IS NOT NULL AND Brand != ''
+                    GROUP BY Brand
+                    ORDER BY total_deno DESC
+                    LIMIT 5
+                `;
+                const topBrandsResult = await queryClickHouse(topBrandsQuery);
+                brandList = topBrandsResult.map(r => r.Brand).filter(Boolean);
+                console.log('[getAvailabilityCompetitionBrandTrends] Auto-fetched top brands:', brandList);
+
+                if (brandList.length === 0) {
+                    return { metrics: [], timeSeries: {}, brands: [], dates: [] };
+                }
             }
 
             let startDate, endDate;
@@ -1869,7 +2193,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                 startDate = endDate.subtract(days, 'days');
             }
 
-            const whereClause = buildAvailabilityWhereClause({ ...filters, startDate, endDate });
+            const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
 
             const query = `
                 SELECT 
@@ -1879,34 +2203,16 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
-                    COUNT(DISTINCT Web_Pid) as assortment_count
+                    SUM(toFloat64OrZero(toString(Sales))) as total_sales,
+                    COUNT(DISTINCT Web_Pid) as assortment_count,
+                    AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
-                  AND Comp_flag = 1
                 GROUP BY Brand, DATE
                 ORDER BY DATE ASC
             `;
 
             const results = await queryClickHouse(query);
-
-            // Get master counts from rca_sku_dim for all brands in the brandList to calculate Listing %
-            let brandMasterCounts = {};
-            if (brandList.length > 0) {
-                const brandFilterStr = brandList.map(b => `'${escapeStr(b)}'`).join(',');
-                const masterConds = [`status = 1`, `brand_name IN (${brandFilterStr})`];
-                if (category && category !== 'All') masterConds.push(`brand_category = '${escapeStr(category)}'`);
-
-                const masterQuery = `
-                    SELECT brand_name, count(DISTINCT web_pid) as total_master
-                    FROM rb_sku_platform
-                    WHERE ${masterConds.join(' AND ')}
-                    GROUP BY brand_name
-                `;
-                const masterResults = await queryClickHouse(masterQuery);
-                masterResults.forEach(r => {
-                    brandMasterCounts[r.brand_name] = parseInt(r.total_master, 10) || 0;
-                });
-            }
 
             // Get all unique dates in the results
             const uniqueDates = Array.from(new Set(results.map(r => dayjs(r.ref_date).format("DD MMM'YY")))).sort((a, b) => {
@@ -1946,19 +2252,22 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     const neno = parseFloat(row.total_neno) || 0;
                     const deno = parseFloat(row.total_deno) || 0;
                     const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
-                    const masterCount = brandMasterCounts[brandName] || 0;
                     const totalQtySold = parseFloat(row.total_qty_sold) || 0;
                     const totalInv = parseFloat(row.total_inventory) || 0;
 
                     const osa = deno > 0 ? (neno / deno) * 100 : 0;
-                    const listing = masterCount > 0 ? (dailyUniquePids / masterCount) * 100 : 0;
+                    const listing = parseFloat(row.avg_listing_percent) || 0;
                     const doi = totalQtySold > 0 ? (totalInv / totalQtySold) * 30 : 0;
+                    const totalSales = parseFloat(row.total_sales) || 0;
+
+                    // PSL = (SUM(Sales) / (OSA_Percentage / 100)) - SUM(Sales)  [currency format]
+                    const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
                     response.osa[brandName][dateIndex] = parseFloat(osa.toFixed(1));
                     response.listing[brandName][dateIndex] = parseFloat(listing.toFixed(1));
                     response.assortment[brandName][dateIndex] = dailyUniquePids;
                     response.doi[brandName][dateIndex] = parseFloat(doi.toFixed(1));
-                    response.psl[brandName][dateIndex] = parseFloat(listing.toFixed(1)); // Placeholder using listing for now
+                    response.psl[brandName][dateIndex] = parseFloat(psl.toFixed(2));
                 }
             });
 
@@ -1997,7 +2306,7 @@ const getBrandSkuCityDayLevel = async (filters) => {
             delete baseFilterParams.dates;
             delete baseFilterParams.months;
 
-            const baseWhereClause = buildAvailabilityWhereClause(baseFilterParams);
+            const baseWhereClause = await buildAvailabilityWhereClause(baseFilterParams);
             const baseFilter = baseWhereClause !== '1=1' ? ` AND ${baseWhereClause}` : '';
 
             // Query: Brand, Product (SKU), Location (city), DATE, avg Selling_Price, MRP, OSA, Fillrate

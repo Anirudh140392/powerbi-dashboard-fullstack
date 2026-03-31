@@ -4,7 +4,7 @@
  * Joins rb_pdp_olap and rb_sku_platform tables
  */
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
 // Helper to escape string for SQL
@@ -44,6 +44,10 @@ async function getOneViewPriceGrid(filters = {}) {
     try {
         console.log('[OneViewPriceGridService] getOneViewPriceGrid called with filters:', filters);
 
+        const dbName = getCurrentDbName();
+        const isMars = dbName === 'mars';
+        const gramCol = isMars ? "''" : "s.gram";
+
         // Date range (required)
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const startDate = filters.startDate || dayjs().subtract(30, 'days').format('YYYY-MM-DD');
@@ -72,9 +76,9 @@ async function getOneViewPriceGrid(filters = {}) {
         if (filters.skuType) {
             if (filters.skuType.toLowerCase() === 'own') {
                 filterClauses.push('p.Comp_flag = 0');
-            } else if (filters.skuType.toLowerCase() === 'competition') {
-                filterClauses.push('p.Comp_flag = 1');
-            }
+             } //else if (filters.skuType.toLowerCase() === 'competition') {
+            //     filterClauses.push('p.Comp_flag = 1');
+            // }
         }
 
         // Format (Category) filter
@@ -84,7 +88,7 @@ async function getOneViewPriceGrid(filters = {}) {
 
         // ML filter
         if (filters.ml) {
-            filterClauses.push(`s.gram = '${filters.ml}'`);
+            filterClauses.push(`${gramCol} = '${filters.ml}'`);
         }
 
         // Combine all filter clauses
@@ -93,9 +97,20 @@ async function getOneViewPriceGrid(filters = {}) {
             : '';
 
         // Main SQL query joining rb_pdp_olap and rb_sku_platform
-        // Uses LEFT JOIN (not INNER JOIN) to avoid filtering out products
-        // that don't have a matching web_pid in rb_sku_platform
+        // Uses a CTE to get the average competition price for the same Category/Platform/Date
         const query = `
+            WITH comp_avg_ref AS (
+                SELECT 
+                    DATE, 
+                    Platform, 
+                    Category, 
+                    AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_comp_val
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
+                  AND Comp_flag = '1'
+                  AND ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0
+                GROUP BY DATE, Platform, Category
+            )
             SELECT
                 formatDateTime(p.DATE, '%d %b %Y') as date,
                 p.DATE as rawDate,
@@ -104,21 +119,22 @@ async function getOneViewPriceGrid(filters = {}) {
                 p.Product as product,
                 CASE WHEN p.Comp_flag = 0 THEN 'Own' ELSE 'Competition' END as skuType,
                 p.Category as format,
-                COALESCE(s.gram, '') as ml,
-                ROUND(AVG(toFloat64OrZero(p.MRP)), 1) as mrp,
+                COALESCE(${gramCol}, '') as ml,
+                ROUND(AVG(toFloat64OrZero(toString(p.MRP))), 1) as mrp,
                 0 as basePrice,
-                ROUND(AVG(toFloat64OrZero(p.Discount)), 1) as discount,
-                ROUND(AVG(toFloat64OrZero(p.Selling_Price)), 1) as ecp,
-                ROUND(AVG(toFloat64OrZero(p.Selling_Price)) / NULLIF(AVG(toFloat64OrZero(p.MRP)), 0), 2) as rpi
+                ROUND(AVG(toFloat64OrZero(toString(p.Discount))), 1) as discount,
+                ROUND(AVG(toFloat64OrZero(toString(p.Selling_Price))), 1) as ecp,
+                ROUND(AVG(ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / NULLIF(any(c.avg_comp_val), 0), 2) as rpi
             FROM rb_pdp_olap p
             LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
+            LEFT JOIN comp_avg_ref c ON p.DATE = c.DATE AND p.Platform = c.Platform AND p.Category = c.Category
             WHERE p.DATE BETWEEN '${startDate}' AND '${endDate}'
               AND p.Product IS NOT NULL
               AND p.Product != ''
               AND p.Platform IS NOT NULL
               AND p.Platform != ''
               ${additionalFilters}
-            GROUP BY p.DATE, p.Platform, p.Brand, p.Product, p.Comp_flag, p.Category, s.gram
+            GROUP BY p.DATE, p.Platform, p.Brand, p.Product, p.Comp_flag, p.Category, ml
             ORDER BY p.DATE DESC, p.Platform, p.Brand
             LIMIT 2000
         `;

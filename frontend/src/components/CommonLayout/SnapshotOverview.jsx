@@ -13,7 +13,8 @@ import {
     Percent,
     PieChart,
     Wallet,
-    MousePointer2
+    MousePointer2,
+    MapPin
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
@@ -244,8 +245,6 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
     return (
         <>
             <Card
-                onMouseEnter={onCardEnter}
-                onMouseLeave={onCardLeave}
                 sx={{
                     p: 2.25,
                     height: "100%",
@@ -282,7 +281,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 
                     <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
                         <DeltaIcon size={10} strokeWidth={3} />
-                        <span className="text-[10px] font-bold">{deltaLabel}</span>
+                        <span className="text-[14px] font-bold">{deltaLabel}</span>
                     </div>
                 </div>
 
@@ -290,60 +289,6 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                     {kpi.subtitle || "Performance Metric"}
                 </Typography>
             </Card>
-
-            <HoverPopover
-                open={open}
-                anchorRect={anchorRect}
-                onMouseEnter={() => { isPopoverHoverRef.current = true; if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current); }}
-                onMouseLeave={() => { isPopoverHoverRef.current = false; setOpen(false); }}
-            >
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Typography sx={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{kpi.title} Trend</Typography>
-                            <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                                {hoverDeltaStr} <span className="text-[11px] font-normal text-slate-400">vs start</span>
-                            </Typography>
-                        </div>
-                        <div className="flex items-center gap-1 rounded-lg bg-slate-50 p-1 border border-slate-100">
-                            {[7, 14, 30].map((p) => (
-                                <button
-                                    key={p}
-                                    onClick={(e) => { e.stopPropagation(); setPeriod(p); }}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${period === p
-                                        ? "bg-white shadow-sm border border-slate-200 text-slate-900"
-                                        : "text-slate-500 hover:text-slate-900"
-                                        }`}
-                                >
-                                    {p}D
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50/50 p-2 border border-slate-100/50">
-                        <Sparkline values={sliceSeries} width={268} height={80} color={themeColor} />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Period</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{period} Days</Typography>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: themeColor }}>
-                                {kpi.value}
-                            </Typography>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Δ {period}D</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {hoverDeltaStr}
-                            </Typography>
-                        </div>
-                    </div>
-                </div>
-            </HoverPopover>
         </>
     );
 };
@@ -428,8 +373,6 @@ const ComparisonCard = ({ kpi, loading = false }) => {
     return (
         <>
             <Card
-                onMouseEnter={onCardEnter}
-                onMouseLeave={onCardLeave}
                 sx={{
                     p: 2.5,
                     borderRadius: "1.25rem",
@@ -464,7 +407,7 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     </Box>
                     <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
                         <DeltaIcon size={12} strokeWidth={2.5} />
-                        <span className="text-[11px] font-bold">{deltaLabel}</span>
+                        <span className="text-[14px] font-bold">{deltaLabel}</span>
                     </div>
                 </div>
 
@@ -476,61 +419,6 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     {kpi.title}
                 </Typography>
             </Card>
-
-            <HoverPopover
-                open={open}
-                anchorRect={anchorRect}
-                onMouseEnter={() => { isPopoverHoverRef.current = true; if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current); }}
-                onMouseLeave={() => { isPopoverHoverRef.current = false; setOpen(false); }}
-            >
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Typography sx={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>{kpi.title} Trend</Typography>
-                            <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#111827' }}>
-                                {hoverDeltaStr} <span className="text-[11px] font-normal text-slate-400">vs start</span>
-                            </Typography>
-                        </div>
-                        <div className="flex items-center gap-1 rounded-lg bg-slate-50 p-1 border border-slate-100">
-                            {[7, 14, 30].map((p) => (
-                                <button
-                                    key={p}
-                                    onClick={(e) => { e.stopPropagation(); setPeriod(p); }}
-                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all ${period === p
-                                        ? "bg-white shadow-sm border border-slate-200 text-slate-900"
-                                        : "text-slate-500 hover:text-slate-900"
-                                        }`}
-                                >
-                                    {p}D
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="rounded-xl bg-slate-50/50 p-2 border border-slate-100/50">
-                        <Sparkline values={sliceSeries} width={268} height={80} color={color} />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Period</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>{period} Days</Typography>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Current</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: color }}>
-                                {kpi.value}
-                            </Typography>
-                        </div>
-                        <div className="bg-white border border-slate-100 rounded-lg p-2 text-center">
-                            <Typography sx={{ fontSize: '9px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Δ {period}D</Typography>
-                            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: '#1e293b' }}>
-                                {hoverDeltaPct > 0 ? '+' : ''}{hoverDeltaPct}%
-                            </Typography>
-                        </div>
-                    </div>
-                </div>
-            </HoverPopover>
         </>
     )
 }
@@ -547,6 +435,63 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                 <Skeleton variant="rectangular" width="100%" height={60} />
             </Card>
         )
+    }
+
+    // Not a Metro City — show premium styled block
+    if (kpi.isNotMetro) {
+        const locationName = kpi.notMetroLocation && kpi.notMetroLocation !== 'All'
+            ? kpi.notMetroLocation
+            : null;
+
+        return (
+            <div className="group relative overflow-hidden rounded-2xl border border-violet-200/60 bg-gradient-to-br from-violet-50 via-white to-slate-50 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
+                {/* Decorative background elements */}
+                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-violet-100/40 to-transparent rounded-full -translate-y-8 translate-x-8" />
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-slate-100/40 to-transparent rounded-full translate-y-6 -translate-x-6" />
+
+                <div className="px-5 pt-5 pb-3 flex-1 relative z-10">
+                    <h3 className="text-sm font-semibold text-slate-500 mb-3">{kpi.title}</h3>
+
+                    <div className="flex flex-col items-center justify-center py-4 gap-3">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center shadow-lg shadow-violet-200/50">
+                            <MapPin size={24} color="white" strokeWidth={2.5} />
+                        </div>
+
+                        <div className="text-center space-y-1.5">
+                            <div className="text-base font-bold text-slate-700">
+                                Not a Metro City
+                            </div>
+                            {locationName && (
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-100/60 border border-violet-200/40">
+                                    <span className="text-[11px] font-semibold text-violet-700">
+                                        {Array.isArray(locationName) ? locationName.join(', ') : locationName}
+                                    </span>
+                                </div>
+                            )}
+                            <p className="text-[11px] text-slate-400 font-medium leading-relaxed max-w-[180px] mx-auto">
+                                This KPI is available for Tier 1 metro cities only
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom gradient bar instead of sparkline */}
+                <div className="h-16 w-full mt-auto relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-violet-100/40 via-purple-50/20 to-violet-100/40" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="flex gap-1.5">
+                            {[...Array(5)].map((_, i) => (
+                                <div
+                                    key={i}
+                                    className="w-1.5 rounded-full bg-violet-200/50"
+                                    style={{ height: `${12 + Math.sin(i * 1.2) * 8}px` }}
+                                />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     const isPositive = (kpi.delta || 0) >= 0;
@@ -572,9 +517,44 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                 </div>
 
                 <div className="space-y-3 border-t border-slate-50 pt-3">
+                    {kpi.brand && (() => {
+                        // Dynamic own-brand detection: use isOwnBrand flag from backend if available,
+                        // otherwise check dbName from user context against brand name
+                        let isMyBrand = false;
+                        if (kpi.isOwnBrand !== undefined) {
+                            isMyBrand = kpi.isOwnBrand;
+                        } else {
+                            try {
+                                const u = JSON.parse(localStorage.getItem('user'));
+                                const dbName = u?.dbName?.toLowerCase() || '';
+                                isMyBrand = dbName && kpi.brand.toLowerCase().includes(dbName);
+                            } catch { /* ignore */ }
+                        }
+                        return (
+                            <div className={`flex items-baseline gap-1.5 mb-0.5 px-2 py-1 rounded-lg ${isMyBrand ? 'bg-amber-50 border border-amber-200' : ''}`}
+                                style={isMyBrand ? { animation: 'mwBrandPulse 2s ease-in-out infinite' } : {}}
+                            >
+                                <style>{`
+                                    @keyframes mwBrandPulse {
+                                        0%, 100% { box-shadow: 0 0 0px rgba(245, 158, 11, 0); background-color: rgb(255 251 235); }
+                                        50% { box-shadow: 0 0 12px rgba(245, 158, 11, 0.35); background-color: rgb(254 243 199); }
+                                    }
+                                `}</style>
+                                <span className="text-[12px] text-slate-400 font-semibold uppercase tracking-wider leading-none">Market Leader brand -</span>
+                                <span className={`text-[12px] font-bold leading-none ${isMyBrand ? 'text-amber-700' : 'text-slate-600'}`}>
+                                    {kpi.brand}
+                                    {isMyBrand && <span className="ml-1.5 text-[9px] font-bold text-amber-500 uppercase tracking-wider">⭐ My Brand</span>}
+                                </span>
+                            </div>
+                        );
+                    })()}
                     <div className="flex items-baseline flex-wrap gap-x-2 gap-y-1">
                         <span className={`text-xs font-bold ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100`}>
-                            {deltaIcon} {Math.abs(kpi.delta || 0).toFixed(1)}% {kpi.deltaLabel ? `(${kpi.deltaLabel.replace(/[▲▼]/, '').trim()})` : ''}
+                            {kpi.deltaLabel ? (
+                                <span>{kpi.deltaLabel}</span>
+                            ) : (
+                                <span>{deltaIcon} {Math.abs(kpi.delta || 0).toFixed(1)}%</span>
+                            )}
                         </span>
                         <span className="text-[11px] text-slate-400 font-medium">
                             {kpi.prevText || "vs Previous Period"}
@@ -617,7 +597,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                     </AreaChart>
                 </ResponsiveContainer>
             </div>
-        </div>
+        </div >
     )
 }
 
@@ -657,15 +637,18 @@ const SnapshotOverview = ({
         });
 
         // Add Share of Search (sos_new) from performanceData to Top Row
-        const sosItem = performanceData.find(item => item.id === 'sos_new');
+        // Refinement: Also check kpis (from overview API) so it shows up immediately without jumping
+        const sosItem = performanceData.find(item => item.id === 'sos_new') ||
+            kpis.find(k => normalize(k.title) === 'share_of_search' || k.id === 'sos');
+        const isSosWait = performanceLoading && !sosItem;
 
         let topRowItems = baseTop.map((kpi, idx) => ({
             ...kpi,
             trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
         }));
 
-        if (sosItem) {
-            const sosKpi = {
+        if (sosItem || isSosWait) {
+            const sosKpi = sosItem ? {
                 id: 'sos_top',
                 title: 'Share of Search',
                 value: sosItem.value,
@@ -674,6 +657,12 @@ const SnapshotOverview = ({
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
                 trendSeries: makeSeries(35, 30, 0.12, seed)
+            } : {
+                id: 'sos_top_loading',
+                title: 'Share of Search',
+                loading: true,
+                icon: Eye,
+                gradient: ['#6366f1', '#8b5cf6'],
             };
 
             // Find Market Share to swap ensuring SOS comes BEFORE it
@@ -697,8 +686,8 @@ const SnapshotOverview = ({
         const inorganicPerf = performanceData.find(p => p.id === 'inorganic') || {};
 
         // 2. Conversion
-        const conversionItem = kpis.find(k => normalize(k.title) === 'conversion');
-        const conversionPerf = performanceData.find(p => p.id === 'conversion') || {};
+        const conversionItem = kpis.find(k => normalize(k.title) === 'conversion') || { title: 'Conversion', id: 'conversion' };
+        const conversionPerf = performanceData.find(p => p.id === 'conversion') || { id: 'conversion' };
 
         // 3. ROAS
         const roasItem = kpis.find(k => normalize(k.title) === 'roas');
@@ -707,17 +696,19 @@ const SnapshotOverview = ({
         // Helper to check for zero/empty
         const isZero = (v) => !v || v === '0' || v === '0.0' || v === 0;
 
-        const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, defaultVal, defaultDelta, icon, gradient, idx) => {
-            const val = baseItem?.value || perfItem?.value || defaultVal;
-            const delta = baseItem?.delta || parseFloat(perfItem?.tag) || defaultDelta;
-            const footer = baseItem?.footer || perfItem?.footer || "Actionable Insight";
+        const buildBottomItem = (baseItem, perfItem, defaultId, defaultTitle, icon, gradient, idx) => {
+            // Always use API data — no hardcoded fallback values
+            const val = baseItem?.value ?? perfItem?.value ?? '0';
+            const rawDelta = baseItem?.delta ?? (perfItem?.tag != null ? parseFloat(perfItem.tag) : 0);
+            const delta = isNaN(rawDelta) ? 0 : rawDelta;
+            const footer = baseItem?.subtitle || baseItem?.footer || perfItem?.footer || "Performance Metric";
 
             return {
                 id: baseItem?.id || defaultId,
                 title: baseItem?.title || defaultTitle,
                 value: val,
                 delta: delta,
-                deltaLabel: `${delta > 0 ? '+' : ''}${delta}%`,
+                deltaLabel: perfItem?.tag || `${delta > 0 ? '+' : ''}${delta}%`,
                 icon: icon,
                 gradient: gradient,
                 subtitle: footer,
@@ -729,32 +720,37 @@ const SnapshotOverview = ({
 
         // Inorganic Sales
         bottomItems.push(buildBottomItem(
-            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', '₹2.4 Cr', 12.5, TrendingUp, ['#22c55e', '#4ade80'], 0
+            inorganicItem, inorganicPerf, 'inorganic', 'Inorganic Sales', TrendingUp, ['#22c55e', '#4ade80'], 0
         ));
 
         // Conversion
         bottomItems.push(buildBottomItem(
-            conversionItem, conversionPerf, 'conversion', 'Conversion', '3.8%', -2.1, Target, ['#06b6d4', '#22d3ee'], 1
+            conversionItem, conversionPerf, 'conversion', 'Conversion', Target, ['#06b6d4', '#22d3ee'], 1
         ));
 
         // ROAS
         bottomItems.push(buildBottomItem(
-            roasItem, roasPerf, 'roas', 'ROAS', '4.2', 5.4, DollarSign, ['#eab308', '#facc15'], 2
+            roasItem, roasPerf, 'roas', 'ROAS', DollarSign, ['#eab308', '#facc15'], 2
         ));
 
         // 4. Orders (Always last in this specific list)
-        const ordersVal = (ordersItem && !isZero(ordersItem.value)) ? (ordersItem.value || ordersItem.label) : '15.2K';
-        const ordersDelta = (ordersItem && parseFloat(ordersItem.tag) !== 0) ? ordersItem.tag : 8.5;
+        // Check performanceData for orders KPI as well
+        const ordersPerf = performanceData.find(p => p.id === 'orders') || {};
+        const ordersVal = (ordersItem && ordersItem.value != null) ? (ordersItem.value || ordersItem.label)
+            : (ordersPerf.value != null ? ordersPerf.value : '0');
+        const ordersDeltaRaw = (ordersItem?.tag != null) ? parseFloat(ordersItem.tag)
+            : (ordersPerf?.tag != null ? parseFloat(ordersPerf.tag) : 0);
+        const ordersDelta = isNaN(ordersDeltaRaw) ? 0 : ordersDeltaRaw;
 
         const finalOrders = {
             id: ordersItem?.id || 'orders',
             title: 'Orders',
             value: ordersVal,
-            delta: parseFloat(ordersDelta) || 8.5,
-            deltaLabel: ordersItem?.tag || ordersItem?.deltaLabel || '8.5%',
+            delta: ordersDelta,
+            deltaLabel: ordersItem?.tag || ordersPerf?.tag || `${ordersDelta > 0 ? '+' : ''}${ordersDelta}%`,
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
-            subtitle: ordersItem?.footer || "Actionable Insight",
+            subtitle: ordersItem?.footer || ordersPerf?.footer || "Ad Quantity Sold",
             trendSeries: makeSeries(45, 30, 0.14, seed)
         };
 
@@ -802,12 +798,12 @@ const SnapshotOverview = ({
                             ) : (
                                 topKpis.map((kpi, idx) => (
                                     <motion.div
-                                        key={kpi.id + seed}
+                                        key={kpi.id}
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: idx * 0.05, duration: 0.3 }}
+                                        transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     >
-                                        <ComparisonCard kpi={kpi} />
+                                        <ComparisonCard kpi={kpi} loading={kpi.loading} />
                                     </motion.div>
                                 ))
                             )}
@@ -820,7 +816,7 @@ const SnapshotOverview = ({
                                     <Box sx={{ width: 28, height: 28, borderRadius: '8px', bgcolor: 'white', display: 'flex', alignItems: 'center', justifyItems: 'center', pl: 0.6, border: '1px solid #cffafe' }}>
                                         <Zap size={16} className="text-orange-500 fill-orange-500/20" />
                                     </Box>
-                                    <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Actionable Intelligence</h3>
+                                    <h3 className="text-[0.85rem] font-bold text-slate-800 tracking-tight">Performance Intelligence</h3>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                     {performanceLoading ? (
@@ -828,10 +824,10 @@ const SnapshotOverview = ({
                                     ) : (
                                         bottomKpis.map((kpi, idx) => (
                                             <motion.div
-                                                key={kpi.id + seed}
+                                                key={kpi.id}
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: (idx + 5) * 0.05, duration: 0.3 }}
+                                                transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
                                             >
                                                 <ActionableMetricCard kpi={kpi} />
                                             </motion.div>
@@ -853,7 +849,7 @@ const SnapshotOverview = ({
                 className={cn("bg-white rounded-[2rem] shadow-sm border border-slate-100/60 overflow-hidden", className)}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.2 }}
             >
                 <div className="px-8 py-5 flex items-center justify-between border-b border-slate-50">
                     <div className="flex items-center gap-5">
@@ -874,17 +870,19 @@ const SnapshotOverview = ({
                     {headerRight}
                 </div>
 
-                <div className="p-8">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="p-4 sm:p-6 lg:p-8">
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${detailedKpis.length === 3 ? 'lg:grid-cols-3' : detailedKpis.length === 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
                         {loading ? (
-                            [1, 2, 3, 4].map((i) => <DetailedSparklineCard key={i} loading={true} />)
+                            Array.from({ length: detailedKpis.length || 3 }).map((_, i) => (
+                                <DetailedSparklineCard key={i} loading={true} />
+                            ))
                         ) : (
                             detailedKpis.map((kpi, idx) => (
                                 <motion.div
                                     key={kpi.id || idx}
-                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    initial={{ opacity: 0, scale: 0.98 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: idx * 0.05 }}
+                                    transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     className="h-full"
                                 >
                                     <DetailedSparklineCard kpi={kpi} />

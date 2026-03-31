@@ -3,7 +3,7 @@
  * API endpoints for the Map Intellect (Geo Intelligence) page
  */
 
-import { getMapIntellectData } from '../controllers/mapIntellectController.js';
+import { getMapIntellectData, getMapIntellectCategories } from '../controllers/mapIntellectController.js';
 
 export default (app) => {
     /**
@@ -35,10 +35,16 @@ export default (app) => {
      *         schema:
      *           type: integer
      *         description: Number of months to look back (default 1)
+     *       - in: query
+     *         name: days
+     *         schema:
+     *           type: integer
+     *         description: Number of days to look back (used for 7D, 14D, 31D)
      *     responses:
      *       200:
      *         description: Successful response with city-level map data
      *     tags: [MapIntellect]
      */
     app.get('/api/map-intellect/data', getMapIntellectData);
+    app.get('/api/map-intellect/categories', getMapIntellectCategories);
 };

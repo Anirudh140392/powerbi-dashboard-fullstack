@@ -4,7 +4,7 @@
  * ECP Per Unit = ECP / avg gram (from rb_sku_platform.quantity)
  */
 
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
 
@@ -67,6 +67,9 @@ async function getEcpByBrand(filters = {}) {
 
     return await getCachedOrCompute(cacheKey, async () => {
         try {
+            const dbName = getCurrentDbName();
+            const isMars = dbName === 'mars';
+            const gramCol = isMars ? "''" : "s.gram";
             // ... (rest of the logic inside try block)
             // Note: I will need to provide the full content to replace correctly
             // but for brevity I will do a precise replace of the start/end
@@ -102,29 +105,34 @@ async function getEcpByBrand(filters = {}) {
             // Join rb_pdp_olap (p) with rb_sku_platform (s) on Web_Pid = web_pid
             // Only include quantity values that are valid (not null/empty and > 0)
             const query = `
+            WITH comp_agg AS (
+                SELECT AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) as avg_val
+                FROM rb_pdp_olap
+                WHERE ${whereClause.replace(/p\./g, '')}
+                  AND Comp_flag = '1'
+                  AND ifNull(toFloat64OrZero(toString(Selling_Price)), 0) > 0
+            )
             SELECT
                 p.Brand,
                 ROUND(
-                    SUM(CASE WHEN p.MRP IS NOT NULL AND toFloat64(p.MRP) > 0 THEN toFloat64(p.MRP) ELSE 0 END)
-                    / NULLIF(COUNT(CASE WHEN p.MRP IS NOT NULL AND toFloat64(p.MRP) > 0 THEN 1 END), 0),
+                    SUM(CASE WHEN p.MRP IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(p.MRP)), 0) ELSE 0 END)
+                    / NULLIF(COUNT(CASE WHEN p.MRP IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN 1 END), 0),
                     0
                 ) AS mrp,
                 ROUND(
-                    SUM(CASE WHEN p.Selling_Price IS NOT NULL AND toFloat64(p.Selling_Price) > 0 THEN toFloat64(p.Selling_Price) ELSE 0 END)
-                    / NULLIF(COUNT(CASE WHEN p.Selling_Price IS NOT NULL AND toFloat64(p.Selling_Price) > 0 THEN 1 END), 0),
+                    SUM(CASE WHEN p.Selling_Price IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE 0 END)
+                    / NULLIF(COUNT(CASE WHEN p.Selling_Price IS NOT NULL AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN 1 END), 0),
                     0
                 ) AS ecp,
+                AVG(ifNull(toFloat64OrZero(toString(p.PPU)), 0)) * 100 AS ecp_per_unit,
                 AVG(
                     CASE 
-                        WHEN s.gram IS NOT NULL 
-                        AND s.gram != '' 
-                        AND s.gram != '0' 
-                        AND isFinite(toFloat64(s.gram))
-                        AND toFloat64(s.gram) > 0 
-                        THEN toFloat64(s.gram) 
+                        WHEN ${isMars ? '1=0' : "s.gram IS NOT NULL AND s.gram != '' AND s.gram != '0' AND isFinite(ifNull(toFloat64OrZero(toString(s.gram)), 0)) AND ifNull(toFloat64OrZero(toString(s.gram)), 0) > 0"}
+                        THEN ifNull(toFloat64OrZero(toString(${gramCol})), 0)
                         ELSE NULL 
                     END
-                ) AS avg_gram
+                ) AS avg_gram,
+                (SELECT avg_val FROM comp_agg) as comp_avg_ecp
             FROM rb_pdp_olap p
             LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
             WHERE ${whereClause}
@@ -145,10 +153,12 @@ async function getEcpByBrand(filters = {}) {
                 const mrp = parseFloat(row.mrp) || 0;
                 const ecp = parseFloat(row.ecp) || 0;
                 const avgGram = parseFloat(row.avg_gram) || 0;
+                const compAvgEcp = parseFloat(row.comp_avg_ecp) || 0;
 
                 // ECP Per Unit = ECP / avg gram (price per gram)
                 // Only calculate if avgGram is valid (> 0)
                 const ecpPerUnit = avgGram > 0 ? ecp / avgGram : 0;
+                const rpi = compAvgEcp > 0 ? (ecp / compAvgEcp) : 1.0;
 
                 return {
                     id: index + 1,
@@ -156,7 +166,7 @@ async function getEcpByBrand(filters = {}) {
                     mrp: Math.round(mrp),
                     ecp: Math.round(ecp),
                     ecpPerUnit: parseFloat(ecpPerUnit.toFixed(2)),
-                    rpi: 0  // RPI placeholder - to be implemented later
+                    rpi: parseFloat(rpi.toFixed(2))
                 };
             });
 

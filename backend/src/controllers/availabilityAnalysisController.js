@@ -1,6 +1,7 @@
 import availabilityService from '../services/availabilityService.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
-import { queryClickHouse } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
+import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 import dayjs from 'dayjs';
 
 /**
@@ -14,6 +15,39 @@ const parseFilter = (val) => {
         return val.split(',').map(v => v.trim()).filter(v => v !== '');
     }
     return val;
+};
+
+/**
+ * Helper to escape SQL single quotes
+ */
+const escapeStr = (str) => {
+    if (str === null || str === undefined) return '';
+    const s = typeof str === 'string' ? str : String(str);
+    return s.replace(/'/g, "''");
+};
+
+
+/**
+ * Scales metrics for Mars-related entries if needed (100x scaling fix).
+ * Data analysis shows financial/qty metrics for Mars brands are 100x inflated in source.
+ */
+const scaleMarsMetrics = (data, key) => {
+    if (!data || !key) return data;
+    const lowerKey = key.toLowerCase();
+    const marsKeywords = ['snickers', 'galaxy', 'bounty', 'twix', 'mars', "m&m's", 'orbit', 'doublemint', 'boomer', 'skittles', 'chocolates (gifting)', 'chocolates (non gifting)', 'gmfc'];
+
+    const isMars = marsKeywords.some(kw => lowerKey.includes(kw));
+    if (!isMars) return data;
+
+    // Direct assignment to modify object properties if they exist
+    const fields = ['totalQtySold', 'currSales', 'prevSales', 'offtake', 'compOfftake', 'qty_sold', 'ad_sales', 'ad_spend', 'clicks', 'impressions', 'avgInventory', 'revenue', 'totalClicks', 'totalImpressions'];
+    
+    fields.forEach(f => {
+        if (data[f] !== undefined && data[f] !== null) {
+            data[f] = parseFloat(data[f]) * 0.01;
+        }
+    });
+    return data;
 };
 
 export const AvailabilityControlTower = async (req, res) => {
@@ -60,15 +94,17 @@ export const getAvailabilityOverview = async (req, res) => {
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== AVAILABILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
         const data = await availabilityService.getAbsoluteOsaOverview(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[SUCCESS] Availability Overview. Records:', data?.length || 0);
         console.log('================================================\n');
 
         res.json(data);
@@ -103,8 +139,10 @@ export const getPlatformKpiMatrix = async (req, res) => {
             drillDimension: req.query.drillDimension || 'region',
             includeBreakdown: req.query.includeBreakdown === 'true',
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== PLATFORM KPI MATRIX API ==========');
         console.log('[DEBUG] viewMode from query:', req.query.viewMode);
@@ -145,21 +183,24 @@ export const getOsaPercentageDetail = async (req, res) => {
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== OSA PERCENTAGE DETAIL API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
         const data = await availabilityService.getAbsoluteOsaPercentageDetail(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[SUCCESS] OSA Percentage Detail. Records:', data?.length || 0);
         console.log('================================================\n');
 
         res.json(data);
     } catch (error) {
-        console.error('[ERROR] OSA Percentage Detail:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
+        console.error('[ERROR] getOsaPercentageDetail:', error.message);
+        console.error(error.stack);
+        res.status(500).json({ error: 'Internal Server Error', details: error.message });
     }
 };
 
@@ -185,15 +226,17 @@ export const getDOI = async (req, res) => {
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== DOI (DAYS OF INVENTORY) API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
         const data = await availabilityService.getDOI(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[SUCCESS] DOI. Records:', data?.length || 0);
         console.log('==================================================\n');
 
         res.json(data);
@@ -225,15 +268,17 @@ export const getMetroCityStockAvailability = async (req, res) => {
             metroFlags: parseFilter(req.query.metroFlags),
             pincodes: parseFilter(req.query.pincodes),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== METRO CITY STOCK AVAILABILITY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
         const data = await availabilityService.getMetroCityStockAvailability(filters);
 
-        console.log('[RESPONSE]:', JSON.stringify(data, null, 2));
+        console.log('[SUCCESS] Metro City Stock Availability. Records:', data?.length || 0);
         console.log('========================================================\n');
 
         res.json(data);
@@ -250,19 +295,21 @@ export const getMetroCityStockAvailability = async (req, res) => {
  */
 export const getAvailabilityFilterOptions = async (req, res) => {
     try {
-        const { filterType, platform, brand, category, format, city, location, months, metroFlag } = req.query;
+        const { filterType, platform, brand, category, productCategory, format, city, location, months, metroFlag } = req.query;
         console.log('\n========== AVAILABILITY FILTER OPTIONS API ==========');
-        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'format:', format, 'city:', city, 'location:', location, 'months:', months, 'metroFlag:', metroFlag);
+        console.log('[REQUEST] filterType:', filterType, 'platform:', platform, 'brand:', brand, 'category:', category, 'productCategory:', productCategory, 'format:', format, 'city:', city, 'location:', location, 'months:', months, 'metroFlag:', metroFlag);
 
         const data = await availabilityService.getAvailabilityFilterOptions({
             filterType: filterType || 'platforms',
             platform: parseFilter(platform),
             brand: parseFilter(brand),
             category: parseFilter(category || format),
+            productCategory: parseFilter(productCategory),
             city: parseFilter(city),
             location: parseFilter(location),
             months: parseFilter(months),
-            metroFlag: parseFilter(metroFlag)
+            metroFlag: parseFilter(metroFlag),
+            ownBrandsOnly: req.query.ownBrandsOnly
         });
 
         console.log('[RESPONSE]:', data.options?.length, 'options returned');
@@ -299,8 +346,10 @@ export const getOsaDetailByCategory = async (req, res) => {
             pincodes: parseFilter(req.query.pincodes),
             kpis: parseFilter(req.query.kpis),
             channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
             compareStartDate: req.query.compareStartDate,
-            compareEndDate: req.query.compareEndDate
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== OSA DETAIL BY CATEGORY API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -328,11 +377,15 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             brand: parseFilter(req.query.brand),
             location: parseFilter(req.query.location),
             category: parseFilter(req.query.category),
+            productCategory: parseFilter(req.query.productCategory),
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             channel: req.query.channel,
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            ownBrandsOnly: req.query.ownBrandsOnly,
+            dimension: req.query.dimension,
+            dimensionValue: req.query.dimensionValue
         };
         console.log('\n========== AVAILABILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -363,14 +416,15 @@ export const getAvailabilityCompetition = async (req, res) => {
             channel: req.query.channel,
             period: req.query.period || '1M',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('\n========== AVAILABILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
         const data = await availabilityService.getAvailabilityCompetitionData(filters);
 
-        console.log('[RESPONSE]:', data.brands?.length, 'brands returned');
+        console.log('[RESPONSE] brands length:', data.brands?.length, 'skus length:', data.skus?.length);
         console.log('===================================================\n');
 
         res.json(data);
@@ -444,25 +498,37 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
  */
 export const getSignalLabData = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab', req.query);
-
+        const cacheKey = generateCacheKey('signal_lab_v9', req.query);
         const data = await getCachedOrCompute(cacheKey, async () => {
+            // Dynamically resolve ad-related column names (case varies across DBs)
+            const cols = await getTableColumns('rb_pdp_olap');
+            const adSalesCol = resolveColumn(cols, 'Ad_sales');
+            const adSpendCol = resolveColumn(cols, 'Ad_Spend');
+            const adClicksCol = resolveColumn(cols, 'Ad_Clicks');
+            const adImpressionsCol = resolveColumn(cols, 'Ad_Impressions');
+
             const {
                 platform,
                 brand,
                 location,
+                category,
                 startDate,
                 endDate,
                 compareStartDate,
                 compareEndDate,
                 type: metricType = 'availability',
                 page = 1,
-                limit = 4,
-                signalType = 'drainer'
+                limit = 5,
+                signalType = 'drainer',
+                keyword = 'All',
+                groupBy = 'sku'
             } = req.query;
 
+            const isBrandGroup = groupBy === 'brand';
+            const groupCol = isBrandGroup ? 'Brand' : 'Web_Pid';
+
             const pageNum = Number(page) || 1;
-            const limitNum = Number(limit) || 4;
+            const limitNum = Number(limit) || 5;
             const offsetNum = (pageNum - 1) * limitNum;
 
             const end = endDate || dayjs().format('YYYY-MM-DD');
@@ -475,9 +541,6 @@ export const getSignalLabData = async (req, res) => {
             const daysInPeriod = dayjs(end).diff(dayjs(start), 'day') + 1;
 
             /* ================= 1. FILTER LOGIC (MULTI-SELECT) ================= */
-            // Helper to escape strings for SQL
-            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-
             const processFilter = (val) => {
                 if (!val || val === 'All') return null;
                 if (typeof val === 'string' && val.includes(',')) {
@@ -489,9 +552,25 @@ export const getSignalLabData = async (req, res) => {
             const platformFilter = processFilter(platform);
             const locationFilter = processFilter(location);
             const brandFilter = processFilter(brand);
+            const categoryFilter = processFilter(category);
+            const keywordFilter = processFilter(keyword);
+
+            // Dynamically determine if rb_location_darkstore table exists and has tier data
+            let hasTierFilter = false;
+            try {
+                const tierCheck = await queryClickHouse(`SELECT count() as cnt FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2') LIMIT 1`);
+                hasTierFilter = (Number(tierCheck?.[0]?.cnt) > 0);
+            } catch (e) {
+                console.log('[SignalLab] rb_location_darkstore not available, skipping tier filter');
+            }
+
+            // Dynamically resolve category column from actual table schema
+            const pdpCols = await getTableColumns('rb_pdp_olap');
+            const hasCategoryCol = pdpCols.has('category');
+            const dynamicCatCol = hasCategoryCol ? 'Category' : 'Product_type';
 
             // Build WHERE clause for ClickHouse
-            const buildWhereClause = (includeCompDates = false) => {
+            const buildWhereClause = (includeCompDates = false, ignoreBrand = false) => {
                 const conditions = [];
 
                 if (includeCompDates) {
@@ -502,9 +581,9 @@ export const getSignalLabData = async (req, res) => {
 
                 if (platformFilter) {
                     if (Array.isArray(platformFilter)) {
-                        conditions.push(`Platform IN (${platformFilter.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                        conditions.push(`LOWER(Platform) IN (${platformFilter.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
                     } else {
-                        conditions.push(`Platform = '${escapeStr(platformFilter)}'`);
+                        conditions.push(`Platform ILIKE '${escapeStr(platformFilter)}'`);
                     }
                 }
 
@@ -516,73 +595,285 @@ export const getSignalLabData = async (req, res) => {
                     }
                 }
 
-                if (brandFilter) {
-                    if (Array.isArray(brandFilter)) {
-                        conditions.push(`Brand IN (${brandFilter.map(b => `'${escapeStr(b)}'`).join(', ')})`);
-                    } else {
-                        conditions.push(`Brand LIKE '%${escapeStr(brandFilter)}%'`);
-                    }
-                } else {
-                    conditions.push(`toString(Comp_flag) = '0'`);
+                // Tier 1/2 filter for all Signal Lab queries (only if table exists and has data)
+                if (hasTierFilter) {
+                    conditions.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
                 }
+
+                if (categoryFilter) {
+                    const catCol = dynamicCatCol;
+                    if (Array.isArray(categoryFilter)) {
+                        conditions.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+                    } else {
+                        conditions.push(`${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
+                    }
+                }
+
+                if (!ignoreBrand) {
+                    if (brandFilter) {
+                        if (Array.isArray(brandFilter)) {
+                            conditions.push(`LOWER(Brand) IN (${brandFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+                        } else {
+                            conditions.push(`Brand ILIKE '%${escapeStr(brandFilter)}%'`);
+                        }
+                    } else {
+                        // For my brand only
+                        conditions.push(`(Comp_flag = 0 OR Comp_flag = '0')`);
+                    }
+                }
+
+                const isAll = (val) => {
+                    if (!val) return true;
+                    if (Array.isArray(val)) return val.some(v => String(v).toLowerCase() === 'all');
+                    return String(val).toLowerCase() === 'all';
+                };
+
+                if (keywordFilter && !isAll(keywordFilter)) {
+                    if (Array.isArray(keywordFilter)) {
+                        const kwConds = keywordFilter.map(k => `Product ILIKE '%${escapeStr(k)}%'`);
+                        conditions.push(`(${kwConds.join(' OR ')})`);
+                    } else {
+                        conditions.push(`Product ILIKE '%${escapeStr(keywordFilter)}%'`);
+                    }
+                }
+
+                // Exclude 'Nation', 'National', 'All India', 'Pan India' rollup locations
+                conditions.push(`Location NOT IN ('Nation', 'National', 'All India', 'Pan India', 'all india', 'pan india', 'nation', 'national')`);
 
                 return conditions.join(' AND ');
             };
 
             /* ================= 2. DEFINE METRIC & SORTING LOGIC ================= */
-            const direction = signalType === 'gainer' ? 'DESC' : 'ASC';
+            const direction = 'DESC'; // Always show highest offtake first
 
-            let mainMetricExpr = '';
-            let metricExpr = '';
-            let havingClause = '';
+            // Main metric for sorting and classification: OSA Increment (OSA Change)
+            const mainOsaExpr = `(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
+            const compOsaExpr = `(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(neno_osa)), 0.0), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', ifNull(toFloat64OrZero(toString(deno_osa)), 0.0), 0.0)), 0)) * 100`;
 
-            if (metricType === 'availability') {
-                // OSA columns are Int64 - use toFloat64() with 0.0 as else value for type matching
-                mainMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100`;
-                const compMetricExpr = `(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100`;
-                metricExpr = `(ifNull(${mainMetricExpr}, 0) - ifNull(${compMetricExpr}, 0))`;
+            // This is the OSA increment logic requested by the user
+            const osaMetricExpr = `(ifNull(${mainOsaExpr}, 0) - ifNull(${compOsaExpr}, 0))`;
 
-                havingClause = signalType === 'gainer'
-                    ? `HAVING ${metricExpr} > 0`
-                    : `HAVING ${metricExpr} < 0`;
-            } else {
-                const baseField = 'Sales';
-                mainMetricExpr = `sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${baseField}), 0.0))`;
-                const compMetricExprVal = `sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(${baseField}), 0.0))`;
-                metricExpr = `((ifNull(${mainMetricExpr}, 0) - ifNull(${compMetricExprVal}, 0)) / nullIf(ifNull(${compMetricExprVal}, 0), 0)) * 100`;
+            // We use OSA change as the sort metric for ALL availability signal lab tabs (as per user request)
+            const sortMetric = osaMetricExpr;
 
-                if (signalType === 'gainer') {
-                    havingClause = `HAVING (${metricExpr} > 0 OR (${compMetricExprVal} = 0 AND ${mainMetricExpr} > 0))`;
-                } else {
-                    havingClause = `HAVING ${metricExpr} < 0`;
+            const threshold = isBrandGroup ? 0.5 : 2; // Reduced threshold for brands to show more signals
+            const havingClause = signalType === 'gainer'
+                ? `HAVING ${sortMetric} > ${threshold}`
+                : `HAVING ${sortMetric} < -${threshold}`;
+
+            // Sorting logic: Drainers by lowest OSA, Gainers by highest metric (OSA or SOS)
+            let sortExpr = `currSales`;
+            let joinClause = '';
+
+
+            console.log(`[SignalLab] request: type=${metricType}, signalType=${signalType}, direction=${direction}, groupBy=${groupBy}`);
+
+            /* ================= VISIBILITY-SPECIFIC PATH (rb_kw_olap SOS) ================= */
+            if (metricType === 'visibility') {
+                // For visibility, classify brands by SOS change from rb_kw_olap, NOT OSA from rb_pdp_olap
+                let kwWhereMain = [`DATE BETWEEN '${start}' AND '${end}'`];
+                let kwWherePrev = [`DATE BETWEEN '${compStart}' AND '${compEnd}'`];
+                const kwWhereCommon = [];
+
+                if (platformFilter) {
+                    const pList = Array.isArray(platformFilter) ? platformFilter : [platformFilter];
+                    kwWhereCommon.push(`LOWER(platform_name) IN (${pList.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
                 }
-            }
+                if (locationFilter) {
+                    const lList = Array.isArray(locationFilter) ? locationFilter : [locationFilter];
+                    kwWhereCommon.push(`LOWER(location_name) IN (${lList.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                }
+                if (keywordFilter) {
+                    const kList = Array.isArray(keywordFilter) ? keywordFilter : [keywordFilter];
+                    const isAll = kList.some(v => String(v).toLowerCase() === 'all');
+                    if (!isAll) {
+                        kwWhereCommon.push(`LOWER(keyword) IN (${kList.map(k => `'${escapeStr(k.toLowerCase())}'`).join(', ')})`);
+                    }
+                }
 
-            /* ================= STEP 3: GET SORTED IDs (True Top N) ================= */
+                kwWhereMain = kwWhereMain.concat(kwWhereCommon);
+                kwWherePrev = kwWherePrev.concat(kwWhereCommon);
+
+                const mainWhereStr = kwWhereMain.join(' AND ');
+                const prevWhereStr = kwWherePrev.join(' AND ');
+
+                // Get current SOS by brand
+                const currSosQuery = `
+                    SELECT
+                        brand,
+                        ROUND(countIf(flag = 1) * 100.0 / nullIf(count(), 0), 2) as overall_sos,
+                        ROUND(countIf(flag = 1 AND toInt32(spons) = 1) * 100.0 / nullIf(countIf(toInt32(spons) = 1), 0), 2) as ad_sos,
+                        ROUND(countIf(flag = 1 AND toInt32(organic) = 1) * 100.0 / nullIf(countIf(toInt32(organic) = 1), 0), 2) as organic_sos
+                    FROM rb_kw_olap
+                    WHERE ${mainWhereStr}
+                    GROUP BY brand
+                    HAVING count() >= 5
+                `;
+
+                // Get previous SOS by brand
+                const prevSosQuery = `
+                    SELECT
+                        brand,
+                        ROUND(countIf(flag = 1) * 100.0 / nullIf(count(), 0), 2) as overall_sos
+                    FROM rb_kw_olap
+                    WHERE ${prevWhereStr}
+                    GROUP BY brand
+                    HAVING count() >= 5
+                `;
+
+                const [currSosRows, prevSosRows] = await Promise.all([
+                    queryClickHouse(currSosQuery),
+                    queryClickHouse(prevSosQuery)
+                ]);
+
+                console.log(`[SignalLab-Visibility] currSosRows: ${currSosRows.length}, prevSosRows: ${prevSosRows.length}`);
+
+                // Build previous SOS map
+                const prevSosMap = {};
+                (prevSosRows || []).forEach(r => {
+                    prevSosMap[(r.brand || '').toLowerCase()] = parseFloat(r.overall_sos) || 0;
+                });
+
+                // Calculate SOS change and classify
+                const allBrands = (currSosRows || []).map(r => {
+                    const brandName = r.brand || '';
+                    const bLower = brandName.toLowerCase();
+                    const currSos = parseFloat(r.overall_sos) || 0;
+                    const prevSos = prevSosMap[bLower] || 0;
+                    const sosChange = currSos - prevSos;
+                    return { ...r, brandName, sosChange, currSos, prevSos };
+                });
+
+                // Filter by signal type (gainer or drainer)
+                const sosThreshold = 0.1; // Small threshold since SOS values are typically small percentages
+                const filteredBrands = allBrands.filter(b => {
+                    if (signalType === 'gainer') return b.sosChange > sosThreshold;
+                    return b.sosChange < -sosThreshold;
+                });
+
+                // Sort: drainers by most negative SOS change, gainers by most positive
+                filteredBrands.sort((a, b) => {
+                    if (signalType === 'drainer') return a.sosChange - b.sosChange;
+                    return b.sosChange - a.sosChange;
+                });
+
+                const totalCount = filteredBrands.length;
+                const pagedBrands = filteredBrands.slice(offsetNum, offsetNum + limitNum);
+
+                // Get city-level SOS for selected brands
+                let cityData = [];
+                if (pagedBrands.length > 0) {
+                    const brandsList = pagedBrands.map(b => `'${escapeStr(b.brandName)}'`).join(', ');
+                    const citySosQuery = `
+                        SELECT
+                            brand,
+                            location_name as city,
+                            ROUND(countIf(flag = 1) * 100.0 / nullIf(count(), 0), 2) as overall_sos,
+                            count() as appearances
+                        FROM rb_kw_olap
+                        WHERE ${mainWhereStr}
+                            AND brand IN (${brandsList})
+                            AND location_name IS NOT NULL AND location_name != ''
+                        GROUP BY brand, location_name
+                        HAVING count() >= 3
+                        ORDER BY brand, appearances DESC
+                    `;
+                    try {
+                        cityData = await queryClickHouse(citySosQuery);
+                    } catch (e) {
+                        console.error('[SignalLab-Visibility] City SOS query error:', e.message);
+                    }
+                }
+
+                // Build city map: { brandLower: [cities...] }
+                const cityMap = {};
+                (cityData || []).forEach(c => {
+                    const bLower = (c.brand || '').toLowerCase();
+                    if (!cityMap[bLower]) cityMap[bLower] = [];
+                    cityMap[bLower].push(c);
+                });
+
+                // Map to response format
+                const skus = pagedBrands.map((b, i) => {
+                    const impactStr = `${b.sosChange >= 0 ? '+' : ''}${b.sosChange.toFixed(1)}%`;
+                    const brandCities = (cityMap[b.brandName.toLowerCase()] || []).slice(0, 10);
+                    const topCities = brandCities.map((c, idx) => ({
+                        city: c.city,
+                        metric: `SOS ${parseFloat(c.overall_sos || 0).toFixed(1)}%`,
+                        change: impactStr,
+                        weightage: '-'
+                    }));
+
+                    // Ensure at least 2 cities for card display
+                    if (topCities.length === 0) {
+                        topCities.push({ city: 'N/A', metric: '-', change: impactStr, weightage: '-' });
+                    }
+
+                    return {
+                        id: `VIS-${(pageNum - 1) * limitNum + i + 1}`,
+                        skuCode: '-',
+                        skuName: b.brandName,
+                        packSize: '-',
+                        platform: platformFilter ? (Array.isArray(platformFilter) ? platformFilter[0] : platformFilter) : 'All',
+                        categoryTag: 'Visibility',
+                        groupBy: 'brand',
+                        type: signalType,
+                        metricType: 'visibility',
+                        offtakeValue: '-',
+                        offtakeShare: '-',
+                        impact: impactStr,
+                        kpis: {
+                            adSos: `${parseFloat(b.ad_sos || 0).toFixed(1)}%`,
+                            organicSos: `${parseFloat(b.organic_sos || 0).toFixed(1)}%`,
+                            overallSos: `${b.currSos.toFixed(1)}%`,
+                            weightedOsa: '-'
+                        },
+                        topCities
+                    };
+                });
+
+                console.log(`[SignalLab-Visibility] Returning ${skus.length} ${signalType}s (total: ${totalCount})`);
+                return { skus, totalCount };
+            }
+            /* ================= END VISIBILITY-SPECIFIC PATH ================= */
+
             const skuQuery = `
-                SELECT Web_Pid, ${metricExpr} as sortMetric
+                SELECT 
+                    ${groupCol}, 
+                    ${sortMetric} as sortMetric, 
+                    ${mainOsaExpr} as absoluteOsa,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) as currSales
                 FROM rb_pdp_olap
                 WHERE ${buildWhereClause(true)}
-                GROUP BY Web_Pid
+                GROUP BY ${groupCol}
                 ${havingClause}
-                ORDER BY sortMetric ${direction}
+                ORDER BY toFloat64(currSales) DESC
                 LIMIT ${limitNum} OFFSET ${offsetNum}
             `;
 
             const skuRows = await queryClickHouse(skuQuery);
+            console.log(`[SignalLab] skuRows (top 3):`, skuRows.slice(0, 3).map(r => ({ pid: r[groupCol], osa: r.absoluteOsa, sales: r.currSales })));
 
             if (!skuRows || !skuRows.length) return { skus: [], totalCount: 0 };
 
-            // Ordered list of PIDs
-            const webPids = skuRows.map(r => r.Web_Pid);
+            // Ordered list of IDs (brand names or Item_Ids)
+            const webPids = skuRows.map(r => r[groupCol]);
 
-            /* ================= STEP 4: GET TOTAL COUNT ================= */
+            /* ================= STEP 4: GET TOTAL CONTEXT SALES & COUNT ================= */
+            const totalMarketSalesQuery = `
+                SELECT sum(toFloat64OrZero(toString(Sales))) as totalMarketSales
+                FROM rb_pdp_olap
+                WHERE ${buildWhereClause(false, true)}
+            `;
+            const totalMarketSalesResult = await queryClickHouse(totalMarketSalesQuery);
+            const totalMarketSales = Number(totalMarketSalesResult?.[0]?.totalMarketSales || 0);
+
             const countQuery = `
                 SELECT count() as count FROM (
-                    SELECT Web_Pid
+                    SELECT ${groupCol}
                     FROM rb_pdp_olap
                     WHERE ${buildWhereClause(true)}
-                    GROUP BY Web_Pid
+                    GROUP BY ${groupCol}
                     ${havingClause}
                 ) as temp
             `;
@@ -592,54 +883,146 @@ export const getSignalLabData = async (req, res) => {
 
             /* ================= STEP 5: FULL AGGREGATION FOR SELECTED IDs ================= */
             const webPidsStr = webPids.map(p => `'${escapeStr(p)}'`).join(', ');
+            const filterCol = isBrandGroup ? 'Brand' : 'Web_Pid';
 
             const aggQuery = `
                 SELECT
-                    Web_Pid, 
-                    any(Product) as Product, 
-                    any(Category) as Category, 
-                    any(Platform) as Platform, 
-                    any(Weight) as Weight, 
-                    any(Brand) as Brand,
+                    ${groupCol},
+                    ${isBrandGroup ? "'' as Product" : 'any(Product) as Product'},
+                    any(Category) as aggCategory,
+                    any(Platform) as aggPlatform,
+                    ${isBrandGroup ? "'' as BrandCol" : "any(Brand) as aggBrand"},
+                    any(Comp_flag) as aggCompFlag,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) AS totalNeno,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)) AS totalDeno,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) AS compNeno,
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)) AS compDeno,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0)) AS avgInventory,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) AS totalQtySold,
+                    GREATEST(0, avgIf(toFloat64(Inventory), toDate(DATE) BETWEEN '${start}' AND '${end}')) AS avgInventory,
+                    GREATEST(0, sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0))) AS totalQtySold,
                     avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Selling_Price), 0.0)) AS avgPrice,
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64OrZero(Ad_sales) / nullIf(toFloat64OrZero(Ad_Spend), 0), 0.0)) AS avgRoas,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Clicks), 0.0)) AS totalClicks,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Ad_Impressions), 0.0)) AS totalImpressions,
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) AS currSales,
-                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(Sales), 0.0)) AS prevSales
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) AS avgRoas,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) AS totalClicks,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) AS totalImpressions,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', abs(toFloat64(Sales)), 0.0)) AS currSales,
+                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', abs(toFloat64(Sales)), 0.0)) AS prevSales
                 FROM rb_pdp_olap
-                WHERE Web_Pid IN (${webPidsStr})
-                    AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
-                GROUP BY Web_Pid
+                WHERE ${filterCol} IN (${webPidsStr})
+                    AND ${buildWhereClause(true, true)}
+                GROUP BY ${groupCol}
             `;
 
             const rows = await queryClickHouse(aggQuery);
 
-            const sortedRows = webPids.map(pid => rows.find(r => r.Web_Pid === pid)).filter(Boolean);
+            const sortedRows = webPids.map(pid => rows.find(r => r[groupCol] === pid)).filter(Boolean);
 
-            /* ================= STEP 6: City level data ================= */
+            /* ================= STEP 6: City level data (Current & Comparison) ================= */
             const cityAggQuery = `
                 SELECT
-                    Web_Pid, Location,
-                    (sum(toFloat64(neno_osa)) / nullIf(sum(toFloat64(deno_osa)), 0)) * 100 AS osa,
-                    avg(toFloat64OrZero(Ad_sales) / nullIf(toFloat64OrZero(Ad_Spend), 0)) as roas,
-                    sum(toFloat64(Ad_Clicks)) as clicks,
-                    sum(toFloat64(Ad_Impressions)) as impressions,
-                    avg(toFloat64(Inventory)) as inventory,
-                    sum(toFloat64(Qty_Sold)) as qtySold
+                    ${groupCol}, Location,
+                    (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
+                    (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS prev_osa,
+                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adSalesCol}) / nullIf(toFloat64(${adSpendCol}), 0), 0.0)) as roas,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adClicksCol}), 0.0)) as clicks,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(${adImpressionsCol}), 0.0)) as impressions,
+                    GREATEST(0, avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Inventory), 0.0))) as inventory,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Qty_Sold), 0.0)) as qtySold,
+                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', abs(toFloat64(Sales)), 0.0)) as citySales
                 FROM rb_pdp_olap
-                WHERE Web_Pid IN (${webPidsStr})
-                    AND toDate(DATE) BETWEEN '${start}' AND '${end}'
-                GROUP BY Web_Pid, Location
+                WHERE ${filterCol} IN (${webPidsStr})
+                    AND ${buildWhereClause(true, true)}
+                GROUP BY ${groupCol}, Location
             `;
-
             const cityRows = await queryClickHouse(cityAggQuery);
+
+            /* ================= STEP 6.5: FETCH SOS FOR VISIBILITY ================= */
+            let sosMap = {};
+            if (metricType === 'visibility' && webPids.length > 0) {
+                try {
+                    const brandOwnership = {}; // { brandName: isOurs }
+                    rows.forEach(r => {
+                        const b = isBrandGroup ? r[groupCol] : (r.aggBrand || r.BrandCol);
+                        if (b) brandOwnership[b.toLowerCase()] = (r.aggCompFlag == 0);
+                    });
+                    const brandsForSOS = Object.keys(brandOwnership);
+
+                    if (brandsForSOS.length > 0) {
+                        let marketConds = [`DATE BETWEEN '${start}' AND '${end}'`];
+
+                        if (platformFilter) {
+                            const pList = Array.isArray(platformFilter) ? platformFilter : [platformFilter];
+                            marketConds.push(`LOWER(platform_name) IN (${pList.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                        }
+                        if (locationFilter) {
+                            const lList = Array.isArray(locationFilter) ? locationFilter : [locationFilter];
+                            marketConds.push(`LOWER(location_name) IN (${lList.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                        }
+
+                        const sosQuery = `
+                            SELECT
+                                brand as brand,
+                                flag,
+                                sum(toInt32(overall)) as brand_overall,
+                                sum(toInt32(spons)) as brand_ad,
+                                sum(toInt32(organic)) as brand_organic,
+                                sum(sum(toInt32(overall))) OVER () as market_overall,
+                                sum(sum(toInt32(spons))) OVER () as market_ad,
+                                sum(sum(toInt32(organic))) OVER () as market_organic
+                            FROM rb_kw_olap
+                            WHERE ${marketConds.join(' AND ')}
+                            GROUP BY brand, flag
+                        `;
+                        const sosResults = await queryClickHouse(sosQuery);
+                        console.log(`[SignalLab] sosResults length:`, sosResults.length);
+                        if (sosResults.length > 0) {
+                            console.log(`[SignalLab] sosResults example:`, JSON.stringify(sosResults[0]));
+                        }
+
+                        // First pass: Aggregate raw counts by brand key
+                        const aggregateData = {};
+                        let marketOverallCount = 0;
+                        let marketAdCount = 0;
+                        let marketOrganicCount = 0;
+
+                        sosResults.forEach(r => {
+                            const bLower = (r.brand || '').trim().toLowerCase();
+                            if (!bLower) return;
+
+                            if (!aggregateData[bLower]) {
+                                aggregateData[bLower] = { overall: 0, ad: 0, organic: 0 };
+                            }
+
+                            aggregateData[bLower].overall += Number(r.brand_overall || 0);
+                            aggregateData[bLower].ad += Number(r.brand_ad || 0);
+                            aggregateData[bLower].organic += Number(r.brand_organic || 0);
+
+                            // Market totals are the same across all rows (using OVER)
+                            marketOverallCount = Number(r.market_overall || 0);
+                            marketAdCount = Number(r.market_ad || 0);
+                            marketOrganicCount = Number(r.market_organic || 0);
+                        });
+
+                        // Second pass: Calculate percentages and store in sosMap
+                        Object.keys(aggregateData).forEach(bLower => {
+                            const data = aggregateData[bLower];
+                            const overall = marketOverallCount > 0 ? (data.overall / marketOverallCount) * 100 : 0;
+                            const ad = marketAdCount > 0 ? (data.ad / marketAdCount) * 100 : 0;
+                            const organic = marketOrganicCount > 0 ? (data.organic / marketOrganicCount) * 100 : 0;
+
+                            sosMap[bLower] = {
+                                overall: overall.toFixed(1) + '%',
+                                ad: ad.toFixed(1) + '%',
+                                organic: organic.toFixed(1) + '%'
+                            };
+                        });
+
+                        // Fallback: If a brand is not found in sosMap by its granular name, 
+                        // but we have a generic 'Mars' entry and the requested brand is ours (flag=1 in PDP),
+                        // we could potentially use the 'Mars' SOS. But usually granular is better.
+                    }
+                } catch (e) {
+                    console.error('[SignalLab] SOS Fetch Error:', e);
+                }
+            }
 
             /* ================= STEP 7: RESPONSE MAPPING ================= */
             const skus = sortedRows.map((item, i) => {
@@ -652,72 +1035,94 @@ export const getSignalLabData = async (req, res) => {
                 const compOsa = cDeno ? (cNeno / cDeno) * 100 : 0;
                 const osaChange = osa - compOsa;
 
-                let metricChange = osaChange;
-                if (metricType === 'sales' || metricType === 'performance' || metricType === 'inventory') {
-                    const curr = Number(item.currSales || 0);
-                    const prev = Number(item.prevSales || 0);
-                    metricChange = prev > 0 ? ((curr - prev) / prev) * 100 : (curr > 0 ? 100 : 0);
-                }
+                // As per user request, the primary impact metric is always the OSA Increment
+                const metricChange = osaChange;
 
-                const qty = Number(item.totalQtySold || 0);
-                const price = Number(item.avgPrice || 0);
-                const currSalesVal = Number(item.currSales || 0);
-                const revenue = currSalesVal; // Use actual sales, not qty * price
-                const inventory = Number(item.avgInventory || 0);
+                // Apply Scaling Fix for Mars items
+                const scaledItem = scaleMarsMetrics({ ...item }, isBrandGroup ? item[groupCol] : (item.aggBrand || item.BrandCol));
+                
+                const qty = Number(scaledItem.totalQtySold || 0);
+                const price = Number(scaledItem.avgPrice || 0);
+                const currSalesVal = Number(scaledItem.currSales || 0);
+                const revenue = currSalesVal;
+                const inventory = scaledItem.avgInventory === null ? null : Number(scaledItem.avgInventory);
                 const drr = qty / daysInPeriod;
-                const doi = drr > 0 ? inventory / drr : 0;
+                const doi = (inventory !== null && drr > 0) ? inventory / drr : (inventory === null ? null : 0);
 
+                const offtakeShare = (totalMarketSales > 0) ? (revenue / totalMarketSales * 100) : 0;
 
                 let kpis = {};
                 if (metricType === 'sales') {
                     kpis = {
                         orders: qty > 1000 ? `${(qty / 1000).toFixed(1)}k` : qty.toString(),
                         asp: `₹${Math.round(price)}`,
-                        revenueShare: `${(Math.random() * 10).toFixed(1)}%`
+                        revenueShare: totalMarketSales > 0 ? `${(revenue / totalMarketSales * 100).toFixed(1)}%` : '0.0%'
                     };
                 } else if (metricType === 'availability') {
                     kpis = {
-                        soh: `${Math.round(inventory)} units`,
-                        doi: doi.toFixed(1),
+                        soh: inventory !== null ? `${Math.round(inventory)} units` : '-',
+                        doi: doi !== null ? doi.toFixed(1) : '-',
                         weightedOsa: `${osa.toFixed(1)}%`
                     };
                 } else if (metricType === 'inventory') {
                     const risk = doi > 30 ? 'High' : (doi > 15 ? 'Med' : 'Low');
                     kpis = {
                         drr: drr > 1000 ? `${(drr / 1000).toFixed(1)}k` : Math.round(drr).toString(),
+                        doi: doi !== null ? doi.toFixed(1) : '-',
                         oos: `${(100 - osa).toFixed(0)}%`,
                         expiryRisk: risk
                     };
                 } else if (metricType === 'performance') {
-                    const impressions = Number(item.totalImpressions || 0);
-                    const clicks = Number(item.totalClicks || 0);
+                    const impressions = Number(scaledItem.totalImpressions || 0);
+                    const clicks = Number(scaledItem.totalClicks || 0);
                     const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
                     const atc = Math.round(clicks * 0.15);
                     kpis = {
                         roas: item.avgRoas ? `${Number(item.avgRoas).toFixed(1)}x` : '0.0x',
                         ctr: `${ctr.toFixed(1)}%`,
                         clicks: clicks > 1000 ? `${(clicks / 1000).toFixed(1)}k` : clicks.toString(),
+                        clicks: clicks > 1000 ? `${(clicks / 1000).toFixed(1)}k` : clicks.toString(),
                         atc: atc > 1000 ? `${(atc / 1000).toFixed(1)}k` : atc.toString()
                     };
                 } else if (metricType === 'visibility') {
+                    const brandKey = (isBrandGroup ? item[groupCol] : item.aggBrand || item.BrandCol || '').toString().trim().toLowerCase();
+
+                    // Improved matching for SOS: exact first, then partial
+                    let sosData = sosMap[brandKey];
+                    if (!sosData) {
+                        // Try finding a key that contains the brandKey (e.g. "mars - galaxy" contains "galaxy")
+                        const partialKey = Object.keys(sosMap).find(k => k.includes(brandKey) || brandKey.includes(k));
+                        sosData = sosMap[partialKey] || { overall: '0.0%', ad: '0.0%', organic: '0.0%' };
+                    }
+
                     kpis = {
-                        adPosition: Math.floor(Math.random() * 10) + 1,
-                        adSos: (Math.random() * 30).toFixed(1) + '%',
-                        organicPosition: Math.floor(Math.random() * 30) + 1,
-                        overallSos: (Math.random() * 20).toFixed(1) + '%',
-                        volumeShare: (Math.random() * 15).toFixed(1) + '%',
-                        organicSos: (Math.random() * 10).toFixed(1) + '%'
+                        adSos: sosData.ad,
+                        organicSos: sosData.organic,
+                        overallSos: sosData.overall,
+                        weightedOsa: `${osa.toFixed(1)}%`
                     };
                 }
 
-                const podCities = cityRows.filter(c => c.Web_Pid === item.Web_Pid);
-                const sortedByImpact = podCities.sort((a, b) =>
-                    signalType === 'drainer' ? Number(a.osa) - Number(b.osa) : Number(b.osa) - Number(a.osa)
-                );
+                const podCities = cityRows.filter(c => c[groupCol] === item[groupCol]);
+                const sortedByImpact = podCities
+                    .filter(c => {
+                        const diff = Number(c.osa || 0) - Number(c.prev_osa || 0);
+                        return signalType === 'drainer' ? diff < 0 : diff > 0;
+                    })
+                    .sort((a, b) => {
+                        const diffA = Number(a.osa || 0) - Number(a.prev_osa || 0);
+                        const diffB = Number(b.osa || 0) - Number(b.prev_osa || 0);
+                        return signalType === 'drainer' ? diffA - diffB : diffB - diffA;
+                    });
 
-                const topCities = sortedByImpact.slice(0, 2).map((c, idx) => {
-                    const dummyChange = (Math.random() * 2).toFixed(1);
-                    const impactSign = signalType === 'drainer' ? '-' : '+';
+                const topCities = sortedByImpact.slice(0, 10).map((c, idx) => {
+                    const cityOsaNow = Number(c.osa || 0);
+                    const cityOsaWas = Number(c.prev_osa || 0);
+                    const cityOsaChange = cityOsaNow - cityOsaWas;
+                    const impactSign = cityOsaChange >= 0 ? '+' : '';
+
+                    const citySales = Number(c.citySales || 0);
+                    const salesWeightage = currSalesVal > 0 ? (citySales / currSalesVal) * 100 : 0;
 
                     if (metricType === 'inventory') {
                         const cityQty = Number(c.qtySold || 0);
@@ -727,7 +1132,8 @@ export const getSignalLabData = async (req, res) => {
                         return {
                             city: c.Location,
                             metric: idx === 0 ? `DOI ${cityDoi.toFixed(1)}` : `DRR ${Math.round(cityDrr)}`,
-                            change: idx === 0 ? `${impactSign}${dummyChange}` : `${impactSign}${Math.round(Math.random() * 5)}`
+                            change: `${impactSign}${cityOsaChange.toFixed(1)}%`,
+                            weightage: salesWeightage.toFixed(1) + '%'
                         };
                     }
 
@@ -736,28 +1142,35 @@ export const getSignalLabData = async (req, res) => {
                         return {
                             city: c.Location,
                             metric: idx === 0 ? `ROAS ${Number(c.roas || 0).toFixed(1)}x` : `Clicks ${cityClicks > 1000 ? (cityClicks / 1000).toFixed(1) + 'k' : cityClicks}`,
-                            change: idx === 0 ? `${impactSign}${dummyChange}x` : `${impactSign}${Math.round(Math.random() * 500)}`
+                            change: `${impactSign}${cityOsaChange.toFixed(1)}%`,
+                            weightage: salesWeightage.toFixed(1) + '%'
                         };
                     }
 
                     return {
                         city: c.Location,
-                        metric: `OSA ${Number(c.osa).toFixed(1)}%`,
-                        change: `${impactSign}${dummyChange}%`
+                        metric: `OSA ${cityOsaNow.toFixed(1)}%`,
+                        change: `${impactSign}${cityOsaChange.toFixed(1)}%`,
+                        weightage: salesWeightage.toFixed(1) + '%'
                     };
                 });
 
+                // When grouping by brand, skuName = brand name, skuCode = '-', packSize = '-'
+                const displayName = isBrandGroup ? item[groupCol] : item.Product;
+                const displayCode = isBrandGroup ? '-' : (item.Web_Pid || item.web_pid || '-');
+
                 return {
                     id: `${metricType.substring(0, 3).toUpperCase()}-${(pageNum - 1) * limitNum + i + 1}`,
-                    webPid: item.Web_Pid,
-                    skuCode: '-',
-                    skuName: item.Product,
-                    packSize: item.Weight,
-                    platform: item.Platform,
-                    categoryTag: item.Category,
+                    skuCode: displayCode,
+                    skuName: displayName,
+                    packSize: '-',
+                    platform: item.aggPlatform,
+                    categoryTag: item.aggCategory,
+                    groupBy: groupBy,
                     type: signalType,
                     metricType,
                     offtakeValue: metricType === 'inventory' ? doi.toFixed(1) : `₹${(revenue / 100000).toFixed(1)} lac`,
+                    offtakeShare: totalMarketSales > 0 ? ((revenue / totalMarketSales) * 100).toFixed(2) + '%' : '0.00%',
                     impact: `${metricChange >= 0 ? '+' : ''}${metricChange.toFixed(1)}%`,
                     kpis,
                     topCities
@@ -773,8 +1186,14 @@ export const getSignalLabData = async (req, res) => {
         });
     } catch (err) {
         console.error('🔥 SIGNAL LAB SQL ERROR:', err);
-        res.status(500).json({ error: 'Internal Server Error', message: err.message });
+        // Include the actual error message in the response for easier debugging on the frontend
+        res.status(500).json({ 
+            error: 'Internal Server Error', 
+            message: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined 
+        });
     }
+
 };
 
 
@@ -783,106 +1202,277 @@ export const getSignalLabData = async (req, res) => {
  */
 export const getCityDetailsForProduct = async (req, res) => {
     try {
-        const cacheKey = generateCacheKey('signal_lab_city_details', req.query);
+        const cacheKey = generateCacheKey('signal_lab_city_details_v5', req.query);
 
         const data = await getCachedOrCompute(cacheKey, async () => {
-            const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability' } = req.query;
+            const { webPid, startDate, endDate, compareStartDate, compareEndDate, type: metricType = 'availability', signalType = 'gainer', groupBy = 'sku' } = req.query;
 
             if (!webPid) throw new Error('webPid is required');
 
-            const start = startDate || '2025-12-01';
-            const end = endDate || '2025-12-31';
-            const compStart = compareStartDate || '2025-11-01';
-            const compEnd = compareEndDate || '2025-11-30';
+            const isBrandGroup = groupBy === 'brand';
+            const filterCol = isBrandGroup ? 'Brand' : 'Web_Pid';
 
-            // Helper to escape strings
-            const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+            const end = endDate || dayjs().format('YYYY-MM-DD');
+            const start = startDate || dayjs(end).subtract(30, 'day').format('YYYY-MM-DD');
+            const compEnd = compareEndDate || dayjs(start).subtract(1, 'day').format('YYYY-MM-DD');
+            const compStart = compareStartDate || dayjs(compEnd).subtract(dayjs(end).diff(dayjs(start), 'day'), 'day').format('YYYY-MM-DD');
 
-            // First get the category of this product for category share calculation
-            const categoryQuery = `
-                SELECT any(Category) as category FROM rb_pdp_olap WHERE Web_Pid = '${escapeStr(webPid)}'
-            `;
-            const catResult = await queryClickHouse(categoryQuery);
-            const productCategory = catResult[0]?.category || '';
+            const processFilter = (val) => {
+                if (!val || val === 'All') return null;
+                if (typeof val === 'string' && val.includes(',')) return val.split(',').map(v => v.trim());
+                return val;
+            };
 
-            // Main query with all metrics
+            const platformFilter = processFilter(req.query.platform);
+            const brandFilter = processFilter(req.query.brand);
+            const locationFilter = processFilter(req.query.location);
+            const categoryFilter = processFilter(req.query.category);
+
+            // Dynamically determine if rb_location_darkstore table exists
+            let hasTierFilter = false;
+            try {
+                const tierCheck = await queryClickHouse(`SELECT count() as cnt FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2') LIMIT 1`);
+                hasTierFilter = (Number(tierCheck?.[0]?.cnt) > 0);
+            } catch (e) {
+                console.log('[SignalLab-City] rb_location_darkstore not available, skipping tier filter');
+            }
+
+            // Dynamically resolve category column
+            const pdpCols = await getTableColumns('rb_pdp_olap');
+            const hasCategoryCol = pdpCols.has('category');
+            const dynamicCatCol = hasCategoryCol ? 'Category' : 'Product_type';
+
+            const buildConditions = (includeCompDates = false) => {
+                const conds = [`${filterCol} = '${escapeStr(webPid)}'`];
+
+                // Tier 1/2 filter (only if table exists and has data)
+                if (hasTierFilter) {
+                    conds.push(`Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2'))`);
+                }
+                if (includeCompDates) {
+                    conds.push(`(toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')`);
+                } else {
+                    conds.push(`toDate(DATE) BETWEEN '${start}' AND '${end}'`);
+                }
+
+                if (platformFilter) {
+                    if (Array.isArray(platformFilter)) conds.push(`LOWER(Platform) IN (${platformFilter.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`Platform ILIKE '${escapeStr(platformFilter)}'`);
+                }
+                if (locationFilter) {
+                    if (Array.isArray(locationFilter)) conds.push(`Location IN (${locationFilter.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+                    else conds.push(`Location = '${escapeStr(locationFilter)}'`);
+                }
+                if (brandFilter) {
+                    if (Array.isArray(brandFilter)) conds.push(`LOWER(Brand) IN (${brandFilter.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`Brand ILIKE '%${escapeStr(brandFilter)}%'`);
+                }
+                if (categoryFilter) {
+                    const catCol = dynamicCatCol;
+                    if (Array.isArray(categoryFilter)) conds.push(`LOWER(${catCol}) IN (${categoryFilter.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+                    else conds.push(`${catCol} ILIKE '${escapeStr(categoryFilter)}'`);
+                }
+
+                // Exclude 'Nation', 'National', 'All India', 'Pan India' rollup locations
+                conds.push(`Location NOT IN ('Nation', 'National', 'All India', 'Pan India', 'all india', 'pan india', 'nation', 'national')`);
+
+                return conds.join(' AND ');
+            };
+
+            // Main query with all metrics - Aggregating by city and date first to get correct city-level SOH
             const query = `
+                WITH daily_city_stats AS (
+                    SELECT 
+                        Location,
+                        DATE,
+                        any(Brand) as brand_name,
+                        any(Comp_flag) as comp_flag,
+                        sum(toFloat64OrNull(toString(Inventory))) as daily_inventory,
+                        GREATEST(0, sum(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0.0))) as daily_qty_sold,
+                        sum(ifNull(toFloat64OrZero(toString(neno_osa)), 0.0)) as daily_neno,
+                        sum(ifNull(toFloat64OrZero(toString(deno_osa)), 0.0)) as daily_deno,
+                        sum(abs(ifNull(toFloat64OrZero(toString(Sales)), 0.0))) as daily_sales,
+                        sum(ifNull(toFloat64OrZero(toString(MRP)), 0.0)) as daily_mrp,
+                        sum(ifNull(toFloat64OrZero(toString(Selling_Price)), 0.0)) as daily_sp,
+                        sum(ifNull(toFloat64OrZero(toString(Ad_sales)), 0.0)) as daily_ad_sales,
+                        sum(ifNull(toFloat64OrZero(toString(Ad_Spend)), 0.0)) as daily_ad_spend,
+                        sum(ifNull(toFloat64OrZero(toString(Ad_Clicks)), 0.0)) as daily_clicks,
+                        sum(ifNull(toFloat64OrZero(toString(Ad_Impressions)), 0.0)) as daily_impressions,
+                        AVG(ifNull(toFloat64OrZero(toString(listing_percent)), 0.0)) as avg_listing_pct,
+                        count() as total_rows
+                    FROM rb_pdp_olap
+                    WHERE ${buildConditions(true)}
+                    GROUP BY Location, DATE
+                )
                 SELECT
                     Location as city,
+                    any(brand_name) as brand_name,
+                    any(comp_flag) as comp_flag,
                     -- OSA metrics
-                    (sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS osa,
-                    (sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(neno_osa), 0.0)) / nullIf(sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64(deno_osa), 0.0)), 0)) * 100 AS compOsa,
-                    -- Sales/Offtake metrics
-                    sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64OrZero(Sales), 0.0)) AS offtake,
-                    sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', toFloat64OrZero(Sales), 0.0)) AS compOfftake,
-                    -- Discount calculation: (MRP - Selling_Price) / MRP * 100
-                    avg(if(toDate(DATE) BETWEEN '${start}' AND '${end}' AND toFloat64OrZero(MRP) > 0, 
-                        (toFloat64OrZero(MRP) - toFloat64OrZero(Selling_Price)) / toFloat64OrZero(MRP) * 100, 0.0)) AS discount,
-                    -- For category share - we need total sales for this location
-                    count() as rowCount
-                FROM rb_pdp_olap
-                WHERE Web_Pid = '${escapeStr(webPid)}'
-                  AND (toDate(DATE) BETWEEN '${start}' AND '${end}' OR toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}')
+                    (sumIf(daily_neno, toDate(DATE) BETWEEN '${start}' AND '${end}') / nullIf(sumIf(daily_deno, toDate(DATE) BETWEEN '${start}' AND '${end}'), 0)) * 100 AS osa,
+                    (sumIf(daily_neno, toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}') / nullIf(sumIf(daily_deno, toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}'), 0)) * 100 AS compOsa,
+                    -- Sales metrics
+                    sumIf(daily_sales, toDate(DATE) BETWEEN '${start}' AND '${end}') AS offtake,
+                    sumIf(daily_sales, toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}') AS compOfftake,
+                    -- Inventory metrics (Latest daily city-total inventory, picking latest non-null available)
+                    argMax(daily_inventory, if(daily_inventory > 0, toUnixTimestamp(DATE), 0)) AS soh,
+                    sumIf(daily_qty_sold, toDate(DATE) BETWEEN '${start}' AND '${end}') AS qty_sold,
+                    sumIf(daily_ad_sales, toDate(DATE) BETWEEN '${start}' AND '${end}') AS ad_sales,
+                    sumIf(daily_ad_spend, toDate(DATE) BETWEEN '${start}' AND '${end}') AS ad_spend,
+                    sumIf(daily_clicks, toDate(DATE) BETWEEN '${start}' AND '${end}') AS clicks,
+                    sumIf(daily_impressions, toDate(DATE) BETWEEN '${start}' AND '${end}') AS impressions,
+                    -- Listing % (Using correct formula from rb_pdp_olap)
+                    avgIf(avg_listing_pct, toDate(DATE) BETWEEN '${start}' AND '${end}') AS listing_pct,
+                    -- Discount (Average weighted by total count if needed, but simple avg on daily sums is usually fine)
+                    avgIf((daily_mrp - daily_sp) / nullIf(daily_mrp, 0) * 100, toDate(DATE) BETWEEN '${start}' AND '${end}' AND daily_mrp > 0) AS discount
+                FROM daily_city_stats
                 GROUP BY Location
-                ORDER BY offtake DESC
+                ORDER BY abs(osa - compOsa) DESC
             `;
 
             const rows = await queryClickHouse(query);
 
-            // Get category total sales per location for category share calculation
-            let catShareData = {};
-            if (productCategory) {
-                const catShareQuery = `
-                    SELECT
-                        Location,
-                        sum(toFloat64OrZero(Sales)) AS catTotal
-                    FROM rb_pdp_olap
-                    WHERE Category = '${escapeStr(productCategory)}'
-                      AND toDate(DATE) BETWEEN '${start}' AND '${end}'
-                      AND toString(Comp_flag) = '0'
-                    GROUP BY Location
-                `;
-                const catShareRows = await queryClickHouse(catShareQuery);
-                catShareRows.forEach(r => {
-                    catShareData[r.Location] = Number(r.catTotal || 0);
-                });
-            }
+            const startD = dayjs(start);
+            const endD = dayjs(end);
+            const daysInPeriod = Math.max(1, endD.diff(startD, 'day') + 1);
 
             const cities = rows.map(row => {
-                const osa = Number(row.osa || 0);
-                const compOsa = Number(row.compOsa || 0);
+                // Apply Scaling Fix for Mars items
+                const scaledRow = scaleMarsMetrics({ ...row }, isBrandGroup ? webPid : row.brand_name);
+                
+                const osa = Number(scaledRow.osa || 0);
+                const compOsa = Number(scaledRow.compOsa || 0);
                 const osaChange = osa - compOsa;
 
-                const offtake = Number(row.offtake || 0);
-                const compOfftake = Number(row.compOfftake || 0);
+                const offtake = Number(scaledRow.offtake || 0);
+                const compOfftake = Number(scaledRow.compOfftake || 0);
                 const offtakeChange = compOfftake > 0 ? ((offtake - compOfftake) / compOfftake) * 100 : 0;
 
-                // Category share: product sales / category total sales * 100
-                const catTotal = catShareData[row.city] || 0;
-                const catShare = catTotal > 0 ? (offtake / catTotal) * 100 : 0;
+                const discount = Number(scaledRow.discount || 0);
+                const listingPct = Number(scaledRow.listing_pct || 0);
 
-                const discount = Number(row.discount || 0);
+                const soh = (scaledRow.soh === null || scaledRow.soh === undefined) ? null : Number(scaledRow.soh);
+                const qtySold = Number(scaledRow.qty_sold || 0);
+                const drr = qtySold / daysInPeriod;
+                const doi = (soh !== null && drr > 0) ? soh / drr : (soh === null ? null : 0);
+
+                const adSales = Number(scaledRow.ad_sales || 0);
+                const adSpend = Number(scaledRow.ad_spend || 0);
+                const clicks = Number(scaledRow.clicks || 0);
+                const impressions = Number(scaledRow.impressions || 0);
 
                 return {
                     city: row.city,
-                    estOfftake: offtake / 100000, // Convert to lacs
+                    brand_name: row.brand_name,
+                    comp_flag: row.comp_flag,
+                    listingPct: listingPct,
+                    estOfftake: offtake,
                     estOfftakeChange: offtakeChange,
-                    estCatShare: catShare,
-                    estCatShareChange: 0, // Would need comparison period calc
+                    orders: Math.round(qtySold),
+                    asp: qtySold > 0 ? (offtake / qtySold) : 0,
+                    roas: adSpend > 0 ? (adSales / adSpend) : 0,
+                    ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+                    clicks: clicks,
                     wtOsa: osa,
                     wtOsaChange: osaChange,
-                    overallSos: 0, // SOS requires rb_kw table, not in rb_pdp_olap
-                    adSos: 0, // SOS requires rb_kw table
-                    wtDisc: discount
+                    overallSos: 0,
+                    adSos: 0,
+                    organicSos: 0,
+                    wtDisc: discount,
+                    soh: soh,
+                    doi: doi,
+                    drr: drr
                 };
             });
 
-            return { cities, totalCities: cities.length };
+            // FIXED: Use same threshold as card view (0.5 for brands, 2 for SKUs)
+            const dynamicThreshold = isBrandGroup ? 0.5 : 2;
+
+            let finalCities = cities
+                .filter(c => signalType === 'drainer' ? c.wtOsaChange < -dynamicThreshold : c.wtOsaChange > dynamicThreshold)
+                .sort((a, b) => signalType === 'drainer' ? a.wtOsaChange - b.wtOsaChange : b.wtOsaChange - a.wtOsaChange);
+
+            // Fetch SOS metrics from rb_kw_olap for these cities
+            if (finalCities.length > 0) {
+                const uniqueCities = [...new Set(finalCities.map(c => c.city))];
+                const citiesStr = uniqueCities.map(c => `'${escapeStr(c)}'`).join(', ');
+
+                // Check ownership - if most are ours, we use flag=1
+                const isOurs = finalCities[0]?.comp_flag == 0;
+                const mainBrand = isBrandGroup ? webPid : finalCities[0]?.brand_name;
+
+                if (mainBrand) {
+                    let marketConds = [
+                        `DATE BETWEEN '${start}' AND '${end}'`,
+                        `location_name IN (${citiesStr})`
+                    ];
+
+                    if (platformFilter) {
+                        const pList = Array.isArray(platformFilter) ? platformFilter : [platformFilter];
+                        marketConds.push(`LOWER(platform_name) IN (${pList.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+                    }
+
+                    // Query to get brand counts and city market totals
+                    const sosQuery = `
+                        SELECT
+                            location_name as city,
+                            brand_name_th as brand,
+                            flag,
+                            sum(toInt32(overall)) as brand_overall,
+                            sum(toInt32(spons)) as brand_ad,
+                            sum(toInt32(organic)) as brand_organic,
+                            sum(sum(toInt32(overall))) OVER (PARTITION BY location_name) as city_market_overall,
+                            sum(sum(toInt32(spons))) OVER (PARTITION BY location_name) as city_market_ad,
+                            sum(sum(toInt32(organic))) OVER (PARTITION BY location_name) as city_market_organic
+                        FROM rb_kw_olap
+                        WHERE ${marketConds.join(' AND ')}
+                        GROUP BY location_name, brand_name_th, flag
+                    `;
+
+                    try {
+                        const sosResults = await queryClickHouse(sosQuery);
+                        const targetBrandLower = mainBrand.toLowerCase();
+                        const sosLookup = {};
+
+                        sosResults.forEach(r => {
+                            const cKey = r.city.toLowerCase();
+                            if (!sosLookup[cKey]) sosLookup[cKey] = { brand_overall: 0, brand_ad: 0, brand_organic: 0, market_overall: r.city_market_overall, market_ad: r.city_market_ad, market_organic: r.city_market_organic };
+
+                            const match = isOurs ? (r.flag == 1) : (r.brand.toLowerCase() === targetBrandLower);
+                            if (match) {
+                                sosLookup[cKey].brand_overall += Number(r.brand_overall || 0);
+                                sosLookup[cKey].brand_ad += Number(r.brand_ad || 0);
+                                sosLookup[cKey].brand_organic += Number(r.brand_organic || 0);
+                            }
+                        });
+
+                        finalCities = finalCities.map(c => {
+                            const data = sosLookup[c.city.toLowerCase()];
+                            if (data) {
+                                const overallSos = data.market_overall > 0 ? (data.brand_overall / data.market_overall) * 100 : 0;
+                                const adSos = data.market_ad > 0 ? (data.brand_ad / data.market_ad) * 100 : 0;
+                                const organicSos = data.market_organic > 0 ? (data.brand_organic / data.market_organic) * 100 : 0;
+
+                                return {
+                                    ...c,
+                                    overallSos: parseFloat(overallSos.toFixed(1)),
+                                    adSos: parseFloat(adSos.toFixed(1)),
+                                    organicSos: parseFloat(organicSos.toFixed(1))
+                                };
+                            }
+                            return c;
+                        });
+                    } catch (e) {
+                        console.error('[CityDetails] SOS fetching error:', e);
+                    }
+                }
+            }
+
+            return { cities: finalCities, totalCities: finalCities.length };
         }, CACHE_TTL.METRICS);
 
         res.json(data);
     } catch (err) {
-        console.error('🔥 CITY DETAILS ERROR:', err);
         res.status(500).json({ error: 'Internal Server Error', message: err.message });
     }
 };
@@ -899,8 +1489,9 @@ export const getBrandSkuCityDayLevel = async (req, res) => {
             cities: parseFilter(req.query.cities),
             categories: parseFilter(req.query.categories),
             zones: parseFilter(req.query.zones),
-            metroFlags: parseFilter(req.query.metroFlags),
-            pincodes: parseFilter(req.query.pincodes),
+            metroFlag: parseFilter(req.query.metroFlag),
+            months: parseFilter(req.query.months),
+            ownBrandsOnly: req.query.ownBrandsOnly
         };
         console.log('[Controller] getBrandSkuCityDayLevel filters:', filters);
 

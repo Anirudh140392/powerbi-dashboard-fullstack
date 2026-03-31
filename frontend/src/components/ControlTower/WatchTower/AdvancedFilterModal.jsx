@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useContext, useMemo } from 'react'
+import { FilterContext } from '../../../utils/FilterContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
     X,
@@ -65,20 +66,16 @@ const mockPlatforms = [
 const kpiOptions = [
     { key: 'offtakes', label: 'Offtakes' },
     { key: 'spend', label: 'Spend' },
-    { key: 'roas', label: 'Category size' },
+    { key: 'categorySize', label: 'Category size' },
     { key: 'inorgSales', label: 'Inorg Sales' },
-    { key: 'dspSales', label: 'DSP Sales' },
     { key: 'conversion', label: 'Conversion' },
     { key: 'availability', label: 'Availability' },
-    { key: 'shareOfVolume', label: 'Share of Volume' },
+    { key: 'shareOfVolume', label: 'Share of Search' },
     { key: 'ad_sov', label: 'Ad SOV' },
     { key: 'organic_sov', label: 'Organic SOV' },
     { key: 'marketShare', label: 'Market share' },
-    { key: 'promoMy', label: 'Promo (My)' },
-    { key: 'promoComp', label: 'Promo (Comp)' },
     { key: 'cpm', label: 'CPM' },
     { key: 'cpc', label: 'CPC' },
-    { key: 'asp', label: 'ASP' },
 ]
 
 // ========================================
@@ -226,11 +223,28 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
     )
 }
 
-// ========================================
 // MAIN ADVANCED FILTER MODAL
 // ========================================
 export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
-    const kpisToUse = propKpiOptions || kpiOptions;
+    const isBoatUser = useMemo(() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            return u?.dbName?.toLowerCase() === 'boat';
+        } catch {
+            return false;
+        }
+    }, []);
+
+    // Filter out "Category size" (key: 'categorySize') when on SKU dimension
+    const baseKpiOptions = propKpiOptions || kpiOptions;
+    const kpisToUse = currentDimension === 'sku'
+        ? baseKpiOptions.filter(k => {
+            if (k.key === 'categorySize') return false;
+            // Also exclude Spend and Conversion for boat users on SKU dimension
+            if (isBoatUser && (k.key === 'spend' || k.key === 'conversion')) return false;
+            return true;
+        })
+        : baseKpiOptions;
 
     // Local filter state (applied on confirm)
     const [localFilters, setLocalFilters] = useState({
@@ -238,13 +252,22 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         categories: [],
         platforms: [],
         skus: [],
-        skuName: '',
-        skuCode: '',
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
+        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
+            if (currentDimension === 'sku') {
+                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+                return true;
+            }
+            if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
+            return true;
+        }),
         filterLogic: 'OR',
     })
+
+    const { maxDate } = useContext(FilterContext)
+    const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate])
 
     // Sync with parent filters when modal opens
     useEffect(() => {
@@ -274,9 +297,15 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             categories: [],
             platforms: [],
             skus: [],
-            skuName: '',
-            skuCode: '',
-            kpis: ['offtakes', 'spend', 'roas', 'availability', 'marketShare', 'conversion'],
+            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
+                if (currentDimension === 'sku') {
+                    if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                    if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
+                    return true;
+                }
+                if (currentDimension === 'brand') return k !== 'categorySize' && k !== 'marketShare';
+                return true;
+            }),
             filterLogic: 'OR',
         })
     }
@@ -297,7 +326,6 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         showCategoryFilter && localFilters.categories.length > 0,
         showPlatformFilter && localFilters.platforms.length > 0,
         showSkuFilter && localFilters.skus.length > 0,
-        showSkuFilter && localFilters.skuCode.length > 0,
     ].filter(Boolean).length
 
     // Get dimension label for context
@@ -305,8 +333,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         platform: 'Platform',
         brand: 'Brand',
         category: 'Category',
-        sku: 'SKU',
-        month: 'Month'
+        sku: 'Sku',
     }
 
     return (
@@ -397,28 +424,18 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 placeholder="All Platforms"
                                             />
                                         )}
+                                        {showSkuFilter && (
+                                            <MultiSelectDropdown
+                                                label="Sku"
+                                                icon={Package}
+                                                options={skus && skus.length ? skus : []}
+                                                selected={localFilters.skus}
+                                                onChange={(val) => updateFilter('skus', val)}
+                                                placeholder="All Skus"
+                                            />
+                                        )}
                                     </div>
                                 </div>
-
-                                {/* SKU Filter */}
-                                {showSkuFilter && (
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <Package size={14} className="text-slate-400" />
-                                            <span className="text-xs text-slate-500 uppercase tracking-[0.1em] font-bold">
-                                                SKU Filter
-                                            </span>
-                                        </div>
-                                        <MultiSelectDropdown
-                                            label="SKU"
-                                            icon={Package}
-                                            options={skus && skus.length ? skus : mockSkus}
-                                            selected={localFilters.skus}
-                                            onChange={(val) => updateFilter('skus', val)}
-                                            placeholder="All SKUs"
-                                        />
-                                    </div>
-                                )}
 
                                 {/* Date Range Filter */}
                                 <div>
@@ -435,6 +452,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 type="date"
                                                 value={localFilters.dateFrom}
                                                 onChange={(e) => updateFilter('dateFrom', e.target.value)}
+                                                max={maxDateStr}
                                                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
                                             />
                                         </div>
@@ -444,6 +462,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
                                                 type="date"
                                                 value={localFilters.dateTo}
                                                 onChange={(e) => updateFilter('dateTo', e.target.value)}
+                                                max={maxDateStr}
                                                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-100 focus:outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 transition-all bg-slate-50/30"
                                             />
                                         </div>

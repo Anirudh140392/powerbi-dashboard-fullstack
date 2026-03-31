@@ -4,7 +4,32 @@ import RbKw from '../models/RbKw.js';
 import RbBrandMs from '../models/RbBrandMs.js';
 import RcaSkuDim from '../models/RcaSkuDim.js';
 import sequelize from '../config/db.js';
+import { queryClickHouse } from '../config/clickhouse.js';
+import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
+import { getMarketShareByBrand, normalizeFilterArray } from './marketShareHelper.js';
+
+/**
+ * Scales metrics for Mars-related entries if needed (100x scaling fix).
+ * Data analysis shows financial/qty metrics for Mars brands are 100x inflated in source.
+ */
+const scaleMarsMetrics = (row, key) => {
+    if (!row || !key) return row;
+    const lowerKey = key.toLowerCase();
+    const marsKeywords = ['snickers', 'galaxy', 'bounty', 'twix', 'mars', "m&m's", 'orbit', 'doublemint', 'boomer', 'skittles', 'chocolates (gifting)', 'chocolates (non gifting)', 'gmfc'];
+
+    const isMars = marsKeywords.some(kw => lowerKey.includes(kw));
+    if (!isMars) return row;
+
+    const fields = ['total_value', 'Sales', 'Ad_sales', 'Ad_Spend', 'Qty_Sold', 'Ad_Clicks', 'Ad_Impressions', 'MRP', 'Selling_Price'];
+    const scaled = { ...row };
+    fields.forEach(f => {
+        if (scaled[f] !== undefined && scaled[f] !== null) {
+            scaled[f] = parseFloat(scaled[f]) * 0.01;
+        }
+    });
+    return scaled;
+};
 
 /**
  * Map metric keys to database column names
@@ -92,21 +117,18 @@ function formatCurrency(value) {
     if (isNaN(num)) return '-';
 
     // Convert to Crores
-    const crores = num / 10000000;
-    if (crores >= 1) {
-        return `₹${crores.toFixed(2)} Cr`;
+    if (num >= 10000000) {
+        return `₹${(num / 10000000).toFixed(2)} Cr`;
     }
 
     // Convert to Lakhs
-    const lakhs = num / 100000;
-    if (lakhs >= 1) {
-        return `₹${lakhs.toFixed(2)} L`;
+    if (num >= 100000) {
+        return `₹${(num / 100000).toFixed(2)} lac`;
     }
 
     // Convert to Thousands
-    const thousands = num / 1000;
-    if (thousands >= 1) {
-        return `₹${thousands.toFixed(2)} K`;
+    if (num >= 1000) {
+        return `₹${(num / 1000).toFixed(2)} K`;
     }
 
     return `₹${num.toFixed(2)}`;
@@ -123,7 +145,7 @@ function formatMetricValue(value, metricKey) {
 
     const normalizedKey = metricKey.toLowerCase();
 
-    // Currency metrics - display with ₹ symbol and units (K, L, Cr)
+    // Currency metrics - display with ₹ symbol and units (K, lac, Cr)
     if (['offtake', 'offtakes', 'inorganic_sales', 'ad_spend', 'spend', 'mrp', 'selling_price'].includes(normalizedKey)) {
         return formatCurrency(num);
     }
@@ -153,7 +175,7 @@ function formatMetricValue(value, metricKey) {
         return `${(num / 10000000).toFixed(2)} Cr`;
     }
     if (num >= 100000) {
-        return `${(num / 100000).toFixed(2)} L`;
+        return `${(num / 100000).toFixed(2)} lac`;
     }
     if (num >= 1000) {
         return `${(num / 1000).toFixed(2)} K`;
@@ -211,26 +233,26 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
 
         // Platform filter
         if (filters.platform && filters.platform !== 'All') {
-            whereConditions.push('olap.Platform = :platform');
+            whereConditions.push('olap.Platform = {platform: String}');
             replacements.platform = filters.platform;
         }
 
         // Date range filter
         if (filters.dateFrom && filters.dateTo) {
-            whereConditions.push('olap.DATE BETWEEN :dateFrom AND :dateTo');
+            whereConditions.push('toDate(olap.DATE) BETWEEN {dateFrom: String} AND {dateTo: String}');
             replacements.dateFrom = filters.dateFrom;
             replacements.dateTo = filters.dateTo;
         }
 
         // Brand filter
         if (filters.brand && filters.brand !== 'All') {
-            whereConditions.push('olap.Brand = :brand');
+            whereConditions.push('olap.Brand = {brand: String}');
             replacements.brand = filters.brand;
         }
 
         // Location filter
         if (filters.location && filters.location !== 'All') {
-            whereConditions.push('olap.Location = :location');
+            whereConditions.push('olap.Location = {location: String}');
             replacements.location = filters.location;
         }
 
@@ -249,7 +271,7 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
             aggregationExpr = '(SUM(olap.Ad_Clicks) / NULLIF(SUM(olap.Ad_Impressions), 0)) * 100';
         } else if (dbColumn === 'SOS_CALC') {
             // SOS (Share of Search): (keyword_is_rb_product=1 count) / (total count) * 100
-            // This requires a special query to rb_kw table
+            // This requires a special query to rb_kw_olap table
             return await fetchSosByProduct(filters, metricKey);
         } else if (dbColumn === 'MARKET_SHARE_CALC') {
             // Market Share: (Sales of our brands) / (Total sales) * 100
@@ -279,26 +301,23 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
         }
 
         // Use raw SQL query to fetch SKU data directly from rb_pdp_olap
-        // Use Product column as SKU name, and Category for grouping
+        // Use Product column as SKU name, and Product_type for grouping
         const query = `
             SELECT 
                 olap.Product AS sku_name,
-                olap.Category AS category,
+                olap.Product_type AS category,
                 olap.Platform AS platform,
                 ${aggregationExpr} AS total_value
             FROM rb_pdp_olap AS olap
             ${whereClause}
-            GROUP BY olap.Product, olap.Category, olap.Platform
+            GROUP BY olap.Product, olap.Product_type, olap.Platform
             ORDER BY total_value DESC
             LIMIT 100
         `;
 
-        console.log('Executing SQL query:', query);
+        console.log('Executing ClickHouse query:', query);
 
-        const results = await sequelize.query(query, {
-            replacements,
-            type: sequelize.QueryTypes.SELECT
-        });
+        const results = await queryClickHouse(query, replacements);
 
         console.log(`Found ${results.length} results from database`);
         console.log('First few results:', JSON.stringify(results.slice(0, 3), null, 2));
@@ -307,10 +326,12 @@ async function fetchSkuData(dbColumn, metricKey, filters) {
         const skuMap = {};
 
         results.forEach(row => {
-            const skuName = row.sku_name;
-            const category = row.category || 'Uncategorized';
             const platform = row.platform;
-            const value = parseFloat(row.total_value) || 0;
+            const skuName = row.sku_name;
+            const category = row.category;
+            // Apply Scaling Fix for Mars items
+            const scaled = scaleMarsMetrics({ total_value: parseFloat(row.total_value) || 0 }, skuName);
+            const value = scaled.total_value;
 
             if (!skuMap[skuName]) {
                 skuMap[skuName] = {
@@ -468,109 +489,109 @@ async function fetchSosByProduct(filters, metricKey) {
     }
 }
 
+// fetchMarketShareByProduct refactored to use shared helpers
+
 /**
  * Fetch Market Share by Product/SKU
- * Formula: (Sales of product with Comp_flag=0) / (Total platform sales) * 100
- * Uses rb_pdp_olap.Product column for SKU-level data
+ * Formula: Uses categorical MS from rb_brand_ms mapped to SKUs
  */
 async function fetchMarketShareByProduct(filters, metricKey) {
     try {
-        console.log('=== fetchMarketShareByProduct called ===');
+        console.log('=== fetchMarketShareByProduct (web_pid_ms) called ===');
 
-        // Build WHERE conditions for rb_pdp_olap
-        const baseWhere = { Comp_flag: 0 }; // Our products only
-        if (filters.dateFrom && filters.dateTo) {
-            baseWhere.DATE = { [Op.between]: [filters.dateFrom, filters.dateTo] };
-        }
-        if (filters.platform && filters.platform !== 'All') {
-            baseWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), filters.platform.toLowerCase());
-        }
-        if (filters.location && filters.location !== 'All') {
-            baseWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), filters.location.toLowerCase());
-        }
-        if (filters.brand && filters.brand !== 'All') {
-            baseWhere.Brand = { [Op.like]: `%${filters.brand}%` };
-        }
+        const dateFrom = filters.dateFrom;
+        const dateTo = filters.dateTo;
+        const platform = filters.platform;
+        const category = filters.category;
+        const brandFilter = filters.brand;
 
-        // Numerator: Our products sales by Product/Platform (Comp_flag = 0)
-        const numData = await RbPdpOlap.findAll({
-            attributes: [
-                'Product',
-                'Platform',
-                'Category',
-                [Sequelize.fn('SUM', Sequelize.col('Sales')), 'product_sales']
-            ],
-            where: baseWhere,
-            group: ['Product', 'Platform', 'Category'],
-            raw: true
-        });
+        // Build WHERE conditions for rb_brand_ms
+        let conditions = [`toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'`];
 
-        // Build total where (all products, not just ours)
-        const totalWhere = {};
-        if (filters.dateFrom && filters.dateTo) {
-            totalWhere.DATE = { [Op.between]: [filters.dateFrom, filters.dateTo] };
+        // Brand filter - default to Mars brands
+        const defaultBrands = ['Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's", 'Orbit', 'Skittles', 'Boomer', 'Doublemint'];
+        let brandsToQuery = defaultBrands;
+        if (brandFilter && brandFilter !== 'All') {
+            brandsToQuery = Array.isArray(brandFilter) ? brandFilter : [brandFilter];
         }
-        if (filters.platform && filters.platform !== 'All') {
-            totalWhere.Platform = sequelize.where(sequelize.fn('LOWER', sequelize.col('Platform')), filters.platform.toLowerCase());
+        const brandsSql = brandsToQuery.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
+        conditions.push(`brand IN (${brandsSql})`);
+
+        if (platform && platform !== 'All') {
+            conditions.push(`platform LIKE '%${platform.charAt(0).toUpperCase() + platform.slice(1)}%'`);
         }
-        if (filters.location && filters.location !== 'All') {
-            totalWhere.Location = sequelize.where(sequelize.fn('LOWER', sequelize.col('Location')), filters.location.toLowerCase());
+        if (category && category !== 'All') {
+            let mappedCat = category;
+            if (category === 'Chocolates') mappedCat = 'Chocolates (Non Gifting)';
+            else if (category === 'Chocolate Gift Pack') mappedCat = 'Chocolates (Gifting)';
+
+            conditions.push(`category = '${mappedCat.replace(/'/g, "''")}'`);
         }
 
-        // Denominator: Total sales by platform (all products including competitors)
-        const denomData = await RbPdpOlap.findAll({
-            attributes: [
-                'Platform',
-                [Sequelize.fn('SUM', Sequelize.col('Sales')), 'total_sales']
-            ],
-            where: totalWhere,
-            group: ['Platform'],
-            raw: true
-        });
+        const whereClause = conditions.join(' AND ');
 
-        // Build denominator map (platform -> total sales)
-        const denomMap = new Map(denomData.map(r => [r.Platform?.toLowerCase(), parseFloat(r.total_sales || 0)]));
+        // Case 3: SKU page → use market_share (web_pid_ms), take AVG grouped by web_pid
+        const query = `
+            SELECT 
+                web_pid,
+                any(item_name) as sku_name,
+                any(brand) as brand,
+                any(category) as category,
+                any(platform) as platform_name,
+                AVG(market_share) as web_pid_ms
+            FROM rb_brand_ms
+            WHERE ${whereClause}
+              AND web_pid IS NOT NULL AND web_pid != ''
+            GROUP BY web_pid, platform
+            ORDER BY web_pid_ms DESC
+            LIMIT 500
+        `;
 
-        // Group by Product as SKU
+        const results = await queryClickHouse(query, {});
+
+        // Group by SKU name
         const skuMap = {};
-        numData.forEach(row => {
-            const sku = row.Product || 'Unknown';
-            const platform = row.Platform?.toLowerCase() || 'unknown';
-            const category = row.Category || '';
-            const productSales = parseFloat(row.product_sales || 0);
-            const totalSales = denomMap.get(platform) || 0;
-            const ms = totalSales > 0 ? (productSales / totalSales) * 100 : 0;
+        results.forEach(row => {
+            const sku = row.sku_name || row.web_pid || 'Unknown';
+            const platformKey = (row.platform_name || 'unknown').toLowerCase();
+            const ms = parseFloat(row.web_pid_ms) || 0;
 
             if (!skuMap[sku]) {
                 skuMap[sku] = {
                     name: sku,
-                    category: category,
+                    category: row.category || '',
                     all: { value: 0 },
                     blinkit: { value: 0 },
                     zepto: { value: 0 },
                     swiggy: { value: 0 },
                     amazon: { value: 0 },
-                    flipkart: { value: 0 }
+                    flipkart: { value: 0 },
+                    platformsFetched: new Set()
                 };
             }
 
-            if (skuMap[sku][platform]) {
-                skuMap[sku][platform].value = ms;
-            }
-            // Update category if not set
-            if (!skuMap[sku].category && category) {
-                skuMap[sku].category = category;
+            // Match platform key (handle Instamart -> swiggy mapping etc.)
+            let mappedPlatform = platformKey;
+            if (platformKey.includes('instamart') || platformKey.includes('swiggy')) mappedPlatform = 'swiggy';
+            else if (platformKey.includes('blinkit')) mappedPlatform = 'blinkit';
+            else if (platformKey.includes('zepto')) mappedPlatform = 'zepto';
+            else if (platformKey.includes('amazon')) mappedPlatform = 'amazon';
+            else if (platformKey.includes('flipkart')) mappedPlatform = 'flipkart';
+
+            if (skuMap[sku][mappedPlatform]) {
+                skuMap[sku][mappedPlatform].value = ms;
+                skuMap[sku].platformsFetched.add(mappedPlatform);
             }
         });
 
-        // Calculate "all" as average across platforms
+        // Calculate "all" as average of available platform MS
         Object.values(skuMap).forEach(sku => {
-            const platforms = ['blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'];
-            const values = platforms.map(p => sku[p].value).filter(v => v > 0);
+            const values = Array.from(sku.platformsFetched).map(p => sku[p].value).filter(v => v > 0);
             sku.all.value = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+            delete sku.platformsFetched;
         });
 
-        // Format results
+        // Format for frontend
         return Object.values(skuMap).map(sku => {
             const formatted = { name: sku.name, category: sku.category };
             ['all', 'blinkit', 'zepto', 'swiggy', 'amazon', 'flipkart'].forEach(platform => {
@@ -581,6 +602,7 @@ async function fetchMarketShareByProduct(filters, metricKey) {
             });
             return formatted;
         });
+
     } catch (error) {
         console.error('Error in fetchMarketShareByProduct:', error);
         return [];

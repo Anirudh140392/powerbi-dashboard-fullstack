@@ -22,7 +22,7 @@ Database: Akshayakalpa
  - rb_brands
  - rb_crawl
  - rb_keyword
- - rb_kw
+ - rb_kw_olap
  - rb_location
  - rb_location_kw
  - rb_platform
@@ -59,14 +59,14 @@ Database: Bowlers
  - rb_crawl
  - rb_crawl_review_info
  - rb_keyword
- - rb_kw
- - rb_kw_month
  - rb_kw_olap
- - rb_kw_trend
- - rb_kw_trend_comp_sos
- - rb_kw_trend_comp_sos_deno
- - rb_kw_trend_comp_sos_neno
- - rb_kw_week
+ - rb_kw_olap_month
+ - rb_kw_olap_olap
+ - rb_kw_olap_trend
+ - rb_kw_olap_trend_comp_sos
+ - rb_kw_olap_trend_comp_sos_deno
+ - rb_kw_olap_trend_comp_sos_neno
+ - rb_kw_olap_week
  - rb_location
  - rb_location_kw
  - rb_pdp
@@ -111,13 +111,13 @@ Database: Bunge
  - rb_brands
  - rb_crawl
  - rb_keyword
- - rb_kw
- - rb_kw_month
  - rb_kw_olap
- - rb_kw_trend
- - rb_kw_trend_comp_sos
- - rb_kw_trend_comp_sos_deno
- - rb_kw_trend_comp_sos_neno
+ - rb_kw_olap_month
+ - rb_kw_olap_olap
+ - rb_kw_olap_trend
+ - rb_kw_olap_trend_comp_sos
+ - rb_kw_olap_trend_comp_sos_deno
+ - rb_kw_olap_trend_comp_sos_neno
  - rb_location
  - rb_location_kw
  - rb_location_sku_mapping
@@ -315,11 +315,11 @@ Database: Godrej
  - rb_crawl_review_info
  - rb_keyword
  - rb_keyword_category
- - rb_kw
- - rb_kw_month
- - rb_kw_pbi
- - rb_kw_pbi_trend
- - rb_kw_rank
+ - rb_kw_olap
+ - rb_kw_olap_month
+ - rb_kw_olap_pbi
+ - rb_kw_olap_pbi_trend
+ - rb_kw_olap_rank
  - rb_location
  - rb_location_keyword
  - rb_location_kw
@@ -382,13 +382,13 @@ Database: Perfetti
  - rb_crawl
  - rb_crawl_review_info
  - rb_keyword
- - rb_kw
- - rb_kw_last3days
  - rb_kw_olap
- - rb_kw_trend
- - rb_kw_trend_comp_sos
- - rb_kw_trend_comp_sos_deno
- - rb_kw_trend_comp_sos_neno
+ - rb_kw_olap_last3days
+ - rb_kw_olap_olap
+ - rb_kw_olap_trend
+ - rb_kw_olap_trend_comp_sos
+ - rb_kw_olap_trend_comp_sos_deno
+ - rb_kw_olap_trend_comp_sos_neno
  - rb_location
  - rb_location_kw
  - rb_pdp
@@ -440,7 +440,7 @@ Database: Perfetti
  - temp_flipkart_minutes_crawl_kw
  - temp_flipkart_minutes_crawl_pdp
  - temp_kw
- - temp_rb_kw_py
+ - temp_rb_kw_olap_py
  - temp_temp_flipkart_grocery_crawl_kw
  - temp_temp_flipkart_minutes_crawl_kw
  - temp_temp_grofers_crawl_kw
@@ -506,9 +506,9 @@ Database: Uma
  - rb_brands
  - rb_crawl
  - rb_keyword
- - rb_kw
- - rb_kw_month
- - rb_kw_week
+ - rb_kw_olap
+ - rb_kw_olap_month
+ - rb_kw_olap_week
  - rb_location
  - rb_location_kw
  - rb_location_sku_mapping
@@ -599,28 +599,28 @@ Database: colpal
  - rb_brands
  - rb_crawl
  - rb_keyword
- - rb_kw
- - rb_kw_1_day
- - rb_kw_month
  - rb_kw_olap
- - rb_kw_organic
- - rb_kw_rank
- - rb_kw_sku_top_10
- - rb_kw_sku_top_20
- - rb_kw_trend
- - rb_kw_trend1
- - rb_kw_trend1_comp_sos
- - rb_kw_trend1_comp_sos_deno
- - rb_kw_trend1_comp_sos_neno
- - rb_kw_trend_comp_sos
- - rb_kw_trend_comp_sos_deno
- - rb_kw_trend_comp_sos_deno_our
- - rb_kw_trend_comp_sos_neno
- - rb_kw_trend_comp_sos_neno_our
- - rb_kw_trend_comp_sos_our
- - rb_kw_trend_top_10
- - rb_kw_trend_top_20
- - rb_kw_week
+ - rb_kw_olap_1_day
+ - rb_kw_olap_month
+ - rb_kw_olap_olap
+ - rb_kw_olap_organic
+ - rb_kw_olap_rank
+ - rb_kw_olap_sku_top_10
+ - rb_kw_olap_sku_top_20
+ - rb_kw_olap_trend
+ - rb_kw_olap_trend1
+ - rb_kw_olap_trend1_comp_sos
+ - rb_kw_olap_trend1_comp_sos_deno
+ - rb_kw_olap_trend1_comp_sos_neno
+ - rb_kw_olap_trend_comp_sos
+ - rb_kw_olap_trend_comp_sos_deno
+ - rb_kw_olap_trend_comp_sos_deno_our
+ - rb_kw_olap_trend_comp_sos_neno
+ - rb_kw_olap_trend_comp_sos_neno_our
+ - rb_kw_olap_trend_comp_sos_our
+ - rb_kw_olap_trend_top_10
+ - rb_kw_olap_trend_top_20
+ - rb_kw_olap_week
  - rb_location
  - rb_location_darkstore
  - rb_location_kw
@@ -771,7 +771,7 @@ Database: gcpl
  - rb_brands
  - rb_crawl
  - rb_keyword
- - rb_kw
+ - rb_kw_olap
  - rb_location_darkstore
  - rb_pdp
  - rb_pdp_matched
@@ -865,13 +865,13 @@ Database: mondelez
  - rb_crawl_review_info
  - rb_keyword
  - rb_keyword_bcakup
- - rb_kw
  - rb_kw_olap
- - rb_kw_rank
- - rb_kw_trend
- - rb_kw_trend_comp_sos
- - rb_kw_trend_comp_sos_deno
- - rb_kw_trend_comp_sos_neno
+ - rb_kw_olap_olap
+ - rb_kw_olap_rank
+ - rb_kw_olap_trend
+ - rb_kw_olap_trend_comp_sos
+ - rb_kw_olap_trend_comp_sos_deno
+ - rb_kw_olap_trend_comp_sos_neno
  - rb_location
  - rb_location_darkstore
  - rb_location_kw
@@ -1015,20 +1015,20 @@ Database: pidilite
  - rb_crawl
  - rb_crawl_review_info
  - rb_keyword
- - rb_kw
- - rb_kw_2024
- - rb_kw_bc
  - rb_kw_olap
- - rb_kw_pbi_trend
- - rb_kw_temp
- - rb_kw_temp_1
- - rb_kw_temp_2
- - rb_kw_temp_3
- - rb_kw_temp_4
- - rb_kw_temp_5
- - rb_kw_temp_6
- - rb_kw_temp_7
- - rb_kw_trend
+ - rb_kw_olap_2024
+ - rb_kw_olap_bc
+ - rb_kw_olap_olap
+ - rb_kw_olap_pbi_trend
+ - rb_kw_olap_temp
+ - rb_kw_olap_temp_1
+ - rb_kw_olap_temp_2
+ - rb_kw_olap_temp_3
+ - rb_kw_olap_temp_4
+ - rb_kw_olap_temp_5
+ - rb_kw_olap_temp_6
+ - rb_kw_olap_temp_7
+ - rb_kw_olap_trend
  - rb_location
  - rb_pdp
  - rb_pdp2
@@ -1157,16 +1157,16 @@ Database: wipro_mod1_kw
  - rb_keyword_promo
  - rb_keyword_suggestion
  - rb_keyword_test
- - rb_kw
- - rb_kw_brand_crawl_one_day
- - rb_kw_data
- - rb_kw_data_one_day
- - rb_kw_pbi
- - rb_kw_pbi_trend
- - rb_kw_platform
- - rb_kw_promo
- - rb_kw_promo_product
- - rb_kw_trend_both
+ - rb_kw_olap
+ - rb_kw_olap_brand_crawl_one_day
+ - rb_kw_olap_data
+ - rb_kw_olap_data_one_day
+ - rb_kw_olap_pbi
+ - rb_kw_olap_pbi_trend
+ - rb_kw_olap_platform
+ - rb_kw_olap_promo
+ - rb_kw_olap_promo_product
+ - rb_kw_olap_trend_both
  - rb_location
  - rb_pantry_data
  - rb_pdp
@@ -1250,9 +1250,9 @@ Database: wipro_mod2
  - rb_crawl
  - rb_crawl_review_info
  - rb_keyword
- - rb_kw
- - rb_kw_pbi
- - rb_kw_pbi_trend
+ - rb_kw_olap
+ - rb_kw_olap_pbi
+ - rb_kw_olap_pbi_trend
  - rb_location
  - rb_pdp
  - rb_pdp_copy
@@ -1380,15 +1380,15 @@ Database: wipro_module1
  - rb_keyword
  - rb_keyword_promo
  - rb_keyword_suggestion
- - rb_kw
- - rb_kw_both
- - rb_kw_data
- - rb_kw_pbi
- - rb_kw_pbi_trend
- - rb_kw_platform
- - rb_kw_promo
- - rb_kw_promo_product
- - rb_kw_trend_both
+ - rb_kw_olap
+ - rb_kw_olap_both
+ - rb_kw_olap_data
+ - rb_kw_olap_pbi
+ - rb_kw_olap_pbi_trend
+ - rb_kw_olap_platform
+ - rb_kw_olap_promo
+ - rb_kw_olap_promo_product
+ - rb_kw_olap_trend_both
  - rb_location
  - rb_pantry_data
  - rb_pdp
@@ -1458,9 +1458,9 @@ Database: wipro_n_inernational
  - rb_brands
  - rb_crawl
  - rb_keyword
- - rb_kw
- - rb_kw_latest
- - rb_kw_pbi_trend
+ - rb_kw_olap
+ - rb_kw_olap_latest
+ - rb_kw_olap_pbi_trend
  - rb_location
  - rb_pdp
  - rb_pdp_pbi_trend
@@ -1515,17 +1515,17 @@ Database: zydus
  - rb_crawl_review_info
  - rb_keyword
  - rb_keyword_backup
- - rb_kw
- - rb_kw_1_day
- - rb_kw_month
  - rb_kw_olap
- - rb_kw_pbi_trend
- - rb_kw_rank
- - rb_kw_trend
- - rb_kw_trend_comp_sos
- - rb_kw_trend_comp_sos_deno
- - rb_kw_trend_comp_sos_neno
- - rb_kw_week
+ - rb_kw_olap_1_day
+ - rb_kw_olap_month
+ - rb_kw_olap_olap
+ - rb_kw_olap_pbi_trend
+ - rb_kw_olap_rank
+ - rb_kw_olap_trend
+ - rb_kw_olap_trend_comp_sos
+ - rb_kw_olap_trend_comp_sos_deno
+ - rb_kw_olap_trend_comp_sos_neno
+ - rb_kw_olap_week
  - rb_location
  - rb_location_darkstore
  - rb_location_darkstore_backup
@@ -1653,5 +1653,5 @@ Database: zydus
  - tb_zepto_zydus_market_share_scraping
  - zepto_crawl_kw
  - zepto_pdp_1_day
- - zepto_rb_kw_1_day
+ - zepto_rb_kw_olap_1_day
  - zepto_store_detail

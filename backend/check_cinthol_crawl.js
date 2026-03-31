@@ -12,7 +12,7 @@ const clickhouse = createClient({
 async function checkCintholCrawl() {
     try {
         const result = await clickhouse.query({
-            query: "SELECT brand_crawl, keyword_is_rb_product, count() as cnt FROM colpal.rb_kw WHERE brand_crawl LIKE '%Cinthol%' GROUP BY brand_crawl, keyword_is_rb_product",
+            query: "SELECT brand_crawl, keyword_is_rb_product, count() as cnt FROM colpal.rb_kw_olap WHERE brand_crawl LIKE '%Cinthol%' GROUP BY brand_crawl, keyword_is_rb_product",
             format: 'JSONEachRow',
         });
         const data = await result.json();

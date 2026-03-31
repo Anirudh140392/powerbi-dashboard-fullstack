@@ -24,7 +24,7 @@ export const VisibilityWorkspace = async (req, res) => {
 
 /**
  * Get Visibility Overview - KPI cards data
- * Returns: Overall SOS, Sponsored SOS, Organic SOS, Display SOS
+ * Returns: Overall SOS, Sponsored SOS, Organic SOS
  */
 export const getVisibilityOverview = async (req, res) => {
     const startTime = Date.now();
@@ -34,6 +34,8 @@ export const getVisibilityOverview = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -73,6 +75,8 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
             pincode: req.query.pincode || 'All',
             zone: req.query.zone || 'All',
             metroFlag: req.query.metroFlag || 'All',
@@ -114,6 +118,10 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
             keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
+            sku: req.query.sku || 'All',
+            city: req.query.city || 'All',
             view: req.query.view || 'keywords', // keywords, skus, platforms
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -141,43 +149,7 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
     }
 };
 
-/**
- * Get Top Search Terms
- * Returns: Search terms with SOS metrics
- */
-export const getVisibilityTopSearchTerms = async (req, res) => {
-    const startTime = Date.now();
-    try {
-        const filters = {
-            platform: req.query.platform || 'All',
-            brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
-            filter: req.query.filter || 'All', // All, Branded, Competitor, Generic
-            startDate: req.query.startDate,
-            endDate: req.query.endDate
-        };
-        console.log('\n========== VISIBILITY TOP SEARCH TERMS API ==========');
-        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
-        console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_search_terms', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getTopSearchTerms(filters);
-        }, CACHE_TTL.METRICS);
-
-        const duration = Date.now() - startTime;
-        console.log('[RESPONSE]: Terms count:', data.terms?.length);
-        console.log('[TIMING] Response time:', duration, 'ms');
-        console.log('[DATA SAMPLE]: First term:', data.terms?.[0]?.keyword || 'N/A');
-        console.log('=====================================================\n');
-
-        res.json(data);
-    } catch (error) {
-        console.error('[ERROR] Visibility Top Search Terms:', error);
-        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
-        res.status(500).json({ error: 'Internal Server Error', terms: [] });
-    }
-};
 
 /**
  * Get Filter Options for Advanced Filters modal (cascading filters)
@@ -192,12 +164,13 @@ export const getVisibilityFilterOptions = async (req, res) => {
             format: req.query.format || 'All',
             city: req.query.city || 'All',
             metroFlag: req.query.metroFlag || 'All',
-            brand: req.query.brand || 'All'
+            brand: req.query.brand || 'All',
+            ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true'
         };
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
 
-        const cacheKey = generateCacheKey('visibility_filters_v2', params);
+        const cacheKey = generateCacheKey('visibility_filters_v5', params);
         const data = await getCachedOrCompute(cacheKey, async () => {
             return await visibilityService.getVisibilityFilterOptions(params);
         }, CACHE_TTL.STATIC);
@@ -226,6 +199,8 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -257,7 +232,7 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
 
 /**
  * Get Latest Available Dates for Visibility Analysis
- * Returns: Date range of the latest month with available data in rb_kw table
+ * Returns: Date range of the latest month with available data in rb_kw_olap table
  */
 export const getVisibilityLatestAvailableDates = async (req, res) => {
     const startTime = Date.now();
@@ -285,7 +260,7 @@ export const getVisibilityLatestAvailableDates = async (req, res) => {
 
 /**
  * Get Visibility KPI Trends for trend chart display
- * Returns: Time series data for Overall SOS, Sponsored SOS, Organic SOS, Display SOS
+ * Returns: Time series data for Overall SOS, Sponsored SOS, Organic SOS
  */
 export const getVisibilityKpiTrends = async (req, res) => {
     const startTime = Date.now();
@@ -293,7 +268,10 @@ export const getVisibilityKpiTrends = async (req, res) => {
         const filters = {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
-            location: req.query.location || 'All',
+            location: req.query.location || req.query.city || 'All',
+            keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || req.query.format || 'All',
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,
@@ -332,8 +310,10 @@ export const getVisibilityCompetition = async (req, res) => {
         const filters = {
             platform: req.query.platform || 'All',
             location: req.query.location || req.query.city || 'All',  // Support both 'location' and 'city' params
-            format: req.query.format || 'All',
-            productName: req.query.productName || 'All',
+            productName: req.query.productName || req.query.keyword || 'All',
+            keyword: req.query.keyword || req.query.productName || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || req.query.format || 'All',
             brand: req.query.brand || 'All',  // Filter by specific competitor brand
             period: req.query.period || '1M'
         };
@@ -382,6 +362,9 @@ export const getBrandComparisonTrends = async (req, res) => {
             brands,
             platform: req.query.platform || 'All',
             location: req.query.location || 'All',
+            keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
             period: req.query.period || '1M',
             startDate: req.query.startDate || null,
             endDate: req.query.endDate || null
@@ -408,4 +391,291 @@ export const getBrandComparisonTrends = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', brands: {}, days: [] });
     }
 };
+
+/**
+ * Get dynamic categories specifically for Visibility Analysis
+ */
+export const getVisibilityCategories = async (req, res) => {
+    try {
+        const { platform } = req.query;
+        const categories = await visibilityService.getVisibilityCategories(platform);
+        res.json(categories);
+    } catch (error) {
+        console.error('[ERROR] Visibility Categories:', error);
+        res.status(500).json({ error: 'Internal Server Error', categories: [] });
+    }
+};
+
+/**
+ * Get dynamic keywords specifically for Visibility Analysis
+ */
+export const getVisibilityKeywords = async (req, res) => {
+    try {
+        const { platform, category, brand, ownBrandsOnly } = req.query;
+        const keywords = await visibilityService.getVisibilityKeywords(platform, category, brand, ownBrandsOnly === 'true');
+        res.json(keywords);
+    } catch (error) {
+        console.error('[ERROR] Visibility Keywords:', error);
+        res.status(500).json({ error: 'Internal Server Error', keywords: [] });
+    }
+};
+
+/**
+ * Get dynamic keyword types specifically for Visibility Analysis
+ * Returns distinct keyword_type values from rb_pm_olap
+ */
+export const getVisibilityKeywordTypes = async (req, res) => {
+    try {
+        const { platform } = req.query;
+        const keywordTypes = await visibilityService.getVisibilityKeywordTypes(platform);
+        res.json(keywordTypes);
+    } catch (error) {
+        console.error('[ERROR] Visibility Keyword Types:', error);
+        res.status(500).json({ error: 'Internal Server Error', keywordTypes: [] });
+    }
+};
+
+/**
+ * Get SKU-level Visibility Drilldown for a specific keyword
+ */
+export const getVisibilitySkuDrilldown = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            keyword: req.query.keyword,
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            brand: req.query.brand || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            ownBrandsOnly: req.query.ownBrandsOnly === 'true'
+        };
+
+        if (!filters.keyword) {
+            return res.status(400).json({ error: 'Keyword is required' });
+        }
+
+        console.log('\n========== VISIBILITY SKU DRILLDOWN API ==========');
+        console.log('[REQUEST] Keyword:', filters.keyword);
+
+        const cacheKey = generateCacheKey('visibility_sku_drill', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getSkuDrilldown(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: SKUs count:', data.skus?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('==================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility SKU Drilldown:', error);
+        res.status(500).json({ error: 'Internal Server Error', skus: [] });
+    }
+};
+
+/**
+ * Get City-level Visibility Drilldown for a specific SKU and Keyword
+ */
+export const getVisibilityCityDrilldown = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            keyword: req.query.keyword,
+            sku: req.query.sku,
+            platform: req.query.platform || 'All',
+            location: req.query.location || 'All',
+            brand: req.query.brand || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+
+        if (!filters.keyword || !filters.sku) {
+            return res.status(400).json({ error: 'Keyword and SKU are required' });
+        }
+
+        console.log('\n========== VISIBILITY CITY DRILLDOWN API ==========');
+        console.log('[REQUEST] SKU:', filters.sku, 'Keyword:', filters.keyword);
+
+        const cacheKey = generateCacheKey('visibility_city_drill', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getCityDrilldown(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Cities count:', data.cities?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('===================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility City Drilldown:', error);
+        res.status(500).json({ error: 'Internal Server Error', cities: [] });
+    }
+};
+
+/**
+ * Get SOS Gainers & Drainers
+ * Returns: Top 5 gainers and drainers with Brand → Keyword → Location hierarchy
+ */
+export const getVisibilityGainersAndDrainers = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
+            location: req.query.location || 'All',
+            keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
+            category: req.query.category || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('\n========== VISIBILITY GAINERS & DRAINERS API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const cacheKey = generateCacheKey('visibility_gainers_drainers_ctrl', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getSOSGainersAndDrainers(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Gainers:', data.gain?.length, 'Drainers:', data.drain?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('========================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility Gainers & Drainers:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', gain: [], drain: [] });
+    }
+};
+
+/**
+ * Get Search Terms Performance (Top Search Terms segment with Keyword/SKU modes)
+ * Returns: Items with SOS metrics, leading brand, volume share
+ */
+export const getSearchTermsPerformance = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            viewMode: req.query.viewMode || 'keyword',
+            platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
+            location: req.query.location || 'All',
+            keyword: req.query.keyword || 'All',
+            keywordType: req.query.keywordType || 'All',
+            keywordTypeFilter: req.query.keywordTypeFilter || 'All',
+            category: req.query.category || 'All',
+            ownBrandsOnly: req.query.ownBrandsOnly === 'true',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('\n========== SEARCH TERMS PERFORMANCE API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+        console.log('[TIMING] Request received at:', new Date().toISOString());
+
+        const cacheKey = generateCacheKey('search_terms_perf_ctrl', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getSearchTermsPerformance(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Items count:', data.items?.length, 'Mode:', data.mode);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('===================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Search Terms Performance:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', items: [], mode: 'keyword' });
+    }
+};
+
+/**
+ * Get Search Terms Location Drilldown
+ * Returns: Location-level SOS breakdown for a keyword or SKU
+ */
+export const getSearchTermsLocationDrilldown = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            keyword: req.query.keyword,
+            sku: req.query.sku,
+            platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
+            location: req.query.location || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+
+        if (!filters.keyword && !filters.sku) {
+            return res.status(400).json({ error: 'Keyword or SKU is required' });
+        }
+
+        console.log('\n========== SEARCH TERMS LOCATION DRILLDOWN API ==========');
+        console.log('[REQUEST] Keyword:', filters.keyword, 'SKU:', filters.sku);
+
+        const cacheKey = generateCacheKey('search_terms_loc_ctrl', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getSearchTermsLocationDrilldown(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Locations count:', data.locations?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('=========================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Search Terms Location Drilldown:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', locations: [] });
+    }
+};
+
+/**
+ * Get Search Terms Brand Breakdown
+ * Returns SOS for all brands for a specific keyword
+ */
+export const getSearchTermsBrandBreakdown = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            keyword: req.query.keyword || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('\n========== SEARCH TERMS BRAND BREAKDOWN API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+
+        const cacheKey = generateCacheKey('search_terms_brand_breakdown_v1', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getSearchTermsBrandBreakdown(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Brands count:', data?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('=========================================================\n');
+
+        res.json({ brands: data });
+    } catch (error) {
+        console.error('[ERROR] Search Terms Brand Breakdown:', error);
+        console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
+        res.status(500).json({ error: 'Internal Server Error', brands: [] });
+    }
+};
+
+
+
 

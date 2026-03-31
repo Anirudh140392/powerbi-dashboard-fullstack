@@ -1,7 +1,7 @@
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/db.js';
 
-const RbKw = sequelize.define('rb_kw', {
+const RbKw = sequelize.define('rb_kw_olap', {
   brand_crawl: {
     type: DataTypes.STRING,
   },
@@ -139,7 +139,7 @@ const RbKw = sequelize.define('rb_kw', {
     type: DataTypes.INTEGER,
   },
 }, {
-  tableName: 'rb_kw',
+  tableName: 'rb_kw_olap',
   timestamps: false,
 });
 

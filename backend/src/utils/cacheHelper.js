@@ -1,4 +1,5 @@
 import redisClient from '../config/redis.js';
+import { getCurrentDbName } from '../config/clickhouse.js';
 
 /**
  * Generates a consistent cache key from filter parameters
@@ -34,10 +35,11 @@ export function generateCacheKey(section, filters) {
     const p = normalize(rawPlatform);
     const b = normalize(rawBrand);
     const l = normalize(rawLocation);
+    const dbName = getCurrentDbName();
 
     // 2. Start building key with hierarchical prefix
-    // watchtower:p_{platform}:b_{brand}:l_{location}:s_{section}
-    let key = `watchtower:p_${p}:b_${b}:l_${l}:s_${normalize(section)}`;
+    // watchtower:db_{dbName}:p_{platform}:b_{brand}:l_{location}:s_{section}
+    let key = `watchtower:db_${dbName}:p_${p}:b_${b}:l_${l}:s_${normalize(section)}`;
 
     // 3. Extract other filters
     const {
@@ -64,6 +66,10 @@ export function generateCacheKey(section, filters) {
         brandsOverviewPlatform = '',
         brandsOverviewCategory = '',
         // New filters for Availability/Visibility Analysis
+        keyword = '',
+        sku = '',
+        city = '',
+        view = '',
         cities = '',
         formats = '',
         categories = '',
@@ -72,15 +78,27 @@ export function generateCacheKey(section, filters) {
         metroFlag = '',
         pincode = '',
         channel = '',
+        productCategory = '',
+        // Visibility Analysis
+        keywordType = '',
+        keywordTypeFilter = '',
         // Drill-down specific
         drillDimension = '',
         includeBreakdown = '',
         // Advanced SKU Search Filters
         skuName = '',
-        skuCode = ''
+        skuCode = '',
+        dimension = '',
+        dimensionValue = '',
+        ownBrandsOnly = '',
+        groupBy = ''
     } = filters;
 
     // 4. Append secondary filters
+    if (ownBrandsOnly) key += `:obo_${ownBrandsOnly}`;
+    if (groupBy) key += `:gb_${normalize(groupBy)}`;
+    if (dimension) key += `:dim_${normalize(dimension)}`;
+    if (dimensionValue) key += `:dimval_${normalize(dimensionValue)}`;
     if (filterType) key += `:ft_${normalize(filterType)}`;
     if (viewMode) key += `:vm_${normalize(viewMode)}`;
     if (level) key += `:lv_${normalize(level)}`;
@@ -96,10 +114,19 @@ export function generateCacheKey(section, filters) {
     if (metroFlag && metroFlag !== 'all' && metroFlag !== 'All') key += `:mf_${normalize(metroFlag)}`;
     if (pincode && pincode !== 'all' && pincode !== 'All') key += `:pc_${normalize(pincode)}`;
 
+    // Keyword/SKU/City/View filters (Visibility Analysis)
+    if (keyword && keyword !== 'all' && keyword !== 'All') key += `:kw_${normalize(keyword)}`;
+    if (sku && sku !== 'all' && sku !== 'All') key += `:sku_${normalize(sku)}`;
+    if (city && city !== 'all' && city !== 'All') key += `:cty_${normalize(city)}`;
+    if (keywordType && keywordType !== 'all' && keywordType !== 'All') key += `:ktyp_${normalize(keywordType)}`;
+    if (keywordTypeFilter && keywordTypeFilter !== 'all' && keywordTypeFilter !== 'All') key += `:ktypflt_${normalize(keywordTypeFilter)}`;
+    if (view) key += `:vw_${normalize(view)}`;
+
     if (drillDimension) key += `:ddim_${normalize(drillDimension)}`;
     if (includeBreakdown) key += `:ibd_${includeBreakdown}`;
 
     if (category && category !== 'all') key += `:cat_${normalize(category)}`;
+    if (productCategory && productCategory !== 'all' && productCategory !== 'All') key += `:pcat_${normalize(productCategory)}`;
 
     if (type && type !== 'all') key += `:tp_${normalize(type)}`;
     if (filter && filter !== 'all' && filter !== 'All') key += `:flt_${normalize(filter)}`;

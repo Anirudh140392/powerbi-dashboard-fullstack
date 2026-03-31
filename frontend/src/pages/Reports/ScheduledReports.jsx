@@ -3,9 +3,21 @@ import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import dayjs from "dayjs";
 import { ScheduledReport } from "@/components/Reports/ScheduledReport";
 import { saveAs } from 'file-saver';
-import { fetchReportFilterOptions, downloadReport } from "../../api/reportsService";
+import { fetchReportFilterOptions, downloadReport, fetchAvailableReportTypes } from "../../api/reportsService";
+import { FilterContext } from "../../utils/FilterContext";
+import { useContext } from "react";
 
 export default function ScheduledReports() {
+    const { refreshFilters } = useContext(FilterContext);
+
+    // Restore comprehensive platform list from rca_sku_dim on mount
+    // (Prevents subsetting from other pages like Performance Marketing)
+    useEffect(() => {
+        if (typeof refreshFilters === 'function') {
+            refreshFilters();
+        }
+    }, [refreshFilters]);
+
     const [filters, setFilters] = useState({
         platform: "Blinkit",
     });
@@ -35,22 +47,44 @@ export default function ScheduledReports() {
         brands: [],
         cities: [],
         formats: [],
+        skus: [],
         months: [],
     });
 
-    // Fetch filter options from backend whenever platform changes
-    const loadFilterOptions = useCallback(async (platform) => {
+    // Dynamic report types from backend
+    const [availableReportTypes, setAvailableReportTypes] = useState([]);
+
+    // Fetch available report types on mount
+    useEffect(() => {
+        const loadReportTypes = async () => {
+            const types = await fetchAvailableReportTypes();
+            if (types.length > 0) {
+                setAvailableReportTypes(types);
+                // If current reportType is not in the available list, switch to first available
+                if (!types.includes(selectedFilters.reportType)) {
+                    setSelectedFilters(prev => ({ ...prev, reportType: types[0] }));
+                }
+            }
+        };
+        loadReportTypes();
+    }, []);
+
+    // Fetch filter options from backend whenever filters change
+    const loadFilterOptions = useCallback(async (filters) => {
         try {
             const params = {};
-            if (platform && platform !== 'All') {
-                params.platform = platform;
-            }
+            if (filters.platform && filters.platform !== 'All') params.platform = filters.platform;
+            if (filters.brand && filters.brand !== 'All Brands') params.brand = filters.brand;
+            if (filters.location && filters.location !== 'All Locations') params.city = filters.location;
+            if (filters.category && filters.category !== 'All Categories') params.format = filters.category;
+
             const data = await fetchReportFilterOptions(params);
             setFilterOptions({
                 platforms: data.platforms || [],
                 brands: data.brands || [],
                 cities: data.cities || [],
                 formats: data.formats || [],
+                skus: data.skus || [],
                 months: data.months || [],
             });
         } catch (err) {
@@ -58,10 +92,16 @@ export default function ScheduledReports() {
         }
     }, []);
 
-    // Fetch filter options on mount and when platform changes
+    // Fetch filter options on mount and when any relevant filter changes
     useEffect(() => {
-        loadFilterOptions(selectedFilters.platform);
-    }, [selectedFilters.platform, loadFilterOptions]);
+        loadFilterOptions(selectedFilters);
+    }, [
+        selectedFilters.platform,
+        selectedFilters.brand,
+        selectedFilters.location,
+        selectedFilters.category,
+        loadFilterOptions
+    ]);
 
     // Scheduled reports state (persist in localStorage)
     const [scheduledReports, setScheduledReports] = useState(() => {
@@ -112,7 +152,7 @@ export default function ScheduledReports() {
     // Dropdown options derived from backend data
     const platformOptions = filterOptions.platforms.length > 0
         ? filterOptions.platforms
-        : ["Blinkit", "Zepto", "Instamart", "Amazon", "Flipkart"];
+        : [];
 
     const getBrandOptions = () => {
         const brands = filterOptions.brands || [];
@@ -125,9 +165,8 @@ export default function ScheduledReports() {
     };
 
     const getSkuOptions = () => {
-        // SKU options are not provided by the filter-options endpoint
-        // Keep a generic "All SKUs" since the backend handles filtering
-        return ["All SKUs"];
+        const skus = filterOptions.skus || [];
+        return ["All SKUs", ...skus];
     };
 
     const getLocationOptions = () => {
@@ -144,20 +183,18 @@ export default function ScheduledReports() {
         "Custom Range",
     ];
 
-    const reportTypeOptions = [
-        "Watch Tower",
-        "Availability Analysis",
-        "Visibility Analysis",
-        "Market Share",
-        "Sales Data",
-        "Pricing Analysis",
-        "Performance Marketing",
-        "Portfolio Analysis",
-        "Content Analysis",
-        "Inventory Analysis",
-        "Play it Yourself",
-        "Category RCA",
-    ];
+    // Report types from backend (fallback to common types while loading)
+    const reportTypeOptions = availableReportTypes.length > 0
+        ? availableReportTypes
+        : [
+            "Watch Tower",
+            "Availability Analysis",
+            "Visibility Analysis",
+            "Sales Data",
+            "Pricing Analysis",
+            "Performance Marketing",
+            "Inventory Analysis",
+        ];
 
     const handleDownload = async () => {
         setIsDownloading(true);
