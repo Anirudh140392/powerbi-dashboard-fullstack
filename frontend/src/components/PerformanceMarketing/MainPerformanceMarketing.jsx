@@ -16,9 +16,10 @@ import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 export default function MainPerformanceMarketings() {
   const {
     timeStart, timeEnd, comparisonLabel,
-    zones, selectedZone, setZones, setSelectedZone,
-    pmPlatforms, pmSelectedPlatform, setPmPlatforms, setPmSelectedPlatform,
-    pmBrands, pmSelectedBrand, setPmBrands, setPmSelectedBrand
+    locations, selectedLocation, setLocations, setSelectedLocation,
+    platforms, platform, setPlatforms, setPlatform,
+    categories, selectedCategory, setCategories, setSelectedCategory,
+    selectedProductCategory
   } = useContext(FilterContext);
 
   const [selectedInsight, setSelectedInsight] = useState("All Campaign Summary");
@@ -26,88 +27,90 @@ export default function MainPerformanceMarketings() {
 
   // Fetch PM-specific Platforms on mount
   useEffect(() => {
-    const fetchPmPlatforms = async () => {
+    const fetchPlatforms = async () => {
       try {
         console.log("🚀 [MainPerformanceMarketing] Fetching PM platforms...");
         const response = await axiosInstance.get("/performance-marketing/platforms");
         console.log("✅ [MainPerformanceMarketing] PM Platforms:", response.data);
 
         if (response.data && response.data.length > 0) {
-          const platformList = ["All", ...response.data];
-          setPmPlatforms(platformList);
-          if (!platformList.includes(pmSelectedPlatform)) {
-            setPmSelectedPlatform("All");
+          const platformList = response.data.filter(p => p !== 'All');
+          setPlatforms(platformList);
+          if (!platformList.includes(platform) && platform !== 'All') {
+            setPlatform("All");
           }
         } else {
-          setPmPlatforms(["All"]);
+          setPlatforms([]);
         }
       } catch (error) {
         console.error("❌ [MainPerformanceMarketing] Error fetching PM platforms:", error);
-        setPmPlatforms(["All"]);
+        setPlatforms([]);
       }
     };
-    fetchPmPlatforms();
-  }, [setPmPlatforms, setPmSelectedPlatform]);
+    fetchPlatforms();
+  }, [setPlatforms, setPlatform]);
 
-  // Fetch PM-specific Brands when platform changes
+  // Fetch PM-specific Categories when platform changes
   useEffect(() => {
-    const fetchPmBrands = async () => {
+    const fetchCategories = async () => {
       try {
-        console.log("🚀 [MainPerformanceMarketing] Fetching PM brands for platform:", pmSelectedPlatform);
-        const response = await axiosInstance.get("/performance-marketing/brands", {
-          params: { platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform }
+        console.log("🚀 [MainPerformanceMarketing] Fetching PM categories for platform:", platform);
+        const response = await axiosInstance.get("/performance-marketing/categories", {
+          params: { platform: Array.isArray(platform) ? platform.join(',') : platform }
         });
-        console.log("✅ [MainPerformanceMarketing] PM Brands:", response.data);
+        console.log("✅ [MainPerformanceMarketing] PM Categories:", response.data);
 
         if (response.data && response.data.length > 0) {
-          const brandList = ["All", ...response.data];
-          setPmBrands(brandList);
-          if (!brandList.includes(pmSelectedBrand)) {
-            setPmSelectedBrand("All");
+          const catList = [...response.data];
+          setCategories(catList);
+
+          // Keep current selection if valid, otherwise default to "All" (which is the SELECT ALL state)
+          if (selectedCategory !== "All" && !catList.includes(selectedCategory)) {
+            setSelectedCategory("All");
           }
         } else {
-          setPmBrands(["All"]);
-          setPmSelectedBrand("All");
+          setCategories([]); // No categories found
+          setSelectedCategory("All");
         }
       } catch (error) {
-        console.error("❌ [MainPerformanceMarketing] Error fetching PM brands:", error);
-        setPmBrands(["All"]);
+        console.error("❌ [MainPerformanceMarketing] Error fetching PM categories:", error);
+        setCategories([]);
       }
     };
-    fetchPmBrands();
-  }, [pmSelectedPlatform, setPmBrands, setPmSelectedBrand]);
+    fetchCategories();
+  }, [platform, setCategories, setSelectedCategory]);
 
-  // Fetch Zones when brand changes (Performance Marketing page specific)
+  // Fetch Zones when category changes (Performance Marketing page specific)
   useEffect(() => {
-    const fetchZones = async () => {
+    const fetchLocations = async () => {
       try {
-        console.log("🚀 [MainPerformanceMarketing] Fetching zones for brand:", pmSelectedBrand);
+        const catParam = Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory;
+        console.log("🚀 [MainPerformanceMarketing] Fetching zones for category:", catParam);
         const response = await axiosInstance.get("/performance-marketing/zones", {
-          params: { brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand }
+          params: { brand: catParam } // Zones API still expects 'brand' param naming in current implementation, but we'll send it category values
         });
         console.log("✅ [MainPerformanceMarketing] Zones API Response:", response.data);
 
         if (response.data && response.data.length > 0) {
-          const zoneList = ["All", ...response.data];
-          setZones(zoneList);
+          const zoneList = response.data.filter(z => z !== 'All');
+          setLocations(zoneList);
 
           // Reset selection if current zone is not in new list
-          if (!zoneList.includes(selectedZone)) {
-            setSelectedZone("All");
+          if (selectedLocation !== 'All' && !zoneList.includes(selectedLocation)) {
+            setSelectedLocation("All");
           }
         } else {
-          console.warn("⚠️ [MainPerformanceMarketing] No zones found, setting ['All'].");
-          setZones(["All"]);
-          setSelectedZone("All");
+          console.warn("⚠️ [MainPerformanceMarketing] No zones found, keeping existing locations.");
+          // Don't overwrite - let FilterContext's own locations stay
         }
       } catch (error) {
         console.error("❌ [MainPerformanceMarketing] Error fetching zones:", error);
-        setZones(["All"]);
+        // Don't overwrite global locations on error
       }
     };
 
-    fetchZones();
-  }, [pmSelectedBrand, setZones, setSelectedZone]);
+    fetchLocations();
+  }, [selectedCategory, setLocations, setSelectedLocation]);
 
 
 
@@ -137,14 +140,16 @@ export default function MainPerformanceMarketings() {
     const fetchPerformanceData = async () => {
       setLoading(true); // Start loading
       try {
+        const params = {
+          platform: Array.isArray(platform) ? platform.join(',') : (platform || 'All'),
+          category: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+          zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+          productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
+          startDate: timeStart?.format("YYYY-MM-DD"),
+          endDate: timeEnd?.format("YYYY-MM-DD")
+        }
         const response = await axiosInstance.get("/performance-marketing", {
-          params: {
-            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
-            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
-            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
-            startDate: timeStart?.format("YYYY-MM-DD"),
-            endDate: timeEnd?.format("YYYY-MM-DD")
-          }
+          params
         });
         console.log("Performance Marketing Data:", response.data);
 
@@ -204,7 +209,7 @@ export default function MainPerformanceMarketings() {
     if (timeStart && timeEnd) {
       fetchPerformanceData();
     }
-  }, [timeStart, timeEnd, pmSelectedPlatform, pmSelectedBrand, selectedZone]); // Updated dependencies
+  }, [timeStart, timeEnd, platform, selectedCategory, selectedLocation, selectedProductCategory]); // Updated dependencies
 
   return (
     <Box>

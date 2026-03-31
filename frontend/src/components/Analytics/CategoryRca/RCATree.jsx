@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from "react";
+import dayjs from "dayjs";
 import ReactFlow, {
   Controls,
   Handle,
@@ -11,8 +12,8 @@ import ReactFlow, {
   MarkerType,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { motion, useSpring, useMotionValue } from "framer-motion";
-import { Plus, Minus, Activity, Zap } from "lucide-react";
+import { motion, useSpring, useMotionValue, AnimatePresence } from "framer-motion";
+import { Plus, Minus, Activity, Zap, LineChart, Download } from "lucide-react";
 import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
 import {
@@ -25,38 +26,104 @@ import {
   Paper,
   Divider,
   Grid,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tabs,
+  Tab,
+  TablePagination,
+  Tooltip,
+  CircularProgress
 } from "@mui/material";
 
+/* ─── Fonts ───────────────── */
+const FontLoader = () => (
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400&family=DM+Mono:wght@400;500;600&display=swap');
+    `}</style>
+);
+
 // --- Layout & Typography Tokens ---
-const CARD_WIDTH = 380;
-const HORIZONTAL_GAP = 70;
-const VERTICAL_STEP = 340;
+const CARD_WIDTH = 1200;
+const CARD_HEIGHT = 440;
+const VERTICAL_GAP = 320;
+const HORIZONTAL_STEP = 2200;
 
 const TYPO = {
-  primary: "#0f172a",
-  secondary: "#475569",
-  border: "#e2e8f0",
-  labelSize: "20px",
-  valueSize: "34px",
-  metaSize: "18px",
-  minSize: "12px",
-  footerSize: "20px",
+  fontMain: "'DM Sans', sans-serif",
+  fontMono: "'DM Mono', monospace",
+  primary: "#1e293b",
+  secondary: "#64748b",
+  border: "#f1f5f9",
+  labelSize: "72px",
+  valueSize: "110px",
+  metaSize: "42px",
+  minSize: "24px",
+  footerSize: "52px",
   weightHeavy: 800,
   weightBold: 700,
   weightSemibold: 600,
+  weightNormal: 500,
 };
 
 const COLORS = {
-  offtake: "#0f172a",
-  price: "#3b82f6",
-  impressions: "#6366f1",
-  availability: "#10b981",
-  organic: "#8b5cf6",
-  ad: "#06b6d4",
-  discounting: "#f59e0b",
-  segment: "#64748b",
-  rating: "#f43f5e",
-  conversion: "#10b981",
+  offtake: "#000000",
+  price: "#5E23BB", // Zepto Purple
+  impressions: "#FFD54F", // Blinkit Yellow
+  availability: "#0C831F", // Blinkit Green
+  organic: "#9C27B0", // Premium Purple
+  ad: "#2563EB", // Modern Blue
+  discounting: "#F59E0B", // Orange
+  segment: "#64748B",
+  rating: "#E91E63", // Pink
+  conversion: "#0C831F",
+};
+
+// --- Core Utility Helpers (Global) ---
+const getSeedFromStr = (str) => {
+  let h = 0xdeadbeef;
+  for (let i = 0; i < (str || "").length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
+  }
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+
+const formatValue = (val, kpiLabel) => {
+  if (val === null || val === undefined || isNaN(parseFloat(val))) return "0.0";
+  const num = parseFloat(val);
+  const absVal = Math.abs(num);
+  const l = (kpiLabel || "").toLowerCase();
+
+  // Offtake / Revenue logic
+  if (l.includes("offtake")) {
+    if (absVal >= 10000000) return `₹ ${(num / 10000000).toFixed(2)} Cr`;
+    if (absVal >= 100000) return `₹ ${(num / 100000).toFixed(2)} lac`;
+    return `₹ ${num.toLocaleString()}`;
+  }
+
+  // Impressions / Rating Count logic (but NOT keyword labels)
+  if ((l.includes("impressions") || l.includes("rating")) && !l.includes("keyword")) {
+    if (absVal >= 100000) return `${(num / 100000).toFixed(1)} lac`;
+    if (absVal >= 1000) return `${(num / 1000).toFixed(1)} K`;
+    return num.toLocaleString();
+  }
+
+  // Pricing logic
+  if (l.includes("price") || l.includes("ppu") || l === "asp") return `₹ ${num.toFixed(2)}`;
+
+  // Keyword SOS logic — values are percentages (0-100 range)
+  if (l.includes("keyword")) {
+    return `${num.toFixed(2)}%`;
+  }
+
+  // Percent / Conversion logic
+  if (l.includes("%") || l.includes("conv") || l.includes("rate") || l.includes("cvr")) return `${num.toFixed(1)}%`;
+
+  // Default fallback
+  return num.toLocaleString(undefined, { maximumFractionDigits: 1 });
 };
 
 // --- Custom Cursor / Mouse Follower ---
@@ -128,28 +195,749 @@ const AiInsightBadge = ({ text }) => (
     transition={{ duration: 2, repeat: Infinity }}
     style={{
       position: "absolute",
-      top: -14,
-      right: 20,
-      backgroundColor: "#8b5cf6",
-      color: "white",
-      padding: "6px 14px",
-      borderRadius: "14px",
-      fontSize: "10px",
+      top: -84,
+      left: "50%",
+      transform: "translateX(-50%)",
+      backgroundColor: "#FFD54F", // Blinkit Yellow
+      color: "black",
+      padding: "28px 64px",
+      borderRadius: "40px",
+      fontSize: "48px",
       fontWeight: 900,
+      whiteSpace: "nowrap",
       textTransform: "uppercase",
-      letterSpacing: "1.2px",
+      letterSpacing: "1.5px",
       display: "flex",
       alignItems: "center",
-      gap: "6px",
-      zIndex: 11,
-      boxShadow: "0 8px 20px rgba(139, 92, 246, 0.4)",
-      border: "1.5px solid rgba(255, 255, 255, 0.4)",
+      gap: "20px",
+      zIndex: 50,
+      boxShadow: "0 30px 60px rgba(139, 92, 246, 0.55)",
+      border: "5px solid rgba(255, 255, 255, 0.55)",
+      fontFamily: TYPO.fontMain,
     }}
   >
-    <Zap size={11} fill="white" strokeWidth={3} />
+    <Zap size={56} fill="white" strokeWidth={3} />
     {text}
   </motion.div>
 );
+// --- Trend Button (Purple Flickering) ---
+const TrendButton = ({ onClick }) => (
+  <motion.div
+    animate={{
+      boxShadow: [
+        "0 0 0px rgba(124, 58, 237, 0)",
+        "0 0 35px rgba(124, 58, 237, 0.8)",
+        "0 0 0px rgba(124, 58, 237, 0)",
+      ],
+      scale: [1, 1.05, 1],
+    }}
+    transition={{ duration: 2, repeat: Infinity }}
+    style={{
+      position: "absolute",
+      top: 40,
+      right: 64,
+      zIndex: 15,
+    }}
+  >
+    <IconButton
+      size="small"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      sx={{
+        bgcolor: "#7c3aed",
+        color: "white",
+        width: 120,
+        height: 120,
+        borderRadius: "40px",
+        "&:hover": { bgcolor: "#6d28d9", transform: "scale(1.1)" },
+        boxShadow: "0 25px 50px rgba(124, 58, 237, 0.5)",
+        border: "4px solid rgba(255, 255, 255, 0.45)",
+        transition: "all 0.2s ease"
+      }}
+    >
+      <LineChart size={68} strokeWidth={7.0} />
+    </IconButton>
+  </motion.div>
+);
+
+/**
+ * SLEEK MINI PREVIEW (Hover)
+ */
+/**
+ * DETAILED METRICS POPUP (Hover)
+ * Shows Brand Identity table with a '+' button to drill down into Modal.
+ */
+const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown, nodeValue }) => {
+  const isBottom = position === "bottom";
+  const [activeTab, setActiveTab] = useState("gainers");
+
+  // Show a clean "Coming Soon" placeholder for nodes without real data
+  const isComingSoon = nodeValue && (String(nodeValue).includes('Coming Soon') || String(nodeValue).includes('--'));
+  if (isComingSoon) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        style={{
+          position: "absolute",
+          bottom: "calc(100% + 180px)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          right: "auto",
+          width: "2000px", backgroundColor: "#fff", borderRadius: "100px",
+          padding: "0", zIndex: 100001, pointerEvents: "auto",
+          boxShadow: "0 150px 300px -60px rgba(15,23,42,0.5)",
+          border: "3px solid rgba(0,0,0,0.1)", overflow: "hidden"
+        }}
+      >
+        <Box sx={{ p: 5, textAlign: 'center' }}>
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
+            <Box sx={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 8px 24px rgba(99,102,241,0.15)'
+            }}>
+              <Zap size={28} color="#6366f1" />
+            </Box>
+          </Box>
+          <Typography sx={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', mb: 1, letterSpacing: '-0.5px' }}>
+            {kpiLabel}
+          </Typography>
+          <Typography sx={{ fontSize: '15px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px' }}>
+            Coming Soon
+          </Typography>
+          <Typography sx={{ fontSize: '13px', color: '#cbd5e1', mt: 1.5 }}>
+            Brand-level analytics for this metric will be available shortly.
+          </Typography>
+        </Box>
+      </motion.div>
+    );
+  }
+
+  // Decide which entity level to show based on sidebar selection
+  const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands";
+  const isSkuFilterActive = selectedSku && selectedSku !== "All SKUs";
+  const l = (kpiLabel || "").toLowerCase();
+  const isKeywordKpi = l.includes("impression") || l.includes("conversion") || l.includes("conv") || l.includes("keyword");
+
+  // If SKU is selected, breakdown is City. If Brand is selected, breakdown is SKU. Otherwise Brand.
+  let entityType = isSkuFilterActive ? "City" : isBrandFilterActive ? "SKU" : "Brand";
+
+  // Dedicated keyword breakdown branches (Branded Keyword, Generic Keyword, etc) pass keywordMetrics
+  if (isBrandFilterActive && keywordMetrics && keywordMetrics.length > 0) {
+    entityType = "Keyword";
+  }
+
+  // Use real metrics if available (backend now provides appropriate level in metrics array)
+  let entities = [];
+  if (entityType === "Keyword" && keywordMetrics && keywordMetrics.length > 0) {
+    entities = keywordMetrics.map(m => m.keyword).slice(0, 12);
+  } else if (metrics && metrics.length > 0) {
+    entities = metrics.map(m => m.brand || m.label || m.Product).filter(Boolean).slice(0, 12);
+  } else {
+    // Fallback to mock data if no real metrics
+    const brandPrefix = selectedBrand && selectedBrand !== "All Brands" ? selectedBrand : "Brand";
+
+    if (entityType === "City" || entityType === "Location") {
+      entities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Lucknow", "Surat", "Kanpur"];
+    } else if (entityType === "Keyword") {
+      entities = [`Best ${brandPrefix}`, `${brandPrefix} reviews`, `Buy ${brandPrefix}`, `${brandPrefix} discount`, `${brandPrefix} deals`, `${brandPrefix} near me`, `${brandPrefix} price`, `Top ${brandPrefix}`];
+    } else if (entityType === "SKU") {
+      entities = [`${brandPrefix} 100g Pack`, `${brandPrefix} 250g Box`, `${brandPrefix} Single Bar`, `${brandPrefix} Multipack`, `${brandPrefix} Value Pack`, `${brandPrefix} Twin Pack`, `${brandPrefix} Family Pack`];
+    } else {
+      entities = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer", "Mars", "Skittles", "Doublemint", "M&M's", "Hubba Bubba", "Extra"];
+    }
+  }
+
+  const allRows = entities.map((name, i) => {
+    const seed = getSeedFromStr(`${category}-${kpiLabel}-${name}-${i}`);
+
+    let curVal, delta;
+    if (isKeywordKpi) {
+      // Range -2.5% to +2.5% for conversion changes
+      curVal = 5 + seed * 10;
+      delta = (seed * 5) - 2.5;
+    } else if (l.includes("discount") || l.includes("disc")) {
+      // Logical Mars discount range: 5% to 25%
+      curVal = 5 + seed * 20;
+      delta = (seed * 10) - 5;
+    } else {
+      curVal = 70 + seed * 80;
+      delta = (seed * 12) - 5;
+    }
+
+    let prevVal = curVal / (1 + delta / 100);
+
+    // Override with REAL data if available (supports Brand, SKU, and City levels)
+    if (metrics && metrics.length > 0) {
+      const match = metrics.find(m => m.brand === name);
+      if (match) {
+        if (l === "ad impressions" || l === "ad gvs") {
+          curVal = match.rawAd || 0;
+          prevVal = match.rawPrevAd || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "impressions" || l === "indexed-impressions" || l === "gvs" || l.includes("gv")) {
+          curVal = match.rawGv !== undefined ? match.rawGv : match.rawImpressions || 0;
+          prevVal = match.rawPrevGv !== undefined ? match.rawPrevGv : match.rawPrevImpressions || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "organic impressions") {
+          curVal = match.rawOrganic || 0;
+          prevVal = match.rawPrevOrganic || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l.includes("offtake")) {
+          curVal = match.rawOfftake || 0;
+          prevVal = match.rawPrevOfftake || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l.includes("price") || l.includes("asp")) {
+          curVal = match.rawPrice || 0;
+          prevVal = match.rawPrevPrice || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l.includes("osa")) {
+          // Wt. OSA % — use rawOsa (neno/deno ratio)
+          curVal = match.rawOsa || 0;
+          prevVal = match.rawPrevOsa || 0;
+          delta = (curVal - prevVal); // OSA % variance in absolute points
+        } else if (l.includes("listing")) {
+          curVal = match.rawListing || 0;
+          prevVal = match.rawPrevListing || 0;
+          delta = (curVal - prevVal); // Listing % variance in absolute points
+        } else if (l.includes("comp keyword")) {
+          if (category === "organic") {
+            curVal = match.rawOrgCompSos || 0;
+            prevVal = match.rawPrevOrgCompSos || 0;
+          } else {
+            curVal = match.rawAdCompSos || 0;
+            prevVal = match.rawPrevAdCompSos || 0;
+          }
+          delta = (curVal - prevVal);
+        } else if (l.includes("branded keyword")) {
+          if (category === "organic") {
+            curVal = match.rawOrgBrandedSos || 0;
+            prevVal = match.rawPrevOrgBrandedSos || 0;
+          } else {
+            curVal = match.rawAdBrandedSos || 0;
+            prevVal = match.rawPrevAdBrandedSos || 0;
+          }
+          delta = (curVal - prevVal);
+        } else if (l.includes("generic keyword")) {
+          if (category === "organic") {
+            curVal = match.rawOrgGenericSos || 0;
+            prevVal = match.rawPrevOrgGenericSos || 0;
+          } else {
+            curVal = match.rawAdGenericSos || 0;
+            prevVal = match.rawPrevAdGenericSos || 0;
+          }
+          delta = (curVal - prevVal);
+        } else if (l === "inorganic cvr") {
+          curVal = match.rawInorganicCvr || 0;
+          prevVal = match.rawPrevInorganicCvr || 0;
+          delta = (curVal - prevVal); // CVR variance usually absolute points
+        } else if (l === "organic cvr") {
+          curVal = match.rawOrganicCvr !== undefined ? match.rawOrganicCvr : 0;
+          prevVal = match.rawPrevOrganicCvr !== undefined ? match.rawPrevOrganicCvr : 0;
+          delta = (curVal - prevVal); // CVR variance usually absolute points
+        } else if (l === "conversion" || l === "indexed-cvr" || l === "cvr" || l.includes("cvr")) {
+          curVal = match.rawCvr || 0;
+          prevVal = match.rawPrevCvr || 0;
+          delta = (curVal - prevVal); // CVR variance usually absolute points
+        } else if (l.includes("discount") || l.includes("disc")) {
+          curVal = match.rawDiscount || 0;
+          prevVal = match.rawPrevDiscount || 0;
+          delta = (curVal - prevVal); // Discount % variance usually absolute points
+        } else if (l === "share of search overall" || l.includes("sos") || l === "sov-overall") {
+          curVal = match.rawSos || 0;
+          prevVal = match.rawPrevSos || 0;
+          delta = (curVal - prevVal); // SOS % variance usually absolute points
+        } else if (l.includes("rating")) {
+          // Rating Count — use rawRating (qty)
+          curVal = match.rawRating || 0;
+          prevVal = match.rawPrevRating || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "sp") {
+          curVal = match.rawSp || 0;
+          prevVal = match.rawPrevSp || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "sb") {
+          curVal = match.rawSb || 0;
+          prevVal = match.rawPrevSb || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        }
+      }
+    }
+
+    // Override with REAL data for Keywords
+    if (isKeywordKpi && isBrandFilterActive && keywordMetrics && keywordMetrics.length > 0 && entityType === "Keyword") {
+      const match = keywordMetrics.find(m => m.keyword === name);
+      if (match) {
+        return {
+          name,
+          current: match.current,
+          prev: match.previous,
+          change: match.rawChange || 0,
+          changeStr: match.change,
+          rawCurrent: match.rawCurrent || 0,
+          pos: match.isPositive
+        };
+      }
+    }
+
+    return {
+      name,
+      current: formatValue(curVal, kpiLabel),
+      prev: formatValue(prevVal, kpiLabel),
+      change: delta,
+      changeStr: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "%",
+      rawCurrent: curVal,
+      pos: delta >= 0
+    };
+  });
+
+  // Filter: Gainers = only positive (green), Drainers = only negative (red)
+  const filteredRows = allRows.filter(r => activeTab === "gainers" ? r.change > 0 : r.change < 0);
+  
+  // Sort descending by highest value (rawCurrent) instead of variance
+  const sortedRows = [...filteredRows].sort((a, b) => b.rawCurrent - a.rawCurrent);
+  
+  const displayRows = sortedRows.slice(0, 5);
+
+  const canDrillDown = entityType === "Brand" || (entityType === "SKU");
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      style={{
+        position: "absolute",
+        bottom: "calc(100% + 180px)",
+        left: "50%",
+        transform: "translateX(-50%)",
+        right: "auto",
+        width: "3600px",
+        backgroundColor: "#fff",
+        borderRadius: "150px",
+        padding: "0",
+        zIndex: 100001,
+        pointerEvents: "auto",
+        boxShadow: "0 250px 500px -120px rgba(15,23,42,0.8), 0 0 300px rgba(99,102,241,0.65)",
+        border: "6px solid rgba(0,0,0,0.18)",
+        overflow: "hidden"
+      }}
+    >
+      <Box sx={{ p: 20, bgcolor: "#f8fafc", borderBottom: "2px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box>
+          <Typography sx={{ fontSize: "110px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "14px" }}>
+            {entityType} Analysis: {category === "ad" ? "Ad " : category === "organic" ? "Organic " : ""}{kpiLabel} {l.includes("keyword") ? "SOS" : ""}
+          </Typography>
+          <Typography sx={{ fontSize: "60px", fontWeight: 700, color: "#64748b", mt: 8, textTransform: "uppercase", letterSpacing: "6px" }}>
+            Flagship {entityType} Performance comparison matrix
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 7.5, borderRadius: "80px", gap: 9 }}>
+          {["gainers", "drainers"].map(t => (
+            <Box key={t} onClick={(e) => { e.stopPropagation(); setActiveTab(t); }}
+              sx={{
+                px: 12, py: 5, borderRadius: "48px", cursor: 'pointer', transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                bgcolor: activeTab === t ? (t === 'gainers' ? "#059669" : "#dc2626") : "transparent",
+                color: activeTab === t ? "#fff" : "#64748b", fontWeight: 1000, fontSize: "42px", textTransform: 'uppercase',
+                boxShadow: activeTab === t ? "0 40px 80px rgba(0,0,0,0.45)" : "none",
+                transform: activeTab === t ? "scale(1.2)" : "scale(1)"
+              }}>
+              {t}
+            </Box>
+          ))}
+        </Box>
+      </Box>
+      <Box sx={{ p: 0 }}>
+        <Table size="large" sx={{ tableLayout: 'fixed' }}>
+          <TableHead>
+            <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 1.0)", "& th": { py: 15 } }}>
+              <TableCell align="left" sx={{ width: '25%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pl: 25, whiteSpace: 'nowrap' }}>{entityType} Name</TableCell>
+              <TableCell align="left" sx={{ width: '25%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Current Period</TableCell>
+              <TableCell align="left" sx={{ width: '30%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Comparison Period</TableCell>
+              <TableCell align="left" sx={{ width: '20%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pr: 35, whiteSpace: 'nowrap' }}>Variance %</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {displayRows.map((r, i) => (
+              <TableRow key={i} sx={{ "&:hover": { bgcolor: "rgba(99,102,241,0.08)" }, borderBottom: i === displayRows.length - 1 ? "none" : "1px solid #f1f5f9", height: "420px" }}>
+                <TableCell align="left" sx={{ py: 0, pl: 25 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+                    {canDrillDown && (
+                      <Box onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDrillDown(r.name); }}
+                        sx={{
+                          width: 140, height: 140, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                          bgcolor: "rgba(99,102,241,0.2)", color: "#6366f1", cursor: "pointer",
+                          transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+                          "&:hover": { bgcolor: "#6366f1", color: "#fff", transform: "scale(1.3) rotate(180deg)", boxShadow: "0 0 100px rgba(99,102,241,0.7)" }
+                        }}>
+                        <Plus size={72} strokeWidth={4} />
+                      </Box>
+                    )}
+                    {!canDrillDown && <Box sx={{ width: 140 }} />}
+                    <Typography sx={{ fontSize: "96px", fontWeight: 500, color: "#1e293b", letterSpacing: "3.5px" }}>{r.name}</Typography>
+                  </Box>
+                </TableCell>
+                <TableCell align="left" sx={{ fontSize: "84px", fontWeight: 900, color: "#0f172a" }}>{r.current}</TableCell>
+                <TableCell align="left" sx={{ fontSize: "84px", fontWeight: 700, color: "#94a3b8" }}>{r.prev}</TableCell>
+                <TableCell align="left" sx={{ py: 0, pr: 35 }}>
+                  <Typography sx={{
+                    fontSize: "64px",
+                    fontWeight: 1000,
+                    color: r.pos ? "#059669" : "#dc2626",
+                    bgcolor: r.pos ? "rgba(5, 150, 105, 0.2)" : "rgba(220, 38, 38, 0.2)",
+                    px: 15, py: 6, borderRadius: "64px", display: "inline-block",
+                    border: `10px solid ${r.pos ? "rgba(5, 150, 105, 0.35)" : "rgba(220, 38, 38, 0.35)"}`
+                  }}>
+                    {r.changeStr}
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Box>
+      <Box sx={{ p: 15, textAlign: "center", bgcolor: "#f8fafc", borderTop: "12px solid #edf2f7" }}>
+        <Typography sx={{ fontSize: "60px", fontWeight: 800, color: "#94a3b8", letterSpacing: "6px", textTransform: 'uppercase' }}>
+          Ultra-Precision Driver Diagnostics • {canDrillDown ? "Use [+] for Deep Entity Trace" : "Absolute Ground Level Analysis"}
+        </Typography>
+      </Box>
+    </motion.div>
+  );
+};
+
+/**
+ * PREMIUM FULL MODAL (Click)
+ */
+const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedBrand, selectedSku, selectedCategory, focusedEntity, context }) => {
+  const [page, setPage] = useState(0);
+  const [activeTab, setActiveTab] = useState("gainers");
+  const [expandedBrand, setExpandedBrand] = useState(null);
+  const [expandedSku, setExpandedSku] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [drilldownData, setDrilldownData] = useState({}); // { brandName: { skuRows }, skuName: { cityRows } }
+  const rowsPerPage = 6;
+
+  useEffect(() => {
+    if (open) {
+      if (focusedEntity) {
+        const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands" && selectedBrand !== "All";
+        if (isBrandFilterActive) {
+          setExpandedBrand(selectedBrand);
+          setExpandedSku(focusedEntity);
+        } else {
+          setExpandedBrand(focusedEntity);
+          setExpandedSku(null);
+        }
+      } else {
+        setExpandedBrand(null);
+        setExpandedSku(null);
+      }
+      setPage(0);
+    }
+  }, [open, selectedBrand, activeTab, focusedEntity]);
+
+  const handleDownload = () => {
+    let csv = `Entity,Current Period,Comparison Period,Change\n`;
+    
+    const escapeCSV = (val) => {
+      if (val === undefined || val === null) return "";
+      const str = String(val);
+      return str.includes(',') ? `"${str}"` : str;
+    };
+
+    rows.forEach(row => {
+      csv += `${escapeCSV(row.name)},${escapeCSV(formatValue(row.currentVal, kpiLabel))},${escapeCSV(formatValue(row.prevVal, kpiLabel))},${escapeCSV(row.change)}\n`;
+      
+      if (drilldownData[row.name]) {
+        drilldownData[row.name].forEach(sr => {
+          csv += `  - ${escapeCSV(sr.name)},${escapeCSV(formatValue(sr.currentVal, kpiLabel))},${escapeCSV(formatValue(sr.prevVal, kpiLabel))},${escapeCSV(sr.change)}\n`;
+          
+          if (drilldownData[sr.name]) {
+            drilldownData[sr.name].forEach(ssr => {
+              csv += `    - ${escapeCSV(ssr.name)},${escapeCSV(formatValue(ssr.currentVal, kpiLabel))},${escapeCSV(formatValue(ssr.prevVal, kpiLabel))},${escapeCSV(ssr.change)}\n`;
+            });
+          }
+        });
+      }
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Diagnostic_Trace_${(kpiLabel || 'Metrics').replace(/\s+/g, '_')}_${dayjs().format('YYYYMMDD')}.csv`;
+    a.click();
+  };
+
+  const isQCPlatform = ["blinkit", "zepto", "instamart"].includes((platform || "").toLowerCase());
+  const platformLower = (platform || '').toLowerCase();
+  const channelLower = (context?.channel || '').toLowerCase();
+  const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
+  
+  const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("keyword");
+  const isEcomSos = isEcom && ((kpiLabel || "").toLowerCase().includes("search") || (kpiLabel || "").toLowerCase().includes("sos") || (kpiLabel || "").toLowerCase().includes("visibility"));
+  const kpiLabelLower = (kpiLabel || "").toLowerCase();
+  const isEcomPm = isEcom && (kpiLabelLower === "sp" || kpiLabelLower === "sb" || kpiLabelLower.includes("ad gvs") || kpiLabelLower.includes("ad impressions") || kpiLabelLower.includes("inorganic cvr"));
+  const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
+  const isKeywordDrillDown = (isQCPlatform && isKeywordScopedKpi) || isEcomSos || isEcomPm;
+
+  const fetchRows = useCallback(async (level = "brand", parentId = null, isInitialLoad = false) => {
+    try {
+      if (level === "brand" || isInitialLoad) setLoading(true);
+      const params = {
+        platform,
+        categoryVal: category, // This is "organic" / "ad"
+        category: context?.category || context?.categoryVal || 'All', // This is product category e.g. "GMFC"
+        kpiCategory: kpiLabel,
+        drilldownLevel: level,
+        drilldownId: parentId,
+        activeTab,
+        brand: selectedBrand || 'All',
+        sku: selectedSku || 'All',
+        brandScope: selectedBrand || 'All',
+      };
+      // Tell backend what kind of parent the drilldownId refers to
+      if ((level === 'location' || level === 'keyword') && hasSpecificBrand && !parentId) {
+        params.drilldownId = selectedBrand;
+        params.drilldownParentLevel = 'brand';
+      } else if (level === 'location' && parentId) {
+        // When expanding sub-row (SKU -> location), parentId is SKU
+        params.drilldownParentLevel = 'sku';
+      }
+      // Date Range Support from context
+      if (context?.timeStart) params.startDate = context.timeStart.format('YYYY-MM-DD');
+      if (context?.timeEnd) params.endDate = context.timeEnd.format('YYYY-MM-DD');
+      if (context?.compareOn && context?.compareStart) {
+        params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
+        params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
+      }
+
+      console.log("[KpiDetailModal] fetching", params);
+      const endpoint = isEcom ? '/ecom-rca' : '/category-rca';
+      const res = await axiosInstance.get(endpoint, { params });
+      const data = res.data?.rows || [];
+
+      if (level === "brand" || isInitialLoad) {
+        // For initial load (whether brand-level or sku-level), set as main rows
+        setRows(data);
+      } else {
+        // For subsequent drilldowns (expand within table), set as drilldown data
+        setDrilldownData(prev => ({
+          ...prev,
+          [parentId]: data
+        }));
+      }
+    } catch (err) {
+      console.error(`[KpiDetailModal] Fetch failed for ${level}:`, err);
+    } finally {
+      if (level === "brand" || isInitialLoad) setLoading(false);
+    }
+  }, [platform, category, kpiLabel, activeTab, context, selectedBrand, selectedSku, hasSpecificBrand]);
+
+  useEffect(() => {
+    if (open) {
+      setPage(0);
+      setRows([]);
+      setDrilldownData({});
+      setExpandedBrand(null);
+      setExpandedSku(null);
+
+      if (hasSpecificBrand) {
+        fetchRows(isKeywordDrillDown ? "keyword" : "location", focusedEntity || null, true);
+      } else {
+        fetchRows("brand", null, true);
+      }
+    }
+  }, [open, fetchRows, hasSpecificBrand, selectedBrand, isKeywordDrillDown, focusedEntity]);
+
+  const allRows = rows;
+  const topRows = allRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  const headerColumn = hasSpecificBrand ? (isKeywordDrillDown ? "Keyword" : "Location") : "Brand Identity";
+
+  const thStyle = { color: "#64748b", fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", py: 1.5 };
+  const tdStyle = { color: "#0f172a", fontSize: "15px", fontWeight: 600, py: 1.8 };
+  const tdMuted = { ...tdStyle, color: "#64748b", fontWeight: 500 };
+
+  const renderExpandBtn = (isExpanded, onClick) => (
+    <Box onClick={(e) => { e.stopPropagation(); onClick(); }}
+      sx={{
+        width: 26, height: 26, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center",
+        bgcolor: isExpanded ? "#6366f1" : "rgba(99,102,241,0.12)", color: isExpanded ? "#fff" : "#6366f1",
+        cursor: "pointer", transition: "all 0.2s", "&:hover": { bgcolor: isExpanded ? "#4f46e5" : "rgba(99,102,241,0.2)" },
+        boxShadow: isExpanded ? "0 4px 12px rgba(99,102,241,0.3)" : "none"
+      }}>
+      {isExpanded ? <Minus size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
+    </Box>
+  );
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth
+      PaperProps={{ sx: { borderRadius: "20px", overflow: "hidden", boxShadow: "0 40px 80px -15px rgba(0,0,0,0.3)" } }}>
+      <Box sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: "#fafafa", borderBottom: "1px solid #eee" }}>
+        <Box>
+          <Typography sx={{ fontSize: "22px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1.5px", color: "#0f172a" }}>
+            {category === "ad" ? "Ad " : category === "organic" ? "Organic " : ""}{kpiLabel.toUpperCase()} {kpiLabel.toLowerCase().includes("keyword") ? "SOS " : ""}DIAGNOSTIC TRACE
+          </Typography>
+          <Typography sx={{ fontSize: "12px", fontWeight: 600, color: "#94a3b8", letterSpacing: "0.5px" }}>
+            PRO INTELLIGENCE • DEEP-DIVE RCA MODULE • {platform?.toUpperCase() || "OMNI"}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Tooltip title="Download Complete Trace CSV">
+            <IconButton onClick={handleDownload} sx={{ bgcolor: "rgba(99,102,241,0.06)", color: "#6366f1", "&:hover": { bgcolor: "rgba(99,102,241,0.12)" } }}>
+              <Download size={18} strokeWidth={2.5} />
+            </IconButton>
+          </Tooltip>
+          <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 0.5, borderRadius: "10px" }}>
+            {["gainers", "drainers"].map(t => (
+              <Box key={t} onClick={() => { setActiveTab(t); setPage(0); }}
+                sx={{
+                  px: 2, py: 0.75, borderRadius: "8px", cursor: 'pointer', transition: 'all 0.2s',
+                  bgcolor: activeTab === t ? (t === 'gainers' ? "#059669" : "#dc2626") : "transparent",
+                  color: activeTab === t ? "#fff" : "#64748b", fontWeight: 700, fontSize: "12px", textTransform: 'uppercase'
+                }}>
+                {t === 'gainers' ? 'Gainers' : 'Drainers'}
+              </Box>
+            ))}
+          </Box>
+          <IconButton onClick={onClose} sx={{ bgcolor: "#eee", "&:hover": { bgcolor: "#ddd" } }}><Plus style={{ transform: 'rotate(45deg)' }} /></IconButton>
+        </Box>
+      </Box>
+      <DialogContent sx={{ p: 0, maxHeight: "70vh", overflowY: "auto", scrollBehavior: "smooth" }}>
+        <Table stickyHeader>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ ...thStyle, pl: 5 }}>{headerColumn}</TableCell>
+              <TableCell sx={thStyle}>Current Period</TableCell>
+              <TableCell sx={thStyle}>Comparison Period</TableCell>
+              <TableCell sx={thStyle}>Change</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {loading ? (
+              <TableRow><TableCell colSpan={4} align="center" sx={{ py: 10 }}><CircularProgress /></TableCell></TableRow>
+            ) : topRows.map((row, idx) => {
+              const isLocationLevel = hasSpecificBrand && !isKeywordDrillDown;
+              const isExpanded = hasSpecificBrand ? expandedSku === row.name : expandedBrand === row.name;
+              const subRows = drilldownData[row.name] || [];
+
+              const onToggle = () => {
+                if (hasSpecificBrand) {
+                  const newExpanded = expandedSku === row.name ? null : row.name;
+                  setExpandedSku(newExpanded);
+                  if (newExpanded && !drilldownData[newExpanded]) fetchRows("location", newExpanded);
+                } else {
+                  const newExpanded = expandedBrand === row.name ? null : row.name;
+                  setExpandedBrand(newExpanded);
+                  if (newExpanded && !drilldownData[newExpanded]) fetchRows(isKeywordDrillDown ? "keyword" : "sku", newExpanded);
+                }
+              };
+
+              return (
+                <React.Fragment key={idx}>
+                  <TableRow sx={{ "&:hover": { bgcolor: "rgba(0,0,0,0.01)" } }}>
+                    <TableCell sx={{ ...tdStyle, pl: 4 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        {!isLocationLevel && renderExpandBtn(isExpanded, onToggle)}
+                        {isLocationLevel && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />}
+                        <Typography sx={{ ...tdStyle, fontSize: "15px", p: 0 }}>{row.name}</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={tdStyle}>{formatValue(row.currentVal, kpiLabel)}</TableCell>
+                    <TableCell sx={tdMuted}>{formatValue(row.prevVal, kpiLabel)}</TableCell>
+                    <TableCell>
+                      <Typography sx={{
+                        color: row.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
+                        bgcolor: row.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
+                        px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
+                      }}>
+                        {row.change}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                  {isExpanded && subRows.map((sr, sIdx) => {
+                    const subExpanded = expandedSku === sr.name;
+                    const cityRows = drilldownData[sr.name] || [];
+                    const onToggleSub = () => {
+                      const newExp = subExpanded ? null : sr.name;
+                      setExpandedSku(newExp);
+                      if (newExp && !drilldownData[newExp]) fetchRows("location", newExp);
+                    };
+
+                    return (
+                      <React.Fragment key={`sub-${sIdx}`}>
+                        <TableRow sx={{ bgcolor: "rgba(99,102,241,0.05)" }}>
+                          <TableCell sx={{ ...tdStyle, pl: 7 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                              {!hasSpecificBrand && renderExpandBtn(subExpanded, onToggleSub)}
+                              {hasSpecificBrand && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />}
+                              <Typography sx={{ ...tdStyle, fontSize: "14px", p: 0 }}>{sr.name}</Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell sx={tdStyle}>{formatValue(sr.currentVal, kpiLabel)}</TableCell>
+                          <TableCell sx={tdMuted}>{formatValue(sr.prevVal, kpiLabel)}</TableCell>
+                          <TableCell>
+                            <Typography sx={{
+                              color: sr.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
+                              bgcolor: sr.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
+                              px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
+                            }}>
+                              {sr.change}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                        {subExpanded && cityRows.map((cr, cIdx) => (
+                          <TableRow key={`city-${cIdx}`} sx={{ bgcolor: "rgba(99,102,241,0.03)" }}>
+                            <TableCell sx={{ ...tdStyle, pl: 11 }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />
+                                <Typography sx={{ ...tdStyle, fontSize: "13px", p: 0 }}>{cr.name}</Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell sx={tdStyle}>{formatValue(cr.currentVal, kpiLabel)}</TableCell>
+                            <TableCell sx={tdMuted}>{formatValue(cr.prevVal, kpiLabel)}</TableCell>
+                            <TableCell>
+                              <Typography sx={{
+                                color: cr.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
+                                bgcolor: cr.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
+                                px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
+                              }}>
+                                {cr.change}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </DialogContent>
+      <TablePagination
+        rowsPerPageOptions={[]}
+        component="div"
+        count={allRows.length}
+        rowsPerPage={rowsPerPage}
+        page={page}
+        onPageChange={(e, p) => setPage(p)}
+        sx={{
+          bgcolor: "#fafafa", borderTop: "1px solid #eee",
+          "& .MuiTablePagination-toolbar": { minHeight: "48px" },
+          "& .MuiTypography-root": { fontWeight: 800, fontSize: "12px", color: "#64748b" }
+        }}
+      />
+    </Dialog>
+  );
+};
 
 const StatusDot = ({ status = "healthy" }) => {
   const color = status === "healthy" ? "#10b981" : status === "warning" ? "#f59e0b" : "#f43f5e";
@@ -180,7 +968,10 @@ const StatusDot = ({ status = "healthy" }) => {
   );
 };
 
-const DeltaBadge = ({ change, isPositive }) => (
+const DeltaBadge = ({ change, isPositive }) => {
+  const displayChange = typeof change === 'string' ? change.replace(/^[+-]\s*/, '') : change;
+  
+  return (
   <Box
     sx={{
       display: "inline-flex",
@@ -195,19 +986,21 @@ const DeltaBadge = ({ change, isPositive }) => (
       fontWeight: TYPO.weightBold,
       border: `1px solid ${isPositive ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)"
         }`,
-      fontFamily: "inherit",
+      fontFamily: TYPO.fontMain,
       whiteSpace: "nowrap",
     }}
   >
-    {isPositive ? "+" : "-"} {change}
+    {isPositive ? "+" : "-"} {displayChange}
   </Box>
-);
+  );
+};
 
 // --- Custom KPI Node ---
 const KpiNode = ({ data }) => {
   const {
     label,
     value,
+    prevValue,
     change,
     isPositive,
     category,
@@ -222,62 +1015,126 @@ const KpiNode = ({ data }) => {
     isDimmed = false,
     importance = "driver", // "outcome" | "primary" | "driver"
     onHover,
+    onViewTrends,
+    metrics,
+    keywordMetrics,
+    hoveredNodeId, // Single source of truth for global hover
   } = data;
+
+  const [localHover, setLocalHover] = useState(false);
 
   const accentColor = COLORS[category] || COLORS.impressions;
 
   const isOutcome = importance === "outcome";
   const isPrimary = importance === "primary";
 
-  const targetScale = isSelected ? 1.10 : 1;
-  const targetLift = isSelected ? -10 : 0;
+  const targetScale = isSelected ? 1.08 : localHover && !isDimmed ? 1.03 : 1;
+  const targetLift = isSelected ? -5 : 0;
 
   const baseBorder = isOutcome ? `2.5px solid ${accentColor}` : isPrimary ? "2px solid #cbd5e1" : "2px solid #cbd5e1";
   const baseShadow = isOutcome
-    ? "0 18px 44px -10px rgba(15, 23, 42, 0.22), 0 10px 22px -10px rgba(15, 23, 42, 0.14)"
-    : "0 12px 32px -6px rgba(15, 23, 42, 0.18), 0 6px 16px -6px rgba(15, 23, 42, 0.12)";
+    ? "0 18px 44px -10px rgba(15, 23, 42, 0.22)"
+    : "0 12px 32px -6px rgba(15, 23, 42, 0.18)";
 
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.92, y: 18 }}
       animate={{
-        opacity: isDimmed ? 0.28 : 1,
+        opacity: isDimmed ? 0.35 : 1,
         scale: targetScale,
         y: targetLift,
-        filter: isDimmed ? "grayscale(0.25) blur(0.15px)" : "none",
+        filter: isDimmed ? "grayscale(0.4) blur(0.2px)" : "none",
+        zIndex: localHover && !isDimmed ? 1000 : 1,
+      }}
+      transition={{
+        type: "spring",
+        damping: 12,
+        stiffness: 70,
+        opacity: { duration: 0.2, ease: "easeOut" }
       }}
       whileHover={{
-        y: -18,
-        scale: isDimmed ? 1 : 1.04,
         boxShadow: isDimmed
           ? baseShadow
-          : `0 30px 60px -12px rgba(0, 0, 0, 0.15),
-             0 18px 36px -18px rgba(0, 0, 0, 0.2),
-             0 10px 20px -10px rgba(0, 0, 0, 0.1)`,
+          : `0 35px 70px -15px rgba(0, 0, 0, 0.18)`,
         border: isDimmed ? baseBorder : `2.5px solid ${accentColor}`,
       }}
-      transition={{ type: "spring", damping: 12, stiffness: 70 }}
       style={{
-        width: CARD_WIDTH,
+        minWidth: CARD_WIDTH,
+        width: "fit-content",
+        maxWidth: 1600,
         backgroundColor: "#ffffff",
-        borderRadius: "28px",
+        borderRadius: "64px",
         border: baseBorder,
         overflow: "visible",
-        fontFamily: '"Outfit","Inter",sans-serif',
+        fontFamily: TYPO.fontMain,
         cursor: "pointer",
         position: "relative",
-        boxShadow: baseShadow,
-        zIndex: isSelected ? 30 : 10,
+        boxShadow: localHover && !isDimmed
+          ? `0 40px 80px -15px rgba(0,0,0,0.15), 0 0 20px ${accentColor}20`
+          : baseShadow,
+        zIndex: localHover && !isDimmed ? 1000 : 1,
         transformOrigin: "center",
       }}
-      onMouseEnter={() => onHover?.(data.id)}
-      onMouseLeave={() => onHover?.(null)}
+      onMouseEnter={(e) => {
+        e.stopPropagation();
+        setLocalHover(true);
+        // Use a small timeout to prevent rapid state switching (flickering)
+        if (window.hoverTimeout) clearTimeout(window.hoverTimeout);
+        onHover?.(data.id);
+      }}
+      onMouseLeave={(e) => {
+        e.stopPropagation();
+        setLocalHover(false);
+        window.hoverTimeout = setTimeout(() => {
+          onHover?.(null);
+        }, 100);
+      }}
       onClick={(e) => {
         if (e.target.closest(".toggle-btn")) return;
         onClickDetail(data);
       }}
     >
-      <Handle type="target" position={Position.Top} style={{ background: "transparent", border: "none", width: 0, height: 0, top: -8 }} />
+      <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none", width: 0, height: 0, left: -8, top: "50%" }} />
+
+      {/* Hover bridge to keep popup open when moving mouse between card and popup */}
+      {
+        localHover && hoveredNodeId === data.id && !isDimmed && (
+          <Box
+            sx={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              height: "200px", // Galactic gap bridge
+              zIndex: 99999,
+              background: "transparent",
+              ...(data.popupPosition === "bottom"
+                ? { top: "100%" }
+                : { bottom: "100%" }
+              ),
+            }}
+          />
+        )
+      }
+
+      <AnimatePresence>
+        {localHover && hoveredNodeId === data.id && !isDimmed && (
+          <HoverMetricsPopup
+            kpiLabel={label}
+            category={data.category}
+            metrics={data.metrics}
+            keywordMetrics={data.keywordMetrics}
+            platform={data.platform || ""}
+            selectedBrand={data.selectedBrand || ""}
+            selectedSku={data.selectedSku || ""}
+            selectedCategory={data.selectedCategory || ""}
+            position={data.popupPosition}
+            nodeValue={data.value}
+            onDrillDown={(entityToFocus) => {
+              onClickDetail({ ...data, focusedEntity: entityToFocus });
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Top accent strip */}
       <Box
@@ -294,20 +1151,21 @@ const KpiNode = ({ data }) => {
       />
 
       {insight && <AiInsightBadge text={insight} />}
+      <TrendButton onClick={() => onViewTrends(label)} />
 
       <Box
         sx={{
-          p: 2.3,
-          pb: 1.8,
+          p: 5,
+          pb: 4,
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "space-between",
-          borderBottom: `1px solid ${TYPO.border}`,
+          borderBottom: `2px solid ${TYPO.border}`,
         }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, pt: 0.8 }}>
-          <Box sx={{ width: 10, height: 10, borderRadius: "4px", bgcolor: accentColor, boxShadow: `0 0 10px ${accentColor}55` }} />
-          <Typography sx={{ fontSize: TYPO.labelSize, fontWeight: TYPO.weightBold, color: TYPO.primary, letterSpacing: "-0.2px" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 4.5, pt: 3.0 }}>
+          <Box sx={{ width: 36, height: 36, borderRadius: "12px", bgcolor: accentColor, boxShadow: `0 0 35px ${accentColor}55` }} />
+          <Typography sx={{ fontSize: TYPO.labelSize, fontWeight: TYPO.weightBold, color: TYPO.primary, letterSpacing: "-1.0px" }}>
             {label}
           </Typography>
         </Box>
@@ -338,13 +1196,21 @@ const KpiNode = ({ data }) => {
         </Box>
       </Box>
 
-      <Box sx={{ p: 2.3 }}>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.8 }}>
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1.2, flexWrap: "wrap" }}>
-            <Typography sx={{ fontSize: TYPO.valueSize, fontWeight: TYPO.weightHeavy, color: TYPO.primary, lineHeight: 1.12, letterSpacing: "-0.8px" }}>
-              {value}
-            </Typography>
-            <DeltaBadge change={change} isPositive={isPositive} />
+      <Box sx={{ p: "56px 60px" }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 5.5 }}>
+          <Box sx={{ flex: 1, minWidth: "fit-content" }}>
+            <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Current</Typography>
+            <Typography sx={{ fontSize: TYPO.valueSize, color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{value}</Typography>
+          </Box>
+          <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 6, flexShrink: 0 }} />
+          <Box sx={{ flex: 1, minWidth: "fit-content" }}>
+            <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Previous</Typography>
+            <Typography sx={{ fontSize: "68px", color: TYPO.secondary, fontWeight: TYPO.weightBold, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{prevValue || "—"}</Typography>
+          </Box>
+          <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 6, flexShrink: 0 }} />
+          <Box sx={{ flex: 1, textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", minWidth: "fit-content" }}>
+            <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Variance %</Typography>
+            <Box sx={{ mt: "16px", fontFamily: TYPO.fontMono }}><DeltaBadge change={change} isPositive={isPositive} /></Box>
           </Box>
         </Box>
 
@@ -353,10 +1219,10 @@ const KpiNode = ({ data }) => {
             sx={{
               display: "flex",
               flexDirection: "column",
-              gap: 1.4,
+              gap: 1.8,
               bgcolor: "rgba(15, 23, 42, 0.04)",
-              p: 2.0,
-              borderRadius: "18px",
+              p: 2.5,
+              borderRadius: "22px",
               border: `1px solid ${TYPO.border}`,
             }}
           >
@@ -386,57 +1252,55 @@ const KpiNode = ({ data }) => {
         )}
       </Box>
 
-      {hasChildren && (
-        <motion.div
-          className="toggle-btn"
-          whileHover={{ scale: 1.18, rotate: 90, backgroundColor: "#4f46e5", color: "#fff" }}
-          whileTap={{ scale: 0.92 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle();
-          }}
-          style={{
-            position: "absolute",
-            bottom: -20,
-            left: "50%",
-            marginLeft: -20,
-            width: 40,
-            height: 40,
-            borderRadius: "50%",
-            backgroundColor: "#fff",
-            color: "#64748b",
-            border: "2px solid rgba(255, 255, 255, 1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            zIndex: 15,
-            boxShadow: "0 14px 26px -6px rgba(0, 0, 0, 0.16)",
-          }}
-        >
-          {isCollapsed ? <Plus size={22} strokeWidth={3} /> : <Minus size={22} strokeWidth={3} />}
-        </motion.div>
-      )}
+      {
+        hasChildren && (
+          <motion.div
+            className="toggle-btn"
+            whileHover={{ scale: 1.18, rotate: 90, backgroundColor: "#4f46e5", color: "#fff" }}
+            whileTap={{ scale: 0.92 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle();
+            }}
+            style={{
+              position: "absolute",
+              right: -28, // Centered on the source handle at right: -8
+              top: "50%",
+              marginTop: -20,
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              backgroundColor: "#fff",
+              color: "#64748b",
+              border: "2px solid rgba(255, 255, 255, 1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              zIndex: 15,
+              boxShadow: "0 14px 26px -6px rgba(0, 0, 0, 0.16)",
+            }}
+          >
+            {isCollapsed ? <Plus size={22} strokeWidth={3} /> : <Minus size={22} strokeWidth={3} />}
+          </motion.div>
+        )
+      }
 
-      <Handle type="source" position={Position.Bottom} style={{ background: "transparent", border: "none", width: 0, height: 0, bottom: -8 }} />
-    </motion.div>
+      <Handle type="source" position={Position.Right} style={{ background: "transparent", border: "none", width: 0, height: 0, right: -8 }} />
+    </motion.div >
   );
 };
 
 // --- Dynamic Data Helpers ---
-const getSeedFromStr = (str) => {
-  let h = 0xdeadbeef;
-  for (let i = 0; i < str.length; i++) {
-    h = Math.imul(h ^ str.charCodeAt(i), 2654435761);
-  }
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-};
+// (using global getSeedFromStr)
 
 const getDynamicRcaTreeData = (context) => {
-  const { platform, brand, sku, category, month } = context;
+  const { platform, channel, category: categoryVal, brand, sku, month } = context;
+
+  const isEcom = channel?.toLowerCase().includes("e-commerce") || channel?.toLowerCase().includes("ecom") || platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
 
   // Seed for overall consistency - now including month
-  const seed = getSeedFromStr(`${platform}-${brand}-${sku}-${category || "All"}-${month || "All"}`);
+  const seed = getSeedFromStr(`${platform}-${brand}-${sku}-${categoryVal || "All"}-${month || "All"}`);
 
   // Base Multipliers to differentiate entities SIGNIFICANTLY
   const getEntityBase = (name, range = 0.5, offset = 1.0) => {
@@ -446,7 +1310,7 @@ const getDynamicRcaTreeData = (context) => {
 
   const platformMult = getEntityBase(platform, 1.5);
   const brandMult = getEntityBase(brand, 2.0);
-  const catMult = getEntityBase(category, 1.0);
+  const catMult = getEntityBase(categoryVal, 1.0);
 
   // Amplify behavior for certain platforms (Amazon should show larger swings)
   const platformAmplify = platform?.toLowerCase() === "amazon" ? 3.0 : 1.0;
@@ -467,7 +1331,7 @@ const getDynamicRcaTreeData = (context) => {
 
   const formatLac = (val) => {
     if (val >= 100) return `₹ ${(val / 100).toFixed(1)} Cr`;
-    if (val >= 1) return `₹ ${val.toFixed(1)} lac`;
+    if (val >= 1) return `₹ ${val.toFixed(1)} Lacs`;
     if (val <= 0.05) return `${(val * 1000).toFixed(0)} units`;
     return `${(val * 100).toFixed(1)} K`;
   };
@@ -500,55 +1364,99 @@ const getDynamicRcaTreeData = (context) => {
   const brandId = brand || "base";
   const skuId = sku || "base";
 
-  // --- AMAZON SPECIFIC TREE ---
-  if (platform?.toLowerCase() === "amazon") {
-    const rootChange = getChange("root");
+  // --- E-COMMERCE SPECIFIC TREE (DYNAMIC) ---
+  if (isEcom) {
+    const isFlipkart = platform?.toLowerCase() === "flipkart";
+    const gvLabel = isFlipkart ? "Impression" : "GV";
+    const pluralGvLabel = isFlipkart ? "Impressions" : "GVs";
+
     return {
       id: "root",
       label: "Offtake",
-      value: getVal(5.0 * 100), // Amazon usually has higher scale
-      change: rootChange.val,
-      isPositive: rootChange.isPos,
+      value: "₹ 2.95 Cr",
+      change: "53.73%",
+      isPositive: false,
       category: "offtake",
       importance: "outcome",
-      insight: rootChange.isPos ? "Portfolio Growth" : "Market Pressure",
+      insight: "Critical Decline",
+      meta: [{ label: "Est. Category share", value: "0.00%", change: "2.40%", isPositive: false }],
       children: [
         {
-          id: "gvs",
-          label: "GVs",
-          value: formatLac(133.1 * finalVolume),
-          change: getChange("gvs").val,
-          isPositive: getChange("gvs").isPos,
+          id: isFlipkart ? "impressions" : "gvs",
+          label: isFlipkart ? "Impressions" : "GVs",
+          value: "115.65K",
+          change: "46.97%",
+          isPositive: false,
           category: "impressions",
           importance: "primary",
-          meta: [{ label: "GV Share", value: "100.0%", change: "0.00", isPositive: true }],
+          meta: [
+            { label: "Share of Search", value: "45.80%", change: "7.63%", isPositive: false },
+            { label: `${gvLabel} Share`, value: "100.00%", change: "0.00", isPositive: true }
+          ],
           children: [
             {
-              id: "organic-gvs",
-              label: "Organic GVs",
-              value: formatLac(73.3 * finalVolume),
-              change: getChange("org_gv").val,
-              isPositive: getChange("org_gv").isPos,
+              id: isFlipkart ? "organic-impressions" : "organic-gvs",
+              label: isFlipkart ? "Organic " + pluralGvLabel : "Organic GVs",
+              value: "80.10K",
+              change: "37.63%",
+              isPositive: false,
               category: "organic",
               meta: [
-                { label: "Organic Share of Search", value: getVal(45.5, true, "osas", 10) },
-                { label: "Organic GV%", value: getVal(55.0, true, "ogvp", 10) }
+                { label: `Organic Share of Search`, value: "45.03%", change: "0.01%", isPositive: true },
+                { label: `Organic ${gvLabel}%`, value: "69.26%", change: "10.38%", isPositive: true }
               ]
             },
             {
-              id: "ad-gvs",
-              label: "Ad GVs",
-              value: formatLac(59.8 * finalVolume),
-              change: getChange("ad_gv").val,
-              isPositive: getChange("ad_gv").isPos,
+              id: isFlipkart ? "ad-impressions" : "ad-gvs",
+              label: isFlipkart ? "Ad " + pluralGvLabel : "Ad GVs",
+              value: "35.55K",
+              change: "60.35%",
+              isPositive: false,
               category: "ad",
               meta: [
-                { label: "Sp. Share of Search", value: getVal(64.8, true, "ssos", 10) },
-                { label: "AD Driven GV%", value: getVal(44.9, true, "adgv", 10) },
-                { label: "AD Spend", value: `₹ ${(3.0 * finalVolume).toFixed(1)}M` },
-                { label: "Total ROAS", value: (3.2 * (0.8 + seed * 0.4)).toFixed(2) }
+                { label: "Sp. Share of Search", value: "47.60%", change: "29.79%", isPositive: false },
+                { label: `AD Driven ${gvLabel}%`, value: "30.74%", change: "10.38%", isPositive: false },
+                { label: "AD Spend", value: "3.33M", change: "50.58%", isPositive: false },
+                { label: "Total ROAS", value: "2.77", change: "15.70%", isPositive: false }
               ],
-              children: [
+              children: isFlipkart ? [
+                {
+                  id: "pla",
+                  label: "PLA",
+                  value: "22.45K",
+                  change: "46.74%",
+                  isPositive: false,
+                  category: "ad",
+                  meta: [
+                    { label: "PLA Impressions", value: "22.45K", change: "46.74%", isPositive: false },
+                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false }
+                  ]
+                },
+                {
+                  id: "pca",
+                  label: "PCA",
+                  value: "8.10K",
+                  change: "56.80%",
+                  isPositive: false,
+                  category: "ad",
+                  meta: [
+                    { label: "PCA Impressions", value: "8.10K", change: "56.80%", isPositive: false },
+                    { label: "Conversion", value: "29.21%", change: "6.80%", isPositive: true }
+                  ]
+                },
+                {
+                  id: "display-ads",
+                  label: "Display Ads",
+                  value: "5.00K",
+                  change: "43.79%",
+                  isPositive: false,
+                  category: "ad",
+                  meta: [
+                    { label: "Display Impressions", value: "5.00K", change: "43.79%", isPositive: false },
+                    { label: "Conversion", value: "23.28%", change: "2.18%", isPositive: false }
+                  ]
+                }
+              ] : [
                 {
                   id: "dsp",
                   label: "DSP",
@@ -564,52 +1472,55 @@ const getDynamicRcaTreeData = (context) => {
                 {
                   id: "sponsored-search",
                   label: "Sponsored Search",
-                  value: formatLac(46.8 * finalVolume),
-                  change: getChange("sps").val,
-                  isPositive: getChange("sps").isPos,
+                  value: "45.00K",
+                  change: "46.74%",
+                  isPositive: false,
                   category: "ad",
-                  meta: [{ label: "Search GVs", value: formatLac(46.8 * finalVolume) }, { label: "Conversion", value: "23.19%" }],
+                  meta: [
+                    { label: "Search GVs", value: "45.00K", change: "46.74%", isPositive: false },
+                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false }
+                  ],
                   children: [
                     {
                       id: "sp",
                       label: "Sponsored Product",
-                      value: formatLac(35.5 * finalVolume),
-                      change: getChange("sp").val,
-                      isPositive: getChange("sp").isPos,
+                      value: "30.41K",
+                      change: "56.80%",
+                      isPositive: false,
                       category: "ad",
                       meta: [
-                        { label: "SP GVs", value: formatLac(35.5 * finalVolume) },
-                        { label: "Conversion", value: getVal(26.6, true, "spc", 5) },
-                        { label: "SP ROAS", value: "3.56" },
-                        { label: "SP SPEND", value: "2.62M" }
+                        { label: "SP GVs", value: "30.41K", change: "56.80%", isPositive: false },
+                        { label: "Conversion", value: "29.21%", change: "6.80%", isPositive: true },
+                        { label: "SP ROAS", value: "2.83", change: "13.85%", isPositive: false },
+                        { label: "SP SPEND", value: "2.61M", change: "55.17%", isPositive: false }
                       ]
                     },
                     {
                       id: "sb",
                       label: "Sponsored Brand",
-                      value: formatLac(4.3 * finalVolume),
-                      change: getChange("sb").val,
-                      isPositive: getChange("sb").isPos,
+                      value: "5.48K",
+                      change: "43.79%",
+                      isPositive: false,
                       category: "ad",
                       meta: [
-                        { label: "SB All GVs", value: formatLac(4.3 * finalVolume) },
-                        { label: "Conversion", value: "17.56%" },
-                        { label: "SB ROAS", value: "0.42" },
-                        { label: "SB SPEND", value: "264.49K" }
+                        { label: "SB All GVs", value: "5.48K", change: "43.79%", isPositive: false },
+                        { label: "Conversion", value: "23.28%", change: "2.18%", isPositive: false },
+                        { label: "SB ROAS", value: "1.50", change: "34.67%", isPositive: false },
+                        { label: "SB SPEND", value: "544.89K", change: "32.99%", isPositive: false }
                       ]
                     },
                     {
                       id: "sd",
                       label: "Sponsored Display",
-                      value: formatLac(6.9 * finalVolume),
-                      change: getChange("sd").val,
-                      isPositive: getChange("sd").isPos,
+                      value: "9.11K",
+                      change: "109.94%",
+                      isPositive: true,
                       category: "ad",
                       meta: [
-                        { label: "SD GVs", value: formatLac(6.9 * finalVolume) },
-                        { label: "Conversion", value: "9.00%" },
-                        { label: "SD ROAS", value: "1.64" },
-                        { label: "SD SPEND", value: "112.06K" }
+                        { label: "SD GVs", value: "9.11K", change: "109.94%", isPositive: true },
+                        { label: "Conversion", value: "13.98%", change: "24.94%", isPositive: false },
+                        { label: "SD ROAS", value: "5.79", change: "46.13%", isPositive: false },
+                        { label: "SD SPEND", value: "177.33K", change: "63.58%", isPositive: true }
                       ]
                     }
                   ]
@@ -619,45 +1530,45 @@ const getDynamicRcaTreeData = (context) => {
             {
               id: "sov-overall",
               label: "SOV Overall",
-              value: "15.66%",
+              value: "8.75%",
               change: "0.0%",
               isPositive: true,
               category: "impressions",
-              meta: [{ label: "SOV", value: "15.66%" }]
+              meta: [{ label: "SOV", value: "8.75%" }]
             }
           ]
         },
         {
           id: "cvr",
           label: "CVR",
-          value: getVal(39.5, true, "cvr_main", 10),
-          change: getChange("cvr").val,
-          isPositive: getChange("cvr").isPos,
+          value: "40.68%",
+          change: "13.01%",
+          isPositive: true,
           category: "conversion",
           importance: "primary",
           children: [
             {
               id: "availability",
               label: "Availability",
-              value: getVal(77.9, true, "avail", 10),
-              change: getChange("ava").val,
-              isPositive: getChange("ava").isPos,
+              value: "69.55%",
+              change: "4.60%",
+              isPositive: false,
               category: "availability",
               children: [
                 {
                   id: "buybox",
                   label: "BuyBox%",
-                  value: getVal(58.3, true, "bbox", 15),
-                  change: getChange("bbx").val,
-                  isPositive: getChange("bbx").isPos,
+                  value: "43.01%",
+                  change: "22.74%",
+                  isPositive: false,
                   category: "availability"
                 },
                 {
                   id: "seller-listing",
                   label: "Seller Listing%",
-                  value: getVal(56.7, true, "slst", 15),
-                  change: getChange("sls").val,
-                  isPositive: getChange("sls").isPos,
+                  value: "42.85%",
+                  change: "0.0%",
+                  isPositive: true,
                   category: "availability"
                 }
               ]
@@ -665,46 +1576,45 @@ const getDynamicRcaTreeData = (context) => {
             {
               id: "delivery-time",
               label: "Delivery Time",
-              value: "1.5 Days",
-              change: getChange("del").val,
-              isPositive: getChange("del").isPos,
+              value: "Same Day",
+              change: "22.74%",
+              isPositive: false,
               category: "segment",
-              meta: [{ label: "Delivery Time", value: "1.5 Days" }]
+              children: isFlipkart ? [] : [
+                { id: "same-day", label: `Same Day ${pluralGvLabel}%`, value: "100.00%", change: "81.09%", isPositive: true, category: "segment" }
+              ]
             },
             {
               id: "discounting",
               label: "Discounting%",
-              value: getVal(9.8, true, "disc", 5),
-              change: getChange("dsc").val,
-              isPositive: getChange("dsc").isPos,
-              category: "discounting"
+              value: "9.11%",
+              change: "9.45%",
+              isPositive: false,
+              category: "discounting",
+              children: isFlipkart ? [] : [
+                { id: "one-day", label: `1 Day ${pluralGvLabel}%`, value: "0.00%", change: "0.05%", isPositive: false, category: "segment" }
+              ]
             },
             {
               id: "organic-cvr",
               label: "Organic CVR",
-              value: getVal(58.9, true, "ocvr", 10),
-              change: getChange("ocvr").val,
-              isPositive: getChange("ocvr").isPos,
-              category: "organic"
+              value: "47.65%",
+              change: "1.54%",
+              isPositive: true,
+              category: "organic",
+              children: isFlipkart ? [] : [
+                { id: "two-day", label: `2 Day ${pluralGvLabel}%`, value: "(Blank)", change: "74.95%", isPositive: false, category: "segment" }
+              ]
             },
             {
               id: "inorganic-cvr",
               label: "Inorganic CVR",
-              value: getVal(26.6, true, "icvr", 10),
-              change: getChange("icvr").val,
-              isPositive: getChange("icvr").isPos,
-              category: "ad"
-            },
-            {
-              id: "delivery-slots", // Same day, 1 day, etc
-              label: "Delivery Slots",
-              value: "Analysis",
-              category: "segment",
-              children: [
-                { id: "same-day", label: "Same Day GVs%", value: "11.29%", category: "segment" },
-                { id: "one-day", label: "1 Day GVs%", value: "0.00%", category: "segment" },
-                { id: "two-day", label: "2 Day GVs%", value: "69.56%", category: "segment" },
-                { id: "greater-two", label: "> 2 Days GVs%", value: "19.14%", category: "segment" }
+              value: "29.21%",
+              change: "1.81%",
+              isPositive: true,
+              category: "ad",
+              children: isFlipkart ? [] : [
+                { id: "greater-two", label: `> 2 Days ${pluralGvLabel}%`, value: "0.00%", change: "6.08%", isPositive: false, category: "segment" }
               ]
             }
           ]
@@ -712,15 +1622,28 @@ const getDynamicRcaTreeData = (context) => {
         {
           id: "asp",
           label: "ASP",
-          value: `₹ ${(742.0 * getEntityBase(skuId + brandId, 0.4)).toFixed(2)}`,
-          change: getChange("asp").val,
-          isPositive: getChange("asp").isPos,
+          value: "626.36",
+          change: "17.02%",
+          isPositive: false,
           category: "price",
           importance: "primary",
           children: [
-            { id: "combo-sales", label: "Combo Sales%", value: "44.16%", category: "segment" },
-            { id: "large-sales", label: "Large Sales%", value: "61.72%", category: "segment" },
-            { id: "premium-sales", label: "Premium Sales%", value: "26.34%", category: "segment" }
+            { id: "combo-sales", label: "Combo Sales%", value: "42.91%", change: "13.48%", isPositive: true, category: "segment" },
+            { id: "large-sales", label: "Large Sales%", value: "53.41%", change: "17.39%", isPositive: false, category: "segment" },
+            { id: "premium-sales", label: "Premium Sales%", value: "20.85%", change: "4.73%", isPositive: false, category: "segment" }
+          ]
+        },
+        {
+          id: "sns",
+          label: "Subscribe & Save %",
+          value: "0.00%",
+          change: "0.00%",
+          isPositive: true,
+          category: "segment",
+          meta: [{ label: "SnS Sales%", value: "0.00%" }],
+          children: [
+            { id: "loyalty", label: "Loyalty/Repeats %", value: "79.62%", change: "1.37%", isPositive: true, category: "segment" },
+            { id: "new-cust", label: "New Customer %", value: "20.38%", change: "1.37%", isPositive: false, category: "segment" }
           ]
         }
       ]
@@ -745,27 +1668,48 @@ const getDynamicRcaTreeData = (context) => {
     category: "offtake",
     importance: "outcome",
     insight: rootChange.isPos ? "Volume Growth" : "Critical Decline",
+    metrics: [
+      { brand: 'Snickers', offtake: '₹66.6 lac', deltaOfftake: '-₹1.4 lac', price: '₹66.6', deltaPrice: '-₹1.4', discount: '7.1%', deltaDiscount: '0.4%', ppu: '₹122.3', deltaPpu: '-₹7.5', impressions: '19.4 lac', deltaImpressions: '-2.1 lac', conversion: '7.0%', deltaConversion: '-0.3%', rating: '11.4 lac', deltaRating: '0.5 lac', listing: '85.5%', deltaListing: '1.2%' },
+      { brand: 'Galaxy', offtake: '₹101.1 lac', deltaOfftake: '-₹8.4 lac', price: '₹101.1', deltaPrice: '-₹8.4', discount: '9.8%', deltaDiscount: '1.3%', ppu: '₹183.5', deltaPpu: '-₹1.8', impressions: '13.7 lac', deltaImpressions: '-4.7 K', conversion: '6.3%', deltaConversion: '-0.5%', listing: '82.1%', deltaListing: '-0.8%' },
+      { brand: 'Bounty', offtake: '₹119.7 lac', deltaOfftake: '-₹9.8 lac', price: '₹119.7', deltaPrice: '-₹9.8', discount: '11.7%', deltaDiscount: '2.0%', ppu: '₹144.3', deltaPpu: '-₹14.7', impressions: '4.1 lac', deltaImpressions: '25.9 K', conversion: '7.0%', deltaConversion: '-0.4%', listing: '78.4%', deltaListing: '2.1%' },
+      { brand: 'Twix', offtake: '₹117.9 lac', deltaOfftake: '-₹2.8 lac', price: '₹117.9', deltaPrice: '-₹2.8', discount: '5.0%', deltaDiscount: '0.6%', ppu: '₹175.1', deltaPpu: '-₹7', impressions: '30.2 K', deltaImpressions: '1.2 K', conversion: '12.7%', deltaConversion: '0.8%', listing: '91.2%', deltaListing: '-1.5%' },
+      { brand: 'Mars', offtake: '₹92.8 lac', deltaOfftake: '-₹2.1 lac', price: '₹92.8', deltaPrice: '-₹2.1', discount: '4.1%', deltaDiscount: '0.3%', ppu: '₹182.1', deltaPpu: '-₹4.1', impressions: '10.5 K', deltaImpressions: '-0.5 K', conversion: '8.5%', deltaConversion: '-0.3%', listing: '88.5%', deltaListing: '0.5%' },
+    ],
     meta: [{ label: "Est. Category Share", value: getVal(5.1, true, seed + "catshare", 15), change: getChange("meta1").val, isPositive: getChange("meta1").isPos }],
     children: [
       {
         id: "asp",
-        label: "ASP",
+        label: "PRICE",
         value: `₹ ${(189.2 * getEntityBase(skuId + brandId, 1.2)).toFixed(1)}`,
         change: aspChange.val,
         isPositive: aspChange.isPos,
         category: "price",
         importance: "primary",
-        meta: [{ label: "Baseline ASP", value: "₹ 185.0" }]
+        meta: [{ label: "Baseline PRICE", value: "₹ 185.0" }],
+        metrics: [
+          { brand: 'Snickers', price: '₹122.3', deltaPrice: '-₹7.5' },
+          { brand: 'Galaxy', price: '₹183.5', deltaPrice: '-₹1.8' },
+          { brand: 'Bounty', price: '₹144.3', deltaPrice: '-₹14.7' },
+          { brand: 'Twix', price: '₹175.1', deltaPrice: '-₹7.0' },
+          { brand: 'Mars', price: '₹182.1', deltaPrice: '-₹4.1' },
+        ],
       },
       {
         id: "indexed-impressions",
-        label: "Indexed Impressions",
+        label: "Impressions",
         value: formatLac(3.4 * finalVolume * getEntityBase(platform + "imp", 0.8)),
         change: impChange.val,
         isPositive: impChange.isPos,
         category: "impressions",
         importance: "primary",
         insight: impChange.isPos ? "High Visibility" : "Visibility Loss",
+        metrics: [
+          { brand: 'Snickers', impressions: '19.4 lac', deltaImpressions: '+1.2 lac' },
+          { brand: 'Galaxy', impressions: '15.2 lac', deltaImpressions: '-0.8 lac' },
+          { brand: 'Bounty', impressions: '10.1 lac', deltaImpressions: '+2.5 lac' },
+          { brand: 'Twix', impressions: '8.4 lac', deltaImpressions: '-0.3 lac' },
+          { brand: 'Mars', impressions: '7.0 lac', deltaImpressions: '+0.1 lac' },
+        ],
         meta: [{ label: "Overall SOS", value: getVal(12.5, true, seed + "sos", 25), change: getChange("meta2").val, isPositive: getChange("meta2").isPos }],
         children: [
           {
@@ -775,6 +1719,13 @@ const getDynamicRcaTreeData = (context) => {
             change: osaChange.val,
             isPositive: osaChange.isPos,
             category: "availability",
+            metrics: [
+              { brand: 'Snickers', osa: '82.5%', deltaOsa: '+1.2%' },
+              { brand: 'Galaxy', osa: '75.1%', deltaOsa: '-2.4%' },
+              { brand: 'Bounty', osa: '88.9%', deltaOsa: '+0.5%' },
+              { brand: 'Twix', osa: '91.2%', deltaOsa: '-1.8%' },
+              { brand: 'Mars', osa: '85.4%', deltaOsa: '+3.1%' },
+            ],
             children: [
               {
                 id: "listing",
@@ -782,36 +1733,34 @@ const getDynamicRcaTreeData = (context) => {
                 value: getVal(60.0, true, seed + "listing", 50),
                 change: getChange("meta3").val,
                 isPositive: getChange("meta3").isPos,
-                category: "availability"
+                category: "availability",
+                metrics: [
+                  { brand: 'Snickers', listing: '92.1%', deltaListing: '+1.5%' },
+                  { brand: 'Galaxy', listing: '88.4%', deltaListing: '-0.8%' },
+                  { brand: 'Bounty', listing: '85.0%', deltaListing: '+2.1%' },
+                  { brand: 'Twix', listing: '95.2%', deltaListing: '-1.2%' },
+                  { brand: 'Mars', listing: '89.7%', deltaListing: '+0.4%' },
+                ],
               }
             ]
           },
           {
             id: "organic-impressions",
             label: "Organic Impressions",
-            value: formatLac(1.9 * finalVolume * getEntityBase(category + "org", 0.6)),
+            value: formatLac(1.9 * finalVolume * getEntityBase(categoryVal + "org", 0.6)),
             change: orgChange.val,
             isPositive: orgChange.isPos,
             category: "organic",
             insight: orgChange.isPos ? "Organic Pull" : "Low Ranking",
-            meta: [{ label: "Organic SOS", value: getVal(8.5, true, seed + "orgsos", 15), change: getChange("meta4").val, isPositive: getChange("meta4").isPos }],
-            children: [
-              { id: "org-generic", label: "Generic Keywords", value: formatLac(1.1 * finalVolume * getEntityBase("gen", 0.4)), change: getChange("gen").val, isPositive: getChange("gen").isPos, category: "organic" },
-              { id: "org-branded", label: "Branded Keywords", value: formatLac(0.694 * finalVolume * getEntityBase("brand_kw", 0.4)), change: getChange("brand_kw").val, isPositive: getChange("brand_kw").isPos, category: "organic" },
+            metrics: [
+              { brand: 'Snickers', organic: '12.2 lac', deltaOrganic: '+0.8 lac' },
+              { brand: 'Galaxy', organic: '8.5 lac', deltaOrganic: '-0.3 lac' },
+              { brand: 'Bounty', organic: '5.4 lac', deltaOrganic: '+0.2 lac' },
+              { brand: 'Twix', organic: '3.1 lac', deltaOrganic: '-0.1 lac' },
+              { brand: 'Mars', organic: '1.2 lac', deltaOrganic: '+0.05 lac' },
             ],
+            meta: [{ label: "Organic SOS", value: getVal(8.5, true, seed + "orgsos", 15), change: getChange("meta4").val, isPositive: getChange("meta4").isPos }],
           },
-        ],
-      },
-      {
-        id: "indexed-cvr",
-        label: "Indexed CVR",
-        value: getVal(6.2, true, seed + "cvr", 8),
-        change: cvrChange.val,
-        isPositive: cvrChange.isPos,
-        category: "conversion",
-        importance: "outcome",
-        insight: cvrChange.isPos ? "Conv. Efficacy" : "Conv. Drop",
-        children: [
           {
             id: "ad-impressions",
             label: "Ad Impressions",
@@ -819,14 +1768,54 @@ const getDynamicRcaTreeData = (context) => {
             change: adChange.val,
             isPositive: adChange.isPos,
             category: "ad",
+            metrics: [
+              { brand: 'Snickers', ad: '7.2 lac', deltaAd: '+0.4 lac' },
+              { brand: 'Galaxy', ad: '6.7 lac', deltaAd: '-0.5 lac' },
+              { brand: 'Bounty', ad: '4.7 lac', deltaAd: '+0.3 lac' },
+              { brand: 'Twix', ad: '5.3 lac', deltaAd: '+0.2 lac' },
+              { brand: 'Mars', ad: '5.8 lac', deltaAd: '+0.1 lac' },
+            ],
             meta: [{ label: "Ad SOS", value: getVal(4.5, true, seed + "adsos", 10), change: getChange("meta5").val, isPositive: getChange("meta5").isPos }],
             children: [
-              { id: "ad-branded", label: "Branded Keywords", value: formatLac(0.516 * finalVolume * getEntityBase("adb", 0.5)), change: getChange("adb").val, isPositive: getChange("adb").isPos, category: "ad" },
-              { id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad" },
+              {
+                id: "ad-comp", label: "Comp Keywords", value: formatLac(0.305 * finalVolume * getEntityBase("adc", 0.5)), change: getChange("adc").val, isPositive: getChange("adc").isPos, category: "ad", metrics: [
+                  { brand: 'Snickers', adComp: '3.1 lac', deltaAdComp: '-0.1 lac' },
+                  { brand: 'Galaxy', adComp: '2.7 lac', deltaAdComp: '-0.2 lac' },
+                  { brand: 'Bounty', adComp: '0.6 lac', deltaAdComp: '+0.1 lac' },
+                  { brand: 'Twix', adComp: '3.6 K', deltaAdComp: '+0.2 K' },
+                  { brand: 'Mars', adComp: '2.0 K', deltaAdComp: '-0.1 K' },
+                ]
+              },
             ],
           },
-          { id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting" },
-          { id: "rating-count", label: "Rating Count", value: formatLac(1.8 * finalVolume * getEntityBase("rat", 0.7)), change: getChange("meta7").val, isPositive: getChange("meta7").isPos, category: "rating" },
+        ],
+      },
+      {
+        id: "indexed-cvr",
+        label: "Conversion",
+        value: getVal(6.2, true, seed + "cvr", 8),
+        change: cvrChange.val,
+        isPositive: cvrChange.isPos,
+        category: "conversion",
+        importance: "outcome",
+        insight: cvrChange.isPos ? "Conv. Efficacy" : "Conv. Drop",
+        metrics: [
+          { brand: 'Snickers', conversion: '7.2%', deltaConversion: '+0.5%' },
+          { brand: 'Galaxy', conversion: '6.3%', deltaConversion: '-0.2%' },
+          { brand: 'Bounty', conversion: '8.5%', deltaConversion: '+1.1%' },
+          { brand: 'Twix', conversion: '12.7%', deltaConversion: '-2.4%' },
+          { brand: 'Mars', conversion: '9.4%', deltaConversion: '+0.3%' },
+        ],
+        children: [
+          {
+            id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: [
+              { brand: 'Snickers', discount: '7.1%', deltaDiscount: '+0.4%' },
+              { brand: 'Galaxy', discount: '9.8%', deltaDiscount: '+1.3%' },
+              { brand: 'Bounty', discount: '11.7%', deltaDiscount: '+2.0%' },
+              { brand: 'Twix', discount: '5.0%', deltaDiscount: '+0.6%' },
+              { brand: 'Mars', discount: '4.1%', deltaDiscount: '+0.3%' },
+            ]
+          },
         ],
       },
     ],
@@ -874,43 +1863,49 @@ const collectDescendants = (id, childMap) => {
 };
 
 // --- Layout Engine ---
-const computeSubtreeWidth = (node, collapsedNodes) => {
-  if (!node.children || node.children.length === 0 || collapsedNodes.has(node.id)) return CARD_WIDTH;
-  const childWidths = node.children.map((child) => computeSubtreeWidth(child, collapsedNodes));
-  return childWidths.reduce((sum, w, idx) => sum + w + (idx > 0 ? HORIZONTAL_GAP : 0), 0);
+const computeSubtreeHeight = (node, collapsedNodes) => {
+  if (!node.children || node.children.length === 0 || collapsedNodes.has(node.id)) return CARD_HEIGHT;
+  const childHeights = node.children.map((child) => computeSubtreeHeight(child, collapsedNodes));
+  return childHeights.reduce((sum, h, idx) => sum + h + (idx > 0 ? VERTICAL_GAP : 0), 0);
 };
 
-const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
+const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, platform = "", selectedBrand = "", selectedSku = "", selectedCategory = "", currentPeriodLabel = "", comparePeriodLabel = "") => {
   const isCollapsed = collapsedNodes.has(node.id);
-  const subtreeWidth = computeSubtreeWidth(node, collapsedNodes);
+  const subtreeHeight = computeSubtreeHeight(node, collapsedNodes);
 
   results.nodes.push({
     id: node.id,
     type: "kpi",
-    position: { x: x + subtreeWidth / 2 - CARD_WIDTH / 2, y },
+    position: { x, y: y + subtreeHeight / 2 - CARD_HEIGHT / 2 },
     data: {
       ...node,
+      platform,
+      selectedBrand,
+      selectedSku,
+      selectedCategory,
+      currentPeriodLabel,
+      comparePeriodLabel,
       hasChildren: node.children?.length > 0,
       isCollapsed,
       onToggle: () => { },
       onClickDetail: () => { },
       onHover: () => { },
-      isSelected: false,
       isDimmed: false,
+      onViewTrends,
     },
   });
 
   if (node.children && !isCollapsed) {
-    let currentChildX = x;
+    let currentChildY = y;
     node.children.forEach((child) => {
-      const childWidth = computeSubtreeWidth(child, collapsedNodes);
+      const childHeight = computeSubtreeHeight(child, collapsedNodes);
 
       results.edges.push({
         id: `${node.id}-${child.id}`,
         source: node.id,
         target: child.id,
         type: ConnectionLineType.Step,
-        animated: false, // only animate focus path
+        animated: false,
         style: {
           stroke: "rgba(15,23,42,0.35)",
           strokeWidth: 2.2,
@@ -924,124 +1919,15 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results) => {
         },
       });
 
-      layoutTreeNodes(child, currentChildX, y + VERTICAL_STEP, collapsedNodes, results);
-      currentChildX += childWidth + HORIZONTAL_GAP;
+      layoutTreeNodes(child, x + HORIZONTAL_STEP, currentChildY, collapsedNodes, results, onViewTrends, platform, selectedBrand, selectedSku, selectedCategory, currentPeriodLabel, comparePeriodLabel);
+      currentChildY += childHeight + VERTICAL_GAP;
     });
   }
 };
 
-// --- Detail Popup (unchanged except kept) ---
-const NodeDetailPopup = ({ open, onClose, nodeData }) => {
-  if (!nodeData) return null;
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="sm"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: "40px",
-          bgcolor: "rgba(255, 255, 255, 0.88)",
-          backdropFilter: "blur(30px) saturate(170%)",
-          border: "1px solid rgba(255, 255, 255, 0.7)",
-          boxShadow: "0 50px 100px -20px rgba(0, 0, 0, 0.3)",
-        },
-      }}
-    >
-      <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", pb: 1, p: 5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
-          <Box
-            sx={{
-              p: 2,
-              borderRadius: "20px",
-              bgcolor: (COLORS[nodeData.category] || "#6366f1") + "18",
-              color: COLORS[nodeData.category] || "#6366f1",
-              boxShadow: `inset 0 0 15px ${(COLORS[nodeData.category] || "#6366f1")}25`,
-            }}
-          >
-            <Activity size={32} strokeWidth={2.5} />
-          </Box>
-          <Box>
-            <Typography sx={{ fontSize: "22px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.8px" }}>
-              {nodeData.label} Intelligence
-            </Typography>
-            <Typography sx={{ fontSize: "11px", fontWeight: 900, color: "#64748b", textTransform: "uppercase", letterSpacing: "1.2px" }}>
-              High Precision Diagnostic Stream
-            </Typography>
-          </Box>
-        </Box>
-        <IconButton onClick={onClose} sx={{ bgcolor: "rgba(0,0,0,0.05)", color: "#0f172a", width: 44, height: 44, "&:hover": { bgcolor: "rgba(0,0,0,0.1)" } }}>
-          <Plus style={{ transform: "rotate(45deg)" }} size={28} />
-        </IconButton>
-      </DialogTitle>
-
-      <Divider sx={{ opacity: 0.08 }} />
-
-      <DialogContent sx={{ p: 5 }}>
-        <Grid container spacing={6}>
-          <Grid item xs={6}>
-            <Typography sx={{ fontSize: "11px", fontWeight: 900, color: "#64748b", textTransform: "uppercase", mb: 2, letterSpacing: "1.5px" }}>
-              Metric Magnitude
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-              <Typography sx={{ fontSize: "48px", fontWeight: 900, color: "#0f172a", lineHeight: 1, letterSpacing: "-2px" }}>
-                {nodeData.value}
-              </Typography>
-              <DeltaBadge change={nodeData.change} isPositive={nodeData.isPositive} />
-            </Box>
-          </Grid>
-
-          <Grid item xs={12}>
-            <Box sx={{ p: 3, bgcolor: "rgba(99, 102, 241, 0.08)", borderRadius: "24px", border: "1px solid rgba(99, 102, 241, 0.15)", mb: 4 }}>
-              <Typography sx={{ fontSize: "12px", fontWeight: 900, color: "#4f46e5", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 1.2, letterSpacing: "1px" }}>
-                <Zap size={16} fill="#4f46e5" /> Predictive Insight
-              </Typography>
-              <Typography sx={{ fontSize: "15px", fontWeight: 800, color: "#1e293b", mt: 1.5, lineHeight: 1.6 }}>
-                Automated root cause detected: Deviation in {nodeData.label} suggests a {nodeData.isPositive ? "positive" : "negative"} trend across channels.
-              </Typography>
-            </Box>
-
-            <Typography sx={{ fontSize: "13px", fontWeight: 900, color: "#0f172a", mb: 3, textTransform: "uppercase", letterSpacing: "1.2px" }}>
-              Structural Attributes
-            </Typography>
-
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 3 }}>
-              {nodeData.meta?.map((m, i) => (
-                <Paper
-                  key={i}
-                  elevation={0}
-                  sx={{
-                    p: 3,
-                    borderRadius: "24px",
-                    bgcolor: "rgba(255,255,255,0.5)",
-                    border: "1px solid rgba(0,0,0,0.05)",
-                    transition: "all 0.3s ease",
-                    "&:hover": { transform: "translateY(-5px)", bgcolor: "#fff" },
-                  }}
-                >
-                  <Typography sx={{ fontSize: "10px", fontWeight: 900, color: "#64748b", textTransform: "uppercase", mb: 1, letterSpacing: "0.5px" }}>
-                    {m.label}
-                  </Typography>
-                  <Typography sx={{ fontSize: "20px", fontWeight: 900, color: "#1e293b", letterSpacing: "-0.5px" }}>{m.value}</Typography>
-                  {m.change && (
-                    <Typography sx={{ fontSize: "11px", fontWeight: 900, color: m.isPositive ? "#0d9488" : "#e11d48", mt: 1 }}>
-                      {m.isPositive ? "↑" : "↓"} {m.change} WoW Momentum
-                    </Typography>
-                  )}
-                </Paper>
-              ))}
-            </Box>
-          </Grid>
-        </Grid>
-      </DialogContent>
-    </Dialog>
-  );
-};
-
-// --- Internal RCATree Component ---
-const RcaTreeInner = ({ context, title }) => {
+// --- Detail Popup (Updated with Brand Filtering, Download, and Pagination) ---
+const NodeDetailPopup = () => null;
+const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -1052,8 +1938,30 @@ const RcaTreeInner = ({ context, title }) => {
   const [apiError, setApiError] = useState(null);
   const reactFlowInstance = useReactFlow();
 
+  const [kpiModalOpen, setKpiModalOpen] = useState(false);
+  const [selectedKpiModalData, setSelectedKpiModalData] = useState(null);
+
+  const handleKpiClick = useCallback((data) => {
+    setSelectedKpiModalData({
+      label: data.label,
+      category: data.category,
+      platform: data.platform,
+      selectedBrand: data.brand || context.brand,
+      selectedSku: data.sku || context.sku,
+      selectedCategory: data.categoryVal || context.category,
+      focusedEntity: data.focusedEntity,
+      context: context // Pass current filters/dates
+    });
+    setKpiModalOpen(true);
+  }, [context]);
+
   // Fetch RCA tree data from backend
   const fetchRcaData = useCallback(async () => {
+    // For ecom platforms (Amazon, Flipkart), use the hardcoded ecom tree instead of QC backend
+    const platformLower = (context.platform || '').toLowerCase();
+    const channelLower = (context.channel || '').toLowerCase();
+    const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
+
     setLoading(true);
     setApiError(null);
     try {
@@ -1062,7 +1970,31 @@ const RcaTreeInner = ({ context, title }) => {
       if (context.category && context.category !== 'All') params.category = context.category;
       if (context.brand && context.brand !== 'All Brands' && context.brand !== 'All') params.brand = context.brand;
       if (context.sku && context.sku !== 'All SKUs' && context.sku !== 'All') params.sku = context.sku;
-      if (context.month) params.month = context.month;
+
+      // Date Range Support
+      if (context.timeStart) params.startDate = context.timeStart.format('YYYY-MM-DD');
+      if (context.timeEnd) params.endDate = context.timeEnd.format('YYYY-MM-DD');
+
+      if (context.compareOn) {
+        if (context.compareStart) params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
+        if (context.compareEnd) params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
+      }
+
+      if (isEcom) {
+        try {
+          const res = await axiosInstance.get('/ecom-rca', { params });
+          if (res.data?.tree) {
+            setApiTreeData(res.data.tree);
+          } else {
+            setApiTreeData(null);
+          }
+        } catch (err) {
+          console.warn('[RCATree] E-com API failed, using fallback:', err.message);
+          setApiTreeData(null);
+        }
+        setLoading(false);
+        return;
+      }
 
       const res = await axiosInstance.get('/category-rca', { params });
       if (res.data?.tree) {
@@ -1074,16 +2006,30 @@ const RcaTreeInner = ({ context, title }) => {
     } finally {
       setLoading(false);
     }
-  }, [context.platform, context.category, context.brand, context.sku, context.month]);
+  }, [
+    context.platform,
+    context.channel,
+    context.category,
+    context.brand,
+    context.sku,
+    context.timeStart,
+    context.timeEnd,
+    context.compareStart,
+    context.compareEnd,
+    context.compareOn
+  ]);
 
   useEffect(() => {
     const timer = setTimeout(fetchRcaData, 300);
     return () => clearTimeout(timer);
   }, [fetchRcaData]);
 
-  // Use API data if available, otherwise fall back to hardcoded
+  // Use API data if available, otherwise fall back to hardcoded.
   const currentTreeData = useMemo(
-    () => apiTreeData || getDynamicRcaTreeData(context),
+    () => {
+      if (apiTreeData) return apiTreeData;
+      return getDynamicRcaTreeData(context);
+    },
     [apiTreeData, context]
   );
 
@@ -1122,77 +2068,107 @@ const RcaTreeInner = ({ context, title }) => {
   const onHover = useCallback((id) => setHoveredNodeId(id), []);
 
   const { nodes: computedNodes, edges: computedEdges } = useMemo(() => {
+    const isEcom = context.channel?.toLowerCase().includes("e-commerce") || context.channel?.toLowerCase().includes("ecom") || context.platform?.toLowerCase() === "amazon" || context.platform?.toLowerCase() === "flipkart";
+    const initialGap = isEcom ? 80 : 180;
     const results = { nodes: [], edges: [] };
-    const rootWidth = computeSubtreeWidth(currentTreeData, collapsedNodes);
-    layoutTreeNodes(currentTreeData, -rootWidth / 2, 0, collapsedNodes, results);
+    const rootHeight = computeSubtreeHeight(currentTreeData, collapsedNodes, initialGap);
 
-    const nodes = results.nodes.map((n) => {
-      const isFocused = focusSet ? focusSet.has(n.id) : true;
-      const dim = focusSet ? !isFocused : false;
+    const fmtDate = (d) => d ? dayjs(d).format("D MMM'YY") : null;
+    const curP = (context.timeStart && context.timeEnd) ? `${fmtDate(context.timeStart)} - ${fmtDate(context.timeEnd)}` : "Current Period";
+    const comP = (context.compareStart && context.compareEnd) ? `${fmtDate(context.compareStart)} - ${fmtDate(context.compareEnd)}` : "Compare Period";
 
+    layoutTreeNodes(currentTreeData, 0, -rootHeight / 2, collapsedNodes, results, onViewTrends, context.platform, context.brand, context.sku, context.category, curP, comP);
+
+    const nodesList = results.nodes.map((n) => {
       return {
         ...n,
+        zIndex: (hoveredNodeId === n.id) ? 1000000 : 100,
         data: {
           ...n.data,
           onToggle: () => onToggleNode(n.id),
-          onClickDetail: handleCardClick,
+          onClickDetail: (clickData) => handleKpiClick({ ...n.data, id: n.id, brand: context.brand, categoryVal: context.category, ...(clickData?.focusedEntity ? { focusedEntity: clickData.focusedEntity } : {}) }),
           onHover,
-          isSelected: selectedNodeId === n.id,
-          isDimmed: dim,
-        },
-        style: { zIndex: selectedNodeId === n.id ? 30 : 3 },
+          hoveredNodeId: hoveredNodeId,
+          popupPosition: n.position.y < -150 ? "bottom" : "top",
+        }
       };
+    });
+
+    const sortedNodes = [...nodesList].sort((a, b) => {
+      if (a.id === hoveredNodeId || a.id === selectedNodeId) return 1;
+      if (b.id === hoveredNodeId || b.id === selectedNodeId) return -1;
+      return 0;
     });
 
     const edges = results.edges.map((e) => {
-      const inFocus = focusSet ? focusSet.has(e.source) && focusSet.has(e.target) : true;
       return {
         ...e,
-        animated: inFocus && !!focusSet, // animate only when focused
+        animated: false,
+        zoomable: false,
         style: {
           ...(e.style || {}),
-          stroke: inFocus ? "rgba(15,23,42,0.85)" : "rgba(15,23,42,0.18)",
-          strokeWidth: inFocus ? 3.3 : 2.0,
-          strokeDasharray: inFocus ? "6,6" : "4,8",
+          stroke: "rgba(10, 15, 28, 0.8)",
+          strokeWidth: 4.5,
+          strokeDasharray: "0",
+          pointerEvents: "none",
+          transition: "stroke 0.3s ease",
         },
         markerEnd: {
           ...(e.markerEnd || {}),
-          color: inFocus ? "rgba(15,23,42,0.8)" : "rgba(15,23,42,0.35)",
-          width: inFocus ? 16 : 12,
-          height: inFocus ? 16 : 12,
+          color: "rgba(15, 23, 42, 0.6)",
+          width: 24,
+          height: 24,
         },
       };
     });
 
-    return { nodes, edges };
-  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, selectedNodeId, focusSet, onHover]);
+    return { nodes: sortedNodes, edges };
+  }, [currentTreeData, collapsedNodes, onToggleNode, handleCardClick, handleKpiClick, selectedNodeId, focusSet, onHover, hoveredNodeId, context.platform, context.brand, context.sku, context.category, context.channel, context.timeStart, context.timeEnd, context.compareStart, context.compareEnd, onViewTrends]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
 
   useEffect(() => {
-    setNodes(computedNodes);
+    setNodes((nds) =>
+      computedNodes.map((newNode) => {
+        const oldNode = nds.find((n) => n.id === newNode.id);
+        // SMART PERSISTENCE: Only keep current position if it was explicitly moved by user
+        if (oldNode && oldNode.data?.wasManuallyMoved) {
+          return {
+            ...newNode,
+            position: oldNode.position,
+            data: { ...newNode.data, wasManuallyMoved: true }
+          };
+        }
+        // Force the fresh, tree-wise layout for everything else
+        return newNode;
+      })
+    );
     setEdges(computedEdges);
   }, [computedNodes, computedEdges, setNodes, setEdges]);
 
+  // Reset all positions when platform or level changes to ensure a clean tree-wise layout
   useEffect(() => {
-    reactFlowInstance.fitView?.({ padding: 0.22, duration: 350 });
+    setNodes(computedNodes);
+  }, [context.platform, context.brand, context.category, setNodes, computedNodes]);
 
+  useEffect(() => {
+    reactFlowInstance.fitView({ padding: 0.05, duration: 800 });
     const t = setTimeout(() => {
-      const current = reactFlowInstance.getZoom ? reactFlowInstance.getZoom() : 1;
-      reactFlowInstance.zoomTo?.(Math.min(1.12, current * 1.03), { duration: 240 });
-    }, 360);
+      reactFlowInstance.fitView({ padding: 0.05, duration: 400 });
+    }, 100);
     return () => clearTimeout(t);
-  }, [reactFlowInstance]);
+  }, [reactFlowInstance, currentTreeData]);
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative", cursor: "none" }}>
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <FontLoader />
       <CoolGreyBackground />
       <MagicCursor />
 
       {loading && (
         <Box sx={{
-          position: "absolute", inset: 0, zIndex: 50,
+          position: "absolute", inset: 0, zIndex: 100,
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           bgcolor: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)", gap: 3
         }}>
@@ -1202,12 +2178,6 @@ const RcaTreeInner = ({ context, title }) => {
           <Typography sx={{ fontSize: "13px", fontWeight: 800, color: "#6366f1", letterSpacing: "1.5px", textTransform: "uppercase" }}>
             Loading Intelligence Graph...
           </Typography>
-          <Box sx={{ display: "flex", gap: 3, mt: 2 }}>
-            {[160, 200, 180].map((w, i) => (
-              <motion.div key={i} animate={{ opacity: [0.3, 0.7, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-                style={{ width: w, height: 110, borderRadius: 24, backgroundColor: "#e2e8f0", border: "2px solid #cbd5e1" }} />
-            ))}
-          </Box>
         </Box>
       )}
 
@@ -1227,33 +2197,73 @@ const RcaTreeInner = ({ context, title }) => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
-        fitView
-        minZoom={0.2}
+        minZoom={0.05}
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
+        elevateNodesOnSelect={true}
+        onNodeDragStop={(event, node) => {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === node.id
+                ? { ...n, data: { ...n.data, wasManuallyMoved: true } }
+                : n
+            )
+          );
+        }}
       >
         <Controls
+          position="bottom-left"
           showInteractive={false}
           style={{
-            borderRadius: "20px",
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            borderRadius: "16px",
             overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.8)",
-            background: "rgba(255,255,255,0.7)",
-            backdropFilter: "blur(12px)",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(15, 23, 42, 0.1)",
+            background: "rgba(255,255,255,0.9)",
+            backdropFilter: "blur(20px)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
+            padding: '4px',
+            left: '20px',
+            bottom: '20px'
           }}
         />
       </ReactFlow>
 
-      <NodeDetailPopup open={detailOpen} onClose={() => setDetailOpen(false)} nodeData={selectedNode} />
+      {selectedKpiModalData && (
+        <KpiDetailModal
+          open={kpiModalOpen}
+          onClose={() => setKpiModalOpen(false)}
+          kpiLabel={selectedKpiModalData.label}
+          category={selectedKpiModalData.category}
+          platform={selectedKpiModalData.platform}
+          selectedBrand={selectedKpiModalData.selectedBrand}
+          selectedSku={selectedKpiModalData.selectedSku}
+          selectedCategory={selectedKpiModalData.selectedCategory}
+          focusedEntity={selectedKpiModalData.focusedEntity}
+          context={selectedKpiModalData.context}
+        />
+      )}
+
+      <NodeDetailPopup
+        open={detailOpen}
+        onClose={() => {
+          setDetailOpen(false);
+          reactFlowInstance.fitView({ padding: 0.22, duration: 350 });
+        }}
+        nodeData={selectedNode}
+        selectedBrand={context.brand}
+        selectedPlatform={context.platform}
+      />
     </div>
   );
 };
 
-export default function RCATree({ context, title }) {
+export default function RCATree({ context, title, onViewTrends }) {
   return (
     <ReactFlowProvider>
-      <RcaTreeInner context={context} title={title} />
+      <RcaTreeInner context={context} title={title} onViewTrends={onViewTrends} />
     </ReactFlowProvider>
   );
 }

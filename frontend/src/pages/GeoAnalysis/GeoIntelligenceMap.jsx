@@ -3,6 +3,8 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { STATES, CITIES } from "./indiaData"; // Assuming we can use these coords
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
+import axiosInstance from "../../api/axiosInstance";
+import dayjs from "dayjs";
 
 // --- Constants & Types ---
 const INDIA_BOUNDS = [
@@ -37,20 +39,21 @@ export default function GeoIntelligenceMap() {
     const [timePeriod, setTimePeriod] = useState("MTD");
     const [markers, setMarkers] = useState([]);
     const [apiData, setApiData] = useState([]);
+    const [selectedPeriod, setSelectedPeriod] = useState({ startDate: "", endDate: "" });
     const [loading, setLoading] = useState(false);
     const [platforms, setPlatforms] = useState([]);
+    const [category, setCategory] = useState("All");
+    const [categories, setCategories] = useState([]);
 
     // --- Fetch Platforms from DB ---
     useEffect(() => {
         const fetchPlatforms = async () => {
             try {
-                const response = await fetch('/api/watchtower/platforms');
-                if (response.ok) {
-                    const data = await response.json();
-                    setPlatforms(data || []);
-                    if (data && data.length > 0 && !data.includes(platform)) {
-                        setPlatform(data[0]);
-                    }
+                const res = await axiosInstance.get('/watchtower/platforms');
+                const data = res.data;
+                setPlatforms(data || []);
+                if (data && data.length > 0 && !data.includes(platform)) {
+                    setPlatform(data[0]);
                 }
             } catch (error) {
                 console.error('[MapIntellect] Failed to fetch platforms:', error);
@@ -59,6 +62,21 @@ export default function GeoIntelligenceMap() {
         };
         fetchPlatforms();
     }, []);
+
+    // --- Fetch Categories ---
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const res = await axiosInstance.get('/map-intellect/categories', { params: { metric, platform } });
+                setCategories(res.data || []);
+                setCategory("All"); // Reset category when metric or platform changes
+            } catch (error) {
+                console.error('[MapIntellect] Failed to fetch categories:', error);
+                setCategories([]);
+            }
+        };
+        fetchCategories();
+    }, [metric, platform]);
 
     // Filter Handling
     const [importanceFilter, setImportanceFilter] = useState("All");
@@ -70,66 +88,110 @@ export default function GeoIntelligenceMap() {
             try {
                 // Build time period params
                 let params = `platform=${encodeURIComponent(platform)}`;
+
+                // Add metric parameter based on selected KPI
+                let metricParam = 'all';
+                if (metric === 'Market Share') {
+                    metricParam = 'marketshare';
+                } else if (metric === 'Wt. OSA %') {
+                    metricParam = 'osa';
+                } else if (metric === 'Sales') {
+                    metricParam = 'sales';
+                } else if (metric === 'Orders') {
+                    metricParam = 'orders';
+                }
+                params += `&metric=${metricParam}`;
+
                 if (timePeriod === "MTD") {
                     params += `&months=1`;
                 } else if (timePeriod === "7D") {
-                    const end = new Date();
-                    const start = new Date();
-                    start.setDate(end.getDate() - 7);
-                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                    params += `&days=7`;
                 } else if (timePeriod === "14D") {
-                    const end = new Date();
-                    const start = new Date();
-                    start.setDate(end.getDate() - 14);
-                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                    params += `&days=14`;
                 } else if (timePeriod === "31D") {
-                    const end = new Date();
-                    const start = new Date();
-                    start.setDate(end.getDate() - 31);
-                    params += `&startDate=${start.toISOString().split('T')[0]}&endDate=${end.toISOString().split('T')[0]}`;
+                    params += `&days=31`;
                 }
 
-                const response = await fetch(`/api/map-intellect/data?${params}`);
-                if (!response.ok) throw new Error(`API error: ${response.status}`);
-                const result = await response.json();
-                setApiData(result.cities || []);
+                if (category && category !== 'All') {
+                    params += `&category=${encodeURIComponent(category)}`;
+                }
+
+                const res = await axiosInstance.get('/map-intellect/data', { params: Object.fromEntries(new URLSearchParams(params)) });
+                if (res.data && res.data.cities) {
+                    setApiData(res.data.cities);
+                } else {
+                    setApiData([]);
+                }
+                if (res.data && res.data.period) {
+                    setSelectedPeriod(res.data.period);
+                } else {
+                    setSelectedPeriod({ startDate: "", endDate: "" });
+                }
             } catch (error) {
                 console.error('[MapIntellect] Failed to fetch data:', error);
                 setApiData([]);
+                setSelectedPeriod({ startDate: "", endDate: "" });
             } finally {
                 setLoading(false);
             }
         };
         fetchData();
-    }, [platform, timePeriod]);
+    }, [platform, metric, timePeriod, category]); // Added category dependency
+
+    // --- Intercept Nation-level Data ---
+    const nationData = useMemo(() => {
+        if (!apiData || apiData.length === 0) return null;
+        return apiData.find(city => {
+            const name = (city.name || '').toLowerCase();
+            return name === 'india' || name === 'nation' || name === 'national';
+        });
+    }, [apiData]);
 
     // --- Build coordinate-mapped data from API response ---
     const mapData = useMemo(() => {
         // Build a lookup from city/state name -> coordinates
-        const coordsLookup = {};
+        const coordsLookup = {
+            "nation": { lat: 22.0, lng: 79.5, type: "National" },
+            "national": { lat: 22.0, lng: 79.5, type: "National" },
+            "india": { lat: 22.0, lng: 79.5, type: "National" }
+        };
         CITIES.forEach(c => { coordsLookup[c.name.toLowerCase()] = { lat: c.coords[1], lng: c.coords[0], type: "City" }; });
         STATES.forEach(s => { coordsLookup[s.name.toLowerCase()] = { lat: s.center[1], lng: s.center[0], type: "State" }; });
+
+        // Calculate max values for relative thresholding on absolute metrics
+        const maxSales = Math.max(...apiData.map(c => c.sales || 0), 1);
+        const maxOrders = Math.max(...apiData.map(c => c.orders || 0), 1);
 
         return apiData
             .filter(city => coordsLookup[city.name.toLowerCase()])
             .map(city => {
                 const coords = coordsLookup[city.name.toLowerCase()];
-                // Pick the value based on the selected metric
-                let value = 0;
-                if (metric === "Wt. OSA %") value = city.osa || 0;
-                else if (metric === "Market Share") value = city.marketShare || 0;
-                else if (metric === "Sales") value = city.sales || 0;
-                else if (metric === "Orders") value = city.orders || 0;
 
-                // Color coding based on OSA value for consistency
-                const osaVal = city.osa || 0;
-                let color = COLORS.Red;
-                if (osaVal > 85) color = COLORS.Green;
-                else if (osaVal > 70) color = COLORS.Blue;
-                else if (osaVal > 55) color = COLORS.Orange;
+                // Pick the value and calculate color based on the selected metric
+                let value = 0;
+                let color = COLORS.Red; // Default
+
+                if (metric === "Wt. OSA %") {
+                    value = city.osa || 0;
+                    if (value > 80) color = COLORS.Green;
+                    else if (value > 65) color = COLORS.Blue;
+                    else if (value > 45) color = COLORS.Orange;
+                    else color = COLORS.Red;
+                } else if (metric === "Market Share") {
+                    value = city.marketShare || 0;
+                    // User-defined thresholds for Market Share
+                    if (value > 4.9) color = COLORS.Green;
+                    else color = COLORS.Red;
+                } else if (metric === "Sales") {
+                    value = city.sales || 0;
+                    color = (city.salesChange || 0) >= 0 ? COLORS.Green : COLORS.Red;
+                } else if (metric === "Orders") {
+                    value = city.orders || 0;
+                    color = (city.ordersChange || 0) >= 0 ? COLORS.Green : COLORS.Red;
+                }
 
                 return {
-                    name: city.name,
+                    name: coords.type === "National" ? "National Overview" : city.name,
                     value,
                     osa: city.osa || 0,
                     marketShare: city.marketShare || 0,
@@ -140,7 +202,7 @@ export default function GeoIntelligenceMap() {
                     lat: coords.lat,
                     lng: coords.lng,
                     type: coords.type,
-                    listingPurchase: city.osa || 0,
+                    listingPercentage: city.listingPercentage || 0,
                 };
             });
     }, [apiData, metric]);
@@ -216,13 +278,18 @@ export default function GeoIntelligenceMap() {
 
         const newMarkers = [];
 
-        // Filter logic
+        // Filter logic mapping based on markers assigned color
         const filteredData = mapData.filter(d => {
             if (importanceFilter === "All") return true;
-            const osaVal = d.osa || 0;
-            return (osaVal > 80 && importanceFilter === "High") ||
-                (osaVal <= 80 && osaVal > 60 && importanceFilter === "Medium") ||
-                (osaVal <= 60 && importanceFilter === "Low");
+            if (metric === "Sales" || metric === "Orders") {
+                if (importanceFilter === "Growth") return d.color === COLORS.Green;
+                if (importanceFilter === "Degrowth") return d.color === COLORS.Red;
+            } else {
+                if (importanceFilter === "High") return d.color === COLORS.Green;
+                if (importanceFilter === "Medium") return d.color === COLORS.Blue || d.color === COLORS.Orange;
+                if (importanceFilter === "Low") return d.color === COLORS.Red;
+            }
+            return true;
         });
 
         filteredData.forEach(d => {
@@ -245,35 +312,35 @@ export default function GeoIntelligenceMap() {
             el.style.height = '56px';
             el.style.cursor = 'pointer';
 
-            // Popup content with real values
-            let mainLabel = 'Wt. OSA %';
-            let mainValue = `${d.osa}%`;
-            if (metric === 'Sales') {
-                mainLabel = 'Sales';
-                mainValue = d.salesFormatted || '₹0';
-            } else if (metric === 'Orders') {
-                mainLabel = 'Orders';
-                mainValue = `${d.orders}`;
+            // Popup content - show only the selected KPI value
+            let kpiLabel = '';
+            let kpiValue = '';
+
+            if (metric === 'Wt. OSA %') {
+                kpiLabel = 'Wt. OSA %';
+                kpiValue = `${d.osa}%`;
             } else if (metric === 'Market Share') {
-                mainLabel = 'Market Share';
-                mainValue = `${d.marketShare}%`;
+                kpiLabel = 'Market Share';
+                kpiValue = `${d.marketShare}%`;
+            } else if (metric === 'Sales') {
+                kpiLabel = 'Sales';
+                kpiValue = d.salesFormatted;
+            } else if (metric === 'Orders') {
+                kpiLabel = 'Orders';
+                kpiValue = d.orders.toLocaleString('en-IN');
             }
 
             const popup = new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(`
-            <div style="font-family: 'DM Sans', sans-serif; padding: 8px; min-width: 150px;">
-                <div style="font-weight: 700; font-size: 14px; color: #1e293b; margin-bottom: 6px;">${d.name}</div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-                    <span>${mainLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${mainValue}</span>
+            <div style="font-family: 'DM Sans', sans-serif; padding: 8px; min-width: 180px;">
+                <div style="font-weight: 700; font-size: 14px; color: #1e293b; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">${d.name}</div>
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b;">
+                    <span>${kpiLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${kpiValue}</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-                    <span>Market Share:</span> <span style="font-weight: 600; color: #1e293b;">${d.marketShare}%</span>
+                ${metric === "Wt. OSA %" ? `
+                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-top: 4px;">
+                    <span>Listing %:</span> <span style="font-weight: 600; color: #1e293b;">${d.listingPercentage}%</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b; margin-bottom: 6px;">
-                    <span>Wt. OSA %:</span> <span style="font-weight: 600; color: #1e293b;">${d.osa}%</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 13px; color: #64748b;">
-                    <span>Orders:</span> <span style="font-weight: 600; color: #1e293b;">${d.orders}</span>
-                </div>
+                ` : ""}
             </div>
         `);
 
@@ -292,12 +359,12 @@ export default function GeoIntelligenceMap() {
 
         setMarkers(newMarkers);
 
-    }, [mapData, importanceFilter]); // Re-render markers when data changes
+    }, [mapData, importanceFilter, metric]); // Re-render markers when data or metric changes
 
     // --- Render ---
     return (
-        <CommonContainer title="Map Intellect" filters={filters} onFiltersChange={setFilters}>
-            <div style={{ padding: "20px 24px", background: "#f8fafc", minHeight: "100vh", fontFamily: '"DM Sans", sans-serif' }}>
+        <CommonContainer title="India Overview" filters={filters} onFiltersChange={setFilters}>
+            <div style={{ padding: "12px 28px", background: "#f8fafc", minHeight: "100vh", fontFamily: '"DM Sans", sans-serif' }}>
 
                 {/* Header removed per request (Map Intellect panel & analysis period) */}
 
@@ -305,25 +372,42 @@ export default function GeoIntelligenceMap() {
                 <div style={{ position: "relative" }}>
 
                     {/* Filter Bar */}
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
-
-                        {/* Metrics */}
-                        <div style={{ display: "flex", gap: "8px", background: "#f8fafc", padding: "4px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                    {/* Filter Bar */}
+                    {/* Filter Bar */}
+                    <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        background: "white",
+                        padding: "6px 12px",
+                        borderRadius: "14px",
+                        border: "1px solid #e2e8f0",
+                        marginBottom: "16px",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                        flexWrap: "nowrap",
+                        overflowX: "auto",
+                        scrollbarWidth: "none",
+                        msOverflowStyle: "none",
+                        width: "100%",
+                        boxSizing: "border-box"
+                    }}>
+                        {/* Metrics Selector */}
+                        <div style={{ display: "flex", gap: "4px", background: "#f8fafc", padding: "3px", borderRadius: "10px", border: "1px solid #e2e8f0", flexShrink: 0 }}>
                             {["Wt. OSA %", "Market Share", "Sales", "Orders"].map(m => (
                                 <button
                                     key={m}
                                     onClick={() => setMetric(m)}
                                     style={{
-                                        padding: "8px 16px",
-                                        borderRadius: "8px",
-                                        fontSize: "12px",
+                                        padding: "4px 10px",
+                                        borderRadius: "7px",
+                                        fontSize: "11px",
                                         fontWeight: "700",
                                         border: "none",
                                         cursor: "pointer",
                                         transition: "all 0.2s",
                                         background: metric === m ? "#2563eb" : "transparent",
                                         color: metric === m ? "white" : "#64748b",
-                                        boxShadow: metric === m ? "0 2px 4px rgba(37,99,235,0.2)" : "none"
+                                        boxShadow: metric === m ? "0 2px 4px rgba(37,99,235,0.15)" : "none"
                                     }}
                                 >
                                     {m}
@@ -331,67 +415,120 @@ export default function GeoIntelligenceMap() {
                             ))}
                         </div>
 
-                        {/* Platform & Time */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                <span style={{ fontSize: "12px", color: "#94a3b8", fontWeight: "600", textTransform: "uppercase" }}>Market</span>
-                                <div style={{ position: "relative" }}>
-                                    <select
-                                        value={platform}
-                                        onChange={(e) => setPlatform(e.target.value)}
-                                        style={{
-                                            appearance: "none",
-                                            background: "#f8fafc",
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: "8px",
-                                            padding: "8px 32px 8px 12px",
-                                            fontSize: "13px",
-                                            fontWeight: "700",
-                                            color: "#0f172a",
-                                            cursor: "pointer",
-                                            minWidth: "120px"
-                                        }}
-                                    >
-                                        {platforms.map(p => (
-                                            <option key={p} value={p}>{p}</option>
-                                        ))}
-                                    </select>
-                                    <div style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-                                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                    </div>
+                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
+
+                        {/* Market (Platform) Dropdown */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Market</span>
+                            <div style={{ position: "relative" }}>
+                                <select
+                                    value={platform}
+                                    onChange={(e) => setPlatform(e.target.value)}
+                                    style={{
+                                        appearance: "none",
+                                        background: "#f8fafc",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        padding: "6px 28px 6px 10px",
+                                        fontSize: "12px",
+                                        fontWeight: "700",
+                                        color: "#0f172a",
+                                        cursor: "pointer",
+                                        minWidth: "100px"
+                                    }}
+                                >
+                                    {platforms.map(p => (
+                                        <option key={p} value={p}>{p}</option>
+                                    ))}
+                                </select>
+                                <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                                 </div>
                             </div>
+                        </div>
 
-                            <div style={{ height: "24px", width: "1px", background: "#e2e8f0" }}></div>
+                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
 
-                            <div style={{ display: "flex", gap: "4px" }}>
+                        {/* Category Dropdown */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Category</span>
+                            <div style={{ position: "relative" }}>
+                                <select
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value)}
+                                    style={{
+                                        appearance: "none",
+                                        background: "#f8fafc",
+                                        border: "1px solid #e2e8f0",
+                                        borderRadius: "8px",
+                                        padding: "6px 28px 6px 10px",
+                                        fontSize: "12px",
+                                        fontWeight: "700",
+                                        color: "#0f172a",
+                                        cursor: "pointer",
+                                        minWidth: "80px"
+                                    }}
+                                >
+                                    <option value="All">All Categories</option>
+                                    {categories.map(c => (
+                                        <option key={c} value={c}>{c}</option>
+                                    ))}
+                                </select>
+                                <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
+
+                        {/* Time Selection & Date Range */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                            <div style={{ display: "flex", gap: "3px" }}>
                                 {["MTD", "7D", "14D", "31D"].map(tp => (
                                     <button
                                         key={tp}
                                         onClick={() => setTimePeriod(tp)}
                                         style={{
-                                            width: "36px",
-                                            height: "32px",
-                                            borderRadius: "8px",
-                                            fontSize: "11px",
+                                            width: "32px",
+                                            height: "28px",
+                                            borderRadius: "7px",
+                                            fontSize: "10px",
                                             fontWeight: "700",
                                             border: tp === timePeriod ? "none" : "1px solid #e2e8f0",
                                             cursor: "pointer",
                                             background: tp === timePeriod ? "#1e293b" : "white",
                                             color: tp === timePeriod ? "white" : "#64748b",
+                                            transition: "all 0.2s"
                                         }}
                                     >
                                         {tp}
                                     </button>
                                 ))}
                             </div>
+                            {selectedPeriod.startDate && (
+                                <div style={{
+                                    fontSize: "10px",
+                                    fontWeight: "700",
+                                    color: "#475569",
+                                    background: "#f1f5f9",
+                                    padding: "5px 10px",
+                                    borderRadius: "18px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    border: "1px solid #e2e8f0"
+                                }}>
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                                    {dayjs(selectedPeriod.startDate).format("DD MMM")} - {dayjs(selectedPeriod.endDate).format("DD MMM, YY")}
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Map Area */}
                     <div style={{
                         position: "relative",
-                        height: "calc(100vh - 180px)",
+                        height: "calc(100vh - 120px)",
                         width: "100%",
                         overflow: "hidden",
                         borderRadius: "32px",
@@ -401,8 +538,59 @@ export default function GeoIntelligenceMap() {
                     }}>
                         <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
 
+                        {/* Skeleton Loader Overlay */}
+                        {loading && (
+                            <div style={{
+                                position: "absolute", inset: 0, zIndex: 50,
+                                background: "rgba(248, 250, 252, 0.85)",
+                                backdropFilter: "blur(4px)",
+                                display: "flex", flexDirection: "column",
+                                alignItems: "center", justifyContent: "center",
+                                gap: "24px", borderRadius: "32px"
+                            }}>
+                                {/* Pulsing map pin placeholders */}
+                                <div style={{ display: "flex", gap: "32px", alignItems: "flex-end" }}>
+                                    {[36, 48, 40, 44, 38].map((h, i) => (
+                                        <div key={i} style={{
+                                            width: "28px", height: `${h}px`,
+                                            borderRadius: "50% 50% 50% 0",
+                                            background: `linear-gradient(135deg, #e2e8f0, #cbd5e1)`,
+                                            animation: `pulse 1.5s ease-in-out ${i * 0.2}s infinite`,
+                                            opacity: 0.6
+                                        }} />
+                                    ))}
+                                </div>
+                                {/* Loading text */}
+                                <div style={{
+                                    display: "flex", flexDirection: "column",
+                                    alignItems: "center", gap: "8px"
+                                }}>
+                                    <div style={{
+                                        width: "32px", height: "32px",
+                                        border: "3px solid #e2e8f0",
+                                        borderTop: "3px solid #3b82f6",
+                                        borderRadius: "50%",
+                                        animation: "spin 0.8s linear infinite"
+                                    }} />
+                                    <span style={{
+                                        fontSize: "13px", fontWeight: 700,
+                                        color: "#64748b", letterSpacing: "0.5px"
+                                    }}>Loading map data...</span>
+                                </div>
+                                <style>{`
+                                    @keyframes pulse {
+                                        0%, 100% { transform: scale(1); opacity: 0.4; }
+                                        50% { transform: scale(1.15); opacity: 0.8; }
+                                    }
+                                    @keyframes spin {
+                                        to { transform: rotate(360deg); }
+                                    }
+                                `}</style>
+                            </div>
+                        )}
+
                         {/* Floating Control: Focus Area */}
-                        <div style={{ position: "absolute", top: "20px", left: "20px", background: "white", padding: "12px 16px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)", display: "flex", gap: "24px", alignItems: "center" }}>
+                        <div style={{ position: "absolute", top: "20px", left: "20px", zIndex: 10, background: "white", padding: "12px 16px", borderRadius: "12px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)", display: "flex", gap: "24px", alignItems: "center" }}>
                             <div>
                                 <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>FOCUS AREA</div>
                                 <div style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a", marginTop: "2px" }}>Across India</div>
@@ -410,7 +598,7 @@ export default function GeoIntelligenceMap() {
                             <div style={{ width: "1px", height: "24px", background: "#e2e8f0" }}></div>
                             <div>
                                 <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>GRANULARITY</div>
-                                <div style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a", marginTop: "2px" }}>State-level</div>
+                                <div style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a", marginTop: "2px" }}>{nationData && mapData.length === 0 ? "National-level" : "State-level"}</div>
                             </div>
                         </div>
 
@@ -433,14 +621,23 @@ export default function GeoIntelligenceMap() {
                             <div style={{ marginBottom: "24px" }}>
                                 <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px", marginBottom: "16px" }}>Intensity Prism</div>
                                 <div style={{ display: "flex", alignItems: "flex-end", gap: "6px", height: "40px" }}>
-                                    <div style={{ flex: 1, height: "40%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
-                                    <div style={{ flex: 1, height: "60%", background: COLORS.Orange, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Orange}33` }}></div>
-                                    <div style={{ flex: 1, height: "80%", background: COLORS.Blue, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Blue}33` }}></div>
-                                    <div style={{ flex: 1, height: "100%", background: COLORS.Green, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Green}33` }}></div>
+                                    {(metric === "Sales" || metric === "Orders" || metric === "Market Share") ? (
+                                        <>
+                                            <div style={{ flex: 1, height: "50%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
+                                            <div style={{ flex: 1, height: "100%", background: COLORS.Green, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Green}33` }}></div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div style={{ flex: 1, height: "40%", background: COLORS.Red, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Red}33` }}></div>
+                                            <div style={{ flex: 1, height: "60%", background: COLORS.Orange, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Orange}33` }}></div>
+                                            <div style={{ flex: 1, height: "80%", background: COLORS.Blue, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Blue}33` }}></div>
+                                            <div style={{ flex: 1, height: "100%", background: COLORS.Green, borderRadius: "4px", boxShadow: `0 4px 12px ${COLORS.Green}33` }}></div>
+                                        </>
+                                    )}
                                 </div>
                                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: "10px", fontSize: "10px", fontWeight: "700", color: "#94a3b8" }}>
-                                    <span>CRITICAL</span>
-                                    <span>LEADER</span>
+                                    <span>{(metric === "Sales" || metric === "Orders") ? "DEGROWTH" : "CRITICAL"}</span>
+                                    <span>{(metric === "Sales" || metric === "Orders") ? "GROWTH" : "LEADER"}</span>
                                 </div>
                             </div>
 
@@ -448,9 +645,12 @@ export default function GeoIntelligenceMap() {
                             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                                 <div style={{ fontSize: "10px", color: "#64748b", fontWeight: "800", textTransform: "uppercase", letterSpacing: "2px" }}>Focus Filter</div>
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                                    {["All", "High", "Medium", "Low"].map(f => {
+                                    {((metric === "Sales" || metric === "Orders") ? ["All", "Growth", "Degrowth"] : (metric === "Market Share" ? ["All", "High", "Low"] : ["All", "High", "Medium", "Low"])).map(f => {
                                         const active = importanceFilter === f;
-                                        const dotColor = f === "High" ? COLORS.Green : f === "Medium" ? COLORS.Blue : f === "Low" ? COLORS.Red : "#94a3b8";
+                                        let dotColor = "#94a3b8";
+                                        if (f === "High" || f === "Growth") dotColor = COLORS.Green;
+                                        else if (f === "Medium") dotColor = COLORS.Blue;
+                                        else if (f === "Low" || f === "Degrowth") dotColor = COLORS.Red;
 
                                         return (
                                             <button

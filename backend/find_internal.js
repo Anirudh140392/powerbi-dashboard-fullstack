@@ -12,7 +12,7 @@ const clickhouse = createClient({
 async function findInternal() {
     try {
         const result = await clickhouse.query({
-            query: "SELECT DISTINCT brand_name FROM rb_kw WHERE keyword_is_rb_product = 1 LIMIT 10",
+            query: "SELECT DISTINCT brand_name FROM rb_kw_olap WHERE keyword_is_rb_product = 1 LIMIT 10",
             format: 'JSONEachRow',
         });
         const data = await result.json();

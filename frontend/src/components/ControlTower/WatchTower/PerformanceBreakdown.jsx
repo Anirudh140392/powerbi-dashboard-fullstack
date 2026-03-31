@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useCallback, useContext, createCont
 import { motion, AnimatePresence } from "framer-motion";
 import { Layers, ChevronDown, ChevronRight, Download, LayoutGrid, Sparkles, Calendar, Info, Filter, X, Check, Target, FolderTree, Plus } from "lucide-react";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
+import { FilterContext } from "../../../utils/FilterContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
-const AUTH_TOKEN_KEY = "adsauto_auth_token";
+const AUTH_TOKEN_KEY = "token";
 
 const ThemeContext = createContext({ darkMode: false });
 const FiltersContext = createContext({ filters: { platform: [] } });
@@ -22,14 +23,15 @@ export function PerformanceBreakdownProvider({ darkMode = false, filters = { pla
 function getAuthToken() { return typeof window === "undefined" ? null : localStorage.getItem(AUTH_TOKEN_KEY); }
 function buildUrl(endpoint) {
     if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) return endpoint;
-    // Use relative paths to go through Vite proxy (dev) or nginx proxy (prod)
-    if (endpoint.startsWith("/api")) return endpoint;
-    return `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    const base = API_BASE_URL ? API_BASE_URL : "";
+    let path = endpoint.startsWith("/api") ? endpoint : `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    return `${base}${path}`;
 }
 function handleUnauthorized() {
+    localStorage.removeItem("isLoggedIn");
     localStorage.removeItem(AUTH_TOKEN_KEY);
-    const p = window.location.pathname;
-    if (p !== "/login") window.location.href = `/login?redirect=${encodeURIComponent(p)}`;
+    localStorage.removeItem("user");
+    window.location.hash = "#/login";
 }
 async function authFetch(endpoint, options = {}) {
     const { skipContentType, skipAuth, ...fetchOptions } = options;
@@ -69,7 +71,6 @@ function formatDateRangeShort(range) {
 const GROUP_DIMENSIONS = [
     { value: "category", label: "Category", icon: "📂" },
     { value: "brand", label: "Brand", icon: "🏷️" },
-    { value: "sku", label: "SKU", icon: "🧾" },
 ];
 const PRESET_PERIODS = [
     { key: "last_week", label: "Last Week", type: "preset" },
@@ -202,6 +203,9 @@ function PeriodComparisonPanel({ selectedPeriods, onPeriodsChange, isOpen, onTog
     const [customStartDate, setCustomStartDate] = useState("");
     const [customEndDate, setCustomEndDate] = useState("");
 
+    const { maxDate } = useContext(FilterContext);
+    const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
+
     useEffect(() => {
         const handleClickOutside = (e) => { if (panelRef.current && !panelRef.current.contains(e.target) && isOpen) onToggle(); };
         if (isOpen) { const t = setTimeout(() => document.addEventListener("mousedown", handleClickOutside), 100); return () => { clearTimeout(t); document.removeEventListener("mousedown", handleClickOutside); }; }
@@ -281,11 +285,11 @@ function PeriodComparisonPanel({ selectedPeriods, onPeriodsChange, isOpen, onTog
                                                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                                                     <div className="flex-1">
                                                         <label className={`text-[10px] sm:text-xs font-medium ${darkMode ? "text-slate-400" : "text-slate-600"}`}>Start Date</label>
-                                                        <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} className={`w-full mt-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`} />
+                                                        <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} max={maxDateStr} className={`w-full mt-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`} />
                                                     </div>
                                                     <div className="flex-1">
                                                         <label className={`text-[10px] sm:text-xs font-medium ${darkMode ? "text-slate-400" : "text-slate-600"}`}>End Date</label>
-                                                        <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} className={`w-full mt-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`} />
+                                                        <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} max={maxDateStr} className={`w-full mt-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-xs sm:text-sm ${darkMode ? "bg-slate-800 border-slate-600 text-white" : "bg-white border-slate-200 text-slate-900"}`} />
                                                     </div>
                                                 </div>
                                                 <div className="flex justify-end gap-2">
@@ -348,6 +352,7 @@ export function AggregatedViewTable() {
         { key: "mtd", label: "MTD", type: "preset" },
         { key: "last_3_months", label: "Last 3M", type: "preset" },
     ]);
+    const fetchIdRef = useRef(0);
     // slicerFilters removed — filter panel hidden
 
     useEffect(() => { if (selectedPeriods.length > 0 && !comparePeriods) setComparePeriods(true); else if (selectedPeriods.length === 0 && comparePeriods) setComparePeriods(false); }, [selectedPeriods.length]);
@@ -363,6 +368,7 @@ export function AggregatedViewTable() {
     const [apiError, setApiError] = useState(null);
 
     const fetchData = useCallback(async () => {
+        const currentFetchId = ++fetchIdRef.current;
         setLoading(true);
         setApiError(null);
         try {
@@ -371,9 +377,18 @@ export function AggregatedViewTable() {
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
-            if (filters.platform?.length > 0 && !filters.platform.includes("all")) params.set("platform_uuid", filters.platform[0]);
-            if (filters.dateStart) params.set("start_date", filters.dateStart);
-            if (filters.dateEnd) params.set("end_date", filters.dateEnd);
+            if (filters.platform?.length > 0 && !filters.platform.includes("all") && !filters.platform.includes("All")) {
+                params.set("platform_uuid", filters.platform.join(","));
+            }
+            if (filters.channel) params.set("channel", filters.channel);
+            if (filters.category?.length > 0 && !filters.category.includes("All")) params.set("category", filters.category.join(","));
+            if (filters.brand && filters.brand !== "All") params.set("brand", Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand);
+            if (filters.location?.length > 0 && !filters.location.includes("All")) params.set("location", filters.location.join(","));
+            
+            // Pass the global context dates if they exist
+            if (filters.dateStart) params.set("startDate", filters.dateStart);
+            if (filters.dateEnd) params.set("endDate", filters.dateEnd);
+            
             params.set("group_by", groupBy);
             // Pass selected period keys so backend can compute comparison data
             if (selectedPeriods.length > 0) {
@@ -386,27 +401,56 @@ export function AggregatedViewTable() {
                 params.set("compare_periods", periodParams.join(","));
             }
             const res = await authGet(`/api/watchtower/performance-breakdown?${params.toString()}`);
+
+            // Race condition check
+            if (currentFetchId !== fetchIdRef.current) return;
+
             const result = res.data;
             if (res.success && result?.success && result.data?.length > 0) {
                 setData(result.data);
-                setTotals(result.totals || null);
+                
+                // Dynamically calculate totals strictly based on the fetched row data
+                const calcTotals = result.data.reduce((acc, row) => {
+                    acc.impressions += (parseFloat(row.impressions) || 0);
+                    acc.clicks += (parseFloat(row.clicks) || 0);
+                    acc.spends += (parseFloat(row.spends) || 0);
+                    acc.orders += (parseFloat(row.orders) || 0);
+                    acc.sales += (parseFloat(row.sales) || 0);
+                    return acc;
+                }, { impressions: 0, clicks: 0, spends: 0, orders: 0, sales: 0 });
+                
+                calcTotals.ctr = calcTotals.impressions > 0 ? (calcTotals.clicks / calcTotals.impressions) * 100 : 0;
+                calcTotals.cpc = calcTotals.clicks > 0 ? (calcTotals.spends / calcTotals.clicks) : 0;
+                calcTotals.cvr = calcTotals.clicks > 0 ? (calcTotals.orders / calcTotals.clicks) * 100 : 0;
+                
+                setTotals(calcTotals);
                 setUntagged(result.untagged || null);
                 setPeriodComparison(result.period_comparison || null);
             } else {
-                throw new Error("No data returned from API");
+                // No data returned — show empty state gracefully instead of erroring
+                setData([]);
+                setTotals(null);
+                setUntagged(null);
+                setPeriodComparison(null);
             }
         } catch (e) {
-            console.error("Failed to fetch performance breakdown:", e);
-            setApiError(e.message || "Failed to load Performance Breakdown data");
+            if (currentFetchId === fetchIdRef.current) {
+                console.error("Failed to fetch performance breakdown:", e);
+                setApiError(e.message || "Failed to load Performance Breakdown data");
+            }
+        } finally {
+            if (currentFetchId === fetchIdRef.current) {
+                setLoading(false);
+            }
         }
-        setLoading(false);
     }, [groupBy, filters, selectedPeriods]);
+    // DO NOT ADD fetchOptions or objects to dependencies that change on render
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
-    const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)}Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)}L`; if (num >= 1000) return `${(num / 1000).toFixed(1)}K`; return num.toLocaleString("en-IN"); };
+    const formatNumber = (num) => { if (num === null || num === undefined) return "—"; if (num >= 10000000) return `${(num / 10000000).toFixed(2)} Cr`; if (num >= 100000) return `${(num / 100000).toFixed(2)} Lac`; if (num >= 1000) return `${(num / 1000).toFixed(1)} K`; return num.toLocaleString("en-IN"); };
     const formatCurrency = (num) => (num === null || num === undefined ? "—" : `₹${formatNumber(num)}`);
     const getPeriodData = (tag, periodKey) => { if (!periodComparison || !periodComparison[periodKey]) return null; return periodComparison[periodKey].find((d) => d.tag === tag) || null; };
     const thCls = (dm) => `px-2 py-3 text-right text-xs font-semibold uppercase tracking-wider ${dm ? "text-slate-400" : "text-slate-500"}`;
@@ -452,7 +496,7 @@ export function AggregatedViewTable() {
                         </div>
                         <button onClick={() => {
                             // CSV Download
-                            const headers = [currentDimension.label, "Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Sales"];
+                            const headers = [currentDimension.label, "Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Ad Sales"];
                             const csvRows = [headers.join(",")];
                             data.forEach(row => {
                                 csvRows.push([
@@ -477,7 +521,7 @@ export function AggregatedViewTable() {
                     <thead>
                         <tr className={darkMode ? "bg-slate-800/50" : "bg-slate-50/50"}>
                             <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{currentDimension.label}</th>
-                            {["Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
+                            {["Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Ad Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">

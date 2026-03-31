@@ -10,8 +10,8 @@
 -- Check indexes on rb_pdp_olap (most important table)
 SHOW INDEX FROM rb_pdp_olap;
 
--- Check indexes on rb_kw (Share of Search)
-SHOW INDEX FROM rb_kw;
+-- Check indexes on rb_kw_olap (Share of Search)
+SHOW INDEX FROM rb_kw_olap;
 
 -- Check indexes on rb_brand_ms (Market Share)
 SHOW INDEX FROM rb_brand_ms;
@@ -46,7 +46,7 @@ WHERE
     TABLE_SCHEMA = DATABASE()
     AND TABLE_NAME IN (
         'rb_pdp_olap',
-        'rb_kw',
+        'rb_kw_olap',
         'rb_brand_ms',
         'rb_sku_platform',
         'rca_sku_dim',
@@ -71,7 +71,7 @@ WHERE
     TABLE_SCHEMA = DATABASE()
     AND TABLE_NAME IN (
         'rb_pdp_olap',
-        'rb_kw',
+        'rb_kw_olap',
         'rb_brand_ms',
         'rb_sku_platform',
         'rca_sku_dim'
@@ -95,7 +95,7 @@ WHERE
     TABLE_SCHEMA = DATABASE()
     AND TABLE_NAME IN (
         'rb_pdp_olap',
-        'rb_kw',
+        'rb_kw_olap',
         'rb_brand_ms',
         'rb_sku_platform',
         'rca_sku_dim'

@@ -23,6 +23,8 @@ import {
 import { ChevronLeft, ChevronRight, X, Plus } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
+import { FilterContext } from "../../utils/FilterContext";
+import { useContext } from "react";
 
 /**
  * ---------------------------------------------------------------------------
@@ -189,6 +191,9 @@ export default function SalesTrendsDrawer({
     category,
 }) {
     // 1. All Hooks at the top
+    const { maxDate } = useContext(FilterContext);
+    const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
+
     const [trendData, setTrendData] = useState([]);
     const [fetching, setFetching] = useState(false);
     const [options, setOptions] = useState({ platforms: [], brands: [], categories: [], locations: [] });
@@ -403,20 +408,41 @@ export default function SalesTrendsDrawer({
                             <Box display="flex" alignItems="center" gap={1}>
                                 <Select size="small" value={filterType} onChange={(e) => setFilterType(e.target.value)} sx={{ minWidth: 120, borderRadius: 2 }}>
                                     <MenuItem value="Platform">Platform</MenuItem>
-                                    <MenuItem value="Format">Format</MenuItem>
+                                    <MenuItem value="Category">Category</MenuItem>
                                     <MenuItem value="Brand">Brand</MenuItem>
                                     <MenuItem value="City">City</MenuItem>
                                 </Select>
                                 <Box sx={{ flex: 1, minWidth: 0, maxWidth: '600px' }}>
                                     <ScrollRow>
-                                        {(filterType === "Platform" ? PLATFORM_OPTIONS : filterType === "Format" ? FORMAT_OPTIONS : filterType === "City" ? CITY_OPTIONS : BRAND_OPTIONS).map(p => {
-                                            const isSelected = filterType === "Platform" ? selectedPlatform === p : filterType === "Format" ? selectedCategory === p : filterType === "City" ? selectedLocationState === p : selectedBrandState === p;
-                                            return (
-                                                <Box key={p} onClick={() => { if (filterType === "Platform") setSelectedPlatformState(p); else if (filterType === "Format") setSelectedCategory(p); else if (filterType === "City") setSelectedLocationState(p); else setSelectedBrandState(p); }} sx={{ px: 2, py: 0.8, borderRadius: "999px", fontSize: "12px", fontWeight: 600, cursor: "pointer", whiteSpace: 'nowrap', border: isSelected ? "1px solid #0ea5e9" : "1px solid #E5E7EB", backgroundColor: isSelected ? "#0ea5e9" : "white", color: isSelected ? "white" : "#0f172a" }}>
-                                                    {p}
-                                                </Box>
-                                            );
-                                        })}
+                                        {(filterType === "Platform" ? PLATFORM_OPTIONS :
+                                            filterType === "Category" ? FORMAT_OPTIONS :
+                                                filterType === "Brand" ? BRAND_OPTIONS :
+                                                    CITY_OPTIONS).map((p) => {
+                                                        const isSelected = filterType === "Platform" ? selectedPlatform === p :
+                                                            filterType === "Category" ? selectedCategory === p :
+                                                                filterType === "City" ? selectedLocationState === p :
+                                                                    selectedBrandState === p;
+                                                        return (
+                                                            <Box
+                                                                key={p}
+                                                                onClick={() => {
+                                                                    if (filterType === "Platform") setSelectedPlatformState(p);
+                                                                    else if (filterType === "Category") setSelectedCategory(p);
+                                                                    else if (filterType === "City") setSelectedLocationState(p);
+                                                                    else setSelectedBrandState(p);
+                                                                }}
+                                                                sx={{
+                                                                    px: 2, py: 0.8, borderRadius: "999px", fontSize: "12px",
+                                                                    fontWeight: 600, cursor: "pointer", whiteSpace: 'nowrap',
+                                                                    border: isSelected ? "1px solid #0ea5e9" : "1px solid #E5E7EB",
+                                                                    backgroundColor: isSelected ? "#0ea5e9" : "white",
+                                                                    color: isSelected ? "white" : "#0f172a"
+                                                                }}
+                                                            >
+                                                                {p}
+                                                            </Box>
+                                                        );
+                                                    })}
                                     </ScrollRow>
                                 </Box>
                             </Box>
@@ -431,6 +457,7 @@ export default function SalesTrendsDrawer({
                                             type="date"
                                             value={customStartDate}
                                             onChange={(e) => setCustomStartDate(e.target.value)}
+                                            max={maxDateStr}
                                             style={{
                                                 padding: '4px 8px',
                                                 border: '1px solid #E5E7EB',
@@ -445,6 +472,7 @@ export default function SalesTrendsDrawer({
                                             type="date"
                                             value={customEndDate}
                                             onChange={(e) => setCustomEndDate(e.target.value)}
+                                            max={maxDateStr}
                                             style={{
                                                 padding: '4px 8px',
                                                 border: '1px solid #E5E7EB',

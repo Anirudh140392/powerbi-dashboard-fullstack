@@ -15,7 +15,7 @@ async function checkAllBrands() {
             SELECT 
                 brand_name,
                 count() as cnt
-            FROM colpal.rb_kw
+            FROM colpal.rb_kw_olap
             WHERE toDate(created_on) = '2025-11-18'
               AND keyword_search_rank < 11
               AND platform_name = 'Blinkit'
@@ -31,7 +31,7 @@ async function checkAllBrands() {
         const rows = await result.json();
         console.table(rows);
 
-        const total = `SELECT count() as total FROM colpal.rb_kw WHERE toDate(created_on) = '2025-11-18' AND keyword_search_rank < 11 AND platform_name = 'Blinkit'`;
+        const total = `SELECT count() as total FROM colpal.rb_kw_olap WHERE toDate(created_on) = '2025-11-18' AND keyword_search_rank < 11 AND platform_name = 'Blinkit'`;
         const tRes = await clickhouse.query({ query: total, format: 'JSONEachRow' });
         console.log('Total Count:', (await tRes.json())[0].total);
 

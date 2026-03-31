@@ -12,15 +12,12 @@ export const formatNumber = (num, decimals = 2) => {
     const absNum = Math.abs(num);
     const sign = num < 0 ? '-' : '';
 
-    if (absNum >= 1e9) {
-        // Billions (Arab)
-        return sign + (absNum / 1e9).toFixed(decimals) + ' B';
-    } else if (absNum >= 1e7) {
+    if (absNum >= 1e7) {
         // Crores
         return sign + (absNum / 1e7).toFixed(decimals) + ' Cr';
     } else if (absNum >= 1e5) {
-        // Lakhs (Lac)
-        return sign + (absNum / 1e5).toFixed(decimals) + ' Lac';
+        // Lakhs (Lacs)
+        return sign + (absNum / 1e5).toFixed(decimals) + ' Lacs';
     } else if (absNum >= 1e3) {
         // Thousands
         return sign + (absNum / 1e3).toFixed(decimals) + ' K';
@@ -112,11 +109,11 @@ export const formatYAxisTick = (value, kpiKey) => {
     const sign = value < 0 ? '-' : '';
 
     if (absValue >= 1e7) {
-        return sign + (absValue / 1e7).toFixed(1) + 'Cr';
+        return sign + (absValue / 1e7).toFixed(1) + ' Cr';
     } else if (absValue >= 1e5) {
-        return sign + (absValue / 1e5).toFixed(1) + 'L';
+        return sign + (absValue / 1e5).toFixed(1) + ' Lacs';
     } else if (absValue >= 1e3) {
-        return sign + (absValue / 1e3).toFixed(1) + 'K';
+        return sign + (absValue / 1e3).toFixed(1) + ' K';
     } else {
         return sign + absValue.toFixed(0);
     }

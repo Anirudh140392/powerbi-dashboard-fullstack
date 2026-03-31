@@ -15,12 +15,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import {
-  PRODUCT_MATRIX,
-  getLogicalKpiValue,
-  getLogicalKpiTrend,
-  FORMAT_MATRIX_Visibility
-} from "../AllAvailablityAnalysis/availablityDataCenter";
 import { FilterContext } from "../../utils/FilterContext";
 import CloseIcon from '@mui/icons-material/Close'
 import DrillHeatTable from '../CommonLayout/DrillHeatTable'
@@ -35,8 +29,7 @@ import {
   Inbox
 } from "lucide-react";
 import VisibilityDrilldownTable from './VisibilityDrilldownTable';
-import TopSearchTerms from './TopSearchTerms';
-import { SignalLabVisibility } from './SignalLabVisibility';
+
 import VisibilityLayoutOne from './VisibilityLayoutOne';
 import MetricCardContainer from '../CommonLayout/MetricCardContainer';
 import ErrorRetryOverlay from '../CommonLayout/ErrorRetryOverlay';
@@ -44,8 +37,12 @@ import {
   VisibilityOverviewSkeleton,
   TabbedHeatmapTableSkeleton,
   VisibilityDrilldownSkeleton,
-  TopSearchTermsSkeleton
+  GainersDrainersSkeleton,
+  VisibilityPageSkeleton,
 } from './VisibilitySkeletons';
+
+import KeywordVisibilityDashboard from './KeywordVisibilityDashboard';
+import SearchTermsPerformance from './SearchTermsPerformance';
 
 // Reusable "No Data Available" component
 const NoDataAvailable = ({ title = 'No data available' }) => (
@@ -392,10 +389,10 @@ const pulseData = [
 ]
 
 const categoryCards = [
-  { name: 'All', overall: 0.9, ad: 0.5, display: 1.1, deltaOverall: -0.6, deltaAd: -2.3, deltaDisplay: -0.4, trend: [1.2, 1.1, 1.0, 0.98, 0.94, 0.9], status: 'down' },
-  { name: 'Shower Gel', overall: 2.4, ad: 2.5, display: 1.9, deltaOverall: -1.3, deltaAd: -2.9, deltaDisplay: -1.0, trend: [2.8, 2.7, 2.6, 2.5, 2.45, 2.4], status: 'down' },
-  { name: 'Hand Wash', overall: 2.7, ad: 2.5, display: 1.6, deltaOverall: -2.1, deltaAd: -13.2, deltaDisplay: -0.9, trend: [3.1, 3.0, 2.9, 2.8, 2.7, 2.7], status: 'down' },
-  { name: 'Face Wash', overall: 0.3, ad: 0.0, display: 0.6, deltaOverall: 0.0, deltaAd: 0.0, deltaDisplay: -0.2, trend: [0.5, 0.45, 0.4, 0.35, 0.32, 0.3], status: 'down' },
+  { name: 'All', overall: 0.9, ad: 0.5, deltaOverall: -0.6, deltaAd: -2.3, trend: [1.2, 1.1, 1.0, 0.98, 0.94, 0.9], status: 'down' },
+  { name: 'Shower Gel', overall: 2.4, ad: 2.5, deltaOverall: -1.3, deltaAd: -2.9, trend: [2.8, 2.7, 2.6, 2.5, 2.45, 2.4], status: 'down' },
+  { name: 'Hand Wash', overall: 2.7, ad: 2.5, deltaOverall: -2.1, deltaAd: -13.2, trend: [3.1, 3.0, 2.9, 2.8, 2.7, 2.7], status: 'down' },
+  { name: 'Face Wash', overall: 0.3, ad: 0.0, deltaOverall: 0.0, deltaAd: 0.0, trend: [0.5, 0.45, 0.4, 0.35, 0.32, 0.3], status: 'down' },
 ]
 
 const competitorSeries = [
@@ -455,15 +452,22 @@ const cards = [
   },
 ];
 
-const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters: parentFilters, topSearchFilter: parentTopSearchFilter, setTopSearchFilter: parentSetTopSearchFilter }) => {
+const VisiblityAnalysisData = ({
+  apiData = {},
+  apiErrors = {},
+  loading = {},
+  onRetry,
+  onFiltersChange,
+  filters: parentFilters
+}) => {
+  const { visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly } = useContext(FilterContext);
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
-  // Use parent topSearchFilter if available, else fallback to local
-  const topSearchFilter = parentTopSearchFilter || "All";
-  const setTopSearchFilter = parentSetTopSearchFilter || (() => { });
+  // Removed local skuTab state, now using visibilityOwnBrandsOnly from context
+
 
   // const sampleData = [
   //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
@@ -591,17 +595,6 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       extraChange: "Slightly above benchmark",
       extraChangeColor: "orange",
     },
-    {
-      title: "Display SOS",
-      value: "26.9%",
-      sub: "Share of shelf from display-led visibility",
-      change: "▲1.2% (from 25.7%)",
-      changeColor: "green",
-      prevText: "vs Previous Period",
-      extra: "Top 50 SKUs Display SOS: 82.3%",
-      extraChange: "▲0.9%",
-      extraChangeColor: "green",
-    },
   ];
   const {
     selectedChannel,
@@ -613,9 +606,6 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
   } = useContext(FilterContext);
 
   const visibilityKpis = useMemo(() => {
-    // User request: restrict Visibility Overview cards to ONLY change on Platform
-    const platformContext = { platform: globalPlatform };
-
     const icons = [PieChart, Target, TrendingUp, Monitor];
     const gradients = [
       ['#6366f1', '#8b5cf6'],
@@ -624,7 +614,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       ['#8b5cf6', '#a855f7']
     ];
 
-    // If API data is available, use real values
+    // Use real API data only — no random generators
     const overviewCards = apiData?.overview?.cards;
     if (overviewCards && overviewCards.length > 0) {
       return overviewCards.map((card, idx) => {
@@ -643,7 +633,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
           deltaLabel: card.change || '',
           icon: icons[idx] || PieChart,
           gradient: gradients[idx % gradients.length],
-          trend: card.sparklineData || getLogicalKpiTrend('sos', platformContext),
+          trend: card.sparklineData || [],
           isComingSoon: card.isComingSoon || false,
           extra: card.extra,
           extraChange: card.extraChange,
@@ -653,39 +643,9 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       });
     }
 
-    // Fallback to seed-based data
-    // Map titles to keys that exist in data center or fall back to defaults
-    const titleToKey = {
-      "Overall Weighted SOS": "sos",
-      "Sponsored Weighted SOS": "promomybrand",
-      "Organic Weighted SOS": "market",
-      "Display SOS": "dspSales"
-    };
-
-    return cards.map((card, idx) => {
-      const kpiKey = titleToKey[card.title] || card.title.toLowerCase().replace(/\s+/g, '');
-      const val = getLogicalKpiValue(kpiKey, platformContext);
-      const isUp = getLogicalKpiValue(kpiKey + 'dir', platformContext) > 50;
-      const delta = (getLogicalKpiValue(kpiKey + 'delta', platformContext) / 20).toFixed(1);
-
-      return {
-        id: `vis-${idx}`,
-        title: card.title,
-        value: `${val.toFixed(1)}%`,
-        subtitle: card.sub,
-        delta: parseFloat(delta),
-        deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
-        icon: icons[idx] || PieChart,
-        gradient: gradients[idx % gradients.length],
-        trend: getLogicalKpiTrend(kpiKey, platformContext),
-
-        extra: card.extra,
-        extraChange: card.extraChange,
-        extraChangeColor: card.extraChangeColor,
-        prevText: card.prevText
-      };
-    });
-  }, [globalPlatform, apiData?.overview]);
+    // Fallback: return empty cards when API data is not yet available
+    return [];
+  }, [apiData?.overview]);
 
   const cellHeat = (value) => {
     if (value >= 95) return "bg-emerald-100 text-emerald-900";
@@ -745,7 +705,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
   //   // ---------------- TABS ----------------
   //   const tabs = [
   //     { key: "platform", label: "Platform", data: platformData },
-  //     { key: "format", label: "Format", data: formatData },
+  //     { key: "format", label: "Category", data: formatData },
   //     { key: "city", label: "City", data: cityData },
   //   ];
 
@@ -781,139 +741,39 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
   // };
 
   // ---------------- FILTER OPTIONS ----------------
-  const VISIBILITY_FILTER_OPTIONS = [
-    { id: "date", label: "Date", options: [] }, // Date range picker would be custom
-    { id: "keywords", label: "Keyword" },
-    { id: "month", label: "Month", options: [{ id: "all", label: "All" }, { id: "jan", label: "January" }, { id: "feb", label: "February" }] },
-    {
-      id: "platform", label: "Platform", options: [
-        { id: "blinkit", label: "Blinkit" },
-        { id: "instamart", label: "Instamart" },
-        { id: "zepto", label: "Zepto" },
-        { id: "flipkart", label: "Flipkart" },
-        { id: "amazon", label: "Amazon" }
-      ]
-    },
-    {
-      id: "kpi",
-      label: "KPI",
-      options: [
-        { id: "Overall Weighted SOS", label: "OVERALL WEIGHTED SOS" },
-        { id: "Sponsored Weighted SOS", label: "SPONSORED WEIGHTED SOS" },
-        { id: "Organic Weighted SOS", label: "ORGANIC WEIGHTED SOS" },
-        { id: "Display SOS", label: "DISPLAY SOS" }
-      ]
-    },
-    { id: "productName", label: "Product Name", options: [{ id: "p1", label: "Cornetto Double Chocolate" }, { id: "p2", label: "Magnum Truffle" }] },
-    { id: "format", label: "Format", options: [{ id: "cone", label: "Cone" }, { id: "cup", label: "Cup" }, { id: "stick", label: "Stick" }] },
-    { id: "zone", label: "Zone", options: [{ id: "north", label: "North" }, { id: "south", label: "South" }] },
-    { id: "city", label: "City", options: [{ id: "delhi", label: "Delhi" }, { id: "mumbai", label: "Mumbai" }] },
-    { id: "pincode", label: "Pincode", options: [{ id: "110001", label: "110001" }, { id: "400001", label: "400001" }] },
-    { id: "metroFlag", label: "Metro Flag", options: [{ id: "metro", label: "Metro" }, { id: "non-metro", label: "Non-Metro" }] },
-    { id: "classification", label: "Classification", options: [{ id: "gnow", label: "GNOW" }] },
-  ];
-
   const TabbedHeatmapTable = ({ apiMatrixData }) => {
-    const [activeTab, setActiveTab] = useState("platform");
-    const {
-      selectedChannel,
-      platform: globalPlatform,
-      selectedBrand,
-      selectedLocation,
-      timeStart,
-      timeEnd
+    const { 
+      setPlatform, 
+      setSelectedBrand, 
+      setSelectedLocation, 
+      setSelectedCategory 
     } = useContext(FilterContext);
 
-    // 🔥 Utility to compute unified trend + series for ANY item
-    const buildRows = (dataArray = [], columnList = [], context = {}) => {
-      // Map readable titles to data center keys
-      const kpiMap = {
-        "Overall Weighted SOS": "sos",
-        "Sponsored Weighted SOS": "promomybrand", // Approximation
-        "Organic Weighted SOS": "market", // Approximation
-        "Display SOS": "dspSales" // Approximation
-      };
+    const [activeTab, setActiveTab] = useState("platform");
 
-      return dataArray.map((item) => {
-        const trendObj = {};
-        const seriesObj = {};
-
-        // Resolve the correct data key if present, else fallback
-        const dataKey = kpiMap[item.kpi] || item.kpi;
-
-        columnList.forEach((col) => {
-          const seed = { ...context, kpi: dataKey, col };
-          const randomVal = getLogicalKpiValue(dataKey, seed);
-          const randomTrendSeries = getLogicalKpiTrend(dataKey, seed);
-          const validTrend = randomTrendSeries.length >= 2;
-
-          const lastTrendVal = validTrend ? randomTrendSeries[randomTrendSeries.length - 1] : 0;
-
-          // Use logical delta and direction for consistent 5-7% reporting
-          const logicalDelta = getLogicalKpiValue(dataKey + 'delta', seed);
-          const logicalDir = getLogicalKpiValue(dataKey + 'dir', seed);
-          const trendDelta = parseFloat((logicalDir > 50 ? logicalDelta : -logicalDelta).toFixed(1));
-
-          trendObj[col] = trendDelta;
-          seriesObj[col] = randomTrendSeries;
-
-          // Store the randomized value in the row object for this column
-          item.values[col] = randomVal;
-        });
-
-        return {
-          kpi: item.kpi,
-          ...item.values,
-          trend: trendObj,
-          series: seriesObj,
-        };
-      });
-    };
-
-    // ---------------- TABS ----------------
+    // ---------------- TABS (pure backend data, no fallbacks) ----------------
     const tabs = useMemo(() => {
-      const context = { selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd };
+      // Use only real API matrix data — no hardcoded fallback
+      const emptyData = { columns: ["kpi"], rows: [] };
 
-      // Try to use real API matrix data first
-      // Backend response format: { platformData: { columns, rows }, formatData: { columns, rows }, cityData: { columns, rows } }
-      // Each row has: { kpi, PlatformA: val, PlatformB: val, trend: { PlatformA: delta, ... }, series: { PlatformA: [...], ... } }
-      const useApiPlatform = apiMatrixData?.platformData?.rows?.length > 0;
-      const useApiFormat = apiMatrixData?.formatData?.rows?.length > 0;
-      const useApiCity = apiMatrixData?.cityData?.rows?.length > 0;
+      const platformKpis = apiMatrixData?.platformData?.rows?.length > 0
+        ? apiMatrixData.platformData
+        : emptyData;
 
-      const platformData = useApiPlatform ? apiMatrixData.platformData : {
-        columns: ["kpi", ...FORMAT_MATRIX_Visibility.PlatformColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.PlatformData])),
-          FORMAT_MATRIX_Visibility.PlatformColumns,
-          context
-        ),
-      };
+      const formatKpis = apiMatrixData?.formatData?.rows?.length > 0
+        ? apiMatrixData.formatData
+        : emptyData;
 
-      const formatData = useApiFormat ? apiMatrixData.formatData : {
-        columns: ["kpi", ...FORMAT_MATRIX_Visibility.formatColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.FormatData])),
-          FORMAT_MATRIX_Visibility.formatColumns,
-          context
-        ),
-      };
-
-      const cityData = useApiCity ? apiMatrixData.cityData : {
-        columns: ["kpi", ...FORMAT_MATRIX_Visibility.CityColumns],
-        rows: buildRows(
-          JSON.parse(JSON.stringify([...FORMAT_MATRIX_Visibility.CityData])),
-          FORMAT_MATRIX_Visibility.CityColumns,
-          context
-        ),
-      };
+      const cityKpis = apiMatrixData?.cityData?.rows?.length > 0
+        ? apiMatrixData.cityData
+        : emptyData;
 
       return [
-        { key: "platform", label: "Platform", data: platformData },
-        { key: "format", label: "Format", data: formatData },
-        { key: "city", label: "City", data: cityData },
+        { key: "platform", label: "Platform", data: platformKpis },
+        { key: "format", label: "Category", data: formatKpis },
+        { key: "city", label: "City", data: cityKpis },
       ];
-    }, [selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiMatrixData]);
+    }, [apiMatrixData]);
 
     const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
 
@@ -938,13 +798,42 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
         </div>
 
         {/* -------- MATRIX TABLE -------- */}
-        <CityKpiTrendShowcase
-          dynamicKey="visibility"
-          data={active.data}
-          title={active.label}
-          showPagination={true}
-          kpiFilterOptions={VISIBILITY_FILTER_OPTIONS}
-        />
+        {active.data.rows.length === 0 ? (
+          <NoDataAvailable title={`No ${active.label} data available for the selected filters`} />
+        ) : (
+          <CityKpiTrendShowcase
+            dynamicKey="visibility"
+            data={active.data}
+            title={active.label}
+            showPagination={true}
+            filterApiUrl="/api/visibility-analysis/filter-options"
+            onFilterChange={(appliedFilters) => {
+              console.log('🔄 [Matrix] Filters applied in modal:', appliedFilters);
+
+              // 1. Update Global Filter Context (Source of Truth)
+              // Handle single/multi-selection based on what's returned from the modal
+              if (appliedFilters.platforms) setPlatform(appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : (appliedFilters.platforms.length === 0 ? 'All' : appliedFilters.platforms));
+              if (appliedFilters.categories) setSelectedCategory(appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : (appliedFilters.categories.length === 0 ? 'All' : appliedFilters.categories));
+              if (appliedFilters.brands) setSelectedBrand(appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : (appliedFilters.brands.length === 0 ? 'All' : appliedFilters.brands));
+              if (appliedFilters.cities) setSelectedLocation(appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : (appliedFilters.cities.length === 0 ? 'All' : appliedFilters.cities));
+
+              // 2. Also update local page state for immediate UI reaction/fetch
+              const mapped = {
+                platform: (appliedFilters.platforms && appliedFilters.platforms.length > 0) ? (appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : appliedFilters.platforms) : 'All',
+                category: (appliedFilters.categories && appliedFilters.categories.length > 0) ? (appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : appliedFilters.categories) : 'All',
+                brand: (appliedFilters.brands && appliedFilters.brands.length > 0) ? (appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : appliedFilters.brands) : 'All',
+                location: (appliedFilters.cities && appliedFilters.cities.length > 0) ? (appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : appliedFilters.cities) : 'All'
+              };
+              onFiltersChange(prev => ({ ...prev, ...mapped }));
+            }}
+            filterSections={[
+              { id: "platforms", label: "Platform", apiType: "platforms" },
+              { id: "categories", label: "Category", apiType: "formats" },
+              { id: "cities", label: "City", apiType: "cities" },
+              { id: "brands", label: "Brand", apiType: "brands" },
+            ]}
+          />
+        )}
       </div>
     );
   };
@@ -972,7 +861,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       {/* Section 1: Visibility Overview */}
       {apiErrors?.overview ? (
         <ErrorRetryOverlay onRetry={() => onRetry?.('overview')} message={apiErrors.overview} compact />
-      ) : apiData?.overview === undefined ? (
+      ) : (loading?.overview || apiData?.overview === undefined) ? (
         <VisibilityOverviewSkeleton />
       ) : apiData?.overview?.cards?.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -995,7 +884,7 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
       {/* Section 2: Platform KPI Matrix */}
       {apiErrors?.matrix ? (
         <ErrorRetryOverlay onRetry={() => onRetry?.('matrix')} message={apiErrors.matrix} compact />
-      ) : apiData?.matrix === undefined ? (
+      ) : (loading?.matrix || apiData?.matrix === undefined) ? (
         <TabbedHeatmapTableSkeleton />
       ) : (
         <TabbedHeatmapTable apiMatrixData={apiData?.matrix} />
@@ -1041,47 +930,25 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
         // </div> */}
       {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
       {/* Section 3: Keywords at a Glance */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         {apiErrors?.keywords ? (
           <ErrorRetryOverlay onRetry={() => onRetry?.('keywords')} message={apiErrors.keywords} compact />
-        ) : apiData?.keywords === undefined ? (
+        ) : (loading?.keywords || apiData?.keywords === undefined) ? (
           <VisibilityDrilldownSkeleton />
         ) : !apiData?.keywords?.hierarchy || apiData?.keywords?.hierarchy?.length === 0 ? (
           <NoDataAvailable title="No keywords data available" />
         ) : (
-          <VisibilityDrilldownTable data={apiData?.keywords?.hierarchy} />
+          <VisibilityDrilldownTable
+            data={apiData?.keywords?.hierarchy}
+            filters={parentFilters}
+            onFiltersChange={onFiltersChange}
+          />
         )}
-      </div>
-      {/* Section 4: Top Search Terms */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-            {["All", "Branded", "Competitor", "Generic"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setTopSearchFilter(tab)}
-                className={`px-4 py-1.5 text-sm rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        </div>
-        {apiErrors?.searchTerms ? (
-          <ErrorRetryOverlay onRetry={() => onRetry?.('searchTerms')} message={apiErrors.searchTerms} compact />
-        ) : apiData?.searchTerms === undefined ? (
-          <TopSearchTermsSkeleton />
-        ) : apiData?.searchTerms?.terms?.length === 0 ? (
-          <NoDataAvailable title="No search terms data available" />
-        ) : (
-          <TopSearchTerms filter={topSearchFilter} apiData={apiData?.searchTerms} />
-        )}
-      </div>
-      {/* <SignalLabVisibility type="visibility" /> */}
+      </div> */}
+
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <VisibilityLayoutOne />
-        </div> */}
+        <VisibilityLayoutOne />
+      </div> */}
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
           <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
@@ -1215,7 +1082,11 @@ const VisiblityAnalysisData = ({ apiData = {}, apiErrors = {}, onRetry, filters:
           </div>
         </div>
       )}
-
+      <KeywordVisibilityDashboard
+        apiData={apiData?.gainersAndDrainers}
+        loading={loading?.gainersAndDrainers || apiData?.gainersAndDrainers === undefined}
+      />
+      <SearchTermsPerformance />
     </div>
   )
 }

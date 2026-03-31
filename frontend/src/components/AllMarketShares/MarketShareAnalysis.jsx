@@ -1,5 +1,7 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import React, { useMemo, useState, useEffect, useRef, useContext } from "react";
+import { Skeleton } from "@mui/material";
+import { FilterContext } from "../../utils/FilterContext";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Area,
   AreaChart,
@@ -14,8 +16,54 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { LayoutGrid, Layers, TrendingUp, PieChart, ChevronDown, Check } from "lucide-react";
 import { DualAxisDrillMatrix } from "./PowerBiDashboard";
 import axiosInstance from "../../api/axiosInstance";
+import SnapshotOverview from "../CommonLayout/SnapshotOverview";
+import MarketCatOverview from "./MarketCatOverview";
+import TrendsCompetitionDrawer from "../AllAvailablityAnalysis/TrendsCompetitionDrawer";
+import MarketShareDrilldown from "./MarketShareDrilldown";
+import SubCategoryMarket from "./SubCategoryMarket";
+
+const marketShareKpis = [
+  {
+    id: "ms-category-size",
+    title: "Category Size (Cr)",
+    value: "₹ 220.22 Cr",
+    subtitle: "Total category size across all platforms",
+    delta: 73.8,
+    deltaLabel: "▲ 73.8% (₹126.72 Cr)",
+    icon: Layers,
+    gradient: ["#6366f1", "#8b5cf6"],
+    extraChangeColor: "green",
+    prevText: "vs Comparison Period",
+  },
+  {
+    id: "ms-leader-sales",
+    title: "Market Leader Sales (Cr)",
+    value: "₹ 77.46 Cr",
+    subtitle: "Sales of the market leading brand",
+    brand: "Amul",
+    delta: 91.1,
+    deltaLabel: "▲ 91.1% (₹40.53 Cr)",
+    icon: TrendingUp,
+    gradient: ["#14b8a6", "#06b6d4"],
+    extraChangeColor: "green",
+    prevText: "vs Comparison Period",
+  },
+  {
+    id: "ms-mars-wrigley",
+    title: "Our Estimated Sales (Cr)",
+    value: "₹ 6.90 Cr",
+    subtitle: "Our brand estimated sales performance",
+    delta: 38.1,
+    deltaLabel: "▲ 38.1% (₹4.88 Cr)",
+    icon: PieChart,
+    gradient: ["#f43f5e", "#ec4899"],
+    extraChangeColor: "green",
+    prevText: "vs Comparison Period",
+  },
+];
 
 const stats = [
   { label: "Darkstore Count", value: "1829" },
@@ -40,6 +88,46 @@ const brandShareHeat = [
   { brand: "Cream Bell", values: [3, 8, 9, 8, 6, 7, 7, 6, 7] },
   { brand: "Havmor", values: [9, 5, 5, 5, 5, 5, 5, 6, 7] },
 ];
+
+/* Sub-category → brand sets for TwoUp charts */
+const subCategoryBrandHeat = {
+  Candies: [
+    { brand: "Cadbury", values: [35, 34, 33, 35, 36, 35, 34, 33, 35] },
+    { brand: "Ferrero", values: [24, 25, 24, 23, 24, 25, 24, 25, 24] },
+    { brand: "Lindt", values: [7, 6, 7, 6, 7, 6, 7, 7, 6] },
+    { brand: "Nestle", values: [5, 6, 5, 5, 5, 6, 5, 5, 5] },
+    { brand: "Mars", values: [3, 3, 4, 3, 3, 3, 4, 3, 3] },
+  ],
+  'Filled Bars': [
+    { brand: "Snickers", values: [28, 27, 29, 28, 29, 28, 28, 27, 28] },
+    { brand: "KitKat", values: [22, 23, 22, 21, 22, 23, 22, 22, 21] },
+    { brand: "Twix", values: [13, 12, 13, 13, 12, 13, 12, 13, 12] },
+    { brand: "Bounty", values: [9, 8, 9, 8, 9, 8, 9, 8, 9] },
+    { brand: "Milky Way", values: [5, 6, 5, 5, 6, 5, 5, 6, 5] },
+  ],
+  Gums: [
+    { brand: "Orbit", values: [33, 32, 33, 32, 33, 32, 33, 32, 33] },
+    { brand: "Mentos", values: [19, 18, 19, 19, 18, 19, 18, 19, 18] },
+    { brand: "Center Fresh", values: [14, 15, 14, 14, 15, 14, 15, 14, 14] },
+    { brand: "Happydent", values: [10, 11, 10, 10, 11, 10, 11, 10, 10] },
+    { brand: "Boomer", values: [7, 8, 7, 7, 8, 7, 7, 8, 7] },
+  ],
+  'Gift Packs': [
+    { brand: "Cadbury Celebrations", values: [42, 41, 43, 42, 42, 41, 43, 42, 42] },
+    { brand: "Ferrero Rocher", values: [23, 22, 23, 22, 23, 23, 22, 23, 22] },
+    { brand: "Toblerone", values: [11, 12, 11, 12, 11, 11, 12, 11, 12] },
+    { brand: "Lindt Box", values: [9, 9, 8, 9, 9, 9, 8, 9, 9] },
+    { brand: "Mars Assorted", values: [6, 5, 6, 5, 6, 5, 6, 5, 6] },
+  ],
+  Others: [
+    { brand: "Amul", values: [19, 18, 19, 18, 19, 18, 19, 18, 19] },
+    { brand: "Parle", values: [14, 15, 14, 14, 15, 14, 15, 14, 14] },
+    { brand: "ITC", values: [11, 10, 11, 11, 10, 11, 10, 11, 10] },
+    { brand: "Britannia", values: [8, 9, 8, 8, 9, 8, 9, 8, 8] },
+    { brand: "Haldirams", values: [7, 6, 7, 6, 7, 6, 7, 6, 7] },
+  ],
+};
+const subCatOptions = Object.keys(subCategoryBrandHeat);
 
 const zones = ["North", "East", "South", "West"];
 const months = [
@@ -236,32 +324,202 @@ const heatCell = (v, max = 100) => {
 export default function MarketShareAnalysis() {
   const [showFilters, setShowFilters] = useState(false);
   const [marketMode, setMarketMode] = useState("geographical");
-  const calledOnce = useRef(false);
+  const [loading, setLoading] = useState(true);
+
+  // Derive display name from the logged-in user's dbName
+  const dbDisplayName = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user'));
+      if (u?.dbName) {
+        return u.dbName
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase());
+      }
+    } catch { /* ignore */ }
+    return 'Our';
+  }, []);
+
+  // Use state for KPIs to allow dynamic updates from backend
+  const [kpis, setKpis] = useState(() =>
+    marketShareKpis.map(k =>
+      k.id === 'ms-mars-wrigley'
+        ? { ...k, title: `${dbDisplayName} Estimated Sales (Cr)`, subtitle: `${dbDisplayName} brand estimated sales performance` }
+        : k
+    )
+  );
+
+  const {
+    platform,
+    selectedCategory,
+    selectedLocation,
+    timeStart,
+    timeEnd,
+    compareStart,
+    compareEnd,
+  } = useContext(FilterContext);
+
+  // ── Drawer state for MarketCatOverview trends ──────────────────────────────
+  const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
+
+  const handleViewTrends = (entityName, dimensionLabel) => {
+    setTrendsDrawer({ open: true, entity: entityName, dimension: dimensionLabel });
+  };
+
+  const handleViewRca = (entityName, dimensionLabel) => {
+    // RCA drawer placeholder — can be wired later
+  };
 
   useEffect(() => {
-    if (calledOnce.current) return;
-    calledOnce.current = true;
-
     const fetchMarketShareData = async () => {
+      setLoading(true);
       try {
-        const response = await axiosInstance.get('/market-share', {
-          params: { platform: 'Blinkit' } // Default filter
-        });
+        const params = {
+          platform: platform === 'All' ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+          category: selectedCategory === 'All' ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+          location: undefined, // Enforced isolation from global location filter
+          startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
+          endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
+          compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
+          compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
+        };
+
+        const response = await axiosInstance.get('/market-share', { params });
         console.log("Market Share Data:", response.data);
+
+        if (response.data) {
+          setKpis(prev => prev.map(k => {
+            // Category Size KPI
+            if (k.id === "ms-category-size" && response.data.categorySize !== undefined) {
+              const catData = response.data.categorySize;
+              const val = catData.size || 0;
+              const formattedValue = val > 10000000
+                ? `₹ ${(val / 10000000).toFixed(2)} Cr`
+                : val > 100000
+                  ? `₹ ${(val / 100000).toFixed(2)} L`
+                  : `₹ ${val.toFixed(2)}`;
+
+              const prevValueCr = catData.prevSize > 10000000
+                ? `₹${(catData.prevSize / 10000000).toFixed(2)} Cr`
+                : catData.prevSize > 100000
+                  ? `₹${(catData.prevSize / 100000).toFixed(2)} L`
+                  : `₹${catData.prevSize.toFixed(2)}`;
+
+              const arrow = catData.delta >= 0 ? '▲' : '▼';
+
+              return {
+                ...k,
+                value: formattedValue,
+                delta: catData.delta,
+                deltaLabel: `${arrow} ${Math.abs(catData.delta)}% (${prevValueCr})`,
+                extraChangeColor: catData.delta >= 0 ? "green" : "red",
+              };
+            }
+
+            // Market Leader Sales KPI
+            if (k.id === "ms-leader-sales" && response.data.marketLeader) {
+              const leader = response.data.marketLeader;
+              const val = leader.sales;
+              const formattedValue = val > 10000000
+                ? `₹ ${(val / 10000000).toFixed(2)} Cr`
+                : val > 100000
+                  ? `₹ ${(val / 100000).toFixed(2)} L`
+                  : `₹ ${val.toFixed(2)}`;
+
+              const prevValueCr = leader.prevSales > 10000000
+                ? `₹${(leader.prevSales / 10000000).toFixed(2)} Cr`
+                : leader.prevSales > 100000
+                  ? `₹${(leader.prevSales / 100000).toFixed(2)} L`
+                  : `₹${leader.prevSales.toFixed(2)}`;
+
+              const arrow = leader.delta >= 0 ? '▲' : '▼';
+              return {
+                ...k,
+                value: formattedValue,
+                brand: leader.brand,
+                delta: leader.delta,
+                deltaLabel: `${arrow} ${Math.abs(leader.delta)}% (${prevValueCr})`,
+                extraChangeColor: leader.delta >= 0 ? "green" : "red",
+              };
+            }
+
+            // Mars Wrigley Sales KPI
+            if (k.id === "ms-mars-wrigley" && response.data.marsWrigley) {
+              const mars = response.data.marsWrigley;
+              const val = mars.sales;
+              const formattedValue = val > 10000000
+                ? `₹ ${(val / 10000000).toFixed(2)} Cr`
+                : val > 100000
+                  ? `₹ ${(val / 100000).toFixed(2)} L`
+                  : `₹ ${val.toFixed(2)}`;
+
+              const prevValueCr = mars.prevSales > 10000000
+                ? `₹${(mars.prevSales / 10000000).toFixed(2)} Cr`
+                : mars.prevSales > 100000
+                  ? `₹${(mars.prevSales / 100000).toFixed(2)} L`
+                  : `₹${mars.prevSales.toFixed(2)}`;
+
+              const arrow = mars.delta >= 0 ? '▲' : '▼';
+              return {
+                ...k,
+                value: formattedValue,
+                delta: mars.delta,
+                deltaLabel: `${arrow} ${Math.abs(mars.delta)}% (${prevValueCr})`,
+                extraChangeColor: mars.delta >= 0 ? "green" : "red",
+              };
+            }
+
+            return k;
+          }));
+        }
       } catch (error) {
         console.error("Error fetching Market Share data:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchMarketShareData();
-  }, []);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
+
 
   return (
-    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-3 md:px-6 py-3 md:py-5 flex flex-col gap-3 md:gap-5">
-      <HeaderStats />
+    <div className="relative min-h-screen bg-slate-50 text-slate-900 px-3 md:px-6 py-3 md:py-5 flex flex-col gap-1 md:gap-0">
+      {/* <HeaderStats /> */}
+      <SnapshotOverview
+        loading={loading}
+        title="Market Share Overview"
+        icon={LayoutGrid}
+        chip="All Platforms"
+        headerRight={
+          <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+            vs Comparison Period
+          </span>
+        }
+        kpis={kpis}
+        variant="detailed"
+      />
 
-      <div className="space-y-4">
-        <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-4">
+      <MarketCatOverview
+        loading={loading}
+        onViewTrends={handleViewTrends}
+        onViewRca={handleViewRca}
+      />
+
+      {/* <MarketShareDrilldown loading={loading} /> */}
+      <SubCategoryMarket loading={loading} />
+
+      {/* <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
+        <div className="text-sm font-semibold">
+          Dual-axis drill (platform × months)
+        </div>
+        <div className="text-[11px] text-slate-500">
+          Collapse/expand quarters, drill rows down to city.
+        </div>
+        <DualAxisDrillMatrix />
+      </div> */}
+
+      {/* <div className="space-y-4 mt-6">
+        <div className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4 space-y-4">
           <div className="flex justify-center">
             <div className="relative w-full md:w-[420px]">
               <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
@@ -281,10 +539,10 @@ export default function MarketShareAnalysis() {
                     key={option.key}
                     type="button"
                     onClick={() => setMarketMode(option.key)}
-                    className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${marketMode === option.key
+                    className={\`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors \${marketMode === option.key
                       ? "text-slate-900"
                       : "text-slate-500 hover:text-slate-700"
-                      }`}
+                      }\`}
                     aria-pressed={marketMode === option.key}
                   >
                     {option.label}
@@ -294,58 +552,26 @@ export default function MarketShareAnalysis() {
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="space-y-1">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                {marketMode === "geographical"
-                  ? "Platform + brand story"
-                  : "Listing coverage story"}
-              </div>
-
-              <div className="text-sm text-slate-600">
-                {marketMode === "geographical"
-                  ? "Each card has its own small toggle to flip between chart and table."
-                  : "Coverage depth and pincodes with per-card chart/table toggle."}
-              </div>
-            </div>
-          </div>
-
           {marketMode === "geographical" ? (
             <>
-              <TwoUp />
-              <ZoneTables />
+
+              {loading ? <Skeleton variant="rectangular" height={400} /> : <TwoUp />}
             </>
           ) : (
             <>
-              <ListingTable />
-              <PincodeLists />
+              {loading ? <Skeleton variant="rectangular" height={300} /> : <ListingTable />}
+              {loading ? <Skeleton variant="rectangular" height={300} /> : <PincodeLists />}
             </>
           )}
         </div>
+      </div> */}
 
-        <CategoryTables />
-
-        <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-2">
-          <div className="text-sm font-semibold">
-            Dual-axis drill (platform × months)
-          </div>
-          <div className="text-[11px] text-slate-500">
-            Collapse/expand quarters, drill rows down to city.
-          </div>
-          <DualAxisDrillMatrix />
-        </div>
-
-        <SkuTables />
-        <TrendCharts />
-        <LocationStack />
-      </div>
-
-      <button
+      {/* <button
         onClick={() => setShowFilters(true)}
         className="fixed bottom-4 right-4 md:bottom-8 md:right-8 h-12 w-12 md:h-14 md:w-14 rounded-full bg-emerald-500 text-white shadow-[0_18px_40px_rgba(16,185,129,0.45)] flex items-center justify-center text-xl font-bold z-40"
       >
         ⋮
-      </button>
+      </button> */}
 
       {showFilters && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-50 flex justify-end">
@@ -372,6 +598,15 @@ export default function MarketShareAnalysis() {
           </div>
         </div>
       )}
+
+      {/* Market Share Trends Drawer */}
+      <TrendsCompetitionDrawer
+        dynamicKey="marketshare"
+        open={trendsDrawer.open}
+        onClose={() => setTrendsDrawer({ open: false, entity: '', dimension: '' })}
+        selectedColumn={trendsDrawer.entity}
+        selectedLevel={trendsDrawer.dimension}
+      />
     </div>
   );
 }
@@ -423,37 +658,159 @@ function LeftColumn() {
 
 function TwoUp() {
   const [view, setView] = useState("chart");
+  const [timeRange, setTimeRange] = useState("Month");
+  const [selectedSubCat, setSelectedSubCat] = useState("Candies");
+  const [isSubCatOpen, setIsSubCatOpen] = useState(false);
+  const subCatRef = useRef(null);
 
-  const platformChartData = ["Q1", "Q2", "Q3", "Q4"].map((quarter, idx) => {
-    const row = { quarter };
-    platformShare.forEach((p) => {
-      const vals = [p.q1, p.q2, p.q3, p.q4];
-      row[p.platform] = vals[idx];
-    });
-    return row;
-  });
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (subCatRef.current && !subCatRef.current.contains(e.target))
+        setIsSubCatOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const brandChartData = months.slice(2).map((m, idx) => {
-    const row = { month: m };
-    brandShareHeat.forEach((b) => {
-      row[b.brand] = b.values[idx];
+  const activeBrandHeat = subCategoryBrandHeat[selectedSubCat] || brandShareHeat;
+
+  // --- Dynamic Data Generation based on Time Range ---
+  const currentPlatformChartData = useMemo(() => {
+    if (timeRange === "Day") {
+      return ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, idx) => ({
+        label: day,
+        Blinkit: [15, 17, 18, 16, 19, 21, 20][idx],
+        Instamart: [18, 18, 19, 19, 18, 17, 18][idx],
+        Zepto: [24, 25, 24, 25, 26, 25, 25][idx],
+      }));
+    }
+    if (timeRange === "Week") {
+      return ["W1", "W2", "W3", "W4"].map((week, idx) => ({
+        label: week,
+        Blinkit: [16, 18, 20, 21][idx],
+        Instamart: [19, 19, 18, 18][idx],
+        Zepto: [25, 24, 25, 25][idx],
+      }));
+    }
+    if (timeRange === "Quarterly") {
+      return ["Q1", "Q2", "Q3", "Q4"].map((quarter, idx) => {
+        const row = { label: quarter };
+        platformShare.forEach((p) => {
+          const vals = [p.q1, p.q2, p.q3, p.q4];
+          row[p.platform] = vals[idx];
+        });
+        return row;
+      });
+    }
+    // Default: Month (using existing data pattern)
+    return months.slice(0, 7).map((m, idx) => ({
+      label: m,
+      Blinkit: [11, 15, 19, 21, 21, 22, 21][idx],
+      Instamart: [18, 19, 19, 19, 18, 18, 19][idx],
+      Zepto: [26, 25, 25, 25, 26, 24, 25][idx],
+    }));
+  }, [timeRange]);
+
+  const currentBrandChartData = useMemo(() => {
+    const brands = activeBrandHeat.map(b => b.brand);
+    let labels = [];
+
+    if (timeRange === "Day") {
+      labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    } else if (timeRange === "Week") {
+      labels = ["W1", "W2", "W3", "W4"];
+    } else if (timeRange === "Quarterly") {
+      labels = ["Q1", "Q2", "Q3", "Q4"];
+    } else {
+      labels = months.slice(2);
+    }
+
+    return labels.map((label, idx) => {
+      const row = { label };
+      activeBrandHeat.forEach((b) => {
+        // Derive values from the heat data, cycling if index exceeds length
+        row[b.brand] = b.values[idx % b.values.length] || 0;
+      });
+      return row;
     });
-    return row;
-  });
+  }, [timeRange, selectedSubCat]);
 
   return (
     <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            Market share
+            Trends
           </div>
           <div className="text-sm font-semibold text-slate-800">
             Platforms + Brands
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
+        {/* FILTERS ROW - Sub-Category + Time Range */}
+        <div className="flex-1 flex justify-center items-center gap-3">
+          {/* Sub-Category dropdown */}
+          <div className="relative" ref={subCatRef}>
+            <button
+              onClick={() => setIsSubCatOpen(!isSubCatOpen)}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-bold transition-all duration-200 border shadow-sm ${isSubCatOpen
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                }`}
+            >
+              <span className="text-[9px] font-semibold uppercase tracking-wider opacity-60">Sub-Cat:</span>
+              <span>{selectedSubCat}</span>
+              <ChevronDown size={12} className={`transition-transform duration-200 ${isSubCatOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+              {isSubCatOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 top-full mt-2 w-44 bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden"
+                >
+                  <div className="p-1.5">
+                    {subCatOptions.map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => { setSelectedSubCat(cat); setIsSubCatOpen(false); }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[11px] font-semibold transition-all duration-150 ${selectedSubCat === cat
+                          ? 'bg-slate-900 text-white'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          }`}
+                      >
+                        <span>{cat}</span>
+                        {selectedSubCat === cat && <Check size={12} className="text-emerald-400" />}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Time range tabs */}
+          <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 p-1 text-[11px] font-semibold text-slate-600">
+            {["Day", "Week", "Month", "Quarterly"].map((range) => (
+              <button
+                key={range}
+                type="button"
+                onClick={() => setTimeRange(range)}
+                className={`px-4 py-1 rounded-full transition-all duration-200 ${timeRange === range
+                  ? "bg-white shadow-sm border border-slate-200 text-slate-900"
+                  : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600 self-end md:self-auto">
           <button
             type="button"
             onClick={() => setView("chart")}
@@ -482,7 +839,7 @@ function TwoUp() {
           <div className="rounded-xl border border-slate-100 bg-gradient-to-br from-sky-50 via-white to-indigo-50 p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-semibold text-slate-700">
-                Platform share by quarter
+                Platform share by {timeRange.toLowerCase()}
               </div>
 
               <div className="flex items-center gap-2 text-[10px] text-slate-500">
@@ -494,12 +851,12 @@ function TwoUp() {
 
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart
-                data={platformChartData}
+                data={currentPlatformChartData}
                 margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
-                  dataKey="quarter"
+                  dataKey="label"
                   tick={{ fontSize: 10, fill: "#64748b" }}
                 />
                 <YAxis
@@ -540,19 +897,19 @@ function TwoUp() {
           <div className="rounded-xl border border-slate-100 bg-gradient-to-br from-emerald-50 via-white to-slate-50 p-3">
             <div className="flex items-center justify-between mb-2">
               <div className="text-xs font-semibold text-slate-700">
-                Brand share heat
+                Brand share heat ({timeRange.toLowerCase()})
               </div>
               <div className="text-[10px] text-slate-500">Hover to inspect</div>
             </div>
 
             <ResponsiveContainer width="100%" height={220}>
               <BarChart
-                data={brandChartData}
+                data={currentBrandChartData}
                 margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
               >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis
-                  dataKey="month"
+                  dataKey="label"
                   tick={{ fontSize: 10, fill: "#64748b" }}
                 />
                 <YAxis
@@ -561,7 +918,7 @@ function TwoUp() {
                 />
                 <Tooltip formatter={(val, name) => [`${val}%`, name]} />
 
-                {brandShareHeat.map((b, idx) => (
+                {activeBrandHeat.map((b, idx) => (
                   <Bar
                     key={b.brand}
                     dataKey={b.brand}
@@ -580,7 +937,7 @@ function TwoUp() {
           {/* Platform table */}
           <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-3">
             <div className="text-sm font-semibold">
-              Market Share Across Platforms (Own Brand)
+              Market Share Across Platforms ({timeRange})
             </div>
 
             <div className="overflow-x-auto">
@@ -588,21 +945,21 @@ function TwoUp() {
                 <thead>
                   <tr>
                     <th className="text-left text-slate-500 pb-1">Platform</th>
-                    {["Q1", "Q2", "Q3", "Q4"].map((q) => (
-                      <th key={q} className="text-right text-slate-500 pb-1">
-                        {q}
+                    {currentPlatformChartData.map((d) => (
+                      <th key={d.label} className="text-right text-slate-500 pb-1">
+                        {d.label}
                       </th>
                     ))}
                   </tr>
                 </thead>
 
                 <tbody>
-                  {platformShare.map((row) => (
-                    <tr key={row.platform} className="odd:bg-slate-50/70">
-                      <td className="py-1 text-slate-800">{row.platform}</td>
-                      {[row.q1, row.q2, row.q3, row.q4].map((v, i) => (
+                  {["Blinkit", "Instamart", "Zepto"].map((plat) => (
+                    <tr key={plat} className="odd:bg-slate-50/70">
+                      <td className="py-1 text-slate-800">{plat}</td>
+                      {currentPlatformChartData.map((d, i) => (
                         <td key={i} className="text-right py-1 text-slate-700">
-                          {v}%
+                          {d[plat]}%
                         </td>
                       ))}
                     </tr>
@@ -615,12 +972,58 @@ function TwoUp() {
           {/* Brand heat table */}
           <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-4 space-y-3">
             <div className="text-sm font-semibold">
-              Market Share Across Brands
+              Market Share Across Brands ({timeRange})
             </div>
-            <HeatTable rows={brandShareHeat} cols={months.slice(2)} max={30} />
+            <DynamicHeatTable rows={activeBrandHeat} data={currentBrandChartData} brands={activeBrandHeat.map(b => b.brand)} max={30} />
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DynamicHeatTable({ rows, data, brands, max }) {
+  return (
+    <div className="overflow-auto rounded-xl border border-slate-200">
+      <table className="min-w-max text-[11px] text-left">
+        <thead className="bg-slate-50 sticky top-0 z-10">
+          <tr>
+            <th className="px-2 py-2 text-slate-600">Brand</th>
+            {data.map((d) => (
+              <th key={d.label} className="px-2 py-2 text-slate-600 text-center">
+                {d.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+
+        <tbody>
+          {brands.map((brand) => (
+            <tr key={brand} className="odd:bg-slate-50/70">
+              <td className="px-2 py-2 font-medium text-slate-800">
+                {brand}
+              </td>
+
+              {data.map((d, idx) => {
+                const v = d[brand];
+                return (
+                  <td key={idx} className="px-1 py-1 text-center">
+                    <div
+                      className="rounded-md border border-white/60 text-[10px] font-semibold"
+                      style={{
+                        background: heatCell(v, max),
+                        color: v > max * 0.55 ? "#fff" : "#0f172a",
+                      }}
+                    >
+                      {v}%
+                    </div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { FilterContext } from "../../utils/FilterContext";
 import dayjs from "dayjs";
 
 export default function AvailablityAnalysis() {
+
   // Get values from FilterContext - the source of truth for dropdown selections
   const {
     platform,
@@ -21,6 +22,8 @@ export default function AvailablityAnalysis() {
     setTimeEnd,
     selectedCategory,
     setSelectedCategory,
+    selectedProductCategory,
+    setSelectedProductCategory,
     compareStart,
     compareEnd,
     selectedChannel,
@@ -35,6 +38,7 @@ export default function AvailablityAnalysis() {
     brand: selectedBrand || "All",
     location: selectedLocation || "All",
     category: selectedCategory || "All",
+    productCategory: selectedProductCategory || "All",
     zones: selectedZone || "All",
     channel: selectedChannel || "Ecommerce",
     months: 6,
@@ -42,12 +46,20 @@ export default function AvailablityAnalysis() {
     startDate: timeStart ? timeStart.format('YYYY-MM-DD') : dayjs().startOf('month').format('YYYY-MM-DD'),
     endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
     compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
-    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
+    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null,
+    // Add extra tracking state for Matrix filters
+    kpis: [],
+    metroFlags: [],
+    cities: [],
+    formats: []
   });
 
   // Wrapper to sync context when filters change locally (e.g. from internal matrix filters)
   const handleFiltersChange = (newFilters) => {
-    setFilters(newFilters);
+    setFilters((prev) => {
+      const updatedFilters = { ...prev, ...newFilters };
+      return updatedFilters;
+    });
 
     // Sync back to FilterContext to update global header
     if (newFilters.platform && newFilters.platform !== platform) {
@@ -58,6 +70,9 @@ export default function AvailablityAnalysis() {
     }
     if (newFilters.category && newFilters.category !== selectedCategory) {
       setSelectedCategory(newFilters.category);
+    }
+    if (newFilters.productCategory && newFilters.productCategory !== selectedProductCategory) {
+      setSelectedProductCategory(newFilters.productCategory);
     }
     if (newFilters.startDate) {
       const newStart = dayjs(newFilters.startDate);
@@ -84,6 +99,7 @@ export default function AvailablityAnalysis() {
       brand: selectedBrand || prev.brand,
       location: selectedLocation || prev.location,
       category: selectedCategory || prev.category,
+      productCategory: selectedProductCategory || prev.productCategory,
       zones: selectedZone || prev.zones,
       channel: selectedChannel || prev.channel,
       startDate: timeStart ? timeStart.format('YYYY-MM-DD') : prev.startDate,
@@ -91,7 +107,15 @@ export default function AvailablityAnalysis() {
       compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
       compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
     }));
-  }, [platform, selectedBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
+  }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
+
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
 
   const [trendParams, setTrendParams] = useState({
     months: 6,
@@ -178,14 +202,23 @@ export default function AvailablityAnalysis() {
     if (!params.has('brand')) params.append('brand', 'All');
     if (!params.has('location')) params.append('location', 'All');
 
+    // Force ownBrandsOnly to match Watch Tower KPIs identically
+    params.append('ownBrandsOnly', 'true');
+
     return params.toString();
+  };
+
+  // Get auth headers for API calls (JWT token from localStorage)
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
   // Individual segment fetch functions for retry capability
   const fetchOverview = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, overview: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/availability-overview?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, overview: data }));
@@ -200,7 +233,7 @@ export default function AvailablityAnalysis() {
   const fetchPlatformKpi = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, platformKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, platformKpi: data }));
@@ -215,7 +248,7 @@ export default function AvailablityAnalysis() {
   const fetchFormatKpi = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, formatKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, formatKpi: data }));
@@ -230,7 +263,7 @@ export default function AvailablityAnalysis() {
   const fetchCityKpi = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, cityKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, cityKpi: data }));
@@ -245,7 +278,7 @@ export default function AvailablityAnalysis() {
   const fetchDoi = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, doi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/doi?${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/doi?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, doi: data }));
@@ -260,7 +293,7 @@ export default function AvailablityAnalysis() {
   const fetchMetroCity = async (queryParams) => {
     try {
       setApiErrors(prev => ({ ...prev, metroCity: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/metro-city-stock-availability?${queryParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, metroCity: data }));
@@ -275,14 +308,33 @@ export default function AvailablityAnalysis() {
   const fetchOsaDetail = async (osaDetailParams) => {
     try {
       setApiErrors(prev => ({ ...prev, osaDetail: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${osaDetailParams}`);
+      const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${osaDetailParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setApiData(prev => ({ ...prev, osaDetail: data }));
+      console.log('[OsaDetail] API response received. Type:', typeof data, 'IsArray:', Array.isArray(data), 'Length:', Array.isArray(data) ? data.length : (data?.length || 'N/A'));
+      // Handle both direct array and wrapped responses
+      const osaRows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : data?.rows || data);
+      console.log('[OsaDetail] Parsed rows count:', Array.isArray(osaRows) ? osaRows.length : 'not-array');
+      setApiData(prev => ({ ...prev, osaDetail: osaRows }));
       return true;
     } catch (err) {
       console.error('[OsaDetail] API error:', err);
       setApiErrors(prev => ({ ...prev, osaDetail: err.message }));
+      return false;
+    }
+  };
+
+  const fetchKpiTrends = async (queryParams) => {
+    try {
+      setApiErrors(prev => ({ ...prev, kpiTrends: null }));
+      const res = await fetch(`/api/availability-analysis/kpi-trends?${queryParams}`, { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setApiData(prev => ({ ...prev, kpiTrends: data }));
+      return true;
+    } catch (err) {
+      console.error('[KpiTrends] API error:', err);
+      setApiErrors(prev => ({ ...prev, kpiTrends: err.message }));
       return false;
     }
   };
@@ -295,13 +347,7 @@ export default function AvailablityAnalysis() {
     }
 
     const queryParams = buildQueryParams();
-    const osaDetailParams = new URLSearchParams({
-      platform: 'All',
-      brand: 'All',
-      location: 'All',
-      startDate: filters.startDate,
-      endDate: filters.endDate
-    }).toString();
+    const osaDetailParams = buildQueryParams();
 
     switch (segmentKey) {
       case 'overview': return fetchOverview(queryParams);
@@ -311,22 +357,33 @@ export default function AvailablityAnalysis() {
       case 'doi': return fetchDoi(queryParams);
       case 'metroCity': return fetchMetroCity(queryParams);
       case 'osaDetail': return fetchOsaDetail(osaDetailParams);
+      case 'kpiTrends': return fetchKpiTrends(queryParams);
       default: return false;
     }
   };
 
   useEffect(() => {
+
+
     // Create a stable key to detect actual filter changes
     const filterKey = JSON.stringify({
       platform: filters.platform,
       brand: filters.brand,
       location: filters.location,
       category: filters.category,
+      productCategory: filters.productCategory,
       channel: filters.channel,
       startDate: filters.startDate,
       endDate: filters.endDate,
       compareStartDate: filters.compareStartDate,
-      compareEndDate: filters.compareEndDate
+      compareEndDate: filters.compareEndDate,
+      months: filters.months,
+      zones: filters.zones,
+      timeStep: filters.timeStep,
+      kpis: filters.kpis,
+      metroFlags: filters.metroFlags,
+      cities: filters.cities,
+      formats: filters.formats
     });
 
     // Skip if we already fetched with these same filters
@@ -347,16 +404,10 @@ export default function AvailablityAnalysis() {
       try {
         const queryParams = buildQueryParams();
 
-        // OSA Detail - Following global date range
-        const osaDetailParams = new URLSearchParams({
-          platform: 'All',
-          brand: 'All',
-          location: 'All',
-          startDate: filters.startDate,
-          endDate: filters.endDate
-        }).toString();
-
         console.log('📡 Fetching availability data. Global filters:', filters.platform, filters.brand, filters.location);
+
+        // OSA Detail now uses global filters (Channel, Platform, Category, Location)
+        const osaDetailParams = buildQueryParams();
 
         // Fetch all segments (errors are tracked per-segment)
         await Promise.allSettled([
@@ -366,7 +417,8 @@ export default function AvailablityAnalysis() {
           fetchCityKpi(queryParams),
           fetchDoi(queryParams),
           fetchMetroCity(queryParams),
-          fetchOsaDetail(osaDetailParams)
+          fetchOsaDetail(osaDetailParams),
+          fetchKpiTrends(queryParams)
         ]);
 
         console.log('✅ All availability data segments processed');

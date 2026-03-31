@@ -1,4 +1,5 @@
 import React, { useState, useContext, useEffect, useCallback } from "react";
+import axiosInstance from "../../api/axiosInstance";
 import { Box, Typography } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import SalesSummaryCards from "./SalesSummaryCards";
@@ -8,6 +9,7 @@ import ByCategoryKpiMatrix from "../../components/Sales/ByCategoryKpiMatrix";
 import DrillDownSalesTable from "../../components/Sales/DrillDownSalesTable";
 import SalesTrendsDrawer from "../../components/Sales/SalesTrendsDrawer";
 import { FilterContext } from "../../utils/FilterContext";
+import { fetchSalesOverview as fetchSalesOverviewApi } from "../../api/salesService";
 
 // ---------------------------------------------------------------------------
 // Error State Component - Shows when API fails with refresh button
@@ -74,45 +76,37 @@ export default function SalesMainPage() {
 
   // Format filter helper
   const formatFilter = useCallback((val) => {
-    if (!val || val === "All") return "All";
+    if (!val || val === "All") return "";
     if (Array.isArray(val)) return val.join(",");
     return val;
   }, []);
 
-  // Build query params helper
-  const buildQueryParams = useCallback(() => {
-    return new URLSearchParams({
-      platform: formatFilter(platform),
-      brand: formatFilter(selectedBrand),
-      location: formatFilter(selectedLocation),
-      startDate: timeStart ? timeStart.format("YYYY-MM-DD") : "",
-      endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : "",
-      compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : "",
-      compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : "",
-    });
-  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, formatFilter]);
-
   // Individual fetch functions for retry capability
-  const fetchSalesOverview = useCallback(async (signal) => {
+  const fetchSalesOverview = useCallback(async () => {
     try {
       setApiErrors(prev => ({ ...prev, overview: null }));
       setLoading(true);
 
-      const queryParams = buildQueryParams();
-      const response = await fetch(`/api/sales/overview?${queryParams}`, { signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
+      const data = await fetchSalesOverviewApi({
+        platform: formatFilter(platform),
+        brand: formatFilter(selectedBrand),
+        location: formatFilter(selectedLocation),
+        startDate: timeStart ? timeStart.format("YYYY-MM-DD") : "",
+        endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : "",
+        compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : "",
+        compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : "",
+      });
       setSummaryData(data);
       return true;
     } catch (error) {
-      if (error.name === 'AbortError') return false;
+      if (error.name === 'CanceledError') return false;
       console.error("Error fetching sales overview:", error);
-      setApiErrors(prev => ({ ...prev, overview: error.message }));
+      setApiErrors(prev => ({ ...prev, overview: error.message || "Failed to load overview" }));
       return false;
     } finally {
       setLoading(false);
     }
-  }, [buildQueryParams]);
+  }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, formatFilter]);
 
   // Retry handler for overview segment
   const retrySegment = useCallback(async (segmentKey) => {
@@ -128,15 +122,18 @@ export default function SalesMainPage() {
   }, [refreshFilters, fetchSalesOverview]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    const signal = controller.signal;
-
     // Reset errors when filters change
     setApiErrors({});
-    fetchSalesOverview(signal);
-
-    return () => controller.abort();
+    fetchSalesOverview();
   }, [platform, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, fetchSalesOverview]);
+
+  // Restore comprehensive platform list from rca_sku_dim on mount
+  // (Prevents subsetting from other pages like Performance Marketing)
+  useEffect(() => {
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+  }, [refreshFilters]);
 
   return (
     <CommonContainer
@@ -204,7 +201,11 @@ export default function SalesMainPage() {
           <DrillDownSalesTable
             startDate={timeStart ? timeStart.format("YYYY-MM-DD") : ""}
             endDate={timeEnd ? timeEnd.format("YYYY-MM-DD") : ""}
+            compareStartDate={compareStart ? compareStart.format("YYYY-MM-DD") : ""}
+            compareEndDate={compareEnd ? compareEnd.format("YYYY-MM-DD") : ""}
+            platform={platform}
             brand={selectedBrand}
+            location={selectedLocation}
           />
         </Box>
       </Box>

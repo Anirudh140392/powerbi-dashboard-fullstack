@@ -25,6 +25,11 @@ import {
   LayoutGrid
 } from "lucide-react";
 import { FilterContext } from "../../utils/FilterContext";
+import {
+  AvailabilityOverviewSkeleton,
+  PlatformKpiMatrixSkeleton,
+  OsaDetailViewSkeleton
+} from "./AvailabilitySkeletons";
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -103,7 +108,7 @@ const OlaLightThemeDashboard = ({ setOlaMode, olaMode }) => {
 // Platform Level OLA Across Platform (driven by OLA_MATRIX)
 // ---------------------------------------------------------------------------
 
-const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData }) => {
+const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, onFiltersChange }) => {
   const [activeTab, setActiveTab] = useState("platform");
   const {
     selectedChannel,
@@ -137,7 +142,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData }) 
         let trendDelta = parseFloat((logicalDir > 50 ? logicalDelta : -logicalDelta).toFixed(1));
 
         // User request: "Assortment" and "PSL" should have 0 trend
-        if (["Assortment", "PSL"].includes(item.kpi)) {
+        if (["Assortment"].includes(item.kpi)) {
           trendDelta = 0;
         }
 
@@ -175,13 +180,12 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData }) 
       // Convert array elements
       const mappedRows = [];
       if (Array.isArray(origRowsArray)) {
-        const kpiNames = ["OSA", "DOI", "Fillrate", "Assortment", "PSL"];
+        const kpiNames = ["OSA", "DOI", null, "PSL"];
         origRowsArray.forEach((rowData, idx) => {
           if (!rowData) return;
+          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
           const newRow = { ...rowData };
 
-          // Backend does not return a "kpi" field in the objects.
-          // Since we know the order is [osa, doi, fillrate, assortment, psl], we assign it by index.
           newRow.kpi = kpiNames[idx] || 'Unknown';
 
           // Also add trend and series objects if missing, to prevent Showcase from crashing
@@ -200,25 +204,70 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData }) 
       // Fallback to mock data
       platformData = {
         columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
-        rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData, FORMAT_MATRIX[olaMode].PlatformColumns, context),
+        rows: buildRows(FORMAT_MATRIX[olaMode].PlatformData.filter(d => d.kpi !== 'Assortment'), FORMAT_MATRIX[olaMode].PlatformColumns, context),
       };
     }
 
-    const formatData = {
-      columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
-      rows: buildRows(FORMAT_MATRIX[olaMode].FormatData, FORMAT_MATRIX[olaMode].formatColumns, context),
-    };
-    const cityData = {
-      columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
-      rows: buildRows(FORMAT_MATRIX[olaMode].CityData, FORMAT_MATRIX[olaMode].CityColumns, context),
-    };
+    // ---- Format tab ----
+    let formatData = null;
+    if (apiData?.formatKpi) {
+      const { columns: fOrigColumns, rows: fOrigRowsArray } = apiData.formatKpi;
+      const fNormalizedColumns = fOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
+      const fMappedRows = [];
+      if (Array.isArray(fOrigRowsArray)) {
+        const kpiNames = ["OSA", "DOI", null, "PSL"];
+        fOrigRowsArray.forEach((rowData, idx) => {
+          if (!rowData) return;
+          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
+          const newRow = { ...rowData };
+
+          newRow.kpi = kpiNames[idx] || 'Unknown';
+          if (!newRow.trend) newRow.trend = {};
+          if (!newRow.series) newRow.series = {};
+          fMappedRows.push(newRow);
+        });
+      }
+      formatData = { columns: fNormalizedColumns, rows: fMappedRows };
+    } else {
+      formatData = {
+        columns: ["kpi", ...FORMAT_MATRIX[olaMode].formatColumns],
+        rows: buildRows(FORMAT_MATRIX[olaMode].FormatData.filter(d => d.kpi !== 'Assortment'), FORMAT_MATRIX[olaMode].formatColumns, context),
+      };
+    }
+
+    // ---- City tab ----
+    let cityData = null;
+    if (apiData?.cityKpi) {
+      const { columns: cOrigColumns, rows: cOrigRowsArray } = apiData.cityKpi;
+      const cNormalizedColumns = cOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
+      const cMappedRows = [];
+      if (Array.isArray(cOrigRowsArray)) {
+        const kpiNames = ["OSA", "DOI", null, "PSL"];
+        cOrigRowsArray.forEach((rowData, idx) => {
+          if (!rowData) return;
+          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
+          const newRow = { ...rowData };
+
+          newRow.kpi = kpiNames[idx] || 'Unknown';
+          if (!newRow.trend) newRow.trend = {};
+          if (!newRow.series) newRow.series = {};
+          cMappedRows.push(newRow);
+        });
+      }
+      cityData = { columns: cNormalizedColumns, rows: cMappedRows };
+    } else {
+      cityData = {
+        columns: ["kpi", ...FORMAT_MATRIX[olaMode].CityColumns],
+        rows: buildRows(FORMAT_MATRIX[olaMode].CityData.filter(d => d.kpi !== 'Assortment'), FORMAT_MATRIX[olaMode].CityColumns, context),
+      };
+    }
 
     // Debug log to trace what data we are passing into CityKpiTrendShowcase
     console.log("TabbedHeatmapTable platformData:", platformData);
 
     return [
       { key: "platform", label: "Platform", data: platformData },
-      { key: "format", label: "Format", data: formatData },
+      { key: "format", label: "Category", data: formatData },
       { key: "city", label: "City", data: cityData },
     ];
   }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
@@ -243,7 +292,14 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData }) 
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase dynamicKey='availability' data={active.data} title={active.label} loading={loading} />
+      <CityKpiTrendShowcase 
+        dynamicKey='availability' 
+        data={active.data} 
+        title={active.label} 
+        loading={loading} 
+        onFilterChange={onFiltersChange} 
+        selectedLevel={activeTab} 
+      />
     </div>
   );
 };
@@ -256,7 +312,7 @@ const PowerHierarchyHeat = ({ olaMode = "absolute" }) => {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-            Platform-Level Format Heatmap
+            Platform-Level Category Heatmap
           </p>
           <p className="text-sm text-slate-600">
             Flat table without hierarchy (Platform → Region → City).
@@ -362,7 +418,7 @@ const ProductLevelHeat = ({ olaMode = "absolute" }) => {
             Platform-Level OSA Drill
           </p>
           <p className="text-sm text-slate-600">
-            Format → Product → Sales Loss drill-down.
+            Category → Product → Sales Loss drill-down.
           </p>
         </div>
 
@@ -1088,17 +1144,6 @@ const cardsAbsolute = [
     extraChangeColor: "green",
   },
   {
-    title: "Fill Rate",
-    value: "93.7%",
-    sub: "Supplier fulfillment rate",
-    change: "▲1.8% (from 91.9%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Orders delayed: 6%",
-    extraChange: "▼1.2%",
-    extraChangeColor: "green",
-  },
-  {
     title: "Metro City Stock Availability",
     value: "78.5%",
     sub: "MTD availability across metro cities",
@@ -1135,17 +1180,6 @@ const cardsWeighted = [
     extraChangeColor: "green",
   },
   {
-    title: "Fill Rate",
-    value: "88.9%",
-    sub: "Supplier fulfillment rate",
-    change: "▲1.2% (from 87.7%)",
-    changeColor: "green",
-    prevText: "vs Comparison Period",
-    extra: "Orders delayed: 8%",
-    extraChange: "▼0.8%",
-    extraChangeColor: "green",
-  },
-  {
     title: "Metro City Stock Availability",
     value: "73.1%",
     sub: "MTD availability across metro cities",
@@ -1177,7 +1211,6 @@ const getAvailabilityKpis = (type, context = {}) => {
   const titleToKey = {
     "Stock Availability": "osa",
     "Days of Inventory (DOI)": "doi",
-    "Fill Rate": "fillrate",
     "Metro City Stock Availability": "availability"
   };
 
@@ -1206,10 +1239,19 @@ const getAvailabilityKpis = (type, context = {}) => {
 // ---------------------------------------------------------------------------
 // Root dashboard
 // ---------------------------------------------------------------------------
-export const AvailablityAnalysisData = ({ apiData, isLoading: parentLoading, apiErrors, onRetry }) => {
+export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiErrors, onRetry, ...props }) => {
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
   const [localLoading, setLocalLoading] = useState(false);
+  
+  const isBoatUser = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user'));
+      return u?.dbName?.toLowerCase() === 'boat';
+    } catch {
+      return false;
+    }
+  }, []);
 
   const {
     selectedBrand,
@@ -1230,74 +1272,85 @@ export const AvailablityAnalysisData = ({ apiData, isLoading: parentLoading, api
     return () => clearTimeout(timer);
   }, [globalPlatform, selectedBrand, selectedLocation, selectedChannel, selectedCategory, timeStart, timeEnd, availability]);
 
-  const isLoading = parentLoading || localLoading || !apiData;
+  const isLoading = parentLoading || localLoading;
 
   // User request: restrict Availability Overview cards to ONLY change on Platform
   const platformContext = { platform: globalPlatform };
 
+  // Build real trend sparkline series from kpiTrends API data
+  const trendSeriesMap = useMemo(() => {
+    if (!apiData?.kpiTrends?.timeSeries?.length) return {};
+    const osaSeries = apiData.kpiTrends.timeSeries.map(p => p.Osa || 0);
+    return { osa: osaSeries };
+  }, [apiData?.kpiTrends]);
+
   const availabilityKpis = useMemo(() => {
-    // Determine if we have real API data to use
-    if (apiData?.overview && apiData?.doi && apiData?.metroCity) {
-      const overview = apiData.overview;
-      const doiData = apiData.doi;
-      const metroData = apiData.metroCity;
+    // Icons and gradients for the cards
+    const icons = [Layers, Package, MapPin];
+    const gradients = [
+      ['#6366f1', '#8b5cf6'],
+      ['#14b8a6', '#06b6d4'],
+      ['#8b5cf6', '#a855f7']
+    ];
 
-      const deltaStock = overview.stockAvailability - overview.prevStockAvailability;
-      const deltaDoi = doiData.doi - doiData.prevDoi;
-      const deltaFillRate = overview.fillRate - overview.prevFillRate;
-      const deltaMetro = metroData.stockAvailability - metroData.prevStockAvailability;
+    // Determine the source for each card individually
+    const osaCardData = apiData?.overview ? {
+      value: `${Number(apiData.overview.stockAvailability || 0).toFixed(2)}%`,
+      delta: Number(apiData.overview.stockAvailability || 0) - Number(apiData.overview.prevStockAvailability || 0),
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
+    } : null;
 
-      return [
-        {
-          id: `avail-api-osa`,
-          title: "Stock Availability",
-          value: `${overview.stockAvailability.toFixed(1)}%`,
-          subtitle: "MTD on-shelf coverage",
-          delta: parseFloat(deltaStock.toFixed(1)),
-          deltaLabel: `${deltaStock > 0 ? '▲' : '▼'} ${Math.abs(deltaStock).toFixed(1)} pp`,
-          icon: Layers,
-          gradient: ['#6366f1', '#8b5cf6'],
-          trend: getLogicalKpiTrend('osa', platformContext) // Keep mock trend for now as API doesn't return time series for cards
-        },
-        {
-          id: `avail-api-doi`,
-          title: "Days of Inventory (DOI)",
-          value: doiData.doi.toFixed(1),
-          subtitle: "Network average days of cover",
-          delta: parseFloat(deltaDoi.toFixed(1)),
-          deltaLabel: `${deltaDoi > 0 ? '▲' : '▼'} ${Math.abs(deltaDoi).toFixed(1)} days`,
-          icon: Package,
-          gradient: ['#14b8a6', '#06b6d4'],
-          trend: getLogicalKpiTrend('doi', platformContext)
-        },
-        {
-          id: `avail-api-fillrate`,
-          title: "Fill Rate",
-          value: `${overview.fillRate.toFixed(1)}%`,
-          subtitle: "Supplier fulfillment rate",
-          delta: parseFloat(deltaFillRate.toFixed(1)),
-          deltaLabel: `${deltaFillRate > 0 ? '▲' : '▼'} ${Math.abs(deltaFillRate).toFixed(1)} pp`,
-          icon: Zap,
-          gradient: ['#f43f5e', '#ec4899'],
-          trend: getLogicalKpiTrend('fillrate', platformContext)
-        },
-        {
-          id: `avail-api-metro`,
-          title: "Metro City Stock Availability",
-          value: `${metroData.stockAvailability.toFixed(1)}%`,
-          subtitle: "MTD availability across metro cities",
-          delta: parseFloat(deltaMetro.toFixed(1)),
-          deltaLabel: `${deltaMetro > 0 ? '▲' : '▼'} ${Math.abs(deltaMetro).toFixed(1)} pp`,
-          icon: MapPin,
-          gradient: ['#8b5cf6', '#a855f7'],
-          trend: getLogicalKpiTrend('availability', platformContext)
-        }
-      ];
-    }
+    const doiCardData = apiData?.doi ? {
+      value: Number(apiData.doi.doi || 0).toFixed(1),
+      delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || [] // Use OSA trend as proxy if DOI trend missing
+    } : null;
 
-    // Fallback to mock data if API data is missing
-    return getAvailabilityKpis(availability, platformContext);
-  }, [availability, globalPlatform, apiData]);
+    const metroCardData = apiData?.metroCity ? {
+      value: apiData.metroCity.isMetroCity === false ? "N/A" : `${Number(apiData.metroCity.stockAvailability || 0).toFixed(2)}%`,
+      delta: apiData.metroCity.isMetroCity === false ? 0 : Number(apiData.metroCity.stockAvailability || 0) - Number(apiData.metroCity.prevStockAvailability || 0),
+      isNotMetro: apiData.metroCity.isMetroCity === false,
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
+    } : null;
+
+    // Fallback mock logic for single KPI if API missing
+    const getMock = (kpi) => {
+      const val = getLogicalKpiValue(kpi, platformContext);
+      const isUp = getLogicalKpiValue(kpi + 'dir', platformContext) > 50;
+      const delta = (getLogicalKpiValue(kpi + 'delta', platformContext) / 20).toFixed(1);
+      return {
+        value: kpi === 'doi' ? val.toFixed(1) : `${val.toFixed(2)}%`,
+        delta: parseFloat(delta) * (isUp ? 1 : -1),
+        trend: getLogicalKpiTrend(kpi, platformContext)
+      };
+    };
+
+    const cards_config = [
+      { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData },
+      { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData },
+      { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData }
+    ];
+
+    return cards_config.map((cfg, idx) => {
+      const data = cfg.api || getMock(cfg.key);
+      const delta = Number(data.delta || 0);
+
+      return {
+        id: `avail-card-${cfg.key}`,
+        title: cfg.title,
+        value: data.value,
+        subtitle: data.isNotMetro ? `Selected location is not a metro city` : cfg.sub,
+        delta: parseFloat(delta.toFixed(1)),
+        deltaLabel: data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}${cfg.key === 'doi' ? ' days' : '%'}`,
+        icon: icons[idx],
+        gradient: gradients[idx],
+        trend: data.trend || [],
+        trendSeries: data.trend || [],
+        prevText: data.isNotMetro ? "" : "vs Previous Period",
+        isNotMetro: data.isNotMetro
+      };
+    });
+  }, [availability, globalPlatform, apiData, trendSeriesMap]);
 
   return (
 
@@ -1307,59 +1360,80 @@ export const AvailablityAnalysisData = ({ apiData, isLoading: parentLoading, api
 
         {/* MARKET SHARE TOGGLE BLOCK */}
         {/* AVAILABILITY TOGGLE BLOCK */}
-        <div className="flex justify-center">
-          <div className="relative w-full md:w-[420px]">
-            <div className="relative flex items-center rounded-full bg-slate-100 p-1 text-xs font-semibold text-slate-500">
-              <motion.div
-                layout
-                className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow-sm"
-                initial={false}
-                animate={{ x: availability === "absolute" ? 0 : "100%" }}
-                transition={{ type: "spring", stiffness: 260, damping: 26 }}
-              />
-
-              {[
-                { key: "absolute", label: "Absolute" },
-                { key: "weighted", label: "Weighted" },
-              ].map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  onClick={() => setAvailability(option.key)}
-                  className={`relative z-10 flex-1 rounded-full px-3 py-2 transition-colors ${availability === option.key
-                    ? "text-slate-900"
-                    : "text-slate-500 hover:text-slate-700"
-                    }`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
 
         {/* <MetricCardContainer title="Availability Overview" cards={cards[availability]} /> */}
 
-        <SnapshotOverview
-          title="Availability Overview"
-          icon={LayoutGrid}
-          chip={availability === "absolute" ? "Absolute Basis" : "Weighted Basis"}
-          loading={isLoading}
-          headerRight={
-            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-              vs Previous Period
-            </span>
-          }
-          kpis={availabilityKpis}
-        />
+        {isLoading ? (
+          <AvailabilityOverviewSkeleton />
+        ) : (
+          <SnapshotOverview
+            title="Availability Overview"
+            icon={LayoutGrid}
+            chip="Absolute Basis"
+            loading={isLoading}
+            headerRight={
+              <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+                vs Previous Period
+              </span>
+            }
+            kpis={availabilityKpis}
+          />
+        )}
 
         {/* Signal Lab Availability Segment */}
-        <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
-          <SignalLabVisibility type="availability" />
-        </div>
+        {!isBoatUser && (
+          <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
+            <SignalLabVisibility type="availability" loading={isLoading} />
+          </div>
+        )}
 
-        <TabbedHeatmapTable olaMode={availability} loading={isLoading} apiData={apiData} />
-        <OsaHeatmapTable olaMode={availability} loading={isLoading} apiData={apiData} />
+        {isLoading ? (
+          <PlatformKpiMatrixSkeleton />
+        ) : (
+          <TabbedHeatmapTable
+            olaMode={availability}
+            loading={isLoading}
+            apiData={apiData}
+            onFiltersChange={(matrixFilters) => {
+              if (!props.onFiltersChange) return;
+              // Map Matrix filter keys to Global filter keys
+              const mappedFilters = {};
+              if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
+              if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
+              if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
+              if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
+              if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
+              if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
+              if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
+              if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
+              if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
+              props.onFiltersChange(mappedFilters);
+            }}
+          />
+        )}
+        {isLoading ? (
+          <OsaDetailViewSkeleton />
+        ) : (
+          <OsaHeatmapTable
+            olaMode={availability}
+            loading={isLoading}
+            apiData={apiData}
+            onFiltersChange={(matrixFilters) => {
+              if (!props.onFiltersChange) return;
+              const mappedFilters = {};
+              if (matrixFilters.platforms) mappedFilters.platform = matrixFilters.platforms;
+              if (matrixFilters.brands) mappedFilters.brand = matrixFilters.brands;
+              if (matrixFilters.categories) mappedFilters.category = matrixFilters.categories;
+              if (matrixFilters.locations) mappedFilters.location = matrixFilters.locations;
+              if (matrixFilters.months) mappedFilters.months = matrixFilters.months;
+              if (matrixFilters.kpis) mappedFilters.kpis = matrixFilters.kpis;
+              if (matrixFilters.metroFlags) mappedFilters.metroFlags = matrixFilters.metroFlags;
+              if (matrixFilters.cities) mappedFilters.cities = matrixFilters.cities;
+              if (matrixFilters.formats) mappedFilters.formats = matrixFilters.formats;
+              props.onFiltersChange(mappedFilters);
+            }}
+          />
+        )}
 
       </div>
     </div>

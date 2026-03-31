@@ -34,7 +34,7 @@ async function run() {
     const availQuery = `
         SELECT toDate(t.DATE), t.Platform, t.Brand
         FROM rb_pdp_olap t
-        LEFT JOIN (SELECT toDate(kw_crawl_date) as DATE, platform_name as Platform, brand_name as Brand, keyword_category as Category, count() as brand_kw_count FROM rb_kw GROUP BY DATE, Platform, Brand, Category) s 
+        LEFT JOIN (SELECT toDate(kw_crawl_date) as DATE, platform_name as Platform, brand_name as Brand, keyword_category as Category, count() as brand_kw_count FROM rb_kw_olap GROUP BY DATE, Platform, Brand, Category) s 
         ON toDate(t.DATE) = s.DATE AND t.Platform = s.Platform AND t.Brand = s.Brand AND t.Category = s.Category
         WHERE toDate(t.DATE) BETWEEN '${startDate}' AND '${endDate}'
         LIMIT 1

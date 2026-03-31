@@ -27,7 +27,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
 
-const Header = ({ title = "Watch Tower", onMenuClick }) => {
+const Header = ({ title = "Business Overview", onMenuClick }) => {
   const [priceMode, setPriceMode] = React.useState("MRP");
   const [isExpanded, setIsExpanded] = React.useState(true);
 
@@ -41,6 +41,9 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     keywords,
     selectedKeyword,
     setSelectedKeyword,
+    keywordTypes,
+    selectedKeywordType,
+    setSelectedKeywordType,
     locations,
     selectedLocation,
     setSelectedLocation,
@@ -57,8 +60,13 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
     setCompareEnd,
     setComparisonLabel,
     categories,
+    visibilityCategories,
     selectedCategory,
     setSelectedCategory,
+    productCategories,
+    selectedProductCategory,
+    setSelectedProductCategory,
+    maxDate,
   } = React.useContext(FilterContext);
 
   const [darkStoreData, setDarkStoreData] = React.useState({ totalCount: 0, byPlatform: {} });
@@ -89,6 +97,34 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
 
   // 🌗 Dark/Light Mode
   const { mode } = React.useContext(AppThemeContext);
+
+  const isGeoPage = location.pathname === "/geo-intelligence";
+
+  if (isGeoPage) {
+    return (
+      <Box
+        sx={{
+          display: { xs: "flex", sm: "none" },
+          bgcolor: (theme) => theme.palette.background.paper,
+          borderBottom: "1px solid",
+          borderColor: (theme) => "#e5e7eb",
+          px: 2,
+          py: 0.8,
+          position: "sticky",
+          top: 0,
+          zIndex: 1200,
+          alignItems: "center"
+        }}
+      >
+        <IconButton
+          onClick={onMenuClick}
+          sx={{ display: "block", p: 0.5 }}
+        >
+          <MenuIcon />
+        </IconButton>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -132,18 +168,20 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
             </IconButton>
 
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <IconButton
-                size="small"
-                onClick={() => setIsExpanded(!isExpanded)}
-                sx={{
-                  bgcolor: "#f1f5f9",
-                  "&:hover": { bgcolor: "#e2e8f0" },
-                  transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                  transition: "transform 0.3s ease",
-                }}
-              >
-                <ChevronDown size={18} />
-              </IconButton>
+              {location.pathname !== "/scheduled-reports" && (
+                <IconButton
+                  size="small"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  sx={{
+                    bgcolor: "#f1f5f9",
+                    "&:hover": { bgcolor: "#e2e8f0" },
+                    transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.3s ease",
+                  }}
+                >
+                  <ChevronDown size={18} />
+                </IconButton>
+              )}
 
               <Box sx={{ display: "flex", flexDirection: "column" }}>
                 <Typography
@@ -174,7 +212,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {darkStoreData.totalCount > 0 ? (
+                      {/*{darkStoreData.totalCount > 0 ? (
                         <>
                           DS # ({Object.entries(darkStoreData.byPlatform)
                             .map(([p, c]) => `${p}-${c}`)
@@ -182,7 +220,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                         </>
                       ) : (
                         "0 Active Platforms"
-                      )}
+                      )}*/}
                     </Typography>
                   </Box>
                 )}
@@ -193,7 +231,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
 
         {/* FILTERS CONTAINER */}
         <AnimatePresence>
-          {isExpanded && (
+          {isExpanded && location.pathname !== "/scheduled-reports" && (
             <Box
               component={motion.div}
               initial={{ opacity: 0, height: 0 }}
@@ -215,6 +253,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 value={selectedChannel}
                 onChange={(newValue) => setSelectedChannel(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 130 }}
+                multiSelect={true}
               />
 
               {/* PLATFORM SELECTION */}
@@ -224,31 +263,64 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                 value={platform}
                 onChange={(newValue) => setPlatform(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                multiSelect={true}
               />
 
+              {/* CATEGORY SELECTION */}
               <CustomHeaderDropdown
                 label="CATEGORY"
-                options={categories}
+                options={location.pathname.includes("visibility") ? visibilityCategories : categories}
                 value={selectedCategory}
                 onChange={(newValue) => setSelectedCategory(newValue)}
                 width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                multiSelect={true}
               />
 
-              <CustomHeaderDropdown
-                label="LOCATION"
-                options={locations}
-                value={selectedLocation}
-                onChange={(newValue) => setSelectedLocation(newValue)}
-                width={{ xs: "calc(50% - 6px)", sm: 115 }}
-              />
+              {/* PRODUCT CATEGORY SELECTION (Hidden as per request) */}
+              {/* {title === "Availability Analysis" && (
+                <CustomHeaderDropdown
+                  label="PRODUCT CATEGORY"
+                  options={productCategories}
+                  value={selectedProductCategory}
+                  onChange={(newValue) => setSelectedProductCategory(newValue)}
+                  width={{ xs: "calc(50% - 6px)", sm: 140 }}
+                  multiSelect={true}
+                />
+              )} */}
 
-              {location.pathname === "/visibility-anlysis" && (
+              {title !== "Business Overview" && 
+               !location.pathname.includes("market-share") && 
+               !location.pathname.includes("visibility") && 
+               !location.pathname.includes("content-score") && (
+                <CustomHeaderDropdown
+                  label="LOCATION"
+                  options={locations}
+                  value={selectedLocation}
+                  onChange={(newValue) => setSelectedLocation(newValue)}
+                  width={{ xs: "calc(50% - 6px)", sm: 115 }}
+                  multiSelect={true}
+                />
+              )}
+
+              {location.pathname.includes("visibility") && (
+                <CustomHeaderDropdown
+                  label="KEYWORD TYPE"
+                  options={keywordTypes}
+                  value={selectedKeywordType}
+                  onChange={setSelectedKeywordType}
+                  width={{ xs: "calc(100%)", sm: 140 }}
+                  multiSelect={true}
+                />
+              )}
+
+              {location.pathname.includes("visibility") && (
                 <CustomHeaderDropdown
                   label="KEYWORD"
                   options={keywords}
                   value={selectedKeyword}
-                  onChange={(newValue) => setSelectedKeyword(newValue)}
+                  onChange={setSelectedKeyword}
                   width={{ xs: "calc(100%)", sm: 130 }}
+                  multiSelect={true}
                 />
               )}
 
@@ -273,6 +345,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
                   timeEnd={timeEnd}
                   compareStart={compareStart}
                   compareEnd={compareEnd}
+                  maxDate={maxDate}
                   onApply={(start, end, cStart, cEnd, compareOn, label) => {
                     setTimeStart(start);
                     setTimeEnd(end);
@@ -307,7 +380,7 @@ const Header = ({ title = "Watch Tower", onMenuClick }) => {
 
       {/* ---------------- SECOND ROW ---------------- */}
       <AnimatePresence>
-        {isExpanded && (
+        {isExpanded && location.pathname !== "/scheduled-reports" && (
           <Box
             component={motion.div}
             initial={{ opacity: 0, height: 0 }}

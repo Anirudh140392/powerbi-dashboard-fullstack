@@ -1,22 +1,36 @@
-import 'dotenv/config';
 import { queryClickHouse } from './src/config/clickhouse.js';
 
-async function checkDb() {
+async function run() {
     try {
-        const res = await queryClickHouse("DESCRIBE TABLE rb_brand_ms");
-        console.log("Columns:", res.map(r => r.name).join(", "));
-        
-        const minMax = await queryClickHouse("SELECT MIN(created_on) as min, MAX(created_on) as max FROM rb_brand_ms");
-        console.log("Date range for created_on:", minMax);
-        
-        try {
-            const sampleDate = await queryClickHouse("SELECT DATE FROM rb_brand_ms LIMIT 1");
-            console.log("Is there a DATE column?", sampleDate);
-        } catch(e) {
-            console.log("No DATE column.");
-        }
-    } catch(err) {
-        console.log("Error:", err.message);
+        const query1 = `
+            SELECT keyword as name, sum(toInt32(overall)) as brand_kws
+            FROM rb_kw_olap
+            WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-29' 
+              AND lower(brand_name_th) = 'boat' 
+              AND flag = 1 
+              AND keyword IS NOT NULL AND keyword != ''
+            GROUP BY name
+            ORDER BY brand_kws DESC
+            LIMIT 10
+        `;
+        const query2 = `
+            SELECT keyword as name, sum(toInt32(overall)) as total_kws
+            FROM rb_kw_olap
+            WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-29' 
+              AND keyword IS NOT NULL AND keyword != ''
+            GROUP BY name
+            ORDER BY total_kws DESC
+            LIMIT 10
+        `;
+
+        const res1 = await queryClickHouse(query1);
+        console.log("Numerator (boat) results:", res1);
+        const res2 = await queryClickHouse(query2);
+        console.log("Denominator (all) results:", res2.slice(0, 3));
+        process.exit(0);
+    } catch (err) {
+        console.error(err);
+        process.exit(1);
     }
 }
-checkDb();
+run();

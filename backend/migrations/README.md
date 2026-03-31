@@ -16,7 +16,7 @@ This directory contains SQL migration files to optimize Watch Tower dashboard pe
 | File | Table | Impact | Description |
 |------|-------|--------|-------------|
 | `001_add_rbpdp_olap_indexes.sql` | `rb_pdp_olap` | 10-50x faster | Main data table indexes |
-| `002_add_rbkw_indexes.sql` | `rb_kw` | 20-100x faster | SOS calculation indexes |
+| `002_add_rbkw_indexes.sql` | `rb_kw_olap` | 20-100x faster | SOS calculation indexes |
 | `003_add_rbbrandms_indexes.sql` | `rb_brand_ms` | 10-30x faster | Market share indexes |
 | `004_add_rcasku_indexes.sql` | `rca_sku_dim` | 10-20x faster | SKU dimension indexes |
 
@@ -32,7 +32,7 @@ This directory contains SQL migration files to optimize Watch Tower dashboard pe
 - `idx_rbpdp_osa_calc` - Availability calculations
 - `idx_rbpdp_webpid` - JOIN operations
 
-### rb_kw (Keyword Search Table)
+### rb_kw_olap (Keyword Search Table)
 - `idx_rbkw_crawl_platform_brand` - Primary SOS queries
 - `idx_rbkw_spons_flag_date` - Sponsored/organic filtering
 - `idx_rbkw_location_date` - Location-based SOS
@@ -116,8 +116,8 @@ After running migrations, verify indexes were created:
 -- Check rb_pdp_olap indexes
 SHOW INDEX FROM rb_pdp_olap;
 
--- Check rb_kw indexes
-SHOW INDEX FROM rb_kw;
+-- Check rb_kw_olap indexes
+SHOW INDEX FROM rb_kw_olap;
 
 -- Check rb_brand_ms indexes
 SHOW INDEX FROM rb_brand_ms;
@@ -156,12 +156,12 @@ DROP INDEX idx_rbpdp_comp_flag_date ON rb_pdp_olap;
 DROP INDEX idx_rbpdp_osa_calc ON rb_pdp_olap;
 DROP INDEX idx_rbpdp_webpid ON rb_pdp_olap;
 
--- rb_kw
-DROP INDEX idx_rbkw_crawl_platform_brand ON rb_kw;
-DROP INDEX idx_rbkw_spons_flag_date ON rb_kw;
-DROP INDEX idx_rbkw_location_date ON rb_kw;
-DROP INDEX idx_rbkw_category_date ON rb_kw;
-DROP INDEX idx_rbkw_platform ON rb_kw;
+-- rb_kw_olap
+DROP INDEX idx_rbkw_crawl_platform_brand ON rb_kw_olap;
+DROP INDEX idx_rbkw_spons_flag_date ON rb_kw_olap;
+DROP INDEX idx_rbkw_location_date ON rb_kw_olap;
+DROP INDEX idx_rbkw_category_date ON rb_kw_olap;
+DROP INDEX idx_rbkw_platform ON rb_kw_olap;
 
 -- rb_brand_ms
 DROP INDEX idx_brandms_created_platform_brand ON rb_brand_ms;

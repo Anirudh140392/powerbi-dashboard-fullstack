@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useContext } from "react";
 import { motion } from "framer-motion";
 import {
     X,
@@ -35,6 +35,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import CommonContainer from "@/components/CommonLayout/CommonContainer";
+import { FilterContext } from "@/utils/FilterContext";
 
 /**
  * Kwality Walls - Signal Hub (Ice Cream)
@@ -283,7 +284,6 @@ function DetailBody({ insight }) {
                                             <TableHead className="text-right">Est. lost sales</TableHead>
                                         </>
                                     )}
-
                                     {view === "newEntry" && (
                                         <>
                                             <TableHead>City</TableHead>
@@ -294,7 +294,6 @@ function DetailBody({ insight }) {
                                             <TableHead className="text-right">First seen</TableHead>
                                         </>
                                     )}
-
                                     {view === "supply" && (
                                         <>
                                             <TableHead>Depot / DB</TableHead>
@@ -822,6 +821,16 @@ const sampleInsights = [
 ];
 
 export default function KwalityWallsSignalHub() {
+    const { refreshFilters } = useContext(FilterContext);
+
+    // Restore comprehensive platform list from rca_sku_dim on mount
+    // (Prevents subsetting from other pages like Performance Marketing)
+    useEffect(() => {
+        if (typeof refreshFilters === 'function') {
+            refreshFilters();
+        }
+    }, [refreshFilters]);
+
     const allInsights = useMemo(() => sampleInsights, []);
 
     const [typeFilter, setTypeFilter] = useState("All signals");

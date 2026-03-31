@@ -110,7 +110,7 @@ You should see:
 
 ### Tables Used
 - `rb_pdp_olap` - Performance data (sales, ad metrics, ROAS)
-- `rb_kw_rank` - Keyword ranking data
+- `rb_kw_olap_rank` - Keyword ranking data
 - `rb_brand_ms` - Market share data
 - `rca_sku_dim` - SKU dimension data
 - `tb_zepto_brand_sales_analytics` - Zepto platform data

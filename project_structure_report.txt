@@ -27,17 +27,17 @@ Hierarchical Project Structure:
      - Table: rb_brand_ms
      - Columns: sales, category, created_on
    - KPI: Inorg Sales (Inorganic Sales)
-     - Formula: SUM(Ad_Sales)
+     - Formula: SUM(Ad_sales)
      - Table: rb_pdp_olap
-     - Columns: Ad_Sales, DATE
+     - Columns: Ad_sales, DATE
    - KPI: DSP Sales
      - Formula: Placeholder (Currently set to 0 in backend logic)
      - Table: N/A
      - Columns: N/A
    - KPI: Conversion
-     - Formula: (SUM(Ad_Quanity_sold) / SUM(Ad_Clicks)) * 100
+     - Formula: (SUM(Ad_Quantity_sold) / SUM(Ad_Clicks)) * 100
      - Table: rb_pdp_olap
-     - Columns: Ad_Quanity_sold, Ad_Clicks, DATE
+     - Columns: Ad_Quantity_sold, Ad_Clicks, DATE
    - KPI: Availability (OSA)
      - Formula: (SUM(neno_osa) / SUM(deno_osa)) * 100
      - Table: rb_pdp_olap
@@ -48,11 +48,11 @@ Hierarchical Project Structure:
      - Columns: Qty_Sold, brand, category
    - KPI: Ad SOV (Share of Voice - Paid)
      - Formula: (countIf(brand_name = Selected AND spons_flag = 1) / countIf(spons_flag = 1)) * 100
-     - Table: rb_kw
+     - Table: rb_kw_olap
      - Columns: brand_name, spons_flag, keyword_search_rank
    - KPI: Organic SOV (Share of Voice - Organic)
      - Formula: (countIf(brand_name = Selected AND spons_flag = 0) / countIf(spons_flag = 0)) * 100
-     - Table: rb_kw
+     - Table: rb_kw_olap
      - Columns: brand_name, spons_flag, keyword_search_rank
    - KPI: Market share
      - Formula: (Brand Sales / Total Category Sales) * 100
@@ -83,19 +83,19 @@ Hierarchical Project Structure:
    - Meaning: Focuses on tracking the 'Digital Shelf' performance, measuring how visible our products are in search results compared to competitors.
    - KPI: Overall SOS
      - Formula: (countIf(keyword_is_rb_product = 1) / count()) * 100
-     - Table: rb_kw
+     - Table: rb_kw_olap
      - Columns: keyword_is_rb_product
    - KPI: Sponsored SOS
      - Formula: (countIf(keyword_is_rb_product = 1 AND spons_flag = 1) / countIf(spons_flag = 1)) * 100
-     - Table: rb_kw
+     - Table: rb_kw_olap
      - Columns: keyword_is_rb_product, spons_flag
    - KPI: Organic SOS
      - Formula: (countIf(keyword_is_rb_product = 1 AND spons_flag = 0) / countIf(spons_flag = 0)) * 100
-     - Table: rb_kw
+     - Table: rb_kw_olap
      - Columns: keyword_is_rb_product, spons_flag
    - KPI: Average POS (Ad/Organic)
      - Formula: AVG(keyword_search_rank)
-     - Table: rb_kw
+     - Table: rb_kw_olap
      - Columns: keyword_search_rank, spons_flag
 
 3. Performance Marketing
@@ -105,9 +105,9 @@ Hierarchical Project Structure:
      - Table: rb_pdp_olap
      - Columns: Ad_sales, Ad_Spend
    - KPI: Conversion Rate
-     - Formula: (SUM(Ad_Quanity_sold) / SUM(Ad_Clicks)) * 100
+     - Formula: (SUM(Ad_Quantity_sold) / SUM(Ad_Clicks)) * 100
      - Table: rb_pdp_olap
-     - Columns: Ad_Quanity_sold, Ad_Clicks
+     - Columns: Ad_Quantity_sold, Ad_Clicks
    - KPI: CPM
      - Formula: (SUM(Ad_Spend) / SUM(Ad_Impressions)) * 1000
      - Table: rb_pdp_olap
@@ -232,5 +232,5 @@ Hierarchical Project Structure:
 12. Scheduled Reports
     - Meaning: A cross-functional data extraction tool that allows users to pull customized reports across all system modules.
     - Feature: Custom report generation across all modules
-    - Logic: Aggregates row-level data from rb_pdp_olap and rb_kw based on user-selected filters
-    - Tables: rb_pdp_olap, rb_kw, rb_brand_ms, tb_content_score_data
+    - Logic: Aggregates row-level data from rb_pdp_olap and rb_kw_olap based on user-selected filters
+    - Tables: rb_pdp_olap, rb_kw_olap, rb_brand_ms, tb_content_score_data

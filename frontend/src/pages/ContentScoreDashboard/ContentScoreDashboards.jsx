@@ -1,8 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import ContentScoreAnalysis from "../../components/ContentScoreDashboard/ContentScoreAnalysis";
+import { FilterContext } from "../../utils/FilterContext";
 
 export default function ContentScoreDashboards() {
+  const { refreshFilters, setContentFilterMode } = useContext(FilterContext);
+
+  // Activate content-specific filter mode on mount, deactivate on unmount
+  useEffect(() => {
+    setContentFilterMode(true);
+    if (typeof refreshFilters === 'function') {
+      refreshFilters();
+    }
+    return () => setContentFilterMode(false);
+  }, [setContentFilterMode, refreshFilters]);
+
   const [showTrends, setShowTrends] = useState(false);
 
   const [filters, setFilters] = useState({
@@ -76,7 +88,7 @@ export default function ContentScoreDashboards() {
         filters={filters}
         onFiltersChange={setFilters}
       >
-<ContentScoreAnalysis/>
+        <ContentScoreAnalysis />
       </CommonContainer>
     </>
   );

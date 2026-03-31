@@ -15,7 +15,6 @@ const PLATFORM_LABELS = {
     Blinkit: 'Blinkit',
     Zepto: 'Zepto',
     Instamart: 'Instamart',
-    BigBasket: 'BigBasket',
 }
 
 const PERCENT_KPIS = ['catImpShare', 'adSos', 'orgSos', 'overallSos']
@@ -31,7 +30,7 @@ const sampleHierarchy = [
             Blinkit: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.6 },
             Zepto: { overallSos: 0.7, adSos: 0.5, orgSos: 0.9, catImpShare: 64.2 },
             Instamart: { overallSos: 0.9, adSos: 0.7, orgSos: 1.1, catImpShare: 66.3 },
-            BigBasket: { overallSos: 0.8, adSos: 0.6, orgSos: 1.0, catImpShare: 65.1 },
+            Instamart: { overallSos: 0.9, adSos: 0.7, orgSos: 1.1, catImpShare: 66.3 },
         },
         children: [
             {
@@ -145,7 +144,6 @@ const sampleHierarchy = [
             Blinkit: { catImpShare: 0.5, adSos: 48.4, orgSos: 83.0, overallSos: 34.1 },
             Zepto: { catImpShare: 0.4, adSos: 47.2, orgSos: 81.5, overallSos: 44.0 },
             Instamart: { catImpShare: 0.6, adSos: 49.1, orgSos: 84.2, overallSos: 56.3 },
-            BigBasket: { catImpShare: 0.5, adSos: 48.0, orgSos: 82.8, overallSos: 65.0 },
         },
         children: [
             {
@@ -204,7 +202,6 @@ const sampleHierarchy = [
             Blinkit: { catImpShare: 33.9, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
             Zepto: { catImpShare: 32.8, adSos: 0.7, orgSos: 0.2, overallSos: 0.3 },
             Instamart: { catImpShare: 34.5, adSos: 0.9, orgSos: 0.3, overallSos: 0.5 },
-            BigBasket: { catImpShare: 33.2, adSos: 0.8, orgSos: 0.2, overallSos: 0.4 },
         },
         children: [
             {

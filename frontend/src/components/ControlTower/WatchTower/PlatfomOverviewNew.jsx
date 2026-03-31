@@ -69,8 +69,23 @@ const PlatformOverviewNew = ({
 
     // Use dimension from prop directly - fully controlled component
     const dimension = propDimension;
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'categorySize', 'spend', 'roas', 'conversion', 'availability', 'marketShare'])
+
+    // Filter out Category Size when viewing SKU dimension
+    const filteredKpis = dimension === 'sku' ? kpis.filter(k => k.key !== 'categorySize') : kpis;
+    const defaultKpiKeys = dimension === 'sku'
+        ? ['offtakes', 'spend', 'roas', 'conversion', 'availability', 'marketShare']
+        : ['offtakes', 'categorySize', 'spend', 'roas', 'conversion', 'availability', 'marketShare'];
+
+    const [glanceKpis, setGlanceKpis] = useState(defaultKpiKeys)
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+
+    // Re-sync glanceKpis when dimension changes (remove categorySize for SKU, restore otherwise)
+    useEffect(() => {
+        if (dimension === 'sku') {
+            setGlanceKpis(prev => prev.filter(k => k !== 'categorySize'));
+        }
+    }, [dimension]);
+
 
     const [advancedFilters, setAdvancedFilters] = useState({
         brands: [],
@@ -80,7 +95,7 @@ const PlatformOverviewNew = ({
         skuCode: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'categorySize', 'spend', 'roas', 'conversion', 'availability', 'marketShare'],
+        kpis: defaultKpiKeys,
         filterLogic: 'OR',
     })
 
@@ -104,7 +119,7 @@ const PlatformOverviewNew = ({
                 {
                     key: 'swiggy',
                     name: 'Swiggy Instamart',
-                    logoSrc: 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+                    logoSrc: 'C:\Ads-Auto\powerbi-dashboard-fullstack\frontend\public\instamart_photo.png',
                     color: '#f97316'
                 },
                 {
@@ -244,7 +259,7 @@ const PlatformOverviewNew = ({
     }
 
     const currentDimension = dimensionData[dimension]
-    const selectedKpis = kpis.filter(k => glanceKpis.includes(k.key))
+    const selectedKpis = filteredKpis.filter(k => glanceKpis.includes(k.key))
     const kpiCount = selectedKpis.length
 
     // Handle dimension change - notify parent to fetch new data
@@ -583,7 +598,7 @@ const PlatformOverviewNew = ({
                                                     skuCode: [],
                                                     dateFrom: '',
                                                     dateTo: '',
-                                                    kpis: ['offtakes', 'categorySize', 'spend', 'roas', 'conversion', 'availability', 'marketShare'],
+                                                    kpis: defaultKpiKeys,
                                                     filterLogic: 'OR',
                                                 };
                                                 handleApplyFilters(resetFilters);

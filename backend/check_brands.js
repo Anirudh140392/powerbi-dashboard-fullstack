@@ -1,45 +1,36 @@
 
-import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
+import { createClient } from '@clickhouse/client';
 
-dotenv.config();
+const client = createClient({
+    url: 'http://13.200.55.131:8123',
+    username: 'readonly_user',
+    password: 'Readonly@123',
+    database: 'mars',
+});
 
-const config = {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT
-};
-
-async function checkBrands() {
-    const connection = await mysql.createConnection(config);
-
+async function runCheck() {
     try {
-        console.log("--- Checking zepto_brand_crawl ---");
-        const [rows1] = await connection.execute('SELECT DISTINCT brand_name FROM zepto_brand_crawl');
-        console.log('Brands in zepto_brand_crawl:', rows1.map(r => r.brand_name));
-    } catch (err) {
-        console.log('Error querying zepto_brand_crawl:', err.message);
-    }
+        console.log('Checking brand_name_th for flag=1 rows...');
+        const res = await client.query({
+            query: "SELECT DISTINCT brand_name_th FROM rb_kw_olap WHERE flag = '1' LIMIT 20",
+            format: 'JSONEachRow',
+        });
+        const data = await res.json();
+        console.log('Distinct brands for flag=1:', JSON.stringify(data, null, 2));
 
-    try {
-        console.log("\n--- Checking rca_sku_dim ---");
-        const [rows2] = await connection.execute('SELECT DISTINCT brand_name FROM rca_sku_dim');
-        console.log('Brands in rca_sku_dim:', rows2.map(r => r.brand_name));
-    } catch (err) {
-        console.log('Error querying rca_sku_dim:', err.message);
-    }
+        console.log('\nChecking some generic keywords for flag=1...');
+        const res2 = await client.query({
+            query: "SELECT keyword, keyword_type, brand_name_th FROM rb_kw_olap WHERE flag = '1' AND keyword_type = 'Generic' LIMIT 5",
+            format: 'JSONEachRow',
+        });
+        const data2 = await res2.json();
+        console.log('Generic keywords with flag=1:', JSON.stringify(data2, null, 2));
 
-    try {
-        console.log("\n--- Checking tb_zepto_brand_sales_analytics ---");
-        const [rows3] = await connection.execute('SELECT DISTINCT brand_name FROM tb_zepto_brand_sales_analytics');
-        console.log('Brands in tb_zepto_brand_sales_analytics:', rows3.map(r => r.brand_name));
-    } catch (err) {
-        console.log('Error querying tb_zepto_brand_sales_analytics:', err.message);
+    } catch (error) {
+        console.error('Check failed:', error);
+    } finally {
+        await client.close();
     }
-
-    await connection.end();
 }
 
-checkBrands();
+runCheck();

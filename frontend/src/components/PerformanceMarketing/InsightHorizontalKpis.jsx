@@ -44,7 +44,8 @@ export default function InsightHorizontalKpis({
 }) {
   const {
     timeStart, timeEnd,
-    pmSelectedPlatform, pmSelectedBrand, selectedZone
+    platform, selectedCategory, selectedLocation,
+    selectedProductCategory
   } = useContext(FilterContext);
 
   const [quadrantData, setQuadrantData] = useState({
@@ -53,16 +54,17 @@ export default function InsightHorizontalKpis({
   const [loading, setLoading] = useState(true);
 
   // Convert arrays to strings for proper dependency tracking
-  const platformStr = JSON.stringify(pmSelectedPlatform);
-  const brandStr = JSON.stringify(pmSelectedBrand);
-  const zoneStr = JSON.stringify(selectedZone);
+  const platformStr = JSON.stringify(platform);
+  const brandStr = JSON.stringify(selectedCategory);
+  const zoneStr = JSON.stringify(selectedLocation);
+  const productCategoryStr = JSON.stringify(selectedProductCategory);
 
   // Fetch quadrant data when filters change
   useEffect(() => {
     console.log("🔄 [InsightHorizontalKpis] Filters changed, fetching data...", {
-      platform: pmSelectedPlatform,
-      brand: pmSelectedBrand,
-      zone: selectedZone,
+      platform: platform,
+      brand: selectedCategory,
+      zone: selectedLocation,
       timeStart: timeStart?.format("YYYY-MM-DD"),
       timeEnd: timeEnd?.format("YYYY-MM-DD")
     });
@@ -73,9 +75,10 @@ export default function InsightHorizontalKpis({
       try {
         const response = await axiosInstance.get("/performance-marketing/quadrants", {
           params: {
-            platform: Array.isArray(pmSelectedPlatform) ? pmSelectedPlatform.join(',') : pmSelectedPlatform,
-            brand: Array.isArray(pmSelectedBrand) ? pmSelectedBrand.join(',') : pmSelectedBrand,
-            zone: Array.isArray(selectedZone) ? selectedZone.join(',') : selectedZone,
+            platform: Array.isArray(platform) ? platform.join(',') : platform,
+            brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+            zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+            productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD")
           }
@@ -99,7 +102,7 @@ export default function InsightHorizontalKpis({
     if (timeStart && timeEnd) {
       fetchQuadrants();
     }
-  }, [timeStart, timeEnd, platformStr, brandStr, zoneStr]);
+  }, [timeStart, timeEnd, platformStr, brandStr, zoneStr, productCategoryStr]);
 
   // Build KPI cards from data
   const insightKPIs = [

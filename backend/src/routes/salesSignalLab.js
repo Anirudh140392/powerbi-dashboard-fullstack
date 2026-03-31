@@ -14,7 +14,7 @@ export default (app) => {
      * /api/sales/visibility-signals:
      *   get:
      *     summary: Get Visibility Signals for Keyword & SKU (Drainers/Gainers) - Sales Page
-     *     description: Retrieve signals with impact metrics, SOS KPIs, and city-level data from rb_kw table
+     *     description: Retrieve signals with impact metrics, SOS KPIs, and city-level data from rb_kw_olap table
      *     parameters:
      *       - in: query
      *         name: level
@@ -63,7 +63,7 @@ export default (app) => {
      * /api/sales/visibility-signals/city-details:
      *   get:
      *     summary: Get city-level KPI details for a visibility signal - Sales Page
-     *     description: Retrieve city-level metrics from rb_kw for a specific keyword or SKU
+     *     description: Retrieve city-level metrics from rb_kw_olap for a specific keyword or SKU
      *     parameters:
      *       - in: query
      *         name: keyword

@@ -326,13 +326,6 @@ const KPI_KEYS = [
         color: "#16A34A", // green
         unit: "%",
     },
-    {
-        key: "display_sos",
-        label: "Display SOS",
-        color: "#8B5CF6", // purple
-        unit: "%",
-        comingSoon: true,
-    },
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -345,7 +338,7 @@ const ComingSoonBadge = () => (
     </span>
 );
 
-const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, city }) => {
     const [activeTab, setActiveTab] = useState(
         mode === "brand" ? "category" : "sku"
     );
@@ -366,26 +359,23 @@ const FilterDialog = ({ open, onClose, mode, value, onChange }) => {
             setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
             try {
+                // Use watchtower competition-filter-options for ALL tabs
+                // This fetches from rb_pdp_olap so filter values match the competition table data
                 const params = new URLSearchParams();
-                params.append('filterType', activeTab === 'category' ? 'formats' : (activeTab === 'brand' ? 'brands' : 'skus'));
+                if (selectedPlatform && selectedPlatform !== 'All') params.append('platform', selectedPlatform);
+                if (city && city !== 'All India') params.append('location', city);
+                if (value.categories.length > 0) params.append('category', value.categories.join(','));
+                if (value.brands.length > 0) params.append('brand', value.brands.join(','));
 
-                if (value.categories.length > 0) {
-                    params.append('format', value.categories[0]);
-                }
-                if (value.brands.length > 0) {
-                    params.append('brand', value.brands[0]);
-                }
-
-                const response = await axiosInstance.get(`/visibility-analysis/filter-options?${params.toString()}`);
-
+                const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
                 if (response.data) {
-                    const key = activeTab === 'category' ? 'categories' : (activeTab === 'brand' ? 'brands' : 'skus');
-                    setFilterOptions(prev => ({
-                        ...prev,
-                        [key]: (response.data.options || []).filter(o => o && o !== 'All'),
+                    setFilterOptions({
+                        categories: (response.data.categories || []).filter(o => o && o !== 'All'),
+                        brands: (response.data.brands || []).filter(o => o && o !== 'All'),
+                        skus: (response.data.skuNames || response.data.skus || []).filter(o => o && o !== 'All'),
                         loading: false,
                         error: null
-                    }));
+                    });
                 }
             } catch (error) {
                 console.error('[FilterDialog Visibility] Error fetching filter options:', error);
@@ -911,18 +901,16 @@ const BrandTable = ({ rows, loading }) => {
                     <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
                         <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             <tr>
-                                <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-                                <th className="px-3 py-2 text-right w-[20%]">Overall SOS</th>
-                                <th className="px-3 py-2 text-right w-[20%]">Sponsored SOS</th>
-                                <th className="px-3 py-2 text-right w-[20%]">Organic SOS</th>
-                                <th className="px-3 py-2 text-right w-[20%]">Display SOS</th>
+                                <th className="px-3 py-2 text-left w-[25%]">Brand</th>
+                                <th className="px-3 py-2 text-right w-[25%]">Overall SOS</th>
+                                <th className="px-3 py-2 text-right w-[25%]">Sponsored SOS</th>
+                                <th className="px-3 py-2 text-right w-[25%]">Organic SOS</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading ? Array.from({ length: pageSize }).map((_, idx) => (
                                 <tr key={`skeleton-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
@@ -933,11 +921,6 @@ const BrandTable = ({ rows, loading }) => {
                                     <td className="px-3 py-2 text-right text-slate-900 font-medium">{(row.overall_sos || 0).toFixed(1)}%</td>
                                     <td className="px-3 py-2 text-right text-slate-900">{(row.sponsored_sos || 0).toFixed(1)}%</td>
                                     <td className="px-3 py-2 text-right text-slate-900">{(row.organic_sos || 0).toFixed(1)}%</td>
-                                    <td className="px-3 py-2 text-right">
-                                        <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-100">
-                                            Coming Soon
-                                        </span>
-                                    </td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
@@ -969,12 +952,11 @@ const SkuTable = ({ rows, loading }) => {
                     <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
                         <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             <tr>
-                                <th className="px-3 py-2 text-left w-[20%]">SKU</th>
+                                <th className="px-3 py-2 text-left w-[25%]">SKU</th>
                                 <th className="px-3 py-2 text-left w-[20%]">Brand</th>
-                                <th className="px-3 py-2 text-right w-[15%]">Overall SOS</th>
-                                <th className="px-3 py-2 text-right w-[15%]">Sponsored SOS</th>
-                                <th className="px-3 py-2 text-right w-[15%]">Organic SOS</th>
-                                <th className="px-3 py-2 text-right w-[15%]">Display SOS</th>
+                                <th className="px-3 py-2 text-right w-[18%]">Overall SOS</th>
+                                <th className="px-3 py-2 text-right w-[18%]">Sponsored SOS</th>
+                                <th className="px-3 py-2 text-right w-[19%]">Organic SOS</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
@@ -982,7 +964,6 @@ const SkuTable = ({ rows, loading }) => {
                                 <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
                                     <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
-                                    <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
                                     <td className="px-3 py-3"><div className="h-4 bg-slate-100 rounded w-1/2 ml-auto"></div></td>
@@ -994,15 +975,10 @@ const SkuTable = ({ rows, loading }) => {
                                     <td className="px-3 py-2 text-right text-slate-900 font-medium">{(row.overall_sos || 0).toFixed(1)}%</td>
                                     <td className="px-3 py-2 text-right text-slate-900">{(row.sponsored_sos || 0).toFixed(1)}%</td>
                                     <td className="px-3 py-2 text-right text-slate-900">{(row.organic_sos || 0).toFixed(1)}%</td>
-                                    <td className="px-3 py-2 text-right">
-                                        <span className="inline-flex items-center rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-400 border border-slate-100">
-                                            Coming Soon
-                                        </span>
-                                    </td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
-                                <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-400">No SKUs found</td></tr>
+                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No SKUs found</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -1017,7 +993,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const VisibilityPlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, selectedPlatform, period, timeStep }) => {
+const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep }) => {
     const [tab, setTab] = useState("brand");
     const [city, setCity] = useState("All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1062,6 +1038,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, se
                     brands: brandList.join(','),
                     location: city !== 'All India' ? city : 'All',
                     format: filters.categories.length > 0 ? filters.categories[0] : 'All',
+                    dimension: 'brand',
                     period: period || '1M',
                     timeStep: timeStep
                 };
@@ -1101,8 +1078,8 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, se
                 const params = {
                     platform: selectedPlatform || 'All',
                     location: city !== 'All India' ? city : 'All',
-                    format: filters.categories.length > 0 ? filters.categories[0] : 'All',
-                    brand: filters.brands.length > 0 ? filters.brands[0] : 'All',
+                    format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
+                    brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
                     period: period || '1M'
                 };
 
@@ -1216,7 +1193,15 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, se
                 </TabsContent>
             </Tabs>
 
-            <FilterDialog open={filterDialogOpen} onClose={() => setFilterDialogOpen(false)} mode={tab} value={filters} onChange={setFilters} />
+            <FilterDialog
+                open={filterDialogOpen}
+                onClose={() => setFilterDialogOpen(false)}
+                mode={tab}
+                value={filters}
+                onChange={setFilters}
+                selectedPlatform={selectedPlatform}
+                city={city}
+            />
         </div>
     );
 };

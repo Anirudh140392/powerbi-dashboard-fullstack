@@ -28,7 +28,7 @@ async function checkGcpl() {
         }
 
         console.log("\n--- Checking other key tables in gcpl ---");
-        const tablesToCheck = ['zepto_brand_crawl', 'tb_zepto_brand_sales_analytics', 'rb_kw'];
+        const tablesToCheck = ['zepto_brand_crawl', 'tb_zepto_brand_sales_analytics', 'rb_kw_olap'];
         for (const table of tablesToCheck) {
             const [t] = await connection.execute(`SHOW TABLES LIKE '${table}'`);
             console.log(`${table}: ${t.length > 0 ? 'EXISTS' : 'MISSING'}`);
