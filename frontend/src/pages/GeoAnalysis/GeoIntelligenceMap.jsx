@@ -5,6 +5,9 @@ import { STATES, CITIES } from "./indiaData"; // Assuming we can use these coord
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import axiosInstance from "../../api/axiosInstance";
 import dayjs from "dayjs";
+import { IconButton } from "@mui/material";
+import { HelpOutline as HelpIcon } from "@mui/icons-material";
+import { useHelp } from "../../utils/HelpContext";
 
 // --- Constants & Types ---
 const INDIA_BOUNDS = [
@@ -31,6 +34,7 @@ const getPinSvg = (color, valueText) => `
 // --- Components ---
 
 export default function GeoIntelligenceMap() {
+    const { toggleHelp } = useHelp();
     const mapContainer = useRef(null);
     const map = useRef(null);
     const [filters, setFilters] = useState({ platform: 'Blinkit' });
@@ -524,6 +528,41 @@ export default function GeoIntelligenceMap() {
                                 </div>
                             )}
                         </div>
+
+                        <IconButton 
+                            onClick={toggleHelp}
+                            size="small"
+                            sx={{ 
+                                bgcolor: "rgba(37, 99, 235, 0.05)",
+                                color: "#2563eb",
+                                "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
+                                border: "1px solid rgba(37, 99, 235, 0.1)",
+                                ml: "auto",
+                                width: 32,
+                                height: 32,
+                                flexShrink: 0,
+                                animation: "pulseGlow 2s infinite",
+                                "@keyframes pulseGlow": {
+                                    "0%": {
+                                        boxShadow: "0 0 0 0 rgba(37, 99, 235, 0.4)",
+                                        borderColor: "rgba(37, 99, 235, 0.2)",
+                                        color: "#2563eb"
+                                    },
+                                    "50%": {
+                                        boxShadow: "0 0 0 10px rgba(37, 99, 235, 0)",
+                                        borderColor: "rgba(37, 99, 235, 0.6)",
+                                        color: "#1d4ed8"
+                                    },
+                                    "100%": {
+                                        boxShadow: "0 0 0 0 rgba(37, 99, 235, 0)",
+                                        borderColor: "rgba(37, 99, 235, 0.2)",
+                                        color: "#2563eb"
+                                    }
+                                }
+                            }}
+                        >
+                            <HelpIcon sx={{ fontSize: "1.2rem" }} />
+                        </IconButton>
                     </div>
 
                     <div style={{

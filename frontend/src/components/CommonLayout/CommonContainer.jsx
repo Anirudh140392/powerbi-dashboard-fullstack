@@ -2,7 +2,10 @@ import React, { useState } from "react";
 import { Box, Container } from "@mui/material";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import HelpDrawer from "./HelpDrawer";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
+import { HelpProvider, useHelp } from "../../utils/HelpContext";
 
 export default function CommonContainer({
   title,
@@ -13,7 +16,37 @@ export default function CommonContainer({
   const { platforms } = React.useContext(FilterContext);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { user } = useAuth();
 
+  return (
+    <CommonLayoutContent
+      title={title}
+      filters={filters}
+      onFiltersChange={onFiltersChange}
+      platforms={platforms}
+      mobileMenuOpen={mobileMenuOpen}
+      setMobileMenuOpen={setMobileMenuOpen}
+      isCollapsed={isCollapsed}
+      setIsCollapsed={setIsCollapsed}
+      user={user}
+    >
+      {children}
+    </CommonLayoutContent>
+  );
+}
+
+function CommonLayoutContent({
+  title,
+  filters,
+  onFiltersChange,
+  platforms,
+  mobileMenuOpen,
+  setMobileMenuOpen,
+  isCollapsed,
+  setIsCollapsed,
+  user,
+  children,
+}) {
   const sidebarWidth = isCollapsed ? "72px" : "250px";
 
   return (
