@@ -1867,7 +1867,7 @@ const formatLargeNumber = (value) => {
   return value.toFixed(2);
 };
 
-const BrandTable = ({ rows, loading }) => {
+const BrandTable = ({ rows, loading, onTrendClick }) => {
   const { user } = useAuth();
   const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const [page, setPage] = useState(1);
@@ -1897,6 +1897,7 @@ const BrandTable = ({ rows, loading }) => {
                 <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Price</th>
                 <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Promo-My %</th>
                 {!hideMarketShare && <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>}
+                <th className="px-3 py-2 text-center w-[10%]">Action</th>
               </tr>
             </thead>
 
@@ -1965,13 +1966,22 @@ const BrandTable = ({ rows, loading }) => {
                       </div>
                     </td>
                   )}
+                  <td className="px-3 py-2 text-center border-l border-slate-100">
+                    <button
+                      onClick={() => onTrendClick?.(row.name || row.brand_name || row.brand, 'brand')}
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                      title="View Trend"
+                    >
+                      <LineChartIcon size={16} />
+                    </button>
+                  </td>
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={hideMarketShare ? 5 : 6}
+                    colSpan={hideMarketShare ? 6 : 7}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -1998,7 +2008,7 @@ const BrandTable = ({ rows, loading }) => {
 };
 
 
-const SkuTable = ({ rows, loading }) => {
+const SkuTable = ({ rows, loading, onTrendClick }) => {
   const { user } = useAuth();
   const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const [page, setPage] = useState(1);
@@ -2028,6 +2038,7 @@ const SkuTable = ({ rows, loading }) => {
                 <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Price</th>
                 <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Promo-My %</th>
                 {!hideMarketShare && <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>}
+                <th className="px-3 py-2 text-center w-[10%]">Action</th>
               </tr>
             </thead>
 
@@ -2093,13 +2104,22 @@ const SkuTable = ({ rows, loading }) => {
                       </div>
                     </td>
                   )}
+                  <td className="px-3 py-2 text-center border-l border-slate-100">
+                    <button
+                      onClick={() => onTrendClick?.(row.name || row.sku_name || row.Product, 'sku')}
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                      title="View Trend"
+                    >
+                      <LineChartIcon size={16} />
+                    </button>
+                  </td>
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={hideMarketShare ? 5 : 6}
+                    colSpan={hideMarketShare ? 6 : 7}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
@@ -2130,7 +2150,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep }) => {
+const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep, onTrendClick }) => {
   // Use filterOptions if provided, otherwise fallback to static constants
   const dynamicCities = filterOptions?.cities?.length > 0 ? filterOptions.cities : CITIES;
 
@@ -2282,7 +2302,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} />}
+          {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} onTrendClick={onTrendClick} />}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -2315,7 +2335,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} />}
+          {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} onTrendClick={onTrendClick} />}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"
