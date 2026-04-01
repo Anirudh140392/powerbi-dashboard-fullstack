@@ -508,12 +508,17 @@ const performanceMarketingService = {
                     }
                 }
 
+
+                // Filter out NULL/empty keyword_type to prevent duplicate 'Generic' rows
+                const keywordTypeCol = r('keyword_type');
+                conditions.push(`${keywordTypeCol} IS NOT NULL AND ${keywordTypeCol} != ''`);
+
                 const whereSql = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 
                 // Group by category -> Date
                 const queryDaily = `
                     SELECT 
-                        ifNull(${f.keyword_type}, 'Generic') as KeywordType,
+                        initCap(trim(${f.keyword_type})) as KeywordType,
                         ifNull(keyword, 'N/A') as Keyword,
                         'N/A' as City,
                         ${f.category} as Category,
@@ -1038,7 +1043,7 @@ const performanceMarketingService = {
 
                     const query = `
                     SELECT 
-                        ${keywordTypeCol} as keyword_type,
+                        initCap(trim(${keywordTypeCol})) as keyword_type,
                         SUM(ad_spend) as spend,
                         SUM(impressions) as impressions,
                         SUM(ad_click) as clicks,
@@ -1080,7 +1085,7 @@ const performanceMarketingService = {
 
                 const keywordQuery = `
                 SELECT 
-                    ${keywordTypeCol} as keyword_type,
+                    initCap(trim(${keywordTypeCol})) as keyword_type,
                     keyword as keyword_name,
                     SUM(ad_spend) as spend,
                     SUM(impressions) as impressions,
