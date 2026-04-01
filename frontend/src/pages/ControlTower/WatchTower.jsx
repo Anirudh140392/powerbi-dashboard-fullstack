@@ -514,6 +514,21 @@ export default function WatchTower() {
     });
   }, [platform, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd]);
 
+  const initialTrendAudience = useMemo(() => {
+    // selectedTrendLevel can be "Platform Overview", "Month Overview", etc.
+    const level = selectedTrendLevel?.split(" ")[0] || "Platform";
+    const mapping = {
+      Platform: "Platform",
+      Brand: "Brand",
+      Brands: "Brand",
+      Category: "Format",
+      Location: "City",
+      SKU: "Platform",
+      Skus: "Platform",
+    };
+    return mapping[level] || "Platform";
+  }, [selectedTrendLevel]);
+
   return (
     <>
       <CommonContainer
@@ -732,6 +747,7 @@ export default function WatchTower() {
         onClose={() => setShowTrends(false)}
         selectedColumn={selectedTrendName}
         selectedLevel={selectedTrendLevel}
+        initialAudience={initialTrendAudience}
         dynamicKey="platform_overview_tower"
         brandOptions={defaultBrands.map(b => b.label)}
         initialPlatform={filters.platform}
