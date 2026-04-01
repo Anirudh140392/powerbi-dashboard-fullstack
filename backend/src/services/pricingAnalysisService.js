@@ -703,6 +703,7 @@ async function getPricingInsights(filters = {}) {
                 p.${f.product} AS Product,
                 ${src.prodCatSql} AS Category,
                 p.${f.compFlag} AS Comp_flag,
+                p.${f.platform} AS Platform,
                 AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                          AND ${f.wMrp} > 0 
                     THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
@@ -723,7 +724,7 @@ async function getPricingInsights(filters = {}) {
             FROM ${src.table} p
             WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
-            GROUP BY p.${f.brand}, p.${f.product}, Category, p.${f.compFlag}
+            GROUP BY p.${f.brand}, p.${f.product}, Category, p.${f.compFlag}, Platform
             HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
             `;
 
@@ -740,6 +741,7 @@ async function getPricingInsights(filters = {}) {
                     brand: r.Brand,
                     title: r.Product,
                     cat: r.Category || "Uncategorized",
+                    platform: r.Platform,
                     isMySku: parseInt(r.Comp_flag) === 0,
                     discount: dc,
                     delta: parseFloat(delta.toFixed(2)),
@@ -765,12 +767,13 @@ async function getPricingInsights(filters = {}) {
 
             let cityDataMap = {};
             // Initialize cityDataMap for all products to prevent crashes
-            allTopSkus.forEach(s => { cityDataMap[s.title] = []; });
+            allTopSkus.forEach(s => { cityDataMap[`${s.platform}|${s.title}`] = []; });
             if (productsList.length > 0) {
                 const productEscaped = productsList.map(p => `'${escapeStr(p)}'`).join(',');
                 const cityQuery = `
                     SELECT
                         p.${f.product} as product,
+                        p.${f.platform} as platform,
                         p.${f.location} as city,
                         AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 
                             THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
@@ -794,18 +797,22 @@ async function getPricingInsights(filters = {}) {
                       ${locations ? `AND ${buildInClause(`p.${f.location}`, locations)}` : ''}
                       ${channels ? `AND ${buildInClause(`p.${f.channel}`, channels)}` : ''}
                       ${categories ? `AND ${src.prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
-                    GROUP BY p.${f.product}, p.${f.location}
+                    GROUP BY p.${f.product}, p.${f.platform}, p.${f.location}
                     HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
                 `;
 
                 const cityResults = await queryClickHouse(cityQuery);
                 cityResults.forEach(r => {
                     const product = r.product;
+                    const platform = r.platform;
+                    const key = `${platform}|${product}`;
                     const dc = parseFloat(r.discount_curr) || 0;
                     const dp = parseFloat(r.discount_prev) || 0;
                     const delta = dp - dc; // delta represents price change
 
-                    cityDataMap[product].push({
+                    if (!cityDataMap[key]) cityDataMap[key] = [];
+                    
+                    cityDataMap[key].push({
                         name: r.city,
                         discount: parseFloat(dc.toFixed(2)),
                         change: parseFloat(delta.toFixed(2)),
@@ -821,15 +828,18 @@ async function getPricingInsights(filters = {}) {
                 });
             }
 
-            const enrichSku = (skus, label) => skus.map((s, i) => ({
-                ...s,
-                id: `${s.brand}_${label}_${i}`,
-                badge: `${label} ${i + 1}`,
-                size: "Mixed",
-                cities: cityDataMap[s.title] ? cityDataMap[s.title].slice(0, 20) : [
-                    { name: "Global Avg", discount: s.discount, change: s.delta }
-                ]
-            }));
+            const enrichSku = (skus, label) => skus.map((s, i) => {
+                const key = `${s.platform}|${s.title}`;
+                return {
+                    ...s,
+                    id: `${s.brand}_${s.platform}_${label}_${i}`,
+                    badge: `${label} ${i + 1}`,
+                    size: "Mixed",
+                    cities: cityDataMap[key] ? cityDataMap[key].slice(0, 20) : [
+                        { name: "Global Avg", discount: s.discount, change: s.delta }
+                    ]
+                };
+            });
 
             return {
                 success: true,

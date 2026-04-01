@@ -1,5 +1,6 @@
 import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPlatformChannels, getChannels, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductCategories } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
+import { getCompareSkuDateRange, getCompareSkuFilters, getCompareSkuProducts, getCompareSkuMetrics, getCompareSkuTrend } from '../controllers/compareSkuController.js';
 
 export default (app) => {
     // Middleware to log Watch Tower API calls
@@ -174,5 +175,12 @@ export default (app) => {
 
     // Product Categories endpoint for Availability Analysis filter dropdown
     app.get('/api/watchtower/product-categories', getProductCategories);
+
+    // ==================== Compare SKU Endpoints ====================
+    app.get('/api/watchtower/compare-sku/date-range', getCompareSkuDateRange);
+    app.get('/api/watchtower/compare-sku/filters', getCompareSkuFilters);
+    app.get('/api/watchtower/compare-sku/products', getCompareSkuProducts);
+    app.get('/api/watchtower/compare-sku/metrics', getCompareSkuMetrics);
+    app.get('/api/watchtower/compare-sku/trend', getCompareSkuTrend);
 
 };
