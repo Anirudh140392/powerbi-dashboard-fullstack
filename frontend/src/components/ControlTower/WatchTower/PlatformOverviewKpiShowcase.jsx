@@ -1897,7 +1897,6 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
                 <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Price</th>
                 <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Promo-My %</th>
                 {!hideMarketShare && <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>}
-                <th className="px-3 py-2 text-center w-[10%]">Action</th>
               </tr>
             </thead>
 
@@ -1966,22 +1965,13 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
                       </div>
                     </td>
                   )}
-                  <td className="px-3 py-2 text-center border-l border-slate-100">
-                    <button
-                      onClick={() => onTrendClick?.(row.name || row.brand_name || row.brand, 'brand')}
-                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                      title="View Trend"
-                    >
-                      <LineChartIcon size={16} />
-                    </button>
-                  </td>
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={hideMarketShare ? 6 : 7}
+                    colSpan={hideMarketShare ? 5 : 6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -2038,7 +2028,6 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
                 <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Price</th>
                 <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Promo-My %</th>
                 {!hideMarketShare && <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>}
-                <th className="px-3 py-2 text-center w-[10%]">Action</th>
               </tr>
             </thead>
 
@@ -2104,22 +2093,13 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
                       </div>
                     </td>
                   )}
-                  <td className="px-3 py-2 text-center border-l border-slate-100">
-                    <button
-                      onClick={() => onTrendClick?.(row.name || row.sku_name || row.Product, 'sku')}
-                      className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                      title="View Trend"
-                    >
-                      <LineChartIcon size={16} />
-                    </button>
-                  </td>
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={hideMarketShare ? 6 : 7}
+                    colSpan={hideMarketShare ? 5 : 6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
