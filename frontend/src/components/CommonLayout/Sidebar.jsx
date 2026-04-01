@@ -90,7 +90,7 @@ const Sidebar = ({
     "MAIN MENU": [
       { label: "Business Overview", path: "/watch-tower", icon: <DashboardIcon sx={{ fontSize: '1.1rem' }} /> },
       { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Insights BETA", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
+      // { label: "Insights BETA", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['boat', 'mars_petcare'] },
