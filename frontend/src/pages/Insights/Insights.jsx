@@ -13,7 +13,11 @@ import {
     Loader2,
     ChevronRight,
     Search,
-    Filter
+    Filter,
+    TrendingUp,
+    TrendingDown,
+    Zap,
+    Signal,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -60,52 +64,45 @@ const safeINR = (v) => (typeof v === "number" ? formatINRCompact(v) : "-");
 const SIGNAL_META = {
     "Share Headroom Hotspots": {
         family: "Market Share",
-        color: "#3b82f6", // Precise blue
-        FamilyIcon: BarChart3,
-        metricKey: "impactInr",
-        metricLabel: "Offtake Loss Impact",
+        color: "#4a6fa5", accent: "#e8eef6",
+        FamilyIcon: BarChart3, metricKey: "impactInr",
+        metricLabel: "Offtake Loss Impact", trend: "negative",
     },
     "Price Parity Radar": {
         family: "Pricing Positioning",
-        color: "#0284c7", // Precise sky
-        FamilyIcon: BadgePercent,
-        metricKey: "impactInr",
-        metricLabel: "Opportunity Available",
+        color: "#3d7a8a", accent: "#e4f0f3",
+        FamilyIcon: BadgePercent, metricKey: "impactInr",
+        metricLabel: "Opportunity Available", trend: "positive",
     },
     "Replenishment Breaks": {
         family: "Supply Chain",
-        color: "#6366f1", // Precise indigo
-        FamilyIcon: Truck,
-        metricKey: "impactInr",
-        metricLabel: "Excess Inventory Value",
+        color: "#6b5ea8", accent: "#eeebf8",
+        FamilyIcon: Truck, metricKey: "impactInr",
+        metricLabel: "Excess Inventory Value", trend: "negative",
     },
     "Competitor OSA Weak Spots": {
         family: "Competitive Landscape",
-        color: "#10b981", // Precise emerald
-        FamilyIcon: Radar,
-        metricKey: "impactInr",
-        metricLabel: "Opportunity Available",
+        color: "#3a7d68", accent: "#e3f1ec",
+        FamilyIcon: Radar, metricKey: "impactInr",
+        metricLabel: "Opportunity Available", trend: "positive",
     },
     "Ad Stock Mismatch": {
         family: "Performance Marketing",
-        color: "#f59e0b", // Precise amber
-        FamilyIcon: Megaphone,
-        metricKey: "impactInr",
-        metricLabel: "Ad Efficiency Loss",
+        color: "#8a6a3d", accent: "#f3ede3",
+        FamilyIcon: Megaphone, metricKey: "impactInr",
+        metricLabel: "Ad Efficiency Loss", trend: "negative",
     },
     "Keyword Efficiency and Budget Caps": {
         family: "Performance Marketing",
-        color: "#f59e0b", // Precise amber
-        FamilyIcon: Megaphone,
-        metricKey: "impactInr",
-        metricLabel: "Wasted Ad Spend",
+        color: "#8a6a3d", accent: "#f3ede3",
+        FamilyIcon: Megaphone, metricKey: "impactInr",
+        metricLabel: "Wasted Ad Spend", trend: "negative",
     },
     "Challenger Launch Watch": {
         family: "Competitive Landscape",
-        color: "#10b981", // Precise emerald
-        FamilyIcon: Radar,
-        metricKey: "impactInr",
-        metricLabel: "Missed Opportunity",
+        color: "#7a5c6e", accent: "#f0e9ee",
+        FamilyIcon: Radar, metricKey: "impactInr",
+        metricLabel: "Missed Opportunity", trend: "negative",
     },
 };
 
@@ -227,11 +224,123 @@ const buildAISegments = (insight) => {
 };
 
 const priorityStyles = {
-    high: { border: "border-l-red-500", label: "text-red-700" },
-    focus: { border: "border-l-blue-500", label: "text-blue-700" },
-    good: { border: "border-l-emerald-500", label: "text-emerald-700" },
-    neutral: { border: "border-l-slate-400", label: "text-slate-600" },
+    high: { border: "border-l-red-500", label: "text-red-600", bg: "bg-red-50" },
+    focus: { border: "border-l-blue-500", label: "text-blue-700", bg: "bg-blue-50" },
+    good: { border: "border-l-emerald-500", label: "text-emerald-700", bg: "bg-emerald-50" },
+    neutral: { border: "border-l-slate-400", label: "text-slate-600", bg: "bg-slate-50" },
 };
+
+// ─── BETA BADGE ──────────────────────────────────────────────────────────────
+
+const BetaBadge = ({ size = "sm" }) => (
+    <span
+        style={{
+            fontSize: size === "xs" ? "8px" : "9px",
+            fontWeight: 800,
+            letterSpacing: "0.12em",
+            background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)",
+            color: "#fff",
+            borderRadius: "4px",
+            padding: size === "xs" ? "1px 5px" : "2px 6px",
+            boxShadow: "0 0 8px rgba(99,102,241,0.4)",
+            display: "inline-flex",
+            alignItems: "center",
+            verticalAlign: "middle",
+            textTransform: "uppercase",
+            lineHeight: 1.4,
+            animation: "betaPulse 2.5s ease-in-out infinite",
+        }}
+    >
+        ✦ BETA
+    </span>
+);
+
+// ─── SIGNAL STATUS BADGE ─────────────────────────────────────────────────────
+
+const SignalStatusBadge = ({ isEmpty, hovered }) => (
+    <span
+        style={{
+            fontSize: "8px",
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            background: hovered
+                ? "rgba(255,255,255,0.18)"
+                : isEmpty
+                    ? "#94a3b8"
+                    : "#c0392b",
+            color: "#fff",
+            borderRadius: 0,
+            padding: "2px 6px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "4px",
+            textTransform: "uppercase",
+            transition: "background 0.28s ease",
+        }}
+    >
+        <span
+            style={{
+                width: 5,
+                height: 5,
+                borderRadius: "50%",
+                background: hovered ? "rgba(255,255,255,0.9)" : isEmpty ? "#e2e8f0" : "#ff6b6b",
+                display: "inline-block",
+                animation: isEmpty || hovered ? "none" : "blink 1.1s ease-in-out infinite",
+                boxShadow: (!isEmpty && !hovered) ? "0 0 0 0 rgba(255,107,107,0.6)" : "none",
+            }}
+        />
+        {isEmpty ? "NO DATA" : "LIVE SIGNAL"}
+    </span>
+);
+
+// ─── MINI SPARKLINE ──────────────────────────────────────────────────────────
+
+const MiniSparkline = ({ color, negative, hovered }) => {
+    const bars = [0.4, 0.6, 0.45, 0.8, 0.55, 0.9, 0.7, 0.85, 0.6, 0.95];
+    return (
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "2px", height: "32px" }}>
+            {bars.map((h, i) => (
+                <div
+                    key={i}
+                    style={{
+                        width: "4px",
+                        height: `${h * 32}px`,
+                        borderRadius: 0,
+                        background: hovered
+                            ? `rgba(255,255,255,${0.25 + h * 0.55})`
+                            : negative
+                                ? `rgba(239,68,68,${0.3 + h * 0.5})`
+                                : `rgba(59,130,246,${0.3 + h * 0.5})`,
+                        transition: "height 0.3s ease, background 0.28s ease",
+                    }}
+                />
+            ))}
+        </div>
+    );
+};
+
+// ─── CONFIDENCE BARS ─────────────────────────────────────────────────────────
+
+const ConfidenceBars = ({ level = 3, max = 5, hovered }) => (
+    <div style={{ display: "flex", gap: "2px", alignItems: "flex-end" }}>
+        {Array.from({ length: max }).map((_, i) => (
+            <div
+                key={i}
+                style={{
+                    width: "4px",
+                    height: `${6 + i * 3}px`,
+                    borderRadius: 0,
+                    background: hovered
+                        ? i < level ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.25)"
+                        : i < level ? "#f59e0b" : "#e2e8f0",
+                    transition: "background 0.28s ease",
+                }}
+            />
+        ))}
+    </div>
+);
+
+// ─── AI INSIGHTS PANEL ───────────────────────────────────────────────────────
 
 const AIInsightsPanel = ({ insight, onClose }) => {
     const [phase, setPhase] = useState("loading");
@@ -247,30 +356,52 @@ const AIInsightsPanel = ({ insight, onClose }) => {
     useEffect(() => {
         if (phase !== "reveal") return;
         if (visibleCount >= segments.length) return;
-        const t = setTimeout(() => setVisibleCount((c) => c + 1), 150);
+        const t = setTimeout(() => setVisibleCount((c) => c + 1), 180);
         return () => clearTimeout(t);
     }, [phase, visibleCount, segments.length]);
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-            className="absolute top-0 right-0 h-full w-[320px] bg-white border-l border-slate-200 shadow-2xl z-50 flex flex-col"
+            initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 30 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            style={{
+                position: "absolute", top: 0, right: 0, height: "100%", width: "300px",
+                background: "linear-gradient(180deg, #f0f7ff 0%, #fff 100%)",
+                borderLeft: "1px solid #bfdbfe",
+                boxShadow: "-8px 0 32px rgba(59,130,246,0.08)",
+                zIndex: 50, display: "flex", flexDirection: "column",
+            }}
             onClick={(e) => e.stopPropagation()}
         >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50/50">
-                <div className="flex items-center gap-2">
-                    <BrainCircuit className="h-4 w-4 text-slate-700" />
-                    <div className="text-[12px] font-semibold text-slate-900">AI Summary</div>
+            <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "12px 16px", borderBottom: "1px solid #bfdbfe",
+                background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+            }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{
+                        width: 28, height: 28, borderRadius: "6px",
+                        background: "linear-gradient(135deg, #3b82f6, #6366f1)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                        <BrainCircuit size={14} color="#fff" />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a5f", letterSpacing: "0.02em" }}>
+                            AI Summary <BetaBadge size="xs" />
+                        </div>
+                    </div>
                 </div>
-                <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
-                    <X className="h-4 w-4" />
+                <button onClick={onClose} style={{ color: "#94a3b8", cursor: "pointer", background: "none", border: "none", padding: 4 }}>
+                    <X size={14} />
                 </button>
             </div>
 
-            <div className="flex-1 p-4 space-y-3 overflow-y-auto bg-slate-50/30">
+            <div style={{ flex: 1, padding: "12px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
                 {phase === "loading" ? (
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                        <Loader2 className="h-3 w-3 animate-spin" /> Analyzing signal data...
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "11px", padding: "16px 0" }}>
+                        <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />
+                        Analyzing signal data...
                     </div>
                 ) : (
                     segments.map((seg, idx) => {
@@ -278,12 +409,23 @@ const AIInsightsPanel = ({ insight, onClose }) => {
                         return (
                             <motion.div
                                 key={idx}
-                                initial={{ opacity: 0, y: 5 }}
-                                animate={idx < visibleCount ? { opacity: 1, y: 0 } : { opacity: 0, y: 5 }}
-                                className={`bg-white border border-slate-200 p-3 shadow-sm rounded-sm border-l-2 ${s.border}`}
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={idx < visibleCount ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+                                transition={{ duration: 0.3 }}
+                                style={{
+                                    background: "#fff",
+                                    border: "1px solid #e2e8f0",
+                                    borderLeft: `3px solid ${seg.priority === "high" ? "#ef4444" : seg.priority === "focus" ? "#3b82f6" : seg.priority === "good" ? "#10b981" : "#94a3b8"}`,
+                                    borderRadius: "6px",
+                                    padding: "10px 12px",
+                                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                                }}
                             >
-                                <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${s.label}`}>{seg.label}</div>
-                                <p className="text-[11px] text-slate-700 leading-relaxed">{seg.text}</p>
+                                <div style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}
+                                    className={s.label}>
+                                    {seg.label}
+                                </div>
+                                <p style={{ fontSize: "11px", color: "#475569", lineHeight: 1.5, margin: 0 }}>{seg.text}</p>
                             </motion.div>
                         );
                     })
@@ -296,41 +438,184 @@ const AIInsightsPanel = ({ insight, onClose }) => {
 // ─── OVERVIEW SIGNAL CARD ────────────────────────────────────────────────────
 
 const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
+    const [hovered, setHovered] = useState(false);
     const isEmpty = insight.id.startsWith("empty_");
     const meta = SIGNAL_META[insight.type] || {};
-    const { FamilyIcon, color, family, metricLabel } = meta;
-    const evidenceCount = Math.max(0, insight.evidence?.filter(e => Object.values(e).some(v => v !== "-" && v !== 0 && v !== false && v !== null)).length || 0);
-    const isNegativeMetric = /waste|miss|loss|excess|drop|break/i.test(metricLabel || "") || /waste|miss|loss|drop|break/i.test(insight.type || "");
+    const { FamilyIcon, color, accent, family, metricLabel, trend } = meta;
+    const isNegative = trend === "negative";
+    const impactValue = isEmpty ? "—" : formatINRCompact(insight.impactInr || 0);
+
+    const kpi0 = insight.kpis?.[0];
+    const kpi1 = insight.kpis?.[1];
+
+    const hoverBg = isEmpty ? "#475569" : color;
+    const txt = (base) => hovered ? "#ffffff" : base;
+    const txtMuted = hovered ? "rgba(255,255,255,0.6)" : "#78828f";
+    const txtFaint = hovered ? "rgba(255,255,255,0.42)" : "#a0aab4";
+    const dividerColor = hovered ? "rgba(255,255,255,0.14)" : "#eaecf0";
 
     return (
         <div
             onClick={onClick}
-            className={`group flex flex-col bg-white border transition-all duration-150 cursor-pointer rounded-sm
-                ${isEmpty ? "opacity-60 border-slate-200" : "hover:border-slate-400 border-slate-200"}
-                ${isSelected ? "ring-1 ring-blue-500 border-blue-500" : ""}
-            `}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+                width: "100%",
+                height: "260px",
+                display: "flex",
+                flexDirection: "column",
+                borderRadius: 0,
+                border: isSelected
+                    ? `2px solid ${color || "#4a6fa5"}`
+                    : hovered
+                        ? `1px solid ${color || "#4a6fa5"}`
+                        : isEmpty
+                            ? "1px solid #e4e8ed"
+                            : `1px solid ${color ? color + "38" : "#c8d5e8"}`,
+                cursor: "pointer",
+                overflow: "hidden",
+                position: "relative",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                background: hovered ? hoverBg : isEmpty ? "#f9fafb" : "#ffffff",
+                boxShadow: hovered
+                    ? `0 18px 44px ${color ? color + "40" : "rgba(74,111,165,0.25)"}, 0 4px 14px ${color ? color + "28" : "rgba(74,111,165,0.14)"}`
+                    : isSelected
+                        ? `0 0 0 3px ${color ? color + "28" : "rgba(74,111,165,0.18)"}`
+                        : "0 1px 3px rgba(0,0,0,0.04)",
+                transition: "background 0.26s ease, box-shadow 0.26s ease, border-color 0.26s ease, transform 0.2s ease",
+                transform: hovered ? "translateY(-3px)" : "translateY(0px)",
+                opacity: isEmpty && !hovered ? 0.68 : 1,
+            }}
         >
-            <div className="p-3 flex-1 flex flex-col">
-                <div className="flex items-center gap-1.5 mb-2 text-slate-500">
-                    {FamilyIcon && <FamilyIcon className="h-3 w-3" style={{ color: isEmpty ? '#94a3b8' : color }} />}
-                    <span className="text-[10px] font-medium uppercase tracking-wider">{family}</span>
+            {/* Top accent bar */}
+            <div style={{
+                height: "3px", flexShrink: 0,
+                background: hovered
+                    ? "rgba(255,255,255,0.3)"
+                    : isEmpty ? "#e4e8ed"
+                        : `linear-gradient(90deg, ${color} 0%, ${color}70 100%)`,
+                transition: "background 0.26s ease",
+            }} />
+
+            {/* Header row */}
+            <div style={{
+                padding: "11px 14px 6px",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                flexShrink: 0,
+            }}>
+                <SignalStatusBadge isEmpty={isEmpty} hovered={hovered} />
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <BetaBadge size="xs" />
+                    <div style={{
+                        width: 22, height: 22, borderRadius: 0,
+                        background: hovered ? "rgba(255,255,255,0.18)" : isEmpty ? "#f1f5f9" : accent,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "background 0.26s ease",
+                    }}>
+                        {FamilyIcon && <FamilyIcon size={11} color={hovered ? "#fff" : isEmpty ? "#94a3b8" : color} />}
+                    </div>
                 </div>
-                <h3 className="text-[13px] font-semibold text-slate-900 leading-tight mb-4 line-clamp-2 min-h-[32px]">
+            </div>
+
+            {/* Family label */}
+            <div style={{ padding: "0 14px 2px", flexShrink: 0 }}>
+                <span style={{
+                    fontSize: "9px", fontWeight: 700, textTransform: "uppercase",
+                    letterSpacing: "0.1em",
+                    color: hovered ? "rgba(255,255,255,0.62)" : isEmpty ? "#a0aab4" : color,
+                    transition: "color 0.26s ease",
+                }}>
+                    {family}
+                </span>
+            </div>
+
+            {/* Signal title — fixed height */}
+            <div style={{ padding: "0 14px 10px", flexShrink: 0, height: "44px", overflow: "hidden" }}>
+                <h3 style={{
+                    fontSize: "13px", fontWeight: 700,
+                    color: txt("#111827"),
+                    lineHeight: 1.32, margin: 0,
+                    display: "-webkit-box", WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical", overflow: "hidden",
+                    transition: "color 0.26s ease",
+                }}>
                     {insight.type}
                 </h3>
-                <div className="mt-auto grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
-                    <div>
-                        <div className="text-[10px] text-slate-500 mb-0.5">{metricLabel}</div>
-                        <div className={`text-[14px] font-bold ${isEmpty ? "text-slate-400" : (isNegativeMetric ? "text-red-600" : "text-slate-800")}`}>
-                            {isEmpty ? "—" : formatINRCompact(insight.impactInr || 0)}
-                        </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ margin: "0 14px", height: "1px", background: dividerColor, flexShrink: 0, transition: "background 0.26s ease" }} />
+
+            {/* Impact metric — poppy number with subtle bg */}
+            <div style={{ padding: "11px 14px 10px", flexShrink: 0 }}>
+                <div style={{
+                    fontSize: "9px", fontWeight: 600, marginBottom: "6px",
+                    textTransform: "uppercase", letterSpacing: "0.07em",
+                    color: txtFaint, transition: "color 0.26s ease",
+                }}>
+                    {metricLabel}
+                </div>
+                <div style={{ display: "inline-flex" }}>
+                    <span style={{
+                        fontSize: "20px", fontWeight: 900,
+                        letterSpacing: "-0.03em",
+                        color: hovered
+                            ? "#ffffff"
+                            : isEmpty ? "#a0aab4" : isNegative ? "#b94040" : "#2e7d5e",
+                        background: hovered
+                            ? "rgba(255,255,255,0.14)"
+                            : isEmpty ? "#f1f3f5"
+                                : isNegative ? "#fdf0f0" : "#eef7f3",
+                        padding: "3px 10px",
+                        borderRadius: "4px",
+                        transition: "color 0.26s ease, background 0.26s ease",
+                        lineHeight: 1.3,
+                    }}>
+                        {impactValue}
+                    </span>
+                </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ margin: "0 14px", height: "1px", background: dividerColor, flexShrink: 0, transition: "background 0.26s ease" }} />
+
+            {/* KPI rows with poppy number bg pills */}
+            <div style={{ padding: "8px 14px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "6px" }}>
+                {[kpi0, kpi1].filter(Boolean).map((k, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "10px", color: txtMuted, transition: "color 0.26s ease" }}>{k.label}</span>
+                        <span style={{
+                            fontSize: "11px", fontWeight: 800,
+                            color: hovered ? "#fff" : "#1a2332",
+                            background: hovered ? "rgba(255,255,255,0.16)" : "#f0f2f5",
+                            padding: "1px 7px",
+                            borderRadius: "3px",
+                            letterSpacing: "-0.01em",
+                            transition: "color 0.26s ease, background 0.26s ease",
+                        }}>
+                            {k.value}
+                        </span>
                     </div>
-                    <div>
-                        <div className="text-[10px] text-slate-500 mb-0.5">Platforms</div>
-                        <div className="text-[14px] font-bold text-slate-800">
-                            {isEmpty ? "0" : Math.max(evidenceCount, insight.evidence?.length || 0)}
-                        </div>
-                    </div>
+                ))}
+            </div>
+
+            {/* Footer — VIEW DETAIL only */}
+            <div style={{
+                padding: "8px 14px",
+                borderTop: `1px solid ${dividerColor}`,
+                display: "flex", alignItems: "center", justifyContent: "flex-end",
+                flexShrink: 0,
+                background: hovered ? "rgba(0,0,0,0.08)" : "rgba(248,250,252,0.7)",
+                transition: "background 0.26s ease, border-color 0.26s ease",
+            }}>
+                <div style={{
+                    fontSize: "9px", fontWeight: 700,
+                    color: hovered ? "rgba(255,255,255,0.88)" : color || "#4a6fa5",
+                    display: "flex", alignItems: "center", gap: "3px",
+                    textTransform: "uppercase", letterSpacing: "0.07em",
+                    transition: "color 0.26s ease",
+                }}>
+                    VIEW DETAIL <ChevronRight size={9} />
                 </div>
             </div>
         </div>
@@ -364,23 +649,36 @@ const EvidenceTable = ({ insight, activePlatform }) => {
     }, [insight.evidence, search, activePlatform]);
 
     return (
-        <div className="flex flex-col h-full bg-white border border-slate-200 rounded-sm">
-            <div className="flex items-center justify-between p-2 border-b border-slate-200 bg-slate-50">
-                <span className="text-[11px] font-semibold text-slate-700 ml-1">Evidence Data</span>
-                <div className="relative">
-                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
+        <div style={{
+            display: "flex", flexDirection: "column", height: "100%",
+            background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden",
+        }}>
+            <div style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "10px 12px", borderBottom: "1px solid #e2e8f0",
+                background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
+            }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a5f", letterSpacing: "0.02em" }}>
+                    Evidence Data
+                </span>
+                <div style={{ position: "relative" }}>
+                    <Search size={11} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
                     <input
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Search..."
-                        className="pl-7 pr-2 py-1 text-[11px] border border-slate-300 rounded-sm bg-white focus:outline-none focus:border-blue-500 w-48"
+                        style={{
+                            paddingLeft: "26px", paddingRight: "8px", paddingTop: "5px", paddingBottom: "5px",
+                            fontSize: "11px", border: "1px solid #bfdbfe", borderRadius: "6px",
+                            background: "#fff", outline: "none", width: "180px", color: "#1e3a5f",
+                        }}
                     />
                 </div>
             </div>
             <ScrollArea className="h-[380px] w-full">
                 <Table>
-                    <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
-                        <TableRow className="border-b border-slate-200 hover:bg-transparent">
+                    <TableHeader style={{ background: "#f8fafc", position: "sticky", top: 0, zIndex: 10 }}>
+                        <TableRow style={{ borderBottom: "1px solid #e2e8f0" }}>
                             {view === "osa" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
@@ -393,38 +691,38 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Market Share (MoM delta)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Brand OSA</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Mkt Share</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Offtake (Delta MoM)</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">My Brand Loser SKU</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor Hero SKU</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Possible Cause</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Offtake</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Top SKU</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Comp SKU</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Cause</TableHead>
                             </>)}
                             {view === "pricing" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PPU Cluster</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Cluster</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} PPU</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Peer PPU</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Index</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Cluster Share</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Cluster Growth</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Cluster %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Growth %</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Headroom</TableHead>
                             </>)}
                             {view === "adStock" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} SKU</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} OSA</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Brand / SKU</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Ad SOV</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Spend</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Est. Lost Sales</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Est. Loss</TableHead>
                             </>)}
                             {view === "newEntry" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor SKU</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU / Brand</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Share</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PPU</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">First Seen</TableHead>
@@ -433,41 +731,41 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Depot / DB</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} SKU</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU / Brand</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Planned</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Dispatched</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Fill Rate</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PO</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PO Status</TableHead>
                             </>)}
                             {view === "keyword" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Keyword</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Campaign</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Bid</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Budget</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Daily Budget</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Spend</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Sales</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">ACOS</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Budget Cap</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Capped</TableHead>
                             </>)}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filtered.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={10} className="h-24 text-center text-[11px] text-slate-400">
-                                    No evidence data available.
+                                <TableCell colSpan={10} className="text-center py-10 text-slate-400 text-[11px]">
+                                    No matching rows
                                 </TableCell>
                             </TableRow>
                         ) : (
                             filtered.map((d, idx) => (
-                                <TableRow key={idx} className="border-b border-slate-100 hover:bg-slate-50/50">
+                                <TableRow key={idx} style={{ borderBottom: "1px solid #f1f5f9" }} className="hover:bg-blue-50/30 transition-colors">
                                     {view === "osa" && (
                                         <>
-                                            <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.category}</TableCell>
+                                            <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.category ?? insight.category}</TableCell>
                                             <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
-                                            <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city}</TableCell>
-                                            <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.skuOrBrand}</TableCell>
-                                            <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">{safePct(d.otherBrandOsa)}</TableCell>
+                                            <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city ?? insight.city}</TableCell>
+                                            <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.skuOrBrand ?? "-"}</TableCell>
+                                            <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-1.5">{safePct(d.otherBrandOsa)}</TableCell>
                                             <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-1.5">{safePct(d.kwOsa)}</TableCell>
                                         </>
                                     )}
@@ -565,6 +863,28 @@ const EvidenceTable = ({ insight, activePlatform }) => {
     );
 };
 
+// ─── PLATFORM TAB ─────────────────────────────────────────────────────────────
+
+const PlatformButton = ({ platform, active, onClick }) => (
+    <button
+        onClick={onClick}
+        style={{
+            padding: "8px 16px",
+            fontSize: "12px",
+            fontWeight: active ? 700 : 500,
+            borderBottom: active ? "2px solid #2563eb" : "2px solid transparent",
+            color: active ? "#2563eb" : "#64748b",
+            background: "none",
+            border: "none",
+            borderBottom: active ? "2px solid #2563eb" : "2px solid transparent",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+        }}
+    >
+        {platform}
+    </button>
+);
+
 // ─── DRILL DOWN MODAL ─────────────────────────────────────────────────────────
 
 const getKpiStyle = (label, value) => {
@@ -577,18 +897,6 @@ const getKpiStyle = (label, value) => {
     return "text-slate-900";
 };
 
-const PlatformButton = ({ platform, active, onClick }) => (
-    <button
-        onClick={onClick}
-        className={`px-3 py-1.5 text-[12px] font-medium border-b-2 transition-colors ${active
-            ? "border-slate-800 text-slate-900"
-            : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-            }`}
-    >
-        {platform}
-    </button>
-);
-
 const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel, hubPlatform = "All platforms" }) => {
     const [activePlatform, setActivePlatform] = useState(hubPlatform !== "All platforms" ? hubPlatform : "All platforms");
 
@@ -600,68 +908,117 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
 
     const platforms = (insight.platforms || []).filter((p) => p !== "-");
     const isEmpty = insight.id.startsWith("empty_");
+    const meta = SIGNAL_META[insight.type] || {};
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-            <DialogContent className="max-w-[1000px] w-[95vw] p-0 gap-0 rounded-sm overflow-hidden shadow-2xl bg-white border border-slate-300 outline-none [&>button]:hidden flex">
-                
+            <DialogContent className="max-w-[1000px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-2xl bg-white border border-blue-100 outline-none [&>button]:hidden flex">
                 <div className="flex-1 flex flex-col max-h-[85vh]">
-                    <div className="border-b border-slate-200 px-5 py-4 flex items-start justify-between bg-slate-50/50 shrink-0">
+
+                    {/* Modal Header */}
+                    <div style={{
+                        background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+                        borderBottom: "1px solid #bfdbfe",
+                        padding: "16px 20px",
+                        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+                        flexShrink: 0,
+                    }}>
                         <div>
-                            <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 uppercase tracking-widest mb-1.5">
-                                <span>Signal Detail</span>
-                                <ChevronRight className="h-3 w-3 text-slate-400" />
-                                <span className="text-slate-700">{insight.family}</span>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                                <div style={{
+                                    width: 20, height: 20, borderRadius: "5px",
+                                    background: meta.color ? `${meta.color}22` : "#dbeafe",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                }}>
+                                    {meta.FamilyIcon && <meta.FamilyIcon size={11} color={meta.color || "#3b82f6"} />}
+                                </div>
+                                <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                                    Signal Detail
+                                </span>
+                                <ChevronRight size={11} color="#94a3b8" />
+                                <span style={{ fontSize: "10px", fontWeight: 600, color: meta.color || "#3b82f6", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                    {insight.family}
+                                </span>
                             </div>
-                            <h2 className="text-[18px] font-semibold text-slate-900">{insight.type}</h2>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
+                                    {insight.type}
+                                </h2>
+                                <BetaBadge />
+                            </div>
                         </div>
-                        <button onClick={onClose} className="text-slate-400 hover:text-slate-800 transition-colors mt-1">
-                            <X className="h-4 w-4" />
+                        <button onClick={onClose} style={{
+                            color: "#94a3b8", background: "none", border: "none",
+                            cursor: "pointer", padding: 4, marginTop: 4,
+                        }}>
+                            <X size={16} />
                         </button>
                     </div>
 
-                    <div className="border-b border-slate-200 px-5 py-3 flex flex-wrap gap-x-6 gap-y-3 items-center justify-between shrink-0 bg-white">
-                        <div className="flex items-center gap-6">
+                    {/* KPI Strip */}
+                    <div style={{
+                        borderBottom: "1px solid #e2e8f0",
+                        padding: "12px 20px",
+                        display: "flex", flexWrap: "wrap", alignItems: "center",
+                        justifyContent: "space-between", gap: "12px",
+                        background: "#fff", flexShrink: 0,
+                    }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
                             <div>
-                                <p className="text-[10px] text-slate-500 mb-0.5 uppercase tracking-wide">Impact</p>
-                                <p className="text-[15px] font-semibold text-slate-900">{formatINRCompact(insight.impactInr || 0)}</p>
+                                <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
+                                <p style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
                             </div>
-                            <Separator orientation="vertical" className="h-8 bg-slate-200" />
-                            <div className="flex gap-6">
+                            <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
+                            <div style={{ display: "flex", gap: "20px" }}>
                                 {(insight.kpis || []).map((k, i) => (
                                     <div key={i}>
-                                        <p className="text-[10px] text-slate-500 mb-0.5 uppercase tracking-wide">{k.label}</p>
-                                        <p className={`text-[14px] font-semibold ${getKpiStyle(k.label, k.value)}`}>{k.value}</p>
+                                        <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>{k.label}</p>
+                                        <p style={{ fontSize: "14px", fontWeight: 700, margin: 0 }} className={getKpiStyle(k.label, k.value)}>{k.value}</p>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                        <Button 
+                        <button
                             onClick={onAI}
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-[11px] rounded-sm border-slate-300 hover:bg-slate-50 text-slate-700"
+                            className="ai-btn"
                         >
-                            <BrainCircuit className="h-3 w-3 mr-1.5" />
-                            AI Insights
-                        </Button>
+                            <BrainCircuit size={12} />
+                            AI Insights <BetaBadge size="xs" />
+                        </button>
                     </div>
 
+                    {/* Platform Tabs */}
                     {platforms.length > 1 && (
-                        <div className="px-5 border-b border-slate-200 flex items-center gap-3 shrink-0 bg-slate-50/30">
+                        <div style={{
+                            padding: "0 20px", borderBottom: "1px solid #e2e8f0",
+                            display: "flex", alignItems: "center", gap: "4px",
+                            flexShrink: 0, background: "#f8fafc",
+                        }}>
                             <PlatformButton platform="All Platforms" active={activePlatform === "All platforms"} onClick={() => setActivePlatform("All platforms")} />
                             {platforms.map((p) => <PlatformButton key={p} platform={p} active={activePlatform === p} onClick={() => setActivePlatform(p)} />)}
                         </div>
                     )}
 
-                    <div className="flex-1 overflow-y-auto p-5 bg-white">
+                    {/* Body */}
+                    <div style={{ flex: 1, overflowY: "auto", padding: "20px", background: "#fafcff" }}>
                         {!isEmpty && insight.whatWeSee?.some((w) => w !== "-") && (
-                            <div className="mb-5">
-                                <h3 className="text-[11px] font-semibold text-slate-800 uppercase tracking-widest mb-2">Key Observations</h3>
-                                <ul className="space-y-1.5">
+                            <div style={{
+                                marginBottom: "20px",
+                                background: "linear-gradient(135deg, #eff6ff 0%, #f0f7ff 100%)",
+                                border: "1px solid #bfdbfe",
+                                borderRadius: "10px",
+                                padding: "14px 16px",
+                            }}>
+                                <h3 style={{ fontSize: "10px", fontWeight: 700, color: "#2563eb", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "10px" }}>
+                                    Key Observations
+                                </h3>
+                                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
                                     {insight.whatWeSee.map((w, i) => (
-                                        <li key={i} className="flex gap-2.5 text-[12px] text-slate-600">
-                                            <div className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                                        <li key={i} style={{ display: "flex", gap: "10px", fontSize: "12px", color: "#334155", alignItems: "flex-start" }}>
+                                            <div style={{
+                                                width: 6, height: 6, borderRadius: "50%",
+                                                background: "#3b82f6", marginTop: 5, flexShrink: 0,
+                                            }} />
                                             <span>{w}</span>
                                         </li>
                                     ))}
@@ -669,9 +1026,13 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                             </div>
                         )}
                         {isEmpty ? (
-                            <div className="text-center py-16 text-slate-400 border border-dashed border-slate-200 rounded-sm">
-                                <Activity className="h-5 w-5 mx-auto text-slate-300 mb-2" />
-                                <p className="text-[12px]">No detailed evidence available.</p>
+                            <div style={{
+                                textAlign: "center", padding: "64px 16px",
+                                border: "1px dashed #bfdbfe", borderRadius: "10px",
+                                color: "#94a3b8",
+                            }}>
+                                <Activity size={20} style={{ margin: "0 auto 8px", color: "#cbd5e1" }} />
+                                <p style={{ fontSize: "12px", margin: 0 }}>No detailed evidence available.</p>
                             </div>
                         ) : (
                             <EvidenceTable insight={insight} activePlatform={activePlatform} />
@@ -679,17 +1040,16 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                     </div>
                 </div>
 
-                {/* Inline AI Panel Drawer */}
+                {/* AI Panel Drawer */}
                 <AnimatePresence>
                     {showAIPanel && <AIInsightsPanel insight={insight} onClose={onCloseAIPanel} />}
                 </AnimatePresence>
-
             </DialogContent>
         </Dialog>
     );
 };
 
-// ─── MAIN PAGE COMPONENT ──────────────────────────────────────────────────────
+// ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 const InsightsSignalHub = () => {
     const { refreshFilters, maxDate } = useContext(FilterContext);
@@ -735,12 +1095,10 @@ const InsightsSignalHub = () => {
                 const data = await fetchInsights(apiPayload);
                 const apiResponseList = data?.success && Array.isArray(data?.data) ? data.data : [];
                 const apiBrandName = apiResponseList.find((i) => i.brandName)?.brandName || "Brand";
-
                 const enforcedInsights = REQUIRED_SIGNAL_TYPES.map((requiredType) => {
                     const found = apiResponseList.find((item) => item.type === requiredType);
                     return found ? found : createEmptySignal(requiredType, apiBrandName);
                 });
-
                 setFetchedInsights(enforcedInsights);
             } catch (err) {
                 console.error("Fetch error:", err);
@@ -796,70 +1154,238 @@ const InsightsSignalHub = () => {
 
     return (
         <CommonContainer title={null} filters={filters} onFiltersChange={setFilters} hideFilters>
-            <div className="bg-slate-50 min-h-screen text-slate-900 pb-10">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
+                @keyframes betaPulse {
+                    0%, 100% { box-shadow: 0 0 8px rgba(99,102,241,0.4); }
+                    50% { box-shadow: 0 0 16px rgba(99,102,241,0.7); }
+                }
+                @keyframes blink {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.15; }
+                }
+                @keyframes dot-pulse {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.6; transform: scale(0.8); }
+                }
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                @keyframes fadeSlideIn {
+                    from { opacity: 0; transform: translateY(12px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+                .signal-card-enter {
+                    animation: fadeSlideIn 0.4s ease forwards;
+                }
+                .ai-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 6px 13px;
+                    font-size: 11px;
+                    font-weight: 700;
+                    color: #fff;
+                    background: #3a3f4d;
+                    border: 1px solid #4a5060;
+                    border-radius: 0;
+                    cursor: pointer;
+                    letter-spacing: 0.04em;
+                    text-transform: uppercase;
+                    transition: background 0.18s ease, border-color 0.18s ease;
+                }
+                .ai-btn:hover {
+                    background: #282c38;
+                    border-color: #5a6070;
+                }
+            `}</style>
 
-                    {/* Header Strip */}
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-slate-200 pb-4 mb-5">
-                        <div>
-                            <h1 className="text-[20px] font-semibold text-slate-900 mb-1 tracking-tight">AI Insights</h1>
-                            <p className="text-[12px] text-slate-500">Anomaly detection & opportunity tracking</p>
-                        </div>
-                        {!loading && (
-                            <div className="flex items-center gap-6">
-                                <div className="flex flex-col text-right">
-                                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest mb-0.5">Total Opportunity</span>
-                                    <span className="text-[16px] font-semibold text-slate-900">{formatINRCompact(totalImpact)}</span>
-                                </div>
-                                <div className="h-8 w-px bg-slate-300"></div>
-                                <div className="flex flex-col text-right">
-                                    <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest mb-0.5">Active Signals</span>
-                                    <span className="text-[16px] font-semibold text-slate-900">{activeSignals}</span>
+            <div style={{
+                background: "linear-gradient(180deg, #f0f7ff 0%, #f8fafc 100%)",
+                minHeight: "100vh",
+                fontFamily: "'DM Sans', system-ui, sans-serif",
+                paddingBottom: "40px",
+            }}>
+                <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "24px 16px" }}>
+
+                    {/* ── Page Header ────────────────────────────────────── */}
+                    <div style={{
+                        display: "flex", flexDirection: "column", gap: "4px",
+                        marginBottom: "24px",
+                    }}>
+                        {/* Title row */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "16px" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                    <div style={{
+                                        width: 36, height: 36, borderRadius: "10px",
+                                        background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)",
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        boxShadow: "0 4px 12px rgba(59,130,246,0.3)",
+                                    }}>
+                                        <Signal size={18} color="#fff" />
+                                    </div>
+                                    <div>
+                                        <h1 style={{
+                                            fontSize: "22px", fontWeight: 900, color: "#0f172a",
+                                            margin: 0, letterSpacing: "-0.03em",
+                                            display: "flex", alignItems: "center", gap: "10px",
+                                        }}>
+                                            AI Signal Insights
+                                            <BetaBadge />
+                                        </h1>
+                                        <p style={{ fontSize: "12px", color: "#64748b", margin: 0, marginTop: "2px" }}>
+                                            Anomaly detection & opportunity tracking across your retail landscape
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        )}
+
+                            {/* Stats pills */}
+                            {!loading && (
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                    <div style={{
+                                        background: "#fff",
+                                        border: "1px solid #bfdbfe",
+                                        borderRadius: "10px",
+                                        padding: "10px 16px",
+                                        textAlign: "right",
+                                        boxShadow: "0 2px 8px rgba(59,130,246,0.08)",
+                                    }}>
+                                        <div style={{ fontSize: "9px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" }}>
+                                            Total Opportunity
+                                        </div>
+                                        <div style={{ fontSize: "18px", fontWeight: 900, color: "#0f172a", letterSpacing: "-0.03em" }}>
+                                            {formatINRCompact(totalImpact)}
+                                        </div>
+                                    </div>
+                                    <div style={{
+                                        background: "#fff",
+                                        border: "1px solid #bfdbfe",
+                                        borderRadius: "10px",
+                                        padding: "10px 16px",
+                                        textAlign: "right",
+                                        boxShadow: "0 2px 8px rgba(59,130,246,0.08)",
+                                    }}>
+                                        <div style={{ fontSize: "9px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" }}>
+                                            Live Signals
+                                        </div>
+                                        <div style={{ fontSize: "18px", fontWeight: 900, color: "#2563eb", letterSpacing: "-0.03em" }}>
+                                            {activeSignals}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Compact Filter Bar */}
-                    <div className="bg-white p-3 rounded-sm border border-slate-200 flex flex-col md:flex-row flex-wrap gap-3 items-end mb-6 shadow-sm">
-                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 self-center hidden lg:flex mr-2">
-                            <Filter className="h-3.5 w-3.5" /> Filters
+                    {/* ── Filter Bar ─────────────────────────────────────── */}
+                    <div style={{
+                        background: "#fff",
+                        border: "1px solid #bfdbfe",
+                        borderRadius: "12px",
+                        padding: "12px 16px",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "12px",
+                        alignItems: "flex-end",
+                        marginBottom: "24px",
+                        boxShadow: "0 2px 12px rgba(59,130,246,0.06)",
+                    }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#94a3b8", alignSelf: "center" }}>
+                            <Filter size={13} />
+                            <span style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Filters</span>
                         </div>
-                        <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
                             <CustomHeaderDropdown label="SIGNAL" options={slicerOptions.types} value={typeFilter} onChange={(v) => setTypeFilter(v === "All" ? "All signals" : v)} multiSelect={false} />
                             <CustomHeaderDropdown label="GEOGRAPHY" options={slicerOptions.cities} value={cityFilter} onChange={(v) => setCityFilter(v === "All" ? "All cities" : v)} multiSelect={false} />
                             <CustomHeaderDropdown label="CATEGORY" options={slicerOptions.categories} value={categoryFilter} onChange={(v) => setCategoryFilter(v === "All" ? "All categories" : v)} multiSelect={false} />
                             <CustomHeaderDropdown label="CHANNEL" options={slicerOptions.platforms} value={platformFilter} onChange={(v) => setPlatformFilter(v === "All" ? "All platforms" : v)} multiSelect={false} />
                         </div>
-                        <div className="w-full md:w-auto md:ml-2 flex-shrink-0">
-                            <Typography sx={{ fontSize: "0.65rem", fontWeight: 600, mb: 0.5, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>TIME PERIOD</Typography>
-                            <DateRangeComparePicker timeStart={startDate} timeEnd={endDate} compareStart={null} compareEnd={null} maxDate={maxDate || dayjs()} onApply={(s, e) => { setStartDate(s); setEndDate(e); }} />
+                        <div style={{ flexShrink: 0 }}>
+                            <Typography sx={{ fontSize: "0.6rem", fontWeight: 700, mb: 0.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>TIME PERIOD</Typography>
+                            <DateRangeComparePicker
+                                timeStart={startDate} timeEnd={endDate}
+                                compareStart={null} compareEnd={null}
+                                maxDate={maxDate || dayjs()}
+                                onApply={(s, e) => { setStartDate(s); setEndDate(e); }}
+                            />
                         </div>
                     </div>
 
-                    {/* Content Grid */}
+                    {/* ── Signal Grid ─────────────────────────────────────── */}
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center py-24 bg-white border border-slate-200 rounded-sm">
-                            <Loader2 className="h-6 w-6 animate-spin text-slate-400 mb-3" />
-                            <div className="text-[12px] text-slate-500">Scanning analytics...</div>
+                        <div style={{
+                            display: "flex", flexDirection: "column", alignItems: "center",
+                            justifyContent: "center", padding: "80px 0",
+                            background: "#fff", border: "1px solid #bfdbfe",
+                            borderRadius: "12px",
+                            boxShadow: "0 2px 12px rgba(59,130,246,0.06)",
+                        }}>
+                            <div style={{
+                                width: 40, height: 40, borderRadius: "10px",
+                                background: "linear-gradient(135deg, #3b82f6, #6366f1)",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                marginBottom: "12px",
+                            }}>
+                                <Loader2 size={20} color="#fff" style={{ animation: "spin 1s linear infinite" }} />
+                            </div>
+                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#1e3a5f", marginBottom: "4px" }}>
+                                Scanning analytics signals...
+                            </div>
+                            <div style={{ fontSize: "11px", color: "#94a3b8" }}>
+                                Powered by AI <BetaBadge size="xs" />
+                            </div>
                         </div>
                     ) : filteredInsights.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-24 bg-white border border-slate-200 rounded-sm">
-                            <Radar className="h-8 w-8 text-slate-300 mb-3" />
-                            <h3 className="text-[13px] font-semibold text-slate-900 mb-1">No signals detected</h3>
-                            <p className="text-[11px] text-slate-500">Adjust filters to broaden scope.</p>
+                        <div style={{
+                            display: "flex", flexDirection: "column", alignItems: "center",
+                            justifyContent: "center", padding: "80px 0",
+                            background: "#fff", border: "1px dashed #bfdbfe",
+                            borderRadius: "12px",
+                        }}>
+                            <Radar size={28} color="#bfdbfe" style={{ marginBottom: "10px" }} />
+                            <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#1e3a5f", marginBottom: "4px" }}>
+                                No signals detected
+                            </h3>
+                            <p style={{ fontSize: "12px", color: "#94a3b8" }}>Adjust filters to broaden scope.</p>
                         </div>
                     ) : (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+                            gap: "16px",
+                            alignItems: "stretch",
+                        }}>
                             {filteredInsights.map((ins, idx) => (
-                                <OverviewSignalCard key={ins.id} insight={ins} isSelected={selectedId === ins.id && dialogOpen} onClick={() => handleCardClick(ins.id)} />
+                                <motion.div
+                                    key={ins.id}
+                                    initial={{ opacity: 0, y: 16 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.05, duration: 0.35, ease: "easeOut" }}
+                                >
+                                    <OverviewSignalCard
+                                        insight={ins}
+                                        isSelected={selectedId === ins.id && dialogOpen}
+                                        onClick={() => handleCardClick(ins.id)}
+                                    />
+                                </motion.div>
                             ))}
                         </div>
                     )}
 
-                    <DrillDownModal insight={selected} open={dialogOpen} onClose={handleClose} onAI={() => setShowAIPanel(true)} showAIPanel={showAIPanel} onCloseAIPanel={() => setShowAIPanel(false)} />
                 </div>
             </div>
+
+            <DrillDownModal
+                insight={selected}
+                open={dialogOpen}
+                onClose={handleClose}
+                onAI={() => setShowAIPanel(true)}
+                showAIPanel={showAIPanel}
+                onCloseAIPanel={() => setShowAIPanel(false)}
+            />
         </CommonContainer>
     );
 };
