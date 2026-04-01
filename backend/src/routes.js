@@ -12,6 +12,7 @@ import sales from './routes/sales.js';
 import inventoryAnalysis from './routes/inventoryAnalysis.js';
 import reports from './routes/reports.js';
 import mapIntellect from './routes/mapIntellect.js';
+import insights from './routes/insights.js';
 
 export default (app) => {
     // Control Tower routes
@@ -56,4 +57,7 @@ export default (app) => {
 
     // Map Intellect routes
     mapIntellect(app);
+
+    // Insights routes
+    insights(app);
 };

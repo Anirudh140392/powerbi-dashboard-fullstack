@@ -11,6 +11,7 @@ export default function CommonContainer({
   title,
   filters,
   onFiltersChange,
+  hideFilters = false,
   children,
 }) {
   const { platforms } = React.useContext(FilterContext);
@@ -99,6 +100,7 @@ function CommonLayoutContent({
           onMenuClick={() => setMobileMenuOpen(true)}
           filters={filters}
           onFiltersChange={onFiltersChange}
+          hideFilters={hideFilters}
           sx={{
             overflowX: "hidden", // <-- prevents header small horizontal shift
           }}
