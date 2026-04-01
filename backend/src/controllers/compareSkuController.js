@@ -50,6 +50,7 @@ export const getCompareSkuMetrics = async (req, res) => {
     try {
         const filters = {
             skuNames: req.query.skuNames || req.query['skuNames[]'],
+            skuPlatforms: req.query.skuPlatforms || req.query['skuPlatforms[]'],
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             months: req.query.months || 1,
@@ -73,6 +74,7 @@ export const getCompareSkuTrend = async (req, res) => {
             endDate: req.query.endDate,
             metricId: req.query.metricId,
             skuNames: req.query.skuNames || req.query['skuNames[]'],
+            skuPlatforms: req.query.skuPlatforms || req.query['skuPlatforms[]'],
             platforms: req.query.platforms || req.query['platforms[]'],
             brands: req.query.brands || req.query['brands[]'],
             categories: req.query.categories || req.query['categories[]'],

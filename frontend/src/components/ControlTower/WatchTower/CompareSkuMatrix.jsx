@@ -52,7 +52,7 @@ const CompareSkuMatrix = ({ onClose }) => {
         skus: [],
         dateFrom: null,
         dateTo: null,
-        kpis: ['offtakes', 'availability', 'spend', 'conversion', 'marketShare', 'categorySize'],
+        kpis: ['offtakes', 'availability', 'shareOfVolume', 'ad_sov', 'organic_sos', 'spend', 'conversion', 'marketShare', 'categorySize'],
     });
     
     // Full metrics list — sections and KPI items
@@ -62,8 +62,9 @@ const CompareSkuMatrix = ({ onClose }) => {
         { id: 'availability', label: 'Availability', type: 'section' },
         { id: 'ds_listing', label: 'DS Listing%', section: 'availability', kpiKey: 'availability' },
         { id: 'visibility', label: 'Visibility', type: 'section' },
-        { id: 'overall_sov', label: 'Overall SOV', section: 'visibility', kpiKey: 'shareOfVolume' },
-        { id: 'ad_sov', label: 'Ad. SOV', section: 'visibility', kpiKey: 'ad_sov' },
+        { id: 'overall_sov', label: 'Overall SOS', section: 'visibility', kpiKey: 'shareOfVolume' },
+        { id: 'ad_sov', label: 'Ad. SOS', section: 'visibility', kpiKey: 'ad_sov' },
+        { id: 'organic_sos', label: 'Organic SOS', section: 'visibility', kpiKey: 'organic_sos' },
         { id: 'discounting', label: 'Discounting', type: 'section' },
         { id: 'wt_discount', label: 'Wt. Discount%', section: 'discounting', kpiKey: 'discounting' },
         { id: 'wt_ppu', label: 'Wt. PPU(x100)', section: 'discounting', kpiKey: 'ppu' },
@@ -166,13 +167,14 @@ const CompareSkuMatrix = ({ onClose }) => {
     }, []);
 
     // Fetch metrics for SKUs when date or filters change
-    const fetchSkuMetrics = useCallback(async (skuNames) => {
+    const fetchSkuMetrics = useCallback(async (skuNames, skuPlatforms = []) => {
         if (!skuNames || skuNames.length === 0) return {};
         try {
             setIsLoadingMetrics(true);
             setMetricsError(false);
             const params = new URLSearchParams();
             skuNames.forEach(name => params.append('skuNames[]', name));
+            if (skuPlatforms.length > 0) skuPlatforms.forEach(p => params.append('skuPlatforms[]', p || ''));
             params.set('startDate', startDate.format('YYYY-MM-DD'));
             params.set('endDate', endDate.format('YYYY-MM-DD'));
             if (appliedFilters.platforms?.length) appliedFilters.platforms.forEach(p => params.append('platforms[]', p));
@@ -198,7 +200,8 @@ const CompareSkuMatrix = ({ onClose }) => {
         
         const updateMetrics = async () => {
             const skuNames = skus.map(s => s.name);
-            const metricsData = await fetchSkuMetrics(skuNames);
+            const skuPlatforms = skus.map(s => s.platform || '');
+            const metricsData = await fetchSkuMetrics(skuNames, skuPlatforms);
             if (!isMounted) return;
             
             const metricsMap = new Map((metricsData?.skus || []).map(s => [s.name, s.metrics]));
@@ -213,6 +216,7 @@ const CompareSkuMatrix = ({ onClose }) => {
                         ds_listing: dbMetrics.ds_listing || dbMetrics.availability || { value: '--', delta: 0, deltaAbs: '0' },
                         overall_sov: dbMetrics.overall_sov || { value: '--', delta: 0, deltaAbs: '0' },
                         ad_sov: dbMetrics.ad_sov || { value: '--', delta: 0, deltaAbs: '0' },
+                        organic_sos: dbMetrics.organic_sos || { value: '--', delta: 0, deltaAbs: '0' },
                         wt_discount: dbMetrics.wt_discount || { value: '--', delta: 0, deltaAbs: '0' },
                         wt_ppu: dbMetrics.wt_ppu || { value: '--', delta: 0, deltaAbs: '0' },
                         spend: dbMetrics.spend || { value: '--', delta: 0, deltaAbs: '0' },
@@ -271,7 +275,8 @@ const CompareSkuMatrix = ({ onClose }) => {
                     brands: appliedFilters.brands,
                     categories: appliedFilters.categories,
                     locations: appliedFilters.locations,
-                    skuNames: skus.map(s => s.name)
+                    skuNames: skus.map(s => s.name),
+                    skuPlatforms: skus.map(s => s.platform || '')
                 }
             });
             
@@ -294,7 +299,8 @@ const CompareSkuMatrix = ({ onClose }) => {
 
     const handleAddNewSkus = async (products) => {
         const skuNames = products.map(p => p.name);
-        const metricsData = await fetchSkuMetrics(skuNames);
+        const skuPlatforms = products.map(p => p.platform || '');
+        const metricsData = await fetchSkuMetrics(skuNames, skuPlatforms);
         const metricsMap = new Map((metricsData?.skus || []).map(s => [s.name, s.metrics]));
 
         const newSkus = products.map((product, idx) => {
@@ -312,6 +318,7 @@ const CompareSkuMatrix = ({ onClose }) => {
                     ds_listing: dbMetrics.ds_listing || dbMetrics.availability || { value: '--', delta: 0, deltaAbs: '0' },
                     overall_sov: dbMetrics.overall_sov || { value: '--', delta: 0, deltaAbs: '0' },
                     ad_sov: dbMetrics.ad_sov || { value: '--', delta: 0, deltaAbs: '0' },
+                    organic_sos: dbMetrics.organic_sos || { value: '--', delta: 0, deltaAbs: '0' },
                     wt_discount: dbMetrics.wt_discount || { value: '--', delta: 0, deltaAbs: '0' },
                     wt_ppu: dbMetrics.wt_ppu || { value: '--', delta: 0, deltaAbs: '0' },
                     spend: dbMetrics.spend || { value: '--', delta: 0, deltaAbs: '0' },
@@ -912,7 +919,7 @@ const CompareSkuMatrix = ({ onClose }) => {
                     }
                     // Re-fetch metrics for existing SKUs with new filters
                     if (skus.length > 0) {
-                        fetchSkuMetrics(skus.map(s => s.name)).then(metricsData => {
+                        fetchSkuMetrics(skus.map(s => s.name), skus.map(s => s.platform || '')).then(metricsData => {
                             const metricsMap = new Map((metricsData?.skus || []).map(s => [s.name, s.metrics]));
                             setSkus(prev => prev.map(sku => {
                                 const dbMetrics = metricsMap.get(sku.name) || {};

@@ -344,14 +344,6 @@ export default function CompareSkuFilterModal({ isOpen, onClose, filters, onAppl
                                             placeholder="All Categories"
                                         />
                                         <CskuMultiSelectDropdown
-                                            label="Platform"
-                                            icon={Monitor}
-                                            options={platforms && platforms.length ? platforms : []}
-                                            selected={localFilters.platforms}
-                                            onChange={(val) => updateFilter('platforms', val)}
-                                            placeholder="All Platforms"
-                                        />
-                                        <CskuMultiSelectDropdown
                                             label="Location"
                                             icon={MapPin}
                                             options={locations && locations.length ? locations : []}
