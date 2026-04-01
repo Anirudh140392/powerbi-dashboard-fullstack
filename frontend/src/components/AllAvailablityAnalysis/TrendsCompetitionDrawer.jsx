@@ -636,6 +636,7 @@ export default function TrendsCompetitionDrawer({
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
@@ -659,6 +660,7 @@ export default function TrendsCompetitionDrawer({
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         const response = await axiosInstance.get('/market-share/trends', { params });
@@ -682,6 +684,7 @@ export default function TrendsCompetitionDrawer({
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           ownBrandsOnly: 'true'
         };
 
@@ -706,6 +709,7 @@ export default function TrendsCompetitionDrawer({
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
@@ -2158,7 +2162,11 @@ export default function TrendsCompetitionDrawer({
           />
           <SelectedFilterChip
             label="SKU"
-            value={drawerFilters.SKU}
+            value={
+              drawerFilters.SKU !== 'All' && typeof drawerFilters.SKU === 'string' && drawerFilters.SKU.split(' ').length > 4
+                ? drawerFilters.SKU.split(' ').slice(0, 4).join(' ') + ' ...'
+                : drawerFilters.SKU
+            }
             color={drawerFilters.SKU !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
@@ -2188,42 +2196,60 @@ export default function TrendsCompetitionDrawer({
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
             {/* HEADER + PLATFORM FILTER */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-              {/* Title */}
-              <Typography variant="h6" fontWeight={600}>
-                {selectedColumn || "KPI Trends"}
-              </Typography>
-
-              {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1} sx={{ flex: 1, minWidth: 0, pr: 2 }}>
-                <Select
-                  size="small"
-                  value={allTrendMeta.context.audience}
-                  onChange={handleAudienceChange}
-                  sx={{
-                    width: 160,
-                    height: 38,
-                    backgroundColor: "#F8FAFC",
-                    borderRadius: "8px",
-                    fontSize: "0.85rem",
-                    fontWeight: 500,
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#E2E8F0",
-                    },
-                    "&:hover .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#CBD5E1",
-                    },
-                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#3B82F6",
-                    },
+            {/* HEADER + PLATFORM FILTER */}
+            <Box display="flex" flexDirection="column" gap={2}>
+              {/* Title Block */}
+              <Box>
+                <Typography 
+                  variant="h6" 
+                  fontWeight={800} 
+                  sx={{ 
+                    fontSize: '1.25rem', 
+                    color: '#0f172a',
+                    lineHeight: 1.2,
+                    letterSpacing: '-0.02em'
                   }}
                 >
-                  <MenuItem value="Platform">Platform</MenuItem>
-                  <MenuItem value="Format">Format</MenuItem>
-                  <MenuItem value="Brand">Brand</MenuItem>
-                  <MenuItem value="City">City</MenuItem>
-                  <MenuItem value="SKU">SKU</MenuItem>
-                </Select>
+                  {selectedColumn || "KPI Trends"}
+                </Typography>
+              </Box>
+              
+              {/* Filter Row: Audience Select + Pill Container */}
+              <Box display="flex" alignItems="center" gap={1.5} sx={{ minWidth: 0, mb: 1 }}>
+                {/* Audience Selection Dropdown */}
+                <Box sx={{ flexShrink: 0 }}>
+                  <Select
+                    size="small"
+                    value={allTrendMeta.context.audience}
+                    onChange={handleAudienceChange}
+                    sx={{
+                      width: 140,
+                      height: 36,
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "10px",
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      color: "#475569",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#e2e8f0",
+                        borderWidth: '1.5px'
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#cbd5e1",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#3b82f6",
+                      },
+                    }}
+                  >
+                    <MenuItem value="Platform">Platform</MenuItem>
+                    <MenuItem value="Format">Format</MenuItem>
+                    <MenuItem value="Brand">Brand</MenuItem>
+                    <MenuItem value="City">City</MenuItem>
+                    <MenuItem value="SKU">SKU</MenuItem>
+                  </Select>
+                </Box>
+
 
 
                 {/* DYNAMIC PILLS */}

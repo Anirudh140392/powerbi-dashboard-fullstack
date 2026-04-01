@@ -525,10 +525,11 @@ export default function WatchTower() {
       Brands: "Brand",
       Category: "Format",
       Location: "City",
-      SKU: "Platform",
-      Skus: "Platform",
+      SKU: "SKU",
+      Skus: "SKU",
     };
     return mapping[level] || "Platform";
+
   }, [selectedTrendLevel]);
 
   return (
