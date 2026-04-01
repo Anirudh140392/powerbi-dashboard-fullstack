@@ -1371,6 +1371,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
             icon={LayoutGrid}
             chip="Absolute Basis"
             loading={isLoading}
+            helpMenu="Availability Analysis"
             headerRight={
               <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
                 vs Previous Period
