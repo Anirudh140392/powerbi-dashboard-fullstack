@@ -44,10 +44,12 @@ import {
   Category as CategoryIcon,
   Assessment as AssessmentIcon,
 } from "@mui/icons-material";
+import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { TimePicker } from "@mui/x-date-pickers/TimePicker";
 import dayjs from "dayjs";
 import React from "react";
+import { useHelp } from "../../utils/HelpContext";
 import PaginationFooter from "@/components/CommonLayout/PaginationFooter";
 
 export const ScheduledReport = ({
@@ -72,6 +74,7 @@ export const ScheduledReport = ({
   scheduleSuccess,
   setScheduleSuccess,
 }) => {
+  const { toggleHelp } = useHelp();
   // Modal state
   const [scheduleModalOpen, setScheduleModalOpen] = React.useState(false);
 
@@ -252,6 +255,40 @@ export const ScheduledReport = ({
               business metrics.
             </Typography>
           </Box>
+          <IconButton 
+            onClick={toggleHelp}
+            size="small"
+            sx={{ 
+                bgcolor: "rgba(37, 99, 235, 0.05)",
+                color: "#2563eb",
+                "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
+                border: "1px solid rgba(37, 99, 235, 0.1)",
+                ml: "auto",
+                mt: { xs: 0, sm: 1 },
+                width: 32,
+                height: 32,
+                animation: "pulseGlow 2s infinite",
+                "@keyframes pulseGlow": {
+                    "0%": {
+                        boxShadow: "0 0 0 0 rgba(37, 99, 235, 0.4)",
+                        borderColor: "rgba(37, 99, 235, 0.2)",
+                        color: "#2563eb"
+                    },
+                    "50%": {
+                        boxShadow: "0 0 0 10px rgba(37, 99, 235, 0)",
+                        borderColor: "rgba(37, 99, 235, 0.6)",
+                        color: "#1d4ed8"
+                    },
+                    "100%": {
+                        boxShadow: "0 0 0 0 rgba(37, 99, 235, 0)",
+                        borderColor: "rgba(37, 99, 235, 0.2)",
+                        color: "#2563eb"
+                    }
+                }
+            }}
+          >
+            <HelpIcon sx={{ fontSize: "1.2rem" }} />
+          </IconButton>
         </Box>
 
         {/* Filters Section */}

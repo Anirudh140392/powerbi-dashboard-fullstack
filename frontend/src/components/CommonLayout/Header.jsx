@@ -227,6 +227,7 @@ const Header = ({ title = "Business Overview", onMenuClick }) => {
               </Box>
             </Box>
           </Box>
+
         </Box>
 
         {/* FILTERS CONTAINER */}
