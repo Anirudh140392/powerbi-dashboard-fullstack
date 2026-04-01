@@ -1,6 +1,15 @@
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
+const ALLOWED_CITIES = ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'];
+const ALLOWED_CITIES_LOWER = ALLOWED_CITIES.map(c => c.toLowerCase());
+const ALLOWED_CITIES_SQL = ALLOWED_CITIES.map(c => `'${c}'`).join(', ');
+
+const isAllowedCity = (city) => {
+    if (!city || city === '-') return false;
+    return ALLOWED_CITIES_LOWER.includes(String(city).toLowerCase());
+};
+
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 
 const buildCHCondition = (value, column, options = {}) => {
@@ -101,27 +110,77 @@ export const getInsightsData = async (filters) => {
 
     // -------------------------------------------------------------------------
     // QUERY 2 — PRICING (powers: Price Parity Radar)
+    // PPU = Selling_Price / Weight * 10  for both our brand and competitor
+    // GAP % = (our PPU - comp PPU) / comp PPU * 100
+    // Weight column contains strings like "30 g", "200 g" — strip non-numeric chars
     // -------------------------------------------------------------------------
+    const weightExpr = "toFloat64OrZero(replaceRegexpAll(toString(Weight), '[^0-9.]', ''))";
     const pricingQuery = `
+        WITH our_brand AS (
+            SELECT 
+                Location AS city,
+                ${catField} AS category,
+                ROUND(
+                    AVG(
+                        toFloat64OrZero(toString(Selling_Price)) /
+                        nullIf(${weightExpr}, 0) * 10
+                    ),
+                2) AS our_ppu,
+                argMax(Product, toFloat64OrZero(toString(Sales))) AS impacted_sku,
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS our_sales,
+                SUM(toFloat64OrZero(toString(neno_osa))) AS our_neno,
+                SUM(toFloat64OrZero(toString(deno_osa))) AS our_deno
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+              AND Comp_flag IN (0, '0')
+              AND ${weightExpr} > 0
+              AND toFloat64OrZero(toString(Selling_Price)) > 0
+              AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
+              AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
+              AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
+            GROUP BY city, category
+        ),
+        comp_brand AS (
+            SELECT 
+                Location AS city,
+                ${catField} AS category,
+                ROUND(
+                    AVG(
+                        toFloat64OrZero(toString(Selling_Price)) /
+                        nullIf(${weightExpr}, 0) * 10
+                    ),
+                2) AS comp_ppu,
+                argMax(toString(Product), toFloat64OrZero(toString(Selling_Price))) AS comp_sku
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+              AND Comp_flag IN (1, '1')
+              AND ${weightExpr} > 0
+              AND toFloat64OrZero(toString(Selling_Price)) > 0
+              AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
+              AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
+              AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
+            GROUP BY city, category
+        )
         SELECT 
-            Location AS city,
-            Platform AS platform,
-            ${catField} AS category,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)), 0) AS kw_ppu,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) * 1.05, 0) AS peer_ppu,
+            o.city,
+            o.category,
+            o.our_ppu       AS ourPpu,
+            c.comp_ppu      AS compPpu,
+            o.impacted_sku  AS impactedSku,
+            c.comp_sku      AS compSku,
             ROUND(
-                (AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) /
-                nullIf(AVG(ifNull(toFloat64OrZero(toString(Selling_Price)), 0)) * 1.05, 0)) * 100,
-            1) AS price_index,
-            SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS total_sales
-        FROM rb_pdp_olap
-        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-          AND Comp_flag IN (0, '0')
-          AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-          AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
-          AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-        GROUP BY city, platform, category
-        LIMIT 5
+                (o.our_ppu - c.comp_ppu) / nullIf(c.comp_ppu, 0) * 100,
+            2) AS gapPct,
+            ROUND(
+                o.our_sales * (
+                    (100.0 / nullIf(ROUND(o.our_neno * 100.0 / nullIf(o.our_deno, 0), 2), 0)) - 1
+                ),
+            0) AS psl,
+            o.our_sales     AS totalSales
+        FROM our_brand o
+        JOIN comp_brand c ON o.city = c.city AND o.category = c.category
+        WHERE c.comp_ppu > 0
+        ORDER BY gapPct DESC
     `;
 
     // -------------------------------------------------------------------------
@@ -900,8 +959,9 @@ export const getInsightsData = async (filters) => {
             });
 
             // 2. Sort by most negative offtakeDelta (highest money loss) and slice top 3
+            // Also filter to only allowed cities
             let evidence = lossRecords
-                .filter(r => r.city !== '-' && String(r.city).toLowerCase() !== 'other' && (r.headroomInr > 0 || r.offtake > 0))
+                .filter(r => r.city !== '-' && String(r.city).toLowerCase() !== 'other' && isAllowedCity(r.city) && (r.headroomInr > 0 || r.offtake > 0))
                 .sort((a, b) => a.offtakeDelta - b.offtakeDelta)
                 .slice(0, 3);
 
@@ -947,41 +1007,35 @@ export const getInsightsData = async (filters) => {
         // SIGNAL 2 — Price Parity Radar
         // ---------------------------------------------------------------------
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Price Parity Radar') {
-            const hasData = priceData.length > 0;
-            const price = hasData ? priceData[0] : { price_index: 0, kw_ppu: 0 };
+            // Filter to only allowed cities
+            const cityFilteredPriceData = (priceData || []).filter(p => isAllowedCity(p.city));
+            const hasData = cityFilteredPriceData.length > 0;
+            const topRow = hasData ? cityFilteredPriceData[0] : { gapPct: 0, ourPpu: 0, compPpu: 0 };
 
-            const evidence = hasData ? priceData.map(p => {
-                const gap = Math.max(0, Number(p.price_index) - 100);
-                const headroom = gap > 0
-                    ? (Number(p.total_sales) * gap / 100)
-                    : (Number(p.total_sales) * 0.05); // Default 5% impact if listed
+            const evidence = hasData ? cityFilteredPriceData.slice(0, 5).map(p => ({
+                city: p.city,
+                category: p.category,
+                ourPpu: Number(p.ourPpu) || 0,
+                compPpu: Number(p.compPpu) || 0,
+                impactedSku: p.impactedSku || '-',
+                compSku: p.compSku || '-',
+                gapPct: Number(p.gapPct) || 0,
+                psl: Number(p.psl) || 0,
+            })) : [{ city: '-', category: '-', ourPpu: 0, compPpu: 0, impactedSku: '-', compSku: '-', gapPct: 0, psl: 0 }];
 
-                return {
-                    city: p.city,
-                    platform: p.platform,
-                    category: p.category,
-                    clusterName: "Premium Segment",
-                    kwPpu: p.kw_ppu,
-                    peerPpu: p.peer_ppu,
-                    priceIndex: p.price_index,
-                    clusterContributionPct: 25.4,
-                    clusterGrowthPct: 12.1,
-                    headroomInr: Math.round(headroom),
-                };
-            }) : [{ city: '-', platform: '-', category: '-', clusterName: '-', kwPpu: 0, peerPpu: 0, priceIndex: 0, clusterContributionPct: 0, clusterGrowthPct: 0, headroomInr: 0 }];
-
-            const totalImpact = hasData ? evidence.reduce((sum, e) => sum + (e.headroomInr || 0), 0) : 0;
+            const totalImpact = hasData ? evidence.reduce((sum, e) => sum + Math.abs(e.psl || 0), 0) : 0;
 
             let title2 = "No pricing anomalies detected";
             if (hasData) {
-                if (price.price_index > 115) {
-                    title2 = `Severe premium pricing (${price.price_index}% index); high conversion risk at ₹${price.kw_ppu}`;
-                } else if (price.price_index > 105) {
-                    title2 = `Premium pricing identified (${price.price_index}% index); potential conversion risk observed`;
-                } else if (price.price_index < 95) {
-                    title2 = `Discount pricing identified (${price.price_index}% index); potential margin leakage`;
+                const maxGap = Number(topRow.gapPct) || 0;
+                if (maxGap > 20) {
+                    title2 = `Severe price gap: ${brandLabel} PPU is ${maxGap.toFixed(1)}% above competitor in ${topRow.city}`;
+                } else if (maxGap > 10) {
+                    title2 = `Price gap of ${maxGap.toFixed(1)}% above competitor PPU detected; conversion risk in ${cityFilteredPriceData.length} city-category combos`;
+                } else if (maxGap < -10) {
+                    title2 = `${brandLabel} is priced ${Math.abs(maxGap).toFixed(1)}% below competitor; potential margin leakage`;
                 } else {
-                    title2 = "Pricing variations identified; potential conversion risk observed";
+                    title2 = "Price parity variations detected across city-category combinations";
                 }
             }
 
@@ -990,19 +1044,19 @@ export const getInsightsData = async (filters) => {
                 type: "Price Parity Radar",
                 title: title2,
                 family: "Pricing",
-                platforms: hasData ? [...new Set(priceData.map(p => p.platform))] : ["-"],
+                platforms: ["-"],
                 city: filters.city !== "All cities" ? filters.city : "Multi-city",
                 category: filters.category !== "All categories" ? filters.category : "Overall",
                 impactInr: totalImpact,
                 impactLabel: "Headroom",
                 brandName: brandLabel,
                 kpis: [
-                    { label: "Price index", value: String(price.price_index) },
-                    { label: `Avg ${brandLabel} PPU`, value: `₹${price.kw_ppu}` },
+                    { label: "Max GAP %", value: `${(Number(topRow.gapPct) || 0).toFixed(1)}%` },
+                    { label: `Avg ${brandLabel} PPU`, value: `₹${(Number(topRow.ourPpu) || 0).toFixed(1)}` },
                 ],
                 whatWeSee: hasData ? [
-                    `${brandLabel} sits above peer pricing in key fast-growing segments.`,
-                    "This directly correlates to a lower conversion rate vs competition.",
+                    `${brandLabel} PPU differs from competitor PPU across ${cityFilteredPriceData.length} city-category combinations.`,
+                    "Highest GAP % indicates where pricing intervention may be required.",
                 ] : ["-", "-"],
                 evidence,
             });
@@ -1050,7 +1104,7 @@ export const getInsightsData = async (filters) => {
                     "Current inventory levels are insufficient for the current sales velocity.",
                     "On-Shelf Availability (OSA) is falling below the acceptable 80% threshold.",
                 ] : ["-", "-"],
-                evidence: hasData ? replData.map(r => ({
+                evidence: hasData ? replData.filter(r => isAllowedCity(r.city)).map(r => ({
                     depotOrDb: "Local DC",
                     city: r.city,
                     platform: r.platform,
@@ -1163,7 +1217,7 @@ export const getInsightsData = async (filters) => {
                     `${worstCompetitor} is missing on key ${dominantCat} searches (${Number(worstRow.otherBrandOsa).toFixed(0)}% OSA), creating an easy share-grab window.`,
                     `${brandLabel} is in stock (${avgKwOsa.toFixed(0)}% OSA), so conversion is mostly limited by visibility, not supply.`,
                 ] : ["-", "-"],
-                evidence: hasData ? compData.map(c => ({
+                evidence: hasData ? compData.filter(c => isAllowedCity(c.city)).map(c => ({
                     category: c.category,
                     city: c.city,
                     platform: c.platform,
@@ -1214,7 +1268,7 @@ export const getInsightsData = async (filters) => {
                     "Ad budget is actively sending shoppers to listings that frequently show out-of-stock.",
                     "Fixing OSA before increasing bids would convert the existing spend far more efficiently.",
                 ] : ["-", "-"],
-                evidence: hasData ? adStockData.map(r => ({
+                evidence: hasData ? adStockData.filter(r => isAllowedCity(r.city)).map(r => ({
                     city: r.city,
                     platform: r.platform,
                     skuOrBrand: r.skuOrBrand,
@@ -1262,11 +1316,12 @@ export const getInsightsData = async (filters) => {
                     `${challengerData.length} new competitor SKU(s) entered your category within the selected window.`,
                     `The fastest-growing challenger (${top.skuOrBrand}) is already capturing ${Number(top.newItemShare).toFixed(1)}% organic share.`,
                 ] : ["-", "-"],
-                evidence: hasData ? challengerData.map(r => ({
+                evidence: hasData ? challengerData.filter(r => isAllowedCity(r.city)).map(r => ({
                     city: r.city,
                     platform: r.platform,
                     category: r.category,
                     skuOrBrand: r.skuOrBrand,
+                    productName: r.productName || r.skuOrBrand,
                     newItemShare: Number(r.newItemShare),
                     ppu: Number(r.ppu),
                     firstSeen: String(r.firstSeen),
@@ -1284,16 +1339,15 @@ export const getInsightsData = async (filters) => {
 
 export const getInsightsFilterOptions = async () => {
     try {
-        const [catData, prodData, locData] = await Promise.all([
+        const [catData, prodData] = await Promise.all([
             queryClickHouse("SELECT DISTINCT category FROM rca_sku_dim WHERE category != '' AND category IS NOT NULL ORDER BY category"),
             queryClickHouse("SELECT DISTINCT Product FROM rb_pdp_olap WHERE Product != '' AND Product IS NOT NULL ORDER BY Product LIMIT 200"),
-            queryClickHouse("SELECT DISTINCT location FROM rb_location_darkstore WHERE location != '' AND location IS NOT NULL ORDER BY location")
         ]);
 
         return {
             categories: catData.map(r => r.category),
             productLines: prodData.map(r => r.Product),
-            geographies: locData.map(r => r.location),
+            geographies: ALLOWED_CITIES,
         };
     } catch (e) {
         console.error("Error fetching insights filter options:", e);
