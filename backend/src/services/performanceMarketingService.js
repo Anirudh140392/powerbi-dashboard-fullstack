@@ -940,9 +940,9 @@ const performanceMarketingService = {
                     baseConditions.push(`${f.category} IN (${cats})`);
                 }
 
-                // Filter out null keyword_type
+                // Filter out null/empty keyword_type to prevent duplicate 'Generic' rows
                 const keywordTypeCol = r('keyword_type');
-                baseConditions.push(`${keywordTypeCol} IS NOT NULL`);
+                baseConditions.push(`${keywordTypeCol} IS NOT NULL AND trim(${keywordTypeCol}) != ''`);
 
                 // Weekend Flag filter
                 if (filters.weekendFlag) {
