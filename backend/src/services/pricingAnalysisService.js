@@ -951,7 +951,7 @@ const getDimensionOverview = async (filters = {}) => {
                         THEN ${f.wSellingPrice} 
                         ELSE NULL END) AS ASP,
                     SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                             AND ${brandCondition}
+                             AND p.${f.compFlag} = '0'
                         THEN ${f.wSales} 
                         ELSE 0 END) AS offtake,
                     
@@ -979,7 +979,7 @@ const getDimensionOverview = async (filters = {}) => {
                         THEN ${f.wSellingPrice} 
                         ELSE NULL END) AS asp_prev,
                     SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                             AND ${brandCondition}
+                             AND p.${f.compFlag} = '0'
                         THEN ${f.wSales} 
                         ELSE 0 END) AS offtake_prev
                 FROM ${src.table} p
@@ -1104,7 +1104,7 @@ const getDimensionTrends = async (filters = {}) => {
             ) AS rpi,
             
             AVG(CASE WHEN ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
-            SUM(CASE WHEN ${brandCondition} THEN ${f.wSales} ELSE 0 END) AS offtake
+            SUM(CASE WHEN p.${f.compFlag} = '0' THEN ${f.wSales} ELSE 0 END) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
         GROUP BY p.${f.date}

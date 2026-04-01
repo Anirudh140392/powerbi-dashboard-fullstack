@@ -467,7 +467,7 @@ export default function TrendsCompetitionDrawer({
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
-  const isEcom = selectedPlatform?.toLowerCase() === "amazon" || selectedPlatform?.toLowerCase() === "flipkart";
+  const isEcom = (typeof selectedPlatform === 'string' && (selectedPlatform.toLowerCase() === "amazon" || selectedPlatform.toLowerCase() === "flipkart"));
 
 
   // Drawer-specific filters for the Effective Filters bar
@@ -758,6 +758,15 @@ export default function TrendsCompetitionDrawer({
       setCompLoading(false);
     }
   }, [view, open, range, drawerFilters]);
+  
+  const handleRowTrendClick = useCallback((target, type) => {
+    setView("Trends");
+    if (type === 'brand') {
+      setDrawerFilters(prev => ({ ...prev, Brand: target, SKU: 'All' }));
+    } else if (type === 'sku') {
+      setDrawerFilters(prev => ({ ...prev, SKU: target }));
+    }
+  }, []);
 
   useEffect(() => {
     if (view !== "Competition" || !open) return;
@@ -2444,6 +2453,7 @@ export default function TrendsCompetitionDrawer({
                 filterOptions={filterOptions}
                 period={range}
                 timeStep={timeStep}
+                onTrendClick={handleRowTrendClick}
               />
             ) : dynamicKey === "availability" ? (
               <AvailabilityCompetitionKpiShowcase
