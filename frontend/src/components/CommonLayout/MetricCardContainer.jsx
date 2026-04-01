@@ -1,5 +1,7 @@
-import { Box, Card, Typography, Chip, Skeleton } from "@mui/material";
+import { Box, Card, Typography, Chip, Skeleton, IconButton } from "@mui/material";
+import { HelpOutline as HelpOutlineIcon } from "@mui/icons-material";
 import MetricCard from "./MetricCard";
+import { useHelp } from "../../utils/HelpContext";
 
 // Floating loader component - displays overlay while refreshing
 const FloatingLoader = ({ loading = false, label = "Updating..." }) => {
@@ -54,7 +56,8 @@ const FloatingLoader = ({ loading = false, label = "Updating..." }) => {
   );
 };
 
-export default function MetricCardContainer({ title = "Watchtower Overview", cards = [], loading = false, isLoading = false }) {
+export default function MetricCardContainer({ title = "Watchtower Overview", cards = [], loading = false, isLoading = false, helpMenu = null }) {
+  const { openHelpWithMenu } = useHelp();
   const scrollNeeded = cards.length > 5;
 
   // Show skeleton cards whenever loading is true
@@ -86,6 +89,41 @@ export default function MetricCardContainer({ title = "Watchtower Overview", car
             <Typography variant="h6" fontWeight={600}>{title}</Typography>
             <Chip label="All" size="small" variant="outlined" />
           </Box>
+
+          {helpMenu && (
+            <IconButton 
+              size="small" 
+              onClick={() => openHelpWithMenu(helpMenu)}
+              sx={{ 
+                bgcolor: "rgba(37, 99, 235, 0.05)",
+                color: "#2563eb",
+                "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
+                border: "1px solid rgba(37, 99, 235, 0.1)",
+                width: 32,
+                height: 32,
+                animation: "pulseGlow 2s infinite",
+                "@keyframes pulseGlow": {
+                  "0%": {
+                    boxShadow: "0 0 0 0 rgba(37, 99, 235, 0.4)",
+                    borderColor: "rgba(37, 99, 235, 0.2)",
+                    color: "#2563eb"
+                  },
+                  "50%": {
+                    boxShadow: "0 0 0 10px rgba(37, 99, 235, 0)",
+                    borderColor: "rgba(37, 99, 235, 0.6)",
+                    color: "#1d4ed8"
+                  },
+                  "100%": {
+                    boxShadow: "0 0 0 0 rgba(37, 99, 235, 0)",
+                    borderColor: "rgba(37, 99, 235, 0.2)",
+                    color: "#2563eb"
+                  }
+                }
+              }}
+            >
+              <HelpOutlineIcon sx={{ fontSize: "1.2rem" }} />
+            </IconButton>
+          )}
         </Box>
 
         {/* Cards Row - Show skeleton or actual cards */}

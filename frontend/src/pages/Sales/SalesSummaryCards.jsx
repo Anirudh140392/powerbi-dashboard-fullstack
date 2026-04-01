@@ -151,6 +151,7 @@ export default function SalesSummaryCards({ data, loading, startDate, endDate })
             title="Sales Overview"
             cards={cards}
             loading={loading}
+            helpMenu="Business Overview"
         />
     );
 }

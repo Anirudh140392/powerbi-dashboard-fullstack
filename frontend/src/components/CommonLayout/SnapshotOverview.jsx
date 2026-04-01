@@ -614,9 +614,10 @@ const SnapshotOverview = ({
     performanceLoading = false,
     loading = false,
     variant = "detailed", // 'watchtower' | 'detailed'
-    seed = "default"
+    seed = "default",
+    helpMenu = null
 }) => {
-    const { toggleHelp } = useHelp();
+    const { toggleHelp, openHelpWithMenu } = useHelp();
     // 🔹 Map and Reorganize Data for 5+4 layout
     const { topKpis, bottomKpis } = useMemo(() => {
         if (variant !== 'watchtower') return { topKpis: [], bottomKpis: [] };
@@ -793,7 +794,7 @@ const SnapshotOverview = ({
                         <div className="flex items-center gap-4">
                             {headerRight}
                             <IconButton 
-                                onClick={toggleHelp}
+                                onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
                                 size="small"
                                 sx={{ 
                                     bgcolor: "rgba(37, 99, 235, 0.05)",
@@ -904,7 +905,7 @@ const SnapshotOverview = ({
                     <div className="flex items-center gap-5">
                         {headerRight}
                         <IconButton 
-                            onClick={toggleHelp}
+                            onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
                             size="small"
                             sx={{ 
                                 bgcolor: "rgba(37, 99, 235, 0.05)",

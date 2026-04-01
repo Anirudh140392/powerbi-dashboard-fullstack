@@ -76,6 +76,7 @@ import PlatformOverviewNew from "@/components/ControlTower/WatchTower/PlatformOv
 import { AggregatedViewTable, PerformanceBreakdownProvider } from "@/components/ControlTower/WatchTower/PerformanceBreakdown";
 
 export default function WatchTower() {
+  const { toggleHelp, openHelpWithMenu } = useHelp();
   const [showTrends, setShowTrends] = useState(false);
   const [selectedTrendName, setSelectedTrendName] = useState("All");
   const [selectedTrendLevel, setSelectedTrendLevel] = useState("MRP");
@@ -547,6 +548,7 @@ export default function WatchTower() {
             variant="watchtower"
             seed={`${platform}-${selectedCategory}-${selectedBrand}`}
             loading={loading}
+            helpMenu="Business Overview"
             performanceData={dashboardData?.performanceMetricsKpis || []}
             performanceLoading={performanceLoading}
           />
@@ -700,7 +702,7 @@ export default function WatchTower() {
             />
           </Box> */}
 
-          <FormatPerformanceStudio rows={FORMAT_ROWS} loading={categoryDataLoading} />
+          <FormatPerformanceStudio rows={FORMAT_ROWS} loading={categoryDataLoading} openHelpWithMenu={openHelpWithMenu} />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -747,7 +749,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows, loading }) => {
+const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -1119,11 +1121,17 @@ const FormatPerformanceStudio = ({ rows, loading }) => {
                                   {k.format(k.compareValue)}
                                 </span>
                               )}
-                            <span className="font-medium">
-                              {Number.isFinite(k.activeValue)
-                                ? k.format(k.activeValue)
-                                : "NaN"}
-                            </span>
+                            <IconButton 
+                              onClick={() => openHelpWithMenu("India Overview")}
+                              size="small"
+                              sx={{ p: 0.5 }}
+                            >
+                              <span className="font-medium">
+                                {Number.isFinite(k.activeValue)
+                                  ? k.format(k.activeValue)
+                                  : "NaN"}
+                              </span>
+                            </IconButton>
                           </div>
                         </div>
                         <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">
