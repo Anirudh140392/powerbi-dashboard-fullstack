@@ -41,11 +41,18 @@ import {
 import { useHelp } from "../../utils/HelpContext";
 
 const HelpDrawer = ({ userDbName }) => {
-  const { helpDrawerOpen, closeHelp } = useHelp();
+  const { helpDrawerOpen, activeHelpMenu, closeHelp } = useHelp();
   const [activeTab, setActiveTab] = useState(0);
   const [activeMenu, setActiveMenu] = useState("Business Overview");
   const [expandedKpi, setExpandedKpi] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Sync with context's activeHelpMenu when opening
+  React.useEffect(() => {
+    if (helpDrawerOpen && activeHelpMenu) {
+      setActiveMenu(activeHelpMenu);
+    }
+  }, [helpDrawerOpen, activeHelpMenu]);
 
   const businessOverviewGlossary = [
     {
@@ -260,6 +267,129 @@ const HelpDrawer = ({ userDbName }) => {
     },
   ];
 
+  const availabilityAnalysisGlossary = [
+    {
+      kpi: "Stock Availability",
+      definition: "The proportion of stores or locations where a product is available for purchase at a given time.",
+      usage: "Identify distribution gaps.",
+      interpretation: "Higher availability → better reach.",
+      pitfalls: "Ignoring OOS vs not listed; denominator issues.",
+      example: "Available in 80 out of 100 stores → 80%.",
+      logic: "(Available Stores ÷ Total Stores) × 100",
+    },
+    {
+      kpi: "Days of Inventory (DOI)",
+      definition: "The number of days current inventory is expected to last based on the recent sales trend (last 30 days).",
+      usage: "Monitor inventory health and plan replenishment.",
+      interpretation: "Lower DOI indicates risk of stockout; higher DOI indicates excess inventory.",
+      pitfalls: "Using incorrect time window; not updating sales data; division errors when sales = 0.",
+      example: "Current Inventory = 3,000 units; Last 30 days sales = 1,500 units → DOI = 60 days.",
+      logic: "DOI = (Current Inventory ÷ Last 30 Days Qty Sold) × 30",
+    },
+    {
+      kpi: "Metro City Stock Availability",
+      definition: "The proportion of stores or locations where a product is available for purchase at a given time for metro cities.",
+      usage: "Identify distribution gaps in metro cities.",
+      interpretation: "Higher availability → better reach.",
+      pitfalls: "Ignoring OOS vs not listed; denominator issues.",
+      example: "Available in 80 out of 100 stores → 80%.",
+      logic: "(Available Stores ÷ Total Stores) × 100",
+    },
+    {
+      kpi: "PSL (Product Service Level)",
+      definition: "The estimated sales loss due to unavailability, derived by comparing actual sales with expected sales adjusted for availability (OSA).",
+      usage: "Identify sales loss caused by stockouts and availability gaps.",
+      interpretation: "Higher PSL gap indicates greater loss due to poor availability; lower gap indicates efficient stock availability.",
+      pitfalls: "Incorrect OSA calculation; division errors when OSA is very low; misinterpreting PSL as fulfilled demand.",
+      example: "Sales = 1,000 units; Avg OSA = 80% → Expected Sales = 1,250 → PSL Loss = 250 units.",
+      logic: "(Sales ÷ Avg OSA) − Sales",
+    },
+    {
+      kpi: "SOH (Stock on Hand)",
+      definition: "Total inventory available at a given point in time.",
+      usage: "Monitor current inventory levels.",
+      interpretation: "Higher SOH → more stock; too high → holding cost risk.",
+      pitfalls: "Not excluding reserved/damaged stock; duplication across locations.",
+      example: "8,000 units available in warehouse.",
+      logic: "Sum of Current Inventory Units",
+    },
+    {
+      kpi: "Wt. OSA% (Weighted On-Shelf Availability)",
+      definition: "Measures product availability weighted by its importance (e.g., sales contribution or store weight).",
+      usage: "Identify availability gaps for high-impact SKUs.",
+      interpretation: "Higher Wt. OSA → key products are consistently available; low → revenue loss risk.",
+      pitfalls: "Treating all SKUs equally; ignoring SKU importance; wrong weighting logic.",
+      example: "If top-selling SKUs (70% sales contribution) have 90% availability, Wt. OSA reflects higher availability impact vs low-selling SKUs.",
+      logic: "Σ(Availability × Weight) ÷ Σ(Weight) (Weight = sales/store importance)",
+    },
+    {
+      kpi: "Offtake Share",
+      definition: "Product/Category's contribution to total sales.",
+      usage: "Track SKU performance within category/brand.",
+      interpretation: "Higher share → strong consumer demand.",
+      pitfalls: "",
+      example: "Category sales ₹2 Cr out of ₹10 Cr brand → 20%.",
+      logic: "(Brand Offtake ÷ Total Category Offtake) × 100",
+    },
+  ];
+
+  const marketShareGlossary = [
+    {
+      kpi: "Category Size",
+      definition: "The total sales value of all products within a specific category over a defined period.",
+      usage: "Assess market opportunity.",
+      interpretation: "Larger size → higher potential.",
+      pitfalls: "Crawl time variations.",
+      example: "₹10 Cr estimated category sales.",
+      logic: "Total Category Sales",
+    },
+    {
+      kpi: "Market Leader Sales",
+      definition: "Total sales of the top-performing brand in the category from estimated sales.",
+      usage: "Identify benchmark competitor and performance gap.",
+      interpretation: "Higher leader sales → strong dominance.",
+      pitfalls: "Incorrect leader identification due to time window/data gaps.",
+      example: "Brand A has highest sales of ₹3 Cr in category.",
+      logic: "Max(Brand Sales across category)",
+    },
+    {
+      kpi: "Brand Estimated Sales",
+      definition: "The total sales value generated by a product or brand from estimated sales.",
+      usage: "Track demand and revenue generation.",
+      interpretation: "Higher offtake → strong sales performance.",
+      pitfalls: "Price vs volume confusion; double counting across SKUs.",
+      example: "Brand sales = ₹5 Cr in last 30 days.",
+      logic: "Sum(Sales Value)",
+    },
+    {
+      kpi: "Market Share %",
+      definition: "The percentage of total category sales contributed by a brand.",
+      usage: "Track competitive position.",
+      interpretation: "Higher share → stronger market presence.",
+      pitfalls: "Crawl time variations.",
+      example: "₹1 Cr / ₹5 Cr → 20%.",
+      logic: "(Brand Sales ÷ Category Sales) × 100",
+    },
+    {
+      kpi: "Overall Share of Visibility",
+      definition: "The proportion of a brand’s product visibility within the top search results, including both organic and sponsored placements.",
+      usage: "Measure overall digital shelf visibility across search results.",
+      interpretation: "Higher SOS → strong overall presence; lower → poor discoverability.",
+      pitfalls: "",
+      example: "If 10 slots in top results and brand appears in 5 (3 organic + 2 sponsored) → SOS = 50%.",
+      logic: "(Total Brand Appearances in Top N ÷ N) × 100",
+    },
+    {
+      kpi: "Paid Share of Visibility",
+      definition: "The proportion of a brand’s product visibility within sponsored or paid placements in search results.",
+      usage: "Track effectiveness of paid visibility strategy.",
+      interpretation: "Higher Sponsored SOS → strong paid dominance.",
+      pitfalls: "",
+      example: "Out of 4 slots, 2 are sponsored listings of brand → 50%.",
+      logic: "(Sponsored Brand Appearances ÷ N) × 100",
+    },
+  ];
+
   const visibilityAnalysisGlossary = [
     {
       kpi: "Overall SOS (Share of Search)",
@@ -287,6 +417,72 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "",
       example: "Out of 6 slots, 2 organic brand listings → 33%.",
       logic: "Organic SOS = (Organic Brand Appearances ÷ N) × 100",
+    },
+  ];
+
+  const performanceMarketingGlossary = [
+    {
+      kpi: "Impressions",
+      definition: "The total number of times a product or advertisement is displayed to users.",
+      usage: "Measure reach.",
+      interpretation: "Higher impressions → higher visibility.",
+      pitfalls: "",
+      example: "1,00,000 impressions.",
+      logic: "Count of Impressions",
+    },
+    {
+      kpi: "Conversion",
+      definition: "The rate at which user interactions (such as clicks or views) result in a purchase.",
+      usage: "Evaluate funnel efficiency.",
+      interpretation: "Higher conversion → strong product appeal.",
+      pitfalls: "",
+      example: "500 orders from 10,000 clicks → 5%.",
+      logic: "(Orders ÷ Clicks) × 100",
+    },
+    {
+      kpi: "Spend",
+      definition: "The total investment made in advertising and promotional activities.",
+      usage: "Budget tracking.",
+      interpretation: "Higher spend → higher investment.",
+      pitfalls: "",
+      example: "₹50,000 ad spend.",
+      logic: "Sum(Ad Spend)",
+    },
+    {
+      kpi: "ROAS",
+      definition: "The revenue generated for every unit of advertising spend.",
+      usage: "Measure ad efficiency.",
+      interpretation: "Higher ROAS → profitable campaigns.",
+      pitfalls: "",
+      example: "₹5 revenue on ₹1 spend → ROAS = 5.",
+      logic: "Revenue ÷ Ad Spend",
+    },
+    {
+      kpi: "CPM",
+      definition: "The cost incurred to generate one thousand impressions.",
+      usage: "Measure cost efficiency.",
+      interpretation: "Lower CPM → cheaper reach.",
+      pitfalls: "Not comparing across campaigns.",
+      example: "₹200 for 10,000 impressions → CPM = ₹20.",
+      logic: "(Spend ÷ Impressions) × 1000",
+    },
+    {
+      kpi: "Sales",
+      definition: "The total sales value generated by a product or brand over a specified period.",
+      usage: "Track demand and revenue generation.",
+      interpretation: "Higher offtake → strong sales performance.",
+      pitfalls: "Price vs volume confusion; double counting across SKUs.",
+      example: "Brand sales = ₹5 Cr in last 30 days.",
+      logic: "Sum(Sales Value)",
+    },
+    {
+      kpi: "Inorganic Sales",
+      definition: "Sales generated through paid channels, including advertisements and sponsored placements.",
+      usage: "Measure paid contribution.",
+      interpretation: "High inorganic → dependency on ads.",
+      pitfalls: "Depends upon keyword targeting",
+      example: "₹1.5 Cr via ads.",
+      logic: "Sum(Ad Sales Value)",
     },
   ];
 
@@ -340,8 +536,14 @@ const HelpDrawer = ({ userDbName }) => {
     switch (activeMenu) {
       case "India Overview":
         return indiaOverviewGlossary;
+      case "Availability Analysis":
+        return availabilityAnalysisGlossary;
+      case "Market Share":
+        return marketShareGlossary;
       case "Visibility Analysis":
         return visibilityAnalysisGlossary;
+      case "Performance Marketing":
+        return performanceMarketingGlossary;
       default:
         return businessOverviewGlossary;
     }
@@ -517,7 +719,7 @@ const HelpDrawer = ({ userDbName }) => {
           <Box sx={{ flex: 1, p: 3, overflowY: "auto" }}>
             <Box>
               <Box sx={{ display: 'grid', gap: 2 }}>
-                {["Business Overview", "India Overview", "Visibility Analysis"].includes(activeMenu) ? (
+                {["Business Overview", "India Overview", "Availability Analysis", "Market Share", "Visibility Analysis", "Performance Marketing"].includes(activeMenu) ? (
                   filteredGlossary.map((item) => {
                     const isExpanded = expandedKpi === item.kpi;
                     return (
