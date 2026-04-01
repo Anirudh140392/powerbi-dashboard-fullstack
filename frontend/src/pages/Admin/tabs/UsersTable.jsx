@@ -5,7 +5,6 @@ import { Search, MoreHorizontal, Shield, UserPlus, FileDown, X, ChevronLeft, Che
 const UsersTable = () => {
     const [users, setUsers] = useState([
         { id: 1, name: "Admin Trailytics", email: "admin@trailytics.com", role: "Super Admin", status: "Active", initials: "AT" },
-        { id: 2, name: "Shubham Pathak", email: "shubham@trailytics.com", role: "Manager", status: "Active", initials: "SP" },
         { id: 3, name: "John Doe", email: "john@example.com", role: "Editor", status: "Away", initials: "JD" },
         { id: 4, name: "Jane Smith", email: "jane@example.com", role: "Viewer", status: "Inactive", initials: "JS" },
         { id: 5, name: "Alice Brown", email: "alice@example.com", role: "Manager", status: "Active", initials: "AB" },
@@ -82,7 +81,7 @@ const UsersTable = () => {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
-                    <h2 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-1">User Directory</h2>
+                    <h2 className="text-sm font-bold text-indigo-600 uppercase tracking-widest mb-1">Live Users</h2>
                     <p className="text-slate-500 text-xs">Manage workspace access and member permissions.</p>
                 </div>
 
@@ -169,8 +168,6 @@ const UsersTable = () => {
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination Controls */}
                 {filteredUsers.length > 5 && (
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50 p-4 border-t border-slate-100">
                         <div className="flex items-center gap-4">

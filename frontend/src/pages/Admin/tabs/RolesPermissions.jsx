@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     Shield,
     Users,
+    UserPlus,
+    X,
     ChevronDown,
     ChevronRight,
     Search,
@@ -47,6 +49,15 @@ const RolesPermissions = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(8);
+    const [showModal, setShowModal] = useState(false);
+    const [formData, setFormData] = useState({
+        id: "",
+        db_id: "",
+        db_name: "",
+        created_on: new Date().toISOString().slice(0, 16), // Default to now
+        status: "Active"
+    });
+    const [errors, setErrors] = useState({});
 
     const tabsList = [
         "Watch Tower", "Map Intellect", "Insights", "Availability Analysis",
@@ -65,15 +76,6 @@ const RolesPermissions = () => {
             dbName: "Mars",
             dbStatus: true,
             tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: true }), {})
-        },
-        {
-            id: 2,
-            name: "Shubham Singh",
-            email: "shubham.s@trailytics.com",
-            role: "Super Admin",
-            dbName: "Colpal",
-            dbStatus: true,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: tab !== "Pricing Analysis" }), {})
         },
         {
             id: 3,
@@ -180,6 +182,34 @@ const RolesPermissions = () => {
         }));
     };
 
+    const validateForm = () => {
+        const newErrors = {};
+        if (!formData.id) newErrors.id = "ID is required";
+        if (!formData.db_id) newErrors.db_id = "Database ID is required";
+        if (!formData.db_name.trim()) newErrors.db_name = "Database Name is required";
+        if (!formData.created_on) newErrors.created_on = "Creation date is required";
+        
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handleAddDatabase = (e) => {
+        e.preventDefault();
+        if (validateForm()) {
+            console.log("Adding Database:", formData);
+            // Logic to add to usersData or separate databases list could go here
+            setShowModal(false);
+            setFormData({ 
+                id: "", 
+                db_id: "", 
+                db_name: "", 
+                created_on: new Date().toISOString().slice(0, 16), 
+                status: "Active" 
+            });
+            setErrors({});
+        }
+    };
+
     const filteredUsers = usersData.filter(user =>
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -213,10 +243,13 @@ const RolesPermissions = () => {
                             className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                         />
                     </div>
-                    {/* <button className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap">
-                        <Users className="w-4 h-4" />
-                        Add User
-                    </button> */}
+                    <button 
+                        onClick={() => setShowModal(true)}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap"
+                    >
+                        <UserPlus className="w-4 h-4" />
+                        Add Database
+                    </button>
                 </div>
             </div>
 
@@ -415,6 +448,114 @@ const RolesPermissions = () => {
                     </div>
                 </div>
             )}
+            {/* Add Database Modal */}
+            <AnimatePresence>
+                {showModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
+                        >
+                            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white">
+                                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Add New Database</h3>
+                                <button
+                                    onClick={() => setShowModal(false)}
+                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <form onSubmit={handleAddDatabase} className="p-6 space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">ID (UInt64)</label>
+                                        <input
+                                            type="number"
+                                            value={formData.id}
+                                            onChange={(e) => setFormData({ ...formData, id: e.target.value })}
+                                            placeholder="1001"
+                                            className={`w-full px-4 py-2.5 bg-slate-50 border ${errors.id ? 'border-rose-300 ring-rose-50' : 'border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl text-sm transition-all focus:ring-4 outline-none`}
+                                        />
+                                        {errors.id && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.id}</p>}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">DB ID (UInt64)</label>
+                                        <input
+                                            type="number"
+                                            value={formData.db_id}
+                                            onChange={(e) => setFormData({ ...formData, db_id: e.target.value })}
+                                            placeholder="5001"
+                                            className={`w-full px-4 py-2.5 bg-slate-50 border ${errors.db_id ? 'border-rose-300 ring-rose-50' : 'border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl text-sm transition-all focus:ring-4 outline-none`}
+                                        />
+                                        {errors.db_id && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.db_id}</p>}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Database Name (String)</label>
+                                    <div className="relative">
+                                        <Database className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            value={formData.db_name}
+                                            onChange={(e) => setFormData({ ...formData, db_name: e.target.value })}
+                                            placeholder="e.g. Sales_Analytics"
+                                            className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border ${errors.db_name ? 'border-rose-300 ring-rose-50' : 'border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl text-sm transition-all focus:ring-4 outline-none`}
+                                        />
+                                    </div>
+                                    {errors.db_name && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.db_name}</p>}
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Created On (DateTime)</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={formData.created_on}
+                                        onChange={(e) => setFormData({ ...formData, created_on: e.target.value })}
+                                        className={`w-full px-4 py-2.5 bg-slate-50 border ${errors.created_on ? 'border-rose-300 ring-rose-50' : 'border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl text-sm transition-all focus:ring-4 outline-none`}
+                                    />
+                                </div>
+
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Status (String)</label>
+                                    <div className="relative">
+                                        <select
+                                            value={formData.status}
+                                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500 rounded-xl text-sm transition-all focus:ring-4 outline-none appearance-none cursor-pointer text-slate-700"
+                                        >
+                                            <option value="Active">Active</option>
+                                            <option value="Inactive">Inactive</option>
+                                            <option value="Maintenance">Maintenance</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                    </div>
+                                </div>
+
+                                <div className="pt-4 flex items-center gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowModal(false)}
+                                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all font-sans"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-1 px-4 py-2.5 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 font-sans"
+                                    >
+                                        Create Database
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
