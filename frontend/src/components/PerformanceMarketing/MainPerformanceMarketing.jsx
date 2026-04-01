@@ -216,6 +216,7 @@ export default function MainPerformanceMarketings() {
       <Box sx={{ mt: 4 }}>
         <MetricCardContainer
           title="Performance Overview"
+          helpMenu="Performance Marketing"
           cards={kpiCards.map(card => ({
             ...card,
             prevText: comparisonLabel

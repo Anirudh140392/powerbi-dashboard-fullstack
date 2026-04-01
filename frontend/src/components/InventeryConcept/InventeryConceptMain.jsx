@@ -574,7 +574,12 @@ function InventeryConceptMain() {
             </button>
           </div>
         ) : (
-          < MetricCardContainer title="Inventory & DOH Overview" cards={cards} loading={overviewLoading} />
+          < MetricCardContainer 
+            title="Inventory & DOH Overview" 
+            helpMenu="Inventory Analysis"
+            cards={cards} 
+            loading={overviewLoading} 
+          />
         )}
 
         {/* MATRIX + FILTERS */}

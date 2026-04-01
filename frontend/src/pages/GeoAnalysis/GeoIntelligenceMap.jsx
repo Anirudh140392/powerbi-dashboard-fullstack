@@ -34,7 +34,7 @@ const getPinSvg = (color, valueText) => `
 // --- Components ---
 
 export default function GeoIntelligenceMap() {
-    const { toggleHelp } = useHelp();
+    const { toggleHelp, openHelpWithMenu } = useHelp();
     const mapContainer = useRef(null);
     const map = useRef(null);
     const [filters, setFilters] = useState({ platform: 'Blinkit' });
@@ -530,7 +530,7 @@ export default function GeoIntelligenceMap() {
                         </div>
 
                         <IconButton 
-                            onClick={toggleHelp}
+                            onClick={() => openHelpWithMenu("India Overview")}
                             size="small"
                             sx={{ 
                                 bgcolor: "rgba(37, 99, 235, 0.05)",
