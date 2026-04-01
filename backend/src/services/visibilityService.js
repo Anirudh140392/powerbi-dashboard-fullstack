@@ -3128,7 +3128,7 @@ class VisibilityService {
                         ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos,
 
                         count(*) as impressions,
-                        0 as max_vol_share,
+                        ROUND(sum(toInt32(overall)) * 100.0 / nullIf(SUM(sum(toInt32(overall))) OVER(), 0), 2) as max_vol_share,
                         arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS ad_position,
                         arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS organic_position
                     FROM rb_kw_olap
