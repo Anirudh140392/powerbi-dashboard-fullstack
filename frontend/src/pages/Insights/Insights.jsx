@@ -140,7 +140,7 @@ const createEmptySignal = (type, brandName = "Brand") => {
             base.evidence = [{ city: "-", category: "-", clusterName: "-", kwPpu: 0, peerPpu: 0, priceIndex: 0, clusterContributionPct: 0, clusterGrowthPct: 0 }];
             break;
         case "Share Headroom Hotspots":
-            base.kpis = [{ label: "Cities", value: "0" }, { label: "Avg share gap", value: "0%" }, { label: "Offtake Loss", value: "₹0" }];
+            base.kpis = [{ label: "Market Share", value: "0%" }, { label: "Offtake", value: "₹0" }, { label: "Avg share gap", value: "0%" }];
             base.evidence = [{ city: "-", category: "-", brandOsa: 0, marketShare: 0, marketShareMoM: 0, psl: 0, offtake: 0, offtakeMoM: 0, myTopSku: "-", competitorSku: "-", possibleCause: "-" }];
             break;
         case "Challenger Launch Watch":
@@ -240,7 +240,7 @@ const BetaBadge = ({ size = "sm" }) => (
             letterSpacing: "0.12em",
             background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)",
             color: "#fff",
-            borderRadius: "4px",
+            borderRadius: "0px",
             padding: size === "xs" ? "1px 5px" : "2px 6px",
             boxShadow: "0 0 8px rgba(99,102,241,0.4)",
             display: "inline-flex",
@@ -251,7 +251,7 @@ const BetaBadge = ({ size = "sm" }) => (
             animation: "betaPulse 2.5s ease-in-out infinite",
         }}
     >
-        ✦ BETA
+        BETA
     </span>
 );
 
@@ -263,11 +263,9 @@ const SignalStatusBadge = ({ isEmpty, hovered }) => (
             fontSize: "8px",
             fontWeight: 700,
             letterSpacing: "0.08em",
-            background: hovered
-                ? "rgba(255,255,255,0.18)"
-                : isEmpty
-                    ? "#94a3b8"
-                    : "#c0392b",
+            background: isEmpty
+                ? "#94a3b8"
+                : "#22c55e",
             color: "#fff",
             borderRadius: 0,
             padding: "2px 6px",
@@ -283,13 +281,13 @@ const SignalStatusBadge = ({ isEmpty, hovered }) => (
                 width: 5,
                 height: 5,
                 borderRadius: "50%",
-                background: hovered ? "rgba(255,255,255,0.9)" : isEmpty ? "#e2e8f0" : "#ff6b6b",
+                background: isEmpty ? "#e2e8f0" : "#ffffff",
                 display: "inline-block",
-                animation: isEmpty || hovered ? "none" : "blink 1.1s ease-in-out infinite",
-                boxShadow: (!isEmpty && !hovered) ? "0 0 0 0 rgba(255,107,107,0.6)" : "none",
+                animation: isEmpty ? "none" : "blink 1.1s ease-in-out infinite",
+                boxShadow: !isEmpty ? "0 0 0 0 rgba(255, 255, 255, 0.4)" : "none",
             }}
         />
-        {isEmpty ? "NO DATA" : "LIVE SIGNAL"}
+        {isEmpty ? "NO DATA" : "LIVE"}
     </span>
 );
 
@@ -445,14 +443,20 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
     const isNegative = trend === "negative";
     const impactValue = isEmpty ? "—" : formatINRCompact(insight.impactInr || 0);
 
-    const kpi0 = insight.kpis?.[0];
-    const kpi1 = insight.kpis?.[1];
+    // For Share Headroom, show Market Share % and Offtake from evidence
+    const isShareHeadroom = insight.type === "Share Headroom Hotspots";
+    const shareEv = isShareHeadroom ? insight.evidence?.[0] : null;
+    const kpi0 = isShareHeadroom
+        ? { label: "Market Share", value: shareEv && typeof shareEv.marketShare === "number" ? safePct(shareEv.marketShare) : (insight.kpis?.[1]?.value ?? "-") }
+        : insight.kpis?.[0];
+    const kpi1 = isShareHeadroom
+        ? { label: "Offtake", value: shareEv && typeof shareEv.offtake === "number" ? safeINR(shareEv.offtake) : (insight.kpis?.[2]?.value ?? "-") }
+        : insight.kpis?.[1];
 
-    const hoverBg = isEmpty ? "#475569" : color;
-    const txt = (base) => hovered ? "#ffffff" : base;
-    const txtMuted = hovered ? "rgba(255,255,255,0.6)" : "#78828f";
-    const txtFaint = hovered ? "rgba(255,255,255,0.42)" : "#a0aab4";
-    const dividerColor = hovered ? "rgba(255,255,255,0.14)" : "#eaecf0";
+    const txt = (base) => base;
+    const txtMuted = "#78828f";
+    const txtFaint = "#a0aab4";
+    const dividerColor = "#eaecf0";
 
     return (
         <div
@@ -461,45 +465,38 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
             onMouseLeave={() => setHovered(false)}
             style={{
                 width: "100%",
-                height: "260px",
+                height: "290px",
                 display: "flex",
                 flexDirection: "column",
-                borderRadius: 0,
+                borderRadius: "12px",
                 border: isSelected
-                    ? `2px solid ${color || "#4a6fa5"}`
-                    : hovered
-                        ? `1px solid ${color || "#4a6fa5"}`
-                        : isEmpty
-                            ? "1px solid #e4e8ed"
-                            : `1px solid ${color ? color + "38" : "#c8d5e8"}`,
+                    ? `2px solid #2563eb`
+                    : "none",
                 cursor: "pointer",
                 overflow: "hidden",
                 position: "relative",
                 fontFamily: "'DM Sans', system-ui, sans-serif",
-                background: hovered ? hoverBg : isEmpty ? "#f9fafb" : "#ffffff",
+                background: "#ffffff",
                 boxShadow: hovered
-                    ? `0 18px 44px ${color ? color + "40" : "rgba(74,111,165,0.25)"}, 0 4px 14px ${color ? color + "28" : "rgba(74,111,165,0.14)"}`
+                    ? `0 20px 50px rgba(0,0,0,0.13), 0 8px 20px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04)`
                     : isSelected
-                        ? `0 0 0 3px ${color ? color + "28" : "rgba(74,111,165,0.18)"}`
-                        : "0 1px 3px rgba(0,0,0,0.04)",
-                transition: "background 0.26s ease, box-shadow 0.26s ease, border-color 0.26s ease, transform 0.2s ease",
-                transform: hovered ? "translateY(-3px)" : "translateY(0px)",
-                opacity: isEmpty && !hovered ? 0.68 : 1,
+                        ? `0 0 0 3px rgba(37, 99, 235, 0.15), 0 4px 16px rgba(37,99,235,0.12)`
+                        : "0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)",
+                transition: "transform 0.28s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.28s ease",
+                transform: hovered ? "translateY(-8px)" : "translateY(0px)",
+                opacity: isEmpty && !hovered ? 0.75 : 1,
             }}
         >
             {/* Top accent bar */}
             <div style={{
                 height: "3px", flexShrink: 0,
-                background: hovered
-                    ? "rgba(255,255,255,0.3)"
-                    : isEmpty ? "#e4e8ed"
-                        : `linear-gradient(90deg, ${color} 0%, ${color}70 100%)`,
+                background: isEmpty ? "#e4e8ed" : color || "#3b82f6",
                 transition: "background 0.26s ease",
             }} />
 
             {/* Header row */}
             <div style={{
-                padding: "11px 14px 6px",
+                padding: "13px 16px 7px",
                 display: "flex", alignItems: "center", justifyContent: "space-between",
                 flexShrink: 0,
             }}>
@@ -507,22 +504,22 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                     <BetaBadge size="xs" />
                     <div style={{
-                        width: 22, height: 22, borderRadius: 0,
-                        background: hovered ? "rgba(255,255,255,0.18)" : isEmpty ? "#f1f5f9" : accent,
+                        width: 26, height: 26, borderRadius: "5px",
+                        background: isEmpty ? "#f1f5f9" : color + "15",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         transition: "background 0.26s ease",
                     }}>
-                        {FamilyIcon && <FamilyIcon size={11} color={hovered ? "#fff" : isEmpty ? "#94a3b8" : color} />}
+                        {FamilyIcon && <FamilyIcon size={13} color={isEmpty ? "#94a3b8" : color} />}
                     </div>
                 </div>
             </div>
 
             {/* Family label */}
-            <div style={{ padding: "0 14px 2px", flexShrink: 0 }}>
+            <div style={{ padding: "0 16px 3px", flexShrink: 0 }}>
                 <span style={{
-                    fontSize: "9px", fontWeight: 700, textTransform: "uppercase",
+                    fontSize: "10px", fontWeight: 700, textTransform: "uppercase",
                     letterSpacing: "0.1em",
-                    color: hovered ? "rgba(255,255,255,0.62)" : isEmpty ? "#a0aab4" : color,
+                    color: isEmpty ? "#a0aab4" : color,
                     transition: "color 0.26s ease",
                 }}>
                     {family}
@@ -530,10 +527,10 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
             </div>
 
             {/* Signal title — fixed height */}
-            <div style={{ padding: "0 14px 10px", flexShrink: 0, height: "44px", overflow: "hidden" }}>
+            <div style={{ padding: "0 16px 12px", flexShrink: 0, height: "50px", overflow: "hidden" }}>
                 <h3 style={{
-                    fontSize: "13px", fontWeight: 700,
-                    color: txt("#111827"),
+                    fontSize: "15px", fontWeight: 700,
+                    color: "#111827",
                     lineHeight: 1.32, margin: 0,
                     display: "-webkit-box", WebkitLineClamp: 2,
                     WebkitBoxOrient: "vertical", overflow: "hidden",
@@ -544,12 +541,12 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
             </div>
 
             {/* Divider */}
-            <div style={{ margin: "0 14px", height: "1px", background: dividerColor, flexShrink: 0, transition: "background 0.26s ease" }} />
+            <div style={{ margin: "0 16px", height: "1px", background: dividerColor, flexShrink: 0, transition: "background 0.26s ease" }} />
 
-            {/* Impact metric — poppy number with subtle bg */}
-            <div style={{ padding: "11px 14px 10px", flexShrink: 0 }}>
+            {/* Impact metric */}
+            <div style={{ padding: "13px 16px 11px", flexShrink: 0 }}>
                 <div style={{
-                    fontSize: "9px", fontWeight: 600, marginBottom: "6px",
+                    fontSize: "10px", fontWeight: 600, marginBottom: "7px",
                     textTransform: "uppercase", letterSpacing: "0.07em",
                     color: txtFaint, transition: "color 0.26s ease",
                 }}>
@@ -557,17 +554,12 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 </div>
                 <div style={{ display: "inline-flex" }}>
                     <span style={{
-                        fontSize: "20px", fontWeight: 900,
+                        fontSize: "23px", fontWeight: 900,
                         letterSpacing: "-0.03em",
-                        color: hovered
-                            ? "#ffffff"
-                            : isEmpty ? "#a0aab4" : isNegative ? "#b94040" : "#2e7d5e",
-                        background: hovered
-                            ? "rgba(255,255,255,0.14)"
-                            : isEmpty ? "#f1f3f5"
-                                : isNegative ? "#fdf0f0" : "#eef7f3",
-                        padding: "3px 10px",
-                        borderRadius: "4px",
+                        color: isEmpty ? "#a0aab4" : isNegative ? "#dc2626" : "#059669",
+                        background: isEmpty ? "#f8fafc" : isNegative ? "#fef2f2" : "#f0fdf4",
+                        padding: "4px 12px",
+                        borderRadius: "7px",
                         transition: "color 0.26s ease, background 0.26s ease",
                         lineHeight: 1.3,
                     }}>
@@ -577,21 +569,21 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
             </div>
 
             {/* Divider */}
-            <div style={{ margin: "0 14px", height: "1px", background: dividerColor, flexShrink: 0, transition: "background 0.26s ease" }} />
+            <div style={{ margin: "0 16px", height: "1px", background: dividerColor, flexShrink: 0, transition: "background 0.26s ease" }} />
 
-            {/* KPI rows with poppy number bg pills */}
-            <div style={{ padding: "8px 14px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "6px" }}>
+            {/* KPI rows */}
+            <div style={{ padding: "10px 16px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", gap: "8px" }}>
                 {[kpi0, kpi1].filter(Boolean).map((k, i) => (
                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "10px", color: txtMuted, transition: "color 0.26s ease" }}>{k.label}</span>
+                        <span style={{ fontSize: "11px", color: txtMuted, transition: "color 0.26s ease" }}>{k.label}</span>
                         <span style={{
-                            fontSize: "11px", fontWeight: 800,
-                            color: hovered ? "#fff" : "#1a2332",
-                            background: hovered ? "rgba(255,255,255,0.16)" : "#f0f2f5",
-                            padding: "1px 7px",
-                            borderRadius: "3px",
+                            fontSize: "12px", fontWeight: 800,
+                            color: "#1e293b",
+                            background: "#f1f5f9",
+                            padding: "3px 10px",
+                            borderRadius: "5px",
                             letterSpacing: "-0.01em",
-                            transition: "color 0.26s ease, background 0.26s ease",
+                            transition: "all 0.26s ease",
                         }}>
                             {k.value}
                         </span>
@@ -599,23 +591,23 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 ))}
             </div>
 
-            {/* Footer — VIEW DETAIL only */}
+            {/* Footer */}
             <div style={{
-                padding: "8px 14px",
+                padding: "10px 16px",
                 borderTop: `1px solid ${dividerColor}`,
                 display: "flex", alignItems: "center", justifyContent: "flex-end",
                 flexShrink: 0,
-                background: hovered ? "rgba(0,0,0,0.08)" : "rgba(248,250,252,0.7)",
-                transition: "background 0.26s ease, border-color 0.26s ease",
+                background: hovered ? "rgba(248,250,252,1)" : "rgba(248,250,252,0.6)",
+                transition: "background 0.26s ease",
             }}>
                 <div style={{
-                    fontSize: "9px", fontWeight: 700,
-                    color: hovered ? "rgba(255,255,255,0.88)" : color || "#4a6fa5",
-                    display: "flex", alignItems: "center", gap: "3px",
+                    fontSize: "10px", fontWeight: 700,
+                    color: color || "#2563eb",
+                    display: "flex", alignItems: "center", gap: "4px",
                     textTransform: "uppercase", letterSpacing: "0.07em",
-                    transition: "color 0.26s ease",
+                    transition: "all 0.26s ease",
                 }}>
-                    VIEW DETAIL <ChevronRight size={9} />
+                    VIEW DETAIL <ChevronRight size={11} />
                 </div>
             </div>
         </div>
@@ -872,7 +864,6 @@ const PlatformButton = ({ platform, active, onClick }) => (
             padding: "8px 16px",
             fontSize: "12px",
             fontWeight: active ? 700 : 500,
-            borderBottom: active ? "2px solid #2563eb" : "2px solid transparent",
             color: active ? "#2563eb" : "#64748b",
             background: "none",
             border: "none",
@@ -966,7 +957,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
                             <div>
                                 <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
-                                <p style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
+                                <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
                             </div>
                             <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
                             <div style={{ display: "flex", gap: "20px" }}>
@@ -1183,21 +1174,35 @@ const InsightsSignalHub = () => {
                     display: inline-flex;
                     align-items: center;
                     gap: 6px;
-                    padding: 6px 13px;
+                    padding: 7px 14px;
                     font-size: 11px;
                     font-weight: 700;
                     color: #fff;
-                    background: #3a3f4d;
-                    border: 1px solid #4a5060;
-                    border-radius: 0;
+                    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 50%, #2563eb 100%);
+                    background-size: 200% 200%;
+                    border: none;
+                    border-radius: 8px;
                     cursor: pointer;
                     letter-spacing: 0.04em;
                     text-transform: uppercase;
-                    transition: background 0.18s ease, border-color 0.18s ease;
+                    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.5);
+                    animation: aiBtnPulse 1.8s ease-in-out infinite, aiBtnGradient 3s ease infinite;
+                    transition: transform 0.15s ease, box-shadow 0.15s ease;
                 }
                 .ai-btn:hover {
-                    background: #282c38;
-                    border-color: #5a6070;
+                    transform: translateY(-1px) scale(1.03);
+                    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.55);
+                    animation: aiBtnGradient 3s ease infinite;
+                }
+                @keyframes aiBtnPulse {
+                    0% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.5); }
+                    60% { box-shadow: 0 0 0 7px rgba(124, 58, 237, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(124, 58, 237, 0); }
+                }
+                @keyframes aiBtnGradient {
+                    0% { background-position: 0% 50%; }
+                    50% { background-position: 100% 50%; }
+                    100% { background-position: 0% 50%; }
                 }
             `}</style>
 
@@ -1207,7 +1212,7 @@ const InsightsSignalHub = () => {
                 fontFamily: "'DM Sans', system-ui, sans-serif",
                 paddingBottom: "40px",
             }}>
-                <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "24px 16px" }}>
+                <div style={{ maxWidth: "1600px", margin: "0 auto", padding: "24px 24px" }}>
 
                     {/* ── Page Header ────────────────────────────────────── */}
                     <div style={{
@@ -1271,7 +1276,7 @@ const InsightsSignalHub = () => {
                                         <div style={{ fontSize: "9px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" }}>
                                             Live Signals
                                         </div>
-                                        <div style={{ fontSize: "18px", fontWeight: 900, color: "#2563eb", letterSpacing: "-0.03em" }}>
+                                        <div style={{ fontSize: "18px", fontWeight: 900, color: "#22c55e", letterSpacing: "-0.03em" }}>
                                             {activeSignals}
                                         </div>
                                     </div>
@@ -1297,11 +1302,19 @@ const InsightsSignalHub = () => {
                             <Filter size={13} />
                             <span style={{ fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>Filters</span>
                         </div>
-                        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
-                            <CustomHeaderDropdown label="SIGNAL" options={slicerOptions.types} value={typeFilter} onChange={(v) => setTypeFilter(v === "All" ? "All signals" : v)} multiSelect={false} />
-                            <CustomHeaderDropdown label="GEOGRAPHY" options={slicerOptions.cities} value={cityFilter} onChange={(v) => setCityFilter(v === "All" ? "All cities" : v)} multiSelect={false} />
-                            <CustomHeaderDropdown label="CATEGORY" options={slicerOptions.categories} value={categoryFilter} onChange={(v) => setCategoryFilter(v === "All" ? "All categories" : v)} multiSelect={false} />
-                            <CustomHeaderDropdown label="CHANNEL" options={slicerOptions.platforms} value={platformFilter} onChange={(v) => setPlatformFilter(v === "All" ? "All platforms" : v)} multiSelect={false} />
+                        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px", alignItems: "start" }}>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                <CustomHeaderDropdown label="SIGNAL" options={slicerOptions.types} value={typeFilter} onChange={(v) => setTypeFilter(v === "All" ? "All signals" : v)} multiSelect={false} />
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                <CustomHeaderDropdown label="GEOGRAPHY" options={slicerOptions.cities} value={cityFilter} onChange={(v) => setCityFilter(v === "All" ? "All cities" : v)} multiSelect={false} />
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                <CustomHeaderDropdown label="CATEGORY" options={slicerOptions.categories} value={categoryFilter} onChange={(v) => setCategoryFilter(v === "All" ? "All categories" : v)} multiSelect={false} />
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                <CustomHeaderDropdown label="CHANNEL" options={slicerOptions.platforms} value={platformFilter} onChange={(v) => setPlatformFilter(v === "All" ? "All platforms" : v)} multiSelect={false} />
+                            </div>
                         </div>
                         <div style={{ flexShrink: 0 }}>
                             <Typography sx={{ fontSize: "0.6rem", fontWeight: 700, mb: 0.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em" }}>TIME PERIOD</Typography>
@@ -1335,7 +1348,7 @@ const InsightsSignalHub = () => {
                                 Scanning analytics signals...
                             </div>
                             <div style={{ fontSize: "11px", color: "#94a3b8" }}>
-                                Powered by AI <BetaBadge size="xs" />
+                                Powered by Trailytics AI <BetaBadge size="xs" />
                             </div>
                         </div>
                     ) : filteredInsights.length === 0 ? (
@@ -1354,8 +1367,8 @@ const InsightsSignalHub = () => {
                     ) : (
                         <div style={{
                             display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-                            gap: "16px",
+                            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                            gap: "20px",
                             alignItems: "stretch",
                         }}>
                             {filteredInsights.map((ins, idx) => (
