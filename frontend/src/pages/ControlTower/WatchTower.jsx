@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
-import { Container, Box, useTheme, Skeleton } from "@mui/material";
+import { Container, Box, useTheme, Skeleton, IconButton } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -74,6 +74,7 @@ import {
 import PerformanceMatrixNew from "@/components/ControlTower/WatchTower/PerformanceMatrixNew";
 import PlatformOverviewNew from "@/components/ControlTower/WatchTower/PlatformOverviewNew";
 import { AggregatedViewTable, PerformanceBreakdownProvider } from "@/components/ControlTower/WatchTower/PerformanceBreakdown";
+import { useHelp } from "../../utils/HelpContext";
 
 export default function WatchTower() {
   const { toggleHelp, openHelpWithMenu } = useHelp();
