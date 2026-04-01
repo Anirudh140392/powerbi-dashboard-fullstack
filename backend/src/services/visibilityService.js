@@ -77,7 +77,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
             SELECT 
                 ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
                 ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos
+                ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
@@ -133,7 +133,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
                 DATE as crawl_date,
                 ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
                 ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos
+                ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
@@ -812,7 +812,7 @@ class VisibilityService {
                             ${dimColumn} as ${dimAlias},
                             ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos,
+                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
@@ -826,7 +826,7 @@ class VisibilityService {
                             ${dimColumn} as ${dimAlias},
                             ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos,
+                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${prevWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
@@ -839,7 +839,7 @@ class VisibilityService {
                             DATE as date,
                             ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS sponsored_sos,
-                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos,
+                            ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
                             ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS display_sos
                         FROM rb_kw_olap
                         WHERE ${currentWhere} AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
@@ -1517,7 +1517,7 @@ class VisibilityService {
                     prevKeywordMetrics.forEach(p => {
                         prevMap[p.keyword] = {
                             overallSos: Number(((Number(p.rb_overall) / (Number(p.total_overall) || 1)) * 100).toFixed(1)),
-                            organicSos: Number(((Number(p.rb_organic) / (Number(p.total_overall) || 1)) * 100).toFixed(1)),
+                            organicSos: Number(((Number(p.rb_organic) / (Number(p.total_organic) || 1)) * 100).toFixed(1)),
                             paidSos: Number(((Number(p.rb_sponsored) / (Number(p.total_overall) || 1)) * 100).toFixed(1))
                         };
                     });
@@ -1556,7 +1556,7 @@ class VisibilityService {
                         const tSpons = Number(km.total_spons) || 1;
 
                         const currOverallSos = Number(((Number(km.rb_overall) / tOverall) * 100).toFixed(1));
-                        const currOrganicSos = Number(((Number(km.rb_organic) / tOverall) * 100).toFixed(1));
+                        const currOrganicSos = Number(((Number(km.rb_organic) / tOrganic) * 100).toFixed(1));
                         const currPaidSos = Number(((Number(km.rb_sponsored) / tOverall) * 100).toFixed(1));
 
                         const prev = prevMap[km.keyword] || { overallSos: currOverallSos, organicSos: currOrganicSos, paidSos: currPaidSos };
@@ -2080,7 +2080,7 @@ class VisibilityService {
                     ${dateAggregation} as crawl_date,
                     ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
                     ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
-                    ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS organic_sos,
+                    ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
                     ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS display_sos
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
@@ -3121,7 +3121,7 @@ class VisibilityService {
 
                         ${viewMode === 'keyword' ? "sumIf(toInt32(organic), flag = 1)" : "sum(toInt32(organic))"} as num_organic,
                         ${viewMode === 'keyword' ? "sum(toInt32(organic))" : "SUM(sum(toInt32(organic))) OVER()"} as den_organic,
-                        ROUND(num_organic * 100.0 / nullIf(den_overall, 0), 2) AS organic_sos,
+                        ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
 
                         ${viewMode === 'keyword' ? "sumIf(toInt32(spons), flag = 1)" : "sum(toInt32(spons))"} as num_spons,
                         ${viewMode === 'keyword' ? "sum(toInt32(spons))" : "SUM(sum(toInt32(spons))) OVER()"} as den_spons,
@@ -3208,7 +3208,7 @@ class VisibilityService {
 
                         sumIf(toInt32(organic), flag = 1) as num_organic,
                         SUM(sum(toInt32(organic))) OVER() as den_organic,
-                        ROUND(num_organic * 100.0 / nullIf(den_overall, 0), 2) AS organic_sos,
+                        ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
 
                         sumIf(toInt32(spons), flag = 1) as num_spons,
                         SUM(sum(toInt32(spons))) OVER() as den_spons,
@@ -3262,7 +3262,8 @@ class VisibilityService {
                         ROUND(brand_volume * 100.0 / nullIf(total_volume, 0), 2) as overall_sos,
                         
                         sum(toInt32(organic)) as org_volume,
-                        ROUND(org_volume * 100.0 / nullIf(total_volume, 0), 2) as organic_sos,
+                        SUM(sum(toInt32(organic))) OVER() as total_organic_volume,
+                        ROUND(org_volume * 100.0 / nullIf(total_organic_volume, 0), 2) as organic_sos,
 
                         sum(toInt32(spons)) as paid_volume,
                         ROUND(paid_volume * 100.0 / nullIf(total_volume, 0), 2) as paid_sos
