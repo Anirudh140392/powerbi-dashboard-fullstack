@@ -872,7 +872,6 @@ const PlatformButton = ({ platform, active, onClick }) => (
             padding: "8px 16px",
             fontSize: "12px",
             fontWeight: active ? 700 : 500,
-            borderBottom: active ? "2px solid #2563eb" : "2px solid transparent",
             color: active ? "#2563eb" : "#64748b",
             background: "none",
             border: "none",

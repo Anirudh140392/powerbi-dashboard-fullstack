@@ -24,6 +24,7 @@ export default function CommonContainer({
       title={title}
       filters={filters}
       onFiltersChange={onFiltersChange}
+      hideFilters={hideFilters}
       platforms={platforms}
       mobileMenuOpen={mobileMenuOpen}
       setMobileMenuOpen={setMobileMenuOpen}
@@ -40,6 +41,7 @@ function CommonLayoutContent({
   title,
   filters,
   onFiltersChange,
+  hideFilters,
   platforms,
   mobileMenuOpen,
   setMobileMenuOpen,
