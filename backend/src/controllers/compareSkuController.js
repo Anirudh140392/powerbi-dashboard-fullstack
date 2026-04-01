@@ -50,6 +50,7 @@ export const getCompareSkuMetrics = async (req, res) => {
     try {
         const filters = {
             skuNames: req.query.skuNames || req.query['skuNames[]'],
+            startDate: req.query.startDate,
             endDate: req.query.endDate,
             months: req.query.months || 1,
             platforms: req.query.platforms || req.query['platforms[]'],
