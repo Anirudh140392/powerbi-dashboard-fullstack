@@ -26,6 +26,8 @@ import ScheduledReports from "./pages/Reports/ScheduledReports";
 import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
 import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
+import { HelpProvider } from "./utils/HelpContext";
+import HelpDrawer from "./components/CommonLayout/HelpDrawer";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -36,123 +38,126 @@ function AppContent() {
   const sessionKey = isLoggedIn ? (user?.email || "authenticated") : "guest";
 
   return (
-    <FilterProvider key={sessionKey}>
-      <HashRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
+    <HelpProvider>
+      <FilterProvider key={sessionKey}>
+        <HashRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
 
-          <Route path="/" element={<Navigate to="/watch-tower" replace />} />
+            <Route path="/" element={<Navigate to="/watch-tower" replace />} />
 
-          <Route path="/watch-tower" element={
-            <ProtectedRoute>
-              <WatchTower />
-            </ProtectedRoute>
-          } />
+            <Route path="/watch-tower" element={
+              <ProtectedRoute>
+                <WatchTower />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/insights" element={
-            <ProtectedRoute>
-              <Insights />
-            </ProtectedRoute>
-          } />
+            <Route path="/insights" element={
+              <ProtectedRoute>
+                <Insights />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/category-rca" element={
-            <ProtectedRoute>
-              <CategoryRca />
-            </ProtectedRoute>
-          } />
+            <Route path="/category-rca" element={
+              <ProtectedRoute>
+                <CategoryRca />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/volume-cohort" element={
-            <ProtectedRoute>
-              <VolumeCohort />
-            </ProtectedRoute>
-          } />
+            <Route path="/volume-cohort" element={
+              <ProtectedRoute>
+                <VolumeCohort />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/price-per-pack" element={
-            <ProtectedRoute>
-              <PricePerPack />
-            </ProtectedRoute>
-          } />
+            <Route path="/price-per-pack" element={
+              <ProtectedRoute>
+                <PricePerPack />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/price-analysis" element={
-            <ProtectedRoute>
-              <PriceAnalysis />
-            </ProtectedRoute>
-          } />
+            <Route path="/price-analysis" element={
+              <ProtectedRoute>
+                <PriceAnalysis />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/performance-marketing" element={
-            <ProtectedRoute>
-              <MainPerformanceMarketings />
-            </ProtectedRoute>
-          } />
+            <Route path="/performance-marketing" element={
+              <ProtectedRoute>
+                <MainPerformanceMarketings />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/availability-analysis" element={
-            <ProtectedRoute>
-              <AvailablityAnalysis />
-            </ProtectedRoute>
-          } />
+            <Route path="/availability-analysis" element={
+              <ProtectedRoute>
+                <AvailablityAnalysis />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/visibility-anlysis" element={
-            <ProtectedRoute>
-              <VisibilityAnalysis />
-            </ProtectedRoute>
-          } />
+            <Route path="/visibility-anlysis" element={
+              <ProtectedRoute>
+                <VisibilityAnalysis />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/content-score" element={
-            <ProtectedRoute>
-              <ContentScoreDashboards />
-            </ProtectedRoute>
-          } />
+            <Route path="/content-score" element={
+              <ProtectedRoute>
+                <ContentScoreDashboards />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/pricing-analysis" element={
-            <ProtectedRoute>
-              <PricingAnalysis />
-            </ProtectedRoute>
-          } />
+            <Route path="/pricing-analysis" element={
+              <ProtectedRoute>
+                <PricingAnalysis />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/market-share" element={
-            <ProtectedRoute>
-              <MarketShares />
-            </ProtectedRoute>
-          } />
+            <Route path="/market-share" element={
+              <ProtectedRoute>
+                <MarketShares />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/sales" element={
-            <ProtectedRoute>
-              <SalesMainPage />
-            </ProtectedRoute>
-          } />
+            <Route path="/sales" element={
+              <ProtectedRoute>
+                <SalesMainPage />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/piy" element={
-            <ProtectedRoute>
-              <PiyConcept />
-            </ProtectedRoute>
-          } />
+            <Route path="/piy" element={
+              <ProtectedRoute>
+                <PiyConcept />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/inventory" element={
-            <ProtectedRoute>
-              <InventeryConceptMains />
-            </ProtectedRoute>
-          } />
+            <Route path="/inventory" element={
+              <ProtectedRoute>
+                <InventeryConceptMains />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/scheduled-reports" element={
-            <ProtectedRoute>
-              <ScheduledReports />
-            </ProtectedRoute>
-          } />
+            <Route path="/scheduled-reports" element={
+              <ProtectedRoute>
+                <ScheduledReports />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/geo-intelligence" element={
-            <ProtectedRoute>
-              <GeoIntelligenceMap />
-            </ProtectedRoute>
-          } />
+            <Route path="/geo-intelligence" element={
+              <ProtectedRoute>
+                <GeoIntelligenceMap />
+              </ProtectedRoute>
+            } />
 
-          <Route path="/compare-skus" element={
-            <ProtectedRoute>
-              <CompareSkuMatrix onClose={() => window.history.back()} />
-            </ProtectedRoute>
-          } />
-        </Routes>
-      </HashRouter>
-    </FilterProvider>
+            <Route path="/compare-skus" element={
+              <ProtectedRoute>
+                <CompareSkuMatrix onClose={() => window.history.back()} />
+              </ProtectedRoute>
+            } />
+          </Routes>
+        </HashRouter>
+      </FilterProvider>
+      {isLoggedIn && <HelpDrawer userDbName={user?.dbName} />}
+    </HelpProvider>
   );
 }
 

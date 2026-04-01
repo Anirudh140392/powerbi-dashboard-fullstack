@@ -18,7 +18,9 @@ import {
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
-import { Skeleton, Box, Card, Typography } from '@mui/material'
+import { Skeleton, Box, Card, Typography, IconButton } from '@mui/material'
+import { HelpOutline as HelpIcon } from "@mui/icons-material";
+import { useHelp } from "../../utils/HelpContext";
 import React, { useRef, useState, useEffect, useMemo } from 'react'
 
 // ---------- Helpers ----------
@@ -614,6 +616,7 @@ const SnapshotOverview = ({
     variant = "detailed", // 'watchtower' | 'detailed'
     seed = "default"
 }) => {
+    const { toggleHelp } = useHelp();
     // 🔹 Map and Reorganize Data for 5+4 layout
     const { topKpis, bottomKpis } = useMemo(() => {
         if (variant !== 'watchtower') return { topKpis: [], bottomKpis: [] };
@@ -787,7 +790,38 @@ const SnapshotOverview = ({
                             )}
                             <h2 className="text-[1.1rem] font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
                         </div>
-                        {headerRight}
+                        <div className="flex items-center gap-4">
+                            {headerRight}
+                            <IconButton 
+                                onClick={toggleHelp}
+                                size="small"
+                                sx={{ 
+                                    bgcolor: "rgba(37, 99, 235, 0.05)",
+                                    color: "#2563eb",
+                                    "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
+                                    border: "1px solid rgba(37, 99, 235, 0.1)",
+                                    width: 32,
+                                    height: 32,
+                                    animation: "pulseGlow 2s infinite",
+                                    "@keyframes pulseGlow": {
+                                        "0%": {
+                                            boxShadow: "0 0 0 0 rgba(37, 99, 235, 0.4)",
+                                            borderColor: "rgba(37, 99, 235, 0.2)"
+                                        },
+                                        "70%": {
+                                            boxShadow: "0 0 0 6px rgba(37, 99, 235, 0)",
+                                            borderColor: "rgba(37, 99, 235, 0.5)"
+                                        },
+                                        "100%": {
+                                            boxShadow: "0 0 0 0 rgba(37, 99, 235, 0)",
+                                            borderColor: "rgba(37, 99, 235, 0.2)"
+                                        }
+                                    }
+                                }}
+                            >
+                                <HelpIcon sx={{ fontSize: "1.2rem" }} />
+                            </IconButton>
+                        </div>
                     </div>
 
                     <div className="p-6 space-y-8">
@@ -867,7 +901,41 @@ const SnapshotOverview = ({
                             )}
                         </div>
                     </div>
-                    {headerRight}
+                    <div className="flex items-center gap-5">
+                        {headerRight}
+                        <IconButton 
+                            onClick={toggleHelp}
+                            size="small"
+                            sx={{ 
+                                bgcolor: "rgba(37, 99, 235, 0.05)",
+                                color: "#2563eb",
+                                "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
+                                border: "1px solid rgba(37, 99, 235, 0.1)",
+                                width: 32,
+                                height: 32,
+                                animation: "pulseGlow 2s infinite",
+                                "@keyframes pulseGlow": {
+                                    "0%": {
+                                        boxShadow: "0 0 0 0 rgba(37, 99, 235, 0.4)",
+                                        borderColor: "rgba(37, 99, 235, 0.2)",
+                                        color: "#2563eb"
+                                    },
+                                    "50%": {
+                                        boxShadow: "0 0 0 10px rgba(37, 99, 235, 0)",
+                                        borderColor: "rgba(37, 99, 235, 0.6)",
+                                        color: "#1d4ed8"
+                                    },
+                                    "100%": {
+                                        boxShadow: "0 0 0 0 rgba(37, 99, 235, 0)",
+                                        borderColor: "rgba(37, 99, 235, 0.2)",
+                                        color: "#2563eb"
+                                    }
+                                }
+                            }}
+                        >
+                            <HelpIcon sx={{ fontSize: "1.2rem" }} />
+                        </IconButton>
+                    </div>
                 </div>
 
                 <div className="p-4 sm:p-6 lg:p-8">
