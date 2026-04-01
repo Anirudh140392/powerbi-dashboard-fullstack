@@ -475,7 +475,8 @@ export default function TrendsCompetitionDrawer({
     Platform: "All",
     Format: "All",
     Brand: "All",
-    City: "All"
+    City: "All",
+    SKU: "All"
   });
 
   // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
@@ -489,6 +490,7 @@ export default function TrendsCompetitionDrawer({
           City: "All",
           Brand: "All",
           Format: "All",
+          SKU: "All",
         }));
       } else {
         setSelectedPlatform(initialPlatform || selectedColumn || "Blinkit");
@@ -541,6 +543,7 @@ export default function TrendsCompetitionDrawer({
   const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : [];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
   const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"]);
+  const SKU_OPTIONS = filterOptions.skus.length > 0 ? filterOptions.skus : [];
 
   // ===================== FETCH FILTER OPTIONS =====================
   useEffect(() => {
@@ -632,6 +635,7 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
@@ -654,6 +658,7 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         const response = await axiosInstance.get('/market-share/trends', { params });
@@ -676,6 +681,7 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           ownBrandsOnly: 'true'
         };
 
@@ -699,6 +705,7 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
@@ -735,6 +742,7 @@ export default function TrendsCompetitionDrawer({
         location: drawerFilters.City !== 'All' ? drawerFilters.City : undefined,
         brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
         category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+        sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
       };
 
       const response = await axiosInstance.get('/watchtower/competition', { params });
@@ -2013,6 +2021,7 @@ export default function TrendsCompetitionDrawer({
     else if (newAudience === "Format") firstOption = FORMAT_OPTIONS[0];
     else if (newAudience === "City") firstOption = CITY_OPTIONS[0];
     else if (newAudience === "Brand") firstOption = BRAND_OPTIONS[0];
+    else if (newAudience === "SKU") firstOption = SKU_OPTIONS[0];
 
     setSelectedPlatform(firstOption);
 
@@ -2022,7 +2031,8 @@ export default function TrendsCompetitionDrawer({
       Platform: newAudience === "Platform" ? firstOption : "All",
       Format: newAudience === "Format" ? firstOption : "All",
       City: newAudience === "City" ? firstOption : "All",
-      Brand: newAudience === "Brand" ? firstOption : "All"
+      Brand: newAudience === "Brand" ? firstOption : "All",
+      SKU: newAudience === "SKU" ? firstOption : "All"
     }));
 
     setShowPlatformPills(true);
@@ -2138,15 +2148,20 @@ export default function TrendsCompetitionDrawer({
             color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
+            label="SKU"
+            value={drawerFilters.SKU}
+            color={drawerFilters.SKU !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
             label="Date"
             value={range}
           />
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All') && (
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All') && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All" })}
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All" })}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
@@ -2198,6 +2213,7 @@ export default function TrendsCompetitionDrawer({
                   <MenuItem value="Format">Format</MenuItem>
                   <MenuItem value="Brand">Brand</MenuItem>
                   <MenuItem value="City">City</MenuItem>
+                  <MenuItem value="SKU">SKU</MenuItem>
                 </Select>
 
 
@@ -2238,7 +2254,9 @@ export default function TrendsCompetitionDrawer({
                         ? CITY_OPTIONS
                         : allTrendMeta.context.audience === "Brand"
                           ? BRAND_OPTIONS
-                          : [];
+                          : allTrendMeta.context.audience === "SKU"
+                            ? SKU_OPTIONS
+                            : [];
                   const visibleOptions = allOptions;
 
                   return (
