@@ -184,6 +184,34 @@ const CheckboxItem = ({ label, count, color, icon, defaultChecked = false }) => 
     );
 };
 
+const ProductImage = ({ imageUrl, productName }) => {
+    const [hasError, setHasError] = useState(false);
+
+    if (!imageUrl || hasError) {
+        return (
+            <div className="w-8 h-12 bg-white rounded-md shadow-[0_4px_12px_rgba(0,0,0,0.05)] border border-slate-200 relative flex flex-col items-center justify-center p-1">
+                <div className="w-4 h-4 text-slate-300 opacity-60">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <img 
+            src={imageUrl} 
+            alt={productName} 
+            className="w-24 h-24 object-contain mix-blend-multiply drop-shadow-sm transition-opacity duration-300"
+            onError={() => setHasError(true)}
+            loading="lazy"
+        />
+    );
+};
+
 const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedItems, setSelectedItems] = useState([]);
@@ -650,14 +678,7 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                     {/* Product Visual Area */}
                                                     <div className="w-full aspect-square bg-[#f1f5f9]/50 rounded-xl mb-3 flex items-center justify-center relative overflow-hidden transition-all duration-500 group-hover:bg-blue-50/50">
                                                         <div className="relative z-10 scale-90 group-hover:scale-105 transition-transform duration-500">
-                                                            {product.imageUrl ? (
-                                                                <img src={product.imageUrl} alt={product.name} className="w-24 h-24 object-contain mix-blend-multiply drop-shadow-sm" />
-                                                            ) : (
-                                                                <div className="w-8 h-12 bg-white rounded-md shadow-sm border border-slate-100 relative">
-                                                                    <div className="absolute top-1 left-1 right-1 h-1.5 bg-slate-50 rounded"></div>
-                                                                    <div className="absolute bottom-2 left-1 right-1 h-4 bg-slate-50/20 rounded"></div>
-                                                                </div>
-                                                            )}
+                                                            <ProductImage imageUrl={product.imageUrl} productName={product.name} />
                                                         </div>
                                                         
                                                         {/* Badge on Card */}
