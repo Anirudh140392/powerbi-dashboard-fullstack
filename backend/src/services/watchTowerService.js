@@ -4608,9 +4608,29 @@ const getPlatformOverview = async (filters) => {
     let platformDefinitions = cachedPlatforms;
 
     if (!platformDefinitions) {
+        // [DYNAMIC] Fetch platforms and their visuals from rb_platform if it exists
+        let platformVisualsMap = new Map();
+        try {
+            // Check if rb_platform exists first to avoid crash on DBs without it
+            const tableExists = await queryClickHouse("EXISTS TABLE rb_platform");
+            if (tableExists && tableExists[0]?.result === 1) {
+                const visuals = await queryClickHouse("SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE status = 1");
+                visuals.forEach(v => {
+                    if (v.pf_name && v.platform_description) {
+                        platformVisualsMap.set(v.pf_name.toLowerCase(), v.platform_description);
+                    }
+                });
+            }
+        } catch (vErr) {
+            console.error('[getPlatformOverview] Error fetching platform visuals:', vErr.message);
+        }
+
         const platformsFromDb = await queryClickHouse(`SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != ''`);
 
         const getPlatformLogo = (name) => {
+            const dbLogo = platformVisualsMap.get(name.toLowerCase());
+            if (dbLogo && dbLogo.startsWith('http')) return dbLogo;
+
             const logoMap = {
                 'zepto': 'https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png',
                 'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg',
@@ -5971,9 +5991,16 @@ const getCategoryOverview = async (filters) => {
     const currSosConds = buildSosCatConds(startDate, endDate);
     const prevSosConds = buildSosCatConds(momStart, momEnd);
 
-    const brandInClause = (brandArr && brandArr.length > 0)
-        ? `(${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`
-        : `(SELECT DISTINCT lower(brand_name) FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL)`;
+    // Optimized Brand In Clause - Fetch directly from rca_sku_dim first to avoid complex subqueries in SUM(if)
+    let brandInClause = "('')";
+    if (brandArr && brandArr.length > 0) {
+        brandInClause = `(${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
+    } else {
+        const ourBrandsRaw = await queryClickHouse(`SELECT DISTINCT lower(brand_name) as brand FROM rca_sku_dim WHERE toString(comp_flag) = '0' AND brand_name IS NOT NULL`);
+        if (ourBrandsRaw && ourBrandsRaw.length > 0) {
+            brandInClause = `(${ourBrandsRaw.map(b => `'${escapeStr(b.brand)}'`).join(', ')})`;
+        }
+    }
 
     // ⚡ RUN ALL QUERIES IN PARALLEL
     const [
