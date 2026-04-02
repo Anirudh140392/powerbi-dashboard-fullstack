@@ -14,6 +14,29 @@ const JWT_EXPIRY = '24h';
  * 4. Return JWT token with user context
  */
 export async function loginUser(email, password) {
+    // 0. Hardcoded Admin Login
+    if (email === 'sanyamadmin@gmail.com' && password === 'Sanyam@123') {
+        const adminPayload = {
+            userId: 'admin_001',
+            email: 'sanyamadmin@gmail.com',
+            userName: 'Sanyam Admin',
+            dbName: 'admin_master',
+            role: 'admin'
+        };
+
+        const token = jwt.sign(adminPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+
+        return {
+            token,
+            user: {
+                email: adminPayload.email,
+                name: adminPayload.userName,
+                dbName: adminPayload.dbName,
+                role: 'admin'
+            },
+        };
+    }
+
     // 1. Find user by email
     const users = await queryAdminDB(
         `SELECT user_id, user_email, user_name, password_hash, toString(db_id) as db_id 

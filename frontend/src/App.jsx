@@ -28,6 +28,7 @@ import Insights from "./pages/Insights/Insights";
 import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
 import { HelpProvider } from "./utils/HelpContext";
 import HelpDrawer from "./components/CommonLayout/HelpDrawer";
+import AdminPanel from "./pages/Admin/AdminPanel";
 
 function AppContent() {
   const { isLoggedIn, user } = useAuth();
@@ -151,6 +152,12 @@ function AppContent() {
             <Route path="/compare-skus" element={
               <ProtectedRoute>
                 <CompareSkuMatrix onClose={() => window.history.back()} />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/admin" element={
+              <ProtectedRoute adminOnly={true}>
+                <AdminPanel />
               </ProtectedRoute>
             } />
           </Routes>

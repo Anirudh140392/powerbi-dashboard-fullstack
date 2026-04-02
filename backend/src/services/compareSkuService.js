@@ -4,7 +4,7 @@
  * All data sourced from rb_pdp_olap (ClickHouse) via existing helpers.
  */
 import { queryClickHouse, calculateConversion } from '../config/clickhouse.js';
-import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
+import { getTableColumns, resolveColumn, columnExists } from '../utils/schemaHelper.js';
 import { normalizeFilterArray } from './marketShareHelper.js';
 import dayjs from 'dayjs';
 
@@ -31,6 +31,7 @@ const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Cat
 async function getSource() {
     const cols = await getTableColumns('rb_pdp_olap');
     const r = (name) => resolveColumn(cols, name);
+    const hasImage = columnExists(cols, 'image_url') || columnExists(cols, 'Image_URL');
 
     return {
         table: 'rb_pdp_olap',
@@ -54,6 +55,7 @@ async function getSource() {
             compFlag: r('Comp_flag'),
             product: r('Product'),
             skuCode: r('Web_Pid'),
+            image: hasImage ? r('image_url', r('Image_URL')) : "''",
         }
     };
 }/**
@@ -219,7 +221,8 @@ export const getCompareSkuProducts = async (filters = {}) => {
                 any(${src.f.brand}) as brand,
                 any(${PRODUCT_CATEGORY_SQL}) as category,
                 count() as rowCount,
-                SUM(${src.f.sales}) / nullIf(SUM(${src.f.qty}), 0) as asp
+                SUM(${src.f.sales}) / nullIf(SUM(${src.f.qty}), 0) as asp,
+                any(${src.f.image}) as imageUrl
             FROM ${src.table}
             WHERE ${whereClause}
             GROUP BY name
@@ -236,6 +239,7 @@ export const getCompareSkuProducts = async (filters = {}) => {
                 brand: r.brand || '',
                 category: r.category || '',
                 size: '',  // Size not stored as separate column
+                imageUrl: r.imageUrl ? String(r.imageUrl).split(',')[0].trim() : '',
             })),
             total: totalCount,
             page: parseInt(page),
