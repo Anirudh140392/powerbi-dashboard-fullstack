@@ -544,9 +544,9 @@ async function getPricingKpis(filters = {}) {
                 NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_curr,
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ${f.weightExpr} > 0 
+                         AND ${f.wPpu} > 0 
                          AND ${brandCondition}
-                    THEN ${f.wSellingPrice} / ${f.weightExpr} 
+                    THEN ${f.wPpu} 
                     ELSE NULL END) AS price_per_unit_curr,
                 
                 -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
@@ -576,9 +576,9 @@ async function getPricingKpis(filters = {}) {
                 NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_prev,
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ${f.weightExpr} > 0 
+                         AND ${f.wPpu} > 0 
                          AND ${brandCondition}
-                    THEN ${f.wSellingPrice} / ${f.weightExpr} 
+                    THEN ${f.wPpu} 
                     ELSE NULL END) AS price_per_unit_prev,
                 
                 -- ✅ NEW RPI Logic (Previous Period)
@@ -623,9 +623,9 @@ async function getPricingKpis(filters = {}) {
                     change: calcPointsChange(formatVal(r.weighted_discount_curr), formatVal(r.weighted_discount_prev))
                 },
                 pricePerUnit: {
-                    value: formatVal(r.price_per_unit_alt_curr),
-                    prev: formatVal(r.price_per_unit_alt_prev),
-                    change: calcChange(formatVal(r.price_per_unit_alt_curr), formatVal(r.price_per_unit_alt_prev))
+                    value: formatVal(r.price_per_unit_curr),
+                    prev: formatVal(r.price_per_unit_prev),
+                    change: calcChange(formatVal(r.price_per_unit_curr), formatVal(r.price_per_unit_prev))
                 },
                 // rpi: {
                 //     value: formatVal(r.rpi_curr),
@@ -1092,8 +1092,8 @@ const getDimensionTrends = async (filters = {}) => {
             AVG(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition}
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(CASE WHEN ${f.weightExpr} > 0 AND ${brandCondition}
-                THEN ${f.wSellingPrice} / ${f.weightExpr}
+            AVG(CASE WHEN ${f.wPpu} > 0 AND ${brandCondition}
+                THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
             
             -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
@@ -1201,8 +1201,8 @@ const getPricingCompetitionTrends = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(CASE WHEN ${f.weightExpr} > 0
-                THEN ${f.wSellingPrice} / ${f.weightExpr}
+            AVG(CASE WHEN ${f.wPpu} > 0
+                THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(any(c.avg_comp_val), 0) AS rpi,
             AVG(${f.wSellingPrice}) AS asp,
@@ -1338,8 +1338,8 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(CASE WHEN ${f.weightExpr} > 0
-                THEN ${f.wSellingPrice} / ${f.weightExpr}
+            AVG(CASE WHEN ${f.wPpu} > 0
+                THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
             AVG(${f.wSellingPrice}) AS asp,
@@ -1361,8 +1361,8 @@ const getPricingCompetition = async (filters) => {
             AVG(CASE WHEN ${f.wMrp} > 0
                 THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
                 ELSE NULL END) AS discount,
-            AVG(CASE WHEN ${f.weightExpr} > 0
-                THEN ${f.wSellingPrice} / ${f.weightExpr}
+            AVG(CASE WHEN ${f.wPpu} > 0
+                THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
             AVG(${f.wSellingPrice}) AS asp,

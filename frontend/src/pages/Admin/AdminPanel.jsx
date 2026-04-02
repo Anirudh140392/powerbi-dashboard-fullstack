@@ -16,18 +16,21 @@ import AdminDashboard from "./tabs/AdminDashboard";
 import UsersTable from "./tabs/UsersTable";
 import RolesPermissions from "./tabs/RolesPermissions";
 import AccessMapping from "./tabs/AccessMapping";
+import AllUsersTable from "./Tabs/AllUsersTable";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState("users");
-    const { logout, user } = useAuth();
+    const { logout, user} = useAuth();
 
     const menuItems = [
         { id: "users", label: "Live Users", icon: Users },
+        { id: "all-users", label: "All Users", icon: Users },
         { id: "roles", label: "Permissions", icon: ShieldAlert }
     ];
 
     const renderContent = () => {
         switch (activeTab) {
+            case "all-users": return <AllUsersTable />;
             case "users": return <UsersTable />;
             case "roles": return <RolesPermissions />;
         }

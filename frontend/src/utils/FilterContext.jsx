@@ -13,7 +13,7 @@ export const initialContextLoaded = (ctx) => ctx.datesFetched && ctx.platformsFe
 const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart"];
 const FALLBACK_CATEGORIES = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
 const FALLBACK_LOCATIONS = [];
-const FALLBACK_BRANDS = ["Colgate", "Closeup", "Palmolive", "Halo"];
+const FALLBACK_BRANDS = [];
 const FALLBACK_CHANNELS = ["Ecom", "ModernTrade"];
 
 export const FilterProvider = ({ children }) => {
@@ -432,7 +432,7 @@ export const FilterProvider = ({ children }) => {
             } catch (err) {
                 console.warn("[FilterContext] Failed to fetch brands, using fallback:", err.message);
                 setBrands(FALLBACK_BRANDS);
-                setSelectedBrand(FALLBACK_BRANDS[0]);
+                setSelectedBrand("All");
             }
         };
         fetchBrands();
