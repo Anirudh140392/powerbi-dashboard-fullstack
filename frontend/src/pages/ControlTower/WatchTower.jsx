@@ -185,8 +185,11 @@ export default function WatchTower() {
     selectedKeyword,
     selectedLocation,
     selectedChannel,
+    maxDate,
+    datesInitialized,
     datesFetched,
     platformsFetched,
+    brands: contextBrands,
     refreshFilters
   } = React.useContext(FilterContext);
 
@@ -749,7 +752,7 @@ export default function WatchTower() {
         selectedLevel={selectedTrendLevel}
         initialAudience={initialTrendAudience}
         dynamicKey="platform_overview_tower"
-        brandOptions={defaultBrands.map(b => b.label)}
+        brandOptions={contextBrands}
         initialPlatform={filters.platform}
       />
 

@@ -304,6 +304,7 @@ const CompareSkuMatrix = ({ onClose }) => {
                 id: nextIdx,
                 platform: product.platform || '',
                 name: product.name,
+                imageUrl: product.imageUrl || '',
                 isSelected: false,
                 tags: [product.size, product.category].filter(Boolean),
                 metrics: {
@@ -664,9 +665,13 @@ const CompareSkuMatrix = ({ onClose }) => {
                                             </button>
                                         </div>
                                         
-                                        {/* Product Image Placeholder */}
-                                        <div className="h-[36px] w-[36px] flex-shrink-0 rounded-lg border border-slate-100 p-1 mb-1.5 bg-white flex items-center justify-center shadow-[0_1px_4px_rgb(0,0,0,0.04)] relative z-10">
-                                            <Package size={18} className="text-[#3b82f6]/30" strokeWidth={1.5} />
+                                        {/* Product Image */}
+                                        <div className="h-[36px] w-[36px] flex-shrink-0 rounded-lg border border-slate-100 p-1 mb-1.5 bg-white flex items-center justify-center shadow-[0_1px_4px_rgb(0,0,0,0.04)] relative z-10 overflow-hidden">
+                                            {sku.imageUrl ? (
+                                                <img src={sku.imageUrl} alt={sku.name} className="w-full h-full object-contain mix-blend-multiply" />
+                                            ) : (
+                                                <Package size={18} className="text-[#3b82f6]/30" strokeWidth={1.5} />
+                                            )}
                                         </div>
 
                                         {/* Product Title */}

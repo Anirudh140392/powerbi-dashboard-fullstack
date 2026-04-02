@@ -1,12 +1,11 @@
 import { queryClickHouse } from './src/config/clickhouse.js';
 
-async function checkCols() {
+async function run() {
     try {
-        const query2 = `SELECT name, type FROM system.columns WHERE table = 'rb_pdp_olap'`;
-        const res2 = await queryClickHouse(query2);
-        console.log('Columns:', res2.map(r => r.name).join(', '));
-    } catch (e) {
-        console.error('Error getting columns:', e.message);
+        const r = await queryClickHouse("SELECT image_url, Product FROM mamaearth.rb_pdp_olap WHERE image_url != '' LIMIT 5");
+        console.log(JSON.stringify(r, null, 2));
+    } catch(e) {
+        console.error(e);
     }
 }
-checkCols();
+run();

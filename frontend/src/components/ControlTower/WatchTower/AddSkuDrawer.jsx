@@ -650,10 +650,14 @@ const AddSkuDrawer = ({ isOpen, onClose, onAddSkus }) => {
                                                     {/* Product Visual Area */}
                                                     <div className="w-full aspect-square bg-[#f1f5f9]/50 rounded-xl mb-3 flex items-center justify-center relative overflow-hidden transition-all duration-500 group-hover:bg-blue-50/50">
                                                         <div className="relative z-10 scale-90 group-hover:scale-105 transition-transform duration-500">
-                                                            <div className="w-8 h-12 bg-white rounded-md shadow-sm border border-slate-100 relative">
-                                                                <div className="absolute top-1 left-1 right-1 h-1.5 bg-slate-50 rounded"></div>
-                                                                <div className="absolute bottom-2 left-1 right-1 h-4 bg-slate-50/20 rounded"></div>
-                                                            </div>
+                                                            {product.imageUrl ? (
+                                                                <img src={product.imageUrl} alt={product.name} className="w-24 h-24 object-contain mix-blend-multiply drop-shadow-sm" />
+                                                            ) : (
+                                                                <div className="w-8 h-12 bg-white rounded-md shadow-sm border border-slate-100 relative">
+                                                                    <div className="absolute top-1 left-1 right-1 h-1.5 bg-slate-50 rounded"></div>
+                                                                    <div className="absolute bottom-2 left-1 right-1 h-4 bg-slate-50/20 rounded"></div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                         
                                                         {/* Badge on Card */}
