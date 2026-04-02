@@ -714,8 +714,8 @@ async function getPricingInsights(filters = {}) {
                 (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
                  NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                 
-                -- Take Sales directly from rb_pdp_olap
-                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) AS offtakes_curr,
+                -- Take Qty_Sold directly from rb_pdp_olap for offtakes
+                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
                 
                 AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ${f.wMrp} > 0 
@@ -784,8 +784,8 @@ async function getPricingInsights(filters = {}) {
                         (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
                          NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                         
-                        -- Take Sales directly from rb_pdp_olap for city level
-                        SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSales} ELSE 0 END) AS offtakes_curr,
+                        -- Take Qty_Sold directly from rb_pdp_olap for city level offtakes
+                        SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
 
                         AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 
                             THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
@@ -952,7 +952,7 @@ const getDimensionOverview = async (filters = {}) => {
                         ELSE NULL END) AS ASP,
                     SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                              AND p.${f.compFlag} = '0'
-                        THEN ${f.wSales} 
+                        THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) 
                         ELSE 0 END) AS offtake,
                     
                     -- Previous metrics for change
@@ -980,7 +980,7 @@ const getDimensionOverview = async (filters = {}) => {
                         ELSE NULL END) AS asp_prev,
                     SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                              AND p.${f.compFlag} = '0'
-                        THEN ${f.wSales} 
+                        THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) 
                         ELSE 0 END) AS offtake_prev
                 FROM ${src.table} p
                 WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
@@ -1104,8 +1104,14 @@ const getDimensionTrends = async (filters = {}) => {
             ) AS rpi,
             
             AVG(CASE WHEN ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
-            SUM(CASE WHEN p.${f.compFlag} = '0' THEN ${f.wSales} ELSE 0 END) AS offtake
+            any(po.platform_offtake) AS offtake
         FROM ${src.table} p
+        LEFT JOIN (
+            SELECT ${f.date}, ${f.platform}, sum(ifNull(toFloat64OrZero(toString(${f.sales})), 0)) as platform_offtake 
+            FROM ${src.table} 
+            WHERE ${f.date} BETWEEN '${startDate}' AND '${endDate}'
+            GROUP BY ${f.date}, ${f.platform}
+        ) po ON p.${f.date} = po.${f.date} AND p.${f.platform} = po.${f.platform}
         WHERE ${whereClause}
         GROUP BY p.${f.date}
         ORDER BY p.${f.date} ASC
@@ -1206,7 +1212,7 @@ const getPricingCompetitionTrends = async (filters) => {
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(any(c.avg_comp_val), 0) AS rpi,
             AVG(${f.wSellingPrice}) AS asp,
-            SUM(${f.wSales}) AS offtake
+            SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         LEFT JOIN (
             SELECT 
@@ -1343,7 +1349,7 @@ const getPricingCompetition = async (filters) => {
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
             AVG(${f.wSellingPrice}) AS asp,
-            SUM(${f.wSales}) AS offtake
+            SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
         GROUP BY brand_name, platform_comp_avg
@@ -1366,7 +1372,7 @@ const getPricingCompetition = async (filters) => {
                 ELSE NULL END) AS price_per_unit,
             AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
             AVG(${f.wSellingPrice}) AS asp,
-            SUM(${f.wSales}) AS offtake
+            SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
         FROM ${src.table} p
         WHERE ${whereClause}
           AND p.${f.product} IS NOT NULL

@@ -1418,8 +1418,8 @@ export default function TrendsCompetitionDrawer({
 
           metrics: [
             {
-              id: "Offtakes",
-              label: "Offtakes",
+              id: "Offtake",
+              label: "Offtake",
               color: "#2563EB",
               axis: "left",
               default: true,
@@ -1467,7 +1467,7 @@ export default function TrendsCompetitionDrawer({
             {
               date: "06 Sep'25",
               Discount: 12.5,
-              Offtakes: 57,
+              Offtake: 57,
               Spend: 18.4,
               ROAS: 7.1,
               InorgSales: 21,
@@ -1479,7 +1479,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "08 Sep'25",
-              Offtakes: 49,
+              Offtake: 49,
               Spend: 20.1,
               ROAS: 6.2,
               InorgSales: 17,
@@ -1495,7 +1495,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "10 Sep'25",
-              Offtakes: 52,
+              Offtake: 52,
               Spend: 17.8,
               ROAS: 6.9,
               InorgSales: 19,
@@ -1511,7 +1511,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "13 Sep'25",
-              Offtakes: 44,
+              Offtake: 44,
               Spend: 21.4,
               ROAS: 5.8,
               InorgSales: 15,
@@ -1527,7 +1527,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "16 Sep'25",
-              Offtakes: 51,
+              Offtake: 51,
               Spend: 16.9,
               ROAS: 7.3,
               InorgSales: 22,
@@ -1543,7 +1543,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "18 Sep'25",
-              Offtakes: 47,
+              Offtake: 47,
               Spend: 19.7,
               ROAS: 6.4,
               InorgSales: 18,
@@ -1559,7 +1559,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "20 Sep'25",
-              Offtakes: 56,
+              Offtake: 56,
               Spend: 19.6,
               ROAS: 7.4,
               InorgSales: 24,
@@ -1575,7 +1575,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "23 Sep'25",
-              Offtakes: 42,
+              Offtake: 42,
               Spend: 22.8,
               ROAS: 5.5,
               InorgSales: 14,
@@ -1591,7 +1591,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "26 Sep'25",
-              Offtakes: 50,
+              Offtake: 50,
               Spend: 17.2,
               ROAS: 7.0,
               InorgSales: 20,
@@ -1607,7 +1607,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "30 Sep'25",
-              Offtakes: 58,
+              Offtake: 58,
               Spend: 18.9,
               ROAS: 7.8,
               InorgSales: 26,
@@ -1624,7 +1624,7 @@ export default function TrendsCompetitionDrawer({
           ].map((p, idx) => ({
             ...p,
             Discount: applyVar(p.Discount || p.PromoMyBrand || 10, idx),
-            Offtakes: applyVar(p.Offtakes, idx),
+            Offtake: applyVar(p.Offtake || p.Offtakes, idx),
             Spend: applyVar(p.Spend, idx),
             ROAS: applyVar(p.ROAS, idx),
             InorgSales: applyVar(p.InorgSales, idx),
@@ -1650,8 +1650,8 @@ export default function TrendsCompetitionDrawer({
 
           metrics: [
             {
-              id: "Offtakes",
-              label: "Offtakes",
+              id: "Offtake",
+              label: "Offtake",
               color: "#2563EB",
               default: true,
             },
@@ -1669,7 +1669,7 @@ export default function TrendsCompetitionDrawer({
             1: [
               {
                 x: "W1",
-                Offtakes: 54,
+                Offtake: 54,
                 Spend: 4.2,
                 ROAS: 6.8,
                 CategoryShare: 23.8,
@@ -1678,7 +1678,7 @@ export default function TrendsCompetitionDrawer({
               },
               {
                 x: "W2",
-                Offtakes: 55,
+                Offtake: 55,
                 Spend: 4.5,
                 ROAS: 7.0,
                 CategoryShare: 24.2,
@@ -1687,7 +1687,7 @@ export default function TrendsCompetitionDrawer({
               },
               {
                 x: "W3",
-                Offtakes: 56,
+                Offtake: 56,
                 Spend: 4.8,
                 ROAS: 7.2,
                 CategoryShare: 24.5,
@@ -1696,7 +1696,7 @@ export default function TrendsCompetitionDrawer({
               },
               {
                 x: "W4",
-                Offtakes: 57,
+                Offtake: 57,
                 Spend: 5.0,
                 ROAS: 7.4,
                 CategoryShare: 24.9,
@@ -1705,7 +1705,7 @@ export default function TrendsCompetitionDrawer({
               },
             ].map(p => ({
               ...p,
-              Offtakes: applyVar(p.Offtakes),
+              Offtake: applyVar(p.Offtake || p.Offtakes),
               Spend: applyVar(p.Spend),
               ROAS: applyVar(p.ROAS),
               CategoryShare: applyVar(p.CategoryShare),
@@ -1883,7 +1883,7 @@ export default function TrendsCompetitionDrawer({
     if (seriesName.includes('%') || seriesName.toLowerCase().includes('rate')) {
       return `${formatted}%`;
     }
-    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales')) {
+    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales') || seriesName.toLowerCase().includes('offtake')) {
       return `₹ ${formatted}`;
     }
     return formatted;
@@ -1951,10 +1951,11 @@ export default function TrendsCompetitionDrawer({
           scale: true,
           axisLabel: {
             formatter: (value) => {
-              if (value >= 10000000) return `₹ ${(value / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
-              if (value >= 100000) return `₹ ${(value / 100000).toFixed(1).replace(/\.0$/, '')} lac`;
-              if (value >= 1000) return `₹ ${(value / 1000).toFixed(1).replace(/\.0$/, '')} K`;
-              return `₹ ${value}`;
+              const prefix = "₹ ";
+              if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
+              if (value >= 100000) return `${prefix}${(value / 100000).toFixed(1).replace(/\.0$/, '')} lac`;
+              if (value >= 1000) return `${prefix}${(value / 1000).toFixed(1).replace(/\.0$/, '')} K`;
+              return `${prefix}${value}`;
             }
           }
         },
