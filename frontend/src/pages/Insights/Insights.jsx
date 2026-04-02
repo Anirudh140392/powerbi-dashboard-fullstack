@@ -207,11 +207,18 @@ const diagnoseCause = (evidence, aiTrendData, brand) => {
 const buildAISegments = (insight) => {
     const type = insight.type;
     const brand = insight.brandName || "Brand";
-    const city = insight.city !== "-" ? insight.city : "regions";
-    const category = insight.category !== "-" ? insight.category : "category";
-    const impact = B(formatINRCompact(insight.impactInr || 0));
     const allEv = insight.evidence || [];
     const ev = allEv[0] || {};
+
+    const city = (insight.city !== "-" && insight.city !== "Multi-city")
+        ? insight.city
+        : (ev.city && ev.city !== "-" ? ev.city : (insight.city !== "-" ? insight.city : "regions"));
+
+    const category = (insight.category !== "-" && insight.category !== "Overall")
+        ? insight.category
+        : (ev.category && ev.category !== "-" ? ev.category : (insight.category !== "-" ? insight.category : "category"));
+
+    const impact = B(formatINRCompact(insight.impactInr || 0));
 
     // ─── SHARE HEADROOM HOTSPOTS ─────────────────────────────────────────
     if (type === "Share Headroom Hotspots") {
@@ -222,20 +229,26 @@ const buildAISegments = (insight) => {
         const ourSku = ev.myTopSku && ev.myTopSku !== "-" ? ev.myTopSku : null;
 
         return [
-            { label: "What's Happening", priority: "high",
-              text: threat?.brandName
-                  ? `${B(threat.brandName)} gained ${B("+" + safePct(threat.shareChangePpt))} share in ${B(category)} (${B(topCity)}). ${B(brand)} losing ground.`
-                  : `Share headroom in ${B(category)} across ${B(topCity)}.` },
+            {
+                label: "What's Happening", priority: "high",
+                text: threat?.brandName
+                    ? `${B(threat.brandName)} gained ${B("+" + safePct(threat.shareChangePpt))} share in ${B(category)} (${B(topCity)}). ${B(brand)} losing ground.`
+                    : `Share headroom in ${B(category)} across ${B(topCity)}.`
+            },
             { label: "Root Cause", priority: "focus", text: d.text },
-            { label: "SKU Impact", priority: "neutral",
-              text: compSku
-                  ? `${B(d.competitor)}'s hero: ${B("'" + compSku + "'")}${ourSku ? ` vs ${B(brand)}'s weak SKU: ${B("'" + ourSku + "'")}` : ""}.`
-                  : ourSku ? `${B(brand)} weakest SKU: ${B("'" + ourSku + "'")}.` : `No SKU-level data available.` },
-            { label: "Action", priority: "good",
-              text: d.cause === "ad" ? `Increase bids on ${B(category)} keywords vs ${B(d.competitor)}. Recovery: ${impact}.`
-                  : d.cause === "organic" ? `Improve SEO & listing quality vs ${B(d.competitor)}. Recovery: ${impact}.`
-                  : d.cause === "osa" ? `Fix OSA in ${B(topCity)} before scaling ad spend. Recovery: ${impact}.`
-                  : `Boost visibility in ${B(topCity)}. Recovery: ${impact}.` },
+            {
+                label: "SKU Impact", priority: "neutral",
+                text: compSku
+                    ? `${B(d.competitor)}'s hero: ${B("'" + compSku + "'")}${ourSku ? ` vs ${B(brand)}'s weak SKU: ${B("'" + ourSku + "'")}` : ""}.`
+                    : ourSku ? `${B(brand)} weakest SKU: ${B("'" + ourSku + "'")}.` : `No SKU-level data available.`
+            },
+            {
+                label: "Action", priority: "good",
+                text: d.cause === "ad" ? `Increase bids on ${B(category)} keywords vs ${B(d.competitor)}. Recovery: ${impact}.`
+                    : d.cause === "organic" ? `Improve SEO & listing quality vs ${B(d.competitor)}. Recovery: ${impact}.`
+                        : d.cause === "osa" ? `Fix OSA in ${B(topCity)} before scaling ad spend. Recovery: ${impact}.`
+                            : `Boost visibility in ${B(topCity)}. Recovery: ${impact}.`
+            },
         ];
     }
 
@@ -247,16 +260,24 @@ const buildAISegments = (insight) => {
         const dir = (worst.gapPct || 0) > 0 ? "overpriced" : "underpriced";
 
         return [
-            { label: "Pricing Alert", priority: "high",
-              text: `${B(brand)} is ${B(dir)} by ${B(safePct(Math.abs(worst.gapPct || 0)))} vs ${B(compSku)} in ${B(worst.city || city)}.` },
-            { label: "SKU Comparison", priority: "focus",
-              text: `${B(compSku)} PPU at ${B("₹" + (typeof worst.compPpu === "number" ? worst.compPpu.toFixed(1) : worst.compPpu))}${ourSku ? ` → ${B(brand)} SKU ${B("'" + ourSku + "'")} at ${B("₹" + (typeof worst.ourPpu === "number" ? worst.ourPpu.toFixed(1) : worst.ourPpu))}` : `, ${B(brand)} at ${B("₹" + (typeof worst.ourPpu === "number" ? worst.ourPpu.toFixed(1) : worst.ourPpu))}`}.` },
-            { label: "Revenue at Risk", priority: "good",
-              text: `PSL from price gap: ${impact}. ${B(allEv.length.toString())} city-category combo(s) affected.` },
-            { label: "Action", priority: "neutral",
-              text: dir === "overpriced"
-                  ? `Run markdown / bundle offer in ${B(worst.city || city)} to close gap vs ${B(compSku)}.`
-                  : `Price advantage vs ${B(compSku)} — consider strategic price increase for margin.` },
+            {
+                label: "Pricing Alert", priority: "high",
+                text: `${B(brand)} is ${B(dir)} by ${B(safePct(Math.abs(worst.gapPct || 0)))} for ${B(category)} vs ${B(compSku)} in ${B(worst.city || city)}.`
+            },
+            {
+                label: "SKU Comparison", priority: "focus",
+                text: `${B(compSku)} PPU at ${B("₹" + (typeof worst.compPpu === "number" ? worst.compPpu.toFixed(1) : worst.compPpu))}${ourSku ? ` → ${B(brand)} SKU ${B("'" + ourSku + "'")} at ${B("₹" + (typeof worst.ourPpu === "number" ? worst.ourPpu.toFixed(1) : worst.ourPpu))}` : `, ${B(brand)} at ${B("₹" + (typeof worst.ourPpu === "number" ? worst.ourPpu.toFixed(1) : worst.ourPpu))}`}.`
+            },
+            {
+                label: "Revenue at Risk", priority: "good",
+                text: `PSL from price gap: ${impact}. ${B(allEv.length.toString())} city-category combo(s) affected.`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: dir === "overpriced"
+                    ? `Run markdown / bundle offer in ${B(worst.city || city)} to close gap vs ${B(compSku)}.`
+                    : `Price advantage vs ${B(compSku)} — consider strategic price increase for margin.`
+            },
         ];
     }
 
@@ -264,14 +285,22 @@ const buildAISegments = (insight) => {
     if (type === "Competitor OSA Weak Spots") {
         const top3 = allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3);
         return [
-            { label: "Opportunity", priority: "high",
-              text: `${B(ev.skuOrBrand || "Competitor")} OSA crashed to ${B(safePct(ev.otherBrandOsa))} in ${B(ev.category || category)}. ${B(brand)} healthy at ${B(safePct(ev.kwOsa))}.` },
-            { label: "Weak Competitors", priority: "focus",
-              text: top3.map(e => `${B(e.skuOrBrand)}: ${B(safePct(e.otherBrandOsa))} OSA (${e.city || city})`).join(" · ") || `Below threshold in ${B(city)}.` },
-            { label: "Upside", priority: "good",
-              text: `${impact} revenue if ${B(brand)} captures share across ${B(allEv.length.toString())} hotspot(s).` },
-            { label: "Action", priority: "neutral",
-              text: `Boost ${B(brand)} sponsored placements in ${B(ev.city || city)} while ${B(ev.skuOrBrand || "competitor")} is OOS.` },
+            {
+                label: "Opportunity", priority: "high",
+                text: `${B(ev.skuOrBrand || "Competitor")} OSA crashed to ${B(safePct(ev.otherBrandOsa))} in ${B(ev.category || category)}. ${B(brand)} healthy at ${B(safePct(ev.kwOsa))}.`
+            },
+            {
+                label: "Weak Competitors", priority: "focus",
+                text: top3.map(e => `${B(e.skuOrBrand)}: ${B(safePct(e.otherBrandOsa))} OSA (${e.city || city})`).join(" · ") || `Below threshold in ${B(city)}.`
+            },
+            {
+                label: "Upside", priority: "good",
+                text: `${impact} revenue if ${B(brand)} captures share across ${B(allEv.length.toString())} hotspot(s).`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: `Boost ${B(brand)} sponsored placements in ${B(ev.city || city)} while ${B(ev.skuOrBrand || "competitor")} is OOS.`
+            },
         ];
     }
 
@@ -280,15 +309,23 @@ const buildAISegments = (insight) => {
         const totalSpend = allEv.reduce((s, e) => s + (e.spendInr || 0), 0);
         const totalLoss = allEv.reduce((s, e) => s + (e.estLostSalesInr || 0), 0);
         return [
-            { label: "Wasted Spend", priority: "high",
-              text: `${B("₹" + totalSpend.toLocaleString("en-IN"))} ad spend on SKUs with ${B(safePct(ev.kwOsa))} OSA. Worst: ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}.` },
-            { label: "Affected SKUs", priority: "focus",
-              text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
-                  .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — OSA ${B(safePct(e.kwOsa))}`).join(" · ") || `OSA-ad mismatch in ${B(city)}.` },
-            { label: "Est. Loss", priority: "good",
-              text: `${B(formatINRCompact(totalLoss))} lost sales from ad→OOS leakage.` },
-            { label: "Action", priority: "neutral",
-              text: `Pause campaigns for ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)} until restocked. Redirect to OSA >80% SKUs.` },
+            {
+                label: "Wasted Spend", priority: "high",
+                text: `${B("₹" + totalSpend.toLocaleString("en-IN"))} ad spend on SKUs with ${B(safePct(ev.kwOsa))} OSA. Worst: ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}.`
+            },
+            {
+                label: "Affected SKUs", priority: "focus",
+                text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
+                    .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — OSA ${B(safePct(e.kwOsa))}`).join(" · ") || `OSA-ad mismatch in ${B(city)}.`
+            },
+            {
+                label: "Est. Loss", priority: "good",
+                text: `${B(formatINRCompact(totalLoss))} lost sales from ad→OOS leakage.`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: `Pause campaigns for ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)} until restocked. Redirect to OSA >80% SKUs.`
+            },
         ];
     }
 
@@ -297,17 +334,25 @@ const buildAISegments = (insight) => {
         const totalWaste = allEv.reduce((s, e) => s + (e.spend || 0), 0);
         const cappedCount = allEv.filter(e => e.budgetCapped).length;
         return [
-            { label: "Efficiency Alert", priority: "high",
-              text: `${B(allEv.length.toString())} keywords bleeding ${B("₹" + totalWaste.toLocaleString("en-IN"))}. Top offender: ${B("'" + (ev.keyword || "-") + "'")} on ${B(ev.platform || "-")} at ${B(safePct(ev.acos))} ACOS.` },
-            { label: "Worst Keywords", priority: "focus",
-              text: allEv.filter(e => e.keyword && e.keyword !== "-").slice(0, 3)
-                  .map(e => `${B(e.keyword)} (${e.platform || "-"}) — ACOS ${B(safePct(e.acos))}`).join(" · ") || `Underperforming in ${B(city)}.` },
-            { label: "Budget Impact", priority: "good",
-              text: `${impact} at risk.${cappedCount > 0 ? ` ${B(cappedCount.toString())} keyword(s) budget-capped.` : ""}` },
-            { label: "Action", priority: "neutral",
-              text: cappedCount > 0
-                  ? `Uncap high-ROAS keywords, pause ${B("'" + (ev.keyword || "underperformers") + "'")}.`
-                  : `Lower bids on ${B("'" + (ev.keyword || "poor performers") + "'")}. Target ACOS <15%.` },
+            {
+                label: "Efficiency Alert", priority: "high",
+                text: `${B(allEv.length.toString())} keywords bleeding ${B("₹" + totalWaste.toLocaleString("en-IN"))}. Top offender: ${B("'" + (ev.keyword || "-") + "'")} on ${B(ev.platform || "-")} at ${B(safePct(ev.acos))} ACOS.`
+            },
+            {
+                label: "Worst Keywords", priority: "focus",
+                text: allEv.filter(e => e.keyword && e.keyword !== "-").slice(0, 3)
+                    .map(e => `${B(e.keyword)} (${e.platform || "-"}) — ACOS ${B(safePct(e.acos))}`).join(" · ") || `Underperforming in ${B(city)}.`
+            },
+            {
+                label: "Budget Impact", priority: "good",
+                text: `${impact} at risk.${cappedCount > 0 ? ` ${B(cappedCount.toString())} keyword(s) budget-capped.` : ""}`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: cappedCount > 0
+                    ? `Uncap high-ROAS keywords, pause ${B("'" + (ev.keyword || "underperformers") + "'")}.`
+                    : `Lower bids on ${B("'" + (ev.keyword || "poor performers") + "'")}. Target ACOS <15%.`
+            },
         ];
     }
 
@@ -315,32 +360,48 @@ const buildAISegments = (insight) => {
     if (type === "Replenishment Breaks") {
         const noPoCount = allEv.filter(e => e.poCreated === false).length;
         return [
-            { label: "Stockout Risk", priority: "high",
-              text: `${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}: fill rate ${B(safePct(ev.fillRate))}.${noPoCount > 0 ? ` ${B(noPoCount.toString())} SKU(s) have **no active PO**.` : ""}` },
-            { label: "Affected SKUs", priority: "focus",
-              text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
-                  .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — ${B(safePct(e.fillRate))} fill`).join(" · ") || `Supply issues in ${B(city)}.` },
-            { label: "Sales at Risk", priority: "good",
-              text: `${impact} revenue loss. ${B(allEv.length.toString())} SKU(s) below 80% fill rate.` },
-            { label: "Action", priority: "neutral",
-              text: noPoCount > 0
-                  ? `Create emergency POs for ${B(noPoCount.toString())} SKU(s). Prioritize ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}.`
-                  : `Escalate dispatch at ${B(ev.depotOrDb || "local DC")}. Prioritize ${B("'" + (ev.skuOrBrand || brand) + "'")}.` },
+            {
+                label: "Stockout Risk", priority: "high",
+                text: `${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}: fill rate ${B(safePct(ev.fillRate))}.${noPoCount > 0 ? ` ${B(noPoCount.toString())} SKU(s) have **no active PO**.` : ""}`
+            },
+            {
+                label: "Affected SKUs", priority: "focus",
+                text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
+                    .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — ${B(safePct(e.fillRate))} fill`).join(" · ") || `Supply issues in ${B(city)}.`
+            },
+            {
+                label: "Sales at Risk", priority: "good",
+                text: `${impact} revenue loss. ${B(allEv.length.toString())} SKU(s) below 80% fill rate.`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: noPoCount > 0
+                    ? `Create emergency POs for ${B(noPoCount.toString())} SKU(s). Prioritize ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}.`
+                    : `Escalate dispatch at ${B(ev.depotOrDb || "local DC")}. Prioritize ${B("'" + (ev.skuOrBrand || brand) + "'")}.`
+            },
         ];
     }
 
     // ─── CHALLENGER LAUNCH WATCH ─────────────────────────────────────────
     if (type === "Challenger Launch Watch") {
         return [
-            { label: "New Threat", priority: "high",
-              text: `${B("'" + (ev.skuOrBrand || "New entrant") + "'")} entered ${B(ev.category || category)} on ${B(ev.platform || "-")} in ${B(ev.city || city)} — ${B(safePct(ev.newItemShare))} share, PPU ${B("₹" + (ev.ppu || "-"))}.` },
-            { label: "Challengers", priority: "focus",
-              text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
-                  .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — ${B(safePct(e.newItemShare))} share`).join(" · ") || `New entrant in ${B(category)}.` },
-            { label: "Threat Level", priority: "good",
-              text: `${B(allEv.length.toString())} new SKU(s) detected.${ev.ppu && ev.ppu < 200 ? ` Aggressive pricing at ${B("₹" + ev.ppu)}.` : ` Premium positioning.`}` },
-            { label: "Action", priority: "neutral",
-              text: `Counter-promote in ${B(ev.city || city)}. Monitor ${B("'" + (ev.skuOrBrand || "challenger") + "'")} weekly — escalate if share >5%.` },
+            {
+                label: "New Threat", priority: "high",
+                text: `${B("'" + (ev.skuOrBrand || "New entrant") + "'")} entered ${B(ev.category || category)} on ${B(ev.platform || "-")} in ${B(ev.city || city)} — ${B(safePct(ev.newItemShare))} share, PPU ${B("₹" + (ev.ppu || "-"))}.`
+            },
+            {
+                label: "Challengers", priority: "focus",
+                text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
+                    .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — ${B(safePct(e.newItemShare))} share`).join(" · ") || `New entrant in ${B(category)}.`
+            },
+            {
+                label: "Threat Level", priority: "good",
+                text: `${B(allEv.length.toString())} new SKU(s) detected.${ev.ppu && ev.ppu < 200 ? ` Aggressive pricing at ${B("₹" + ev.ppu)}.` : ` Premium positioning.`}`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: `Counter-promote in ${B(ev.city || city)}. Monitor ${B("'" + (ev.skuOrBrand || "challenger") + "'")} weekly — escalate if share >5%.`
+            },
         ];
     }
 
@@ -823,6 +884,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                             </>)}
                             {view === "pricing" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} PPU</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Competitor PPU</TableHead>
@@ -833,6 +895,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                             </>)}
                             {view === "adStock" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Brand / SKU</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Ad SOV</TableHead>
@@ -859,6 +922,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PO Status</TableHead>
                             </>)}
                             {view === "keyword" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Keyword</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Campaign</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Bid</TableHead>
@@ -911,6 +975,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                     {view === "pricing" && (
                                         <>
                                             <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city}</TableCell>
+                                            <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
                                             <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.category}</TableCell>
                                             <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">₹{typeof d.ourPpu === 'number' ? d.ourPpu.toFixed(1) : d.ourPpu}</TableCell>
                                             <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">₹{typeof d.compPpu === 'number' ? d.compPpu.toFixed(1) : d.compPpu}</TableCell>
@@ -927,6 +992,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                     {view === "adStock" && (
                                         <>
                                             <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city}</TableCell>
+                                            <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
                                             <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.skuOrBrand}</TableCell>
                                             <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-1.5">{safePct(d.kwOsa)}</TableCell>
                                             <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">{safePct(d.adSov)}</TableCell>
@@ -965,6 +1031,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                     )}
                                     {view === "keyword" && (
                                         <>
+                                            <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
                                             <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.keyword}</TableCell>
                                             <TableCell className="text-[11px] text-slate-500 px-3 py-1.5 max-w-[120px] truncate">{d.campaign}</TableCell>
                                             <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">₹{d.bid?.toFixed(1)}</TableCell>
@@ -1124,7 +1191,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
 
                     {/* Body */}
                     <div style={{ flex: 1, overflowY: "auto", padding: "20px", background: "#fafcff" }}>
-                        {!isEmpty && insight.whatWeSee?.some((w) => w !== "-") && (
+                        {/* {!isEmpty && insight.whatWeSee?.some((w) => w !== "-") && (
                             <div style={{
                                 marginBottom: "20px",
                                 background: "linear-gradient(135deg, #eff6ff 0%, #f0f7ff 100%)",
@@ -1147,7 +1214,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                     ))}
                                 </ul>
                             </div>
-                        )}
+                        )} */}
                         {isEmpty ? (
                             <div style={{
                                 textAlign: "center", padding: "64px 16px",

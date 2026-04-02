@@ -119,6 +119,7 @@ export const getInsightsData = async (filters) => {
         WITH our_brand AS (
             SELECT 
                 Location AS city,
+                Platform AS platform,
                 ${catField} AS category,
                 ROUND(
                     AVG(
@@ -138,11 +139,12 @@ export const getInsightsData = async (filters) => {
               AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
               AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
               AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-            GROUP BY city, category
+            GROUP BY city, platform, category
         ),
         comp_brand AS (
             SELECT 
                 Location AS city,
+                Platform AS platform,
                 ${catField} AS category,
                 ROUND(
                     AVG(
@@ -159,10 +161,11 @@ export const getInsightsData = async (filters) => {
               AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
               AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
               AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-            GROUP BY city, category
+            GROUP BY city, platform, category
         )
         SELECT 
             o.city,
+            o.platform,
             o.category,
             o.our_ppu       AS ourPpu,
             c.comp_ppu      AS compPpu,
@@ -178,7 +181,7 @@ export const getInsightsData = async (filters) => {
             0) AS psl,
             o.our_sales     AS totalSales
         FROM our_brand o
-        JOIN comp_brand c ON o.city = c.city AND o.category = c.category
+        JOIN comp_brand c ON o.city = c.city AND o.platform = c.platform AND o.category = c.category
         WHERE c.comp_ppu > 0
         ORDER BY gapPct DESC
     `;
@@ -777,7 +780,7 @@ export const getInsightsData = async (filters) => {
         for (const r of ownShareRows) {
             const cityKey = String(r.city || "").toLowerCase();
             const platKey = String(r.platform || "").toLowerCase();
-            const catKey  = String(r.category || "").toLowerCase();
+            const catKey = String(r.category || "").toLowerCase();
             const gKey = `${cityKey}||${platKey}||${catKey}`;
             const sosKey = `${String(r.brandName).toLowerCase()}||${catKey}`;
             const sos = sosMap[sosKey] || { currAdSos: 0, currOrgSos: 0, prevAdSos: 0, prevOrgSos: 0, adSosChange: 0, orgSosChange: 0 };
@@ -796,9 +799,9 @@ export const getInsightsData = async (filters) => {
 
             // Aggregate for category totals (Sum volumes first, then calculate share)
             if (!categoryShareTotals[catKey]) {
-                categoryShareTotals[catKey] = { 
-                    brandName: r.brandName, category: r.category, topSku: r.topSku, 
-                    brandSales: 0, prevBrandSales: 0, totalMarketSales: 0, prevTotalMarketSales: 0 
+                categoryShareTotals[catKey] = {
+                    brandName: r.brandName, category: r.category, topSku: r.topSku,
+                    brandSales: 0, prevBrandSales: 0, totalMarketSales: 0, prevTotalMarketSales: 0
                 };
             }
             categoryShareTotals[catKey].brandSales += (Number(r.brandSales) || 0);
@@ -812,7 +815,7 @@ export const getInsightsData = async (filters) => {
             const t = categoryShareTotals[catKey];
             const currShare = t.totalMarketSales > 0 ? (t.brandSales / t.totalMarketSales) * 100 : 0;
             const prevShare = t.prevTotalMarketSales > 0 ? (t.prevBrandSales / t.prevTotalMarketSales) * 100 : 0;
-            
+
             categoryShareMap[catKey] = {
                 ...t,
                 currSharePct: Number(currShare.toFixed(2)),
@@ -825,9 +828,9 @@ export const getInsightsData = async (filters) => {
         for (const r of compShareRows) {
             const cityKey = String(r.city || "").toLowerCase();
             const platKey = String(r.platform || "").toLowerCase();
-            const catKey  = String(r.category || "").toLowerCase();
+            const catKey = String(r.category || "").toLowerCase();
             const gKey = `${cityKey}||${platKey}||${catKey}`;
-            
+
             if (granularThreatMap[gKey]) continue;
 
             const sosKey = `${String(r.brandName).toLowerCase()}||${catKey}`;
@@ -859,7 +862,7 @@ export const getInsightsData = async (filters) => {
             // Group by brand + category to get total view of a competitor across filtered areas
             const bKey = `${String(r.brandName).toLowerCase()}||${String(r.category).toLowerCase()}`;
             if (!categoryThreatTotals[bKey]) {
-                categoryThreatTotals[bKey] = { 
+                categoryThreatTotals[bKey] = {
                     brandName: r.brandName, category: r.category, topSku: r.topSku,
                     brandSales: 0, prevBrandSales: 0, totalMarketSales: 0, prevTotalMarketSales: 0
                 };
@@ -875,7 +878,7 @@ export const getInsightsData = async (filters) => {
             const t = categoryThreatTotals[bKey];
             const currShare = t.totalMarketSales > 0 ? (t.brandSales / t.totalMarketSales) * 100 : 0;
             const prevShare = t.prevTotalMarketSales > 0 ? (t.prevBrandSales / t.prevTotalMarketSales) * 100 : 0;
-            
+
             categoryThreatMap[bKey] = {
                 ...t,
                 currSharePct: Number(currShare.toFixed(2)),
@@ -910,7 +913,7 @@ export const getInsightsData = async (filters) => {
             let lossRecords = (perfData || []).map(perf => {
                 const cityKey = String(perf.city || "").toLowerCase();
                 const platKey = String(perf.platform || "").toLowerCase();
-                const catKey  = String(perf.category || "").toLowerCase();
+                const catKey = String(perf.category || "").toLowerCase();
                 const gKey = `${cityKey}||${platKey}||${catKey}`;
 
                 // Use granular share, fallback to category-wide average, then try partial key
@@ -949,8 +952,8 @@ export const getInsightsData = async (filters) => {
                     appCategory: perf.category,
                     myTopSku: catShare?.topSku || "-",
                     competitorSku: threat?.topSku || "-",
-                    possibleCause: threat 
-                        ? `Competitor share↑ (${threat.brandName})` 
+                    possibleCause: threat
+                        ? `Competitor share↑ (${threat.brandName})`
                         : (headroomInr > 1000 ? "On-Shelf Availability Lacuna" : "Visibility/OSA Sync Issue"),
                     topThreat: threat ? threat.brandName : 'N/A',
                     threatShare: threat ? threat.currSharePct : 0,
@@ -1014,6 +1017,7 @@ export const getInsightsData = async (filters) => {
 
             const evidence = hasData ? cityFilteredPriceData.slice(0, 5).map(p => ({
                 city: p.city,
+                platform: p.platform,
                 category: p.category,
                 ourPpu: Number(p.ourPpu) || 0,
                 compPpu: Number(p.compPpu) || 0,
@@ -1021,7 +1025,7 @@ export const getInsightsData = async (filters) => {
                 compSku: p.compSku || '-',
                 gapPct: Number(p.gapPct) || 0,
                 psl: Number(p.psl) || 0,
-            })) : [{ city: '-', category: '-', ourPpu: 0, compPpu: 0, impactedSku: '-', compSku: '-', gapPct: 0, psl: 0 }];
+            })) : [{ city: '-', platform: '-', category: '-', ourPpu: 0, compPpu: 0, impactedSku: '-', compSku: '-', gapPct: 0, psl: 0 }];
 
             const totalImpact = hasData ? evidence.reduce((sum, e) => sum + Math.abs(e.psl || 0), 0) : 0;
 
@@ -1044,7 +1048,7 @@ export const getInsightsData = async (filters) => {
                 type: "Price Parity Radar",
                 title: title2,
                 family: "Pricing",
-                platforms: ["-"],
+                platforms: hasData ? [...new Set(cityFilteredPriceData.map(p => p.platform))] : ["-"],
                 city: filters.city !== "All cities" ? filters.city : "Multi-city",
                 category: filters.category !== "All categories" ? filters.category : "Overall",
                 impactInr: totalImpact,
