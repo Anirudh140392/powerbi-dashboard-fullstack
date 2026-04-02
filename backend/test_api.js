@@ -1,18 +1,13 @@
-import fetch from 'node-fetch';
-
+import axios from 'axios';
 async function test() {
-    try {
-        const res = await fetch('http://localhost:5000/api/watchtower/competition-brand-trends?platform=Blinkit&location=All&brands=Amul&skus=All&category=All&period=1M&timeStep=Daily');
-        const data = await res.json();
-        
-        if (data.brands && data.brands.Amul) {
-            console.log('Amul SOS first 5 days:', data.brands.Amul.slice(0, 5).map(i => i.sos));
-            console.log('Amul target_sales first 5 days:', data.brands.Amul.slice(0, 5).map(i => i.target_sales));
-        } else {
-            console.log('No data for Amul');
-        }
-    } catch(e) {
-        console.error(e);
+  try {
+    const res = await axios.get('http://localhost:5000/api/watchtower/category-overview?keyword%5B%5D=All&startDate=2026-03-01&endDate=2026-03-31&compareStartDate=2026-02-01&compareEndDate=2026-02-28:1');
+    console.log("Success", res.status);
+  } catch(e) {
+    console.log("Error:", e.response ? e.response.status : e.message);
+    if(e.response) {
+      console.log("Data:", e.response.data);
     }
+  }
 }
 test();
