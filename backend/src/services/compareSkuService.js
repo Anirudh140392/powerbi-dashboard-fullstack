@@ -31,7 +31,8 @@ const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Cat
 async function getSource() {
     const cols = await getTableColumns('rb_pdp_olap');
     const r = (name) => resolveColumn(cols, name);
-    const hasImage = columnExists(cols, 'image_url') || columnExists(cols, 'Image_URL');
+    const imageColName = resolveColumn(cols, 'image_url', 'NOT_FOUND');
+    const hasImage = imageColName !== 'NOT_FOUND';
 
     return {
         table: 'rb_pdp_olap',
@@ -55,7 +56,7 @@ async function getSource() {
             compFlag: r('Comp_flag'),
             product: r('Product'),
             skuCode: r('Web_Pid'),
-            image: hasImage ? r('image_url', r('Image_URL')) : "''",
+            image: hasImage ? imageColName : "''",
         }
     };
 }/**
@@ -222,7 +223,7 @@ export const getCompareSkuProducts = async (filters = {}) => {
                 any(${PRODUCT_CATEGORY_SQL}) as category,
                 count() as rowCount,
                 SUM(${src.f.sales}) / nullIf(SUM(${src.f.qty}), 0) as asp,
-                any(${src.f.image}) as imageUrl
+                any(${src.f.skuCode}) as webPid
             FROM ${src.table}
             WHERE ${whereClause}
             GROUP BY name
@@ -230,6 +231,25 @@ export const getCompareSkuProducts = async (filters = {}) => {
             ORDER BY rowCount DESC
             LIMIT ${parseInt(limit)} OFFSET ${offset}
         `);
+
+        // Fetch mapped images from rb_sku_platform using web_pid
+        const webPids = productsResult.map(r => r.webPid).filter(Boolean);
+        let imageUrlsMap = {};
+        if (webPids.length > 0) {
+            try {
+                const imgData = await queryClickHouse(`
+                    SELECT web_pid, any(image_url) as img 
+                    FROM rb_sku_platform 
+                    WHERE web_pid IN (${webPids.map(id => `'${escapeStr(id)}'`).join(',')}) 
+                    GROUP BY web_pid
+                `);
+                imgData.forEach(row => { 
+                    imageUrlsMap[row.web_pid] = row.img; 
+                });
+            } catch (imgError) {
+                console.error('[compareSkuService.getCompareSkuProducts] Failed to fetch mapped images from rb_sku_platform:', imgError);
+            }
+        }
 
         return {
             products: productsResult.map((r, idx) => ({
@@ -239,7 +259,7 @@ export const getCompareSkuProducts = async (filters = {}) => {
                 brand: r.brand || '',
                 category: r.category || '',
                 size: '',  // Size not stored as separate column
-                imageUrl: r.imageUrl ? String(r.imageUrl).split(',')[0].trim() : '',
+                imageUrl: imageUrlsMap[r.webPid] ? String(imageUrlsMap[r.webPid]).split(',')[0].trim() : '',
             })),
             total: totalCount,
             page: parseInt(page),
