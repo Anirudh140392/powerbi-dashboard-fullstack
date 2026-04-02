@@ -10287,7 +10287,8 @@ const getSkuOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} ELSE 0 END) as my_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
+                any(${src.isAgg ? 'sku_code' : 'Web_Pid'}) as web_pid
             FROM ${src.table}
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
             GROUP BY Product
@@ -10365,6 +10366,26 @@ const getSkuOverview = async (filters) => {
     const currOrgSovDenomSkuMap = buildSkuKwMap(currOrgSovDenomSku);
     const prevOrgSovNumSkuMap = buildSkuKwMap(prevOrgSovNumSku);
     const prevOrgSovDenomSkuMap = buildSkuKwMap(prevOrgSovDenomSku);
+
+    // Fetch SKU images from rb_sku_platform using web_pid
+    const skuWebPids = currSkuMetrics.map(r => r.web_pid).filter(Boolean);
+    let skuImageMap = {};
+    if (skuWebPids.length > 0) {
+        try {
+            const imgData = await queryClickHouse(`
+                SELECT web_pid, any(image_url) as img
+                FROM rb_sku_platform
+                WHERE web_pid IN (${skuWebPids.map(id => `'${escapeStr(String(id))}'`).join(',')})
+                GROUP BY web_pid
+            `);
+            imgData.forEach(row => {
+                skuImageMap[String(row.web_pid)] = row.img;
+            });
+            console.log(`[getSkuOverview] Fetched ${Object.keys(skuImageMap).length} SKU images from rb_sku_platform`);
+        } catch (imgError) {
+            console.error('[getSkuOverview] Failed to fetch SKU images from rb_sku_platform:', imgError);
+        }
+    }
 
     // Calculate total offtake for all returned SKUs to determine Offtake Share
     const currTotalSkuSales = currSkuMetrics.reduce((sum, item) => sum + parseFloat(item.total_sales || 0), 0);
@@ -10455,7 +10476,7 @@ const getSkuOverview = async (filters) => {
             key: `sku_${idx}_${skuName.toLowerCase().replace(/\s+/g, '_').substring(0, 30)} `,
             label: skuName,
             type: "SKU",
-            logo: "https://cdn-icons-png.flaticon.com/512/3502/3502685.png",
+            logo: (dataRaw.web_pid && skuImageMap[String(dataRaw.web_pid)]) || null,
             offtakeShare: parseFloat(offtakeShare.toFixed(2)),
             columns: generateKpiColumns({
                 offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, promoMyBrand, promoCompete, categorySize: currSkuCategorySize, adSov, organicSov,
