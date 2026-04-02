@@ -110,7 +110,7 @@ async function getGeoSource() {
         f: {
             sales: wrap(r('Sales')),
             qty: wrap(r('Qty_Sold')),
-            orders: wrap(r('Ad_Quantity_sold'), 'float'), // This will catch the typo now
+            orders: wrap(r('Qty_Sold'), 'float'),
             neno: wrap(r('neno_osa')),
             deno: wrap(r('deno_osa')),
             listing: r('listing_percent'),

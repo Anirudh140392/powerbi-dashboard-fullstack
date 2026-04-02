@@ -1,16 +1,25 @@
 
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { createClient } from '@clickhouse/client';
+
+const client = createClient({
+    host: 'http://13.200.55.131:8123',
+    user: 'readonly_user',
+    password: 'Readonly@123',
+    database: 'mamaearth',
+});
 
 async function checkSchema() {
     try {
-        console.log('--- Checking rb_pdp_olap Schema ---');
-        const results = await queryClickHouse(`
-            DESCRIBE rb_pdp_olap
-        `);
-        console.log('Schema:', JSON.stringify(results, null, 2));
-
+        const resultSet = await client.query({
+            query: 'DESCRIBE watchtower_agg_daily',
+            format: 'JSONEachRow',
+        });
+        const dataset = await resultSet.json();
+        console.log(JSON.stringify(dataset, null, 2));
     } catch (err) {
-        console.error('Error:', err);
+        console.error(err);
+    } finally {
+        await client.close();
     }
 }
 
