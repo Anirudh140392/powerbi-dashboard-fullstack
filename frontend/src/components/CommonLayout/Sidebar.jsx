@@ -46,6 +46,8 @@ import {
   Description as DescriptionIcon,
   Public as PublicIcon,
   Logout as LogoutIcon,
+  Menu as MenuIcon,
+  MenuOpen as MenuOpenIcon,
 } from "@mui/icons-material";
 
 
@@ -125,7 +127,7 @@ const Sidebar = ({
         borderRight: "1px solid rgba(0, 0, 0, 0.08)",
         transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         width: sidebarWidth,
-        overflow: "hidden",
+        position: 'relative', // Ensure nested absolute elements are relative to this root
       }}
     >
       <style>
@@ -139,30 +141,41 @@ const Sidebar = ({
             0% { background-position: -200% center; }
             100% { background-position: 200% center; }
           }
+          .sidebar-item-active::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 15%;
+            height: 70%;
+            width: 4px;
+            background: #2563eb;
+            border-radius: 0 4px 4px 0;
+            transition: all 0.3s ease;
+          }
         `}
       </style>
 
       {/* Header / Logo */}
       <Box sx={{
         px: isCollapsed ? 1 : 2.5,
-        py: 2.5,
+        py: 3,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        borderBottom: "1px solid rgba(0, 0, 0, 0.05)",
-        position: 'relative'
+        borderBottom: "1px solid rgba(0, 0, 0, 0.04)",
+        position: 'relative',
+        overflow: 'visible' // CRITICAL: Allow the toggle button to float outside
       }}>
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center', // Center logo horizontally
-            transition: 'all 0.3s ease',
+            justifyContent: 'center',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             width: '100%',
-            height: (user?.dbName === 'mars_petcare' && !isCollapsed) ? 150 : (user?.dbName === 'mamaearth' && !isCollapsed ? 100 : 60),
+            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 120 : (user?.dbName === 'mamaearth' ? 80 : 60)),
           }}
         >
-          {/* EY Logo Container */}
           <Box
             sx={{
               height: '100%',
@@ -170,66 +183,56 @@ const Sidebar = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              transition: 'all 0.3s ease',
-              overflow: 'visible'
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              overflow: 'visible',
+              filter: 'drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.05))'
             }}
           >
             <img
               src={activeLogo}
               alt={activeLogoAlt}
               style={{
-                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : '45px')),
+                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '80px' : (user?.dbName === 'mars_petcare' ? '120px' : '45px')),
                 width: isCollapsed ? '100%' : 'auto',
-                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : '180px')),
+                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '220px' : (user?.dbName === 'mars_petcare' ? '230px' : '180px')),
                 objectFit: 'contain',
                 padding: '0',
                 display: 'block',
-                borderRadius: user?.dbName === 'mamaearth' ? '6px' : '0',
+                borderRadius: user?.dbName === 'mamaearth' ? '8px' : '2px',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             />
           </Box>
         </Box>
 
-        {/* "-mozart" Text */}
-        <Box
-          sx={{
-            opacity: isCollapsed ? 0 : 1,
-            width: isCollapsed ? 0 : 'auto',
-            transform: isCollapsed ? 'translateX(-10px)' : 'translateX(0)',
-            transition: 'all 0.3s ease',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'flex-end',
-            pb: '3px'
-          }}
-        >
-          {/* <span style={{
-              color: '#000000',
-              fontSize: '1.2rem',
-              fontWeight: 700,
-              fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-              letterSpacing: '-0.5px',
-              marginLeft: '1px'
-            }}>
-              -mozart
-            </span> */}
-        </Box>
         {!isMobile && (
           <IconButton
             onClick={toggleSidebar}
             sx={{
-              color: 'rgba(0, 0, 0, 0.4)',
+              color: 'rgba(30, 41, 59, 0.45)', // Slightly darker for better visibility on white
               p: 0.5,
-              '&:hover': { color: '#000' },
+              '&:hover': { 
+                color: '#2563eb',
+                bgcolor: '#FFFFFF',
+                boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.12)',
+              },
               position: 'absolute',
-              right: 8,
-              top: '50%',
+              right: -12, // Precisely overlap the border
+              top: '50%', // Centered within the header (aligned with logo)
               transform: 'translateY(-50%)',
-              bgcolor: 'rgba(0, 0, 0, 0.03)'
+              bgcolor: '#FFFFFF',
+              boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+              border: '1px solid rgba(0, 0, 0, 0.05)',
+              zIndex: 10,
+              width: 28, // Slightly larger
+              height: 28,
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              '& .MuiSvgIcon-root': {
+                fontSize: '1rem' // Slightly larger icon
+              }
             }}
           >
-            {isCollapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
+            {isCollapsed ? <ChevronRightIcon /> : <ChevronLeftIcon />}
           </IconButton>
         )}
       </Box>
@@ -251,13 +254,27 @@ const Sidebar = ({
               <Typography
                 variant="overline"
                 sx={{
-                  fontSize: "0.65rem",
-                  fontWeight: 700,
-                  color: "rgba(0, 0, 0, 0.3)",
-                  letterSpacing: "0.05em",
-                  mb: 1,
-                  pl: 1,
-                  display: 'block'
+                  fontSize: "0.68rem",
+                  fontWeight: 800,
+                  color: "rgba(30, 41, 59, 0.4)",
+                  letterSpacing: "0.08em",
+                  mb: 1.5,
+                  mt: 1,
+                  pl: isCollapsed ? 0 : 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: isCollapsed ? 'center' : 'flex-start',
+                  opacity: isCollapsed ? 0 : 1,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&::after': {
+                    content: '""',
+                    flex: isCollapsed ? 0 : 1,
+                    height: '1px',
+                    bgcolor: 'rgba(0, 0, 0, 0.04)',
+                    ml: isCollapsed ? 0 : 1.5,
+                    mr: isCollapsed ? 0 : 1,
+                    transition: 'all 0.3s'
+                  }
                 }}
               >
                 {sectionName}
@@ -278,59 +295,83 @@ const Sidebar = ({
                         if (isMobile && onClose) onClose();
                       }
                     }}
+                    className={isActive && !isCollapsed ? "sidebar-item-active" : ""}
                     sx={{
-                      minWidth: isCollapsed ? 54 : 44,
+                      minWidth: isCollapsed ? 48 : 44,
+                      maxWidth: isCollapsed ? 48 : "100%",
                       justifyContent: isCollapsed ? "center" : "flex-start",
-                      px: isCollapsed ? 0 : 1.5,
-                      py: 1,
-                      borderRadius: "10px",
-                      mb: 0.5,
-                      bgcolor: isActive ? "rgba(37, 99, 235, 0.06)" : "transparent",
-                      color: isActive ? "#2563eb" : "#475569",
-                      borderLeft: isActive && !isCollapsed ? "3px solid #2563eb" : "3px solid transparent",
+                      px: isCollapsed ? 1 : 2,
+                      py: 1.2,
+                      borderRadius: "12px",
+                      mb: 0.8,
+                      mx: isCollapsed ? 'auto' : 0,
+                      bgcolor: isActive ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                      color: isActive ? "#2563eb" : "#64748b",
+                      position: 'relative',
+                      overflow: 'hidden',
                       "&:hover": {
-                        bgcolor: "rgba(0, 0, 0, 0.03)",
-                        color: "#1e293b",
-                        "& .MuiListItemIcon-root": { color: "#1e293b" }
+                        bgcolor: isActive ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                        color: isActive ? "#1d4ed8" : "#1e293b",
+                        "& .MuiListItemIcon-root": { color: isActive ? "#2563eb" : "#1e293b" },
+                        transform: isCollapsed ? 'scale(1.05)' : 'translateX(2px)',
                       },
-                      transition: "all 0.2s ease",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                       ...(isPiy && {
-                        border: "1px solid rgba(37, 99, 235, 0.1)",
-                        animation: "border-pulse 2s infinite"
+                        border: "1px solid rgba(37, 99, 235, 0.15)",
+                        animation: "border-pulse 2.5s infinite"
                       })
                     }}
                   >
                     <ListItemIcon
                       sx={{
                         minWidth: 0,
-                        mr: isCollapsed ? 0 : 1.2,
+                        mr: isCollapsed ? 0 : 1.5,
                         color: isActive ? "#2563eb" : "inherit",
-                        transition: "color 0.2s",
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                         display: 'flex',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        width: isCollapsed ? '100%' : 'auto',
+                        '& .MuiSvgIcon-root': {
+                          fontSize: isActive ? '1.25rem' : '1.15rem',
+                        }
                       }}
                     >
                       {item.icon}
                     </ListItemIcon>
 
-                    {!isCollapsed && (
-                      <ListItemText
-                        primary={item.label}
-                        primaryTypographyProps={{
-                          fontSize: "0.85rem",
-                          fontWeight: isActive ? 700 : 500,
-                          sx: isPiy ? {
+                    <ListItemText
+                      primary={item.label}
+                      primaryTypographyProps={{
+                        fontSize: "0.88rem",
+                        fontWeight: isActive ? 700 : 500,
+                        sx: {
+                          opacity: isCollapsed ? 0 : 1,
+                          transition: 'opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          transform: isCollapsed ? 'translateX(-10px)' : 'translateX(0)',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          ...(isPiy && {
                             background: "linear-gradient(90deg, #1e293b, #2563eb, #1e293b)",
                             backgroundSize: "200% auto",
                             WebkitBackgroundClip: "text",
                             WebkitTextFillColor: "transparent",
-                            animation: "text-shimmer 3s linear infinite"
-                          } : {
-                            color: isActive ? "#2563eb" : "inherit"
-                          }
-                        }}
-                      />
-                    )}
+                            animation: "text-shimmer 3s linear infinite",
+                            letterSpacing: '0.01em'
+                          }),
+                          ...(!isPiy && {
+                            color: isActive ? "#2563eb" : "inherit",
+                            letterSpacing: '0.01em'
+                          })
+                        }
+                      }}
+                      sx={{
+                        m: 0,
+                        width: isCollapsed ? 0 : 'auto', // Important for centering
+                        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        overflow: 'hidden'
+                      }}
+                    />
                   </ListItemButton>
                 </Tooltip>
               );
@@ -341,91 +382,108 @@ const Sidebar = ({
 
       {/* Footer / Powered By */}
       <Box sx={{
-        px: 3,
+        px: isCollapsed ? 1 : 2,
         py: 2.5,
         mt: 'auto',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: isCollapsed ? 'center' : 'flex-start',
+        flexDirection: 'column',
+        gap: 1.5,
         borderTop: "1px solid rgba(0, 0, 0, 0.04)",
-        bgcolor: isCollapsed ? "transparent" : "rgba(248, 250, 252, 0.5)"
+        bgcolor: isCollapsed ? "transparent" : "rgba(248, 250, 252, 0.6)",
+        backdropFilter: isCollapsed ? "none" : "blur(8px)",
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
-        {isCollapsed ? (
-          <Tooltip title="Sign Out" placement="right">
-            <IconButton
-              onClick={() => {
-                logout();
-                localStorage.clear();
-                navigate('/login');
-              }}
-              sx={{
-                color: "#ef4444",
-                bgcolor: "rgba(239, 68, 68, 0.05)",
-                "&:hover": {
-                  bgcolor: "#ef4444",
-                  color: "#fff",
-                },
-                transition: "all 0.2s ease",
-              }}
-            >
-              <LogoutIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        ) : (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          px: 0.5,
+          opacity: isCollapsed ? 0 : 1,
+          maxHeight: isCollapsed ? 0 : 40,
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'hidden'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
             <Typography
               sx={{
-                fontSize: '0.65rem',
-                color: 'rgba(0, 0, 0, 0.3)',
-                fontWeight: 500,
-                letterSpacing: '0.01em',
+                fontSize: '0.62rem',
+                color: 'rgba(100, 116, 139, 0.6)',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+                whiteSpace: 'nowrap'
               }}
             >
               Powered by
             </Typography>
             <Typography
               sx={{
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                color: 'rgba(30, 41, 59, 0.6)',
-                letterSpacing: '0.02em',
+                fontSize: '0.74rem',
+                fontWeight: 800,
+                color: 'rgba(30, 41, 59, 0.8)',
+                letterSpacing: '0.01em',
+                whiteSpace: 'nowrap'
               }}
             >
-              trailytics
+              Trailytics
             </Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => {
-                logout();
-                localStorage.clear();
-                navigate('/login');
-              }}
-              startIcon={<LogoutIcon sx={{ fontSize: "1rem" }} />}
-              sx={{
-                ml: "auto",
-                minWidth: 0,
-                color: "#ef4444",
-                borderColor: "rgba(239, 68, 68, 0.2)",
-                textTransform: "none",
-                fontSize: "0.65rem",
-                px: 1.5,
-                fontWeight: 600,
-                borderRadius: "8px",
-                transition: "all 0.2s ease",
-                "&:hover": {
-                  bgcolor: "#ef4444",
-                  color: "#fff",
-                  borderColor: "#ef4444",
-                  transform: "translateY(-1px)",
-                  boxShadow: "0 2px 8px rgba(239, 68, 68, 0.2)",
-                },
-              }}
-            >
-              SignOut
-            </Button>
           </Box>
-        )}
+        </Box>
+
+        <Button
+          fullWidth={!isCollapsed}
+          variant="contained"
+          onClick={() => {
+            logout();
+            localStorage.clear();
+            navigate('/login');
+          }}
+          startIcon={<LogoutIcon sx={{ 
+            fontSize: "1.1rem !important",
+            mr: isCollapsed ? 0 : 1,
+            transition: 'margin 0.3s'
+          }} />}
+          sx={{
+            minWidth: isCollapsed ? 44 : 0,
+            maxWidth: isCollapsed ? 44 : "100%",
+            height: isCollapsed ? 44 : 40,
+            color: "#FFFFFF",
+            bgcolor: "#ef4444",
+            textTransform: "none",
+            fontSize: "0.8rem",
+            fontWeight: 700,
+            borderRadius: "10px",
+            boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            mx: isCollapsed ? 'auto' : 0,
+            "&:hover": {
+              bgcolor: "#dc2626",
+              transform: isCollapsed ? "scale(1.05)" : "translateY(-1px)",
+              boxShadow: "0 6px 16px rgba(239, 68, 68, 0.3)",
+            },
+            ...(isCollapsed ? {
+              px: 0,
+              '& .MuiButton-startIcon': { 
+                margin: 0,
+                display: 'flex',
+                justifyContent: 'center',
+                width: '100%'
+              },
+            } : {
+              px: 2
+            })
+          }}
+        >
+          <Box sx={{ 
+            width: isCollapsed ? 0 : 'auto', 
+            opacity: isCollapsed ? 0 : 1, 
+            transition: 'all 0.3s',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap'
+          }}>
+            Sign Out
+          </Box>
+        </Button>
       </Box>
     </Box >
   );
