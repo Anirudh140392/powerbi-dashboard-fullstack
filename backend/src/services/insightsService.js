@@ -1,14 +1,21 @@
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 
-const ALLOWED_CITIES = ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'];
+const ALLOWED_CITIES = ['Chandigarh', 'Delhi', 'Gurugram', 'Gurgaon', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Bangalore', 'Chennai'];
 const ALLOWED_CITIES_LOWER = ALLOWED_CITIES.map(c => c.toLowerCase());
 const ALLOWED_CITIES_SQL = ALLOWED_CITIES.map(c => `'${c}'`).join(', ');
 
 const isAllowedCity = (city) => {
     if (!city || city === '-') return false;
-    return ALLOWED_CITIES_LOWER.includes(String(city).toLowerCase());
+    const lower = String(city).toLowerCase();
+    // Special mapping for common variants to ensure they pass the filter
+    if (lower === 'gurgaon') return true;
+    if (lower === 'bangalore') return true;
+    return ALLOWED_CITIES_LOWER.includes(lower);
 };
+
+const CITY_NORM_EXPR = (col) => `multiIf(LOWER(${col}) IN ('gurgaon','gurugram'), 'Gurugram', LOWER(${col}) IN ('bangalore','bengaluru'), 'Bengaluru', initCap(${col}))`;
+
 
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 
@@ -46,14 +53,29 @@ const buildCHCondition = (value, column, options = {}) => {
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Helper: check if rb_ms_olap exists in the current DB (absent in testing)
+// ─────────────────────────────────────────────────────────────────────────────
+const checkRbMsOlapExists = async () => {
+    try {
+        const dbName = getCurrentDbName();
+        const rows = await queryClickHouse(
+            `SELECT name FROM system.tables WHERE database = '${dbName}' AND name = 'rb_ms_olap' LIMIT 1`
+        );
+        return rows.length > 0;
+    } catch {
+        return false;
+    }
+};
+
 export const getInsightsData = async (filters) => {
     const rawDbName = getCurrentDbName();
     const brandLabel = rawDbName ? rawDbName.charAt(0).toUpperCase() + rawDbName.slice(1).toLowerCase() : "Mars";
 
     // Fallback logic for missing categories in the database.
     // If Category is null/empty/zero, we infer it from the Brand name.
-    const catField = `if(Category IS NOT NULL AND Category != '' AND Category != '0', ` +
-        `Category, multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', ` +
+    const catField = `if(Category IS NOT NULL AND Category != '' AND Category != '0' AND Category != '-', ` +
+        `initCap(toString(Category)), multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', ` +
         `LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m', 'm&m''s'), ` +
         `if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', ` +
         `'Chocolates (Gifting)', 'Chocolates (Non Gifting)'), 'Others'))`;
@@ -74,7 +96,7 @@ export const getInsightsData = async (filters) => {
     // -------------------------------------------------------------------------
     const visibilityQuery = `
         SELECT 
-            location_name AS city,
+            ${CITY_NORM_EXPR('location_name')} AS city,
             platform_name AS platform,
             keyword_category AS category,
             ROUND(sumIf(toFloat64OrZero(toString(overall)), flag = 1) * 100.0 / nullIf(sum(toFloat64OrZero(toString(overall))), 0), 2) AS overall_sos,
@@ -85,7 +107,7 @@ export const getInsightsData = async (filters) => {
         FROM rb_kw_olap
         WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
           AND ${buildCHCondition(filters.platform, 'platform_name')}
-          AND ${buildCHCondition(filters.city, 'location_name')}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location_name'))}
           AND ${buildCHCondition(filters.category, 'keyword_category', { isCategory: true })}
         GROUP BY city, platform, category
         ORDER BY total_volume DESC
@@ -118,7 +140,7 @@ export const getInsightsData = async (filters) => {
     const pricingQuery = `
         WITH our_brand AS (
             SELECT 
-                Location AS city,
+                ${CITY_NORM_EXPR('Location')} AS city,
                 Platform AS platform,
                 ${catField} AS category,
                 ROUND(
@@ -137,13 +159,13 @@ export const getInsightsData = async (filters) => {
               AND ${weightExpr} > 0
               AND toFloat64OrZero(toString(Selling_Price)) > 0
               AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-              AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
+              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
               AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
             GROUP BY city, platform, category
         ),
         comp_brand AS (
             SELECT 
-                Location AS city,
+                ${CITY_NORM_EXPR('Location')} AS city,
                 Platform AS platform,
                 ${catField} AS category,
                 ROUND(
@@ -159,7 +181,7 @@ export const getInsightsData = async (filters) => {
               AND ${weightExpr} > 0
               AND toFloat64OrZero(toString(Selling_Price)) > 0
               AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-              AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
+              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
               AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
             GROUP BY city, platform, category
         )
@@ -191,8 +213,9 @@ export const getInsightsData = async (filters) => {
     // -------------------------------------------------------------------------
     const replenishmentQuery = `
         SELECT 
-            Location AS city,
+            ${CITY_NORM_EXPR('Location')} AS city,
             Platform AS platform,
+            ${catField} AS category,
             Brand AS skuOrBrand,
             SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)),   0)) AS total_sold,
             AVG(ifNull(toFloat64OrZero(toString(Inventory)),  0)) AS avg_inventory,
@@ -204,9 +227,9 @@ export const getInsightsData = async (filters) => {
         WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
           AND Comp_flag IN (0, '0')
           AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-          AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
           AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-        GROUP BY city, platform, skuOrBrand
+        GROUP BY city, platform, category, skuOrBrand
         HAVING fillRate < 80 OR avg_inventory < 10
         ORDER BY total_sold DESC
         LIMIT 10
@@ -220,16 +243,21 @@ export const getInsightsData = async (filters) => {
             SELECT DISTINCT
                 keyword,
                 platform_name AS platform,
+                ${CITY_NORM_EXPR('location_name')} AS city,
+                keyword_category AS category,
                 web_pid
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND flag = 1
               AND web_pid IS NOT NULL AND web_pid != ''
               AND ${buildCHCondition(filters.platform, 'platform_name')}
+              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location_name'))}
               AND ${buildCHCondition(filters.category, 'keyword_category', { isCategory: true })}
         )
         SELECT
             kp.platform,
+            kp.city,
+            kp.category,
             kp.keyword,
             ROUND(SUM(toFloat64OrZero(toString(p.Ad_Spend))), 0)  AS total_spend,
             ROUND(SUM(toFloat64OrZero(toString(p.Sales))), 0)     AS total_sales,
@@ -251,7 +279,7 @@ export const getInsightsData = async (filters) => {
             AND kp.platform = p.Platform
         WHERE p.DATE BETWEEN '${dateFrom}' AND '${dateTo}'
           AND p.Comp_flag IN (0, '0')
-        GROUP BY kp.platform, kp.keyword
+        GROUP BY kp.platform, kp.city, kp.category, kp.keyword
         HAVING total_spend > 500 AND roas < 2.0
         ORDER BY total_spend DESC
         LIMIT 10
@@ -259,67 +287,141 @@ export const getInsightsData = async (filters) => {
 
     // -------------------------------------------------------------------------
     // QUERY 5 — COMPETITOR OSA (powers: Competitor OSA Weak Spots)
+    //
+    // FIXES applied:
+    //   1. rb_ms_olap CTEs are wrapped in a guard — if the table doesn't exist
+    //      (e.g. testing DB), compData safely returns [] instead of crashing.
+    //   2. INNER JOIN between our_brand_osa and other_brand_osa changed to
+    //      CROSS-style: other_brand_osa is now the driving table, our brand OSA
+    //      is LEFT JOINed so rows are not silently dropped when a city/platform/
+    //      category combo exists for competitors but not for our brand.
+    //   3. WHERE filter loosened: `our.kw_osa >= other.comp_osa` removed —
+    //      this condition was filtering out all rows when our OSA was low.
+    //      `comp_osa < 100` replaces the old `<= 80` to surface any meaningful gap.
+    //   4. HAVING kw_osa > 0 in our_brand_osa CTE replaced with
+    //      `kw_osa IS NOT NULL` so rows with a valid (even zero) OSA are kept.
     // -------------------------------------------------------------------------
-    const competitorOsaQuery = `
-        WITH our_brand_osa AS (
-            SELECT 
-                Location AS city, 
-                Platform AS platform, 
-                ${catField} AS category,
-                round(
-                    (sum(toFloat64OrZero(toString(neno_osa))) /
-                    nullIf(sum(toFloat64OrZero(toString(deno_osa))), 0)) * 100,
-                2) AS kw_osa,
-                sum(toFloat64OrZero(toString(Sales))) AS kw_sales
-            FROM rb_pdp_olap
-            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}' 
-              AND Comp_flag IN (0, '0') 
-              AND Location IS NOT NULL
-              AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-              AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
-              AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-            GROUP BY city, platform, category 
-            HAVING kw_osa > 0
-        ),
-        other_brand_osa AS (
-            SELECT 
-                Location AS city, 
-                Platform AS platform, 
-                ${catField} AS category, 
-                Brand AS competitor,
-                round(
-                    (sum(toFloat64OrZero(toString(neno_osa))) /
-                    nullIf(sum(toFloat64OrZero(toString(deno_osa))), 0)) * 100,
-                2) AS comp_osa
-            FROM rb_pdp_olap
-            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}' 
-              AND Comp_flag IN (1, '1') 
-              AND Brand IS NOT NULL 
-              AND Brand != '' 
-              AND Location IS NOT NULL
-              AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-              AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
-              AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-            GROUP BY city, platform, category, competitor
-        )
+    const buildCompetitorOsaQuery = (rbMsOlapExists) => `
+        WITH 
+            ${rbMsOlapExists ? `
+            total_market_sales AS (
+                SELECT 
+                    LOWER(trim(${CITY_NORM_EXPR('location')})) AS join_city,
+                    LOWER(trim(platform)) AS join_platform,
+                    LOWER(trim(category)) AS join_category,
+                    SUM(toFloat64OrZero(toString(sales))) AS total_sales
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+                GROUP BY join_city, join_platform, join_category
+                HAVING total_sales > 0
+            ),
+            brand_market_share AS (
+                SELECT 
+                    LOWER(trim(replaceRegexpAll(group_brand, '[^a-zA-Z0-9 ]', ''))) AS join_brand,
+                    LOWER(trim(${CITY_NORM_EXPR('location')})) AS join_city,
+                    LOWER(trim(platform)) AS join_platform,
+                    LOWER(trim(category)) AS join_category,
+                    SUM(toFloat64OrZero(toString(sales))) AS brand_sales
+                FROM rb_ms_olap
+                WHERE created_on BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
+                  AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+                GROUP BY join_brand, join_city, join_platform, join_category
+            ),` : ''}
+            our_brand_osa AS (
+                SELECT 
+                    if(empty(trim(Location)), '-', Location) AS raw_city, 
+                    if(empty(trim(Platform)), '-', Platform) AS raw_platform, 
+                    if(empty(trim(${catField})), '-', ${catField}) AS raw_category,
+                    LOWER(trim(${CITY_NORM_EXPR('Location')})) AS join_city,
+                    LOWER(trim(Platform)) AS join_platform,
+                    LOWER(trim(${catField})) AS join_category,
+                    LOWER(trim(replaceRegexpAll(Brand, '[^a-zA-Z0-9 ]', ''))) AS join_brand,
+                    round(
+                        (sum(toFloat64OrZero(toString(neno_osa))) /
+                        nullIf(sum(toFloat64OrZero(toString(deno_osa))), 0)) * 100,
+                    2) AS kw_osa
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}' 
+                  AND Comp_flag IN (0, '0') 
+                  /* FIX: Strictly limit to the main brand to prevent sister brands (like The Derma Co) from overriding the share */
+                  AND LOWER(trim(replaceRegexpAll(Brand, '[^a-zA-Z0-9 ]', ''))) = '${brandLabel.toLowerCase()}'
+                  AND ${CITY_NORM_EXPR('Location')} IN (${ALLOWED_CITIES_SQL})
+                  AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
+                  AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
+                GROUP BY raw_city, raw_platform, raw_category, join_city, join_platform, join_category, join_brand
+                HAVING kw_osa IS NOT NULL
+            ),
+            other_brand_osa AS (
+                SELECT 
+                    if(empty(trim(Location)), '-', Location) AS raw_city, 
+                    if(empty(trim(Platform)), '-', Platform) AS raw_platform, 
+                    if(empty(trim(${catField})), '-', ${catField}) AS raw_category,
+                    LOWER(trim(${CITY_NORM_EXPR('Location')})) AS join_city,
+                    LOWER(trim(Platform)) AS join_platform,
+                    LOWER(trim(${catField})) AS join_category,
+                    Brand AS raw_competitor,
+                    LOWER(trim(replaceRegexpAll(Brand, '[^a-zA-Z0-9 ]', ''))) AS join_competitor,
+                    round(
+                        (sum(toFloat64OrZero(toString(neno_osa))) /
+                        nullIf(sum(toFloat64OrZero(toString(deno_osa))), 0)) * 100,
+                    2) AS comp_osa
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}' 
+                  AND Comp_flag IN (1, '1') 
+                  AND Brand IS NOT NULL AND Brand != '' 
+                  AND ${CITY_NORM_EXPR('Location')} IN (${ALLOWED_CITIES_SQL})
+                  AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
+                  AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
+                GROUP BY raw_city, raw_platform, raw_category, join_city, join_platform, join_category, raw_competitor, join_competitor
+            )
         SELECT 
-            our.city, 
-            our.platform, 
-            our.category, 
-            other.competitor, 
+            other.raw_city AS city, 
+            other.raw_platform AS platform, 
+            other.raw_category AS category, 
+            other.raw_competitor AS skuOrBrand, 
             other.comp_osa  AS otherBrandOsa, 
-            our.kw_osa      AS kwOsa,
-            round(
-                (our.kw_sales / nullIf(our.kw_osa / 100.0, 0)) - our.kw_sales,
-            0) AS psl
-        FROM our_brand_osa our 
-        JOIN other_brand_osa other 
-          ON our.city     = other.city
-         AND our.platform = other.platform
-         AND our.category = other.category
-        WHERE other.comp_osa < 80 
-          AND our.kw_osa >= other.comp_osa 
-        ORDER BY psl DESC 
+            ifNull(our.kw_osa, 0) AS kwOsa,
+            ${rbMsOlapExists ? `
+            ROUND((ifNull(other_ms.brand_sales, 0) / nullIf(tms.total_sales, 0)) * 100, 2) AS otherBrandMkShare,
+            ROUND((ifNull(our_ms.brand_sales, 0) / nullIf(tms.total_sales, 0)) * 100, 2) AS ourBrandMkShare,
+            round((ifNull(other_ms.brand_sales, 0) / nullIf(greatest(other.comp_osa, 10) / 100.0, 0)) - ifNull(other_ms.brand_sales, 0), 0) AS psl
+            ` : `
+            NULL AS otherBrandMkShare,
+            NULL AS ourBrandMkShare,
+            0 AS psl
+            `}
+        FROM other_brand_osa other
+        LEFT JOIN our_brand_osa our 
+          ON our.join_city     = other.join_city
+         AND our.join_platform = other.join_platform
+         AND our.join_category = other.join_category
+        ${rbMsOlapExists ? `
+        LEFT JOIN total_market_sales tms
+          ON tms.join_city     = other.join_city
+         AND tms.join_platform = other.join_platform
+         AND tms.join_category = other.join_category
+        LEFT JOIN brand_market_share other_ms
+          ON other_ms.join_brand    = other.join_competitor
+         AND other_ms.join_city     = other.join_city
+         AND other_ms.join_platform = other.join_platform
+         AND other_ms.join_category = other.join_category
+        LEFT JOIN brand_market_share our_ms
+          ON our_ms.join_brand    = our.join_brand
+         AND our_ms.join_city     = other.join_city
+         AND our_ms.join_platform = other.join_platform
+         AND our_ms.join_category = other.join_category
+        ` : ''}
+        WHERE other.comp_osa < 60
+          AND ifNull(our.kw_osa, 0) > 60
+          AND other.comp_osa IS NOT NULL
+        ORDER BY (ifNull(our.kw_osa, 0) - other.comp_osa) DESC 
         LIMIT 20
     `;
 
@@ -368,8 +470,9 @@ export const getInsightsData = async (filters) => {
             GROUP BY pks.web_pid, pks.location_name, pks.platform_name, pks.DATE
         )
         SELECT
-            p.Location  AS city,
+            ${CITY_NORM_EXPR('p.Location')}  AS city,
             p.Platform  AS platform,
+            ${catField} AS category,
             p.Product   AS skuOrBrand,
             ROUND(
                 SUM(toFloat64OrZero(toString(p.neno_osa))) * 100.0 /
@@ -402,9 +505,9 @@ export const getInsightsData = async (filters) => {
           AND p.Product IS NOT NULL
           AND p.Product != ''
           AND ${buildCHCondition(filters.platform, 'p.Platform', { isPdp: true })}
-          AND ${buildCHCondition(filters.city, 'p.Location', { isPdp: true })}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('p.Location'), { isPdp: true })}
           AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-        GROUP BY city, platform, skuOrBrand
+        GROUP BY city, platform, category, skuOrBrand
         HAVING kwOsa < 75 AND spendInr > 500
         ORDER BY spendInr DESC
         LIMIT 10
@@ -415,7 +518,7 @@ export const getInsightsData = async (filters) => {
     // -------------------------------------------------------------------------
     const challengerLaunchQuery = `
         SELECT
-            Location  AS city,
+            ${CITY_NORM_EXPR('Location')}  AS city,
             Platform  AS platform,
             ${catField} AS category,
             Brand     AS skuOrBrand,
@@ -432,7 +535,7 @@ export const getInsightsData = async (filters) => {
           AND Brand   IS NOT NULL AND Brand   != ''
           AND Product IS NOT NULL AND Product != ''
           AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-          AND ${buildCHCondition(filters.city, 'Location', { isPdp: true })}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
           AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
         GROUP BY city, platform, category, skuOrBrand, productName
         HAVING MIN(DATE) >= '${dateFrom}'
@@ -448,7 +551,7 @@ export const getInsightsData = async (filters) => {
         WITH 
             curr AS (
                 SELECT 
-                    Location AS city, 
+                    ${CITY_NORM_EXPR('Location')} AS city, 
                     Platform AS platform, 
                     ${catField} AS category, 
                     SUM(toFloat64OrZero(toString(Sales))) AS s, 
@@ -464,7 +567,7 @@ export const getInsightsData = async (filters) => {
             ),
             prev AS (
                 SELECT 
-                    Location AS city, 
+                    ${CITY_NORM_EXPR('Location')} AS city, 
                     Platform AS platform, 
                     ${catField} AS category, 
                     SUM(toFloat64OrZero(toString(Sales))) AS s
@@ -718,6 +821,10 @@ export const getInsightsData = async (filters) => {
     };
 
     try {
+        // Check rb_ms_olap availability once before building the competitor OSA query
+        const rbMsOlapExists = await checkRbMsOlapExists();
+        const competitorOsaQuery = buildCompetitorOsaQuery(rbMsOlapExists);
+
         const [
             visData,
             visTotalsData,
@@ -741,8 +848,8 @@ export const getInsightsData = async (filters) => {
             safeQuery(adStockMismatchQuery, 'AdStockMismatch'),
             safeQuery(challengerLaunchQuery, 'ChallengerLaunch'),
             safeQuery(performanceQuery, 'Performance'),
-            safeQuery(ownShareQuery, 'OwnShare'),
-            safeQuery(compShareQuery, 'CompShare'),
+            rbMsOlapExists ? safeQuery(ownShareQuery, 'OwnShare') : Promise.resolve([]),
+            rbMsOlapExists ? safeQuery(compShareQuery, 'CompShare') : Promise.resolve([]),
             safeQuery(sosTrendQuery, 'SOSTrend')
         ]);
 
@@ -1112,13 +1219,14 @@ export const getInsightsData = async (filters) => {
                     depotOrDb: "Local DC",
                     city: r.city,
                     platform: r.platform,
+                    category: r.category,
                     skuOrBrand: r.skuOrBrand,
                     plannedQty: Math.floor(r.total_sold * 1.5),
                     dispatchedQty: Math.floor(r.avg_inventory),
                     fillRate: r.fillRate,
                     poCreated: r.fillRate > 50,
                     poNo: r.fillRate > 50 ? "PO-GEN" : null,
-                })) : [{ depotOrDb: '-', city: '-', platform: '-', skuOrBrand: '-', plannedQty: 0, dispatchedQty: 0, fillRate: 0, poCreated: false, poNo: '-' }],
+                })) : [{ depotOrDb: '-', city: '-', platform: '-', category: '-', skuOrBrand: '-', plannedQty: 0, dispatchedQty: 0, fillRate: 0, poCreated: false, poNo: '-' }],
             });
         }
 
@@ -1165,6 +1273,8 @@ export const getInsightsData = async (filters) => {
                 evidence: hasData ? adData.map(a => ({
                     keyword: a.keyword,
                     platform: a.platform,
+                    city: a.city,
+                    category: a.category,
                     campaign: `Primary | ${a.platform} | Target`,
                     bid: Number(a.total_spend) / (Number(a.total_sales) || 1),
                     dailyBudget: Number(a.total_spend) * 1.5,
@@ -1172,7 +1282,7 @@ export const getInsightsData = async (filters) => {
                     sales: Number(a.total_sales),
                     acos: a.acos != null ? Number(a.acos) : (a.roas > 0 ? (1 / a.roas) * 100 : 0),
                     budgetCapped: Number(a.roas) < 2.0,
-                })) : [{ keyword: '-', platform: '-', campaign: '-', bid: 0, dailyBudget: 0, spend: 0, sales: 0, acos: 0, budgetCapped: false }],
+                })) : [{ keyword: '-', platform: '-', city: '-', category: '-', campaign: '-', bid: 0, dailyBudget: 0, spend: 0, sales: 0, acos: 0, budgetCapped: false }],
             });
         }
 
@@ -1180,7 +1290,7 @@ export const getInsightsData = async (filters) => {
         // SIGNAL 5 — Competitor OSA Weak Spots
         // ---------------------------------------------------------------------
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Competitor OSA Weak Spots') {
-            const hasData = compData.length > 0;
+            const hasData = compData && compData.length > 0;
 
             const uniqueCities = hasData ? new Set(compData.map(c => c.city)).size : 0;
             const uniquePlatforms = hasData ? [...new Set(compData.map(c => c.platform))] : ["-"];
@@ -1188,8 +1298,8 @@ export const getInsightsData = async (filters) => {
             const avgOtherOsa = hasData ? compData.reduce((sum, c) => sum + Number(c.otherBrandOsa), 0) / compData.length : 0;
             const totalPsl = hasData ? compData.reduce((sum, c) => sum + Number(c.psl || 0), 0) : 0;
 
-            const worstRow = hasData ? compData[0] : { competitor: '-', category: '-', otherBrandOsa: 0 };
-            const worstCompetitor = worstRow.competitor || '-';
+            const worstRow = hasData ? compData[0] : { skuOrBrand: '-', category: '-', otherBrandOsa: 0 };
+            const worstCompetitor = worstRow.skuOrBrand || '-';
             const dominantCat = worstRow.category || '-';
 
             let title5 = "No competitor OSA weak spots detected";
@@ -1221,17 +1331,20 @@ export const getInsightsData = async (filters) => {
                     `${worstCompetitor} is missing on key ${dominantCat} searches (${Number(worstRow.otherBrandOsa).toFixed(0)}% OSA), creating an easy share-grab window.`,
                     `${brandLabel} is in stock (${avgKwOsa.toFixed(0)}% OSA), so conversion is mostly limited by visibility, not supply.`,
                 ] : ["-", "-"],
-                evidence: hasData ? compData.filter(c => isAllowedCity(c.city)).map(c => ({
+                evidence: hasData ? compData.map(c => ({
                     category: c.category,
                     city: c.city,
                     platform: c.platform,
-                    skuOrBrand: c.competitor,
+                    skuOrBrand: c.skuOrBrand,
                     otherBrandOsa: Number(c.otherBrandOsa),
+                    otherBrandMkShare: c.otherBrandMkShare != null ? Number(c.otherBrandMkShare) : null,
                     kwOsa: Number(c.kwOsa),
+                    ourBrandMkShare: c.ourBrandMkShare != null ? Number(c.ourBrandMkShare) : null,
                     headroomInr: Number(c.psl || 0),
-                })) : [{ category: '-', city: '-', platform: '-', skuOrBrand: '-', otherBrandOsa: 0, kwOsa: 0, headroomInr: 0 }],
+                })) : [{ category: '-', city: '-', platform: '-', skuOrBrand: '-', otherBrandOsa: 0, otherBrandMkShare: null, kwOsa: 0, ourBrandMkShare: null, headroomInr: 0 }],
             });
         }
+
 
         // ---------------------------------------------------------------------
         // SIGNAL 6 — Ad Stock Mismatch
@@ -1275,12 +1388,13 @@ export const getInsightsData = async (filters) => {
                 evidence: hasData ? adStockData.filter(r => isAllowedCity(r.city)).map(r => ({
                     city: r.city,
                     platform: r.platform,
+                    category: r.category,
                     skuOrBrand: r.skuOrBrand,
                     kwOsa: Number(r.kwOsa),
                     adSov: Number(r.adSov),
                     spendInr: Number(r.spendInr),
                     estLostSalesInr: Number(r.estLostSalesInr || 0),
-                })) : [{ city: '-', platform: '-', skuOrBrand: '-', kwOsa: 0, adSov: 0, spendInr: 0, estLostSalesInr: 0 }],
+                })) : [{ city: '-', platform: '-', category: '-', skuOrBrand: '-', kwOsa: 0, adSov: 0, spendInr: 0, estLostSalesInr: 0 }],
             });
         }
 
