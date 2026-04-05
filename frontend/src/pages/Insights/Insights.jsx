@@ -404,20 +404,24 @@ const priorityStyles = {
 // ─── BADGES ──────────────────────────────────────────────────────────────
 
 const BetaBadge = ({ size = "sm" }) => (
-    <span
+    <span 
+        className="status-pulse"
         style={{
-            fontSize: size === "xs" ? "7.5px" : "8.5px",
-            fontWeight: 700,
-            letterSpacing: "0.14em",
-            background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+            fontSize: size === "xs" ? "7.8px" : "9px",
+            fontWeight: 800,
+            letterSpacing: "0.04em",
+            background: "#4f46e5",
             color: "#fff",
-            borderRadius: "3px",
-            padding: size === "xs" ? "1.5px 5px" : "2px 6px",
+            borderRadius: "5px",
+            padding: size === "xs" ? "1.5px 6px" : "2.5px 8px",
             display: "inline-flex",
             alignItems: "center",
-            verticalAlign: "middle",
             textTransform: "uppercase",
-            lineHeight: 1.4,
+            lineHeight: 1,
+            fontFamily: "'Inter', sans-serif",
+            whiteSpace: "nowrap",
+            verticalAlign: "middle",
+            boxShadow: "0 2px 4px rgba(79, 70, 229, 0.2)",
         }}
     >
         BETA
@@ -425,31 +429,29 @@ const BetaBadge = ({ size = "sm" }) => (
 );
 
 const LiveBadge = () => (
-    <span style={{
-        fontSize: "7.5px",
-        fontWeight: 700,
-        letterSpacing: "0.12em",
-        background: "#dcfce7",
-        color: "#16a34a",
-        border: "1px solid #bbf7d0",
-        borderRadius: "3px",
-        padding: "1.5px 5px",
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "3px",
-        verticalAlign: "middle",
-        textTransform: "uppercase",
-        lineHeight: 1.4,
-    }}>
-        <span style={{
-            width: 4, height: 4, borderRadius: "50%",
-            background: "#16a34a",
-            display: "inline-block",
-            animation: "blink 1.4s ease-in-out infinite",
-        }} />
+    <span 
+        className="status-pulse"
+        style={{
+            fontSize: "8.5px",
+            fontWeight: 800,
+            letterSpacing: "0.05em",
+            background: "#10b981",
+            color: "#fff",
+            borderRadius: "5px",
+            padding: "2.5px 8px",
+            display: "inline-flex",
+            alignItems: "center",
+            verticalAlign: "middle",
+            textTransform: "uppercase",
+            lineHeight: 1,
+            fontFamily: "'Inter', sans-serif",
+            boxShadow: "0 2px 4px rgba(16, 185, 129, 0.2)",
+        }}
+    >
         LIVE
     </span>
 );
+
 
 const SignalStatusBadge = ({ isEmpty }) => (
     isEmpty ? (
@@ -476,7 +478,7 @@ const AIInsightsPanel = ({ insight, onClose }) => {
 
     useEffect(() => {
         setPhase("loading"); setVisibleCount(0);
-        const t = setTimeout(() => setPhase("reveal"), 1200);
+        const t = setTimeout(() => setPhase("reveal"), 1000);
         return () => clearTimeout(t);
     }, [insight]);
 
@@ -489,76 +491,127 @@ const AIInsightsPanel = ({ insight, onClose }) => {
 
     return (
         <motion.div
-            initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 30 }}
-            transition={{ type: "spring", stiffness: 320, damping: 32 }}
+            initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 100 }}
+            transition={{ type: "spring", stiffness: 350, damping: 35 }}
             style={{
-                position: "absolute", top: 0, right: 0, height: "100%", width: "310px",
-                background: "#fff",
-                borderLeft: "1px solid #e5e9f0",
-                boxShadow: "-6px 0 24px rgba(0,0,0,0.06)",
-                zIndex: 50, display: "flex", flexDirection: "column",
+                position: "absolute", top: 0, right: 0, height: "100%", width: "320px",
+                background: "rgba(255, 255, 255, 0.99)",
+                backdropFilter: "blur(25px)",
+                borderLeft: "1px solid rgba(226, 232, 240, 0.8)",
+                boxShadow: "-12px 0 40px rgba(0,0,0,0.07)",
+                zIndex: 60, display: "flex", flexDirection: "column",
             }}
             onClick={(e) => e.stopPropagation()}
         >
+            {/* Header with Mesh Gradient */}
             <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "13px 16px", borderBottom: "1px solid #e5e9f0",
-                background: "linear-gradient(135deg, #f5f3ff 0%, #eff6ff 100%)",
+                padding: "16px 20px",
+                background: "linear-gradient(135deg, #f8faff 0%, #f1f5ff 100%)",
+                borderBottom: "1px solid rgba(99, 102, 241, 0.08)",
             }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <div style={{
-                        width: 28, height: 28, borderRadius: "7px",
-                        background: "linear-gradient(135deg, #6d28d9, #4f46e5)",
+                        width: 32, height: 32, borderRadius: "8px",
+                        background: "linear-gradient(135deg, #6366f1, #4f46e5)",
                         display: "flex", alignItems: "center", justifyContent: "center",
+                        boxShadow: "0 4px 12px rgba(99,102,241,0.25)"
                     }}>
-                        <BrainCircuit size={14} color="#fff" />
+                        <BrainCircuit size={16} color="#fff" strokeWidth={2.5} />
                     </div>
-                    <div>
-                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#1e1b4b", display: "flex", alignItems: "center", gap: "5px" }}>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                        <div style={{ fontSize: "12px", fontWeight: 700, color: "#1e1b4b", display: "flex", alignItems: "center", gap: "5px", letterSpacing: "-0.01em" }}>
                             AI Summary <BetaBadge size="xs" />
                         </div>
-                        <div style={{ fontSize: "9.5px", color: "#6d28d9", fontWeight: 500 }}>powered by Trailytics AI</div>
+                        <div style={{ fontSize: "9px", color: "#6366f1", fontWeight: 700, letterSpacing: "0.03em", textTransform: "uppercase", marginTop: "1px" }}>powered by Trailytics AI</div>
                     </div>
                 </div>
-                <button onClick={onClose} style={{ color: "#9ca3af", cursor: "pointer", background: "none", border: "none", padding: 4 }}>
-                    <X size={14} />
+                <button 
+                    onClick={onClose} 
+                    style={{ 
+                        color: "#94a3b8", cursor: "pointer", background: "rgba(0,0,0,0.03)", 
+                        border: "none", padding: 5, borderRadius: "50%",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(239,68,68,0.1)";
+                        e.currentTarget.style.color = "#ef4444";
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(0,0,0,0.03)";
+                        e.currentTarget.style.color = "#94a3b8";
+                    }}
+                >
+                    <X size={14} strokeWidth={2.5} />
                 </button>
             </div>
 
-            <div style={{ flex: 1, padding: "12px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+            {/* Scrollable Content with Insight Cards */}
+            <div style={{ 
+                flex: 1, padding: "20px 16px", overflowY: "auto", 
+                display: "flex", flexDirection: "column", gap: "14px",
+                background: "linear-gradient(to bottom, #ffffff, #fbfcfd)"
+            }}>
                 {phase === "loading" ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "11px", padding: "16px 0" }}>
-                        <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} />
-                        Analyzing signal data...
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 0", gap: "12px" }}>
+                        <Loader2 size={24} style={{ animation: "spin 2s linear infinite", color: "#6366f1" }} />
+                        <span style={{ color: "#64748b", fontSize: "11.5px", fontWeight: 500, letterSpacing: "0.01em" }}>Retrieving Data...</span>
                     </div>
                 ) : (
                     segments.map((seg, idx) => {
                         const s = priorityStyles[seg.priority] || priorityStyles.neutral;
+                        const borderColor = seg.priority === "high" ? "#ef4444" : 
+                                         seg.priority === "focus" ? "#3b82f6" : 
+                                         seg.priority === "good" ? "#10b981" : "#94a3b8";
+                        
                         return (
                             <motion.div
                                 key={idx}
-                                initial={{ opacity: 0, y: 8 }}
-                                animate={idx < visibleCount ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
-                                transition={{ duration: 0.3 }}
+                                initial={{ opacity: 0, x: 20 }}
+                                animate={idx < visibleCount ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 40, delay: idx * 0.05 }}
                                 style={{
                                     background: "#fff",
-                                    border: "1px solid #e2e8f0",
-                                    borderLeft: `3px solid ${seg.priority === "high" ? "#ef4444" : seg.priority === "focus" ? "#3b82f6" : seg.priority === "good" ? "#10b981" : "#94a3b8"}`,
-                                    borderRadius: "6px",
-                                    padding: "10px 12px",
-                                    boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                                    border: "1px solid rgba(226, 232, 240, 0.8)",
+                                    borderLeft: `4px solid ${borderColor}`,
+                                    borderRadius: "12px",
+                                    padding: "14px 16px",
+                                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)",
+                                    position: "relative",
                                 }}
                             >
-                                <div style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "4px" }}
-                                    className={s.label}>
+                                <div style={{ 
+                                    fontSize: "9px", fontWeight: 800, 
+                                    textTransform: "uppercase", letterSpacing: "0.08em", 
+                                    marginBottom: "8px", color: borderColor,
+                                    display: "flex", alignItems: "center", gap: "5px"
+                                }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: borderColor }} />
                                     {seg.label}
                                 </div>
-                                <p style={{ fontSize: "11px", color: "#475569", lineHeight: 1.5, margin: 0 }}>{renderBoldText(seg.text)}</p>
+                                <p style={{ 
+                                    fontSize: "11.5px", color: "#334155", 
+                                    lineHeight: 1.6, margin: 0, fontWeight: 500
+                                }}>
+                                    {renderBoldText(seg.text)}
+                                </p>
                             </motion.div>
                         );
                     })
                 )}
             </div>
+
+            {/* Subtle Footer */}
+            {/* <div style={{ 
+                padding: "12px 16px", 
+                borderTop: "1px solid rgba(226, 232, 240, 0.6)",
+                background: "#f8f9fa",
+                display: "flex", alignItems: "center", gap: "8px"
+            }}>
+                <Sparkles size={11} color="#6366f1" />
+                <span style={{ fontSize: "10px", color: "#64748b", fontWeight: 600 }}>AI Insights generated in real-time</span>
+            </div> */}
         </motion.div>
     );
 };
@@ -851,66 +904,128 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.96 }}
-            transition={{ duration: 0.22, ease: [0.19, 1, 0.22, 1] }}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
             style={{
-                width: "340px",
+                width: "360px",
                 background: "rgba(255, 255, 255, 0.98)",
-                backdropFilter: "blur(12px)",
-                border: "1px solid rgba(224, 231, 255, 0.8)",
-                borderRadius: "14px",
-                boxShadow: "0 12px 40px -8px rgba(99,102,241,0.18), 0 4px 12px -4px rgba(0,0,0,0.08)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(99, 102, 241, 0.15)",
+                borderRadius: "16px",
+                boxShadow: "0 20px 50px -12px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.02)",
                 overflow: "hidden",
                 cursor: "default",
             }}
         >
+            {/* AI Header with Mesh-like Gradient */}
             <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "10px 14px",
-                background: "linear-gradient(135deg, #f5f3ff 0%, #eff6ff 100%)",
-                borderBottom: "1px solid rgba(224, 231, 255, 0.6)",
+                padding: "14px 18px",
+                background: "linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%)",
+                borderBottom: "1px solid rgba(99, 102, 241, 0.08)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
             }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <div style={{ 
-                        width: 20, height: 20, borderRadius: "50%", 
-                        background: "#7c3aed", display: "flex", alignItems: "center", 
-                        justifyContent: "center", boxShadow: "0 2px 4px rgba(124,58,237,0.2)" 
+                        width: 22, height: 22, borderRadius: "6px", 
+                        background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                        display: "flex", alignItems: "center", 
+                        justifyContent: "center", 
+                        boxShadow: "0 3px 8px rgba(99,102,241,0.25)" 
                     }}>
-                        <Sparkles size={10} color="#fff" />
+                        <Sparkles size={11} color="#fff" />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#1e1b4b", lineHeight: 1.1 }}>Why This is Happening</span>
-                        <span style={{ fontSize: "7.5px", fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.03em" }}>Trailytics AI Insight</span>
+                        <span style={{ fontSize: "11.5px", fontWeight: 600, color: "#1e1b4b", letterSpacing: "-0.01em" }}>
+                            Why This is Happening
+                        </span>
+                        <span style={{ 
+                            fontSize: "7px", 
+                            fontWeight: 700, 
+                            color: "#6366f1", 
+                            textTransform: "uppercase", 
+                            letterSpacing: "0.1em",
+                            marginTop: "1px"
+                        }}>
+                            Powered by Trailytics AI
+                        </span>
                     </div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); onClose(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: "4px", borderRadius: "50%" }} onMouseEnter={(e) => e.currentTarget.style.background = "rgba(0,0,0,0.05)"} onMouseLeave={(e) => e.currentTarget.style.background = "none"}>
-                    <X size={12} />
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onClose(); }} 
+                    style={{ 
+                        background: "rgba(0,0,0,0.03)", 
+                        border: "none", 
+                        cursor: "pointer", 
+                        color: "#64748b", 
+                        padding: "5px", 
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)";
+                        e.currentTarget.style.color = "#ef4444";
+                    }} 
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "rgba(0,0,0,0.03)";
+                        e.currentTarget.style.color = "#64748b";
+                    }}
+                >
+                    <X size={12} strokeWidth={2.5} />
                 </button>
             </div>
             
-            <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            {/* Body Content */}
+            <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 {phase === "loading" ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "11px", padding: "8px 0" }}>
-                        <Loader2 size={11} style={{ animation: "spin 1s linear infinite", color: "#6366f1" }} />
-                        Synthesizing intelligence...
+                    <div style={{ 
+                        display: "flex", 
+                        flexDirection: "column", 
+                        alignItems: "center", 
+                        justifyContent: "center", 
+                        padding: "20px 0",
+                        gap: "10px"
+                    }}>
+                        <Loader2 size={18} style={{ animation: "spin 2s linear infinite", color: "#6366f1" }} />
+                        <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 500, letterSpacing: "0.02em" }}>
+                            Running diagnostic analysis...
+                        </span>
                     </div>
                 ) : (
                     miniSegs.map((seg, idx) => (
                         <motion.div key={idx}
-                            initial={{ opacity: 0, x: -4 }}
-                            animate={idx < visibleCount ? { opacity: 1, x: 0 } : { opacity: 0, x: -4 }}
-                            transition={{ duration: 0.3, delay: idx * 0.1 }}
-                            style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={idx < visibleCount ? { opacity: 1, y: 0 } : { opacity: 0, y: 5 }}
+                            transition={{ duration: 0.4, delay: idx * 0.15 }}
+                            style={{ 
+                                display: "flex", 
+                                gap: "12px", 
+                                alignItems: "flex-start",
+                                padding: "8px 10px",
+                                borderRadius: "8px",
+                                background: "rgba(248, 250, 252, 0.5)",
+                                border: "1px solid rgba(241, 245, 249, 0.8)"
+                            }}
                         >
                             <div style={{
-                                width: 5, height: 5, borderRadius: "50%", flexShrink: 0, marginTop: 6,
+                                width: 6, height: 6, borderRadius: "50%", flexShrink: 0, marginTop: 6,
                                 background: seg.priority === "high" ? "#ef4444" : seg.priority === "focus" ? "#3b82f6" : seg.priority === "good" ? "#10b981" : "#94a3b8",
-                                boxShadow: `0 0 8px ${seg.priority === "high" ? "rgba(239,68,68,0.4)" : "rgba(148,163,184,0.4)"}`
+                                boxShadow: `0 0 10px ${seg.priority === "high" ? "rgba(239,68,68,0.4)" : "rgba(148,163,184,0.3)"}`
                             }} />
-                            <p style={{ fontSize: "11.5px", color: "#334155", lineHeight: 1.6, margin: 0 }}>
+                            <p style={{ 
+                                fontSize: "11.5px", 
+                                color: "#334155", 
+                                lineHeight: 1.6, 
+                                margin: 0,
+                                fontWeight: 500
+                            }}>
                                 {renderBoldText(seg.text)}
                             </p>
                         </motion.div>
@@ -918,15 +1033,33 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                 )}
             </div>
 
+            {/* Footer with improved aesthetics */}
             <div style={{
-                padding: "8px 14px", background: "rgba(254, 251, 235, 0.8)",
-                borderTop: "1px solid rgba(254, 243, 199, 0.6)",
-                display: "flex", alignItems: "center", gap: "6px",
+                padding: "10px 18px", 
+                background: "linear-gradient(to right, rgba(241, 245, 249, 0.4), rgba(226, 232, 240, 0.3))",
+                borderTop: "1px solid rgba(226, 232, 240, 0.5)",
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "space-between",
             }}>
-                <Activity size={10} color="#92400e" />
-                <span style={{ fontSize: "10px", color: "#78350f", fontWeight: 500 }}>
-                    Click card for deep-dive & AI full summary
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Activity size={11} color="#6366f1" />
+                    <span style={{ fontSize: "9.5px", color: "#475569", fontWeight: 600 }}>
+                        Signal Analysis
+                    </span>
+                </div>
+                {/* <div style={{ 
+                    fontSize: "9px", 
+                    color: "#6366f1", 
+                    fontWeight: 700, 
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: "2px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.02em"
+                }}>
+                    Full Summary <ChevronRight size={10} />
+                </div> */}
             </div>
         </motion.div>
     );
@@ -946,18 +1079,29 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
                         <button
                             onClick={(e) => { e.stopPropagation(); }}
                             style={{
-                                fontSize: "9.5px", fontWeight: 700, 
-                                color: "#2563eb",
-                                background: "#dbeafe",
-                                border: "none", borderRadius: "5px",
+                                fontSize: "9px", fontWeight: 700, 
+                                color: "#4f46e5",
+                                background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
+                                border: "1px solid rgba(99, 102, 241, 0.2)", 
+                                borderRadius: "6px",
                                 padding: "4px 10px", cursor: "pointer",
-                                display: "inline-flex", alignItems: "center", gap: "3px",
+                                display: "inline-flex", alignItems: "center", gap: "4px",
                                 transition: "all 0.2s ease",
-                                letterSpacing: "0.02em",
+                                letterSpacing: "0.01em",
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.background = "#bfdbfe"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.background = "#dbeafe"; }}
+                            onMouseEnter={(e) => { 
+                                e.currentTarget.style.background = "#e0e7ff";
+                                e.currentTarget.style.transform = "translateY(-1px)";
+                                e.currentTarget.style.boxShadow = "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
+                            }}
+                            onMouseLeave={(e) => { 
+                                e.currentTarget.style.background = "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)";
+                                e.currentTarget.style.transform = "translateY(0px)";
+                                e.currentTarget.style.boxShadow = "0 1px 2px rgba(0,0,0,0.05)";
+                            }}
                         >
+                            <Sparkles size={10} color="#4f46e5" />
                             Know More
                         </button>
                     </PopoverTrigger>
@@ -1361,28 +1505,50 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                         </div>
                         <button
                             onClick={onAI}
+                            className="ai-pulse-button"
                             style={{
-                                display: "inline-flex", alignItems: "center", gap: "7px",
-                                padding: "8px 16px",
-                                fontSize: "11.5px", fontWeight: 700,
+                                display: "inline-flex", 
+                                alignItems: "center", 
+                                gap: "8px",
+                                padding: "8px 18px",
+                                fontSize: "11px", 
+                                fontWeight: 600,
                                 color: "#fff",
-                                background: "linear-gradient(135deg, #6d28d9 0%, #4f46e5 50%, #2563eb 100%)",
-                                border: "none", borderRadius: "8px",
+                                background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+                                border: "1px solid rgba(255, 255, 255, 0.15)", 
+                                borderRadius: "20px",
                                 cursor: "pointer",
-                                letterSpacing: "0.03em",
-                                boxShadow: "0 2px 12px rgba(99,102,241,0.35)",
-                                transition: "all 0.2s ease",
+                                letterSpacing: "0.02em",
+                                boxShadow: "0 4px 14px -2px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255,255,255,0.1)",
+                                transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                                 flexShrink: 0,
+                                position: "relative",
+                                overflow: "hidden"
                             }}
-                            onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 4px 20px rgba(99,102,241,0.5)"; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 2px 12px rgba(99,102,241,0.35)"; }}
+                            onMouseEnter={(e) => { 
+                                e.currentTarget.style.transform = "translateY(-1.5px)"; 
+                                e.currentTarget.style.boxShadow = "0 6px 20px -2px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255,255,255,0.2)"; 
+                                e.currentTarget.style.background = "linear-gradient(135deg, #4338ca 0%, #4f46e5 100%)";
+                            }}
+                            onMouseLeave={(e) => { 
+                                e.currentTarget.style.transform = ""; 
+                                e.currentTarget.style.boxShadow = "0 4px 14px -2px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255,255,255,0.1)"; 
+                                e.currentTarget.style.background = "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)";
+                            }}
                         >
-                            <BrainCircuit size={13} />
-                            AI Insights
-                            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <BrainCircuit size={13} strokeWidth={2.5} />
+                            <span>AI Insights</span>
+                            {/* <div style={{ 
+                                display: "flex", 
+                                alignItems: "center", 
+                                gap: "4px",
+                                marginLeft: "4px",
+                                paddingLeft: "8px",
+                                borderLeft: "1px solid rgba(255, 255, 255, 0.2)"
+                            }}>
                                 <LiveBadge />
                                 <BetaBadge size="xs" />
-                            </span>
+                            </div> */}
                         </button>
                     </div>
 
@@ -1535,6 +1701,20 @@ const InsightsSignalHub = () => {
                     0%, 100% { opacity: 1; }
                     50% { opacity: 0.2; }
                 }
+                @keyframes pulse-outward {
+                    0% {
+                        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.6), 0 0 0 0 rgba(99, 102, 241, 0.3);
+                        transform: scale(1);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 10px rgba(99, 102, 241, 0), 0 0 0 20px rgba(99, 102, 241, 0);
+                        transform: scale(1.02);
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0), 0 0 0 0 rgba(99, 102, 241, 0);
+                        transform: scale(1);
+                    }
+                }
                 @keyframes spin {
                     from { transform: rotate(0deg); }
                     to { transform: rotate(360deg); }
@@ -1546,6 +1726,13 @@ const InsightsSignalHub = () => {
                 * { box-sizing: border-box; }
                 .insights-page { font-family: 'Inter', system-ui, sans-serif; }
                 .signal-card-enter { animation: fadeSlideIn 0.35s ease forwards; }
+                .ai-pulse-button { animation: pulse-outward 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1); }
+                .status-pulse { animation: status-heartbeat 2s infinite ease-in-out; }
+                @keyframes status-heartbeat {
+                    0% { transform: scale(1); opacity: 1; }
+                    50% { transform: scale(1.05); opacity: 0.9; }
+                    100% { transform: scale(1); opacity: 1; }
+                }
             `}</style>
 
             <div className="insights-page" style={{
@@ -1683,7 +1870,8 @@ const InsightsSignalHub = () => {
                                 Scanning analytics signals...
                             </div>
                             <div style={{ fontSize: "11px", color: "#94a3b8" }}>
-                                Powered by Trailytics AI <BetaBadge size="xs" />
+                                Powered by Trailytics AI 
+                                {/* <BetaBadge size="xs" /> */}
                             </div>
                         </div>
                     ) : filteredInsights.length === 0 ? (

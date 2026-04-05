@@ -49,6 +49,31 @@ import {
   Menu as MenuIcon,
   MenuOpen as MenuOpenIcon,
 } from "@mui/icons-material";
+import { Sparkles } from "lucide-react";
+
+const SidebarBetaBadge = () => (
+    <span 
+        className="status-pulse"
+        style={{
+            fontSize: "7.5px",
+            fontWeight: 800,
+            background: "#4f46e5",
+            color: "#fff",
+            borderRadius: "5px",
+            padding: "2.5px 8px",
+            marginLeft: "8px",
+            display: "inline-flex",
+            alignItems: "center",
+            lineHeight: 1,
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+            fontFamily: "'Inter', sans-serif",
+            boxShadow: "0 2px 4px rgba(79, 70, 229, 0.2)",
+    }}>
+        BETA
+    </span>
+);
+
 
 
 const Sidebar = ({
@@ -89,7 +114,7 @@ const Sidebar = ({
     "MAIN MENU": [
       { label: "Business Overview", path: "/watch-tower", icon: <DashboardIcon sx={{ fontSize: '1.1rem' }} /> },
       { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showBeta: true },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} /> },
@@ -151,6 +176,12 @@ const Sidebar = ({
             background: #2563eb;
             border-radius: 0 4px 4px 0;
             transition: all 0.3s ease;
+          }
+          .status-pulse { animation: status-heartbeat 2s infinite ease-in-out; }
+          @keyframes status-heartbeat {
+              0% { transform: scale(1); opacity: 1; }
+              50% { transform: scale(1.05); opacity: 0.9; }
+              100% { transform: scale(1); opacity: 1; }
           }
         `}
       </style>
@@ -341,7 +372,12 @@ const Sidebar = ({
                     </ListItemIcon>
 
                     <ListItemText
-                      primary={item.label}
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          {item.label}
+                          {item.showBeta && !isCollapsed && <SidebarBetaBadge />}
+                        </Box>
+                      }
                       primaryTypographyProps={{
                         fontSize: "0.88rem",
                         fontWeight: isActive ? 700 : 500,
