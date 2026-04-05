@@ -41,7 +41,7 @@ import { fetchInsights, fetchInsightsFilters } from "@/api/insightsService";
 import CustomHeaderDropdown from "@/components/CommonLayout/CustomHeaderDropdown";
 import DateRangeComparePicker from "@/components/CommonLayout/DateRangeComparePicker";
 import dayjs from "dayjs";
-import { Typography } from "@mui/material";
+import { Typography, Divider } from "@mui/material";
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -705,149 +705,138 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
     };
 
     return (
-        <div style={{ position: "relative" }}>
+        <div style={{ position: "relative", height: "100%", display: "flex", flexDirection: "column" }}>
             <div
                 onClick={onClick}
                 onMouseEnter={() => setHovered(true)}
                 onMouseLeave={() => setHovered(false)}
                 style={{
                     width: "100%",
+                    height: "100%",
                     display: "flex",
                     flexDirection: "column",
-                    borderRadius: "12px",
-                    border: "2px solid transparent",
-                    borderColor: isSelected ? "#2563eb" : (hovered ? "#c7d7f5" : "transparent"),
+                    borderRadius: "10px",
+                    border: "1px solid",
+                    borderColor: isSelected ? "#2563eb" : (hovered ? "#cbd5e1" : "#e2e8f0"),
                     cursor: "pointer",
                     overflow: "hidden",
                     position: "relative",
                     background: "#ffffff",
                     boxShadow: isSelected 
-                        ? "0 0 0 4px rgba(37,99,235,0.06), 0 8px 20px rgba(0,0,0,0.08)"
+                        ? "0 10px 25px -5px rgba(37,99,235,0.15), 0 8px 10px -6px rgba(37,99,235,0.1)"
                         : hovered
-                            ? "0 12px 24px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.04)"
-                            : "0 1px 3px rgba(0,0,0,0.05), 1px 1px 1px rgba(0,0,0,0.02)",
-                    transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                    transform: hovered ? "translateY(-3px)" : "translateY(0px)",
-                    opacity: isEmpty && !hovered ? 0.7 : 1,
+                            ? "0 12px 20px -5px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)"
+                            : "0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)",
+                    transition: "all 0.2s ease",
+                    transform: hovered ? "translateY(-2px)" : "translateY(0px)",
                 }}
             >
+                {/* Colored accent line */}
                 <div style={{
-                    height: "3px", flexShrink: 0, borderRadius: "10px 10px 0 0",
-                    background: isEmpty ? "#e4e8ed" : color || "#3b82f6",
+                    height: "3.5px", width: "100%",
+                    background: isEmpty ? "#e2e8f0" : color || "#3b82f6",
                 }} />
 
-                <div style={{
-                    padding: "10px 14px 8px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    flexShrink: 0, borderBottom: "1px solid #f1f5f9",
+                {/* Top Badge Row */}
+                <div style={{ 
+                    padding: "12px 14px 6px", 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "space-between" 
                 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "7px" }}>
+                    <SignalStatusBadge isEmpty={isEmpty} />
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        {!isEmpty && <BetaBadge size="xs" />}
                         <div style={{
-                            width: 24, height: 24, borderRadius: "6px",
-                            background: isEmpty ? "#f1f5f9" : (color + "18"),
-                            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                            width: 22, height: 22, borderRadius: "5px",
+                            background: "#f8fafc", border: "1px solid #f1f5f9",
+                            display: "flex", alignItems: "center", justifyContent: "center",
                         }}>
-                            {FamilyIcon && <FamilyIcon size={12} color={isEmpty ? "#94a3b8" : color} />}
+                            {FamilyIcon && <FamilyIcon size={12} color={isEmpty ? "#94a3b8" : "#475569"} />}
                         </div>
-                        <div>
-                            <div style={{ fontSize: "9px", fontWeight: 700, color: isEmpty ? "#a0aab4" : color, textTransform: "uppercase", letterSpacing: "0.09em" }}>
-                                {family}
-                            </div>
-                            <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#111827", lineHeight: 1.2, marginTop: "1px" }}>
-                                {insight.type}
-                            </div>
-                        </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0 }}>
-                        <SignalStatusBadge isEmpty={isEmpty} />
                     </div>
                 </div>
 
-                <div style={{
-                    padding: "8px 14px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    borderBottom: "1px solid #f1f5f9", background: "#fafbfc",
-                }}>
-                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.07em" }}>
-                        {metricLabel}
-                    </span>
-                    <span style={{
-                        fontSize: "15px", fontWeight: 800,
-                        color: isEmpty ? "#a0aab4" : isNegative ? "#dc2626" : "#059669",
-                        letterSpacing: "-0.02em",
+                {/* Title Section */}
+                <div style={{ padding: "4px 14px 12px" }}>
+                    <div style={{ 
+                        fontSize: "9px", fontWeight: 700, 
+                        color: "#94748b", textTransform: "uppercase", 
+                        letterSpacing: "0.06em", marginBottom: "3.5px"
                     }}>
-                        {isEmpty ? "—" : formatINRCompact(insight.impactInr || 0)}
-                    </span>
+                        {family}
+                    </div>
+                    <div style={{ 
+                        fontSize: "13.5px", fontWeight: 800, 
+                        color: "#1e293b", lineHeight: 1.3,
+                        minHeight: "36px" 
+                    }}>
+                        {insight.type}
+                    </div>
                 </div>
 
-                <div style={{ padding: "14px", flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
+                <Divider sx={{ mx: 1.5, borderColor: "#f1f5f9" }} />
+
+                {/* Metric Hero Section */}
+                <div style={{ padding: "14px 14px 12px" }}>
+                    <div style={{ 
+                        fontSize: "8.5px", fontWeight: 700, 
+                        color: "#94a3b8", textTransform: "uppercase", 
+                        letterSpacing: "0.05em", marginBottom: "10px" 
+                    }}>
+                        {metricLabel}
+                    </div>
+                    <div style={{
+                        display: "inline-flex",
+                        padding: "7px 15px",
+                        borderRadius: "8px",
+                        background: isEmpty 
+                            ? "#f1f5f9" 
+                            : (isNegative ? "#fef2f2" : "#f0fdf4"),
+                        border: `1px solid ${isEmpty ? "#e2e8f0" : (isNegative ? "#fee2e2" : "#dcfce7")}`,
+                    }}>
+                        <span style={{
+                            fontSize: "18px", fontWeight: 900,
+                            color: isEmpty ? "#94a3b8" : (isNegative ? "#dc2626" : "#16a34a"),
+                            letterSpacing: "-0.01em"
+                        }}>
+                            {isEmpty ? "—" : formatINRCompact(insight.impactInr || 0)}
+                        </span>
+                    </div>
+                </div>
+
+                <Divider sx={{ mx: 1.5, borderColor: "#f1f5f9" }} />
+
+                {/* Evidence Rows (Preview) */}
+                <div style={{ padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: "9px" }}>
                     {isEmpty ? (
                         <div style={{
-                            textAlign: "center", padding: "20px 0",
-                            background: "#f8fafc", borderRadius: "10px", border: "1px dashed #e2e8f0",
-                            color: "#94a3b8", fontSize: "11px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px"
+                            textAlign: "center", padding: "12px 0",
+                            color: "#cbd5e1", fontSize: "11px", fontWeight: 500
                         }}>
-                             <Activity size={16} opacity={0.4} />
-                             No priority signals detected.
+                            No active hotspots detected
                         </div>
                     ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "2px" }}>
-                                <span style={{ fontSize: "9px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>Top Hotspots</span>
-                                <span style={{ fontSize: "9px", fontWeight: 700, color: color, background: color + "10", padding: "1px 6px", borderRadius: "4px" }}>
-                                    {evidence.length} Active
-                                </span>
-                            </div>
-                            {displayRows.map((row, i) => {
-                                const primaryCol = columns[2] || { label: "Value", key: "value" };
-                                const val = row[primaryCol.key];
-                                const displayVal = primaryCol.fmt ? primaryCol.fmt(val, row) : (val ?? "-");
-
-                                let valColor = "#0f172a";
-                                if (primaryCol.key === "gapPct") {
-                                    if (typeof val === "number") valColor = val > 0 ? "#dc2626" : (val < 0 ? "#16a34a" : "#0f172a");
-                                } else if (primaryCol.key === "marketShareMoM") {
-                                    if (typeof val === "number") valColor = val < 0 ? "#dc2626" : "#16a34a";
-                                } else if (primaryCol.key === "fillRate" || primaryCol.key === "otherBrandOsa") {
-                                    if (typeof val === "number" && val < 80) valColor = "#dc2626";
-                                }
-                                
-                                return (
-                                    <div key={i} style={{ 
-                                        display: "flex", 
-                                        alignItems: "center", 
-                                        justifyContent: "space-between",
-                                        padding: "10px 12px",
-                                        background: i === 0 ? "linear-gradient(to right, #f8fafc, #ffffff)" : "#ffffff",
-                                        borderRadius: "10px",
-                                        border: i === 0 ? `1px solid ${color}20` : "1px solid #f1f5f9",
-                                        boxShadow: i === 0 ? "0 2px 8px rgba(0,0,0,0.02)" : "none",
-                                        transition: "all 0.2s ease"
-                                    }}>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "1px" }}>
-                                                <span style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                    {row.city || row.keyword || row.depotOrDb || "Global"}
-                                                </span>
-                                                <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "#cbd5e1" }} />
-                                                <span style={{ fontSize: "11px", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                    {row.category || row.platform || "-"}
-                                                </span>
-                                            </div>
-                                            {row.skuOrBrand && row.skuOrBrand !== "-" && (
-                                                <div style={{ fontSize: "10px", color: "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                    {row.skuOrBrand}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div style={{ textAlign: "right", marginLeft: "12px" }}>
-                                            <div style={{ fontSize: "13px", fontWeight: 800, color: valColor, letterSpacing: "-0.01em" }}>{displayVal}</div>
-                                            <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.02em" }}>{primaryCol.label}</div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        displayRows.slice(0, 2).map((row, i) => {
+                            const primaryCol = columns[2] || { label: "Value", key: "value" };
+                            const val = row[primaryCol.key];
+                            const displayVal = primaryCol.fmt ? primaryCol.fmt(val, row) : (val ?? "-");
+                            
+                            return (
+                                <div key={i} style={{ 
+                                    display: "flex", 
+                                    alignItems: "center", 
+                                    justifyContent: "space-between",
+                                }}>
+                                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>
+                                        {primaryCol.label}
+                                    </span>
+                                    <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#1e293b" }}>
+                                        {displayVal}
+                                    </span>
+                                </div>
+                            );
+                        })
                     )}
                 </div>
 
@@ -1736,22 +1725,25 @@ const InsightsSignalHub = () => {
             `}</style>
 
             <div className="insights-page" style={{
-                background: "#f4f6fa",
-                minHeight: "100vh",
-                paddingBottom: "48px",
+                background: "#ffffff",
+                height: "calc(100vh - 100px)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
             }}>
-                <div style={{ maxWidth: "1440px", margin: "0 auto", padding: "28px 28px" }}>
+                <div style={{ maxWidth: "1440px", width: "100%", margin: "0 auto", padding: "6px 24px 12px 24px", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
 
                     {/* ── Page Header ────────────────────────────────────── */}
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
                         flexWrap: "wrap", gap: "16px",
-                        marginBottom: "20px",
+                        marginBottom: "12px",
                         background: "#fff",
                         border: "1px solid #e5e9f0",
-                        borderRadius: "12px",
-                        padding: "16px 20px",
+                        borderRadius: "10px",
+                        padding: "10px 16px",
                         boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                        flexShrink: 0,
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                             <div style={{
@@ -1813,13 +1805,14 @@ const InsightsSignalHub = () => {
                         background: "#fff",
                         border: "1px solid #e5e9f0",
                         borderRadius: "10px",
-                        padding: "12px 18px",
+                        padding: "8px 16px",
                         display: "flex",
                         flexWrap: "wrap",
                         gap: "12px",
                         alignItems: "flex-end",
-                        marginBottom: "20px",
+                        marginBottom: "16px",
                         boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                        flexShrink: 0,
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#9ca3af", alignSelf: "center", marginRight: "4px" }}>
                             <Filter size={12} />
@@ -1890,13 +1883,15 @@ const InsightsSignalHub = () => {
                     ) : (
                         <div style={{
                             display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-                            gap: "16px",
-                            alignItems: "start",
+                            gridTemplateColumns: "repeat(4, 1fr)",
+                            gap: "12px",
+                            flex: 1,
+                            minHeight: 0,
                         }}>
                             {filteredInsights.map((ins, idx) => (
                                 <motion.div
                                     key={ins.id}
+                                    style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}
                                     initial={{ opacity: 0, y: 16 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: idx * 0.05, duration: 0.35, ease: "easeOut" }}
