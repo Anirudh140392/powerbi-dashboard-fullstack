@@ -245,7 +245,7 @@ const RolesPermissions = () => {
                     </div>
                     <button 
                         onClick={() => setShowModal(true)}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap cursor-pointer"
                     >
                         <UserPlus className="w-4 h-4" />
                         Add Database
@@ -406,14 +406,14 @@ const RolesPermissions = () => {
                         <button
                             onClick={() => setCurrentPage(1)}
                             disabled={currentPage === 1}
-                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
                         >
                             <ChevronsLeft className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                             disabled={currentPage === 1}
-                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
@@ -434,14 +434,14 @@ const RolesPermissions = () => {
                         <button
                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                             disabled={currentPage === totalPages}
-                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
                         >
                             <ChevronRight className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => setCurrentPage(totalPages)}
                             disabled={currentPage === totalPages}
-                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
                         >
                             <ChevronsRight className="w-4 h-4" />
                         </button>
@@ -462,7 +462,7 @@ const RolesPermissions = () => {
                                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Add New Database</h3>
                                 <button
                                     onClick={() => setShowModal(false)}
-                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600"
+                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
                                 >
                                     <X className="w-4 h-4" />
                                 </button>
@@ -540,13 +540,13 @@ const RolesPermissions = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowModal(false)}
-                                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all font-sans"
+                                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all font-sans cursor-pointer"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 px-4 py-2.5 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 font-sans"
+                                        className="flex-1 px-4 py-2.5 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 font-sans cursor-pointer"
                                     >
                                         Create Database
                                     </button>

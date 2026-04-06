@@ -86,13 +86,13 @@ const UsersTable = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
+                    <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm cursor-pointer">
                         <FileDown className="w-4 h-4 text-slate-400" />
                         Export
                     </button>
                     <button
                         onClick={() => setShowModal(true)}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 rounded-lg text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+                        className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 rounded-lg text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm cursor-pointer"
                     >
                         <UserPlus className="w-4 h-4" />
                         Add User
@@ -250,7 +250,7 @@ const UsersTable = () => {
                             className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200"
                         >
                             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Add New User</h3>
+                                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest cursor-pointer">Add New User</h3>
                                 <button
                                     onClick={() => setShowModal(false)}
                                     className="p-2 hover:bg-slate-200 rounded-lg transition-colors text-slate-400 hover:text-slate-600"
