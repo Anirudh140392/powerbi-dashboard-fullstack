@@ -279,7 +279,8 @@ const PlatformOverviewNew = ({
     const filterKey = useMemo(() => {
         const reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
             : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
-        const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',') : '';
+        const reqBrand = advancedFilters.brands?.length > 0 ? advancedFilters.brands.join(',')
+            : (selectedBrand && selectedBrand !== 'All' ? (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand) : '');
         const reqCategory = advancedFilters.categories?.length > 0 ? advancedFilters.categories.join(',')
             : (selectedCategory === 'All' ? 'All' : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
         const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
@@ -302,7 +303,7 @@ const PlatformOverviewNew = ({
                 filterLogic: advancedFilters.filterLogic
             }
         });
-    }, [dimension, globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters]);
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
