@@ -814,6 +814,12 @@ const TrendView = ({
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState(kpiKeys[0]?.key || "Osa");
 
+  useEffect(() => {
+    if (!kpiKeys.some(k => k.key === activeMetric)) {
+      setActiveMetric(kpiKeys[0]?.key || "Osa");
+    }
+  }, [kpiKeys, activeMetric]);
+
   const metricMeta =
     kpiKeys.find((m) => m.key === activeMetric) || kpiKeys[0];
 
@@ -1393,13 +1399,25 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
     timeEnd,
     compareStart,
     compareEnd,
+    selectedChannel
   } = useContext(FilterContext);
 
   const kpiKeys = useMemo(() => {
-    if (dynamicKey === 'pricing') return PRICING_KPI_KEYS;
-    if (dynamicKey === 'marketshare') return MARKET_SHARE_KPI_KEYS;
-    return KPI_KEYS;
-  }, [dynamicKey]);
+    let keys;
+    if (dynamicKey === 'pricing') keys = PRICING_KPI_KEYS;
+    else if (dynamicKey === 'marketshare') keys = MARKET_SHARE_KPI_KEYS;
+    else keys = KPI_KEYS;
+    
+    // Hide 'Listing' KPI button if channel is NOT 'QuickComm' and platform does not fall into QuickComm
+    const isQuickComm = selectedChannel?.toLowerCase() === 'quickcomm' || 
+                        ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(platform?.toLowerCase());
+    
+    if (!isQuickComm) {
+      keys = keys.filter(k => k.key !== 'Listing');
+    }
+
+    return keys;
+  }, [dynamicKey, selectedChannel, platform]);
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
