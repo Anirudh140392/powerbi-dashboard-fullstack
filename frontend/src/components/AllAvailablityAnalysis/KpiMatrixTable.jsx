@@ -654,7 +654,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                                 )}
                                                             >
                                                                 {cell.delta >= 0 ? "↑" : "↓"}
-                                                                {Math.abs(cell.delta)}
+                                                                {kpi.key === 'psl' ? formatNumber(Math.abs(cell.delta)) : Math.abs(cell.delta)}
                                                             </span>
                                                         </motion.div>
                                                     </td>

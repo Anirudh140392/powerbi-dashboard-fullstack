@@ -19,6 +19,7 @@ import { Box } from "@mui/material";
 import PaginationFooter from "../../CommonLayout/PaginationFooter";
 import axiosInstance from "../../../api/axiosInstance";
 import ErrorRetryOverlay from "../../CommonLayout/ErrorRetryOverlay";
+import { useAuth } from "../../../utils/AuthContext";
 
 
 /* -------------------------------------------------------------------------- */
@@ -101,6 +102,18 @@ const DASHBOARD_DATA = {
         id: "MarketShare",
         label: "Market Share",
         color: "#9333EA",
+        axis: "right",
+      },
+      {
+        id: "PromoMyBrand",
+        label: "Promo-My %",
+        color: "#F59E0B",
+        axis: "right",
+      },
+      {
+        id: "PromoCompete",
+        label: "Promo-Compete %",
+        color: "#D97706",
         axis: "right",
       },
 
@@ -1282,6 +1295,8 @@ const CHART_COLORS = [
 ];
 
 const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTable, onSwitchToKpi, period, timeStep, selectedLevel }) => {
+  const { user } = useAuth();
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const getInitialMetric = () => {
     if (!selectedLevel) return "osa";
     const mapping = {
@@ -1399,7 +1414,9 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
       <CardHeader className="flex flex-col gap-4 border-b pb-4">
         <div className="flex items-center justify-between w-full">
           <Box display="flex" gap={1} flexWrap="wrap">
-            {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos')).map((m) => (
+            {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos'))
+              .filter(m => !hideMarketShare || m.key !== 'marketShare')
+              .map((m) => (
               <MetricChip
                 key={m.key}
                 label={m.label}
@@ -1676,6 +1693,8 @@ const KPI_KEYS = [
 ];
 
 const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onBackToTrend, period, timeStep }) => {
+  const { user } = useAuth();
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const isBrandMode = mode === "brand";
 
   const selectedIds = useMemo(() => {
@@ -1779,7 +1798,9 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
       </CardHeader>
 
       <CardContent className="grid max-h-[420px] gap-4 overflow-y-auto pt-4 md:grid-cols-2">
-        {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(k => k.key !== 'sos')).map((kpi) => (
+        {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(k => k.key !== 'sos'))
+          .filter(k => !hideMarketShare || k.key !== 'marketShare')
+          .map((kpi) => (
           <Card
             key={kpi.key}
             className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50"
@@ -1846,7 +1867,9 @@ const formatLargeNumber = (value) => {
   return value.toFixed(2);
 };
 
-const BrandTable = ({ rows, loading }) => {
+const BrandTable = ({ rows, loading, onTrendClick }) => {
+  const { user } = useAuth();
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -1868,12 +1891,12 @@ const BrandTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[20%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[16%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[16%]">SOS</th>
-                <th className="px-3 py-2 text-center w-[16%]">Price</th>
-                <th className="px-3 py-2 text-center w-[16%]">Promo-My %</th>
-                <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[24%]" : "w-[20%]")}>Brand</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>OSA</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>SOS</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Price</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Promo-My %</th>
+                {!hideMarketShare && <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>}
               </tr>
             </thead>
 
@@ -1885,7 +1908,7 @@ const BrandTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  {!hideMarketShare && <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -1932,21 +1955,23 @@ const BrandTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-right text-slate-900">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.MarketShare?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
+                  {!hideMarketShare && (
+                    <td className="px-3 py-2 text-right text-slate-900">
+                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                        <span>{(Number(row.MarketShare?.value) || 0).toFixed(1)}%</span>
+                        <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                          {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={hideMarketShare ? 5 : 6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -1973,7 +1998,9 @@ const BrandTable = ({ rows, loading }) => {
 };
 
 
-const SkuTable = ({ rows, loading }) => {
+const SkuTable = ({ rows, loading, onTrendClick }) => {
+  const { user } = useAuth();
+  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -1995,12 +2022,12 @@ const SkuTable = ({ rows, loading }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2 text-center w-[16%]">SKU</th>
-                <th className="px-3 py-2 text-center w-[16%]">Brand</th>
-                <th className="px-3 py-2 text-center w-[17%]">OSA</th>
-                <th className="px-3 py-2 text-center w-[17%]">Price</th>
-                <th className="px-3 py-2 text-center w-[17%]">Promo-My %</th>
-                <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[16%]")}>SKU</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[16%]")}>Brand</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>OSA</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Price</th>
+                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Promo-My %</th>
+                {!hideMarketShare && <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>}
               </tr>
             </thead>
 
@@ -2012,7 +2039,7 @@ const SkuTable = ({ rows, loading }) => {
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  {!hideMarketShare && <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -2054,23 +2081,25 @@ const SkuTable = ({ rows, loading }) => {
                       </span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                      <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
-                        {(Number(row.MarketShare?.value) || 0).toFixed(1)}%
-                      </span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
-                  </td>
+                  {!hideMarketShare && (
+                    <td className="px-3 py-2 text-center text-slate-900 font-medium">
+                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                        <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
+                          {(Number(row.MarketShare?.value) || 0).toFixed(1)}%
+                        </span>
+                        <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                          {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
+                        </span>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={hideMarketShare ? 5 : 6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters
@@ -2101,7 +2130,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep }) => {
+const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOptions, period, timeStep, onTrendClick }) => {
   // Use filterOptions if provided, otherwise fallback to static constants
   const dynamicCities = filterOptions?.cities?.length > 0 ? filterOptions.cities : CITIES;
 
@@ -2253,7 +2282,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
 
         {/* BRAND TAB */}
         <TabsContent value="brand" className="mt-3">
-          {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} />}
+          {viewMode === "table" && <BrandTable rows={brandRows} loading={apiLoading} onTrendClick={onTrendClick} />}
           {viewMode === "trend" && (
             <TrendView
               mode="brand"
@@ -2286,7 +2315,7 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
 
         {/* SKU TAB */}
         <TabsContent value="sku" className="mt-3">
-          {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} />}
+          {viewMode === "table" && <SkuTable rows={skuRows} loading={apiLoading} onTrendClick={onTrendClick} />}
           {viewMode === "trend" && (
             <TrendView
               mode="sku"

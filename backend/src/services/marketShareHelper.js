@@ -374,7 +374,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
  * Logic: Brand with MAX(SUM(sales)) across the category in the period
  * Returns: { brand, sales, prevSales, delta, deltaAbs }
  */
-export const getMarketLeaderSales = async (start, end, platformFilter, categoryFilter, locationFilter = null) => {
+export const getMarketLeaderSales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -403,11 +403,18 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
 
         const startStr = start.format('YYYY-MM-DD');
         const endStr = end.format('YYYY-MM-DD');
-        const periodDays = end.diff(start, 'day');
-        const prevEnd = start.subtract(1, 'day');
-        const prevStart = prevEnd.subtract(periodDays, 'day');
-        const prevStartStr = prevStart.format('YYYY-MM-DD');
-        const prevEndStr = prevEnd.format('YYYY-MM-DD');
+        
+        let prevStartStr, prevEndStr;
+        if (compStart && compEnd) {
+            prevStartStr = compStart.format('YYYY-MM-DD');
+            prevEndStr = compEnd.format('YYYY-MM-DD');
+        } else {
+            const periodDays = end.diff(start, 'day');
+            const prevEnd = start.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(periodDays, 'day');
+            prevStartStr = prevStart.format('YYYY-MM-DD');
+            prevEndStr = prevEnd.format('YYYY-MM-DD');
+        }
 
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
@@ -463,7 +470,7 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
  * Logic: SUM(sales) WHERE brand is a Mars Wrigley brand
  * Returns: { sales, prevSales, delta, deltaAbs }
  */
-export const getMarsWrigleySales = async (start, end, platformFilter, categoryFilter, locationFilter = null) => {
+export const getMarsWrigleySales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -492,11 +499,18 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
 
         const startStr = start.format('YYYY-MM-DD');
         const endStr = end.format('YYYY-MM-DD');
-        const periodDays = end.diff(start, 'day');
-        const prevEnd = start.subtract(1, 'day');
-        const prevStart = prevEnd.subtract(periodDays, 'day');
-        const prevStartStr = prevStart.format('YYYY-MM-DD');
-        const prevEndStr = prevEnd.format('YYYY-MM-DD');
+        
+        let prevStartStr, prevEndStr;
+        if (compStart && compEnd) {
+            prevStartStr = compStart.format('YYYY-MM-DD');
+            prevEndStr = compEnd.format('YYYY-MM-DD');
+        } else {
+            const periodDays = end.diff(start, 'day');
+            const prevEnd = start.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(periodDays, 'day');
+            prevStartStr = prevStart.format('YYYY-MM-DD');
+            prevEndStr = prevEnd.format('YYYY-MM-DD');
+        }
 
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
@@ -554,7 +568,7 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
  * Logic: SUM of all sales in rb_ms_olap for the selected category/platform/date range
  */
 
-export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null) => {
+export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -579,11 +593,18 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
 
         const startStr = start.format('YYYY-MM-DD');
         const endStr = end.format('YYYY-MM-DD');
-        const periodDays = end.diff(start, 'day');
-        const prevEnd = start.subtract(1, 'day');
-        const prevStart = prevEnd.subtract(periodDays, 'day');
-        const prevStartStr = prevStart.format('YYYY-MM-DD');
-        const prevEndStr = prevEnd.format('YYYY-MM-DD');
+        
+        let prevStartStr, prevEndStr;
+        if (compStart && compEnd) {
+            prevStartStr = compStart.format('YYYY-MM-DD');
+            prevEndStr = compEnd.format('YYYY-MM-DD');
+        } else {
+            const periodDays = end.diff(start, 'day');
+            const prevEnd = start.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(periodDays, 'day');
+            prevStartStr = prevStart.format('YYYY-MM-DD');
+            prevEndStr = prevEnd.format('YYYY-MM-DD');
+        }
 
         const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
 
@@ -630,7 +651,7 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
  * Includes delta vs previous period of equal length
  * NOTE: rb_ms_olap does not have sub_category, so we use category instead
  */
-export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilter, locationFilter = null, subCategoryFilter = null) => {
+export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilter, locationFilter = null, subCategoryFilter = null, compStart = null, compEnd = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -657,12 +678,18 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         const startStr = start.format('YYYY-MM-DD');
         const endStr = end.format('YYYY-MM-DD');
 
-        // Calculate previous period (same length, immediately prior)
-        const periodDays = end.diff(start, 'day');
-        const prevEnd = start.subtract(1, 'day');
-        const prevStart = prevEnd.subtract(periodDays, 'day');
-        const prevStartStr = prevStart.format('YYYY-MM-DD');
-        const prevEndStr = prevEnd.format('YYYY-MM-DD');
+        let prevStartStr, prevEndStr;
+        if (compStart && compEnd) {
+            prevStartStr = compStart.format('YYYY-MM-DD');
+            prevEndStr = compEnd.format('YYYY-MM-DD');
+        } else {
+            // Calculate previous period (same length, immediately prior)
+            const periodDays = end.diff(start, 'day');
+            const prevEnd = start.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(periodDays, 'day');
+            prevStartStr = prevStart.format('YYYY-MM-DD');
+            prevEndStr = prevEnd.format('YYYY-MM-DD');
+        }
 
         const baseCond = `
             ${platformCond}
@@ -726,7 +753,6 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             AND group_brand IS NOT NULL AND group_brand != ''
             GROUP BY group_brand
             ORDER BY total_sales DESC
-            LIMIT 10
         `;
 
         // 3. Previous period brand KPIs (for delta)
@@ -910,7 +936,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
  * Returns per-platform data for: categorySize, mwMarketShare, mwSales, mlMarketShare, mlSales
  * Platforms: Blinkit, Instamart, Zepto + ODD Overall (aggregate)
  */
-export const getCrossPlatformOverview = async (start, end, platformFilter, categoryFilter, locationFilter = null, brandFilter = null) => {
+export const getCrossPlatformOverview = async (start, end, platformFilter, categoryFilter, locationFilter = null, brandFilter = null, compStart = null, compEnd = null) => {
     try {
         const categoryArr = normalizeFilterArray(categoryFilter);
         const locationArr = normalizeFilterArray(locationFilter);
@@ -938,11 +964,18 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
 
         const startStr = start.format('YYYY-MM-DD');
         const endStr = end.format('YYYY-MM-DD');
-        const periodDays = end.diff(start, 'day');
-        const prevEnd = start.subtract(1, 'day');
-        const prevStart = prevEnd.subtract(periodDays, 'day');
-        const prevStartStr = prevStart.format('YYYY-MM-DD');
-        const prevEndStr = prevEnd.format('YYYY-MM-DD');
+
+        let prevStartStr, prevEndStr;
+        if (compStart && compEnd) {
+            prevStartStr = compStart.format('YYYY-MM-DD');
+            prevEndStr = compEnd.format('YYYY-MM-DD');
+        } else {
+            const periodDays = end.diff(start, 'day');
+            const prevEnd = start.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(periodDays, 'day');
+            prevStartStr = prevStart.format('YYYY-MM-DD');
+            prevEndStr = prevEnd.format('YYYY-MM-DD');
+        }
 
         const baseCond = `${locationCond} ${categoryCond} ${brandCond}`;
 
@@ -1447,7 +1480,7 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
  * Get Market Share Competition (Brand level)
  * Returns generic brand-level KPIs (marketShare, sales) for the top brands.
  */
-export const getMarketShareCompetition = async (period, startDate, endDate, platformFilter, categoryFilter, locationFilter, brandFilter) => {
+export const getMarketShareCompetition = async (period, startDate, endDate, platformFilter, categoryFilter, locationFilter, brandFilter, compareStartDate = null, compareEndDate = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -1498,11 +1531,19 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
         const startStr = startRaw.format('YYYY-MM-DD');
         const endStr = endRaw.format('YYYY-MM-DD');
 
-        const periodDays = endRaw.diff(startRaw, 'day');
-        const prevEnd = startRaw.subtract(1, 'day');
-        const prevStart = prevEnd.subtract(periodDays, 'day');
-        const prevStartStr = prevStart.format('YYYY-MM-DD');
-        const prevEndStr = prevEnd.format('YYYY-MM-DD');
+        let prevStartStr, prevEndStr;
+        if (compareStartDate && compareEndDate) {
+            const compStartRaw = dayjs(compareStartDate);
+            const compEndRaw = dayjs(compareEndDate);
+            prevStartStr = compStartRaw.format('YYYY-MM-DD');
+            prevEndStr = compEndRaw.format('YYYY-MM-DD');
+        } else {
+            const periodDays = endRaw.diff(startRaw, 'day');
+            const prevEnd = startRaw.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(periodDays, 'day');
+            prevStartStr = prevStart.format('YYYY-MM-DD');
+            prevEndStr = prevEnd.format('YYYY-MM-DD');
+        }
 
         const baseCond = `${locationCond} ${categoryCond} ${platformCond} ${brandCond}`;
 
@@ -1745,6 +1786,49 @@ export const getMarketShareCompetitionFilterOptions = async (platformFilter, loc
 };
 
 /**
+ * Get Top-level Market Share Filter Options (Platform, Category, Channel)
+ * Sourced directly from rb_ms_olap as per user request.
+ */
+export const getMarketShareTopFilterOptions = async () => {
+    try {
+        // 1. Platforms from rb_ms_olap
+        const platformQuery = `SELECT DISTINCT platform FROM rb_ms_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
+        
+        // 2. Categories from rb_ms_olap
+        const categoryQuery = `SELECT DISTINCT category FROM rb_ms_olap WHERE category IS NOT NULL AND category != '' ORDER BY category`;
+        
+        // 3. Locations from rb_ms_olap
+        const locationQuery = `SELECT DISTINCT location FROM rb_ms_olap WHERE location IS NOT NULL AND location != '' ORDER BY location`;
+
+        // 4. Channels - filter by platforms present in rb_ms_olap to ensure relevance
+        const channelQuery = `
+            SELECT DISTINCT channel 
+            FROM rca_sku_dim 
+            WHERE platform IN (SELECT DISTINCT platform FROM rb_ms_olap)
+            AND channel IS NOT NULL AND channel != '' 
+            ORDER BY channel
+        `;
+
+        const [platformResults, categoryResults, locationResults, channelResults] = await Promise.all([
+            queryClickHouse(platformQuery),
+            queryClickHouse(categoryQuery),
+            queryClickHouse(locationQuery),
+            queryClickHouse(channelQuery)
+        ]);
+
+        return {
+            platforms: platformResults.map(r => r.platform),
+            categories: categoryResults.map(r => r.category),
+            locations: locationResults.map(r => r.location),
+            channels: channelResults.map(r => r.channel)
+        };
+    } catch (error) {
+        console.error('[MarketShareTopFilterOptions] Error:', error.message);
+        return { platforms: [], categories: [], channels: [] };
+    }
+};
+
+/**
  * Get Market Share Competition Trends (Time Series)
  */
 export const getMarketShareCompetitionTrends = async (mode, targets, period, startDate, endDate, platform, category, location) => {
@@ -1867,7 +1951,7 @@ export const getMarketShareCompetitionTrends = async (mode, targets, period, sta
  * Get Market Share Drilldown (Hierarchical)
  * Hierarchy: group_brand -> brand -> item_name
  */
-export const getMarketShareDrilldown = async (start, end, platformFilter, categoryFilter, locationFilter) => {
+export const getMarketShareDrilldown = async (start, end, platformFilter, categoryFilter, locationFilter, compStart = null, compEnd = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);

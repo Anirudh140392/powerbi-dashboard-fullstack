@@ -1,43 +1,37 @@
+import 'dotenv/config';
+import { createClient } from '@clickhouse/client';
 
-import visibilityService from './src/services/visibilityService.js';
+const client = createClient({
+    url: process.env.CLICKHOUSE_URL || 'http://localhost:8123',
+    username: process.env.CLICKHOUSE_USER || 'default',
+    password: process.env.CLICKHOUSE_PASSWORD || '',
+    database: process.env.CLICKHOUSE_DB || 'default',
+    request_timeout: 10000
+});
 
-async function testSos() {
+async function run() {
+    const query = `
+SELECT brand, platform, p_overall, b_overall, b_overall * 100.0 / nullIf(p_overall, 0) as sos
+FROM (
+    SELECT 
+        brand, 
+        platform_name AS platform, 
+        sum(toInt32(overall)) as b_overall,
+        SUM(sum(toInt32(overall))) OVER(PARTITION BY platform_name) as p_overall
+    FROM rb_kw_olap
+    WHERE DATE = '2026-03-10'
+    GROUP BY brand, platform_name
+)
+WHERE brand = 'Cadbury' AND platform = 'Blinkit'
+    `;
+    console.log("Running Query:\n" + query);
     try {
-        console.log('--- Testing Dynamic SOS for Cadbury ---');
-        const results = await visibilityService.getKeywordsAtGlance({ 
-            brand: 'Cadbury',
-            platform: 'Blinkit',
-            city: 'All',
-            format: 'All'
-        });
-        
-        console.log('\nResults for Cadbury:');
-        if (results.hierarchy && results.hierarchy.length > 0) {
-            results.hierarchy.forEach(typeNode => {
-                console.log(`\nType: ${typeNode.label} (SOS: ${typeNode.metrics.overallSos}%)`);
-                if (typeNode.children && typeNode.children.length > 0) {
-                    console.log('Top 3 Keywords:');
-                    typeNode.children.slice(0, 3).forEach(kw => {
-                        console.log(` - ${kw.label}: ${kw.metrics.overallSos}%`);
-                    });
-                }
-            });
-        } else {
-            console.log('No data found for Cadbury');
-        }
-
-        console.log('\n--- Testing Top Search Terms ---');
-        const terms = await visibilityService.getTopSearchTerms({
-            brand: 'Cadbury'
-        });
-        console.log('Terms count:', terms.terms.length);
-        if (terms.terms.length > 0) {
-            console.log('Sample term:', JSON.stringify(terms.terms[0], null, 2));
-        }
-
-    } catch (err) {
-        console.error('Test failed:', err);
+        const rs = await client.query({ query, format: 'JSONEachRow' });
+        const data = await rs.json();
+        console.log("Result:", data);
+    } catch (e) {
+        console.error(e.message);
     }
+    process.exit(0);
 }
-
-testSos();
+run();

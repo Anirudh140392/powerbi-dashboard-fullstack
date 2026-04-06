@@ -111,3 +111,80 @@ export const fetchAllVisibilityData = async (filters = {}) => {
         searchTerms
     };
 };
+
+/**
+ * Fetch SKU visibility drilldown for a specific keyword
+ */
+export const fetchVisibilitySkuDrilldown = async (params) => {
+    try {
+        const queryParams = new URLSearchParams(params).toString();
+        const response = await axiosInstance.get(`/visibility-analysis/sku-drilldown?${queryParams}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching SKU drilldown:", error);
+        throw error;
+    }
+};
+
+/**
+ * Fetch City visibility drilldown for a specific SKU and keyword
+ */
+export const fetchVisibilityCityDrilldown = async (params) => {
+    try {
+        const queryParams = new URLSearchParams(params).toString();
+        const response = await axiosInstance.get(`/visibility-analysis/city-drilldown?${queryParams}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching City drilldown:", error);
+        throw error;
+    }
+};
+
+/**
+ * Fetch Search Terms Performance (Top Search Terms segment — keyword/SKU modes)
+ */
+export const fetchSearchTermsPerformance = async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.viewMode) params.append('viewMode', filters.viewMode);
+    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
+    if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
+    if (filters.location && filters.location !== 'All') params.append('location', filters.location);
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
+    if (filters.keywordType && filters.keywordType !== 'All') params.append('keywordType', filters.keywordType);
+    if (filters.keywordTypeFilter && filters.keywordTypeFilter !== 'All') params.append('keywordTypeFilter', filters.keywordTypeFilter);
+    if (filters.category && filters.category !== 'All') params.append('category', filters.category);
+    if (filters.ownBrandsOnly) params.append('ownBrandsOnly', filters.ownBrandsOnly);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+
+    const response = await axiosInstance.get(`/visibility-analysis/search-terms-performance?${params.toString()}`);
+    return response.data;
+};
+
+/**
+ * Fetch Search Terms Location Drilldown
+ */
+export const fetchSearchTermsLocations = async (params) => {
+    try {
+        const queryParams = new URLSearchParams(params).toString();
+        const response = await axiosInstance.get(`/visibility-analysis/search-terms-locations?${queryParams}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching search terms locations:", error);
+        throw error;
+    }
+};
+
+/**
+ * Fetch Search Terms Brand Breakdown (Hover detail for Leading Brand)
+ */
+export const fetchSearchTermsBrandBreakdown = async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+
+    const response = await axiosInstance.get(`/visibility-analysis/search-terms-brand-breakdown?${params.toString()}`);
+    return response.data;
+};

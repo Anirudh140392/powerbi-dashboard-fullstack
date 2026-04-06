@@ -3,44 +3,53 @@ import { queryClickHouse } from '../config/clickhouse.js';
 
 import fs from 'fs';
 
+const PLATFORMS_SUPPORTING_RATINGS = ['bigbasket', 'flipkart', 'amazon'];
+
+const calculateOverallScore = (title, image, si, desc, rating, platform) => {
+    const scores = [title, image, si, desc];
+    const platLower = (platform || '').toLowerCase();
+    
+    // If platform supports ratings OR if the rating is already positive, include it in the average
+    if (PLATFORMS_SUPPORTING_RATINGS.includes(platLower) || parseFloat(rating) > 0) {
+        scores.push(parseFloat(rating) || 0);
+    }
+    
+    if (scores.length === 0) return 0;
+    return scores.reduce((a, b) => a + b, 0) / scores.length;
+};
+
 export const getContentAnalysisStats = async (filters) => {
     try {
-        const { platform, brand, location, startDate, endDate } = filters;
-        fs.writeFileSync('debug_svc_filters.txt', JSON.stringify(filters, null, 2));
-
+        const { platform, brand, location, startDate, endDate, channel, category } = filters;
+        
         let query = `
             SELECT 
-                product_id,
-                brand_name as brand,
-                title,
-                title_char_count as titleCount,
-                bullet_points_count,
-                description_char_count as descriptionCount,
-                thumbnail_image_count as imageCount,
-                thumbnail_video_count,
-                url,
-                title_length_score as titleScore,
-                prod_desc_score as descriptionScore,
-                thumbnail_media_score as imageScore,
-                aplus_image_score,
-                aplus_description_score,
-                product_platform_total as overallScore
-            FROM tb_content_score_data
+                web_pid as product_id,
+                Platform as platform,
+                master_title as title,
+                verification_title * 100 AS titleScore,
+                verification_image * 100 AS imageScore,
+                multiIf(
+                    pf_id = 6, (coalesce(secondary_verification_image_2,0) + coalesce(secondary_verification_image_3,0) + coalesce(secondary_verification_image_4,0) + coalesce(secondary_verification_image_5,0) + coalesce(secondary_verification_image_6,0)) / 5.0,
+                    pf_id IN (1, 2, 3, 4, 7, 9), (coalesce(secondary_verification_image_2,0) + coalesce(secondary_verification_image_3,0) + coalesce(secondary_verification_image_4,0) + coalesce(secondary_verification_image_5,0) + coalesce(secondary_verification_image_6,0) + coalesce(secondary_verification_image_7,0)) / 6.0,
+                    0.0
+                ) * 100 AS siScore,
+                multiIf(
+                    pf_id IN (2, 6, 7, 9), description_verification / 1.0,
+                    pf_id IN (1, 3, 4), (bulletin_verification + description_verification) / 2.0,
+                    (bulletin_verification + description_verification) / 2.0
+                ) * 100 AS descScore,
+                IF(pdp_rating_value >= 4.2, 100.0, 0.0) AS ratingScore
+            FROM rb_product_verify
             WHERE 1=1
         `;
 
-        // Date Range Filter (using extraction_timestamp)
+        // Date Range Filter
         if (startDate && endDate) {
-            query += ` AND toDate(extraction_timestamp) BETWEEN '${startDate}' AND '${endDate}'`;
+            query += ` AND toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`;
         }
 
-        // Add filters
-        if (brand && brand !== 'All') {
-            query += ` AND lower(brand_name) = lower('${brand}')`;
-        }
-
-        // Platform filter - approximating by URL since no platform column exists
-        // Normalize platform input (handle string, array, or array-style key)
+        // Platform Filter
         const rawPlatform = filters.platform || filters['platform[]'];
         let platforms = [];
         if (Array.isArray(rawPlatform)) {
@@ -48,78 +57,342 @@ export const getContentAnalysisStats = async (filters) => {
         } else if (typeof rawPlatform === 'string') {
             platforms = rawPlatform.split(',');
         }
-        // Clean up
         platforms = platforms.map(p => p.trim().toLowerCase()).filter(p => p !== 'all' && p !== '');
 
-        // Platform filter
         if (platforms.length > 0) {
-            const orConditions = [];
-
-            platforms.forEach(p => {
-                if (p === 'amazon') {
-                    orConditions.push("url LIKE '%amazon%'");
-                } else if (p === 'blinkit') {
-                    orConditions.push("url LIKE '%blinkit%'");
-                } else if (p === 'zepto') {
-                    orConditions.push("url LIKE '%zepto%'");
-                } else if (p === 'instamart') {
-                    orConditions.push("url LIKE '%swiggy%'");
-                } else {
-                    orConditions.push(`url LIKE '%${p}%'`);
-                }
+            const orConditions = platforms.map(p => {
+                if (p === 'instamart') return "lower(Platform) = 'swiggy'";
+                return `lower(Platform) = '${p}'`;
             });
+            query += ` AND (${orConditions.join(' OR ')})`;
+        }
 
-            if (orConditions.length > 0) {
-                query += ` AND (${orConditions.join(' OR ')})`;
+        // Channel filter
+        if (channel && channel !== 'All') {
+            query += ` AND lower(Channel) = lower('${channel}')`;
+        }
+
+        // Category filter
+        if (category && category !== 'All') {
+            const cats = Array.isArray(category) ? category : category.split(',');
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            if (catConditions.length > 0) {
+                query += ` AND (${catConditions.join(' OR ')})`;
             }
         }
 
-        // Format/Category filter - We don't have this column, so we might skip it or use a placeholder
-        // If format is passed, we can't really filter effectively without a column. 
-        // For now, we ignore it to avoid returning zero results, or we check if user insists.
-        // Given the user instructions, I'll ignore 'format' for WHERE clause but return all data.
-
-        query += ` LIMIT 5000`; // Increased limit to fetch more brands
-
-        fs.writeFileSync('debug_svc_query.txt', query);
+        query += ` LIMIT 1000`;
 
         const result = await queryClickHouse(query);
 
-        fs.writeFileSync('debug_svc_result_count.txt', `Count: ${result.length}`);
-
-        // Transform result to match frontend expectations
-        const mappedResult = result.map(row => {
-            // Derive platform from URL if needed
-            let derivedPlatform = 'Unknown';
-            if (row.url && row.url.includes('amazon')) derivedPlatform = 'Amazon';
-            else if (row.url && row.url.includes('blinkit')) derivedPlatform = 'Blinkit';
-            else if (row.url && row.url.includes('zepto')) derivedPlatform = 'Zepto';
-            else if (row.url && row.url.includes('swiggy')) derivedPlatform = 'Instamart';
+        return result.map(row => {
+            const overall = calculateOverallScore(
+                parseFloat(row.titleScore) || 0,
+                parseFloat(row.imageScore) || 0,
+                parseFloat(row.siScore) || 0,
+                parseFloat(row.descScore) || 0,
+                parseFloat(row.ratingScore) || 0,
+                row.platform
+            );
 
             return {
-                platform: derivedPlatform, // Frontend expects: Blinkit, Zepto, Instamart
-                format: 'N/A', // Column not available
-                brand: row.brand,
-                title: row.title,
-                url: row.url,
-                descriptionCount: row.descriptionCount || 0,
-                imageCount: row.imageCount || 0,
-                ratingCount: 0, // Not in table
-                ratingValue: 0, // Not in table
-                titleCount: row.titleCount || 0,
-                descriptionScore: row.descriptionScore || 0,
-                imageScore: row.imageScore || 0,
-                ratingScore: 0, // Not in table
-                reviewScore: 0, // Not in table
-                titleScore: row.titleScore || 0,
-                overallScore: row.overallScore || 0
+                ...row,
+                titleScore: parseFloat(row.titleScore) || 0,
+                imageScore: parseFloat(row.imageScore) || 0,
+                siScore: parseFloat(row.siScore) || 0,
+                descriptionScore: parseFloat(row.descScore) || 0,
+                ratingScore: parseFloat(row.ratingScore) || 0,
+                overallScore: overall
             };
         });
 
-        return mappedResult;
-
     } catch (error) {
         console.error("Error in getContentAnalysisStats:", error);
+        throw error;
+    }
+};
+
+export const getContentAnalysisOverviewStats = async (filters, isCompare = false) => {
+    try {
+        const { platform, brand, location, startDate, endDate, prevStartDate, prevEndDate, channel, category } = filters;
+        
+        let targetStartDate = isCompare ? prevStartDate : startDate;
+        let targetEndDate = isCompare ? prevEndDate : endDate;
+
+        let query = `
+            SELECT 
+                AVG(verification_title) * 100 AS titleScore,
+                AVG(verification_image) * 100 AS imageScore,
+                AVG(
+                    multiIf(
+                        pf_id = 6, (coalesce(secondary_verification_image_2,0) + coalesce(secondary_verification_image_3,0) + coalesce(secondary_verification_image_4,0) + coalesce(secondary_verification_image_5,0) + coalesce(secondary_verification_image_6,0)) / 5.0,
+                        pf_id IN (1, 2, 3, 4, 7, 9), (coalesce(secondary_verification_image_2,0) + coalesce(secondary_verification_image_3,0) + coalesce(secondary_verification_image_4,0) + coalesce(secondary_verification_image_5,0) + coalesce(secondary_verification_image_6,0) + coalesce(secondary_verification_image_7,0)) / 6.0,
+                        0.0
+                    )
+                ) * 100 AS siScore,
+                AVG(
+                    multiIf(
+                        pf_id IN (2, 6, 7, 9), description_verification / 1.0,
+                        pf_id IN (1, 3, 4), (bulletin_verification + description_verification) / 2.0,
+                        (bulletin_verification + description_verification) / 2.0
+                    )
+                ) * 100 AS descScore,
+                AVG(IF(lower(Platform) IN ('bigbasket', 'flipkart', 'amazon'), IF(pdp_rating_value >= 4.2, 1.0, 0.0), NULL)) * 100 AS ratingScore
+            FROM rb_product_verify
+            WHERE 1=1
+        `;
+
+        // Date Range Filter
+        if (targetStartDate && targetEndDate) {
+            query += ` AND toDate(created_on) BETWEEN '${targetStartDate}' AND '${targetEndDate}'`;
+        }
+
+        // Platform Filter
+        const rawPlatform = filters.platform || filters['platform[]'];
+        let platforms = [];
+        if (Array.isArray(rawPlatform)) {
+            platforms = rawPlatform;
+        } else if (typeof rawPlatform === 'string') {
+            platforms = rawPlatform.split(',');
+        }
+        platforms = platforms.map(p => p.trim().toLowerCase()).filter(p => p !== 'all' && p !== '');
+
+        if (platforms.length > 0) {
+            const orConditions = platforms.map(p => {
+                if (p === 'instamart') return "lower(Platform) = 'swiggy'";
+                return `lower(Platform) = '${p}'`;
+            });
+            query += ` AND (${orConditions.join(' OR ')})`;
+        }
+
+        // Brand Filter (if we add brand column later, normally it's brand_name)
+        // Wait, rb_product_verify doesn't have brand column documented. 
+        // We'll skip it unless it fails.
+
+        // Channel filter
+        if (channel && channel !== 'All') {
+             query += ` AND lower(Channel) = lower('${channel}')`;
+        }
+        // Category filter
+        if (category && category !== 'All') {
+            const cats = Array.isArray(category) ? category : category.split(',');
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            if (catConditions.length > 0) {
+                 query += ` AND (${catConditions.join(' OR ')})`;
+            }
+        }
+
+        const result = await queryClickHouse(query);
+        
+        if (result && result.length > 0) {
+            const r = result[0];
+            const title = parseFloat(r.titleScore) || 0;
+            const image = parseFloat(r.imageScore) || 0;
+            const si = parseFloat(r.siScore) || 0;
+            const desc = parseFloat(r.descScore) || 0;
+            const rating = parseFloat(r.ratingScore) || 0;
+            
+            // Assuming Overall Score is a straight average of the 5.
+            const overall = calculateOverallScore(title, image, si, desc, rating, platform);
+            
+            return {
+                titleScore: title,
+                imageScore: image,
+                siScore: si,
+                descScore: desc,
+                ratingScore: rating,
+                overallScore: overall
+            };
+        }
+        
+        return {
+            titleScore: 0, imageScore: 0, siScore: 0, descScore: 0, ratingScore: 0, overallScore: 0
+        };
+
+    } catch (error) {
+        console.error("Error in getContentAnalysisOverviewStats:", error);
+        throw error;
+    }
+};
+
+export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = false) => {
+    try {
+        const { startDate, endDate, prevStartDate, prevEndDate, channel, category } = filters;
+        
+        let targetStartDate = isCompare ? prevStartDate : startDate;
+        let targetEndDate = isCompare ? prevEndDate : endDate;
+
+        let query = `
+            SELECT 
+                Platform,
+                AVG(verification_title) * 100 AS titleScore,
+                AVG(verification_image) * 100 AS imageScore,
+                AVG(
+                    multiIf(
+                        pf_id = 6, (coalesce(secondary_verification_image_2,0) + coalesce(secondary_verification_image_3,0) + coalesce(secondary_verification_image_4,0) + coalesce(secondary_verification_image_5,0) + coalesce(secondary_verification_image_6,0)) / 5.0,
+                        pf_id IN (1, 2, 3, 4, 7, 9), (coalesce(secondary_verification_image_2,0) + coalesce(secondary_verification_image_3,0) + coalesce(secondary_verification_image_4,0) + coalesce(secondary_verification_image_5,0) + coalesce(secondary_verification_image_6,0) + coalesce(secondary_verification_image_7,0)) / 6.0,
+                        0.0
+                    )
+                ) * 100 AS siScore,
+                AVG(
+                    multiIf(
+                        pf_id IN (2, 6, 7, 9), description_verification / 1.0,
+                        pf_id IN (1, 3, 4), (bulletin_verification + description_verification) / 2.0,
+                        (bulletin_verification + description_verification) / 2.0
+                    )
+                ) * 100 AS descScore,
+                AVG(IF(lower(Platform) IN ('bigbasket', 'flipkart', 'amazon'), IF(pdp_rating_value >= 4.2, 1.0, 0.0), NULL)) * 100 AS ratingScore
+            FROM rb_product_verify
+            WHERE Platform != '\\\\N'
+        `;
+
+        if (targetStartDate && targetEndDate) {
+            query += ` AND toDate(created_on) BETWEEN '${targetStartDate}' AND '${targetEndDate}'`;
+        }
+
+        // Channel filter
+        if (channel && channel !== 'All') {
+            query += ` AND lower(Channel) = lower('${channel}')`;
+        }
+
+        // Category filter
+        if (category && category !== 'All') {
+            const cats = Array.isArray(category) ? category : category.split(',');
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            if (catConditions.length > 0) {
+                query += ` AND (${catConditions.join(' OR ')})`;
+            }
+        }
+
+        query += ` GROUP BY Platform ORDER BY Platform`;
+
+        const result = await queryClickHouse(query);
+
+        const platformMap = {};
+        if (result && result.length > 0) {
+            result.forEach(row => {
+                const plat = row.Platform;
+                const title = parseFloat(row.titleScore) || 0;
+                const image = parseFloat(row.imageScore) || 0;
+                const si = parseFloat(row.siScore) || 0;
+                const desc = parseFloat(row.descScore) || 0;
+                const rating = parseFloat(row.ratingScore) || 0;
+                const overall = calculateOverallScore(title, image, si, desc, rating, plat);
+
+                platformMap[plat] = {
+                    titleScore: title,
+                    imageScore: image,
+                    siScore: si,
+                    descScore: desc,
+                    ratingScore: rating,
+                    overallScore: overall
+                };
+            });
+        }
+
+        return platformMap;
+    } catch (error) {
+        console.error("Error in getContentAnalysisPlatformBreakdown:", error);
+        throw error;
+    }
+};
+
+export const getContentAnalysisPlatforms = async () => {
+    try {
+        const query = `SELECT DISTINCT Platform FROM rb_product_verify WHERE Platform != '\\\\N' AND Platform != '' ORDER BY Platform`;
+        const result = await queryClickHouse(query);
+        return result.map(row => row.Platform);
+    } catch (error) {
+        console.error("Error in getContentAnalysisPlatforms:", error);
+        throw error;
+    }
+};
+export const getContentAnalysisTrends = async (filters) => {
+    try {
+        const { startDate, endDate, channel, category } = filters;
+        
+        let query = `
+            SELECT 
+                toDate(created_on) as date,
+                AVG(verification_title) * 100 AS titleScore,
+                AVG(verification_image) * 100 AS imageScore,
+                AVG(
+                    multiIf(
+                        pf_id = 6, (coalesce(secondary_verification_image_2,0) + coalesce(secondary_verification_image_3,0) + coalesce(secondary_verification_image_4,0) + coalesce(secondary_verification_image_5,0) + coalesce(secondary_verification_image_6,0)) / 5.0,
+                        pf_id IN (1, 2, 3, 4, 7, 9), (coalesce(secondary_verification_image_2,0) + coalesce(secondary_verification_image_3,0) + coalesce(secondary_verification_image_4,0) + coalesce(secondary_verification_image_5,0) + coalesce(secondary_verification_image_6,0) + coalesce(secondary_verification_image_7,0)) / 6.0,
+                        0.0
+                    )
+                ) * 100 AS siScore,
+                AVG(
+                    multiIf(
+                        pf_id IN (2, 6, 7, 9), description_verification / 1.0,
+                        pf_id IN (1, 3, 4), (bulletin_verification + description_verification) / 2.0,
+                        (bulletin_verification + description_verification) / 2.0
+                    )
+                ) * 100 AS descScore,
+                AVG(IF(lower(Platform) IN ('bigbasket', 'flipkart', 'amazon'), IF(pdp_rating_value >= 4.2, 1.0, 0.0), NULL)) * 100 AS ratingScore
+            FROM rb_product_verify
+            WHERE 1=1
+        `;
+
+        if (startDate && endDate) {
+            query += ` AND toDate(created_on) BETWEEN '${startDate}' AND '${endDate}'`;
+        }
+
+        // Platform Filter
+        const rawPlatform = filters.platform || filters['platform[]'];
+        let platforms = [];
+        if (Array.isArray(rawPlatform)) {
+            platforms = rawPlatform;
+        } else if (typeof rawPlatform === 'string') {
+            platforms = rawPlatform.split(',');
+        }
+        platforms = platforms.map(p => p.trim().toLowerCase()).filter(p => p !== 'all' && p !== '');
+
+        if (platforms.length > 0) {
+            const orConditions = platforms.map(p => {
+                if (p === 'instamart') return "lower(Platform) = 'swiggy'";
+                return `lower(Platform) = '${p}'`;
+            });
+            query += ` AND (${orConditions.join(' OR ')})`;
+        }
+
+        if (channel && channel !== 'All') {
+            query += ` AND lower(Channel) = lower('${channel}')`;
+        }
+
+        if (category && category !== 'All') {
+            const cats = Array.isArray(category) ? category : category.split(',');
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            if (catConditions.length > 0) {
+                query += ` AND (${catConditions.join(' OR ')})`;
+            }
+        }
+
+        query += ` GROUP BY date ORDER BY date`;
+
+        const result = await queryClickHouse(query);
+
+        return result.map(row => {
+            const t = parseFloat(row.titleScore) || 0;
+            const i = parseFloat(row.imageScore) || 0;
+            const s = parseFloat(row.siScore) || 0;
+            const d = parseFloat(row.descScore) || 0;
+            const r = parseFloat(row.ratingScore) || 0;
+            const overall = calculateOverallScore(t, i, s, d, r, filters.platform);
+
+            return {
+                date: row.date,
+                overall: overall,
+                title: t,
+                images: i,
+                secondary: s,
+                description: d,
+                rating: r
+            };
+        });
+    } catch (error) {
+        console.error("Error in getContentAnalysisTrends:", error);
         throw error;
     }
 };

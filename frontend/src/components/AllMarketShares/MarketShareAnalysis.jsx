@@ -53,9 +53,9 @@ const marketShareKpis = [
   },
   {
     id: "ms-mars-wrigley",
-    title: "Mars Wrigley's Sales (Cr)",
+    title: "Our Estimated Sales (Cr)",
     value: "₹ 6.90 Cr",
-    subtitle: "Mars Wrigley brand sales performance",
+    subtitle: "Our brand estimated sales performance",
     delta: 38.1,
     deltaLabel: "▲ 38.1% (₹4.88 Cr)",
     icon: PieChart,
@@ -326,8 +326,30 @@ export default function MarketShareAnalysis() {
   const [marketMode, setMarketMode] = useState("geographical");
   const [loading, setLoading] = useState(true);
 
+  // Derive display name from the logged-in user's dbName
+  const dbDisplayName = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user'));
+      if (u?.dbName) {
+        if (u.dbName.toLowerCase() === 'mamaearth') {
+            return 'The Derma Co.';
+        }
+        return u.dbName
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase());
+      }
+    } catch { /* ignore */ }
+    return 'Our';
+  }, []);
+
   // Use state for KPIs to allow dynamic updates from backend
-  const [kpis, setKpis] = useState(marketShareKpis);
+  const [kpis, setKpis] = useState(() =>
+    marketShareKpis.map(k =>
+      k.id === 'ms-mars-wrigley'
+        ? { ...k, title: `${dbDisplayName} Estimated Sales (Cr)`, subtitle: `${dbDisplayName} brand estimated sales performance` }
+        : k
+    )
+  );
 
   const {
     platform,
@@ -335,6 +357,8 @@ export default function MarketShareAnalysis() {
     selectedLocation,
     timeStart,
     timeEnd,
+    compareStart,
+    compareEnd,
   } = useContext(FilterContext);
 
   // ── Drawer state for MarketCatOverview trends ──────────────────────────────
@@ -358,6 +382,8 @@ export default function MarketShareAnalysis() {
           location: undefined, // Enforced isolation from global location filter
           startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
           endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
+          compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
+          compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
         };
 
         const response = await axiosInstance.get('/market-share', { params });
@@ -456,7 +482,7 @@ export default function MarketShareAnalysis() {
     };
 
     fetchMarketShareData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
 
 
   return (

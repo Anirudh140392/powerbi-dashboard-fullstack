@@ -36,18 +36,19 @@ const cardSize = {
 /* --- KPI definitions (ROW headers — vertical, left side) --- */
 const kpiDefs = [
     { key: 'categorySize', label: 'Category Size' },
-    { key: 'mwMarketShare', label: 'Market Share%' },
-    { key: 'mwSales', label: 'Sales (Cr)' },
-    { key: 'mlMarketShare', label: 'Market Share%' },
-    { key: 'mlSales', label: 'Sales (Cr)' },
+    { key: 'mwMarketShare', label: 'Mars Market Share%' },
+    { key: 'mwSales', label: 'Mars Estimated Sales (Cr)' },
+    { key: 'mlMarketShare', label: 'ML Market Share%' },
+    { key: 'mlSales', label: 'ML Sales' },
 ];
 
-const kpiLabels = {
+/* kpiLabels are built dynamically inside the component using dbDisplayName */
+const baseKpiLabels = {
     categorySize: 'Category Size',
-    mwMarketShare: 'Market Share%',
-    mwSales: 'Sales (Cr)',
-    mlMarketShare: 'Market Share%',
-    mlSales: 'Sales (Cr)',
+    mwMarketShare: 'Mars Market Share%',
+    mwSales: 'Mars Estimated Sales (Cr)',
+    mlMarketShare: 'ML Market Share%',
+    mlSales: 'ML Sales',
 };
 
 /* --- Platform entities (COLUMN headers — horizontal, top) --- */
@@ -64,6 +65,29 @@ const MarketCatOverview = ({
     onViewTrends = () => { },
     onViewRca = () => { },
 }) => {
+    // Derive display name from the logged-in user's dbName
+    const dbDisplayName = useMemo(() => {
+        try {
+            const u = JSON.parse(localStorage.getItem('user'));
+            if (u?.dbName) {
+                if (u.dbName.toLowerCase() === 'mamaearth') {
+                    return 'The Derma Co.';
+                }
+                return u.dbName
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, c => c.toUpperCase());
+            }
+        } catch { /* ignore */ }
+        return 'Our';
+    }, []);
+
+    // Build dynamic kpiLabels with DB name prefix for our brand KPIs
+    const kpiLabels = useMemo(() => ({
+        ...baseKpiLabels,
+        mwMarketShare: `${dbDisplayName} Market Share%`,
+        mwSales: `${dbDisplayName} Estimated Sales (Cr)`,
+    }), [dbDisplayName]);
+
     const {
         selectedChannel,
         platform: globalPlatform,
@@ -72,6 +96,8 @@ const MarketCatOverview = ({
         selectedLocation,
         timeStart,
         timeEnd,
+        compareStart,
+        compareEnd,
         categories: contextCategories,
         locations: contextLocations,
         brands: contextBrands,
@@ -114,6 +140,8 @@ const MarketCatOverview = ({
                     brand: selectedBrands ? selectedBrands.join(",") : undefined,
                     startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
                     endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+                    compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+                    compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
                 };
 
 
@@ -131,7 +159,7 @@ const MarketCatOverview = ({
         };
 
         fetchCrossPlatformData();
-    }, [globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, advancedFilters]);
+    }, [globalPlatform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, advancedFilters]);
 
     const loading = parentLoading || dataLoading;
 
@@ -289,7 +317,7 @@ const MarketCatOverview = ({
                                         {/* KPI Label (row header) + Trend/RCA buttons */}
                                         <div className="w-48 flex-shrink-0 flex items-center gap-2 sticky left-0 bg-white z-20 pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
                                             <span
-                                                className="text-[12px] font-bold text-slate-600 flex-1 whitespace-nowrap uppercase tracking-wide"
+                                                className="text-[12px] font-bold text-slate-600 flex-1 whitespace-normal leading-tight uppercase tracking-wide"
                                                 style={{ fontFamily: 'Roboto, sans-serif' }}
                                             >
                                                 {kpiLabels[kpi.key] || kpi.label}

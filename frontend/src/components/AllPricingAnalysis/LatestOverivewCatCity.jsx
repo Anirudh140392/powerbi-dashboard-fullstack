@@ -40,10 +40,9 @@ const cardSize = {
 };
 
 const kpiLabels = {
-    discount: 'MW discount',
-    rpi: 'RPI',
-    asp: 'MW Average Selling Price',
-    offtake: 'Offtake',
+    discount: 'Discount %',
+    pricePerUnit: 'Price/Unit (per 100gm)',
+    asp: 'Average Selling Price',
 };
 
 
@@ -55,10 +54,9 @@ const LatestOverivewCatCity = ({
     loading = false,
 }) => {
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
-        { key: 'discount', label: 'MW discount' },
-        { key: 'rpi', label: 'RPI' },
-        { key: 'asp', label: 'MW Average Selling Price' },
-        { key: 'offtake', label: 'Offtake' },
+        { key: 'discount', label: 'Discount %' },
+        { key: 'pricePerUnit', label: 'Price/Unit (per 100gm)' },
+        { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
 
     const {
@@ -78,7 +76,7 @@ const LatestOverivewCatCity = ({
 
     // ✅ Dimension + Tier State
     const [dimension, setDimension] = useState('platform')
-    const [glanceKpis, setGlanceKpis] = useState(['discount', 'rpi', 'asp', 'offtake'])
+    const [glanceKpis, setGlanceKpis] = useState(['discount', 'pricePerUnit', 'asp'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
     const [advancedFilters, setAdvancedFilters] = useState({
@@ -88,7 +86,7 @@ const LatestOverivewCatCity = ({
         skus: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['discount', 'rpi', 'asp', 'offtake'],
+        kpis: ['discount', 'pricePerUnit', 'asp'],
         filterLogic: 'OR',
     })
 
@@ -255,11 +253,8 @@ const LatestOverivewCatCity = ({
                         if (cell) {
                             let valStr = cell.value;
                             if (kpi.key === 'discount') valStr = `${cell.value.toFixed(1)}%`;
-                            else if (kpi.key === 'asp') valStr = `₹${cell.value.toFixed(2)}`;
-                            else if (kpi.key === 'rpi') valStr = `${cell.value.toFixed(1)}`;
-                            else if (kpi.key === 'offtake') {
-                                valStr = formatNumber(cell.value, 1);
-                            } else valStr = cell.value.toFixed(2);
+                            else if (kpi.key === 'asp' || kpi.key === 'pricePerUnit') valStr = `₹${cell.value.toFixed(2)}`;
+                            else valStr = cell.value.toFixed(2);
 
                             formattedData[kpi.key] = {
                                 value: valStr,

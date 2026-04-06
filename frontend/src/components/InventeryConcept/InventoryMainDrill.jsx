@@ -199,7 +199,7 @@ export default function InventoryDrill() {
             }
             bySku.get(r.sku).inventoryByCity[r.city] = r.inventory;
         });
-        return [...bySku.values()].sort((a, b) => a.sku.localeCompare(b.sku));
+        return [...bySku.values()].sort((a, b) => (a.sku || "").localeCompare(b.sku || ""));
     }, [filteredRecords]);
 
     const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));

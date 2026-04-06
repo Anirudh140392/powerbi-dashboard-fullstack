@@ -5,6 +5,7 @@ import marsLogo from "../../assets/mars2.svg";
 import mamaearthLogo from "../../assets/mamaearth.jpeg";
 import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
 import boatLogo from "../../assets/Boat.png";
+import zydusLogo from "../../assets/zyduslogo.png";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -51,28 +52,31 @@ import {
 } from "@mui/icons-material";
 import { Sparkles } from "lucide-react";
 
-const SidebarBetaBadge = () => (
-    <span 
-        className="status-pulse"
-        style={{
-            fontSize: "7.5px",
-            fontWeight: 800,
-            background: "#4f46e5",
-            color: "#fff",
-            borderRadius: "5px",
-            padding: "2.5px 8px",
-            marginLeft: "8px",
-            display: "inline-flex",
-            alignItems: "center",
-            lineHeight: 1,
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-            fontFamily: "'Inter', sans-serif",
-            boxShadow: "0 2px 4px rgba(79, 70, 229, 0.2)",
-    }}>
-        BETA
-    </span>
-);
+const SidebarStatusBadge = ({ type }) => {
+    const isLive = type === "LIVE";
+    return (
+        <span 
+            className={isLive ? "status-pulse-green" : "status-pulse-blue"}
+            style={{
+                fontSize: "7.5px",
+                fontWeight: 800,
+                background: isLive ? "#10b981" : "#2563eb",
+                color: "#fff",
+                borderRadius: "5px",
+                padding: "2.5px 8px",
+                marginLeft: "8px",
+                display: "inline-flex",
+                alignItems: "center",
+                lineHeight: 1,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                fontFamily: "'Inter', sans-serif",
+                boxShadow: isLive ? "0 2px 4px rgba(16, 185, 129, 0.3)" : "0 2px 4px rgba(37, 99, 235, 0.3)",
+        }}>
+            {type}
+        </span>
+    );
+};
 
 
 
@@ -95,6 +99,7 @@ const Sidebar = ({
     if (user?.dbName === 'mamaearth') return mamaearthLogo;
     if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
     if (user?.dbName === 'boat') return boatLogo;
+    if (user?.dbName === 'zydus') return zydusLogo;
     return marsLogo;
   }, [user?.dbName]);
 
@@ -102,6 +107,7 @@ const Sidebar = ({
     if (user?.dbName === 'mamaearth') return 'Mamaearth Logo';
     if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
     if (user?.dbName === 'boat') return 'Boat Logo';
+    if (user?.dbName === 'zydus') return 'Zydus Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -117,17 +123,17 @@ const Sidebar = ({
       { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showBeta: true },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} /> },
-      // { label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare'] },
+      //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
-      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
-      // { label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
-      // { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
+      { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
+      //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
+      { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
       // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       { label: "Scheduled Reports", path: "/scheduled-reports", icon: <ScheduleIcon sx={{ fontSize: '1rem' }} /> },
-      //{ label: "Ad Auto", path: "https://demo.adauto.in/", icon: <CampaignIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Ad Auto", path: "https://frontend-mamaearth.onrender.com", icon: <CampaignIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars', 'boat', 'zydus', 'mars_petcare'] },
       //{ label: "Rating", path: "https://prestige-lac.vercel.app/", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
       //{ label: "Supply", path: "https://sku360.up.railway.app", icon: <LocalShippingIcon sx={{ fontSize: '1rem' }} /> },
       //{ label: "Content", path: "https://content-pied-psi.vercel.app/", icon: <DescriptionIcon sx={{ fontSize: '1rem' }} /> },
@@ -177,11 +183,35 @@ const Sidebar = ({
             border-radius: 0 4px 4px 0;
             transition: all 0.3s ease;
           }
-          .status-pulse { animation: status-heartbeat 2s infinite ease-in-out; }
-          @keyframes status-heartbeat {
-              0% { transform: scale(1); opacity: 1; }
-              50% { transform: scale(1.05); opacity: 0.9; }
-              100% { transform: scale(1); opacity: 1; }
+          .status-pulse-blue { animation: pulse-blue 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1); }
+          .status-pulse-green { animation: pulse-green 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1); }
+          @keyframes pulse-blue {
+              0% {
+                  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+                  transform: scale(1);
+              }
+              70% {
+                  box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+                  transform: scale(1.05);
+              }
+              100% {
+                  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+                  transform: scale(1);
+              }
+          }
+          @keyframes pulse-green {
+              0% {
+                  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+                  transform: scale(1);
+              }
+              70% {
+                  box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+                  transform: scale(1.05);
+              }
+              100% {
+                  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+                  transform: scale(1);
+              }
           }
         `}
       </style>
@@ -204,7 +234,7 @@ const Sidebar = ({
             justifyContent: 'center',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             width: '100%',
-            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 120 : (user?.dbName === 'mamaearth' ? 80 : 60)),
+            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : (user?.dbName === 'mamaearth' ? 100 : (user?.dbName === 'zydus' ? 80 : 60))),
           }}
         >
           <Box
@@ -223,9 +253,9 @@ const Sidebar = ({
               src={activeLogo}
               alt={activeLogoAlt}
               style={{
-                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '80px' : (user?.dbName === 'mars_petcare' ? '120px' : '45px')),
+                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
                 width: isCollapsed ? '100%' : 'auto',
-                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '220px' : (user?.dbName === 'mars_petcare' ? '230px' : '180px')),
+                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
                 objectFit: 'contain',
                 padding: '0',
                 display: 'block',
@@ -311,7 +341,14 @@ const Sidebar = ({
                 {sectionName}
               </Typography>
             )}
-            {items.filter((item) => !item.hideForDb || !item.hideForDb.includes(user?.dbName)).map((item) => {
+            {items.filter((item) => {
+              const dbName = user?.dbName;
+              // If showOnlyForDb is provided, check if current db is in the list
+              if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
+              // If hideForDb is provided, check if current db is in the list
+              if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
+              return true;
+            }).map((item) => {
               const isActive = currentPath === item.path;
               const isPiy = item.isPiy;
 
@@ -375,7 +412,7 @@ const Sidebar = ({
                       primary={
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           {item.label}
-                          {item.showBeta && !isCollapsed && <SidebarBetaBadge />}
+                          {item.showBeta && !isCollapsed && <SidebarStatusBadge type="BETA" />}
                         </Box>
                       }
                       primaryTypographyProps={{
@@ -419,7 +456,7 @@ const Sidebar = ({
       {/* Footer / Powered By */}
       <Box sx={{
         px: isCollapsed ? 1 : 2,
-        py: 2.5,
+        py: 2,
         mt: 'auto',
         display: 'flex',
         flexDirection: 'column',
@@ -480,9 +517,9 @@ const Sidebar = ({
             transition: 'margin 0.3s'
           }} />}
           sx={{
-            minWidth: isCollapsed ? 44 : 0,
-            maxWidth: isCollapsed ? 44 : "100%",
-            height: isCollapsed ? 44 : 40,
+            minWidth: isCollapsed ? 40 : 0,
+            maxWidth: isCollapsed ? 40 : "100%",
+            height: isCollapsed ? 40 : 30,
             color: "#FFFFFF",
             bgcolor: "#ef4444",
             textTransform: "none",

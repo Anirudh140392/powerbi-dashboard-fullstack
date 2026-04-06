@@ -3,7 +3,7 @@
  * API endpoints for the Map Intellect (Geo Intelligence) page
  */
 
-import { getMapIntellectData } from '../controllers/mapIntellectController.js';
+import { getMapIntellectData, getMapIntellectCategories } from '../controllers/mapIntellectController.js';
 
 export default (app) => {
     /**
@@ -46,4 +46,5 @@ export default (app) => {
      *     tags: [MapIntellect]
      */
     app.get('/api/map-intellect/data', getMapIntellectData);
+    app.get('/api/map-intellect/categories', getMapIntellectCategories);
 };

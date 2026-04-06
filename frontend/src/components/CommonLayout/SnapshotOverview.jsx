@@ -18,7 +18,9 @@ import {
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 import { cn } from '../../lib/utils'
-import { Skeleton, Box, Card, Typography } from '@mui/material'
+import { Skeleton, Box, Card, Typography, IconButton } from '@mui/material'
+import { HelpOutline as HelpIcon } from "@mui/icons-material";
+import { useHelp } from "../../utils/HelpContext";
 import React, { useRef, useState, useEffect, useMemo } from 'react'
 
 // ---------- Helpers ----------
@@ -612,8 +614,10 @@ const SnapshotOverview = ({
     performanceLoading = false,
     loading = false,
     variant = "detailed", // 'watchtower' | 'detailed'
-    seed = "default"
+    seed = "default",
+    helpMenu = null
 }) => {
+    const { toggleHelp, openHelpWithMenu } = useHelp();
     // 🔹 Map and Reorganize Data for 5+4 layout
     const { topKpis, bottomKpis } = useMemo(() => {
         if (variant !== 'watchtower') return { topKpis: [], bottomKpis: [] };
@@ -787,7 +791,38 @@ const SnapshotOverview = ({
                             )}
                             <h2 className="text-[1.1rem] font-bold text-slate-900 tracking-tight leading-tight">{title}</h2>
                         </div>
-                        {headerRight}
+                        <div className="flex items-center gap-4">
+                            {headerRight}
+                            <IconButton 
+                                onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
+                                size="small"
+                                sx={{ 
+                                    bgcolor: "rgba(37, 99, 235, 0.05)",
+                                    color: "#2563eb",
+                                    "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
+                                    border: "1px solid rgba(37, 99, 235, 0.1)",
+                                    width: 32,
+                                    height: 32,
+                                    animation: "pulseGlow 2s infinite",
+                                    "@keyframes pulseGlow": {
+                                        "0%": {
+                                            boxShadow: "0 0 0 0 rgba(37, 99, 235, 0.4)",
+                                            borderColor: "rgba(37, 99, 235, 0.2)"
+                                        },
+                                        "70%": {
+                                            boxShadow: "0 0 0 6px rgba(37, 99, 235, 0)",
+                                            borderColor: "rgba(37, 99, 235, 0.5)"
+                                        },
+                                        "100%": {
+                                            boxShadow: "0 0 0 0 rgba(37, 99, 235, 0)",
+                                            borderColor: "rgba(37, 99, 235, 0.2)"
+                                        }
+                                    }
+                                }}
+                            >
+                                <HelpIcon sx={{ fontSize: "1.2rem" }} />
+                            </IconButton>
+                        </div>
                     </div>
 
                     <div className="p-6 space-y-8">
@@ -801,7 +836,7 @@ const SnapshotOverview = ({
                                         key={kpi.id}
                                         initial={{ opacity: 0, x: -10 }}
                                         animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: idx * 0.05, duration: 0.3 }}
+                                        transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     >
                                         <ComparisonCard kpi={kpi} loading={kpi.loading} />
                                     </motion.div>
@@ -827,7 +862,7 @@ const SnapshotOverview = ({
                                                 key={kpi.id}
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
-                                                transition={{ delay: (idx + 5) * 0.05, duration: 0.3 }}
+                                                transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
                                             >
                                                 <ActionableMetricCard kpi={kpi} />
                                             </motion.div>
@@ -849,7 +884,7 @@ const SnapshotOverview = ({
                 className={cn("bg-white rounded-[2rem] shadow-sm border border-slate-100/60 overflow-hidden", className)}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
+                transition={{ duration: 0.2 }}
             >
                 <div className="px-8 py-5 flex items-center justify-between border-b border-slate-50">
                     <div className="flex items-center gap-5">
@@ -867,11 +902,45 @@ const SnapshotOverview = ({
                             )}
                         </div>
                     </div>
-                    {headerRight}
+                    <div className="flex items-center gap-5">
+                        {headerRight}
+                        <IconButton 
+                            onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
+                            size="small"
+                            sx={{ 
+                                bgcolor: "rgba(37, 99, 235, 0.05)",
+                                color: "#2563eb",
+                                "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
+                                border: "1px solid rgba(37, 99, 235, 0.1)",
+                                width: 32,
+                                height: 32,
+                                animation: "pulseGlow 2s infinite",
+                                "@keyframes pulseGlow": {
+                                    "0%": {
+                                        boxShadow: "0 0 0 0 rgba(37, 99, 235, 0.4)",
+                                        borderColor: "rgba(37, 99, 235, 0.2)",
+                                        color: "#2563eb"
+                                    },
+                                    "50%": {
+                                        boxShadow: "0 0 0 10px rgba(37, 99, 235, 0)",
+                                        borderColor: "rgba(37, 99, 235, 0.6)",
+                                        color: "#1d4ed8"
+                                    },
+                                    "100%": {
+                                        boxShadow: "0 0 0 0 rgba(37, 99, 235, 0)",
+                                        borderColor: "rgba(37, 99, 235, 0.2)",
+                                        color: "#2563eb"
+                                    }
+                                }
+                            }}
+                        >
+                            <HelpIcon sx={{ fontSize: "1.2rem" }} />
+                        </IconButton>
+                    </div>
                 </div>
 
                 <div className="p-4 sm:p-6 lg:p-8">
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${detailedKpis.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${detailedKpis.length === 3 ? 'lg:grid-cols-3' : detailedKpis.length === 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
                         {loading ? (
                             Array.from({ length: detailedKpis.length || 3 }).map((_, i) => (
                                 <DetailedSparklineCard key={i} loading={true} />
@@ -880,9 +949,9 @@ const SnapshotOverview = ({
                             detailedKpis.map((kpi, idx) => (
                                 <motion.div
                                     key={kpi.id || idx}
-                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    initial={{ opacity: 0, scale: 0.98 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: idx * 0.05 }}
+                                    transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     className="h-full"
                                 >
                                     <DetailedSparklineCard kpi={kpi} />
