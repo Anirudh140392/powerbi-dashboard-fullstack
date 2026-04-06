@@ -192,7 +192,7 @@ export default function CitySkuInventoryDrill() {
             byCity.get(r.city).push(r);
         });
 
-        [...byCity.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([city, rows]) => {
+        const cityGroups = [...byCity.entries()].map(([city, rows]) => {
             const cityAgg = rows.reduce(
                 (a, r) => ({
                     drr_qty: a.drr_qty + (parseFloat(r.drr_qty) || 0),
@@ -207,11 +207,17 @@ export default function CitySkuInventoryDrill() {
             // Calculate weighted average DOH for city
             cityAgg.current_doh = cityAgg.drr_qty > 0 ? cityAgg.current_inventory / cityAgg.drr_qty : 0;
 
+            return { city, rows, cityAgg };
+        });
+
+        cityGroups.sort((a, b) => b.cityAgg.drr_qty - a.cityAgg.drr_qty);
+
+        cityGroups.forEach(({ city, rows, cityAgg }) => {
             const cityId = `city-${city}`;
             out.push({ id: cityId, level: "city", city, metrics: cityAgg, hasChildren: true });
 
             if (expanded.has(cityId)) {
-                rows.sort((a, b) => a.sku.localeCompare(b.sku)).forEach((r, i) =>
+                rows.sort((a, b) => (parseFloat(b.drr_qty) || 0) - (parseFloat(a.drr_qty) || 0)).forEach((r, i) =>
                     out.push({
                         id: `${cityId}-sku-${i}`,
                         level: "sku",
