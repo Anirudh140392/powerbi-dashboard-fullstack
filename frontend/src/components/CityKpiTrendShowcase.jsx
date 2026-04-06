@@ -171,15 +171,16 @@ function getCellClasses(value) {
   return "bg-red-100 text-red-900 border-red-200";
 }
 
-function getTrendMeta(trend) {
+function getTrendMeta(trend, kpi = "") {
   const num = Number(trend || 0);
+  const isPsl = kpi.toLowerCase().includes("psl");
 
   if (num > 0) {
     return {
       pill: "border-green-200 bg-green-50 text-green-700",
       icon: TrendingUp,
       iconColor: "text-green-700",
-      display: `+${num.toFixed(1)}`,
+      display: isPsl ? `+${formatNumber(num, 1)}` : `+${num.toFixed(1)}`,
     };
   }
 
@@ -188,7 +189,7 @@ function getTrendMeta(trend) {
       pill: "border-red-200 bg-red-50 text-red-700",
       icon: TrendingDown,
       iconColor: "text-red-700",
-      display: num.toFixed(1),
+      display: isPsl ? formatNumber(num, 1) : num.toFixed(1),
     };
   }
 
@@ -1093,7 +1094,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                       const trend = row.trend?.[col];
 
                       const cellClasses = getCellClasses(value);
-                      const trendMeta = getTrendMeta(trend);
+                      const trendMeta = getTrendMeta(trend, row.kpi);
                       const Icon = trendMeta.icon;
 
                       return (
@@ -1186,6 +1187,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           selectedColumn={selectedColumn}
           selectedLevel={selectedLevel}
           dynamicKey={dynamicKey}
+          initialAudience={title === 'Category' ? 'Format' : title}
         />
       ) : dynamicKey === 'sales_category_table' ? (
         <SalesTrendsDrawer
@@ -1201,6 +1203,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
           compMeta={compMetaForDrawer}
           selectedColumn={selectedColumn}
           dynamicKey={dynamicKey}
+          initialAudience={title === 'Category' ? 'Format' : title}
         />
       )
       }

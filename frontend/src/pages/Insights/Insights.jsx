@@ -405,15 +405,15 @@ const priorityStyles = {
 
 const BetaBadge = ({ size = "sm" }) => (
     <span 
-        className="status-pulse"
+        className="status-pulse-blue"
         style={{
-            fontSize: size === "xs" ? "7.8px" : "9px",
+            fontSize: size === "xs" ? "8.5px" : "9px",
             fontWeight: 800,
-            letterSpacing: "0.04em",
-            background: "#4f46e5",
+            letterSpacing: "0.05em",
+            background: "#2563eb",
             color: "#fff",
             borderRadius: "5px",
-            padding: size === "xs" ? "1.5px 6px" : "2.5px 8px",
+            padding: size === "xs" ? "2.5px 8px" : "2.5px 8px",
             display: "inline-flex",
             alignItems: "center",
             textTransform: "uppercase",
@@ -421,7 +421,7 @@ const BetaBadge = ({ size = "sm" }) => (
             fontFamily: "'Inter', sans-serif",
             whiteSpace: "nowrap",
             verticalAlign: "middle",
-            boxShadow: "0 2px 4px rgba(79, 70, 229, 0.2)",
+            boxShadow: "0 2px 4px rgba(37, 99, 235, 0.3)",
         }}
     >
         BETA
@@ -430,7 +430,7 @@ const BetaBadge = ({ size = "sm" }) => (
 
 const LiveBadge = () => (
     <span 
-        className="status-pulse"
+        className="status-pulse-green"
         style={{
             fontSize: "8.5px",
             fontWeight: 800,
@@ -445,7 +445,7 @@ const LiveBadge = () => (
             textTransform: "uppercase",
             lineHeight: 1,
             fontFamily: "'Inter', sans-serif",
-            boxShadow: "0 2px 4px rgba(16, 185, 129, 0.2)",
+            boxShadow: "0 2px 4px rgba(16, 185, 129, 0.3)",
         }}
     >
         LIVE
@@ -656,11 +656,10 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
             { key: "compPpu", label: "Comp PPU", fmt: (v) => v != null ? `₹${Number(v).toFixed(1)}` : "-" },
         ];
         if (t === "Ad Stock Mismatch") return [
-            { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
+            { key: "skuOrBrand", label: "Product", isText: true },
             { key: "city", label: "City" },
-            { key: "kwOsa", label: "OSA", fmt: safePct },
-            { key: "estLostSalesInr", label: "Est. Loss", fmt: safeINR },
-            { key: "skuOrBrand", label: "SKU / Brand", isText: true },
+            { key: "kwOsa", label: "OSA % (Change %)", fmt: (v, r) => `${safePct(v)} (${r.kwOsaChangePct > 0 ? '+' : ''}${safePct(r.kwOsaChangePct)})` },
+            { key: "adSov", label: "Ad SOV % (Change %)", fmt: (v, r) => `${safePct(v)} (${r.adSovChangePct > 0 ? '+' : ''}${safePct(r.adSovChangePct)})` },
         ];
         if (t === "Keyword Efficiency and Budget Caps") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
@@ -1170,10 +1169,19 @@ const EvidenceTable = ({ insight, activePlatform }) => {
         if (activePlatform && activePlatform !== "-" && activePlatform !== "All platforms") {
             data = data.filter((e) => !e.platform || e.platform === activePlatform || e.platform === "-");
         }
+
+        if (insight.type === "Ad Stock Mismatch") {
+            data = data.filter((e) => {
+                const osa = Number(e.kwOsa) || 0;
+                const adSovChange = typeof e.adSovChangePct === 'number' ? e.adSovChangePct : 0;
+                return osa < 60 && adSovChange > 0;
+            }).sort((a, b) => (b.adSovChangePct || 0) - (a.adSovChangePct || 0));
+        }
+
         if (!search.trim()) return data;
         const q = search.toLowerCase();
         return data.filter((row) => Object.values(row).some((v) => String(v).toLowerCase().includes(q)));
-    }, [insight.evidence, search, activePlatform]);
+    }, [insight.evidence, search, activePlatform, insight.type]);
 
     return (
         <div style={{
@@ -1241,14 +1249,10 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
                             </>)}
                             {view === "adStock" && (<>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Product</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Brand / SKU</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Ad SOV</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Spend</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Est. Loss</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA % (Change %)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Ad SOV % (Change %)</TableHead>
                             </>)}
                             {view === "newEntry" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
@@ -1346,14 +1350,34 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                             )}
                                             {view === "adStock" && (
                                                 <>
-                                                    <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.skuOrBrand}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safePct(d.kwOsa)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{safePct(d.adSov)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{safeINR(d.spendInr)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safeINR(d.estLostSalesInr)}</TableCell>
+                                                    <TableCell className="px-3 py-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <img 
+                                                                src={d.image_url || `https://picsum.photos/seed/${String(d.skuOrBrand).length}/40/40`} 
+                                                                alt={d.skuOrBrand} 
+                                                                className="w-10 h-10 rounded-md border border-slate-200 object-cover" 
+                                                            />
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[11px] font-semibold text-slate-800">{d.skuOrBrand}</span>
+                                                                <div className="flex gap-2 text-[9px] text-slate-500 mt-1">
+                                                                    {d.sharePct != null && <span className="bg-slate-100 px-1 py-0.5 rounded">{safePct(d.sharePct)}</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.city}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
+                                                        {Number(d.kwOsa || 0).toFixed(1)}% 
+                                                        <span className={`ml-1 text-[10px] ${(d.kwOsaChangePct ?? 0) < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                            ({(d.kwOsaChangePct ?? 0) > 0 ? '+' : ''}{(d.kwOsaChangePct ?? 0).toFixed(1)}%)
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
+                                                        {Number(d.adSov || 0).toFixed(1)}% 
+                                                        <span className={`ml-1 text-[10px] ${(d.adSovChangePct ?? 0) < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                            ({(d.adSovChangePct ?? 0) > 0 ? '+' : ''}{(d.adSovChangePct ?? 0).toFixed(1)}%)
+                                                        </span>
+                                                    </TableCell>
                                                 </>
                                             )}
                                             {view === "newEntry" && (
@@ -1515,19 +1539,23 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                         background: "#fff", flexShrink: 0,
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-                            <div>
-                                <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
-                                <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
-                            </div>
-                            <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
-                            <div style={{ display: "flex", gap: "20px" }}>
-                                {(insight.kpis || []).map((k, i) => (
-                                    <div key={i}>
-                                        <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>{k.label}</p>
-                                        <p style={{ fontSize: "14px", fontWeight: 700, margin: 0 }} className={getKpiStyle(k.label, k.value)}>{k.value}</p>
+                            {insight.type !== "Ad Stock Mismatch" && (
+                                <>
+                                    <div>
+                                        <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
+                                        <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
                                     </div>
-                                ))}
-                            </div>
+                                    <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
+                                    <div style={{ display: "flex", gap: "20px" }}>
+                                        {(insight.kpis || []).map((k, i) => (
+                                            <div key={i}>
+                                                <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>{k.label}</p>
+                                                <p style={{ fontSize: "14px", fontWeight: 700, margin: 0 }} className={getKpiStyle(k.label, k.value)}>{k.value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <button
                             onClick={onAI}
@@ -1633,6 +1661,8 @@ const InsightsSignalHub = () => {
 
     const [startDate, setStartDate] = useState(dayjs().subtract(30, "day"));
     const [endDate, setEndDate] = useState(dayjs());
+    const [compareStartDate, setCompareStartDate] = useState(null);
+    const [compareEndDate, setCompareEndDate] = useState(null);
 
     const [selectedId, setSelectedId] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -1658,6 +1688,8 @@ const InsightsSignalHub = () => {
                     localPlatform: platformFilter,
                     startDate: startDate.format("YYYY-MM-DD"),
                     endDate: endDate.format("YYYY-MM-DD"),
+                    ...(compareStartDate ? { compareStartDate: compareStartDate.format("YYYY-MM-DD") } : {}),
+                    ...(compareEndDate ? { compareEndDate: compareEndDate.format("YYYY-MM-DD") } : {}),
                 };
                 const data = await fetchInsights(apiPayload);
                 const apiResponseList = data?.success && Array.isArray(data?.data) ? data.data : [];
@@ -1753,11 +1785,35 @@ const InsightsSignalHub = () => {
                 .insights-page { font-family: 'Inter', system-ui, sans-serif; }
                 .signal-card-enter { animation: fadeSlideIn 0.35s ease forwards; }
                 .ai-pulse-button { animation: pulse-outward 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1); }
-                .status-pulse { animation: status-heartbeat 2s infinite ease-in-out; }
-                @keyframes status-heartbeat {
-                    0% { transform: scale(1); opacity: 1; }
-                    50% { transform: scale(1.05); opacity: 0.9; }
-                    100% { transform: scale(1); opacity: 1; }
+                .status-pulse-blue { animation: pulse-blue-small 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1); }
+                .status-pulse-green { animation: pulse-green-small 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1); }
+                @keyframes pulse-blue-small {
+                    0% {
+                        box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+                        transform: scale(1);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 6px rgba(37, 99, 235, 0);
+                        transform: scale(1.05);
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+                        transform: scale(1);
+                    }
+                }
+                @keyframes pulse-green-small {
+                    0% {
+                        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+                        transform: scale(1);
+                    }
+                    70% {
+                        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+                        transform: scale(1.05);
+                    }
+                    100% {
+                        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+                        transform: scale(1);
+                    }
                 }
             `}</style>
 
@@ -1873,9 +1929,19 @@ const InsightsSignalHub = () => {
                             <Typography sx={{ fontSize: "0.6rem", fontWeight: 700, mb: 0.5, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em" }}>TIME PERIOD</Typography>
                             <DateRangeComparePicker
                                 timeStart={startDate} timeEnd={endDate}
-                                compareStart={null} compareEnd={null}
+                                compareStart={compareStartDate} compareEnd={compareEndDate}
                                 maxDate={maxDate || dayjs()}
-                                onApply={(s, e) => { setStartDate(s); setEndDate(e); }}
+                                onApply={(s, e, cs, ce, compareOn) => { 
+                                    setStartDate(s); 
+                                    setEndDate(e); 
+                                    if (compareOn && cs && ce) {
+                                        setCompareStartDate(cs);
+                                        setCompareEndDate(ce);
+                                    } else {
+                                        setCompareStartDate(null);
+                                        setCompareEndDate(null);
+                                    }
+                                }}
                             />
                         </div>
                     </div>

@@ -24,7 +24,7 @@ async function testDecQuadrants() {
                 SUM(ad_spend) as spend, 
                 SUM(Ad_sales) as revenue, 
                 if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
-            FROM mars.rca_pm_olap
+            FROM mars.rb_pm_olap
             WHERE ${l2mWhereSql} AND (ad_spend > 0 OR Ad_sales > 0)
             GROUP BY keyword
             HAVING spend > 0
@@ -42,7 +42,7 @@ async function testDecQuadrants() {
         const currentWhereSql = `Date BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}' AND Platform IN ('Blinkit')`;
         const kwQuery = `
             SELECT keyword, SUM(ad_spend) as spend, if(SUM(ad_spend) > 0, SUM(Ad_sales)/SUM(ad_spend), 0) as roas
-            FROM mars.rca_pm_olap
+            FROM mars.rb_pm_olap
             WHERE ${currentWhereSql} AND (ad_spend > 0 OR Ad_sales > 0)
             GROUP BY keyword HAVING spend > 0
         `;

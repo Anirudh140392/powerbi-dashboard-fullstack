@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../../components/CommonLayout/ErrorRetryOverlay";
-import { Container, Box, useTheme, Skeleton } from "@mui/material";
+import { Container, Box, useTheme, Skeleton, IconButton } from "@mui/material";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -74,8 +74,10 @@ import {
 import PerformanceMatrixNew from "@/components/ControlTower/WatchTower/PerformanceMatrixNew";
 import PlatformOverviewNew from "@/components/ControlTower/WatchTower/PlatformOverviewNew";
 import { AggregatedViewTable, PerformanceBreakdownProvider } from "@/components/ControlTower/WatchTower/PerformanceBreakdown";
+import { useHelp } from "../../utils/HelpContext";
 
 export default function WatchTower() {
+  const { toggleHelp, openHelpWithMenu } = useHelp();
   const [showTrends, setShowTrends] = useState(false);
   const [selectedTrendName, setSelectedTrendName] = useState("All");
   const [selectedTrendLevel, setSelectedTrendLevel] = useState("MRP");
@@ -185,8 +187,11 @@ export default function WatchTower() {
     selectedKeyword,
     selectedLocation,
     selectedChannel,
+    maxDate,
+    datesInitialized,
     datesFetched,
     platformsFetched,
+    brands: contextBrands,
     refreshFilters
   } = React.useContext(FilterContext);
 
@@ -514,6 +519,22 @@ export default function WatchTower() {
     });
   }, [platform, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd]);
 
+  const initialTrendAudience = useMemo(() => {
+    // selectedTrendLevel can be "Platform Overview", "Month Overview", etc.
+    const level = selectedTrendLevel?.split(" ")[0] || "Platform";
+    const mapping = {
+      Platform: "Platform",
+      Brand: "Brand",
+      Brands: "Brand",
+      Category: "Format",
+      Location: "City",
+      SKU: "SKU",
+      Skus: "SKU",
+    };
+    return mapping[level] || "Platform";
+
+  }, [selectedTrendLevel]);
+
   return (
     <>
       <CommonContainer
@@ -547,6 +568,7 @@ export default function WatchTower() {
             variant="watchtower"
             seed={`${platform}-${selectedCategory}-${selectedBrand}`}
             loading={loading}
+            helpMenu="Business Overview"
             performanceData={dashboardData?.performanceMetricsKpis || []}
             performanceLoading={performanceLoading}
           />
@@ -700,7 +722,7 @@ export default function WatchTower() {
             />
           </Box> */}
 
-          <FormatPerformanceStudio rows={FORMAT_ROWS} loading={categoryDataLoading} />
+          <FormatPerformanceStudio rows={FORMAT_ROWS} loading={categoryDataLoading} openHelpWithMenu={openHelpWithMenu} />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -732,8 +754,9 @@ export default function WatchTower() {
         onClose={() => setShowTrends(false)}
         selectedColumn={selectedTrendName}
         selectedLevel={selectedTrendLevel}
+        initialAudience={initialTrendAudience}
         dynamicKey="platform_overview_tower"
-        brandOptions={defaultBrands.map(b => b.label)}
+        brandOptions={contextBrands}
         initialPlatform={filters.platform}
       />
 
@@ -747,7 +770,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows, loading }) => {
+const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -1014,7 +1037,7 @@ const FormatPerformanceStudio = ({ rows, loading }) => {
                 </div>
                 <div className="flex flex-col items-end gap-1 text-right">
                   <div className="text-[10px] text-slate-500">Offtakes</div>
-                  <div className="text-lg font-semibold">
+                  <div className="text-base font-semibold">
                     ₹{formatCurrencyShort(active.offtakes)}
                   </div>
                   <div className="mt-1 text-[10px] text-slate-500">
@@ -1090,7 +1113,7 @@ const FormatPerformanceStudio = ({ rows, loading }) => {
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
                     <div className="text-[10px] text-slate-500">ROAS</div>
-                    <div className="text-lg font-semibold">
+                    <div className="text-base font-semibold">
                       {active.roas.toFixed(1)}x
                     </div>
                     {compare && (
@@ -1119,11 +1142,14 @@ const FormatPerformanceStudio = ({ rows, loading }) => {
                                   {k.format(k.compareValue)}
                                 </span>
                               )}
-                            <span className="font-medium">
+                            <button 
+                              onClick={() => openHelpWithMenu("India Overview")}
+                              className="font-medium text-[11px] hover:text-sky-600 transition-colors"
+                            >
                               {Number.isFinite(k.activeValue)
                                 ? k.format(k.activeValue)
                                 : "NaN"}
-                            </span>
+                            </button>
                           </div>
                         </div>
                         <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">

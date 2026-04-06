@@ -814,6 +814,12 @@ const TrendView = ({
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState(kpiKeys[0]?.key || "Osa");
 
+  useEffect(() => {
+    if (!kpiKeys.some(k => k.key === activeMetric)) {
+      setActiveMetric(kpiKeys[0]?.key || "Osa");
+    }
+  }, [kpiKeys, activeMetric]);
+
   const metricMeta =
     kpiKeys.find((m) => m.key === activeMetric) || kpiKeys[0];
 
@@ -1008,7 +1014,7 @@ const KPI_KEYS = [
   },
   {
     key: "Discount",
-    label: "MW discount %",
+    label: "Discount %",
     color: "#6366F1",
     unit: "%",
   },
@@ -1024,7 +1030,7 @@ const KPI_KEYS = [
 const PRICING_KPI_KEYS = [
   {
     key: "Discount",
-    label: "MW discount %",
+    label: "Discount %",
     color: "#6366F1",
     unit: "%",
     fmt: (v) => `${v.toFixed(1)}%`,
@@ -1037,27 +1043,11 @@ const PRICING_KPI_KEYS = [
     fmt: (v) => `₹${v < 10 ? v.toFixed(2) : v.toFixed(0)}`,
   },
   {
-    key: "RPI",
-    label: "RPI",
-    color: "#F43F5E",
-    fmt: (v) => v.toFixed(2),
-  },
-  {
     key: "ASP",
-    label: "MW Average Selling Price",
+    label: "Average Selling Price",
     color: "#8B5CF6",
     prefix: "₹",
     fmt: (v) => `₹${v.toFixed(0)}`,
-  },
-  {
-    key: "Offtake",
-    label: "Offtake",
-    color: "#F59E0B",
-    fmt: (v) => {
-      if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
-      if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
-      return v.toFixed(0);
-    },
   },
 ];
 
@@ -1407,13 +1397,27 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
     platform,
     timeStart,
     timeEnd,
+    compareStart,
+    compareEnd,
+    selectedChannel
   } = useContext(FilterContext);
 
   const kpiKeys = useMemo(() => {
-    if (dynamicKey === 'pricing') return PRICING_KPI_KEYS;
-    if (dynamicKey === 'marketshare') return MARKET_SHARE_KPI_KEYS;
-    return KPI_KEYS;
-  }, [dynamicKey]);
+    let keys;
+    if (dynamicKey === 'pricing') keys = PRICING_KPI_KEYS;
+    else if (dynamicKey === 'marketshare') keys = MARKET_SHARE_KPI_KEYS;
+    else keys = KPI_KEYS;
+    
+    // Hide 'Listing' KPI button if channel is NOT 'QuickComm' and platform does not fall into QuickComm
+    const isQuickComm = selectedChannel?.toLowerCase() === 'quickcomm' || 
+                        ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(platform?.toLowerCase());
+    
+    if (!isQuickComm) {
+      keys = keys.filter(k => k.key !== 'Listing');
+    }
+
+    return keys;
+  }, [dynamicKey, selectedChannel, platform]);
   const [tab, setTab] = useState("brand"); // "brand" | "sku"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1458,6 +1462,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             period: '1M',
             startDate: timeStart?.format('YYYY-MM-DD'),
             endDate: timeEnd?.format('YYYY-MM-DD'),
+            compareStartDate: compareStart?.format('YYYY-MM-DD'),
+            compareEndDate: compareEnd?.format('YYYY-MM-DD'),
             dimension: dimensionType || 'category',
             dimensionValue: effectiveDimValue || undefined,
             location: isCityFilterActive ? city : undefined,
@@ -1477,6 +1483,8 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             period: '1M',
             startDate: timeStart?.format('YYYY-MM-DD'),
             endDate: timeEnd?.format('YYYY-MM-DD'),
+            compareStartDate: compareStart?.format('YYYY-MM-DD'),
+            compareEndDate: compareEnd?.format('YYYY-MM-DD'),
             location: isCityFilterActive ? city : undefined,
             category: isCategoryFilterActive ? filters.categories.join(',') : undefined,
             brand: isBrandFilterActive ? filters.brands.join(',') : undefined,
@@ -1497,7 +1505,9 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
             sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
             period: '1M',
             startDate: timeStart?.format('YYYY-MM-DD'),
-            endDate: timeEnd?.format('YYYY-MM-DD')
+            endDate: timeEnd?.format('YYYY-MM-DD'),
+            compareStartDate: compareStart?.format('YYYY-MM-DD'),
+            compareEndDate: compareEnd?.format('YYYY-MM-DD'),
           };
           console.log('[KpiTrendShowcase] Fetching watchtower competition data with params:', params);
           const response = await axiosInstance.get('/watchtower/competition', { params });
@@ -1513,7 +1523,7 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
       }
     };
     fetchCompetitionData();
-  }, [city, filters, platform, timeStart, timeEnd, dynamicKey, dimensionValue, dimensionType]);
+  }, [city, filters, platform, timeStart, timeEnd, compareStart, compareEnd, dynamicKey, dimensionValue, dimensionType]);
 
 
 

@@ -30,7 +30,7 @@ function cityChangeTone(value) {
 }
 
 /* ─── Mini components ────────────────────────────────────────────────────── */
-function Pill({ children, tone = "neutral" }) {
+function Pill({ children, tone = "neutral", className = "" }) {
     const toneMap = {
         neutral: "bg-slate-100 text-slate-700 border-slate-200",
         blue: "bg-blue-50 text-blue-700 border-blue-200",
@@ -42,8 +42,9 @@ function Pill({ children, tone = "neutral" }) {
     return (
         <span
             className={cn(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-semibold",
-                toneMap[tone]
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-semibold whitespace-nowrap",
+                toneMap[tone],
+                className
             )}
         >
             {children}
@@ -126,14 +127,17 @@ function CardMinimal({ item, tabKey, onSelected }) {
             <div className="flex items-start gap-3">
                 <MiniSkuMark brand={item.brand} />
 
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                        <Pill tone={tone}>{item.badge}</Pill>
-                        <Pill tone="neutral">Cat: {item.cat}</Pill>
+                <div className="min-w-0 flex-1 pt-1">
+                    <div className="flex items-center justify-between gap-2 overflow-hidden">
+                        <Pill tone={tone} className="shrink-0">{item.badge}</Pill>
+                        <div className="flex gap-1 overflow-hidden">
+                            <Pill tone="neutral" className="capitalize shrink-0">{item.platform}</Pill>
+                            <Pill tone="neutral" className="truncate">Cat: {item.cat}</Pill>
+                        </div>
                     </div>
 
-                    <div className="mt-1 text-[12px] font-semibold text-slate-600">{item.brand}</div>
-                    <div className="mt-1 line-clamp-1 text-[16px] font-bold text-black">
+                    <div className="mt-2 text-[12px] font-semibold text-slate-600 truncate">{item.brand}</div>
+                    <div className="mt-1 line-clamp-1 text-[16px] font-bold text-black leading-tight">
                         {item.title}
                     </div>
 
@@ -205,6 +209,8 @@ export default function InsightsPricingView({ loading = false }) {
         selectedChannel,
         timeStart,
         timeEnd,
+        compareStart,
+        compareEnd,
         datesInitialized,
     } = useContext(FilterContext);
 
@@ -225,6 +231,8 @@ export default function InsightsPricingView({ loading = false }) {
                 const params = {
                     startDate: timeStart?.format('YYYY-MM-DD'),
                     endDate: timeEnd?.format('YYYY-MM-DD'),
+                    compareStartDate: compareStart?.format('YYYY-MM-DD'),
+                    compareEndDate: compareEnd?.format('YYYY-MM-DD'),
                 };
 
                 const toStr = (v) => Array.isArray(v) ? v.join(',') : v;
@@ -251,7 +259,7 @@ export default function InsightsPricingView({ loading = false }) {
         };
 
         fetchInsights();
-    }, [timeStart, timeEnd, datesInitialized, globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand]);
+    }, [timeStart, timeEnd, compareStart, compareEnd, datesInitialized, globalPlatform, selectedLocation, selectedCategory, selectedChannel, selectedBrand]);
 
     const data = useMemo(() => insightsData[activeTab] || [], [activeTab, insightsData]);
 

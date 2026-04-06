@@ -13,8 +13,11 @@ import {
     LineChart,
     MapPin,
     SlidersHorizontal,
+    Scale,
+    PieChart,
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
+import { useNavigate } from 'react-router-dom'
 import { cn } from '../../../lib/utils'
 import FlipkartLogo from '@/lib/Flipkart logo.png'
 
@@ -171,25 +174,37 @@ const PlatformOverviewNew = ({
         { key: 'marketShare', label: 'Market Share' },
         { key: 'categorySize', label: 'Category Size' },
     ]
-    // Dimension for glance view (single select)
     const [dimension, setDimension] = useState('platform')
 
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
-        if (dimension === 'sku') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'shareOfVolume' && k.key !== 'ad_sov' && k.key !== 'organic_sov');
+        if (dimension === 'sku') {
+            return kpis.filter(k => {
+                if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
+                return true;
+            });
+        }
         if (dimension === 'brand') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return kpis;
     }, [dimension, kpis]);
 
     const defaultKpiKeys = useMemo(() => {
         const base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
-        if (dimension === 'sku') return base.filter(k => k !== 'categorySize' && k !== 'shareOfVolume' && k !== 'ad_sov' && k !== 'organic_sov');
+        if (dimension === 'sku') {
+            return base.filter(k => {
+                if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
+                return true;
+            });
+        }
         if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         return base;
     }, [dimension]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+    const navigate = useNavigate()
+    const [currentPage, setCurrentPage] = useState(1)
+    const [pageSize, setPageSize] = useState(50)
     const [apiData, setApiData] = useState({})
     const [apiLoading, setApiLoading] = useState(true)
     const [apiError, setApiError] = useState(null)
@@ -212,13 +227,26 @@ const PlatformOverviewNew = ({
     // Re-sync glanceKpis when dimension changes
     useEffect(() => {
         if (dimension === 'sku') {
-            setGlanceKpis(prev => prev.filter(k => k !== 'categorySize' && k !== 'shareOfVolume'));
+            setGlanceKpis(prev => prev.filter(k => {
+                if (k === 'categorySize' || k === 'shareOfVolume') return false;
+                return true;
+            }));
         } else if (dimension === 'brand') {
-            setGlanceKpis(prev => prev.filter(k => k !== 'categorySize' && k !== 'marketShare'));
-        } else if (dimension === 'platform') {
             setGlanceKpis(prev => {
-                if (!prev.includes('categorySize')) return [...prev, 'categorySize'];
-                return prev;
+                let next = prev.filter(k => k !== 'categorySize' && k !== 'marketShare');
+                if (!next.includes('spend')) next.push('spend');
+                if (!next.includes('conversion')) next.push('conversion');
+                return next;
+            });
+        } else {
+            // platform, month, category
+            setGlanceKpis(prev => {
+                let next = [...prev];
+                if (!next.includes('categorySize')) next.push('categorySize');
+                if (!next.includes('spend')) next.push('spend');
+                if (!next.includes('conversion')) next.push('conversion');
+                if (!next.includes('marketShare')) next.push('marketShare');
+                return next;
             });
         }
     }, [dimension]);
@@ -330,6 +358,7 @@ const PlatformOverviewNew = ({
         setPrevFilterKey(filterKey);
         setApiLoading(true);
         setApiError(null);
+        setCurrentPage(1);
     }
 
     useEffect(() => {
@@ -412,6 +441,7 @@ const PlatformOverviewNew = ({
                     name,
                     logoSrc,
                     color,
+                    offtakeShare: apiEntity.offtakeShare,
                     data: mapApiEntityToFrontend(apiEntity)
                 }
             })
@@ -436,6 +466,12 @@ const PlatformOverviewNew = ({
 
         return result
     }, [apiData, dimension, globalPlatform])
+
+    // Pagination logic
+    const totalPages = Math.ceil(entities.length / pageSize)
+    const paginatedEntities = useMemo(() => {
+        return entities.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    }, [entities, currentPage, pageSize])
 
     const SectionWrapper = ({
         title,
@@ -641,8 +677,20 @@ const PlatformOverviewNew = ({
                             <div className="min-w-max pb-2">
                                 {/* KPI Labels Header - Premium */}
                                 <div className="flex items-center gap-2 mb-3 sm:mb-4 px-1">
-                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50">
+                                    <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between">
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
+                                        {dimension === 'sku' && (
+                                            <motion.button 
+                                                onClick={() => navigate('/compare-skus')}
+                                                className="px-3 py-1.5 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-600 to-blue-500 text-[10px] sm:text-[11px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.3)] hover:-translate-y-0.5 transition-all uppercase tracking-wider flex items-center gap-1.5 relative overflow-hidden group"
+                                                whileHover={{ scale: 1.05 }}
+                                                whileTap={{ scale: 0.95 }}
+                                            >
+                                                <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-[-20deg]"></div>
+                                                <Scale size={13} className="text-blue-100" strokeWidth={2.5}/>
+                                                <span>Compare SKU</span>
+                                            </motion.button>
+                                        )}
                                     </div>
                                     {selectedKpis.map(kpi => (
                                         <div key={kpi.key} className={cn('flex-1 text-center py-2 px-2 rounded-lg bg-white border border-slate-100/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)]', cardSize.minW)}>
@@ -655,7 +703,7 @@ const PlatformOverviewNew = ({
 
                                 {/* Entity Rows */}
                                 <div className="space-y-2 sm:space-y-3 px-1">
-                                    {entities.map((e) => (
+                                    {paginatedEntities.map((e) => (
                                         <motion.div
                                             key={e.key}
                                             className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-xl hover:bg-slate-50/50 transition-colors"
@@ -677,13 +725,23 @@ const PlatformOverviewNew = ({
                                                         {e.name.slice(0, 2).toUpperCase()}
                                                     </div>
                                                 )}
-                                                <span
-                                                    className="text-[11px] sm:text-[13px] font-bold text-slate-700 flex-1 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                    style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
-                                                    title={e.name}
-                                                >
-                                                    {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
-                                                </span>
+                                                <div className="flex flex-col flex-1 overflow-hidden justify-center">
+                                                    <span
+                                                        className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
+                                                        title={e.name}
+                                                    >
+                                                        {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
+                                                    </span>
+                                                    {dimension === 'sku' && e.offtakeShare !== undefined && (
+                                                        <div className="flex items-center gap-1 mt-0.5" title="Offtake Share">
+                                                            <div className="flex items-center gap-1 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200/50 text-sky-600 font-bold" style={{ fontSize: '9px' }}>
+                                                                <PieChart size={10} className="text-sky-500" />
+                                                                {e.offtakeShare}% Share
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
 
                                                 {/* Trend & RCA buttons */}
                                                 <div className="hidden sm:flex items-center gap-1">
@@ -757,6 +815,34 @@ const PlatformOverviewNew = ({
                         </div>
                     )}
 
+                    {/* Generic Pagination Controls */}
+                    {entities.length > pageSize && (
+                        <div className="mt-4 pt-3 sm:pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <span className="text-xs sm:text-sm text-slate-500">
+                                Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, entities.length)} of {entities.length} entries
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 border border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-xs font-bold text-slate-700 px-2">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-50 border border-slate-200 text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 transition-colors"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Footer - Summary Stats */}
                     <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
                         <div className="flex items-center gap-2 sm:gap-4">
@@ -783,6 +869,7 @@ const PlatformOverviewNew = ({
                     </div>
                 </SectionWrapper>
             </div>
+
             {/* Prepare options for advanced filter dropdowns */}
             {(() => {
                 const brandOptions = globalBrands.map(b => ({ id: b, name: b }))

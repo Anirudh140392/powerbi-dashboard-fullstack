@@ -100,22 +100,26 @@ const aggregateForMonthFilter = (keywordObj, monthFilter) => {
       acc.roas += m.roas || 0;
       acc.rawOrders += m.orders || 0;
       acc.rawClicks += m.clicks || 0;
+      acc.rawRevenue += m.revenue || 0;
       return acc;
     },
-    { impressions: 0, conversion: 0, spend: 0, cpm: 0, roas: 0, rawOrders: 0, rawClicks: 0 }
+    { impressions: 0, conversion: 0, spend: 0, cpm: 0, roas: 0, rawOrders: 0, rawClicks: 0, rawRevenue: 0 }
   );
 
   const count = months.length;
 
-  // Standardized to match Performance Overview: Conversion = Clicks / Impressions
-  const accurateConversion = sum.impressions > 0 ? (sum.rawClicks / sum.impressions) * 100 : 0;
+  // Standardized to match Performance Overview: Conversion = Orders / Clicks
+  const accurateConversion = sum.rawClicks > 0 ? (sum.rawOrders / sum.rawClicks) * 100 : 0;
+  
+  const accurateRoas = sum.spend > 0 ? (sum.rawRevenue / sum.spend) : 0;
+  const accurateCpm = sum.impressions > 0 ? (sum.spend / sum.impressions) * 1000 : 0;
 
   return {
     impressions: sum.impressions,
     conversion: accurateConversion,
     spend: sum.spend,
-    cpm: sum.cpm / count,
-    roas: sum.roas / count,
+    cpm: accurateCpm,
+    roas: accurateRoas,
     rawOrders: sum.rawOrders,
     rawClicks: sum.rawClicks,
   };

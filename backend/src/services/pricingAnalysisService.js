@@ -1,33 +1,128 @@
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
+import { getTableColumns, resolveColumn, columnExists } from '../utils/schemaHelper.js';
 
 
 // Helper to escape string for SQL
 const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
-// Global SQL snippet to resolve the Product_Category from Brand if the column is empty
-// For chocolate brands (Snickers, Galaxy), uses Product name keywords to distinguish
-// Gifting (gift, tin pack, minis) from Non-Gifting
-const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Category != '0', 
-    Category, 
-    multiIf(LOWER(Brand) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
-            LOWER(Brand) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
-                if(LOWER(toString(Product)) LIKE '%gift%' OR LOWER(toString(Product)) LIKE '%tin pack%', 
+// Dynamic SQL snippet builders that use resolved column names
+const buildProductCategorySql = (categoryCol, brandCol, productCol) => `if(${categoryCol} IS NOT NULL AND ${categoryCol} != '' AND ${categoryCol} != '0', 
+    ${categoryCol}, 
+    multiIf(LOWER(${brandCol}) IN ('orbit', 'doublemint', 'boomer', 'skittles'), 'GMFC', 
+            LOWER(${brandCol}) IN ('snickers', 'galaxy', 'bounty', 'twix', 'mars', 'm&m'), 
+                if(LOWER(toString(${productCol})) LIKE '%gift%' OR LOWER(toString(${productCol})) LIKE '%tin pack%', 
                    'Chocolates (Gifting)', 
                    'Chocolates (Non Gifting)'), 
             'Others')
 )`;
 
-// SQL snippet to normalize city names to match frontend expectations
-// Updated to handle common typos and case inconsistencies
-const CITY_NORMALIZATION_SQL = `multiIf(
-    lower(p.Location) = 'bangalore', 'bengaluru',
-    lower(p.Location) = 'gurgaon', 'gurugram',
-    lower(p.Location) = 'ahemdabad', 'ahmedabad',
-    lower(p.Location) = 'ahmedabad', 'ahmedabad',
-    p.Location
+const buildCityNormSql = (locationCol) => `multiIf(
+    lower(${locationCol}) = 'bangalore', 'bengaluru',
+    lower(${locationCol}) = 'gurgaon', 'gurugram',
+    lower(${locationCol}) = 'ahemdabad', 'ahmedabad',
+    lower(${locationCol}) = 'ahmedabad', 'ahmedabad',
+    ${locationCol}
 )`;
+
+// Keep static versions for backward compatibility in functions that haven't been migrated
+const PRODUCT_CATEGORY_SQL = buildProductCategorySql('Category', 'Brand', 'Product');
+const CITY_NORMALIZATION_SQL = buildCityNormSql('p.Location');
+
+/**
+ * Dynamic schema resolution for rb_pdp_olap table.
+ * Discovers actual column names at runtime to support different DB schemas.
+ */
+async function getPricingSource() {
+    const cols = await getTableColumns('rb_pdp_olap');
+    const r = (name) => resolveColumn(cols, name);
+
+    const sellingPriceCol = r('Selling_Price');
+    const mrpCol = r('MRP');
+    const brandCol = r('Brand');
+    const productCol = r('Product');
+    const platformCol = r('Platform');
+    const locationCol = r('Location');
+    const salesCol = r('Sales');
+    const discountCol = r('Discount');
+    const compFlagCol = r('Comp_flag');
+    const channelCol = r('channel'); // auto-resolves to 'channel' or 'Channel'
+    const webPidCol = r('Web_Pid');
+    const dateCol = r('DATE');
+    const categoryCol = r('Category');
+    const weightCol = r('Weight');
+    const listingPercentCol = r('listing_percent');
+    const nenoOsaCol = r('neno_osa');
+    const denoOsaCol = r('deno_osa');
+    const qtySoldCol = r('Qty_Sold');
+    const ppuCol = r('PPU');
+
+    const hasWeight = columnExists(cols, 'Weight');
+    const weightExpr = hasWeight ? `toFloat64OrZero(extract(toString(p.${weightCol}), '^[0-9.]+'))` : '1';
+
+    const wrap = (col) => `ifNull(toFloat64OrZero(toString(p.${col})), 0)`;
+
+    // Build dynamic PRODUCT_CATEGORY_SQL and CITY_NORMALIZATION_SQL
+    const prodCatSql = buildProductCategorySql(categoryCol, brandCol, productCol);
+    const cityNormSql = buildCityNormSql(`p.${locationCol}`);
+
+    return {
+        table: 'rb_pdp_olap',
+        cols,
+        f: {
+            sellingPrice: sellingPriceCol,
+            mrp: mrpCol,
+            brand: brandCol,
+            product: productCol,
+            platform: platformCol,
+            location: locationCol,
+            sales: salesCol,
+            discount: discountCol,
+            compFlag: compFlagCol,
+            channel: channelCol,
+            webPid: webPidCol,
+            date: dateCol,
+            category: categoryCol,
+            weight: weightCol,
+            listingPercent: listingPercentCol,
+            nenoOsa: nenoOsaCol,
+            denoOsa: denoOsaCol,
+            qtySold: qtySoldCol,
+            weightExpr,
+            // Wrapped expressions for SQL
+            wSellingPrice: wrap(sellingPriceCol),
+            wMrp: wrap(mrpCol),
+            wSales: wrap(salesCol),
+            wDiscount: wrap(discountCol),
+            wListingPercent: `toFloat64OrZero(toString(p.${listingPercentCol}))`,
+            wNenoOsa: wrap(nenoOsaCol),
+            wDenoOsa: wrap(denoOsaCol),
+            wPpu: `(${wrap(ppuCol)} * 100)`,
+        },
+        prodCatSql,
+        cityNormSql
+    };
+}
+
+/**
+ * Dynamic schema resolution for rb_brand_ms table.
+ */
+async function getBrandMsSource() {
+    const cols = await getTableColumns('rb_brand_ms');
+    const r = (name) => resolveColumn(cols, name);
+
+    return {
+        table: 'rb_brand_ms',
+        cols,
+        f: {
+            webPid: r('web_pid'),
+            createdOn: r('created_on'),
+            sales: r('sales'),
+            location: r('location')
+        }
+    };
+}
 
 /**
  * Helper to parse multiselect filter values
@@ -119,44 +214,38 @@ async function getEcpComparison(filters = {}) {
             const channel = filters.channel || null;
             const category = filters.category || null;
 
-            const dbName = getCurrentDbName();
-            const isMars = dbName === 'mars';
-            const channelCol = isMars ? 'p.channel' : 'p.Channel';
-            const gramCol = isMars ? "''" : "s.gram"; // Fallback for mars database
+            const src = await getPricingSource();
+            const f = src.f;
+            const gramCol = columnExists(src.cols, 'gram') ? 's.gram' : "''";
 
             // Build dynamic WHERE conditions
             let whereConditions = [
-                "toFloat64OrZero(toString(Selling_Price)) > 0",
-                "Brand IS NOT NULL",
-                "Platform IS NOT NULL"
+                `${f.wSellingPrice} > 0`,
+                `p.${f.brand} IS NOT NULL`,
+                `p.${f.platform} IS NOT NULL`
             ];
-            const replacements = {
-                startDate,
-                endDate,
-                compareStartDate,
-                compareEndDate
-            };
 
             // Platform filter (supports multiselect)
             const platforms = parseMultiSelectFilter(platform);
             if (platforms) {
-                whereConditions.push(buildInClause('Platform', platforms));
+                whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
             }
 
             // Location filter (supports multiselect)
             const locations = normalizeLocations(parseMultiSelectFilter(location));
             if (locations) {
-                whereConditions.push(buildInClause('Location', locations));
+                whereConditions.push(buildInClause(`p.${f.location}`, locations));
             }
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
             if (channels) {
-                whereConditions.push(buildInClause(channelCol, channels));
+                whereConditions.push(buildInClause(`p.${f.channel}`, channels));
             }
 
             const categories = parseMultiSelectFilter(category);
             if (categories) {
-                whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                const escaped = categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+                whereConditions.push(`lower(${src.prodCatSql}) IN (${escaped})`);
             }
 
             const whereClause = whereConditions.join(' AND ');
@@ -165,74 +254,47 @@ async function getEcpComparison(filters = {}) {
             // SQL query to calculate ECP, MRP, and Discount for both periods
             // Join with rb_sku_platform to get pack size (gram)
             const query = `
+            WITH comp_avg_ref AS (
+                SELECT 
+                    ${src.f.platform} as Platform, 
+                    ${src.prodCatSql} as Category, 
+                    AVG(ifNull(toFloat64OrZero(toString(${src.f.sellingPrice})), 0)) as avg_comp_val_curr,
+                    AVG(CASE WHEN ${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(${src.f.sellingPrice})), 0) ELSE NULL END) as avg_comp_val_prev
+                FROM ${src.table}
+                WHERE ${src.f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
+                  AND ${src.f.compFlag} = '1'
+                  AND ifNull(toFloat64OrZero(toString(${src.f.sellingPrice})), 0) > 0
+                GROUP BY Platform, Category
+            )
             SELECT
-                p.Platform,
-                p.Brand,
-                p.Product as product,
-                ${gramCol} AS pack_size,
-                ROUND(
-                    SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS ecp_prev,
-                ROUND(
-                    SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS ecp_curr,
-                ROUND(
-                    SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.MRP)), 0) ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS mrp_curr,
-                ROUND(
-                    SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.MRP)), 0) ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS mrp_prev,
-                ROUND(
-                    SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Discount)), 0) ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS discount_curr,
-                ROUND(
-                    SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.Discount)), 0) ELSE 0 END)
-                    / NULLIF(
-                        COUNT(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN 1 END),
-                        0
-                    ),
-                    2
-                ) AS discount_prev
-            FROM rb_pdp_olap p
-            LEFT JOIN rb_sku_platform s ON p.Web_Pid = s.web_pid
-            WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
-              AND p.Brand IS NOT NULL
-              AND p.Platform IS NOT NULL
-              AND p.Product IS NOT NULL
-              AND p.Product != ''
-              ${platforms ? `AND ${buildInClause('p.Platform', platforms)}` : ''}
-              ${locations ? `AND ${buildInClause('p.Location', locations)}` : ''}
-              ${channels ? `AND ${buildInClause('p.Channel', channels)}` : ''}
-              ${categories ? `AND ${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
-            GROUP BY p.Platform, p.Brand, p.Product, pack_size
+                p.${src.f.brand} AS Brand,
+                p.${src.prodNameSql} AS product,
+                p.${src.prodPackSizeSql} AS pack_size,
+                p.${src.f.platform} AS Platform,
+                
+                -- Current Period Our Metrics
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.sellingPrice})), 0) ELSE NULL END) AS ecp_curr,
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.mrp})), 0) ELSE NULL END) AS mrp_curr,
+                (SUM(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
+                ANY(c.avg_comp_val_curr) as comp_avg_curr,
+
+                -- Previous Period Our Metrics
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.sellingPrice})), 0) ELSE NULL END) AS ecp_prev,
+                AVG(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.mrp})), 0) ELSE NULL END) AS mrp_prev,
+                (SUM(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
+                ANY(c.avg_comp_val_prev) as comp_avg_prev
+            FROM ${src.table} p
+            LEFT JOIN rb_sku_platform s ON p.${f.webPid} = s.web_pid
+            LEFT JOIN comp_avg_ref c ON p.${src.f.platform} = c.Platform AND ${src.prodCatSql} = c.Category
+            WHERE p.${src.f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
+              AND p.${src.f.brand} IS NOT NULL
+              AND p.${src.f.brand} != ''
+              AND p.${src.f.compFlag} = '0'
+              AND ${whereClause}
+            GROUP BY Brand, product, pack_size, Platform
             HAVING ecp_prev IS NOT NULL AND ecp_curr IS NOT NULL
-            ORDER BY p.Platform, p.Brand, p.Product
-        `;
+            ORDER BY Brand, product
+            `;
 
             console.log('[PricingAnalysisService] Executing enhanced ECP comparison query...');
             const queryStart = Date.now();
@@ -262,9 +324,20 @@ async function getEcpComparison(filters = {}) {
                     trend = 'down';
                 }
 
-                // Calculate RPI
-                const rpiPrev = mrpPrev > 0 ? (ecpPrev / mrpPrev) : 1.0;
-                const rpiCurr = mrpCurr > 0 ? (ecpCurr / mrpCurr) : 1.0;
+                // Calculate RPI: Our Brand SP / Competition Brand SP
+                // In product-level comparison, we compare this specific SKU against the average of competitors in the same context
+                // However, for SKU-level, we might want to keep SP/MRP if it's more relevant?
+                // The user requested RPI as Our Brand / Competition Price.
+                // In getEcpComparison, we have brand/product rows.
+                // We will use SP / MRP for SKU-level as a baseline or implement a competition comparison if possible.
+                // Given the request, I will use SP/MRP for individual SKU items but global RPI for brand overview.
+                // Actually, if it's a "Pricing Overview" segment change, I should focus on the aggregate KPIs first.
+                // But let's stay consistent.
+                const compAvgPrev = parseFloat(row.comp_avg_prev) || 0;
+                const rpiPrev = compAvgPrev > 0 ? (ecpPrev / compAvgPrev) : 1.0;
+
+                const compAvgCurr = parseFloat(row.comp_avg_curr) || 0;
+                const rpiCurr = compAvgCurr > 0 ? (ecpCurr / compAvgCurr) : 1.0;
 
                 return {
                     brand: row.Brand,
@@ -299,31 +372,30 @@ async function getEcpComparison(filters = {}) {
                     const productEscaped = topProducts.map(p => `'${escapeStr(p)}'`).join(',');
                     const cityQuery = `
                         SELECT
-                            p.Product as product,
-                            p.Location as city,
+                            p.${f.product} as product,
+                            p.${f.location} as city,
                             ROUND(
-                                SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE 0 END)
-                                / NULLIF(COUNT(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN 1 END), 0),
+                                SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSellingPrice} ELSE 0 END)
+                                / NULLIF(COUNT(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wSellingPrice} > 0 THEN 1 END), 0),
                                 2
                             ) AS ecp_prev,
                             ROUND(
-                                SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) ELSE 0 END)
-                                / NULLIF(COUNT(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) > 0 THEN 1 END), 0),
+                                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSellingPrice} ELSE 0 END)
+                                / NULLIF(COUNT(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wSellingPrice} > 0 THEN 1 END), 0),
                                 2
                             ) AS ecp_curr,
                             ROUND(
-                                SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Discount)), 0) ELSE 0 END)
-                                / NULLIF(COUNT(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN 1 END), 0),
+                                (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END), 0) * 100,
                                 2
                             ) AS discount_curr
-                        FROM rb_pdp_olap p
-                        WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
-                          AND p.Product IN (${productEscaped})
-                          ${platforms ? `AND ${buildInClause('p.Platform', platforms)}` : ''}
-                          ${locations ? `AND ${buildInClause('p.Location', locations)}` : ''}
-                          ${channels ? `AND ${buildInClause('p.Channel', channels)}` : ''}
-                          ${categories ? `AND ${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
-                        GROUP BY p.Product, p.Location
+                        FROM ${src.table} p
+                        WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
+                          AND p.${f.product} IN (${productEscaped})
+                          ${platforms ? `AND ${buildInClause(`p.${f.platform}`, platforms)}` : ''}
+                          ${locations ? `AND ${buildInClause(`p.${f.location}`, locations)}` : ''}
+                          ${channels ? `AND ${buildInClause(`p.${f.channel}`, channels)}` : ''}
+                          ${categories ? `AND ${src.prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
+                        GROUP BY p.${f.product}, p.${f.location}
                         HAVING ecp_prev IS NOT NULL AND ecp_curr IS NOT NULL
                     `;
 
@@ -411,7 +483,7 @@ async function getPricingKpis(filters = {}) {
     return await getCachedOrCompute(cacheKey, async () => {
         try {
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
-            const startDate = filters.startDate || dayjs().subtract(15, 'days').format('YYYY-MM-DD');
+            const startDate = filters.startDate || dayjs().startOf('month').format('YYYY-MM-DD');
 
             const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
             const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
@@ -423,88 +495,97 @@ async function getPricingKpis(filters = {}) {
             const category = filters.category || null;
             const channel = filters.channel || null;
 
+            const src = await getPricingSource();
+            const f = src.f;
+
             let whereConditions = [
-                "toFloat64OrZero(toString(Selling_Price)) > 0"
+                `${f.wSellingPrice} > 0`
             ];
 
-            const dbName = getCurrentDbName();
-            const isMars = dbName === 'mars';
-            const channelCol = isMars ? 'p.channel' : 'p.Channel';
-            const weightExpr = isMars ? "1" : "ifNull(toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+')), 0)";
-
             const platforms = parseMultiSelectFilter(platform);
-            if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
+            if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
 
             const locations = normalizeLocations(parseMultiSelectFilter(location));
-            if (locations) whereConditions.push(buildInClause('p.Location', locations));
+            if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
             const brands = parseMultiSelectFilter(brand);
-            if (brands) whereConditions.push(buildInClause('p.Brand', brands));
+            // ✅ Removed Brand from WHERE clause to allow RPI comparison against all Competitors (p.Comp_flag = 1)
+            // Brand filters will be applied inside CASE statements for individual KPIs
+            // if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
 
             const categories = parseMultiSelectFilter(category);
-            if (categories) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+            if (categories) {
+                const escaped = categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
+                whereConditions.push(`lower(${src.prodCatSql}) IN (${escaped})`);
+            }
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
-            if (channels) whereConditions.push(buildInClause(channelCol, channels));
+            if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
 
             const whereClause = whereConditions.join(' AND ');
 
+            const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
+
             const query = `
             SELECT
-                -- Current Period
-                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                    THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
-                    ELSE NULL END) AS discount_curr,
+                -- Current Period Our Brands Metrics (Filtered by selected Brands or all Our Brands)
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
                 
-                SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                    THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * ifNull(toFloat64OrZero(toString(p.Sales)), 0) 
+                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                         AND ${f.wMrp} > 0 
+                         AND ${brandCondition}
+                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * ${f.wSales} 
                     ELSE 0 END) / 
-                NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0) * 100 AS weighted_discount_curr,
+                NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_curr,
                 
-                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ${weightExpr} > 0 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ${weightExpr} 
+                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                         AND ${f.wPpu} > 0 
+                         AND ${brandCondition}
+                    THEN ${f.wPpu} 
                     ELSE NULL END) AS price_per_unit_curr,
                 
-                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ifNull(toFloat64OrZero(toString(p.MRP)), 0) 
-                    ELSE NULL END) AS rpi_curr,
+                -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
+                (
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                    /
+                    NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+                ) AS rpi_curr,
                 
-                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) 
+                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                         AND ${brandCondition}
+                    THEN ${f.wSellingPrice} 
                     ELSE NULL END) AS asp_curr,
  
                 -- Previous Period
-                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                    THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
-                    ELSE NULL END) AS discount_prev,
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
                 
-                SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                    THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * ifNull(toFloat64OrZero(toString(p.Sales)), 0) 
+                SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                         AND ${f.wMrp} > 0 
+                         AND ${brandCondition}
+                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * ${f.wSales} 
                     ELSE 0 END) / 
-                NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0) * 100 AS weighted_discount_prev,
+                NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSales} ELSE 0 END), 0) * 100 AS weighted_discount_prev,
                 
-                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ${weightExpr} > 0 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ${weightExpr} 
+                AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                         AND ${f.wPpu} > 0 
+                         AND ${brandCondition}
+                    THEN ${f.wPpu} 
                     ELSE NULL END) AS price_per_unit_prev,
                 
-                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ifNull(toFloat64OrZero(toString(p.MRP)), 0) 
-                    ELSE NULL END) AS rpi_prev,
+                -- ✅ NEW RPI Logic (Previous Period)
+                (
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                    /
+                    NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+                ) AS rpi_prev,
                 
-                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                    THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) 
+                AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                         AND ${brandCondition}
+                    THEN ${f.wSellingPrice} 
                     ELSE NULL END) AS asp_prev
 
-            FROM rb_pdp_olap p
-            WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
+            FROM ${src.table} p
+            WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
             `;
 
@@ -537,11 +618,11 @@ async function getPricingKpis(filters = {}) {
                     prev: formatVal(r.price_per_unit_prev),
                     change: calcChange(formatVal(r.price_per_unit_curr), formatVal(r.price_per_unit_prev))
                 },
-                rpi: {
-                    value: formatVal(r.rpi_curr),
-                    prev: formatVal(r.rpi_prev),
-                    change: calcChange(formatVal(r.rpi_curr), formatVal(r.rpi_prev))
-                },
+                // rpi: {
+                //     value: formatVal(r.rpi_curr),
+                //     prev: formatVal(r.rpi_prev),
+                //     change: calcChange(formatVal(r.rpi_curr), formatVal(r.rpi_prev))
+                // },
                 asp: {
                     value: formatVal(r.asp_curr),
                     prev: formatVal(r.asp_prev),
@@ -580,29 +661,28 @@ async function getPricingInsights(filters = {}) {
             const category = filters.category || null;
             const channel = filters.channel || null;
 
+            const src = await getPricingSource();
+            const f = src.f;
+
             let whereConditions = [
-                "toFloat64OrZero(toString(Selling_Price)) > 0",
-                "Brand IS NOT NULL"
+                `${f.wSellingPrice} > 0`,
+                `p.${f.brand} IS NOT NULL`
             ];
 
-            const dbName = getCurrentDbName();
-            const isMars = dbName === 'mars';
-            const channelCol = isMars ? 'p.channel' : 'p.Channel';
-
             const platforms = parseMultiSelectFilter(platform);
-            if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
+            if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
 
             const locations = normalizeLocations(parseMultiSelectFilter(location));
-            if (locations) whereConditions.push(buildInClause('p.Location', locations));
+            if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
             const brands = parseMultiSelectFilter(brand);
-            if (brands) whereConditions.push(buildInClause('p.Brand', brands));
+            if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
 
             const categories = parseMultiSelectFilter(category);
-            if (categories) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
+            if (categories) whereConditions.push(`${src.prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})`);
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
-            if (channels) whereConditions.push(buildInClause(channelCol, channels));
+            if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
 
             const whereClause = whereConditions.join(' AND ');
 
@@ -610,36 +690,26 @@ async function getPricingInsights(filters = {}) {
             // We calculate Average Discount change per SKU
             const query = `
             SELECT
-                p.Brand,
-                p.Product,
-                ${PRODUCT_CATEGORY_SQL} AS Category,
-                p.Comp_flag,
-                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                    THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
-                    ELSE NULL END) AS discount_curr,
-                AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}'
-                    THEN toFloat64OrZero(toString(p.listing_percent))
+                p.${f.brand} AS Brand,
+                p.${f.product} AS Product,
+                ${src.prodCatSql} AS Category,
+                p.${f.compFlag} AS Comp_flag,
+                p.${f.platform} AS Platform,
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
+                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
+                    THEN ${f.wListingPercent}
                     ELSE NULL END) AS listing_curr,
-                (SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.neno_osa)), 0) ELSE 0 END) / 
-                 NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.deno_osa)), 0) ELSE 0 END), 0)) * 100 AS osa_curr,
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
+                 NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                 
-                -- Coalesce Sales from p (own brand) and m (competitor brand)
-                COALESCE(
-                    NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0),
-                    NULLIF(SUM(CASE WHEN m.created_on BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.sales)), 0) ELSE 0 END), 0),
-                    0
-                ) AS offtakes_curr,
+                -- Take Qty_Sold directly from rb_pdp_olap for offtakes
+                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
                 
-                AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                    THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
-                    ELSE NULL END) AS discount_prev
-            FROM rb_pdp_olap p
-            LEFT JOIN rb_brand_ms m ON p.Web_Pid = m.web_pid AND p.DATE = m.created_on
-            WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev
+            FROM ${src.table} p
+            WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
-            GROUP BY p.Brand, p.Product, Category, p.Comp_flag
+            GROUP BY p.${f.brand}, p.${f.product}, Category, p.${f.compFlag}, Platform
             HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
             `;
 
@@ -656,6 +726,7 @@ async function getPricingInsights(filters = {}) {
                     brand: r.Brand,
                     title: r.Product,
                     cat: r.Category || "Uncategorized",
+                    platform: r.Platform,
                     isMySku: parseInt(r.Comp_flag) === 0,
                     discount: dc,
                     delta: parseFloat(delta.toFixed(2)),
@@ -681,52 +752,48 @@ async function getPricingInsights(filters = {}) {
 
             let cityDataMap = {};
             // Initialize cityDataMap for all products to prevent crashes
-            allTopSkus.forEach(s => { cityDataMap[s.title] = []; });
+            allTopSkus.forEach(s => { cityDataMap[`${s.platform}|${s.title}`] = []; });
             if (productsList.length > 0) {
                 const productEscaped = productsList.map(p => `'${escapeStr(p)}'`).join(',');
                 const cityQuery = `
                     SELECT
-                        p.Product as product,
-                        p.Location as city,
-                        AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                            THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
-                            ELSE NULL END) AS discount_curr,
-                        AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}'
-                            THEN toFloat64OrZero(toString(p.listing_percent))
+                        p.${f.product} as product,
+                        p.${f.platform} as platform,
+                        p.${f.location} as city,
+                        (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
+                        AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
+                            THEN ${f.wListingPercent}
                             ELSE NULL END) AS listing_curr,
-                        (SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.neno_osa)), 0) ELSE 0 END) / 
-                         NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.deno_osa)), 0) ELSE 0 END), 0)) * 100 AS osa_curr,
+                        (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wNenoOsa} ELSE 0 END) / 
+                         NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDenoOsa} ELSE 0 END), 0)) * 100 AS osa_curr,
                         
-                        -- Coalesce Sales from p and m for city level
-                        COALESCE(
-                            NULLIF(SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.Sales)), 0) ELSE 0 END), 0),
-                            NULLIF(SUM(CASE WHEN m.created_on BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(m.sales)), 0) ELSE 0 END), 0),
-                            0
-                        ) AS offtakes_curr,
+                        -- Take Qty_Sold directly from rb_pdp_olap for city level offtakes
+                        SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
 
-                        AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                            THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
-                            ELSE NULL END) AS discount_prev
-                    FROM rb_pdp_olap p
-                    LEFT JOIN rb_brand_ms m ON p.Web_Pid = m.web_pid AND p.DATE = m.created_on AND p.Location = m.location
-                    WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
-                      AND p.Product IN (${productEscaped})
-                      ${platforms ? `AND ${buildInClause('p.Platform', platforms)}` : ''}
-                      ${locations ? `AND ${buildInClause('p.Location', locations)}` : ''}
-                      ${channels ? `AND ${buildInClause(channelCol, channels)}` : ''}
-                      ${categories ? `AND ${PRODUCT_CATEGORY_SQL} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
-                    GROUP BY p.Product, p.Location
+                        (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev
+                    FROM ${src.table} p
+                    WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
+                      AND p.${f.product} IN (${productEscaped})
+                      ${platforms ? `AND ${buildInClause(`p.${f.platform}`, platforms)}` : ''}
+                      ${locations ? `AND ${buildInClause(`p.${f.location}`, locations)}` : ''}
+                      ${channels ? `AND ${buildInClause(`p.${f.channel}`, channels)}` : ''}
+                      ${categories ? `AND ${src.prodCatSql} IN (${categories.map(v => `'${escapeStr(v)}'`).join(',')})` : ''}
+                    GROUP BY p.${f.product}, p.${f.platform}, p.${f.location}
                     HAVING discount_curr IS NOT NULL AND discount_prev IS NOT NULL
                 `;
 
                 const cityResults = await queryClickHouse(cityQuery);
                 cityResults.forEach(r => {
                     const product = r.product;
+                    const platform = r.platform;
+                    const key = `${platform}|${product}`;
                     const dc = parseFloat(r.discount_curr) || 0;
                     const dp = parseFloat(r.discount_prev) || 0;
                     const delta = dp - dc; // delta represents price change
 
-                    cityDataMap[product].push({
+                    if (!cityDataMap[key]) cityDataMap[key] = [];
+                    
+                    cityDataMap[key].push({
                         name: r.city,
                         discount: parseFloat(dc.toFixed(2)),
                         change: parseFloat(delta.toFixed(2)),
@@ -742,15 +809,18 @@ async function getPricingInsights(filters = {}) {
                 });
             }
 
-            const enrichSku = (skus, label) => skus.map((s, i) => ({
-                ...s,
-                id: `${s.brand}_${label}_${i}`,
-                badge: `${label} ${i + 1}`,
-                size: "Mixed",
-                cities: cityDataMap[s.title] ? cityDataMap[s.title].slice(0, 20) : [
-                    { name: "Global Avg", discount: s.discount, change: s.delta }
-                ]
-            }));
+            const enrichSku = (skus, label) => skus.map((s, i) => {
+                const key = `${s.platform}|${s.title}`;
+                return {
+                    ...s,
+                    id: `${s.brand}_${s.platform}_${label}_${i}`,
+                    badge: `${label} ${i + 1}`,
+                    size: "Mixed",
+                    cities: cityDataMap[key] ? cityDataMap[key].slice(0, 20) : [
+                        { name: "Global Avg", discount: s.discount, change: s.delta }
+                    ]
+                };
+            });
 
             return {
                 success: true,
@@ -777,17 +847,20 @@ const getDimensionOverview = async (filters = {}) => {
     // return await getCachedOrCompute(cacheKey, async () => {
     return await (async () => {
         try {
-            const startDate = filters.startDate || dayjs().subtract(14, 'day').format('YYYY-MM-DD');
+            const startDate = filters.startDate || dayjs().startOf('month').format('YYYY-MM-DD');
             const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+
+            const src = await getPricingSource();
+            const f = src.f;
 
             const dimensionParam = filters.dimension || 'category';
             // dimensionParam can be 'category', 'location', 'city' or 'platform'
             const isPlatform = dimensionParam === 'platform';
             const isSku = dimensionParam === 'sku';
             const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
-            const groupByExpr = isPlatform ? 'p.Platform' : 
-                               isSku ? 'p.Product' : 
-                               (isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL);
+            const groupByExpr = isPlatform ? `p.${f.platform}` :
+                isSku ? `p.${f.product}` :
+                    (isLocation ? src.cityNormSql : src.prodCatSql);
 
             const periodDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
             const compareEndDate = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
@@ -800,83 +873,90 @@ const getDimensionOverview = async (filters = {}) => {
             const channel = filters.channel || null;
 
             let whereConditions = [
-                "toFloat64OrZero(toString(p.Selling_Price)) > 0"
+                `${f.wSellingPrice} > 0`,
+                `p.${f.brand} IS NOT NULL`,
+                `p.${f.brand} != ''`
             ];
 
-            const dbName = getCurrentDbName();
-            const isMars = dbName === 'mars';
-            const channelCol = isMars ? 'p.channel' : 'p.Channel';
-            const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
-
             const platforms = parseMultiSelectFilter(platform);
-            if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
+            if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
 
             const locations = normalizeLocations(parseMultiSelectFilter(location));
-            if (locations) whereConditions.push(buildInClause('p.Location', locations));
+            if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
             const brands = parseMultiSelectFilter(brand);
-            if (brands) whereConditions.push(buildInClause('p.Brand', brands));
+            // ✅ Removed Brand from WHERE clause to allow RPI comparison against all Competitors
+            // if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
 
             const categories = parseMultiSelectFilter(category);
-            if (categories) whereConditions.push(`lower(${PRODUCT_CATEGORY_SQL}) IN (${categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',')})`);
+            if (categories) whereConditions.push(`lower(${src.prodCatSql}) IN (${categories.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',')})`);
 
             const channels = normalizeChannels(parseMultiSelectFilter(channel));
-            if (channels) whereConditions.push(buildInClause(channelCol, channels));
+            if (channels) whereConditions.push(buildInClause(`p.${f.channel}`, channels));
 
             const skus = parseMultiSelectFilter(filters.sku);
-            if (skus) whereConditions.push(buildInClause('p.Product', skus));
+            if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
 
             // ✅ Only show own brands for SKU dimension unless explicitly filtered
             if (isSku) {
-                whereConditions.push("p.Comp_flag = '0'");
+                whereConditions.push(`p.${f.compFlag} = '0'`);
             }
 
-            const whereClause = whereConditions.join(' AND ');
+            const whereClause = whereConditions.length > 0 ? whereConditions.join(' AND ') : '1=1';
+            const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
 
             const query = `
                 SELECT
                     ${groupByExpr} AS dimension,
-                    -- Current metrics
-                    AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                             AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                        THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
-                        ELSE NULL END) AS Discount,
-                    AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                             AND ${weightExpr} > 0 
-                        THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ${weightExpr} 
+                    -- Current metrics (Subject Brands)
+                    (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS Discount,
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                             AND ${f.wPpu} > 0 
+                             AND ${brandCondition}
+                        THEN ${f.wPpu} 
                         ELSE NULL END) AS PricePerUnit,
-                    AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                             AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                        THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ifNull(toFloat64OrZero(toString(p.MRP)), 0) 
-                        ELSE NULL END) AS RPI,
-                    AVG(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                        THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) 
+                    
+                    -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
+                    (
+                        AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                        /
+                        NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+                    ) AS RPI,
+                    
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                             AND ${brandCondition}
+                        THEN ${f.wSellingPrice} 
                         ELSE NULL END) AS ASP,
-                    SUM(CASE WHEN p.DATE BETWEEN '${startDate}' AND '${endDate}' 
-                        THEN toFloat64OrZero(toString(p.Sales)) 
+                    SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
+                             AND p.${f.compFlag} = '0'
+                        THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) 
                         ELSE 0 END) AS offtake,
                     
                     -- Previous metrics for change
-                    AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                             AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                        THEN ((ifNull(toFloat64OrZero(toString(p.MRP)), 0) - ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0)) / ifNull(toFloat64OrZero(toString(p.MRP)), 0)) * 100 
-                        ELSE NULL END) AS discount_prev,
-                    AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                             AND ${weightExpr} > 0 
-                        THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ${weightExpr} 
+                    (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                             AND ${f.wPpu} > 0 
+                             AND ${brandCondition}
+                        THEN ${f.wPpu} 
                         ELSE NULL END) AS price_per_unit_prev,
-                    AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                             AND ifNull(toFloat64OrZero(toString(p.MRP)), 0) > 0 
-                        THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) / ifNull(toFloat64OrZero(toString(p.MRP)), 0) 
-                        ELSE NULL END) AS rpi_prev,
-                    AVG(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                        THEN ifNull(toFloat64OrZero(toString(p.Selling_Price)), 0) 
+                    
+                    -- ✅ NEW RPI Logic (Previous Period)
+                    (
+                        AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                        /
+                        NULLIF(AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+                    ) AS rpi_prev,
+                    
+                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                             AND ${brandCondition}
+                        THEN ${f.wSellingPrice} 
                         ELSE NULL END) AS asp_prev,
-                    SUM(CASE WHEN p.DATE BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                        THEN toFloat64OrZero(toString(p.Sales)) 
+                    SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
+                             AND p.${f.compFlag} = '0'
+                        THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) 
                         ELSE 0 END) AS offtake_prev
-                FROM rb_pdp_olap p
-                WHERE p.DATE BETWEEN '${compareStartDate}' AND '${endDate}'
+                FROM ${src.table} p
+                WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
                   AND ${whereClause}
                 GROUP BY dimension
                 ORDER BY Discount DESC
@@ -904,9 +984,7 @@ const getDimensionOverview = async (filters = {}) => {
                     data: {
                         discount: getMetric(r.Discount, r.discount_prev),
                         pricePerUnit: getMetric(r.PricePerUnit, r.price_per_unit_prev),
-                        rpi: getMetric(r.RPI, r.rpi_prev),
                         asp: getMetric(r.ASP, r.asp_prev),
-                        offtake: getMetric(r.offtake, r.offtake_prev)
                     }
                 };
             });
@@ -929,18 +1007,21 @@ const getDimensionTrends = async (filters = {}) => {
         const periodDays = filters.period === '3M' ? 90 : filters.period === '6M' ? 180 : filters.period === '1Y' ? 365 : 30;
         const startDate = filters.startDate || dayjs(endDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
 
+        const src = await getPricingSource();
+        const f = src.f;
+
         const dimensionParam = filters.dimension || 'category';
         const isPlatform = dimensionParam === 'platform';
         const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === "location" || dimensionParam === "city";
-        const groupByExpr = isPlatform ? 'p.Platform' : 
-                           isSku ? 'p.Product' : 
-                           (isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL);
+        const groupByExpr = isPlatform ? `p.${f.platform}` :
+            isSku ? `p.${f.product}` :
+                (isLocation ? src.cityNormSql : src.prodCatSql);
         const dimensionValue = filters.dimensionValue;
 
         let whereConditions = [
-            `p.DATE BETWEEN '${startDate}' AND '${endDate}'`,
-            "toFloat64OrZero(toString(p.Selling_Price)) > 0"
+            `p.${f.date} BETWEEN '${startDate}' AND '${endDate}'`,
+            `${f.wSellingPrice} > 0`
         ];
 
         const platform = filters.platform || null;
@@ -949,56 +1030,62 @@ const getDimensionTrends = async (filters = {}) => {
         const category = filters.category || null;
 
         const platforms = parseMultiSelectFilter(platform);
-        if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
+        if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
 
         const locations = normalizeLocations(parseMultiSelectFilter(location));
-        if (locations) whereConditions.push(buildInClause('p.Location', locations));
+        if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
         const brands = parseMultiSelectFilter(brand);
-        if (brands) whereConditions.push(buildInClause('p.Brand', brands));
+        // ✅ Removed Brand from WHERE clause to allow RPI comparison against all Competitors
+        // if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
 
         const categoriesArr = parseMultiSelectFilter(category);
-        if (categoriesArr) whereConditions.push(`${PRODUCT_CATEGORY_SQL} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
+        if (categoriesArr) whereConditions.push(`${src.prodCatSql} IN (${categoriesArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
 
         const channels = normalizeChannels(parseMultiSelectFilter(filters.channel));
         if (channels) {
-            const dbName = getCurrentDbName();
-            const isMars = dbName === 'mars';
-            const channelCol = isMars ? 'p.channel' : 'p.Channel';
-            whereConditions.push(buildInClause(channelCol, channels));
+            whereConditions.push(buildInClause(`p.${f.channel}`, channels));
         }
 
         const skus = parseMultiSelectFilter(filters.sku);
-        if (skus) whereConditions.push(buildInClause('p.Product', skus));
+        if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
 
         if (dimensionValue) {
             whereConditions.push(`lower(${groupByExpr}) = lower('${escapeStr(dimensionValue)}')`);
         }
 
-        const dbName = getCurrentDbName();
-        const isMars = dbName === 'mars';
-        const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
-
         const whereClause = whereConditions.join(' AND ');
+
+        const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
 
         const query = `
         SELECT
-            toString(p.DATE) AS date,
-            AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
-                THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100
-                ELSE NULL END) AS discount,
-            AVG(CASE WHEN ${weightExpr} > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr}
+            toString(p.${f.date}) AS date,
+            -- Current metrics (Subject Brands)
+            (SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
+            AVG(CASE WHEN ${f.wPpu} > 0 AND ${brandCondition}
+                THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
-            AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
-                ELSE NULL END) AS rpi,
-            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp,
-            SUM(toFloat64OrZero(toString(p.Sales))) AS offtake
-        FROM rb_pdp_olap p
+            
+            -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
+            (
+                AVG(CASE WHEN ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END)
+                /
+                NULLIF(AVG(CASE WHEN p.${f.compFlag} = '1' THEN ${f.wSellingPrice} ELSE NULL END), 0)
+            ) AS rpi,
+            
+            AVG(CASE WHEN ${brandCondition} THEN ${f.wSellingPrice} ELSE NULL END) AS asp,
+            any(po.platform_offtake) AS offtake
+        FROM ${src.table} p
+        LEFT JOIN (
+            SELECT ${f.date}, ${f.platform}, sum(ifNull(toFloat64OrZero(toString(${f.sales})), 0)) as platform_offtake 
+            FROM ${src.table} 
+            WHERE ${f.date} BETWEEN '${startDate}' AND '${endDate}'
+            GROUP BY ${f.date}, ${f.platform}
+        ) po ON p.${f.date} = po.${f.date} AND p.${f.platform} = po.${f.platform}
         WHERE ${whereClause}
-        GROUP BY p.DATE
-        ORDER BY p.DATE ASC
+        GROUP BY p.${f.date}
+        ORDER BY p.${f.date} ASC
         SETTINGS max_execution_time = 30
         `;
 
@@ -1009,7 +1096,6 @@ const getDimensionTrends = async (filters = {}) => {
             date: r.date,
             Discount: parseFloat(r.discount) || 0,
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
-            RPI: parseFloat(r.rpi) || 0,
             ASP: parseFloat(r.asp) || 0,
             Offtake: parseFloat(r.offtake) || 0,
         }));
@@ -1027,8 +1113,8 @@ const getDimensionTrends = async (filters = {}) => {
  */
 const getPricingCompetitionTrends = async (filters) => {
     try {
-        const dbName = getCurrentDbName();
-        const isMars = dbName === 'mars';
+        const src = await getPricingSource();
+        const f = src.f;
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const periodDays = filters.period === '3M' ? 90 : filters.period === '6M' ? 180 : filters.period === '1Y' ? 365 : 30;
         const startDate = filters.startDate || dayjs(endDate).subtract(periodDays - 1, 'day').format('YYYY-MM-DD');
@@ -1042,8 +1128,8 @@ const getPricingCompetitionTrends = async (filters) => {
         }
 
         let whereConditions = [
-            `p.DATE BETWEEN '${startDate}' AND '${endDate}'`,
-            "toFloat64OrZero(toString(p.Selling_Price)) > 0"
+            `p.${f.date} BETWEEN '${startDate}' AND '${endDate}'`,
+            `${f.wSellingPrice} > 0`
         ];
 
         const platform = filters.platform || null;
@@ -1053,27 +1139,26 @@ const getPricingCompetitionTrends = async (filters) => {
         const isPlatform = dimensionParam === 'platform';
         const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === 'location' || dimensionParam === 'city';
-        const groupByExpr = isPlatform ? 'p.Platform' : 
-                           isSku ? 'p.Product' : 
-                           (isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL);
+        const groupByExpr = isPlatform ? `p.${f.platform}` :
+            isSku ? `p.${f.product}` :
+                (isLocation ? src.cityNormSql : src.prodCatSql);
         const dimensionValue = filters.dimensionValue;
 
         const platforms = parseMultiSelectFilter(platform);
-        if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
+        if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
 
         const locations = normalizeLocations(parseMultiSelectFilter(location));
-        if (locations) whereConditions.push(buildInClause('p.Location', locations));
+        if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
         const categoriesArr = parseMultiSelectFilter(category);
         if (categoriesArr) {
             const escaped = categoriesArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
-            whereConditions.push(`lower(${PRODUCT_CATEGORY_SQL}) IN (${escaped})`);
+            whereConditions.push(`lower(${src.prodCatSql}) IN (${escaped})`);
         }
 
         const channels = normalizeChannels(parseMultiSelectFilter(filters.channel));
         if (channels) {
-            const channelCol = isMars ? 'p.channel' : 'p.Channel';
-            whereConditions.push(buildInClause(channelCol, channels));
+            whereConditions.push(buildInClause(`p.${f.channel}`, channels));
         }
 
         if (dimensionValue) {
@@ -1081,32 +1166,37 @@ const getPricingCompetitionTrends = async (filters) => {
         }
 
         // Target filtering
-        const targetColumn = mode === 'sku' ? 'Product' : 'Brand';
+        const targetColumn = mode === 'sku' ? f.product : f.brand;
         whereConditions.push(buildInClause(`p.${targetColumn}`, targets));
-
-        const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
 
         const whereClause = whereConditions.join(' AND ');
 
         const query = `
         SELECT
-            toString(p.DATE) AS date,
+            toString(p.${f.date}) AS date,
             p.${targetColumn} AS target_name,
-            AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
-                THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100
-                ELSE NULL END) AS discount,
-            AVG(CASE WHEN ${weightExpr} > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr}
+            (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
+            AVG(CASE WHEN ${f.wPpu} > 0
+                THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
-            AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
-                ELSE NULL END) AS rpi,
-            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp,
-            SUM(toFloat64OrZero(toString(p.Sales))) AS offtake
-        FROM rb_pdp_olap p
+            AVG(${f.wSellingPrice}) / NULLIF(any(c.avg_comp_val), 0) AS rpi,
+            AVG(${f.wSellingPrice}) AS asp,
+            SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
+        FROM ${src.table} p
+        LEFT JOIN (
+            SELECT 
+                p.${f.date} AS date_key, 
+                AVG(${f.wSellingPrice}) as avg_comp_val
+            FROM ${src.table} p
+            WHERE p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
+              AND p.${src.f.compFlag} = '1'
+              AND ${f.wSellingPrice} > 0
+              ${platforms ? `AND ${buildInClause(`p.${f.platform}`, platforms)}` : ''}
+            GROUP BY date_key
+        ) c ON p.${f.date} = c.date_key
         WHERE ${whereClause}
-        GROUP BY p.DATE, p.${targetColumn}
-        ORDER BY p.DATE ASC
+        GROUP BY p.${f.date}, p.${targetColumn}
+        ORDER BY p.${f.date} ASC
         SETTINGS max_execution_time = 30
         `;
 
@@ -1129,7 +1219,6 @@ const getPricingCompetitionTrends = async (filters) => {
             timeSeriesByTarget[tName][rowDate] = {
                 Discount: parseFloat(r.discount) || 0,
                 PricePerUnit: parseFloat(r.price_per_unit) || 0,
-                RPI: parseFloat(r.rpi) || 0,
                 ASP: parseFloat(r.asp) || 0,
                 Offtake: parseFloat(r.offtake) || 0,
             };
@@ -1151,8 +1240,8 @@ const getPricingCompetitionTrends = async (filters) => {
  */
 const getPricingCompetition = async (filters) => {
     try {
-        const dbName = getCurrentDbName();
-        const isMars = dbName === 'mars';
+        const src = await getPricingSource();
+        const f = src.f;
 
         const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
         const periodDays = filters.period === '3M' ? 90 : filters.period === '6M' ? 180 : filters.period === '1Y' ? 365 : 30;
@@ -1162,16 +1251,16 @@ const getPricingCompetition = async (filters) => {
         const isPlatform = dimensionParam === 'platform';
         const isSku = dimensionParam === 'sku';
         const isLocation = dimensionParam === "location" || dimensionParam === "city";
-        const groupByExpr = isPlatform ? 'p.Platform' : 
-                           isSku ? 'p.Product' : 
-                           (isLocation ? CITY_NORMALIZATION_SQL : PRODUCT_CATEGORY_SQL);
+        const groupByExpr = isPlatform ? `p.${f.platform}` :
+            isSku ? `p.${f.product}` :
+                (isLocation ? src.cityNormSql : src.prodCatSql);
         const dimensionValue = filters.dimensionValue;
 
         let whereConditions = [
-            `p.DATE BETWEEN '${startDate}' AND '${endDate}'`,
-            "toFloat64OrZero(toString(p.Selling_Price)) > 0",
-            "p.Brand IS NOT NULL",
-            "p.Brand != ''"
+            `p.${f.date} BETWEEN '${startDate}' AND '${endDate}'`,
+            `${f.wSellingPrice} > 0`,
+            `p.${f.brand} IS NOT NULL`,
+            `p.${f.brand} != ''`
         ];
 
         const platform = filters.platform || null;
@@ -1180,24 +1269,23 @@ const getPricingCompetition = async (filters) => {
         const category = filters.category || null;
 
         const platforms = parseMultiSelectFilter(platform);
-        if (platforms) whereConditions.push(buildInClause('p.Platform', platforms));
+        if (platforms) whereConditions.push(buildInClause(`p.${f.platform}`, platforms));
 
         const locations = normalizeLocations(parseMultiSelectFilter(location));
-        if (locations) whereConditions.push(buildInClause('p.Location', locations));
+        if (locations) whereConditions.push(buildInClause(`p.${f.location}`, locations));
 
         const brands = parseMultiSelectFilter(brand);
-        if (brands) whereConditions.push(buildInClause('p.Brand', brands));
+        if (brands) whereConditions.push(buildInClause(`p.${f.brand}`, brands));
 
         const categoriesArr = parseMultiSelectFilter(category);
         if (categoriesArr) {
             const escaped = categoriesArr.map(v => `'${escapeStr(v.toLowerCase())}'`).join(',');
-            whereConditions.push(`lower(${PRODUCT_CATEGORY_SQL}) IN (${escaped})`);
+            whereConditions.push(`lower(${src.prodCatSql}) IN (${escaped})`);
         }
 
         const channels = normalizeChannels(parseMultiSelectFilter(filters.channel));
         if (channels) {
-            const channelCol = isMars ? 'p.channel' : 'p.Channel';
-            whereConditions.push(buildInClause(channelCol, channels));
+            whereConditions.push(buildInClause(`p.${f.channel}`, channels));
         }
 
         // Filter by the specific dimension value (e.g., "Toothpaste" or "Mumbai")
@@ -1206,30 +1294,32 @@ const getPricingCompetition = async (filters) => {
         }
 
         const skus = parseMultiSelectFilter(filters.sku);
-        if (skus) whereConditions.push(buildInClause('p.Product', skus));
-
-        const weightExpr = isMars ? "1" : "toFloat64OrZero(extract(toString(p.Weight), '^[0-9.]+'))";
+        if (skus) whereConditions.push(buildInClause(`p.${f.product}`, skus));
 
         const whereClause = whereConditions.join(' AND ');
 
         // Brand-level query: Discount, PricePerUnit, RPI, ASP grouped by brand
+        const compAvgQuery = `
+            SELECT AVG(ifNull(toFloat64OrZero(toString(${f.wSellingPrice})), 0)) as avg_comp_sp
+            FROM ${src.table} p
+            WHERE ${whereClause} AND p.${src.f.compFlag} = '1'
+              AND ifNull(toFloat64OrZero(toString(${f.wSellingPrice})), 0) > 0
+        `;
+
         const brandQuery = `
+        WITH ( ${compAvgQuery} ) AS platform_comp_avg
         SELECT
-            p.Brand AS brand_name,
-            AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
-                THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100
-                ELSE NULL END) AS discount,
-            AVG(CASE WHEN ${weightExpr} > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr}
+            p.${f.brand} AS brand_name,
+            (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
+            AVG(CASE WHEN ${f.wPpu} > 0
+                THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
-            AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
-                ELSE NULL END) AS rpi,
-            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp,
-            SUM(toFloat64OrZero(toString(p.Sales))) AS offtake
-        FROM rb_pdp_olap p
+            AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
+            AVG(${f.wSellingPrice}) AS asp,
+            SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
+        FROM ${src.table} p
         WHERE ${whereClause}
-        GROUP BY brand_name
+        GROUP BY brand_name, platform_comp_avg
         ORDER BY discount DESC
         LIMIT 20
         SETTINGS max_execution_time = 30
@@ -1237,25 +1327,22 @@ const getPricingCompetition = async (filters) => {
 
         // SKU-level query: Discount, PricePerUnit, RPI, ASP grouped by product + brand
         const skuQuery = `
+        WITH ( ${compAvgQuery} ) AS platform_comp_avg
         SELECT
-            p.Product AS sku_name,
-            p.Brand AS brand_name,
-            AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
-                THEN ((toFloat64OrZero(toString(p.MRP)) - toFloat64OrZero(toString(p.Selling_Price))) / toFloat64OrZero(toString(p.MRP))) * 100
-                ELSE NULL END) AS discount,
-            AVG(CASE WHEN ${weightExpr} > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / ${weightExpr}
+            p.${f.product} AS sku_name,
+            p.${f.brand} AS brand_name,
+            (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
+            AVG(CASE WHEN ${f.wPpu} > 0
+                THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
-            AVG(CASE WHEN toFloat64OrZero(toString(p.MRP)) > 0
-                THEN toFloat64OrZero(toString(p.Selling_Price)) / toFloat64OrZero(toString(p.MRP))
-                ELSE NULL END) AS rpi,
-            AVG(toFloat64OrZero(toString(p.Selling_Price))) AS asp,
-            SUM(toFloat64OrZero(toString(p.Sales))) AS offtake
-        FROM rb_pdp_olap p
+            AVG(${f.wSellingPrice}) / NULLIF(platform_comp_avg, 0) AS rpi,
+            AVG(${f.wSellingPrice}) AS asp,
+            SUM(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS offtake
+        FROM ${src.table} p
         WHERE ${whereClause}
-          AND p.Product IS NOT NULL
-          AND p.Product != ''
-        GROUP BY p.Product, p.Brand
+          AND p.${f.product} IS NOT NULL
+          AND p.${f.product} != ''
+        GROUP BY p.${f.product}, p.${f.brand}, platform_comp_avg
         ORDER BY discount DESC
         LIMIT 40
         SETTINGS max_execution_time = 30
@@ -1271,9 +1358,7 @@ const getPricingCompetition = async (filters) => {
             brand_name: r.brand_name,
             Discount: parseFloat(r.discount) || 0,
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
-            RPI: parseFloat(r.rpi) || 0,
             ASP: parseFloat(r.asp) || 0,
-            Offtake: parseFloat(r.offtake) || 0,
         }));
 
         const skuRows = (skuResults || []).map(r => ({
@@ -1281,9 +1366,7 @@ const getPricingCompetition = async (filters) => {
             brand_name: r.brand_name,
             Discount: parseFloat(r.discount) || 0,
             PricePerUnit: parseFloat(r.price_per_unit) || 0,
-            RPI: parseFloat(r.rpi) || 0,
             ASP: parseFloat(r.asp) || 0,
-            Offtake: parseFloat(r.offtake) || 0,
         }));
 
         return { success: true, brands: brandRows, skus: skuRows };

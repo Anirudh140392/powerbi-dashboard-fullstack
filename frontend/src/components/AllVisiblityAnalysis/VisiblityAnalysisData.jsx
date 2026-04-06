@@ -29,8 +29,7 @@ import {
   Inbox
 } from "lucide-react";
 import VisibilityDrilldownTable from './VisibilityDrilldownTable';
-import TopSearchTerms from './TopSearchTerms';
-import { SignalLabVisibility } from './SignalLabVisibility';
+
 import VisibilityLayoutOne from './VisibilityLayoutOne';
 import MetricCardContainer from '../CommonLayout/MetricCardContainer';
 import ErrorRetryOverlay from '../CommonLayout/ErrorRetryOverlay';
@@ -38,9 +37,12 @@ import {
   VisibilityOverviewSkeleton,
   TabbedHeatmapTableSkeleton,
   VisibilityDrilldownSkeleton,
-  TopSearchTermsSkeleton
+  GainersDrainersSkeleton,
+  VisibilityPageSkeleton,
 } from './VisibilitySkeletons';
-import SKUVisibilityTable from './SKUVisibilityTable';
+
+import KeywordVisibilityDashboard from './KeywordVisibilityDashboard';
+import SearchTermsPerformance from './SearchTermsPerformance';
 
 // Reusable "No Data Available" component
 const NoDataAvailable = ({ title = 'No data available' }) => (
@@ -456,24 +458,16 @@ const VisiblityAnalysisData = ({
   loading = {},
   onRetry,
   onFiltersChange,
-  filters: parentFilters,
-  topSearchFilter: parentTopSearchFilter,
-  setTopSearchFilter: parentSetTopSearchFilter,
-  topSearchMode: parentTopSearchMode,
-  setTopSearchMode: parentSetTopSearchMode
+  filters: parentFilters
 }) => {
+  const { visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly } = useContext(FilterContext);
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
   const [modal, setModal] = useState(null)
   const [selectedCompetitors, setSelectedCompetitors] = useState(competitorSeries.map((c) => c.name))
-  const [skuTab, setSkuTab] = useState("My SKUs"); // My SKUs, ALL SKUs
-  // Use parent topSearchFilter if available, else fallback to local
-  const topSearchFilter = parentTopSearchFilter || "All";
-  const setTopSearchFilter = parentSetTopSearchFilter || (() => { });
+  // Removed local skuTab state, now using visibilityOwnBrandsOnly from context
 
-  const viewMode = parentTopSearchMode || "Keywords";
-  const setViewMode = parentSetTopSearchMode || (() => { });
 
   // const sampleData = [
   //   { Country: 'France', Products: 'Shampoo', Year: 'FY 2022', OrderSource: 'Store', UnitsSold: 320, InStock: 540, SoldAmount: 210 },
@@ -748,6 +742,13 @@ const VisiblityAnalysisData = ({
 
   // ---------------- FILTER OPTIONS ----------------
   const TabbedHeatmapTable = ({ apiMatrixData }) => {
+    const { 
+      setPlatform, 
+      setSelectedBrand, 
+      setSelectedLocation, 
+      setSelectedCategory 
+    } = useContext(FilterContext);
+
     const [activeTab, setActiveTab] = useState("platform");
 
     // ---------------- TABS (pure backend data, no fallbacks) ----------------
@@ -807,12 +808,21 @@ const VisiblityAnalysisData = ({
             showPagination={true}
             filterApiUrl="/api/visibility-analysis/filter-options"
             onFilterChange={(appliedFilters) => {
-              // Map matrix internal filter names to global filter names
+              console.log('🔄 [Matrix] Filters applied in modal:', appliedFilters);
+
+              // 1. Update Global Filter Context (Source of Truth)
+              // Handle single/multi-selection based on what's returned from the modal
+              if (appliedFilters.platforms) setPlatform(appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : (appliedFilters.platforms.length === 0 ? 'All' : appliedFilters.platforms));
+              if (appliedFilters.categories) setSelectedCategory(appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : (appliedFilters.categories.length === 0 ? 'All' : appliedFilters.categories));
+              if (appliedFilters.brands) setSelectedBrand(appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : (appliedFilters.brands.length === 0 ? 'All' : appliedFilters.brands));
+              if (appliedFilters.cities) setSelectedLocation(appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : (appliedFilters.cities.length === 0 ? 'All' : appliedFilters.cities));
+
+              // 2. Also update local page state for immediate UI reaction/fetch
               const mapped = {
-                platform: appliedFilters.platforms?.[0] || 'All',
-                category: appliedFilters.categories?.[0] || 'All',
-                brand: appliedFilters.brands?.[0] || 'All',
-                location: appliedFilters.cities?.[0] || 'All'
+                platform: (appliedFilters.platforms && appliedFilters.platforms.length > 0) ? (appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : appliedFilters.platforms) : 'All',
+                category: (appliedFilters.categories && appliedFilters.categories.length > 0) ? (appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : appliedFilters.categories) : 'All',
+                brand: (appliedFilters.brands && appliedFilters.brands.length > 0) ? (appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : appliedFilters.brands) : 'All',
+                location: (appliedFilters.cities && appliedFilters.cities.length > 0) ? (appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : appliedFilters.cities) : 'All'
               };
               onFiltersChange(prev => ({ ...prev, ...mapped }));
             }}
@@ -862,6 +872,7 @@ const VisiblityAnalysisData = ({
           title="Visibility Overview"
           icon={LayoutGrid}
           chip="All Platforms"
+          helpMenu="Visibility Analysis"
           headerRight={
             <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
               vs Previous Period
@@ -935,90 +946,7 @@ const VisiblityAnalysisData = ({
           />
         )}
       </div> */}
-      {/* Section 4: Top Search Terms / SKUs */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm relative">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-            {["Keywords", "SKU"].map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-4 py-1.5 text-[13px] font-semibold rounded-full transition-all ${viewMode === mode ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  }`}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
 
-          <div className="flex items-center gap-3">
-            {viewMode === "Keywords" ? (
-              <div className="flex gap-1.5 bg-slate-50 border border-slate-200 rounded-full p-1 w-max">
-                {["All", "Branded", "Competitor", "Generic"].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setTopSearchFilter(tab)}
-                    className={`px-3 py-1 text-[11px] font-semibold rounded-full transition-all ${topSearchFilter === tab ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700 border border-transparent"
-                      }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="flex gap-1.5 bg-slate-50 border border-slate-200 rounded-full p-1 w-max">
-                {["My SKUs", "ALL SKUs"].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => {
-                      // We will need a way to pass this state to SKUVisibilityTable
-                      // For now we'll use a local state in VisiblityAnalysisData or just rely on the table handling it if we can find it
-                      // The user said "show My SKUs and All SKUs tab in top right of SKU tab like in keywords tab"
-                      // I'll add a state for this.
-                      setSkuTab(tab);
-                    }}
-                    className={`px-3 py-1 text-[11px] font-semibold rounded-full transition-all ${skuTab === tab ? "bg-white text-slate-800 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700 border border-transparent"
-                      }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {viewMode === "Keywords" ? (
-          <>
-            {apiErrors?.searchTerms ? (
-              <ErrorRetryOverlay onRetry={() => onRetry?.('searchTerms')} message={apiErrors.searchTerms} compact />
-            ) : (loading?.searchTerms || apiData?.searchTerms === undefined) ? (
-              <TopSearchTermsSkeleton />
-            ) : apiData?.searchTerms?.terms?.length === 0 ? (
-              <NoDataAvailable title="No search terms data available" />
-            ) : (
-              <TopSearchTerms filter={topSearchFilter} apiData={apiData?.searchTerms} />
-            )}
-          </>
-        ) : (
-          <>
-            {apiErrors?.searchTerms ? (
-              <ErrorRetryOverlay onRetry={() => onRetry?.('searchTerms')} message={apiErrors.searchTerms} compact />
-            ) : (loading?.searchTerms || apiData?.searchTerms === undefined) ? (
-              <TopSearchTermsSkeleton />
-            ) : apiData?.searchTerms?.terms?.length === 0 ? (
-              <NoDataAvailable title="No SKU search data available" />
-            ) : (
-              <SKUVisibilityTable
-                activeTab={skuTab}
-                setActiveTab={setSkuTab}
-                apiData={apiData?.searchTerms}
-              />
-            )}
-          </>
-        )}
-      </div>
-      <SignalLabVisibility type="visibility" />
       {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <VisibilityLayoutOne />
       </div> */}
@@ -1155,7 +1083,11 @@ const VisiblityAnalysisData = ({
           </div>
         </div>
       )}
-
+      <KeywordVisibilityDashboard
+        apiData={apiData?.gainersAndDrainers}
+        loading={loading?.gainersAndDrainers || apiData?.gainersAndDrainers === undefined}
+      />
+      <SearchTermsPerformance />
     </div>
   )
 }

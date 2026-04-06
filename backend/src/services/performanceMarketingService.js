@@ -1,4 +1,4 @@
-import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
+import { queryClickHouse, getCurrentDbName, calculateConversion } from '../config/clickhouse.js';
 import dayjs from 'dayjs';
 import weekOfYear from 'dayjs/plugin/weekOfYear.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
@@ -8,10 +8,10 @@ dayjs.extend(weekOfYear);
 
 /**
  * Helper to resolve column names and wrap them with null/NaN safety
- * for rca_pm_olap table.
+ * for rb_pm_olap table.
  */
 async function getPmSource() {
-    const tableName = 'rca_pm_olap';
+    const tableName = 'rb_pm_olap';
     const cols = await getTableColumns(tableName);
     const r = (name) => resolveColumn(cols, name);
     const wrap = (col) => `ifNull(toFloat64OrZero(toString(${col})), 0)`;
@@ -55,7 +55,7 @@ const performanceMarketingService = {
     /**
      * Get Keyword Analysis Data
      * Hierarchy: Keyword -> Category
-     * Data source: rca_pm_olap
+     * Data source: rb_pm_olap
      */
     async getKeywordAnalysis(filters) {
         console.log("🔍 [Service] getKeywordAnalysis filters:", filters);
@@ -159,7 +159,7 @@ const performanceMarketingService = {
                         revenue: parseFloat(row.revenue || 0),
                         clicks: parseInt(row.clicks || 0),
                         orders: parseInt(row.orders || 0),
-                        conversion: row.impressions > 0 ? ((row.orders || 0) / row.impressions) * 100 : 0,
+                        conversion: calculateConversion(parseInt(row.orders || 0), parseInt(row.impressions || 0), parseInt(row.clicks || 0)),
                         roas: row.spend > 0 ? (row.revenue || 0) / row.spend : 0,
                         cpm: row.impressions > 0 ? (row.spend / row.impressions) * 1000 : 0
                     };
@@ -210,7 +210,7 @@ const performanceMarketingService = {
 
     /**
      * Get KPIs Overview (Impressions, Spend, ROAS, Conversion)
-     * Data source: rca_pm_olap
+     * Data source: rb_pm_olap
      * @param {Object} filters 
      */
     async getKpisOverview(filters) {
@@ -336,8 +336,8 @@ const performanceMarketingService = {
                             impressions: imp,
                             spend: sp,
                             roas_roas: sp > 0 ? rev / sp : 0,
-                            // Conversion % = (Orders / Impressions) * 100
-                            cr_percentage: imp > 0 ? (ord / imp) * 100 : 0
+                            // Conversion % = (Orders / Clicks) * 100
+                            cr_percentage: calculateConversion(ord, imp, clk)
                         };
                     });
                 };
@@ -358,9 +358,9 @@ const performanceMarketingService = {
                 // KPI 1: Impressions
                 const impressionsChange = calculateChange(currentMetrics.impressions, prevMetrics.impressions);
 
-                // KPI 2: Conversion Rate (Orders / Impressions * 100)
-                const currConversion = currentMetrics.impressions > 0 ? (currentMetrics.orders / currentMetrics.impressions) * 100 : 0;
-                const prevConversion = prevMetrics.impressions > 0 ? (prevMetrics.orders / prevMetrics.impressions) * 100 : 0;
+                // KPI 2: Conversion Rate (Orders / Clicks * 100)
+                const currConversion = calculateConversion(currentMetrics.orders, currentMetrics.impressions, currentMetrics.clicks);
+                const prevConversion = calculateConversion(prevMetrics.orders, prevMetrics.impressions, prevMetrics.clicks);
                 const conversionChange = currConversion - prevConversion; // Percentage point difference for rates
 
                 // KPI 3: Spend
@@ -416,7 +416,7 @@ const performanceMarketingService = {
                     const avgImpressions = prevMetrics.impressions / prevDuration;
                     const avgSpend = prevMetrics.spend / prevDuration;
                     const aggregateRoas = prevMetrics.spend > 0 ? prevMetrics.adSales / prevMetrics.spend : 0;
-                    const aggregateConversion = prevMetrics.impressions > 0 ? (prevMetrics.orders / prevMetrics.impressions) * 100 : 0;
+                    const aggregateConversion = calculateConversion(prevMetrics.orders, prevMetrics.impressions, prevMetrics.clicks);
 
                     finalTrendData.unshift({
                         date: prevStartDate.format('YYYY-MM-DD'), // Show as comparison start date
@@ -443,7 +443,7 @@ const performanceMarketingService = {
 
     /**
      * Get Daily Format Performance (keyword_category > Date)
-     * For HeatmapDrillTable - uses rca_pm_olap
+     * For HeatmapDrillTable - uses rb_pm_olap
      */
     async getFormatPerformance(filters) {
         console.log("🔍 [Service] getFormatPerformance filters:", filters);
@@ -508,12 +508,17 @@ const performanceMarketingService = {
                     }
                 }
 
+
+                // Filter out NULL/empty keyword_type to prevent duplicate 'Generic' rows
+                const keywordTypeCol = r('keyword_type');
+                conditions.push(`${keywordTypeCol} IS NOT NULL AND ${keywordTypeCol} != ''`);
+
                 const whereSql = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
 
                 // Group by category -> Date
                 const queryDaily = `
                     SELECT 
-                        ifNull(${f.keyword_type}, 'Generic') as KeywordType,
+                        initCap(trim(${f.keyword_type})) as KeywordType,
                         ifNull(keyword, 'N/A') as Keyword,
                         'N/A' as City,
                         ${f.category} as Category,
@@ -581,7 +586,7 @@ const performanceMarketingService = {
     ,
 
     /**
-     * Get distinct keywords from rca_pm_olap, optionally filtered by category
+     * Get distinct keywords from rb_pm_olap, optionally filtered by category
      * @param {string} category - Category name to filter keywords (optional)
      */
     getKeywords: async (category) => {
@@ -598,7 +603,7 @@ const performanceMarketingService = {
 
                 const query = `
                     SELECT DISTINCT keyword 
-                    FROM rca_pm_olap 
+                    FROM rb_pm_olap 
                     WHERE ${whereConditions.join(' AND ')}
                     ORDER BY keyword ASC
                 `;
@@ -612,7 +617,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct zones from rca_pm_olap, optionally filtered by brand
+     * Get distinct zones from rb_pm_olap, optionally filtered by brand
      * Since zone does not exist, return an empty array or handle gracefully.
      * @param {string} brand - Brand name to filter zones (optional)
      */
@@ -622,7 +627,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct platforms from rca_pm_olap for PM page
+     * Get distinct platforms from rb_pm_olap for PM page
      */
     async getPlatforms() {
         const cacheKey = 'pm_platforms';
@@ -648,7 +653,7 @@ const performanceMarketingService = {
     },
 
     /**
-     * Get distinct brands from rca_pm_olap, optionally filtered by platform
+     * Get distinct brands from rb_pm_olap, optionally filtered by platform
      * @param {string} platform - Platform to filter by (optional)
      */
     async getBrands(platform) {
@@ -684,7 +689,7 @@ const performanceMarketingService = {
 
     /**
      * Get campaign quadrant counts (Q1, Q2, Q3, Q4)
-     * For rca_pm_olap, acos_spend_class doesn't exist. We dynamically calculate
+     * For rb_pm_olap, acos_spend_class doesn't exist. We dynamically calculate
      * quadrants by grouping keywords based on whether their Spend and ROAS are
      * above or below the overall average for the filtered dataset.
      * @param {Object} filters - platform, brand, zone, startDate, endDate
@@ -935,9 +940,9 @@ const performanceMarketingService = {
                     baseConditions.push(`${f.category} IN (${cats})`);
                 }
 
-                // Filter out null keyword_type
+                // Filter out null/empty keyword_type to prevent duplicate 'Generic' rows
                 const keywordTypeCol = r('keyword_type');
-                baseConditions.push(`${keywordTypeCol} IS NOT NULL`);
+                baseConditions.push(`${keywordTypeCol} IS NOT NULL AND trim(${keywordTypeCol}) != ''`);
 
                 // Weekend Flag filter
                 if (filters.weekendFlag) {
@@ -1038,7 +1043,7 @@ const performanceMarketingService = {
 
                     const query = `
                     SELECT 
-                        ${keywordTypeCol} as keyword_type,
+                        initCap(trim(${keywordTypeCol})) as keyword_type,
                         SUM(ad_spend) as spend,
                         SUM(impressions) as impressions,
                         SUM(ad_click) as clicks,
@@ -1080,7 +1085,7 @@ const performanceMarketingService = {
 
                 const keywordQuery = `
                 SELECT 
-                    ${keywordTypeCol} as keyword_type,
+                    initCap(trim(${keywordTypeCol})) as keyword_type,
                     keyword as keyword_name,
                     SUM(ad_spend) as spend,
                     SUM(impressions) as impressions,
@@ -1125,7 +1130,7 @@ const performanceMarketingService = {
                     const clicks = parseFloat(row.clicks) || 0;
 
                     const orders = parseFloat(row.orders) || 0;
-                    const conversion = impressions > 0 ? ((orders / impressions) * 100).toFixed(1) + '%' : '0%';
+                    const conversion = calculateConversion(orders, impressions, clicks).toFixed(1) + '%';
 
                     // Get REAL M-1 and M-2 values from lookup maps
                     const m1Data = m1Map[row.keyword_type] || {};
@@ -1137,12 +1142,12 @@ const performanceMarketingService = {
                     const m1Clicks = parseFloat(m1Data.clicks) || 0;
                     const m1Impressions = parseFloat(m1Data.impressions) || 0;
                     const m1Orders = parseFloat(m1Data.orders) || 0;
-                    const m1Conv = m1Impressions > 0 ? ((m1Orders / m1Impressions) * 100).toFixed(1) + '%' : '0%';
+                    const m1Conv = calculateConversion(m1Orders, m1Impressions, m1Clicks).toFixed(1) + '%';
 
                     const m2Clicks = parseFloat(m2Data.clicks) || 0;
                     const m2Impressions = parseFloat(m2Data.impressions) || 0;
                     const m2Orders = parseFloat(m2Data.orders) || 0;
-                    const m2Conv = m2Impressions > 0 ? ((m2Orders / m2Impressions) * 100).toFixed(1) + '%' : '0%';
+                    const m2Conv = calculateConversion(m2Orders, m2Impressions, m2Clicks).toFixed(1) + '%';
 
                     // Build children from keywords
                     const children = (keywordsByType[row.keyword_type] || []).map(kw => {
@@ -1150,7 +1155,7 @@ const performanceMarketingService = {
                         const kwClicks = parseFloat(kw.clicks) || 0;
                         const kwImpressions = parseFloat(kw.impressions) || 0;
                         const kwOrders = parseFloat(kw.orders) || 0;
-                        const kwConv = kwImpressions > 0 ? ((kwOrders / kwImpressions) * 100).toFixed(1) + '%' : '0%';
+                        const kwConv = calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%';
 
                         // Get zones for this keyword
                         const zoneKey = `${kw.keyword_type}|${kw.keyword_name}`;
@@ -1159,7 +1164,7 @@ const performanceMarketingService = {
                             const zClicks = parseFloat(z.clicks) || 0;
                             const zImpressions = parseFloat(z.impressions) || 0;
                             const zOrders = parseFloat(z.orders) || 0;
-                            const zConv = zImpressions > 0 ? ((zOrders / zImpressions) * 100).toFixed(1) + '%' : '0%';
+                            const zConv = calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%';
 
                             return {
                                 label: z.zone,
@@ -1168,8 +1173,8 @@ const performanceMarketingService = {
                                     Math.round(zSpend * 0.9),
                                     Math.round(zSpend * 0.85),
                                     zConv,
-                                    zImpressions > 0 ? ((zOrders / zImpressions) * 100 * 0.95).toFixed(1) + '%' : '0%',
-                                    zImpressions > 0 ? ((zOrders / zImpressions) * 100 * 0.92).toFixed(1) + '%' : '0%'
+                                    calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%',
+                                    calculateConversion(zOrders, zImpressions, zClicks).toFixed(1) + '%'
                                 ],
                                 children: []
                             };
@@ -1183,8 +1188,8 @@ const performanceMarketingService = {
                                 Math.round(kwSpend * 0.9),
                                 Math.round(kwSpend * 0.85),
                                 kwConv,
-                                kwImpressions > 0 ? ((kwOrders / kwImpressions) * 100 * 0.95).toFixed(1) + '%' : '0%',
-                                kwImpressions > 0 ? ((kwOrders / kwImpressions) * 100 * 0.92).toFixed(1) + '%' : '0%'
+                                calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%',
+                                calculateConversion(kwOrders, kwImpressions, kwClicks).toFixed(1) + '%'
                             ],
                             children: zoneChildren
                         };

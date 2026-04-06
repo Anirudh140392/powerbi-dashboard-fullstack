@@ -266,7 +266,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                 className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]"
                                                 style={{ minWidth: 280 }}
                                             >
-                                                <div className="flex items-center h-full">PRODUCT / SKU</div>
+                                                <div className="flex items-center h-full text-emerald-800">PRODUCT / PLATFORM</div>
                                             </th>
 
                                             {/* <th
@@ -333,7 +333,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                                 </button>
                                                                 <div>
                                                                     <div className="font-bold text-slate-900 leading-5 text-xs">{r.name}</div>
-                                                                    <div className="text-xs text-slate-500 mt-0.5">{r.sku}</div>
+                                                                    <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-tight mt-0.5">{r.platform}</div>
                                                                 </div>
                                                             </div>
                                                         </td>

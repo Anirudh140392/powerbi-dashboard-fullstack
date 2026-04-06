@@ -60,6 +60,14 @@ export function getCurrentDbName() {
 }
 
 /**
+ * Calculates Conversion for all dashboard profiles.
+ * Unified Formula: Orders / Clicks
+ */
+export function calculateConversion(orders = 0, impressions = 0, clicks = 0) {
+    return clicks > 0 ? (orders / clicks) * 100 : 0;
+}
+
+/**
  * Get the current ClickHouse client based on the request context
  */
 function getCurrentClient() {

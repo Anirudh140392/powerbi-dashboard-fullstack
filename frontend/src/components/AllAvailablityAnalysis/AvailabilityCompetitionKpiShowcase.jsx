@@ -354,8 +354,15 @@ const MetricChip = ({ label, color, active, onClick }) => {
     );
 };
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrendData }) => {
+const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrendData, isEcom }) => {
     const [activeMetric, setActiveMetric] = useState("Osa");
+
+    useEffect(() => {
+        if (isEcom && activeMetric === 'Listing') {
+            setActiveMetric('Osa');
+        }
+    }, [isEcom, activeMetric]);
+
 
     const metricMeta =
         KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
@@ -395,15 +402,18 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
             <CardHeader className="flex items-start justify-between border-b pb-3">
                 <div className="space-y-2">
                     <Box display="flex" gap={1} flexWrap="wrap">
-                        {(isBrandMode ? KPI_KEYS.filter(m => m.key !== 'Sos' && m.key !== 'Fillrate') : KPI_KEYS.filter(m => m.key !== 'Sos' && m.key !== 'Fillrate')).map((m) => (
-                            <MetricChip
-                                key={m.key}
-                                label={m.label}
-                                color={m.color}
-                                active={activeMetric === m.key}
-                                onClick={() => setActiveMetric(m.key)}
-                            />
-                        ))}
+                        {KPI_KEYS
+                            .filter(m => !(isEcom && m.key === 'Listing'))
+                            .map((m) => (
+                                <MetricChip
+                                    key={m.key}
+                                    label={m.label}
+                                    color={m.color}
+                                    active={activeMetric === m.key}
+                                    onClick={() => setActiveMetric(m.key)}
+                                />
+                            ))}
+
                     </Box>
 
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -463,17 +473,11 @@ const KPI_KEYS = [
         unit: "%",
     },
     {
-        key: "Sos",
-        label: "SOS",
-        color: "#6366F1",
+        key: "Listing",
+        label: "Listing %",
+        color: "#0EA5E9",
         unit: "%",
     },
-    {
-        key: "Fillrate",
-        label: "Fillrate",
-        color: "#22C55E",
-        unit: "%",
-    }
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -495,7 +499,9 @@ const BrandTable = ({ rows, loading }) => {
                             <tr>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
+                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
                             </tr>
+
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && Array.from({ length: 5 }).map((_, idx) => (
@@ -520,14 +526,23 @@ const BrandTable = ({ rows, loading }) => {
                                             {(row.osa || 0).toFixed(1)}%
                                         </span>
                                     </td>
+                                    {!isEcom && (
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {(row.listing || 0).toFixed(1)}%
+                                            </span>
+                                        </td>
+                                    )}
                                 </tr>
+
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={2}
+                                        colSpan={isEcom ? 2 : 3}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
+
                                         No brands matching current filters.
                                     </td>
                                 </tr>
@@ -556,12 +571,14 @@ const SkuTable = ({ rows, loading }) => {
                                 <th className="px-3 py-2 text-left">SKU</th>
                                 <th className="px-3 py-2 text-left">Brand</th>
                                 <th className="px-3 py-2 text-center">OSA</th>
+                                {!isEcom && <th className="px-3 py-2 text-center">Listing %</th>}
                             </tr>
+
                         </thead>
                         <tbody className="divide-y divide-slate-100 bg-white">
                             {loading && (
                                 <tr>
-                                    <td colSpan={3} className="px-3 py-6 text-center text-[12px] text-slate-400">
+                                    <td colSpan={4} className="px-3 py-6 text-center text-[12px] text-slate-400">
                                         <div className="animate-pulse">Loading competition data...</div>
                                     </td>
                                 </tr>
@@ -585,14 +602,23 @@ const SkuTable = ({ rows, loading }) => {
                                             {(row.osa || 0).toFixed(1)}%
                                         </span>
                                     </td>
+                                    {!isEcom && (
+                                        <td className="px-3 py-2 text-center text-[12px]">
+                                            <span className="font-semibold text-slate-700">
+                                                {(row.listing || 0).toFixed(1)}%
+                                            </span>
+                                        </td>
+                                    )}
                                 </tr>
+
                             ))}
                             {!loading && rows.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={3}
+                                        colSpan={isEcom ? 3 : 4}
                                         className="px-3 py-6 text-center text-[12px] text-slate-400"
                                     >
+
                                         No SKUs matching current filters.
                                     </td>
                                 </tr>
@@ -818,7 +844,9 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
 /* -------------------------------------------------------------------------- */
 
 export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, period }) => {
+    const isEcom = platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
     const [tab, setTab] = useState("brand");
+
     const [city, setCity] = useState("All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState({

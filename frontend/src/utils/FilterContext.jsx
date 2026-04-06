@@ -13,7 +13,7 @@ export const initialContextLoaded = (ctx) => ctx.datesFetched && ctx.platformsFe
 const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart"];
 const FALLBACK_CATEGORIES = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
 const FALLBACK_LOCATIONS = [];
-const FALLBACK_BRANDS = ["Colgate", "Closeup", "Palmolive", "Halo"];
+const FALLBACK_BRANDS = [];
 const FALLBACK_CHANNELS = ["Ecom", "ModernTrade"];
 
 export const FilterProvider = ({ children }) => {
@@ -41,7 +41,7 @@ export const FilterProvider = ({ children }) => {
     const [keywords, setKeywords] = useState([]);
     const [selectedKeyword, setSelectedKeyword] = useState(["All"]);
 
-    // Keyword Type state (for visibility analysis) - fetched dynamically from rca_pm_olap
+    // Keyword Type state (for visibility analysis) - fetched dynamically from rb_pm_olap
     const [keywordTypes, setKeywordTypes] = useState([]);
     const [selectedKeywordType, setSelectedKeywordType] = useState(["All"]);
 
@@ -67,6 +67,12 @@ export const FilterProvider = ({ children }) => {
     const [datesFetched, setDatesFetched] = useState(false);
     const [platformsFetched, setPlatformsFetched] = useState(false);
 
+    // Content-specific filter mode (hides category filter on Content Analysis page)
+    const [contentFilterMode, setContentFilterMode] = useState(false);
+
+    // Visibility-specific segment toggle (My SKUs vs All SKUs)
+    const [visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly] = useState(true);
+
     const datesInitialized = Boolean(timeStart && timeEnd);
 
     // ====== RESET STATE ON LOGOUT ======
@@ -90,8 +96,8 @@ export const FilterProvider = ({ children }) => {
             setSelectedCategory("All");
             setProductCategories([]);
             setSelectedProductCategory("All");
-            setDatesFetched(false);
             setPlatformsFetched(false);
+            setVisibilityOwnBrandsOnly(true);
         }
     }, [isAuthenticated]);
 
@@ -159,30 +165,92 @@ export const FilterProvider = ({ children }) => {
 
         setPlatformsFetched(false);
         try {
-            const params = {};
-            if (selectedChannel && selectedChannel !== "All") {
-                params.channel = selectedChannel;
-            }
-            const res = await axiosInstance.get("/watchtower/platforms", { params });
-            if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                console.log("[FilterContext] Fetched platforms from DB:", res.data);
-                setPlatforms(res.data);
-                // Keep "All" or current selection if it's still valid
-                setPlatform(prevPlatform => {
-                    if (prevPlatform === "All") return "All";
-                    const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
-                    const validPlatforms = currentList.filter(p => res.data.includes(p));
-                    if (validPlatforms.length === 0) return "All";
-                    if (validPlatforms.length === res.data.length) return "All";
-                    return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
-                });
+            // If we are on the Market Share page, fetch all top filters from rb_ms_olap
+            const isMarketShare = window.location.hash.includes('/market-share');
+
+            if (isMarketShare) {
+                console.log("[FilterContext] Fetching Market Share top filters from rb_ms_olap...");
+                const res = await axiosInstance.get("/market-share/top-filter-options");
+                if (res.data) {
+                    const newPlatforms = res.data.platforms || [];
+                    const newCategories = res.data.categories || [];
+                    const newChannels = res.data.channels || [];
+                    const newLocations = res.data.locations || [];
+
+                    if (newPlatforms.length > 0) setPlatforms(newPlatforms);
+                    if (newCategories.length > 0) setCategories(newCategories);
+                    if (newChannels.length > 0) setChannels(newChannels);
+                    if (newLocations.length > 0) setLocations(newLocations);
+                    
+                    // Validate current platform selection
+                    setPlatform(prev => {
+                        if (prev === "All") return "All";
+                        const currentList = Array.isArray(prev) ? prev : [prev];
+                        const valid = currentList.filter(p => newPlatforms.includes(p));
+                        if (valid.length === 0) return "All";
+                        return valid.length === 1 ? valid[0] : valid;
+                    });
+
+                    // Validate current category selection
+                    setSelectedCategory(prev => {
+                        if (prev === "All") return "All";
+                        const currentList = Array.isArray(prev) ? prev : [prev];
+                        const valid = currentList.filter(c => newCategories.includes(c));
+                        if (valid.length === 0) return "All";
+                        return valid.length === 1 ? valid[0] : valid;
+                    });
+
+                    // Validate current location selection
+                    setSelectedLocation(prev => {
+                        if (prev === "All") return "All";
+                        const currentList = Array.isArray(prev) ? prev : [prev];
+                        const valid = currentList.filter(l => newLocations.includes(l));
+                        if (valid.length === 0) return "All";
+                        return valid.length === 1 ? valid[0] : valid;
+                    });
+                }
+            } else if (window.location.hash.includes('/content-analysis')) {
+                const res = await axiosInstance.get("/content-analysis/platforms");
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched dynamic platforms from Content Analysis:", res.data);
+                    setPlatforms(res.data);
+                    // Keep "All" or current selection if it's still valid
+                    setPlatform(prevPlatform => {
+                        if (prevPlatform === "All") return "All";
+                        const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
+                        const validPlatforms = currentList.filter(p => res.data.includes(p));
+                        if (validPlatforms.length === 0) return "All";
+                        if (validPlatforms.length === res.data.length) return "All";
+                        return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
+                    });
+                } else {
+                    setPlatforms(FALLBACK_PLATFORMS);
+                    setPlatform("All");
+                }
             } else {
-                setPlatforms(FALLBACK_PLATFORMS);
-                setPlatform("All");
+                const res = await axiosInstance.get("/watchtower/platforms", {
+                    params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
+                });
+                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                    console.log("[FilterContext] Fetched dynamic platforms from Watchtower:", res.data);
+                    setPlatforms(res.data);
+                    // Keep "All" or current selection if it's still valid
+                    setPlatform(prevPlatform => {
+                        if (prevPlatform === "All") return "All";
+                        const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
+                        const validPlatforms = currentList.filter(p => res.data.includes(p));
+                        if (validPlatforms.length === 0) return "All";
+                        if (validPlatforms.length === res.data.length) return "All";
+                        return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
+                    });
+                } else {
+                    setPlatforms(FALLBACK_PLATFORMS);
+                    setPlatform("All");
+                }
             }
         } catch (err) {
-            console.warn("[FilterContext] Failed to fetch platforms, using fallback:", err.message);
-            setPlatforms(FALLBACK_PLATFORMS);
+            console.warn("[FilterContext] Failed to fetch dynamic platforms, using fallback:", err.message);
+            // Fallbacks are set in individual effects or on mount
         } finally {
             setPlatformsFetched(true);
         }
@@ -201,6 +269,8 @@ export const FilterProvider = ({ children }) => {
     useEffect(() => {
         const fetchCategories = async () => {
             if (!isAuthenticated) return;
+            // Skip generic category fetch if on Market Share page
+            if (window.location.hash.includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/categories", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -229,6 +299,8 @@ export const FilterProvider = ({ children }) => {
 
         const fetchVisibilityCategories = async () => {
             if (!isAuthenticated) return;
+            // Skip generic category fetch if on Market Share page
+            if (window.location.hash.includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/visibility-analysis/categories", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -293,6 +365,8 @@ export const FilterProvider = ({ children }) => {
     useEffect(() => {
         const fetchLocations = async () => {
             if (!isAuthenticated) return;
+            // Skip generic location fetch if on Market Share page
+            if (window.location.hash.includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/locations", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -329,6 +403,8 @@ export const FilterProvider = ({ children }) => {
     useEffect(() => {
         const fetchBrands = async () => {
             if (!isAuthenticated) return;
+            // Skip generic brand fetch if on Market Share page
+            if (window.location.hash.includes('/market-share')) return;
             try {
                 const res = await axiosInstance.get("/watchtower/brands", {
                     params: { platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform) }
@@ -356,7 +432,7 @@ export const FilterProvider = ({ children }) => {
             } catch (err) {
                 console.warn("[FilterContext] Failed to fetch brands, using fallback:", err.message);
                 setBrands(FALLBACK_BRANDS);
-                setSelectedBrand(FALLBACK_BRANDS[0]);
+                setSelectedBrand("All");
             }
         };
         fetchBrands();
@@ -370,7 +446,8 @@ export const FilterProvider = ({ children }) => {
             try {
                 const params = {
                     platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
-                    category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory)
+                    category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+                    ownBrandsOnly: visibilityOwnBrandsOnly
                 };
 
                 console.log("[FilterContext] Fetching keywords with params:", params);
@@ -396,7 +473,7 @@ export const FilterProvider = ({ children }) => {
         };
 
         fetchKeywords();
-    }, [isAuthenticated, platform, selectedCategory]);
+    }, [isAuthenticated, platform, selectedCategory, visibilityOwnBrandsOnly]);
 
     // ====== FETCH KEYWORD TYPES FROM DB (when platform changes) ======
     useEffect(() => {
@@ -482,7 +559,11 @@ export const FilterProvider = ({ children }) => {
             datesInitialized,
             datesFetched,
             platformsFetched,
-            refreshFilters
+            refreshFilters,
+            contentFilterMode,
+            setContentFilterMode,
+            visibilityOwnBrandsOnly,
+            setVisibilityOwnBrandsOnly
         }}>
             {children}
         </FilterContext.Provider>

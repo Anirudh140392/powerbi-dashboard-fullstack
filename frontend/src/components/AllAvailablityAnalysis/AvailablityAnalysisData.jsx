@@ -1243,6 +1243,15 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
   const [localLoading, setLocalLoading] = useState(false);
+  
+  const isBoatUser = useMemo(() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user'));
+      return u?.dbName?.toLowerCase() === 'boat';
+    } catch {
+      return false;
+    }
+  }, []);
 
   const {
     selectedBrand,
@@ -1362,6 +1371,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
             icon={LayoutGrid}
             chip="Absolute Basis"
             loading={isLoading}
+            helpMenu="Availability Analysis"
             headerRight={
               <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
                 vs Previous Period
@@ -1372,9 +1382,11 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         )}
 
         {/* Signal Lab Availability Segment */}
-        <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
-          <SignalLabVisibility type="availability" loading={isLoading} />
-        </div>
+        {!isBoatUser && (
+          <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
+            <SignalLabVisibility type="availability" loading={isLoading} />
+          </div>
+        )}
 
         {isLoading ? (
           <PlatformKpiMatrixSkeleton />

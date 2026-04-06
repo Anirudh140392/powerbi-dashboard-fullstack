@@ -1,24 +1,13 @@
-
 import { queryClickHouse } from './src/config/clickhouse.js';
 
-async function checkData() {
+async function checkSales() {
     try {
-        const query = `
-            SELECT 
-                p.Product, 
-                p.Web_Pid, 
-                m.item_name, 
-                m.sales 
-            FROM rb_pdp_olap p 
-            INNER JOIN rb_brand_ms m ON p.Web_Pid = m.web_pid 
-            WHERE p.Product LIKE '%KitKat%' 
-            LIMIT 5
-        `;
+        const query = `SELECT count(*) as cnt FROM rb_pdp_olap WHERE Sales IS NOT NULL OR Qty_Sold IS NOT NULL`;
         const results = await queryClickHouse(query);
-        console.log(JSON.stringify(results, null, 2));
-    } catch (e) {
-        console.error(e);
+        console.log('Non-null Sales/Qty count:', JSON.stringify(results, null, 2));
+    } catch (err) {
+        console.error('Error:', err);
     }
 }
 
-checkData();
+checkSales();

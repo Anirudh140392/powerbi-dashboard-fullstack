@@ -23,9 +23,9 @@ export function PerformanceBreakdownProvider({ darkMode = false, filters = { pla
 function getAuthToken() { return typeof window === "undefined" ? null : localStorage.getItem(AUTH_TOKEN_KEY); }
 function buildUrl(endpoint) {
     if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) return endpoint;
-    // Use relative paths to go through Vite proxy (dev) or nginx proxy (prod)
-    if (endpoint.startsWith("/api")) return endpoint;
-    return `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    const base = API_BASE_URL ? API_BASE_URL : "";
+    let path = endpoint.startsWith("/api") ? endpoint : `/api${endpoint.startsWith("/") ? endpoint : "/" + endpoint}`;
+    return `${base}${path}`;
 }
 function handleUnauthorized() {
     localStorage.removeItem("isLoggedIn");
@@ -71,7 +71,6 @@ function formatDateRangeShort(range) {
 const GROUP_DIMENSIONS = [
     { value: "category", label: "Category", icon: "📂" },
     { value: "brand", label: "Brand", icon: "🏷️" },
-    { value: "sku", label: "SKU", icon: "🧾" },
 ];
 const PRESET_PERIODS = [
     { key: "last_week", label: "Last Week", type: "preset" },
@@ -378,13 +377,18 @@ export function AggregatedViewTable() {
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
-            if (filters.platform?.length > 0 && !filters.platform.includes("all")) {
+            if (filters.platform?.length > 0 && !filters.platform.includes("all") && !filters.platform.includes("All")) {
                 params.set("platform_uuid", filters.platform.join(","));
             }
             if (filters.channel) params.set("channel", filters.channel);
             if (filters.category?.length > 0 && !filters.category.includes("All")) params.set("category", filters.category.join(","));
             if (filters.brand && filters.brand !== "All") params.set("brand", Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand);
             if (filters.location?.length > 0 && !filters.location.includes("All")) params.set("location", filters.location.join(","));
+            
+            // Pass the global context dates if they exist
+            if (filters.dateStart) params.set("startDate", filters.dateStart);
+            if (filters.dateEnd) params.set("endDate", filters.dateEnd);
+            
             params.set("group_by", groupBy);
             // Pass selected period keys so backend can compute comparison data
             if (selectedPeriods.length > 0) {
@@ -404,7 +408,22 @@ export function AggregatedViewTable() {
             const result = res.data;
             if (res.success && result?.success && result.data?.length > 0) {
                 setData(result.data);
-                setTotals(result.totals || null);
+                
+                // Dynamically calculate totals strictly based on the fetched row data
+                const calcTotals = result.data.reduce((acc, row) => {
+                    acc.impressions += (parseFloat(row.impressions) || 0);
+                    acc.clicks += (parseFloat(row.clicks) || 0);
+                    acc.spends += (parseFloat(row.spends) || 0);
+                    acc.orders += (parseFloat(row.orders) || 0);
+                    acc.sales += (parseFloat(row.sales) || 0);
+                    return acc;
+                }, { impressions: 0, clicks: 0, spends: 0, orders: 0, sales: 0 });
+                
+                calcTotals.ctr = calcTotals.impressions > 0 ? (calcTotals.clicks / calcTotals.impressions) * 100 : 0;
+                calcTotals.cpc = calcTotals.clicks > 0 ? (calcTotals.spends / calcTotals.clicks) : 0;
+                calcTotals.cvr = calcTotals.clicks > 0 ? (calcTotals.orders / calcTotals.clicks) * 100 : 0;
+                
+                setTotals(calcTotals);
                 setUntagged(result.untagged || null);
                 setPeriodComparison(result.period_comparison || null);
             } else {
@@ -477,7 +496,7 @@ export function AggregatedViewTable() {
                         </div>
                         <button onClick={() => {
                             // CSV Download
-                            const headers = [currentDimension.label, "Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Sales"];
+                            const headers = [currentDimension.label, "Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Ad Sales"];
                             const csvRows = [headers.join(",")];
                             data.forEach(row => {
                                 csvRows.push([
@@ -502,7 +521,7 @@ export function AggregatedViewTable() {
                     <thead>
                         <tr className={darkMode ? "bg-slate-800/50" : "bg-slate-50/50"}>
                             <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{currentDimension.label}</th>
-                            {["Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
+                            {["Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Ad Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">

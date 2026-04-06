@@ -347,15 +347,7 @@ export default function AvailablityAnalysis() {
     }
 
     const queryParams = buildQueryParams();
-    const osaDetailParams = new URLSearchParams({
-      platform: 'All',
-      brand: filters.brand || 'All',
-      location: 'All',
-      startDate: filters.startDate,
-      endDate: filters.endDate,
-      productCategory: filters.productCategory,
-      ownBrandsOnly: 'true'
-    }).toString();
+    const osaDetailParams = buildQueryParams();
 
     switch (segmentKey) {
       case 'overview': return fetchOverview(queryParams);
@@ -414,16 +406,8 @@ export default function AvailablityAnalysis() {
 
         console.log('📡 Fetching availability data. Global filters:', filters.platform, filters.brand, filters.location);
 
-        // OSA Detail uses only date range (shows ALL products regardless of brand/platform filter)
-        const osaDetailParams = new URLSearchParams({
-          platform: 'All',
-          brand: filters.brand || 'All',
-          location: 'All',
-          startDate: filters.startDate,
-          endDate: filters.endDate,
-          productCategory: filters.productCategory,
-          ownBrandsOnly: 'true'
-        }).toString();
+        // OSA Detail now uses global filters (Channel, Platform, Category, Location)
+        const osaDetailParams = buildQueryParams();
 
         // Fetch all segments (errors are tracked per-segment)
         await Promise.allSettled([

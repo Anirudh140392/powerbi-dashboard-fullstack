@@ -220,6 +220,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
               )}
             </Box>
           </Box>
+
         </Box>
 
         {/* FILTERS CONTAINER */}
@@ -281,7 +282,10 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                 />
               )} */}
 
-              {title !== "Business Overview" && !location.pathname.includes("market-share") && !location.pathname.includes("visibility") && (
+              {title !== "Business Overview" && 
+               !location.pathname.includes("market-share") && 
+               !location.pathname.includes("visibility") && 
+               !location.pathname.includes("content-score") && (
                 <CustomHeaderDropdown
                   label="LOCATION"
                   options={locations}

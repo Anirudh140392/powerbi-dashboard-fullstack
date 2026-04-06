@@ -426,18 +426,30 @@ export default function TrendsCompetitionDrawer({
   selectedLevel,
   dimensionType,
   brandOptions,
-  initialPlatform,
+  initialPlatform = "Blinkit",
+  defaultView = "Trends",
+  initialAudience = "Platform",
 }) {
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
-      audience: "Platform", // default value
+      audience: initialAudience, // default value
     },
   });
+
+  useLayoutEffect(() => {
+    if (open) {
+      allSetTrendMeta((prev) => ({
+        ...prev,
+        context: { ...prev.context, audience: initialAudience },
+      }));
+      setShowPlatformPills(true);
+    }
+  }, [open, initialAudience]);
 
   const { maxDate } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
-  const [view, setView] = useState("Trends");
+  const [view, setView] = useState(defaultView || "Trends");
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
   const [activeMetrics, setActiveMetrics] = useState([]);
@@ -455,98 +467,55 @@ export default function TrendsCompetitionDrawer({
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
+  const isEcom = (typeof selectedPlatform === 'string' && (selectedPlatform.toLowerCase() === "amazon" || selectedPlatform.toLowerCase() === "flipkart"));
+
+
   // Drawer-specific filters for the Effective Filters bar
   const [drawerFilters, setDrawerFilters] = useState({
     Platform: "All",
     Format: "All",
     Brand: "All",
-    City: "All"
+    City: "All",
+    SKU: "All"
   });
 
   // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
   useEffect(() => {
     if (selectedColumn && open) {
       if (dynamicKey === "pricing") {
-        // For pricing, the selectedColumn is a category/city name, NOT a platform.
-        // Don't set it as a platform filter — it will be passed as dimensionValue in the API.
-        setSelectedPlatform("Blinkit"); // default platform pill
+        setSelectedPlatform(initialPlatform || "Blinkit");
         setDrawerFilters(prev => ({
           ...prev,
-          Platform: "All",
+          Platform: initialPlatform || "All",
           City: "All",
           Brand: "All",
           Format: "All",
+          SKU: "All",
         }));
       } else {
-        // Map selectedLevel to drawer layout "audience" (Platform, Format, City, Brand)
-        const normLevel = selectedLevel?.toLowerCase();
-        const audienceMap = {
-          platform: "Platform",
-          format: "Format",
-          category: "Format",
-          city: "City",
-          brand: "Brand",
-          month: "Platform",
-          sku: "Platform"
-        };
+        setSelectedPlatform(initialPlatform || selectedColumn || "Blinkit");
 
-        const activeAudience = audienceMap[normLevel] || "Platform";
-
-        // Handle specific default selections based on the segment clicked
-        if (normLevel === "platform") {
-          setSelectedPlatform(selectedColumn);
-          setDrawerFilters(prev => ({
-            Platform: selectedColumn,
-            Format: "All",
-            City: "All",
-            Brand: "All"
-          }));
-        } else if (normLevel === "brand") {
-          setSelectedPlatform(initialPlatform || "Blinkit");
-          setDrawerFilters(prev => ({
-            Platform: initialPlatform || "Blinkit",
-            Format: "All",
-            City: "All",
-            Brand: selectedColumn
-          }));
-        } else if (normLevel === "category") {
-          setSelectedPlatform(initialPlatform || "Blinkit");
-          setDrawerFilters(prev => ({
-            Platform: initialPlatform || "Blinkit",
-            Format: selectedColumn,
-            City: "All",
-            Brand: "All"
-          }));
-        } else if (normLevel === "month" || normLevel === "sku") {
-          // For Month and SKU, default to first platform (Blinkit) and clear specific dimension filters
-          setSelectedPlatform("Blinkit");
-          setDrawerFilters(prev => ({
-            Platform: "Blinkit",
-            Format: "All",
-            City: "All",
-            Brand: "All"
-          }));
-        } else {
-          // Fallback logic
-          setSelectedPlatform(initialPlatform || "Blinkit");
-          setDrawerFilters(prev => ({
-            Platform: initialPlatform || "All",
-            Format: activeAudience === "Format" ? selectedColumn : "All",
-            City: activeAudience === "City" ? selectedColumn : "All",
-            Brand: activeAudience === "Brand" ? selectedColumn : "All"
-          }));
-        }
-
-        // Update the context audience so logic downstream knows the level
-        allSetTrendMeta(prev => ({
+        const currentAudience = initialAudience || allTrendMeta.context.audience;
+        setDrawerFilters(prev => ({
           ...prev,
-          context: { ...prev.context, audience: activeAudience }
+          Platform: initialPlatform || prev.Platform,
+          [currentAudience]: selectedColumn,
         }));
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedColumn, open, dynamicKey, initialPlatform]);
 
+  useEffect(() => {
+    if (open) {
+      setView(defaultView || "Trends");
+      setSelectedPlatform(initialPlatform || selectedPlatform || "Blinkit");
+      setDrawerFilters(prev => ({
+        ...prev,
+        Platform: initialPlatform || prev.Platform || "All",
+      }));
+    }
+  }, [open, defaultView, initialPlatform]);
 
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);
@@ -574,6 +543,7 @@ export default function TrendsCompetitionDrawer({
   const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : [];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
   const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : (brandOptions || ["Amul", "Mother Dairy", "Nestle", "Hatsun"]);
+  const SKU_OPTIONS = filterOptions.skus.length > 0 ? filterOptions.skus : [];
 
   // ===================== FETCH FILTER OPTIONS =====================
   useEffect(() => {
@@ -665,6 +635,8 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         console.log('[TrendsDrawer] Fetching PRICING trends with params:', params);
@@ -687,6 +659,8 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         const response = await axiosInstance.get('/market-share/trends', { params });
@@ -709,6 +683,8 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           ownBrandsOnly: 'true'
         };
 
@@ -732,6 +708,8 @@ export default function TrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
         };
 
         const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
@@ -768,6 +746,7 @@ export default function TrendsCompetitionDrawer({
         location: drawerFilters.City !== 'All' ? drawerFilters.City : undefined,
         brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
         category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
+        sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
       };
 
       const response = await axiosInstance.get('/watchtower/competition', { params });
@@ -783,6 +762,15 @@ export default function TrendsCompetitionDrawer({
       setCompLoading(false);
     }
   }, [view, open, range, drawerFilters]);
+  
+  const handleRowTrendClick = useCallback((target, type) => {
+    setView("Trends");
+    if (type === 'brand') {
+      setDrawerFilters(prev => ({ ...prev, Brand: target, SKU: 'All' }));
+    } else if (type === 'sku') {
+      setDrawerFilters(prev => ({ ...prev, SKU: target }));
+    }
+  }, []);
 
   useEffect(() => {
     if (view !== "Competition" || !open) return;
@@ -1230,7 +1218,7 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             {
-              id: "Promo-My",
+              id: "Discount",
               label: "Promo-My %",
               color: "#6366F1",
               axis: "right",
@@ -1244,13 +1232,6 @@ export default function TrendsCompetitionDrawer({
               default: true,
             },
             {
-              id: "RPI",
-              label: "RPI",
-              color: "#F43F5E",
-              axis: "right",
-              default: false,
-            },
-            {
               id: "ASP",
               label: "Avg Selling Price (₹)",
               color: "#8B5CF6",
@@ -1260,24 +1241,23 @@ export default function TrendsCompetitionDrawer({
             {
               id: "Offtake",
               label: "Offtake",
-              color: "#F97316",
+              color: "#F59E0B",
               axis: "left",
               default: false,
             },
           ],
           points: [
-            { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, RPI: 3.8, ASP: 190 },
-            { date: "10 Sep'25", Discount: 11.4, PricePerUnit: 175, RPI: 4.0, ASP: 188 },
-            { date: "15 Sep'25", Discount: 12.8, PricePerUnit: 172, RPI: 4.3, ASP: 186 },
-            { date: "20 Sep'25", Discount: 14.5, PricePerUnit: 169, RPI: 4.7, ASP: 182 },
-            { date: "25 Sep'25", Discount: 13.2, PricePerUnit: 174, RPI: 4.5, ASP: 185 },
-            { date: "30 Sep'25", Discount: 11.9, PricePerUnit: 177, RPI: 4.2, ASP: 189 },
-            { date: "04 Oct'25", Discount: 12.4, PricePerUnit: 185, RPI: 4.8, ASP: 198 },
+            { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, ASP: 190 },
+            { date: "10 Sep'25", Discount: 11.4, PricePerUnit: 175, ASP: 188 },
+            { date: "15 Sep'25", Discount: 12.8, PricePerUnit: 172, ASP: 186 },
+            { date: "20 Sep'25", Discount: 14.5, PricePerUnit: 169, ASP: 182 },
+            { date: "25 Sep'25", Discount: 13.2, PricePerUnit: 174, ASP: 185 },
+            { date: "30 Sep'25", Discount: 11.9, PricePerUnit: 177, ASP: 189 },
+            { date: "04 Oct'25", Discount: 12.4, PricePerUnit: 185, ASP: 198 },
           ].map((p, idx) => ({
             ...p,
-            'Promo-My': applyVar(p.Discount, idx),
+            Discount: applyVar(p.Discount, idx),
             PricePerUnit: applyVar(p.PricePerUnit, idx),
-            RPI: applyVar(p.RPI, idx),
             ASP: applyVar(p.ASP, idx),
           })),
         },
@@ -1289,17 +1269,16 @@ export default function TrendsCompetitionDrawer({
           timeSteps: ["Daily", "Weekly", "Monthly"],
           defaultTimeStep: "Daily",
           metrics: [
-            { id: "Promo-My", label: "Promo-My %", color: "#6366F1", default: true },
+            { id: "Discount", label: "Promo-My %", color: "#6366F1", default: true },
             { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
-            { id: "RPI", label: "RPI", color: "#F43F5E", default: false },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
-            { id: "Offtake", label: "Offtake", color: "#F97316", default: false },
+            { id: "Offtake", label: "Offtake", color: "#F59E0B", default: false },
           ],
           x: COMPARE_X,
           trendsBySku: {
-            1: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(12, x), PricePerUnit: applyVar(180, x), RPI: applyVar(4.2, x), ASP: applyVar(195, x) })),
-            2: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(14, x), PricePerUnit: applyVar(172, x), RPI: applyVar(3.9, x), ASP: applyVar(188, x) })),
-            3: COMPARE_X.map(x => ({ x, 'Promo-My': applyVar(10, x), PricePerUnit: applyVar(190, x), RPI: applyVar(4.6, x), ASP: applyVar(200, x) })),
+            1: COMPARE_X.map(x => ({ x, Discount: applyVar(12, x), PricePerUnit: applyVar(180, x), ASP: applyVar(195, x) })),
+            2: COMPARE_X.map(x => ({ x, Discount: applyVar(14, x), PricePerUnit: applyVar(172, x), ASP: applyVar(188, x) })),
+            3: COMPARE_X.map(x => ({ x, Discount: applyVar(10, x), PricePerUnit: applyVar(190, x), ASP: applyVar(200, x) })),
           },
         },
 
@@ -1309,17 +1288,14 @@ export default function TrendsCompetitionDrawer({
           periodToggle: { primary: "MTD", compare: "Previous Month" },
           columns: [
             { id: "brand", label: "Brand", type: "text" },
-            { id: "Promo-My", label: "Promo-My %", type: "metric" },
+            { id: "Discount", label: "Promo-My %", type: "metric" },
             { id: "PricePerUnit", label: "Price/Unit", type: "metric" },
-            { id: "RPI", label: "RPI", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
-            { id: "Offtake", label: "Offtake", type: "metric" },
           ],
           brands: BRAND_OPTIONS.map((b, i) => ({
             brand: b,
-            'Promo-My': { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
+            Discount: { value: applyVar(10 + i * 1.5), delta: i % 2 === 0 ? 1.2 : -0.8 },
             PricePerUnit: { value: applyVar(175 + i * 5), delta: i % 2 === 0 ? 2.5 : -3.0 },
-            RPI: { value: applyVar(4.0 + i * 0.2), delta: 0.1 },
             ASP: { value: applyVar(190 + i * 8), delta: i % 2 === 0 ? 3.5 : -2.1 },
           })),
         },
@@ -1345,7 +1321,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               id: "MWSales",
-              label: "MW Sales (Cr)",
+              label: "MW Estimated Sales (Cr)",
               color: "#F43F5E",
               axis: "left",
               default: false,
@@ -1390,7 +1366,7 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
           metrics: [
             { id: "MWMarketShare", label: "MW Market Share%", color: "#14B8A6", default: true },
-            { id: "MWSales", label: "MW Sales (Cr)", color: "#F43F5E", default: false },
+            { id: "MWSales", label: "MW Estimated Sales (Cr)", color: "#F43F5E", default: false },
             { id: "MLMarketShare", label: "ML Market Share%", color: "#8B5CF6", default: false },
             { id: "MLSales", label: "ML Sales (Cr)", color: "#F97316", default: false },
           ],
@@ -1409,7 +1385,7 @@ export default function TrendsCompetitionDrawer({
           columns: [
             { id: "brand", label: "Brand", type: "text" },
             { id: "MWMarketShare", label: "MW Market Share%", type: "metric" },
-            { id: "MWSales", label: "MW Sales (Cr)", type: "metric" },
+            { id: "MWSales", label: "MW Estimated Sales (Cr)", type: "metric" },
             { id: "MLMarketShare", label: "ML Market Share%", type: "metric" },
             { id: "MLSales", label: "ML Sales (Cr)", type: "metric" },
           ],
@@ -1442,8 +1418,8 @@ export default function TrendsCompetitionDrawer({
 
           metrics: [
             {
-              id: "Offtakes",
-              label: "Offtakes",
+              id: "Offtake",
+              label: "Offtake",
               color: "#2563EB",
               axis: "left",
               default: true,
@@ -1482,7 +1458,7 @@ export default function TrendsCompetitionDrawer({
             },
             { id: "SOS", label: "SOS", color: "#A855F7", axis: "right" },
             { id: "MarketShare", label: "Market Share", color: "#9333EA", axis: "right" },
-            { id: "Promo-My", label: "Promo-My %", color: "#06B6D4", axis: "right" },
+            { id: "Discount", label: "Promo-My %", color: "#06B6D4", axis: "right" },
             { id: "CPM", label: "CPM", color: "#64748B", axis: "left" },
             { id: "CPC", label: "CPC", color: "#475569", axis: "left" },
           ],
@@ -1490,7 +1466,8 @@ export default function TrendsCompetitionDrawer({
           points: [
             {
               date: "06 Sep'25",
-              Offtakes: 57,
+              Discount: 12.5,
+              Offtake: 57,
               Spend: 18.4,
               ROAS: 7.1,
               InorgSales: 21,
@@ -1502,7 +1479,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "08 Sep'25",
-              Offtakes: 49,
+              Offtake: 49,
               Spend: 20.1,
               ROAS: 6.2,
               InorgSales: 17,
@@ -1518,7 +1495,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "10 Sep'25",
-              Offtakes: 52,
+              Offtake: 52,
               Spend: 17.8,
               ROAS: 6.9,
               InorgSales: 19,
@@ -1534,7 +1511,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "13 Sep'25",
-              Offtakes: 44,
+              Offtake: 44,
               Spend: 21.4,
               ROAS: 5.8,
               InorgSales: 15,
@@ -1550,7 +1527,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "16 Sep'25",
-              Offtakes: 51,
+              Offtake: 51,
               Spend: 16.9,
               ROAS: 7.3,
               InorgSales: 22,
@@ -1566,7 +1543,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "18 Sep'25",
-              Offtakes: 47,
+              Offtake: 47,
               Spend: 19.7,
               ROAS: 6.4,
               InorgSales: 18,
@@ -1582,7 +1559,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "20 Sep'25",
-              Offtakes: 56,
+              Offtake: 56,
               Spend: 19.6,
               ROAS: 7.4,
               InorgSales: 24,
@@ -1598,7 +1575,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "23 Sep'25",
-              Offtakes: 42,
+              Offtake: 42,
               Spend: 22.8,
               ROAS: 5.5,
               InorgSales: 14,
@@ -1614,7 +1591,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "26 Sep'25",
-              Offtakes: 50,
+              Offtake: 50,
               Spend: 17.2,
               ROAS: 7.0,
               InorgSales: 20,
@@ -1630,7 +1607,7 @@ export default function TrendsCompetitionDrawer({
             },
             {
               date: "30 Sep'25",
-              Offtakes: 58,
+              Offtake: 58,
               Spend: 18.9,
               ROAS: 7.8,
               InorgSales: 26,
@@ -1646,7 +1623,8 @@ export default function TrendsCompetitionDrawer({
             },
           ].map((p, idx) => ({
             ...p,
-            Offtakes: applyVar(p.Offtakes, idx),
+            Discount: applyVar(p.Discount || p.PromoMyBrand || 10, idx),
+            Offtake: applyVar(p.Offtake || p.Offtakes, idx),
             Spend: applyVar(p.Spend, idx),
             ROAS: applyVar(p.ROAS, idx),
             InorgSales: applyVar(p.InorgSales, idx),
@@ -1672,8 +1650,8 @@ export default function TrendsCompetitionDrawer({
 
           metrics: [
             {
-              id: "Offtakes",
-              label: "Offtakes",
+              id: "Offtake",
+              label: "Offtake",
               color: "#2563EB",
               default: true,
             },
@@ -1681,7 +1659,7 @@ export default function TrendsCompetitionDrawer({
             { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
             { id: "CategoryShare", label: "Category Share", color: "#EC4899" },
             { id: "MarketShare", label: "Market Share", color: "#9333EA" },
-            { id: "Promo-My", label: "Promo-My %", color: "#06B6D4" },
+            { id: "Discount", label: "Promo-My %", color: "#06B6D4" },
             { id: "Conversion", label: "Conversion", color: "#F97316" },
           ],
 
@@ -1691,7 +1669,7 @@ export default function TrendsCompetitionDrawer({
             1: [
               {
                 x: "W1",
-                Offtakes: 54,
+                Offtake: 54,
                 Spend: 4.2,
                 ROAS: 6.8,
                 CategoryShare: 23.8,
@@ -1700,7 +1678,7 @@ export default function TrendsCompetitionDrawer({
               },
               {
                 x: "W2",
-                Offtakes: 55,
+                Offtake: 55,
                 Spend: 4.5,
                 ROAS: 7.0,
                 CategoryShare: 24.2,
@@ -1709,7 +1687,7 @@ export default function TrendsCompetitionDrawer({
               },
               {
                 x: "W3",
-                Offtakes: 56,
+                Offtake: 56,
                 Spend: 4.8,
                 ROAS: 7.2,
                 CategoryShare: 24.5,
@@ -1718,7 +1696,7 @@ export default function TrendsCompetitionDrawer({
               },
               {
                 x: "W4",
-                Offtakes: 57,
+                Offtake: 57,
                 Spend: 5.0,
                 ROAS: 7.4,
                 CategoryShare: 24.9,
@@ -1727,7 +1705,7 @@ export default function TrendsCompetitionDrawer({
               },
             ].map(p => ({
               ...p,
-              Offtakes: applyVar(p.Offtakes),
+              Offtake: applyVar(p.Offtake || p.Offtakes),
               Spend: applyVar(p.Spend),
               ROAS: applyVar(p.ROAS),
               CategoryShare: applyVar(p.CategoryShare),
@@ -1759,7 +1737,7 @@ export default function TrendsCompetitionDrawer({
             { id: "CategoryShare", label: "Category Share", type: "metric" },
             { id: "MarketShare", label: "Market Share", type: "metric" },
             { id: "OSA", label: "OSA", type: "metric" },
-            { id: "Promo-My", label: "Promo-My %", type: "metric" },
+            { id: "Discount", label: "Promo-My %", type: "metric" },
             { id: "PricePerUnit", label: "Price Per Unit", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
             { id: "RPI", label: "RPI", type: "metric" },
@@ -1771,65 +1749,12 @@ export default function TrendsCompetitionDrawer({
             CategoryShare: { value: applyVar(20 + i, b), delta: 1.2 },
             MarketShare: { value: applyVar(15 + i, b), delta: 0.8 },
             OSA: { value: applyVar(85 + i * 0.5, b), delta: 0.3 },
-            'Promo-My': { value: applyVar(10 + i * 0.2, b), delta: -0.5 },
+            Discount: { value: applyVar(10 + i * 0.2, b), delta: -0.5 },
             PricePerUnit: { value: applyVar(50 + i * 2, b), delta: 1.0 },
             ASP: { value: applyVar(45 + i * 1.5, b), delta: 0.8 },
             RPI: { value: applyVar(1.2 + i * 0.05, b), delta: 0.02 },
           })),
         },
-      };
-    }
-
-    if (dynamicKey === "pricing") {
-      return {
-        trends: {
-          context: {
-            level: "Category",
-            audience: "Platform",
-          },
-
-          rangeOptions: ["Custom", "1M", "3M", "6M", "1Y"],
-          defaultRange: "1M",
-
-          timeSteps: ["Daily", "Weekly", "Monthly"],
-          defaultTimeStep: "Daily",
-
-          metrics: [
-            {
-              id: "Promo-My",
-              label: "Promo-My %",
-              color: "#6366f1",
-              axis: "right",
-              default: true,
-            },
-            {
-              id: "PricePerUnit",
-              label: "Price Per Unit (₹)",
-              color: "#14b8a6",
-              axis: "left",
-              default: true,
-            },
-            {
-              id: "RPI",
-              label: "RPI",
-              color: "#f43f5e",
-              axis: "right",
-              default: false,
-            },
-            {
-              id: "ASP",
-              label: "Avg Selling Price (₹)",
-              color: "#8b5cf6",
-              axis: "left",
-              default: false,
-            },
-          ],
-
-          points: [],
-        },
-
-        compareSkus: {},
-        competition: {},
       };
     }
     return { trends: {}, compareSkus: {}, competition: {} };
@@ -1855,12 +1780,20 @@ export default function TrendsCompetitionDrawer({
     // Set default active metrics based on dynamicKey and the DASHBOARD_DATA config
     if (activeMetrics.length === 0) {
       if (dynamicKey === 'availability') {
-        setActiveMetrics(['Osa', 'Listing']);
+        setActiveMetrics(isEcom ? ['Osa'] : ['Osa', 'Listing']);
       } else if (DASHBOARD_DATA.trends?.metrics) {
         setActiveMetrics(DASHBOARD_DATA.trends.metrics.filter(m => m.default).map(m => m.id));
       }
     }
-  }, [DASHBOARD_DATA, dynamicKey, open]);
+  }, [DASHBOARD_DATA, dynamicKey, open, isEcom]);
+
+  // Sync active metrics: remove Listing if platform becomes Ecom
+  useEffect(() => {
+    if (isEcom && activeMetrics.includes('Listing')) {
+      setActiveMetrics(prev => prev.filter(m => m !== 'Listing'));
+    }
+  }, [isEcom, activeMetrics]);
+
 
   const platformRef = useRef(null);
 
@@ -1931,8 +1864,51 @@ export default function TrendsCompetitionDrawer({
     return filtered.map(({ _dateObj, ...rest }) => rest);
   }, [trendMeta, range]);
 
+  const formatTooltipValue = (val, seriesName) => {
+    if (val === undefined || val === null) return '-';
+    let formatted = val;
+    if (typeof val === 'number') {
+      const absVal = Math.abs(val);
+      if (absVal >= 10000000) {
+        formatted = `${(val / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+      } else if (absVal >= 100000) {
+        formatted = `${(val / 100000).toFixed(2).replace(/\.00$/, '')} lac`;
+      } else if (absVal >= 1000) {
+        formatted = `${(val / 1000).toFixed(2).replace(/\.00$/, '')} K`;
+      } else {
+        formatted = val.toFixed(2).replace(/\.00$/, '');
+      }
+    }
+    
+    if (seriesName.includes('%') || seriesName.toLowerCase().includes('rate')) {
+      return `${formatted}%`;
+    }
+    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales') || seriesName.toLowerCase().includes('offtake')) {
+      return `₹ ${formatted}`;
+    }
+    return formatted;
+  };
+
+  const createTooltipFormatter = (params) => {
+    if (!params || !params.length) return '';
+    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${params[0].axisValue}</div>`;
+    params.forEach(param => {
+      const formattedValue = formatTooltipValue(param.value, param.seriesName);
+      html += `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${param.color};"></span>
+            <span style="font-size:12px;color:#6B7280;">${param.seriesName}</span>
+          </div>
+          <span style="font-size:13px;font-weight:600;color:#111827;">${formattedValue}</span>
+        </div>
+      `;
+    });
+    return html;
+  };
+
   const trendOption = useMemo(() => {
-    const dataSource = (chartData && chartData.length > 0) ? chartData : trendPoints;
+    const dataSource = (chartData && chartData.length > 0) ? chartData : (dynamicKey === 'availability' ? [] : trendPoints);
     const xData = dataSource.map((p) => p.date);
 
     const metrics = trendMeta.metrics || [];
@@ -1957,7 +1933,7 @@ export default function TrendsCompetitionDrawer({
 
     return {
       grid: { left: 60, right: 80, top: 32, bottom: 40 },
-      tooltip: { trigger: "axis" },
+      tooltip: { trigger: "axis", formatter: createTooltipFormatter },
       xAxis: {
         type: "category",
         data: xData,
@@ -1975,10 +1951,11 @@ export default function TrendsCompetitionDrawer({
           scale: true,
           axisLabel: {
             formatter: (value) => {
-              if (value >= 10000000) return `₹ ${(value / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
-              if (value >= 100000) return `₹ ${(value / 100000).toFixed(1).replace(/\.0$/, '')} lac`;
-              if (value >= 1000) return `₹ ${(value / 1000).toFixed(1).replace(/\.0$/, '')} K`;
-              return `₹ ${value}`;
+              const prefix = "₹ ";
+              if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
+              if (value >= 100000) return `${prefix}${(value / 100000).toFixed(1).replace(/\.0$/, '')} lac`;
+              if (value >= 1000) return `${prefix}${(value / 1000).toFixed(1).replace(/\.0$/, '')} K`;
+              return `${prefix}${value}`;
             }
           }
         },
@@ -2024,7 +2001,7 @@ export default function TrendsCompetitionDrawer({
     });
 
     return {
-      tooltip: { trigger: "axis" },
+      tooltip: { trigger: "axis", formatter: createTooltipFormatter },
       grid: { left: 40, right: 20, top: 20, bottom: 40 },
       xAxis: { type: "category", data: x },
       yAxis: {
@@ -2058,6 +2035,7 @@ export default function TrendsCompetitionDrawer({
     else if (newAudience === "Format") firstOption = FORMAT_OPTIONS[0];
     else if (newAudience === "City") firstOption = CITY_OPTIONS[0];
     else if (newAudience === "Brand") firstOption = BRAND_OPTIONS[0];
+    else if (newAudience === "SKU") firstOption = SKU_OPTIONS[0];
 
     setSelectedPlatform(firstOption);
 
@@ -2067,7 +2045,8 @@ export default function TrendsCompetitionDrawer({
       Platform: newAudience === "Platform" ? firstOption : "All",
       Format: newAudience === "Format" ? firstOption : "All",
       City: newAudience === "City" ? firstOption : "All",
-      Brand: newAudience === "Brand" ? firstOption : "All"
+      Brand: newAudience === "Brand" ? firstOption : "All",
+      SKU: newAudience === "SKU" ? firstOption : "All"
     }));
 
     setShowPlatformPills(true);
@@ -2183,15 +2162,24 @@ export default function TrendsCompetitionDrawer({
             color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
+            label="SKU"
+            value={
+              drawerFilters.SKU !== 'All' && typeof drawerFilters.SKU === 'string' && drawerFilters.SKU.split(' ').length > 4
+                ? drawerFilters.SKU.split(' ').slice(0, 4).join(' ') + ' ...'
+                : drawerFilters.SKU
+            }
+            color={drawerFilters.SKU !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
             label="Date"
             value={range}
           />
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All') && (
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All') && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All" })}
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All" })}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
@@ -2209,41 +2197,60 @@ export default function TrendsCompetitionDrawer({
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={2}>
             {/* HEADER + PLATFORM FILTER */}
-            <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
-              {/* Title */}
-              <Typography variant="h6" fontWeight={600}>
-                {selectedColumn || "KPI Trends"}
-              </Typography>
-
-              {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1} sx={{ flex: 1, minWidth: 0, pr: 2 }}>
-                <Select
-                  size="small"
-                  value={allTrendMeta.context.audience}
-                  onChange={handleAudienceChange}
-                  sx={{
-                    width: 160,
-                    height: 38,
-                    backgroundColor: "#F8FAFC",
-                    borderRadius: "8px",
-                    fontSize: "0.85rem",
-                    fontWeight: 500,
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#E2E8F0",
-                    },
-                    "&:hover .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#CBD5E1",
-                    },
-                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#3B82F6",
-                    },
+            {/* HEADER + PLATFORM FILTER */}
+            <Box display="flex" flexDirection="column" gap={2}>
+              {/* Title Block */}
+              <Box>
+                <Typography 
+                  variant="h6" 
+                  fontWeight={800} 
+                  sx={{ 
+                    fontSize: '1.25rem', 
+                    color: '#0f172a',
+                    lineHeight: 1.2,
+                    letterSpacing: '-0.02em'
                   }}
                 >
-                  <MenuItem value="Platform">Platform</MenuItem>
-                  <MenuItem value="Format">Format</MenuItem>
-                  <MenuItem value="Brand">Brand</MenuItem>
-                  <MenuItem value="City">City</MenuItem>
-                </Select>
+                  {selectedColumn || "KPI Trends"}
+                </Typography>
+              </Box>
+              
+              {/* Filter Row: Audience Select + Pill Container */}
+              <Box display="flex" alignItems="center" gap={1.5} sx={{ minWidth: 0, mb: 1 }}>
+                {/* Audience Selection Dropdown */}
+                <Box sx={{ flexShrink: 0 }}>
+                  <Select
+                    size="small"
+                    value={allTrendMeta.context.audience}
+                    onChange={handleAudienceChange}
+                    sx={{
+                      width: 140,
+                      height: 36,
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "10px",
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                      color: "#475569",
+                      "& .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#e2e8f0",
+                        borderWidth: '1.5px'
+                      },
+                      "&:hover .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#cbd5e1",
+                      },
+                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                        borderColor: "#3b82f6",
+                      },
+                    }}
+                  >
+                    <MenuItem value="Platform">Platform</MenuItem>
+                    <MenuItem value="Format">Format</MenuItem>
+                    <MenuItem value="Brand">Brand</MenuItem>
+                    <MenuItem value="City">City</MenuItem>
+                    <MenuItem value="SKU">SKU</MenuItem>
+                  </Select>
+                </Box>
+
 
 
                 {/* DYNAMIC PILLS */}
@@ -2283,7 +2290,9 @@ export default function TrendsCompetitionDrawer({
                         ? CITY_OPTIONS
                         : allTrendMeta.context.audience === "Brand"
                           ? BRAND_OPTIONS
-                          : [];
+                          : allTrendMeta.context.audience === "SKU"
+                            ? SKU_OPTIONS
+                            : [];
                   const visibleOptions = allOptions;
 
                   return (
@@ -2411,21 +2420,24 @@ export default function TrendsCompetitionDrawer({
                 mb={2}
               >
                 <Box display="flex" gap={1} flexWrap="wrap">
-                  {trendMeta.metrics.map((m) => (
-                    <MetricChip
-                      key={m.id}
-                      label={m.label}
-                      color={m.color}
-                      active={activeMetrics.includes(m.id)}
-                      onClick={() =>
-                        setActiveMetrics((prev) =>
-                          prev.includes(m.id)
-                            ? prev.filter((x) => x !== m.id)
-                            : [...prev, m.id]
-                        )
-                      }
-                    />
-                  ))}
+                  {trendMeta.metrics
+                    .filter(m => !(isEcom && m.id === 'Listing'))
+                    .map((m) => (
+                      <MetricChip
+                        key={m.id}
+                        label={m.label}
+                        color={m.color}
+                        active={activeMetrics.includes(m.id)}
+                        onClick={() =>
+                          setActiveMetrics((prev) =>
+                            prev.includes(m.id)
+                              ? prev.filter((x) => x !== m.id)
+                              : [...prev, m.id]
+                          )
+                        }
+                      />
+                    ))}
+
                 </Box>
 
               </Box>
@@ -2468,6 +2480,7 @@ export default function TrendsCompetitionDrawer({
                 filterOptions={filterOptions}
                 period={range}
                 timeStep={timeStep}
+                onTrendClick={handleRowTrendClick}
               />
             ) : dynamicKey === "availability" ? (
               <AvailabilityCompetitionKpiShowcase

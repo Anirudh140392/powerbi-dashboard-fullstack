@@ -5,7 +5,7 @@ async function testQuery() {
         console.log("Fetching distinct keyword types...");
         const query = `
             SELECT DISTINCT keyword_type 
-            FROM rca_pm_olap 
+            FROM rb_pm_olap 
             WHERE keyword_type IS NOT NULL AND keyword_type != ''
             ORDER BY keyword_type ASC
         `;

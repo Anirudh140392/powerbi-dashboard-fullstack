@@ -69,6 +69,7 @@ export function resolveColumn(columnsMap, expectedName, fallback = null) {
         'quanity': ['quantity'],
         'market_share': ['marketshare', 'ms'],
         'marketshare': ['market_share', 'ms'],
+        'image_url': ['imageurl', 'image url', 'product_image', 'image', 'picture', 'image_link', 'img_url'],
     };
 
     for (const [key, aliases] of Object.entries(typoMap)) {
