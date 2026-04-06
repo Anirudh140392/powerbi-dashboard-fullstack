@@ -275,13 +275,13 @@ async function getEcpComparison(filters = {}) {
                 -- Current Period Our Metrics
                 AVG(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.sellingPrice})), 0) ELSE NULL END) AS ecp_curr,
                 AVG(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.mrp})), 0) ELSE NULL END) AS mrp_curr,
-                AVG(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.discount})), 0) ELSE NULL END) AS discount_curr,
+                (SUM(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${src.f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
                 ANY(c.avg_comp_val_curr) as comp_avg_curr,
 
                 -- Previous Period Our Metrics
                 AVG(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.sellingPrice})), 0) ELSE NULL END) AS ecp_prev,
                 AVG(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.mrp})), 0) ELSE NULL END) AS mrp_prev,
-                AVG(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ifNull(toFloat64OrZero(toString(p.${src.f.discount})), 0) ELSE NULL END) AS discount_prev,
+                (SUM(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${src.f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
                 ANY(c.avg_comp_val_prev) as comp_avg_prev
             FROM ${src.table} p
             LEFT JOIN rb_sku_platform s ON p.${f.webPid} = s.web_pid
@@ -385,8 +385,7 @@ async function getEcpComparison(filters = {}) {
                                 2
                             ) AS ecp_curr,
                             ROUND(
-                                SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wDiscount} ELSE 0 END)
-                                / NULLIF(COUNT(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN 1 END), 0),
+                                (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ${f.wMrp} ELSE 0 END), 0) * 100,
                                 2
                             ) AS discount_curr
                         FROM ${src.table} p
@@ -530,11 +529,7 @@ async function getPricingKpis(filters = {}) {
             const query = `
             SELECT
                 -- Current Period Our Brands Metrics (Filtered by selected Brands or all Our Brands)
-                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ${f.wMrp} > 0 
-                         AND ${brandCondition}
-                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
-                    ELSE NULL END) AS discount_curr,
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
                 
                 SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                          AND ${f.wMrp} > 0 
@@ -562,11 +557,7 @@ async function getPricingKpis(filters = {}) {
                     ELSE NULL END) AS asp_curr,
  
                 -- Previous Period
-                AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ${f.wMrp} > 0 
-                         AND ${brandCondition}
-                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
-                    ELSE NULL END) AS discount_prev,
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
                 
                 SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                          AND ${f.wMrp} > 0 
@@ -704,10 +695,7 @@ async function getPricingInsights(filters = {}) {
                 ${src.prodCatSql} AS Category,
                 p.${f.compFlag} AS Comp_flag,
                 p.${f.platform} AS Platform,
-                AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                         AND ${f.wMrp} > 0 
-                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
-                    ELSE NULL END) AS discount_curr,
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
                 AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
                     THEN ${f.wListingPercent}
                     ELSE NULL END) AS listing_curr,
@@ -717,10 +705,7 @@ async function getPricingInsights(filters = {}) {
                 -- Take Qty_Sold directly from rb_pdp_olap for offtakes
                 SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
                 
-                AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                         AND ${f.wMrp} > 0 
-                    THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
-                    ELSE NULL END) AS discount_prev
+                (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev
             FROM ${src.table} p
             WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
               AND ${whereClause}
@@ -775,9 +760,7 @@ async function getPricingInsights(filters = {}) {
                         p.${f.product} as product,
                         p.${f.platform} as platform,
                         p.${f.location} as city,
-                        AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 
-                            THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
-                            ELSE NULL END) AS discount_curr,
+                        (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_curr,
                         AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}'
                             THEN ${f.wListingPercent}
                             ELSE NULL END) AS listing_curr,
@@ -787,9 +770,7 @@ async function getPricingInsights(filters = {}) {
                         -- Take Qty_Sold directly from rb_pdp_olap for city level offtakes
                         SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' THEN ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0) ELSE 0 END) AS offtakes_curr,
 
-                        AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 
-                            THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
-                            ELSE NULL END) AS discount_prev
+                        (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev
                     FROM ${src.table} p
                     WHERE p.${f.date} BETWEEN '${compareStartDate}' AND '${endDate}'
                       AND p.${f.product} IN (${productEscaped})
@@ -928,11 +909,7 @@ const getDimensionOverview = async (filters = {}) => {
                 SELECT
                     ${groupByExpr} AS dimension,
                     -- Current metrics (Subject Brands)
-                    AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
-                             AND ${f.wMrp} > 0 
-                             AND ${brandCondition}
-                        THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
-                        ELSE NULL END) AS Discount,
+                    (SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS Discount,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${startDate}' AND '${endDate}' 
                              AND ${f.wPpu} > 0 
                              AND ${brandCondition}
@@ -956,11 +933,7 @@ const getDimensionOverview = async (filters = {}) => {
                         ELSE 0 END) AS offtake,
                     
                     -- Previous metrics for change
-                    AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
-                             AND ${f.wMrp} > 0 
-                             AND ${brandCondition}
-                        THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100 
-                        ELSE NULL END) AS discount_prev,
+                    (SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' AND ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount_prev,
                     AVG(CASE WHEN p.${f.date} BETWEEN '${compareStartDate}' AND '${compareEndDate}' 
                              AND ${f.wPpu} > 0 
                              AND ${brandCondition}
@@ -1089,9 +1062,7 @@ const getDimensionTrends = async (filters = {}) => {
         SELECT
             toString(p.${f.date}) AS date,
             -- Current metrics (Subject Brands)
-            AVG(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition}
-                THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
-                ELSE NULL END) AS discount,
+            (SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
             AVG(CASE WHEN ${f.wPpu} > 0 AND ${brandCondition}
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
@@ -1204,9 +1175,7 @@ const getPricingCompetitionTrends = async (filters) => {
         SELECT
             toString(p.${f.date}) AS date,
             p.${targetColumn} AS target_name,
-            AVG(CASE WHEN ${f.wMrp} > 0
-                THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
-                ELSE NULL END) AS discount,
+            (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
@@ -1341,9 +1310,7 @@ const getPricingCompetition = async (filters) => {
         WITH ( ${compAvgQuery} ) AS platform_comp_avg
         SELECT
             p.${f.brand} AS brand_name,
-            AVG(CASE WHEN ${f.wMrp} > 0
-                THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
-                ELSE NULL END) AS discount,
+            (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
@@ -1364,9 +1331,7 @@ const getPricingCompetition = async (filters) => {
         SELECT
             p.${f.product} AS sku_name,
             p.${f.brand} AS brand_name,
-            AVG(CASE WHEN ${f.wMrp} > 0
-                THEN ((${f.wMrp} - ${f.wSellingPrice}) / ${f.wMrp}) * 100
-                ELSE NULL END) AS discount,
+            (SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
             AVG(CASE WHEN ${f.wPpu} > 0
                 THEN ${f.wPpu}
                 ELSE NULL END) AS price_per_unit,
