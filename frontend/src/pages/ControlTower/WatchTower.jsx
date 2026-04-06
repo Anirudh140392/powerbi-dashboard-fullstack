@@ -1037,7 +1037,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                 </div>
                 <div className="flex flex-col items-end gap-1 text-right">
                   <div className="text-[10px] text-slate-500">Offtakes</div>
-                  <div className="text-lg font-semibold">
+                  <div className="text-base font-semibold">
                     ₹{formatCurrencyShort(active.offtakes)}
                   </div>
                   <div className="mt-1 text-[10px] text-slate-500">
@@ -1113,7 +1113,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
                     <div className="text-[10px] text-slate-500">ROAS</div>
-                    <div className="text-lg font-semibold">
+                    <div className="text-base font-semibold">
                       {active.roas.toFixed(1)}x
                     </div>
                     {compare && (
@@ -1142,17 +1142,14 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                                   {k.format(k.compareValue)}
                                 </span>
                               )}
-                            <IconButton 
+                            <button 
                               onClick={() => openHelpWithMenu("India Overview")}
-                              size="small"
-                              sx={{ p: 0.5 }}
+                              className="font-medium text-[11px] hover:text-sky-600 transition-colors"
                             >
-                              <span className="font-medium">
-                                {Number.isFinite(k.activeValue)
-                                  ? k.format(k.activeValue)
-                                  : "NaN"}
-                              </span>
-                            </IconButton>
+                              {Number.isFinite(k.activeValue)
+                                ? k.format(k.activeValue)
+                                : "NaN"}
+                            </button>
                           </div>
                         </div>
                         <div className="h-3 rounded-full bg-white/80 overflow-hidden relative">
