@@ -113,7 +113,7 @@ const AllUsersTable = () => {
                     </button>
                     <button 
                         onClick={() => setShowModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-xl text-xs font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100"
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 rounded-xl text-xs font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 cursor-pointer"
                     >
                         <UserPlus className="w-4 h-4" />
                         New User
@@ -288,7 +288,7 @@ const AllUsersTable = () => {
                             className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200"
                         >
                             <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-white">
-                                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Add New User</h3>
+                                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest cursor-pointer">Add New User</h3>
                                 <button
                                     onClick={() => setShowModal(false)}
                                     className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-400 hover:text-slate-600"
