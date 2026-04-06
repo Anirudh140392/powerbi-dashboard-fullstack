@@ -573,12 +573,13 @@ const AIInsightsPanel = ({ insight, onClose }) => {
                                 transition={{ type: "spring", stiffness: 400, damping: 40, delay: idx * 0.05 }}
                                 style={{
                                     background: "#fff",
-                                    border: "1px solid rgba(226, 232, 240, 0.8)",
+                                    border: "1.5px solid rgba(226, 232, 240, 0.9)",
                                     borderLeft: `4px solid ${borderColor}`,
                                     borderRadius: "12px",
                                     padding: "14px 16px",
                                     boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01)",
                                     position: "relative",
+                                    outline: "none",
                                 }}
                             >
                                 <div style={{ 
@@ -641,8 +642,8 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
         if (t === "Competitor OSA Weak Spots") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
-            { key: "otherBrandOsa", label: "Other brand OSA", fmt: safePct },
-            { key: "otherBrandMkShare", label: "Other brand MK Share", fmt: safePct },
+            { key: "otherBrandOsa", label: "Comp OSA", fmt: safePct },
+            { key: "otherBrandMkShare", label: "Comp MK Share", fmt: safePct },
             { key: "kwOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: safePct },
             { key: "ourBrandMkShare", label: `${insight.brandName || "Brand"} MK Share`, fmt: safePct },
             { key: "skuOrBrand", label: "Competitor", isText: true },
@@ -651,7 +652,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
             { key: "gapPct", label: "GAP %", fmt: safePct, isNum: true },
-            { key: "ourPpu", label: "Our PPU", fmt: (v) => v != null ? `₹${Number(v).toFixed(1)}` : "-" },
+            { key: "ourPpu", label: `${insight.brandName || "Our"} PPU`, fmt: (v) => v != null ? `₹${Number(v).toFixed(1)}` : "-" },
             { key: "compPpu", label: "Comp PPU", fmt: (v) => v != null ? `₹${Number(v).toFixed(1)}` : "-" },
         ];
         if (t === "Ad Stock Mismatch") return [
@@ -692,6 +693,47 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
 
     const columns = getColumns();
 
+    const getPreviewItems = () => {
+        if (isEmpty) return [];
+        const firstRow = evidence[0] || {};
+        
+        switch (insight.type) {
+            case "Share Headroom Hotspots": {
+                const offCol = columns.find(c => c.key === "offtake");
+                const msCol = columns.find(c => c.key === "marketShare");
+                return [
+                    { label: offCol?.label || "Offtake", value: offCol?.fmt ? offCol.fmt(firstRow.offtake, firstRow) : firstRow.offtake },
+                    { label: msCol?.label || "Mkt Share", value: msCol?.fmt ? msCol.fmt(firstRow.marketShare, firstRow) : firstRow.marketShare }
+                ];
+            }
+            case "Competitor OSA Weak Spots": {
+                const colOther = columns.find(c => c.key === "otherBrandOsa");
+                const colOur = columns.find(c => c.key === "kwOsa");
+                return [
+                    { label: colOther?.label || "Comp OSA", value: colOther?.fmt ? colOther.fmt(firstRow.otherBrandOsa, firstRow) : firstRow.otherBrandOsa },
+                    { label: colOur?.label || `${insight.brandName || "Brand"} OSA`, value: colOur?.fmt ? colOur.fmt(firstRow.kwOsa, firstRow) : firstRow.kwOsa }
+                ];
+            }
+            case "Price Parity Radar": {
+                const colOur = columns.find(c => c.key === "ourPpu");
+                const colComp = columns.find(c => c.key === "compPpu");
+                return [
+                    { label: colOur?.label || `${insight.brandName || "Our"} PPU`, value: colOur?.fmt ? colOur.fmt(firstRow.ourPpu, firstRow) : firstRow.ourPpu },
+                    { label: colComp?.label || "Comp PPU", value: colComp?.fmt ? colComp.fmt(firstRow.compPpu, firstRow) : firstRow.compPpu }
+                ];
+            }
+            default: {
+                const primaryCol = columns[2] || { label: "Value", key: "value" };
+                return displayRows.slice(0, 2).map((row) => ({
+                    label: primaryCol.label,
+                    value: primaryCol.fmt ? primaryCol.fmt(row[primaryCol.key], row) : (row[primaryCol.key] ?? "-")
+                }));
+            }
+        }
+    };
+
+    const previewItems = getPreviewItems();
+
     const getCellStyle = (col, val) => {
         const base = { fontSize: "11px", color: "#374151", maxWidth: "100px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
         if (col.key === "marketShareMoM" || col.key === "gapPct") {
@@ -710,33 +752,30 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 onClick={onClick}
                 onMouseEnter={() => setHovered(true)}
                 onMouseLeave={() => setHovered(false)}
+                tabIndex={-1}
+                className="focus:outline-none focus:ring-0 outline-none"
                 style={{
                     width: "100%",
                     height: "100%",
                     display: "flex",
                     flexDirection: "column",
                     borderRadius: "10px",
-                    border: "1px solid",
-                    borderColor: isSelected ? "#2563eb" : (hovered ? "#cbd5e1" : "#e2e8f0"),
+                    border: "none",
                     cursor: "pointer",
                     overflow: "hidden",
                     position: "relative",
                     background: "#ffffff",
+                    outline: "none",
+                    WebkitTapHighlightColor: "transparent",
                     boxShadow: isSelected 
-                        ? "0 10px 25px -5px rgba(37,99,235,0.15), 0 8px 10px -6px rgba(37,99,235,0.1)"
+                        ? `0 10px 25px -5px ${isEmpty ? "rgba(148,163,184,0.15)" : color + "26"}, 0 8px 10px -6px ${isEmpty ? "rgba(148,163,184,0.1)" : color + "1a"}`
                         : hovered
                             ? "0 12px 20px -5px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)"
                             : "0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)",
                     transition: "all 0.2s ease",
-                    transform: hovered ? "translateY(-2px)" : "translateY(0px)",
+                    transform: hovered ? "translateY(-10px) translateX(5px)" : "translateY(0px)",
                 }}
             >
-                {/* Colored accent line */}
-                <div style={{
-                    height: "3.5px", width: "100%",
-                    background: isEmpty ? "#e2e8f0" : color || "#3b82f6",
-                }} />
-
                 {/* Top Badge Row */}
                 <div style={{ 
                     padding: "12px 14px 6px", 
@@ -817,26 +856,20 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                             No active hotspots detected
                         </div>
                     ) : (
-                        displayRows.slice(0, 2).map((row, i) => {
-                            const primaryCol = columns[2] || { label: "Value", key: "value" };
-                            const val = row[primaryCol.key];
-                            const displayVal = primaryCol.fmt ? primaryCol.fmt(val, row) : (val ?? "-");
-                            
-                            return (
-                                <div key={i} style={{ 
-                                    display: "flex", 
-                                    alignItems: "center", 
-                                    justifyContent: "space-between",
-                                }}>
-                                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>
-                                        {primaryCol.label}
-                                    </span>
-                                    <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#1e293b" }}>
-                                        {displayVal}
-                                    </span>
-                                </div>
-                            );
-                        })
+                        previewItems.map((item, i) => (
+                            <div key={i} style={{ 
+                                display: "flex", 
+                                alignItems: "center", 
+                                justifyContent: "space-between",
+                            }}>
+                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>
+                                    {item.label}
+                                </span>
+                                <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#1e293b" }}>
+                                    {item.value}
+                                </span>
+                            </div>
+                        ))
                     )}
                 </div>
 
@@ -1060,7 +1093,7 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
     const isOpen = activePopupIdx === rowIdx;
     
     return (
-        <TableCell className="px-3 py-2 align-top relative">
+        <TableCell className="px-3 py-4 align-top relative">
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "6px" }}>
                 <span className="text-[11px] text-slate-800 font-semibold" style={{ lineHeight: 1.2 }}>{category}</span>
                 <Popover open={isOpen} onOpenChange={(o) => setActivePopupIdx(o ? rowIdx : null)}>
@@ -1077,7 +1110,10 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
                                 display: "inline-flex", alignItems: "center", gap: "4px",
                                 transition: "all 0.2s ease",
                                 letterSpacing: "0.01em",
-                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                                minWidth: "max-content",
+                                flexShrink: 0,
+                                whiteSpace: "nowrap"
                             }}
                             onMouseEnter={(e) => { 
                                 e.currentTarget.style.background = "#e0e7ff";
@@ -1142,7 +1178,8 @@ const EvidenceTable = ({ insight, activePlatform }) => {
     return (
         <div style={{
             display: "flex", flexDirection: "column", height: "100%",
-            background: "#fff", border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden",
+            background: "#fff", border: "2px solid #e2e8f0", borderRadius: "8px", overflow: "hidden",
+            outline: "none",
         }}>
             <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -1175,8 +1212,8 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Other brand OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Other brand MK Share</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp OSA</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp MK Share</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} OSA</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} MK Share</TableHead>
                             </>)}
@@ -1263,84 +1300,84 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                             {view === "osa" && (
                                                 <>
                                                     <CategoryCell category={d.category || insight.category || "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform || "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city || "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.skuOrBrand ?? "-"}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-1.5">{safePct(d.otherBrandOsa)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-1.5">{safePct(d.otherBrandMkShare)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-1.5">{safePct(d.kwOsa)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-1.5">{safePct(d.ourBrandMkShare)}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.skuOrBrand ?? "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safePct(d.otherBrandOsa)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safePct(d.otherBrandMkShare)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.kwOsa)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.ourBrandMkShare)}</TableCell>
                                                 </>
                                             )}
                                             {view === "share" && (
                                                 <>
                                                     <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city || "-"}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-1.5">{safePct(d.brandOsa)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.brandOsa)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
                                                         {safePct(d.marketShare)} <span className={d.marketShareMoM < 0 ? "text-red-600" : "text-emerald-600"}>({d.marketShareMoM > 0 ? '+' : ''}{safePct(d.marketShareMoM)})</span>
                                                     </TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">{safeINR(d.psl)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{safeINR(d.psl)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
                                                         {safeINR(d.offtake)} <span className={(d.offtakeDelta || 0) < 0 ? "text-red-600" : "text-emerald-600"}>({(d.offtakeDelta || 0) > 0 ? '+' : ''}{safeINR(d.offtakeDelta)} / {safePct(d.offtakeMoM)})</span>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-1.5"><span className="text-[11px] text-slate-800 truncate max-w-[120px] block">{d.myTopSku || "-"}</span></TableCell>
-                                                    <TableCell className="px-3 py-1.5"><span className="text-[11px] text-slate-800 truncate max-w-[120px] block">{d.competitorSku || "-"}</span></TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.possibleCause || "-"}</TableCell>
+                                                    <TableCell className="px-3 py-3"><span className="text-[11px] text-slate-800 truncate max-w-[120px] block">{d.myTopSku || "-"}</span></TableCell>
+                                                    <TableCell className="px-3 py-3"><span className="text-[11px] text-slate-800 truncate max-w-[120px] block">{d.competitorSku || "-"}</span></TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.possibleCause || "-"}</TableCell>
                                                 </>
                                             )}
                                             {view === "pricing" && (
                                                 <>
                                                     <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">₹{typeof d.ourPpu === 'number' ? d.ourPpu.toFixed(1) : d.ourPpu}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">₹{typeof d.compPpu === 'number' ? d.compPpu.toFixed(1) : d.compPpu}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{typeof d.ourPpu === 'number' ? d.ourPpu.toFixed(1) : d.ourPpu}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{typeof d.compPpu === 'number' ? d.compPpu.toFixed(1) : d.compPpu}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">
                                                         <span className="truncate max-w-[160px] block">{d.impactedSku || '-'}</span>
                                                     </TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">
                                                         <span className="truncate max-w-[160px] block">{d.compSku || '-'}</span>
                                                     </TableCell>
-                                                    <TableCell className={`text-right text-[11px] font-medium px-3 py-1.5 ${d.gapPct > 0 ? 'text-red-600' : d.gapPct < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>{safePct(d.gapPct)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-amber-600 px-3 py-1.5">{safeINR(d.psl)}</TableCell>
+                                                    <TableCell className={`text-right text-[11px] font-medium px-3 py-3 ${d.gapPct > 0 ? 'text-red-600' : d.gapPct < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>{safePct(d.gapPct)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-amber-600 px-3 py-3">{safeINR(d.psl)}</TableCell>
                                                 </>
                                             )}
                                             {view === "adStock" && (
                                                 <>
                                                     <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.skuOrBrand}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-1.5">{safePct(d.kwOsa)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">{safePct(d.adSov)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">{safeINR(d.spendInr)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-1.5">{safeINR(d.estLostSalesInr)}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.skuOrBrand}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safePct(d.kwOsa)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{safePct(d.adSov)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{safeINR(d.spendInr)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safeINR(d.estLostSalesInr)}</TableCell>
                                                 </>
                                             )}
                                             {view === "newEntry" && (
                                                 <>
                                                     <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.skuOrBrand}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-emerald-600 px-3 py-1.5">{safePct(d.newItemShare)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">₹{d.ppu}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-500 px-3 py-1.5">{d.firstSeen}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.skuOrBrand}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-emerald-600 px-3 py-3">{safePct(d.newItemShare)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{d.ppu}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-500 px-3 py-3">{d.firstSeen}</TableCell>
                                                 </>
                                             )}
                                             {view === "supply" && (
                                                 <>
                                                     <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.depotOrDb}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.skuOrBrand}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-500 px-3 py-1.5">{d.plannedQty}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">{d.dispatchedQty}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-1.5">{safePct(d.fillRate)}</TableCell>
-                                                    <TableCell className="text-right px-3 py-1.5">
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.depotOrDb}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.skuOrBrand}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-500 px-3 py-3">{d.plannedQty}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{d.dispatchedQty}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safePct(d.fillRate)}</TableCell>
+                                                    <TableCell className="text-right px-3 py-3">
                                                         {d.poCreated ? (
                                                             <span className="text-[10px] text-emerald-700">Yes ({d.poNo})</span>
                                                         ) : (
@@ -1352,16 +1389,16 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                             {view === "keyword" && (
                                                 <>
                                                     <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-1.5">{d.platform ?? "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.city ?? "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-1.5">{d.keyword}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-1.5 max-w-[120px] truncate">{d.campaign}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-1.5">₹{d.bid?.toFixed(1)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-500 px-3 py-1.5">{safeINR(d.dailyBudget)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-amber-600 px-3 py-1.5">{safeINR(d.spend)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-emerald-600 px-3 py-1.5">{safeINR(d.sales)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-indigo-600 px-3 py-1.5">{safePct(d.acos)}</TableCell>
-                                                    <TableCell className="text-right px-3 py-1.5">
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city ?? "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.keyword}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3 max-w-[120px] truncate">{d.campaign}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{d.bid?.toFixed(1)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-500 px-3 py-3">{safeINR(d.dailyBudget)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-amber-600 px-3 py-3">{safeINR(d.spend)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-emerald-600 px-3 py-3">{safeINR(d.sales)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-indigo-600 px-3 py-3">{safePct(d.acos)}</TableCell>
+                                                    <TableCell className="text-right px-3 py-3">
                                                         {d.budgetCapped ? <span className="text-[10px] text-red-600">Capped</span> : <span className="text-slate-400 text-[10px]">-</span>}
                                                     </TableCell>
                                                 </>
@@ -1426,7 +1463,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-            <DialogContent className="max-w-[1060px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-xl bg-white border border-slate-200 outline-none [&>button]:hidden flex">
+            <DialogContent className="max-w-[1060px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-xl bg-white border-2 border-slate-200 outline-none [&>button]:hidden flex">
                 <div className="flex-1 flex flex-col max-h-[85vh]">
 
                     {/* Modal Header */}
