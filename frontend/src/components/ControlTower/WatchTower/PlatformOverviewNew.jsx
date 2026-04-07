@@ -729,7 +729,7 @@ const PlatformOverviewNew = ({
                                                 <div className="flex flex-col flex-1 overflow-hidden justify-center">
                                                     <span
                                                         className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined, textTransform: 'capitalize' }}
                                                         title={e.name}
                                                     >
                                                         {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}

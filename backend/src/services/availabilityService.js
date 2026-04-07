@@ -270,15 +270,15 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
     if (hasDarkstoreTable) {
         if (zones && zones !== 'All') {
             const zArr = Array.isArray(zones) ? zones : [zones];
-            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE region IN (${zArr.map(z => `'${escapeStr(z)}'`).join(',')}))`);
+            conditions.push(`lower(${prefix}Location) IN (SELECT lower(location) FROM rb_location_darkstore WHERE region IN (${zArr.map(z => `'${escapeStr(z)}'`).join(',')}))`);
         }
         if (metroFlags && metroFlags !== 'All') {
             const mArr = Array.isArray(metroFlags) ? metroFlags : [metroFlags];
-            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE tier IN (${mArr.map(m => `'${escapeStr(m)}'`).join(',')}))`);
+            conditions.push(`lower(${prefix}Location) IN (SELECT lower(location) FROM rb_location_darkstore WHERE tier IN (${mArr.map(m => `'${escapeStr(m)}'`).join(',')}))`);
         }
         if (pincodes && pincodes !== 'All') {
             const pArr = Array.isArray(pincodes) ? pincodes : [pincodes];
-            conditions.push(`${prefix}Location IN (SELECT location FROM rb_location_darkstore WHERE toString(pincode) IN (${pArr.map(p => `'${escapeStr(p)}'`).join(',')}))`);
+            conditions.push(`lower(${prefix}Location) IN (SELECT lower(location) FROM rb_location_darkstore WHERE toString(pincode) IN (${pArr.map(p => `'${escapeStr(p)}'`).join(',')}))`);
         }
     }
 
@@ -1394,7 +1394,7 @@ const getMetroCities = async () => {
             const query = `
                 SELECT DISTINCT location
                 FROM rb_location_darkstore
-                WHERE tier = 'Tier 1'
+                WHERE lower(tier) = 'tier 1'
             `;
             const results = await queryClickHouse(query);
             return results.map(r => r.location).filter(Boolean);
