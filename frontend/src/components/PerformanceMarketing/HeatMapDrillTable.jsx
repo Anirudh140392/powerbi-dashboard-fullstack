@@ -205,7 +205,7 @@ export default function HeatMapDrillTable({ selectedInsight }) {
     };
 
     fetchData();
-  }, [channel, platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, selectedInsight, selectedProductCategory]);
+  }, [selectedChannel, platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, selectedInsight, selectedProductCategory]);
 
   const collectedData = apiData;
 
