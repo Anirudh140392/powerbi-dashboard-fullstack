@@ -9,7 +9,8 @@ import {
     Bell,
     Search,
     ChevronRight,
-    User
+    User,
+    Inbox
 } from "lucide-react";
 import { useAuth } from "../../utils/AuthContext";
 import AdminDashboard from "./tabs/AdminDashboard";
@@ -17,6 +18,7 @@ import UsersTable from "./tabs/UsersTable";
 import RolesPermissions from "./tabs/RolesPermissions";
 import AccessMapping from "./tabs/AccessMapping";
 import AllUsersTable from "./tabs/AllUsersTable";
+import NewRequests from "./tabs/NewRequests";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState("users");
@@ -25,13 +27,15 @@ const AdminPanel = () => {
     const menuItems = [
         { id: "users", label: "Live Users", icon: Users },
         { id: "all-users", label: "All Users", icon: Users },
-        { id: "roles", label: "Permissions", icon: ShieldAlert }
+        { id: "roles", label: "Permissions", icon: ShieldAlert },
+        { id: "new-requests", label: "New Requests", icon: Inbox }
     ];
 
     const renderContent = () => {
         switch (activeTab) {
             case "all-users": return <AllUsersTable />;
             case "users": return <UsersTable />;
+            case "new-requests": return <NewRequests />;
             case "roles": return <RolesPermissions />;
         }
     };
@@ -53,7 +57,7 @@ const AdminPanel = () => {
                             <button
                                 key={item.id}
                                 onClick={() => setActiveTab(item.id)}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${activeTab === item.id
+                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group cursor-pointer ${activeTab === item.id
                                     ? "bg-indigo-50 text-indigo-700 font-semibold"
                                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
                                     }`}

@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
     Search, 
-    MoreHorizontal, 
     Shield, 
     UserPlus, 
     FileDown, 
@@ -13,35 +13,50 @@ import {
     ChevronsRight, 
     Mail, 
     Calendar, 
-    UserCheck 
+    UserCheck,
+    Database,
+    Trash2,
+    Clock
 } from "lucide-react";
 
 /**
  * AllUsersTable - Displays the complete user database with expanded mock data.
  */
 const AllUsersTable = () => {
-    const [users, setUsers] = useState([
-        { id: 1, name: "Sanyam Miglani", email: "sanyam.m@trailytics.com", role: "Super Admin", status: "Active", joined: "2024-01-15" },
-        { id: 2, name: "Arjun Singh", email: "arjun.si@trailytics.com", role: "Manager", status: "Active", joined: "2024-01-20" },
-        { id: 3, name: "Priya Sharma", email: "priya.sh@trailytics.com", role: "Analyst", status: "Away", joined: "2024-02-05" },
-        { id: 4, name: "Rahul Verma", email: "rahul.v@trailytics.com", role: "Viewer", status: "Active", joined: "2024-02-10" },
-        { id: 5, name: "Ananya Iyer", email: "ananya.i@trailytics.com", role: "Editor", status: "Inactive", joined: "2024-02-15" },
-        { id: 6, name: "Vikram Malhotra", email: "vikram.m@trailytics.com", role: "Analyst", status: "Active", joined: "2024-03-01" },
-        { id: 7, name: "Sneha Kapoor", email: "sneha.k@trailytics.com", role: "Manager", status: "Away", joined: "2024-03-05" },
-        { id: 8, name: "Amit Patel", email: "amit.p@trailytics.com", role: "Viewer", status: "Active", joined: "2024-03-10" },
-        { id: 9, name: "Kavita Reddy", email: "kavita.r@trailytics.com", role: "Super Admin", status: "Active", joined: "2024-03-12" },
-        { id: 10, name: "Ishaan Mehta", email: "ishaan.m@trailytics.com", role: "Editor", status: "Inactive", joined: "2024-03-15" },
-        { id: 11, name: "Meera Nair", email: "meera.n@trailytics.com", role: "Analyst", status: "Active", joined: "2024-03-20" },
-        { id: 12, name: "Rohan Gupta", email: "rohan.g@trailytics.com", role: "Manager", status: "Active", joined: "2024-03-22" },
-        { id: 13, name: "Aditi Rao", email: "aditi.r@trailytics.com", role: "Viewer", status: "Away", joined: "2024-03-25" },
-        { id: 14, name: "Kabir Das", email: "kabir.d@trailytics.com", role: "Editor", status: "Active", joined: "2024-03-28" },
-        { id: 15, name: "Zoya Khan", email: "zoya.k@trailytics.com", role: "Analyst", status: "Active", joined: "2024-03-30" },
-        { id: 16, name: "Aryan Joshi", email: "aryan.j@trailytics.com", role: "Viewer", status: "Inactive", joined: "2024-03-31" },
-        { id: 17, name: "Tanya Sen", email: "tanya.s@trailytics.com", role: "Manager", status: "Active", joined: "2024-04-01" },
-        { id: 18, name: "Nikhil Saxena", email: "nikhil.s@trailytics.com", role: "Editor", status: "Away", joined: "2024-04-01" },
-        { id: 19, name: "Pooja Hegde", email: "pooja.h@trailytics.com", role: "Analyst", status: "Active", joined: "2024-04-01" },
-        { id: 20, name: "Varun Dhawan", email: "varun.d@trailytics.com", role: "Viewer", status: "Active", joined: "2024-04-01" }
-    ]);
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                setLoading(true);
+                const token = localStorage.getItem("token");
+                const API_BASE = import.meta.env.VITE_API_URL
+                    ? `${import.meta.env.VITE_API_URL}/api`
+                    : "/api";
+
+                const response = await axios.get(`${API_BASE}/admin/users`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+
+                if (response.data.success) {
+                    setUsers(response.data.data);
+                } else {
+                    setError(response.data.error || "Failed to fetch users");
+                }
+            } catch (err) {
+                console.error("Error fetching users:", err);
+                setError(err.response?.data?.error || "An error occurred while fetching users");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchUsers();
+    }, []);
 
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
@@ -91,6 +106,32 @@ const AllUsersTable = () => {
             setFormData({ name: "", email: "", role: "Viewer", status: "Active" });
             setErrors({});
             setCurrentPage(1);
+        }
+    };
+
+    const handleDeleteUser = async (userId) => {
+        if (!window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
+
+        try {
+            const token = localStorage.getItem("token");
+            const API_BASE = import.meta.env.VITE_API_URL
+                ? `${import.meta.env.VITE_API_URL}/api`
+                : "/api";
+
+            const response = await axios.delete(`${API_BASE}/admin/users/${userId}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            if (response.data.success) {
+                setUsers(users.filter(user => user.id !== userId));
+            } else {
+                alert(response.data.error || "Failed to delete user");
+            }
+        } catch (err) {
+            console.error("Error deleting user:", err);
+            alert(err.response?.data?.error || "An error occurred while deleting user");
         }
     };
 
@@ -149,58 +190,97 @@ const AllUsersTable = () => {
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">User Information</th>
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Access Level</th>
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Status</th>
+                                <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">DB Name</th>
                                 <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Joined Date</th>
-                                <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 text-right">Actions</th>
+                                <th className="px-8 py-4 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">Last Login</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {paginatedUsers.map((user) => (
-                                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs border border-indigo-100 group-hover:scale-105 transition-transform">
-                                                {getInitials(user.name)}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-slate-800 leading-none">{user.name}</p>
-                                                <div className="flex items-center gap-1 mt-1.5 text-slate-400 group-hover:text-slate-600 transition-colors">
-                                                    <Mail className="w-3 h-3" />
-                                                    <p className="text-xs font-medium">{user.email}</p>
-                                                </div>
-                                            </div>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={6} className="px-8 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+                                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Loading Users...</p>
                                         </div>
-                                    </td>
-                                    <td className="px-8 py-5">
-                                        <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-                                            user.role === 'Super Admin' ? 'bg-rose-50 text-rose-600' :
-                                            user.role === 'Manager' ? 'bg-amber-50 text-amber-600' :
-                                            'bg-indigo-50 text-indigo-600'
-                                        }`}>
-                                            <Shield className="w-3 h-3" />
-                                            {user.role}
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'Active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : user.status === 'Away' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]' : 'bg-slate-300'}`} />
-                                            <span className="text-xs font-bold text-slate-600">
-                                                {user.status}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-2 text-slate-500 font-medium">
-                                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                            <span className="text-xs">{user.joined}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5 text-right">
-                                        <button className="p-2 hover:bg-indigo-50 rounded-xl transition-all text-slate-400 hover:text-indigo-600 active:scale-95">
-                                            <MoreHorizontal className="w-5 h-5" />
-                                        </button>
                                     </td>
                                 </tr>
-                            ))}
+                            ) : error ? (
+                                <tr>
+                                    <td colSpan={6} className="px-8 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3 text-rose-500">
+                                            <p className="text-sm font-bold uppercase tracking-widest">{error}</p>
+                                            <button 
+                                                onClick={() => window.location.reload()}
+                                                className="px-4 py-2 bg-rose-50 rounded-lg text-xs font-bold"
+                                            >
+                                                Retry
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : paginatedUsers.length === 0 ? (
+                                <tr>
+                                    <td colSpan={6} className="px-8 py-20 text-center">
+                                        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No users found</p>
+                                    </td>
+                                </tr>
+                            ) : (
+                                paginatedUsers.map((user) => (
+                                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs border border-indigo-100 group-hover:scale-105 transition-transform">
+                                                    {getInitials(user.name || "Unknown User")}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-slate-800 leading-none">{user.name}</p>
+                                                    <div className="flex items-center gap-1 mt-1.5 text-slate-400 group-hover:text-slate-600 transition-colors">
+                                                        <Mail className="w-3 h-3" />
+                                                        <p className="text-xs font-medium">{user.email}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5">
+                                            <div className={`inline-flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                                                user.role === 'admin' ? 'bg-rose-50 text-rose-600' :
+                                                user.role === 'manager' ? 'bg-amber-50 text-amber-600' :
+                                                'bg-indigo-50 text-indigo-600'
+                                            }`}>
+                                                <Shield className="w-3 h-3" />
+                                                {user.role}
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : user.status === 'away' ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]' : 'bg-slate-300'}`} />
+                                                <span className="text-xs font-bold text-slate-600 capitalize">
+                                                    {user.status}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-2">
+                                                <Database className="w-3.5 h-3.5 text-slate-400" />
+                                                <span className="text-xs font-medium text-slate-500 tracking-wider">{user.dbName}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-2 text-slate-500 font-medium">
+                                                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                                                <span className="text-xs">{user.joined}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-2 text-slate-500 font-medium whitespace-nowrap">
+                                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                                <span className="text-xs">{user.lastLogin}</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                 </div>
