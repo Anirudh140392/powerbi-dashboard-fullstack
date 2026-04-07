@@ -1848,9 +1848,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             promoTrend: promoTrendStr
         };
 
+        let subtitle = '';
         if (qStartDate && qEndDate) {
             subtitle = `${dayjs(qStartDate).format('DD MMM')} - ${dayjs(qEndDate).format('DD MMM')}`;
         }
+
+        const chartLabels = offtakeChart.map(p => p.label);
 
         const topMetrics = [
             {
