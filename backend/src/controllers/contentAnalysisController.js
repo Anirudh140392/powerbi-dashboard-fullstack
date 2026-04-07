@@ -1,4 +1,4 @@
-import { getContentAnalysisStats, getContentAnalysisOverviewStats, getContentAnalysisPlatformBreakdown, getContentAnalysisPlatforms, getContentAnalysisTrends } from '../services/contentAnalysisService.js';
+import { getContentAnalysisStats, getContentAnalysisOverviewStats, getContentAnalysisPlatformBreakdown, getContentAnalysisPlatforms, getContentAnalysisTrends, getContentAnalysisCategories, getContentAnalysisBrands, getContentAnalysisZones } from '../services/contentAnalysisService.js';
 
 export const ContentAnalysis = async (req, res) => {
     try {
@@ -114,6 +114,39 @@ export const ContentAnalysisPlatformsController = async (req, res) => {
         res.json(platforms);
     } catch (error) {
         console.error('Error in Content Analysis Platforms:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const ContentAnalysisCategoriesController = async (req, res) => {
+    try {
+        const { platform } = req.query;
+        const categories = await getContentAnalysisCategories(platform);
+        res.json(categories);
+    } catch (error) {
+        console.error('Error in Content Analysis Categories:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const ContentAnalysisBrandsController = async (req, res) => {
+    try {
+        const { platform } = req.query;
+        const brands = await getContentAnalysisBrands(platform);
+        res.json(brands);
+    } catch (error) {
+        console.error('Error in Content Analysis Brands:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const ContentAnalysisZonesController = async (req, res) => {
+    try {
+        const { brand } = req.query;
+        const zones = await getContentAnalysisZones(brand);
+        res.json(zones);
+    } catch (error) {
+        console.error('Error in Content Analysis Zones:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
