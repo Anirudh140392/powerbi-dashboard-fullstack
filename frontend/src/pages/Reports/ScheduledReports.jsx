@@ -29,7 +29,7 @@ export default function ScheduledReports() {
         sku: "All SKUs",
         location: "All Locations",
         timePeriod: "Last 30 Days",
-        reportType: "Watch Tower",
+        reportType: "Business Overview",
     });
 
     // Custom date range state
@@ -187,7 +187,7 @@ export default function ScheduledReports() {
     const reportTypeOptions = availableReportTypes.length > 0
         ? availableReportTypes
         : [
-            "Watch Tower",
+            "Business Overview",
             "Availability Analysis",
             "Visibility Analysis",
             "Sales Data",

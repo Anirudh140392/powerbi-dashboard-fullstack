@@ -203,7 +203,7 @@ const ExpandablePlatformRow = ({ row }) => {
 
 // --- MAIN DEFAULT EXPORT ---
 export default function ContentScoreAnalysis() {
-  const { platform, selectedCategory, selectedChannel, timeStart, timeEnd, compareStart, compareEnd } = useContext(FilterContext);
+  const { platform, selectedCategory, selectedChannel, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd } = useContext(FilterContext);
 
   const [currentView, setCurrentView] = useState('main'); // 'main' | 'trends' | 'key_insights'
   const [selectedLines, setSelectedLines] = useState(['overall', 'title', 'images', 'secondary', 'description', 'rating']);
@@ -229,7 +229,9 @@ export default function ContentScoreAnalysis() {
         const commonParams = {
           platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
           category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
-          channel: selectedChannel === "All" ? undefined : selectedChannel,
+          channel: selectedChannel === "All" ? undefined : (Array.isArray(selectedChannel) ? selectedChannel.join(",") : selectedChannel),
+          brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
+          location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
           startDate: timeStart ? timeStart.format('YYYY-MM-DD') : undefined,
           endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined,
           prevStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
@@ -270,7 +272,7 @@ export default function ContentScoreAnalysis() {
     if (timeStart && timeEnd) {
       fetchData();
     }
-  }, [platform, selectedCategory, selectedChannel, timeStart, timeEnd, compareStart, compareEnd]);
+  }, [platform, selectedCategory, selectedChannel, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
 
   const toggleLine = (line) => {
     if (selectedLines.includes(line)) {
