@@ -36,16 +36,16 @@ export const getReportFilterOptions = async (req, res) => {
             const buildWhere = (excludeField) => {
                 const conditions = [];
                 if (platform && platform !== 'All' && platform !== 'All Platforms' && excludeField !== 'Platform') {
-                    conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
+                    conditions.push(`lower(Platform) = lower('${platform.replace(/'/g, "''")}')`);
                 }
                 if (brand && brand !== 'All Brands' && excludeField !== 'Brand') {
-                    conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
+                    conditions.push(`lower(Brand) = lower('${brand.replace(/'/g, "''")}')`);
                 }
                 if (city && city !== 'All Locations' && excludeField !== 'Location') {
-                    conditions.push(`Location = '${city.replace(/'/g, "''")}'`);
+                    conditions.push(`lower(Location) = lower('${city.replace(/'/g, "''")}')`);
                 }
                 if (format && format !== 'All Categories' && excludeField !== catCol) {
-                    conditions.push(`${catCol} = '${format.replace(/'/g, "''")}'`);
+                    conditions.push(`lower(${catCol}) = lower('${format.replace(/'/g, "''")}')`);
                 }
                 return conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
             };
@@ -71,13 +71,24 @@ export const getReportFilterOptions = async (req, res) => {
                 queryClickHouse(monthsQuery)
             ]);
 
+            const capitalize = (str) => {
+                if (!str) return str;
+                return str.toString().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            };
+
+            // Safely get the first value of the object regardless of what casing ClickHouse assigned the key
+            const getColVal = (row) => row ? Object.values(row)[0] : null;
+
+            // Deduplicate options if case variations exist (e.g. 'amazon', 'Amazon')
+            const uniqueMap = (arr) => [...new Set(arr.map(getColVal).filter(Boolean).map(capitalize))];
+
             return {
-                platforms: platforms.map(p => p.Platform).filter(Boolean),
-                brands: brands.map(b => b.Brand).filter(Boolean),
-                cities: locations.map(l => l.Location).filter(Boolean),
-                formats: formats.map(f => f.CatLabel).filter(Boolean),
-                skus: skus.map(s => s.Product).filter(Boolean),
-                months: months.map(m => m.Month).filter(Boolean)
+                platforms: uniqueMap(platforms),
+                brands: uniqueMap(brands),
+                cities: uniqueMap(locations),
+                formats: uniqueMap(formats),
+                skus: uniqueMap(skus),
+                months: months.map(getColVal).filter(Boolean)
             };
         }, CACHE_TTL.METRICS);
 
@@ -141,10 +152,10 @@ export const downloadReport = async (req, res) => {
         // 2. Build Query based on reportType
         let query = '';
         const conditions = [];
-        if (platform && platform !== 'All') conditions.push(`Platform = '${platform.replace(/'/g, "''")}'`);
-        if (brand && brand !== 'All' && !brand.startsWith('All ')) conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
-        if (city && city !== 'All' && !city.startsWith('All ')) conditions.push(`Location = '${city.replace(/'/g, "''")}'`);
-        if (format && format !== 'All' && !format.startsWith('All ')) conditions.push(`${catCol} = '${format.replace(/'/g, "''")}'`);
+        if (platform && platform !== 'All') conditions.push(`lower(Platform) = lower('${platform.replace(/'/g, "''")}')`);
+        if (brand && brand !== 'All' && !brand.startsWith('All ')) conditions.push(`lower(Brand) = lower('${brand.replace(/'/g, "''")}')`);
+        if (city && city !== 'All' && !city.startsWith('All ')) conditions.push(`lower(Location) = lower('${city.replace(/'/g, "''")}')`);
+        if (format && format !== 'All' && !format.startsWith('All ')) conditions.push(`lower(${catCol}) = lower('${format.replace(/'/g, "''")}')`);
         conditions.push(`toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'`);
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -215,7 +226,7 @@ export const downloadReport = async (req, res) => {
                     FROM rb_kw_olap
                     WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
                     AND POSITION < 11
-                    ${platform && platform !== 'All' ? `AND platform_name = '${platform.replace(/'/g, "''")}'` : ''}
+                    ${platform && platform !== 'All' ? `AND lower(platform_name) = lower('${platform.replace(/'/g, "''")}')` : ''}
                     GROUP BY JoinDate, Platform, Category
                 )
                 SELECT 
@@ -229,8 +240,8 @@ export const downloadReport = async (req, res) => {
                 LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.platform_name = c.Platform AND t.keyword_category = c.Category
                 WHERE toDate(t.DATE) BETWEEN '${startDate}' AND '${endDate}'
                 AND t.POSITION < 11
-                ${platform && platform !== 'All' ? `AND t.platform_name = '${platform.replace(/'/g, "''")}'` : ''}
-                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND t.brand = '${brand.replace(/'/g, "''")}'` : ''}
+                ${platform && platform !== 'All' ? `AND lower(t.platform_name) = lower('${platform.replace(/'/g, "''")}')` : ''}
+                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(t.brand) = lower('${brand.replace(/'/g, "''")}')` : ''}
                 GROUP BY DATE, Platform, Brand, t.keyword_category, t.keyword_type
                 ORDER BY DATE DESC
             `;
@@ -252,8 +263,8 @@ export const downloadReport = async (req, res) => {
                     ROUND(SUM(sales) / nullIf(SUM(SUM(sales)) OVER (PARTITION BY DATE, category, location), 0) * 100, 2) as Market_Share_Percentage
                 FROM ${msTable}
                 WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'
-                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND ${msBrandCol} = '${brand.replace(/'/g, "''")}'` : ''}
-                ${city && city !== 'All' && !city.startsWith('All ') ? `AND location = '${city.replace(/'/g, "''")}'` : ''}
+                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(${msBrandCol}) = lower('${brand.replace(/'/g, "''")}')` : ''}
+                ${city && city !== 'All' && !city.startsWith('All ') ? `AND lower(location) = lower('${city.replace(/'/g, "''")}')` : ''}
                 ${cityFilter}
                 GROUP BY DATE, ${msBrandCol}, category, location
                 ORDER BY DATE DESC
@@ -269,10 +280,10 @@ export const downloadReport = async (req, res) => {
                         SUM(assumeNotNull(Qty_Sold)) as daily_orders
                     FROM rb_pdp_olap
                     WHERE toDate(DATE) BETWEEN '${widerStartDate}' AND '${endDate}'
-                    ${platform && platform !== 'All' ? `AND Platform = '${platform.replace(/'/g, "''")}'` : ''}
-                    ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND Brand = '${brand.replace(/'/g, "''")}'` : ''}
-                    ${city && city !== 'All' && !city.startsWith('All ') ? `AND Location = '${city.replace(/'/g, "''")}'` : ''}
-                    ${format && format !== 'All' && !format.startsWith('All ') ? `AND ${catCol} = '${format.replace(/'/g, "''")}'` : ''}
+                    ${platform && platform !== 'All' ? `AND lower(Platform) = lower('${platform.replace(/'/g, "''")}')` : ''}
+                    ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(Brand) = lower('${brand.replace(/'/g, "''")}')` : ''}
+                    ${city && city !== 'All' && !city.startsWith('All ') ? `AND lower(Location) = lower('${city.replace(/'/g, "''")}')` : ''}
+                    ${format && format !== 'All' && !format.startsWith('All ') ? `AND lower(${catCol}) = lower('${format.replace(/'/g, "''")}')` : ''}
                     GROUP BY DATE, Platform, Brand, City, Format, Product
                 ),
                 running_metrics AS (
