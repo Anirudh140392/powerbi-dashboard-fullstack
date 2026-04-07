@@ -1,4 +1,4 @@
-import { ContentAnalysis, ContentAnalysisOverview, ContentAnalysisPlatformBreakdownController, ContentAnalysisPlatformsController, ContentAnalysisTrendsController } from '../controllers/contentAnalysisController.js';
+import { ContentAnalysis, ContentAnalysisOverview, ContentAnalysisPlatformBreakdownController, ContentAnalysisPlatformsController, ContentAnalysisTrendsController, ContentAnalysisCategoriesController, ContentAnalysisBrandsController, ContentAnalysisZonesController } from '../controllers/contentAnalysisController.js';
 
 export default (app) => {
     /**
@@ -21,5 +21,8 @@ export default (app) => {
     app.get('/api/content-analysis/overview', ContentAnalysisOverview);
     app.get('/api/content-analysis/platform-breakdown', ContentAnalysisPlatformBreakdownController);
     app.get('/api/content-analysis/platforms', ContentAnalysisPlatformsController);
+    app.get('/api/content-analysis/categories', ContentAnalysisCategoriesController);
+    app.get('/api/content-analysis/brands', ContentAnalysisBrandsController);
+    app.get('/api/content-analysis/zones', ContentAnalysisZonesController);
     app.get('/api/content-analysis/trends', ContentAnalysisTrendsController);
 };

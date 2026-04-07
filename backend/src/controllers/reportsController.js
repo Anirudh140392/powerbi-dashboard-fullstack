@@ -240,6 +240,11 @@ export const downloadReport = async (req, res) => {
             const msTable = hasBrandMs ? 'rb_brand_ms' : 'rb_ms_olap';
             const msDateCol = hasBrandMs ? 'created_on' : 'created_on';
             const msBrandCol = hasBrandMs ? 'brand' : 'group_brand';
+
+            // Filter for only 12 specific cities as requested
+            const allowedCities = ['Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai', 'Kolkata', 'Lucknow', 'Delhi', 'Gurgaon', 'Faridabad', 'Chandigarh'];
+            const cityFilter = `AND location IN ('${allowedCities.join("','")}')`;
+
             query = `
                 SELECT 
                     toDate(${msDateCol}) as DATE, ${msBrandCol} as Brand, category as Category, location as City,
@@ -249,6 +254,7 @@ export const downloadReport = async (req, res) => {
                 WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'
                 ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND ${msBrandCol} = '${brand.replace(/'/g, "''")}'` : ''}
                 ${city && city !== 'All' && !city.startsWith('All ') ? `AND location = '${city.replace(/'/g, "''")}'` : ''}
+                ${cityFilter}
                 GROUP BY DATE, ${msBrandCol}, category, location
                 ORDER BY DATE DESC
             `;
@@ -400,7 +406,7 @@ export const downloadReport = async (req, res) => {
                 GROUP BY DATE, Platform, Brand, Location, ${catCol}, Product
                 ORDER BY DATE DESC
             `;
-        } else if (reportType === "Watch Tower") {
+        } else if (reportType === "Business Overview") {
             query = `
                 SELECT 
                     ${col('DATE')} as DATE, ${col('Platform')} as Platform, ${col('Brand')} as Brand, ${col('Location')} as City, ${col(catCol)} as Format, ${col('Product')} as Product,
@@ -495,7 +501,7 @@ export const getAvailableReportTypes = async (req, res) => {
         const data = await getCachedOrCompute(cacheKey, async () => {
             // Define report types and their required tables
             const reportTableMap = [
-                { type: 'Watch Tower', tables: ['rb_pdp_olap'] },
+                { type: 'Business Overview', tables: ['rb_pdp_olap'] },
                 { type: 'Availability Analysis', tables: ['rb_pdp_olap'] },
                 { type: 'Visibility Analysis', tables: ['rb_kw_olap'] },
                 { type: 'Sales Data', tables: ['rb_pdp_olap'] },

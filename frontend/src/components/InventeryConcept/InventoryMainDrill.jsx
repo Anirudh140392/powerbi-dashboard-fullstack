@@ -85,6 +85,7 @@ export default function InventoryDrill() {
         timeStart,
         timeEnd,
         platform: globalPlatform,
+        selectedChannel: globalChannel,
         selectedBrand: globalBrand,
         selectedLocation: globalLocation,
         selectedCategory: globalCategory,
@@ -112,6 +113,7 @@ export default function InventoryDrill() {
             const params = {
                 startDate,
                 endDate,
+                channel: getFilterValue(null, globalChannel),
                 platform: getFilterValue(filters.platform, globalPlatform),
                 brand: getFilterValue(filters.brand, globalBrand),
                 location: getFilterValue(filters.citySelection, globalLocation),
@@ -140,7 +142,7 @@ export default function InventoryDrill() {
     // Initial load & Filter change effect
     useEffect(() => {
         fetchMatrixData();
-    }, [filters, timeStart, timeEnd, globalPlatform, globalBrand, globalLocation, globalCategory]);
+    }, [filters, timeStart, timeEnd, globalPlatform, globalChannel, globalBrand, globalLocation, globalCategory]);
 
     // Process backend data
     const allPlatforms = useMemo(() => {
