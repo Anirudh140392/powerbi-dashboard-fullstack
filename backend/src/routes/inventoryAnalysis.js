@@ -3,8 +3,10 @@ import {
     GetInventoryPlatforms,
     GetInventoryBrands,
     GetInventoryLocations,
+    GetInventoryCategories,
     GetInventoryMatrix,
-    GetCitySkuMatrix
+    GetCitySkuMatrix,
+    GetInventoryChannels
 } from '../controllers/inventoryAnalysisController.js';
 
 /**
@@ -40,6 +42,14 @@ export default function inventoryAnalysisRoutes(app) {
 
     /**
      * @swagger
+     * /api/inventory-analysis/channels:
+     *   get:
+     *     summary: Get available channels for filters
+     */
+    app.get('/api/inventory-analysis/channels', GetInventoryChannels);
+
+    /**
+     * @swagger
      * /api/inventory-analysis/platforms:
      *   get:
      *     summary: Get available platforms for filters
@@ -57,6 +67,18 @@ export default function inventoryAnalysisRoutes(app) {
      *         description: Filter brands by platform
      */
     app.get('/api/inventory-analysis/brands', GetInventoryBrands);
+
+    /**
+     * @swagger
+     * /api/inventory-analysis/categories:
+     *   get:
+     *     summary: Get available categories for filters
+     *     parameters:
+     *       - name: platform
+     *         in: query
+     *         description: Filter categories by platform
+     */
+    app.get('/api/inventory-analysis/categories', GetInventoryCategories);
 
     /**
      * @swagger

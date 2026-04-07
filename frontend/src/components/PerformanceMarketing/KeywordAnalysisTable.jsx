@@ -218,8 +218,10 @@ export default function KeywordAnalysisTable() {
   });
 
   const {
+    selectedChannel,
     platform,
     selectedCategory,
+    selectedBrand,
     selectedLocation,
     timeStart,
     timeEnd,
@@ -232,9 +234,12 @@ export default function KeywordAnalysisTable() {
       try {
         const response = await axiosInstance.get('/performance-marketing/keyword-analysis', {
           params: {
+            channel: Array.isArray(selectedChannel) ? selectedChannel.join(',') : (selectedChannel || 'All'),
             platform: Array.isArray(platform) ? platform.join(',') : platform,
-            brand: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+            category: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+            brand: Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand,
             zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+            location: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
             productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
             startDate: timeStart?.format("YYYY-MM-DD"),
             endDate: timeEnd?.format("YYYY-MM-DD"),
@@ -252,7 +257,7 @@ export default function KeywordAnalysisTable() {
       }
     };
     fetchKeywordData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, activeFilters.weekendFlag, selectedProductCategory]);
+  }, [selectedChannel, platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, activeFilters.weekendFlag, selectedProductCategory]);
 
   useEffect(() => {
     const fetchCategories = async () => {

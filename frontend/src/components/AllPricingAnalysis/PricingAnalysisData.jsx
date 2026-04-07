@@ -1494,14 +1494,18 @@ export default function PricingAnalysisData() {
     const data = ecpByBrandData;
 
     // If no brand filter, return all data
-    if (!brandFilter || brandFilter === "All") {
+    if (!brandFilter || brandFilter === "All" || (Array.isArray(brandFilter) && brandFilter.includes("All"))) {
       return data;
     }
 
     // Filter by brand (case-insensitive)
-    const filtered = data.filter((r) =>
-      r.brand?.toLowerCase() === brandFilter?.toLowerCase()
-    );
+    const filtered = data.filter((r) => {
+      const rowBrand = String(r.brand || '').toLowerCase();
+      if (Array.isArray(brandFilter)) {
+        return brandFilter.map(b => String(b).toLowerCase()).includes(rowBrand);
+      }
+      return rowBrand === String(brandFilter).toLowerCase();
+    });
 
     return filtered;
   }, [filters.brand, selectedBrand, ecpByBrandData]);

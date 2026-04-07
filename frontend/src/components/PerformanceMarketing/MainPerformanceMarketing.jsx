@@ -16,9 +16,11 @@ import MetricCardContainer from "../CommonLayout/MetricCardContainer";
 export default function MainPerformanceMarketings() {
   const {
     timeStart, timeEnd, comparisonLabel,
+    channels, selectedChannel,
     locations, selectedLocation, setLocations, setSelectedLocation,
     platforms, platform, setPlatforms, setPlatform,
     categories, selectedCategory, setCategories, setSelectedCategory,
+    brands, selectedBrand,
     selectedProductCategory
   } = useContext(FilterContext);
 
@@ -141,9 +143,12 @@ export default function MainPerformanceMarketings() {
       setLoading(true); // Start loading
       try {
         const params = {
+          channel: Array.isArray(selectedChannel) ? selectedChannel.join(',') : (selectedChannel || 'All'),
           platform: Array.isArray(platform) ? platform.join(',') : (platform || 'All'),
           category: Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory,
+          brand: Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand,
           zone: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
+          location: Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation,
           productCategory: Array.isArray(selectedProductCategory) ? selectedProductCategory.join(',') : selectedProductCategory,
           startDate: timeStart?.format("YYYY-MM-DD"),
           endDate: timeEnd?.format("YYYY-MM-DD")
@@ -209,7 +214,7 @@ export default function MainPerformanceMarketings() {
     if (timeStart && timeEnd) {
       fetchPerformanceData();
     }
-  }, [timeStart, timeEnd, platform, selectedCategory, selectedLocation, selectedProductCategory]); // Updated dependencies
+  }, [timeStart, timeEnd, selectedChannel, platform, selectedCategory, selectedBrand, selectedLocation, selectedProductCategory]); // Updated dependencies
 
   return (
     <Box>
