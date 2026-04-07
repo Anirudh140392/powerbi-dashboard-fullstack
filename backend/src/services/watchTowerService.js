@@ -1531,8 +1531,8 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         // Execute queries concurrently - NOW USING CLICKHOUSE
         // Helper for building ClickHouse WHERE conditions
         const [
-            offtakeData,
-            marketShareData,
+            offtakeData, // Now returns daily data for trend + summary
+            marketShareTrendData, // From marketShareHelper
             totalMarketShareResult,
             topSkus,
             currentAvailability,
@@ -1547,30 +1547,35 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             prevPromoDepth,
             promoTrendData
         ] = await Promise.all([
+            // 1. Offtake Data (Daily for trend)
             (async () => {
                 try {
-                    const result = await queryClickHouse(`SELECT SUM(${src.f.sales}) as total_sales FROM ${src.table} WHERE ${offtakeCondStr}`);
-                    return [{ total_sales: result[0]?.total_sales || 0 }];
+                    const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
+                    const result = await queryClickHouse(`
+                        SELECT ${dateCol} as date, SUM(${src.f.sales}) as total_sales 
+                        FROM ${src.table} 
+                        WHERE ${offtakeCondStr}
+                        GROUP BY date ORDER BY date
+                    `);
+                    return result.length > 0 ? result : [{ total_sales: 0 }];
                 } catch (err) {
                     console.error('[Offtake] ClickHouse error:', err.message);
                     return [{ total_sales: 0 }];
                 }
             })(),
-            // 2. Market Share - USING marketShareHelper
-            (async () => {
-                return [];
-            })(),
-            // 3. Total Market Share Average - USING marketShareHelper
+            // 2. Market Share Trend - USING marketShareHelper
+            getMarketShareTimeSeries(startDate, endDate, platform, category, brand, 'Daily', location),
+            // 3. Total Market Share Average
             (async () => {
                 try {
-                    const avgMs = await getMarketShare(startDate, endDate, platformArr, categoryArr, brandArr, locationArr);
+                    const avgMs = await getMarketShare(startDate, endDate, platform, category, brand, location);
                     return { avg_market_share: avgMs, count: 1, min_val: avgMs, max_val: avgMs };
                 } catch (err) {
                     console.error('[TotalMarketShare] helper error:', err.message);
                     return { avg_market_share: 0, count: 0, min_val: 0, max_val: 0 };
                 }
             })(),
-            // 4. Top SKUs - USING CLICKHOUSE (Our Brands Only)
+            // 4. Top SKUs
             (async () => {
                 try {
                     const result = await queryClickHouse(`
@@ -1588,28 +1593,72 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return [];
                 }
             })(),
-            // 5. Current Availability (already uses ClickHouse)
+            // 5. Current Availability
             getAvailability(startDate, endDate, brand, platform, location, category, skuName, skuCode),
             // 6. Previous Availability
             getAvailability(momStartDate, momEndDate, brand, platform, location, category, skuName, skuCode),
-            // 7. Current Share of Search (already uses ClickHouse)
+            // 7. Current Share of Search
             getShareOfSearch(startDate, endDate, brand, platform, location, category),
             // 8. Previous Share of Search
             getShareOfSearch(momStartDate, momEndDate, brand, platform, location, category),
             // 9. Availability Trend Data - USING CLICKHOUSE
             (async () => {
-                return [];
+                try {
+                    const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
+                    const result = await queryClickHouse(`
+                        SELECT ${dateCol} as date, SUM(${src.f.neno}) as neno, SUM(${src.f.deno}) as deno
+                        FROM ${src.table}
+                        WHERE ${offtakeCondStr}
+                        GROUP BY date ORDER BY date
+                    `);
+                    return result;
+                } catch (err) {
+                    console.error('[AvailabilityTrend] error:', err.message);
+                    return [];
+                }
             })(),
             // 10. Share of Search Trend Data - USING CLICKHOUSE
             (async () => {
-                return [];
+                try {
+                    // Approximate Weekly Trend for SOS by day
+                    const brandsForNumerator = (brand && brand !== 'All') 
+                        ? (Array.isArray(brand) ? brand : [brand])
+                        : (await getGlobalOurBrandsList());
+                    
+                    const brandInClause = brandsForNumerator.map(b => `'${escapeStr(b)}'`).join(', ');
+                    const baseCond = [
+                        `toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`
+                    ];
+                    
+                    const locArr = normalizeFilterArray(location);
+                    if (locArr && locArr.length > 0) baseCond.push(`lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+                    
+                    const catArr = normalizeFilterArray(category);
+                    if (catArr && catArr.length > 0) baseCond.push(`lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+                    
+                    const platArr = normalizeFilterArray(platform);
+                    const platCond = buildPlatformChannelCond(platArr, channel, 'lower(platform_name)', true);
+                    if (platCond) baseCond.push(platCond);
+
+                    const result = await queryClickHouse(`
+                        SELECT 
+                            toDate(DATE) as date,
+                            SUM(if(lower(brand) IN (${brandInClause.toLowerCase()}), toInt32(overall), 0)) as num,
+                            SUM(toInt32(overall)) as den
+                        FROM rb_kw_olap
+                        WHERE ${baseCond.join(' AND ')}
+                        GROUP BY date ORDER BY date
+                    `);
+                    return result;
+                } catch (err) {
+                    console.error('[SOSTrend] error:', err.message);
+                    return [];
+                }
             })(),
+            // 11. Previous Offtake
             (async () => {
                 try {
                     const prevOfftakeCondStr = buildOfftakeConditions(momStartDate, momEndDate);
-                    // Use force comp_flag 0 for comparison if brand is not specifically filtered?
-                    // Actually, if current is category total, previous should also be category total for fair MoM.
-                    // But if user specifically wants "Offtake" to mean X, we should be consistent.
                     const result = await queryClickHouse(`SELECT SUM(${src.f.sales}) as total FROM ${src.table} WHERE ${prevOfftakeCondStr}`);
                     return parseFloat(result[0]?.total || 0);
                 } catch (err) {
@@ -1617,16 +1666,17 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return 0;
                 }
             })(),
-            // 12. Previous Market Share - USING marketShareHelper
+            // 12. Previous Market Share
             (async () => {
                 try {
-                    const avgMs = await getMarketShare(momStartDate, momEndDate, platformArr, categoryArr, brandArr, locationArr);
+                    const avgMs = await getMarketShare(momStartDate, momEndDate, platform, category, brand, location);
                     return { avg_ms: avgMs };
                 } catch (err) {
                     console.error('[PrevMarketShare] helper error:', err.message);
                     return { avg_ms: 0 };
                 }
             })(),
+            // 13. Current Promo Depth
             (async () => {
                 try {
                     const result = await queryClickHouse(`
@@ -1640,7 +1690,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return 0;
                 }
             })(),
-            // 14. Previous Promo Depth - CLICKHOUSE
+            // 14. Previous Promo Depth
             (async () => {
                 try {
                     const prevOfftakeCondStr = buildOfftakeConditions(momStartDate, momEndDate);
@@ -1655,16 +1705,49 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     return 0;
                 }
             })(),
-            // 15. Promo Trend Data - CLICKHOUSE
+            // 15. Promo Trend Data
             (async () => {
-                return [];
+                try {
+                    const dateCol = src.isAgg ? 'date' : 'toDate(DATE)';
+                    const result = await queryClickHouse(`
+                        SELECT 
+                            ${dateCol} as date,
+                            (SUM(${src.f.mrp}) - SUM(${src.f.sellingPrice})) / NULLIF(SUM(${src.f.mrp}), 0) * 100 as promo
+                        FROM ${src.table}
+                        WHERE ${offtakeCondStr} AND ${src.f.compFlag} = '0' AND neno_osa > 0
+                        GROUP BY date ORDER BY date
+                    `);
+                    return result;
+                } catch (err) {
+                    return [];
+                }
             })()
         ]);
 
-        // Process Offtake Data - Using weekBuckets for weekly chart
-        const offtakeChart = [];
+        // Process Trend Charts - Map Daily data to Week Buckets
+        const mapToWeeks = (dailyData, buckets, valueKey = 'value', dateKey = 'date', isAvg = false) => {
+            const result = buckets.map(b => ({ ...b, value: 0, count: 0 }));
+            dailyData.forEach(d => {
+                const date = dayjs(d[dateKey]);
+                const bucketIndex = result.findIndex(b => {
+                    const bStart = dayjs(b.date).startOf('isoWeek');
+                    const bEnd = dayjs(b.date).endOf('isoWeek');
+                    return date.isSame(bStart) || (date.isAfter(bStart) && date.isBefore(bEnd)) || date.isSame(bEnd);
+                });
+                if (bucketIndex !== -1) {
+                    result[bucketIndex].value += parseFloat(d[valueKey] || 0);
+                    result[bucketIndex].count += 1;
+                }
+            });
+            return result.map(b => ({
+                label: b.label,
+                value: isAvg ? (b.count > 0 ? b.value / b.count : 0) : b.value
+            }));
+        };
 
-        const totalOfftake = offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales), 0);
+        const totalOfftake = offtakeData.reduce((sum, d) => sum + parseFloat(d.total_sales || 0), 0);
+        const offtakeChart = mapToWeeks(offtakeData, weekBuckets, 'total_sales');
+
         const formattedOfftake = formatCurrency(totalOfftake);
 
         // Calculate Offtake Trend
@@ -1673,51 +1756,78 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (prevOfftakeVal > 0) {
             offtakeChange = ((totalOfftake - prevOfftakeVal) / prevOfftakeVal) * 100;
         } else if (totalOfftake > 0) {
-            offtakeChange = 100; // Treat as 100% growth if previous was 0 and current is > 0
+            offtakeChange = 100; 
         }
         const offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(2) + "%";
 
-        // Process Market Share Data - Using weekBuckets for weekly chart
-        const marketShareChart = [];
+        // Process Market Share Data
+        const marketShareChart = weekBuckets.map(b => {
+            const bStart = dayjs(b.date).startOf('isoWeek');
+            const bEnd = dayjs(b.date).endOf('isoWeek');
+            let sumMs = 0, count = 0;
+            marketShareTrendData.forEach((val, dateStr) => {
+                const d = dayjs(dateStr);
+                if (d.isSame(bStart) || (d.isAfter(bStart) && d.isBefore(bEnd)) || d.isSame(bEnd)) {
+                    sumMs += val;
+                    count++;
+                }
+            });
+            return { label: b.label, value: count > 0 ? sumMs / count : 0 };
+        });
 
-        // Hardcode overall Market Share removed, now using calculation
         const totalMarketShare = parseFloat(totalMarketShareResult?.avg_market_share || 0);
         const formattedMarketShare = totalMarketShare.toFixed(2) + "%";
 
-        // Calculate Market Share Trend (percentage point difference for % KPIs)
         const prevMarketShareVal = parseFloat(prevMarketShareResult?.avg_ms || 0);
         const marketShareChange = totalMarketShare - prevMarketShareVal;
         const marketShareTrendStr = (marketShareChange >= 0 ? "+" : "") + marketShareChange.toFixed(2) + "%";
 
         // Process Availability Data
-        const formattedAvailability = currentAvailability.toFixed(2) + "%";
+        const availabilityChart = weekBuckets.map(b => {
+            const bStart = dayjs(b.date).startOf('isoWeek');
+            const bEnd = dayjs(b.date).endOf('isoWeek');
+            let neno = 0, deno = 0;
+            availabilityTrendData.forEach(d => {
+                const dt = dayjs(d.date);
+                if (dt.isSame(bStart) || (dt.isAfter(bStart) && dt.isBefore(bEnd)) || dt.isSame(bEnd)) {
+                    neno += parseFloat(d.neno || 0);
+                    deno += parseFloat(d.deno || 0);
+                }
+            });
+            return { label: b.label, value: deno > 0 ? (neno / deno) * 100 : 0 };
+        });
 
-        // Calculate Availability Trend (percentage point difference for % KPIs)
+        const formattedAvailability = currentAvailability.toFixed(2) + "%";
         const availabilityChange = currentAvailability - prevAvailability;
         const availabilityTrendStr = (availabilityChange >= 0 ? "+" : "") + availabilityChange.toFixed(2) + "%";
 
-        // Process Availability Chart - Using weekBuckets for weekly chart
-        const availabilityChart = [];
+        // Process SOS Data
+        const shareOfSearchChart = weekBuckets.map(b => {
+            const bStart = dayjs(b.date).startOf('isoWeek');
+            const bEnd = dayjs(b.date).endOf('isoWeek');
+            let num = 0, den = 0;
+            shareOfSearchTrendData.forEach(d => {
+                const dt = dayjs(d.date);
+                if (dt.isSame(bStart) || (dt.isAfter(bStart) && dt.isBefore(bEnd)) || dt.isSame(bEnd)) {
+                    num += parseFloat(d.num || 0);
+                    den += parseFloat(d.den || 0);
+                }
+            });
+            return { label: b.label, value: den > 0 ? (num / den) * 100 : 0 };
+        });
 
-        // Process Share of Search Data
         const formattedShareOfSearch = currentShareOfSearch.toFixed(2) + "%";
-
-        // Calculate SOS Trend (percentage point difference for % KPIs)
         const sosChange = currentShareOfSearch - prevShareOfSearch;
         const sosTrendStr = (sosChange >= 0 ? "+" : "") + sosChange.toFixed(2) + "%";
 
-        // Process Share of Search Chart - Using weekBuckets for weekly chart
-        const shareOfSearchChart = [];
+        // Process Promo Data
+        const promoChart = mapToWeeks(promoTrendData, weekBuckets, 'promo', 'date', true);
 
-        // Process Promo Data (with safe defaults to prevent crash)
         const safePromoDepth = parseFloat(currentPromoDepth) || 0;
         const safePrevPromoDepth = parseFloat(prevPromoDepth) || 0;
         const formattedPromo = safePromoDepth.toFixed(2) + "%";
         const promoChange = safePromoDepth - safePrevPromoDepth;
         const promoTrendStr = (promoChange >= 0 ? "+" : "") + promoChange.toFixed(2) + "%";
-
-        const safePromoTrendData = Array.isArray(promoTrendData) ? promoTrendData : [];
-        const promoChart = [];
 
         // Process Top SKUs
         const skuTableData = topSkus.map(sku => ({
@@ -1738,11 +1848,6 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             promoTrend: promoTrendStr
         };
 
-        // Prepare Top Metrics Array (Cards with Charts) - Use weekBuckets for weekly labels
-        const chartLabels = weekBuckets.map(b => b.label);
-
-        // Determine subtitle based on filters
-        let subtitle = `last ${monthsBack} months`;
         if (qStartDate && qEndDate) {
             subtitle = `${dayjs(qStartDate).format('DD MMM')} - ${dayjs(qEndDate).format('DD MMM')}`;
         }
@@ -1757,7 +1862,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
-                chart: offtakeChart,
+                chart: offtakeChart.map(p => p.value),
                 labels: chartLabels
             },
             {
@@ -1769,7 +1874,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
-                chart: availabilityChart,
+                chart: availabilityChart.map(p => p.value),
                 labels: chartLabels
             },
             {
@@ -1781,7 +1886,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
-                chart: shareOfSearchChart,
+                chart: shareOfSearchChart.map(p => p.value),
                 labels: chartLabels
             },
             {
@@ -1793,7 +1898,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 comparison: "vs Previous Period",
                 units: "",
                 unitsTrend: "",
-                chart: marketShareChart,
+                chart: marketShareChart.map(p => p.value),
                 labels: chartLabels
             },
             {
@@ -1805,7 +1910,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 comparison: "vs Previous Period",
                 units: "Depth",
                 unitsTrend: "",
-                chart: promoChart,
+                chart: promoChart.map(p => p.value),
                 labels: chartLabels
             }
         ];
@@ -7118,9 +7223,14 @@ const getKpiTrends = async (filters) => {
             PricePerUnit: parseFloat(pricePerUnit.toFixed(2)),
             ASP: parseFloat(asp.toFixed(2)),
             RPI: parseFloat(rpi.toFixed(2)),
-            // Mapped aliases for frontend compatibility
+            // Mapped aliases for frontend compatibility (DRAWER SYNC)
+            offtake: parseFloat(offtakes.toFixed(0)),       // MyTrendsDrawer
+            Offtake: parseFloat(offtakes.toFixed(0)),       // TrendsCompetitionDrawer
+            osa: parseFloat(availability.toFixed(2)),       // MyTrendsDrawer
+            discount: parseFloat(discount.toFixed(2)),      // MyTrendsDrawer
+            Sos: parseFloat(shareOfSearch.toFixed(2)),      // MyTrendsDrawer
+            SOS: parseFloat(shareOfSearch.toFixed(2)),      // TrendsCompetitionDrawer
             ROAS: parseFloat(roas.toFixed(2)),
-            SOS: parseFloat(shareOfSearch.toFixed(2)),
             InorgSales: parseFloat(inorganicSales.toFixed(2)),
             MarketShare: parseFloat(marketShare.toFixed(2)),
             marketShare: parseFloat(marketShare.toFixed(2)),
