@@ -1,19 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, MoreHorizontal, Shield, UserPlus, FileDown, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Search, MoreHorizontal, Shield, UserPlus, FileDown, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, RefreshCw } from "lucide-react";
 
 const UsersTable = () => {
-    const [users, setUsers] = useState([
-        { id: 1, name: "Admin Trailytics", email: "admin@trailytics.com", role: "Super Admin", status: "Active", initials: "AT" },
-        { id: 3, name: "John Doe", email: "john@example.com", role: "Editor", status: "Away", initials: "JD" },
-        { id: 4, name: "Jane Smith", email: "jane@example.com", role: "Viewer", status: "Inactive", initials: "JS" },
-        { id: 5, name: "Alice Brown", email: "alice@example.com", role: "Manager", status: "Active", initials: "AB" },
-        { id: 6, name: "Bob Wilson", email: "bob@example.com", role: "Editor", status: "Away", initials: "BW" },
-        { id: 7, name: "Charlie Davis", email: "charlie@example.com", role: "Viewer", status: "Active", initials: "CD" },
-        { id: 8, name: "David Miller", email: "david@example.com", role: "Manager", status: "Inactive", initials: "DM" },
-        { id: 9, name: "Eve White", email: "eve@example.com", role: "Editor", status: "Active", initials: "EW" },
-    ]);
-
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
@@ -25,6 +18,38 @@ const UsersTable = () => {
     const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(5);
+
+    const fetchLiveUsers = async () => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem("token");
+            const API_BASE = import.meta.env.VITE_API_URL
+                ? `${import.meta.env.VITE_API_URL}/api`
+                : "/api";
+
+            const response = await axios.get(`${API_BASE}/admin/live-users`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            if (response.data.success) {
+                setUsers(response.data.data);
+                setError(null);
+            } else {
+                setError(response.data.error || "Failed to fetch users");
+            }
+        } catch (err) {
+            console.error("Error fetching live users:", err);
+            setError("Error connecting to server. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchLiveUsers();
+    }, []);
 
     const filteredUsers = users.filter((user) =>
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -131,19 +156,50 @@ const UsersTable = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {paginatedUsers.map((user) => (
-                                <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm border border-indigo-100">
-                                                {user.initials}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-semibold text-slate-800">{user.name}</p>
-                                                <p className="text-xs text-slate-400 mt-0.5">{user.email}</p>
-                                            </div>
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={4} className="px-8 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+                                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Tracking Live Users...</p>
                                         </div>
                                     </td>
+                                </tr>
+                            ) : error ? (
+                                <tr>
+                                    <td colSpan={4} className="px-8 py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3 text-rose-500">
+                                            <p className="text-sm font-bold uppercase tracking-widest">{error}</p>
+                                            <button 
+                                                onClick={fetchLiveUsers}
+                                                className="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-all"
+                                            >
+                                                <RefreshCw className="w-3 h-3" />
+                                                Retry
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : paginatedUsers.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="px-8 py-20 text-center">
+                                        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">No users found</p>
+                                    </td>
+                                </tr>
+                            ) : (
+                                paginatedUsers.map((user) => (
+                                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm border border-indigo-100 shadow-sm transition-all group-hover:scale-105">
+                                                    {user.initials}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-semibold text-slate-800">{user.name}</p>
+                                                    <p className="text-xs text-slate-400 mt-0.5">{user.email}</p>
+                                                </div>
+                                            </div>
+                                        </td>
                                     <td className="px-8 py-5">
                                         <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-600">
                                             <Shield className="w-3 h-3 text-slate-400" />
@@ -164,7 +220,7 @@ const UsersTable = () => {
                                         </button>
                                     </td>
                                 </tr>
-                            ))}
+                            )))}
                         </tbody>
                     </table>
                 </div>
