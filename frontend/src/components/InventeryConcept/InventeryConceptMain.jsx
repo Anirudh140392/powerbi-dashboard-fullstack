@@ -329,6 +329,7 @@ function TrendModal({ context, onClose }) {
 function InventeryConceptMain() {
   const {
     platform,
+    selectedChannel,
     selectedBrand,
     selectedLocation,
     selectedCategory,
@@ -356,6 +357,9 @@ function InventeryConceptMain() {
     setOverviewError(null);
     try {
       const params = {};
+      if (selectedChannel && selectedChannel !== "All") {
+        params.channel = selectedChannel;
+      }
       if (platform && platform !== "All") {
         params.platform = Array.isArray(platform) ? platform.join(",") : platform;
       }
@@ -386,7 +390,7 @@ function InventeryConceptMain() {
 
   useEffect(() => {
     fetchOverview();
-  }, [platform, selectedBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd]);
+  }, [platform, selectedChannel, selectedBrand, selectedLocation, selectedCategory, timeStart, timeEnd, compareStart, compareEnd]);
 
   const retryOverview = async () => {
     setIsRetrying(true);

@@ -29,7 +29,7 @@ import {
   Select,
   MenuItem,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus, Filter } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter, BarChart3 } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
@@ -1908,7 +1908,7 @@ export default function TrendsCompetitionDrawer({
   };
 
   const trendOption = useMemo(() => {
-    const dataSource = (chartData && chartData.length > 0) ? chartData : (dynamicKey === 'availability' ? [] : trendPoints);
+    const dataSource = (chartData && chartData.length > 0) ? chartData : (['availability', 'pricing', 'marketshare', 'performance_dashboard_tower'].includes(dynamicKey) ? [] : trendPoints);
     const xData = dataSource.map((p) => p.date);
 
     const metrics = trendMeta.metrics || [];
@@ -2457,6 +2457,45 @@ export default function TrendsCompetitionDrawer({
                   </div>
                 ) : trendError ? (
                   <ErrorRetryOverlay onRetry={fetchTrendData} message={trendError} compact />
+                ) : (!chartData || chartData.length === 0) ? (
+                  <Box
+                    sx={{
+                      height: "100%",
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 2,
+                      backgroundColor: "#F8FAFC",
+                      borderRadius: 2,
+                      border: "1px dashed #E2E8F0"
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: "50%",
+                        backgroundColor: "#F1F5F9",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#94A3B8"
+                      }}
+                    >
+                      <BarChart3 size={24} />
+                    </Box>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "#64748B",
+                        fontWeight: 500
+                      }}
+                    >
+                      No Data Available
+                    </Typography>
+                  </Box>
                 ) : (
                   <ReactECharts
                     style={{ height: "100%", width: "100%" }}

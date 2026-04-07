@@ -81,6 +81,24 @@ export const getContentAnalysisStats = async (filters) => {
             }
         }
 
+        // Brand filter
+        if (brand && brand !== 'All') {
+            const brands = Array.isArray(brand) ? brand : brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
+            if (brandConditions.length > 0) {
+                query += ` AND (${brandConditions.join(' OR ')})`;
+            }
+        }
+
+        // Location / Zone filter (City in rb_product_verify)
+        if (location && location !== 'All') {
+            const zones = Array.isArray(location) ? location : location.split(',');
+            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
+            if (zoneConditions.length > 0) {
+                query += ` AND (${zoneConditions.join(' OR ')})`;
+            }
+        }
+
         query += ` LIMIT 1000`;
 
         const result = await queryClickHouse(query);
@@ -182,6 +200,24 @@ export const getContentAnalysisOverviewStats = async (filters, isCompare = false
             }
         }
 
+        // Brand filter
+        if (brand && brand !== 'All') {
+            const brands = Array.isArray(brand) ? brand : brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
+            if (brandConditions.length > 0) {
+                query += ` AND (${brandConditions.join(' OR ')})`;
+            }
+        }
+
+        // Location / Zone filter (City in rb_product_verify)
+        if (location && location !== 'All') {
+            const zones = Array.isArray(location) ? location : location.split(',');
+            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
+            if (zoneConditions.length > 0) {
+                query += ` AND (${zoneConditions.join(' OR ')})`;
+            }
+        }
+
         const result = await queryClickHouse(query);
         
         if (result && result.length > 0) {
@@ -264,6 +300,24 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
             }
         }
 
+        // Brand filter (PlatformBreakdown)
+        if (filters.brand && filters.brand !== 'All') {
+            const brands = Array.isArray(filters.brand) ? filters.brand : filters.brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
+            if (brandConditions.length > 0) {
+                query += ` AND (${brandConditions.join(' OR ')})`;
+            }
+        }
+
+        // Location / Zone filter (PlatformBreakdown)
+        if (filters.location && filters.location !== 'All') {
+            const zones = Array.isArray(filters.location) ? filters.location : filters.location.split(',');
+            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
+            if (zoneConditions.length > 0) {
+                query += ` AND (${zoneConditions.join(' OR ')})`;
+            }
+        }
+
         query += ` GROUP BY Platform ORDER BY Platform`;
 
         const result = await queryClickHouse(query);
@@ -307,6 +361,78 @@ export const getContentAnalysisPlatforms = async () => {
         throw error;
     }
 };
+
+export const getContentAnalysisCategories = async (platform) => {
+    try {
+        let query = `SELECT DISTINCT Category FROM rb_product_verify WHERE Category != '\\\\N' AND Category != ''`;
+        if (platform && platform !== 'All') {
+            const rawPlatform = platform;
+            let platforms = [];
+            if (Array.isArray(rawPlatform)) {
+                platforms = rawPlatform;
+            } else if (typeof rawPlatform === 'string') {
+                platforms = rawPlatform.split(',');
+            }
+            platforms = platforms.map(p => p.trim().toLowerCase()).filter(p => p !== 'all' && p !== '');
+
+            if (platforms.length > 0) {
+                const orConditions = platforms.map(p => {
+                    if (p === 'instamart') return "lower(Platform) = 'swiggy'";
+                    return `lower(Platform) = '${p}'`;
+                });
+                query += ` AND (${orConditions.join(' OR ')})`;
+            }
+        }
+        query += ` ORDER BY Category`;
+        const result = await queryClickHouse(query);
+        return result.map(row => row.Category);
+    } catch (error) {
+        console.error("Error in getContentAnalysisCategories:", error);
+        return [];
+    }
+};
+
+export const getContentAnalysisBrands = async (platform) => {
+    try {
+        let query = `SELECT DISTINCT Brand FROM rb_product_verify WHERE Brand != '\\\\N' AND Brand != ''`;
+        if (platform && platform !== 'All') {
+            const rawPlatform = platform;
+            let platforms = [];
+            if (Array.isArray(rawPlatform)) {
+                platforms = rawPlatform;
+            } else if (typeof rawPlatform === 'string') {
+                platforms = rawPlatform.split(',');
+            }
+            platforms = platforms.map(p => p.trim().toLowerCase()).filter(p => p !== 'all' && p !== '');
+
+            if (platforms.length > 0) {
+                const orConditions = platforms.map(p => {
+                    if (p === 'instamart') return "lower(Platform) = 'swiggy'";
+                    return `lower(Platform) = '${p}'`;
+                });
+                query += ` AND (${orConditions.join(' OR ')})`;
+            }
+        }
+        query += ` ORDER BY Brand`;
+        const result = await queryClickHouse(query);
+        return result.map(row => row.Brand);
+    } catch (error) {
+        console.error("Error in getContentAnalysisBrands (or column does not exist):", error.message);
+        return [];
+    }
+};
+
+export const getContentAnalysisZones = async (brand) => {
+    try {
+        let query = `SELECT DISTINCT city as zone FROM rb_product_verify WHERE city != '\\\\N' AND city != ''`;
+        const result = await queryClickHouse(query);
+        return result.map(row => row.zone);
+    } catch (error) {
+        console.error("Error in getContentAnalysisZones (or column does not exist):", error.message);
+        return [];
+    }
+};
+
 export const getContentAnalysisTrends = async (filters) => {
     try {
         const { startDate, endDate, channel, category } = filters;
@@ -366,6 +492,24 @@ export const getContentAnalysisTrends = async (filters) => {
             const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
             if (catConditions.length > 0) {
                 query += ` AND (${catConditions.join(' OR ')})`;
+            }
+        }
+
+        // Brand filter (Trends)
+        if (filters.brand && filters.brand !== 'All') {
+            const brands = Array.isArray(filters.brand) ? filters.brand : filters.brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
+            if (brandConditions.length > 0) {
+                query += ` AND (${brandConditions.join(' OR ')})`;
+            }
+        }
+
+        // Location / Zone filter (Trends)
+        if (filters.location && filters.location !== 'All') {
+            const zones = Array.isArray(filters.location) ? filters.location : filters.location.split(',');
+            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
+            if (zoneConditions.length > 0) {
+                query += ` AND (${zoneConditions.join(' OR ')})`;
             }
         }
 

@@ -418,7 +418,7 @@ export default function DrilldownLatestTable() {
   const [page, setPage] = useState(1)
 
   // Use FilterContext values - PM specific
-  const { platform, selectedCategory, selectedLocation, timeStart, timeEnd, selectedProductCategory } = React.useContext(FilterContext);
+  const { selectedChannel, platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, selectedProductCategory } = React.useContext(FilterContext);
 
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState([]);
@@ -551,10 +551,12 @@ export default function DrilldownLatestTable() {
       setLoading(true);
       try {
         const params = {
-          platform: Array.isArray(platform) ? platform.join(',') : (platform || 'All'),
-          brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory),
+          channel: Array.isArray(selectedChannel) ? selectedChannel.join(',') : selectedChannel,
+          platform: Array.isArray(platform) ? platform.join(',') : platform,
+          brand: activeFilters.brands.length > 0 ? activeFilters.brands.join(',') : (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand),
           zone: activeFilters.zones.length > 0 ? activeFilters.zones.join(',') : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation),
-          category: activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : '',
+          location: activeFilters.zones.length > 0 ? activeFilters.zones.join(',') : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation),
+          category: activeFilters.categories.length > 0 ? activeFilters.categories.join(',') : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory),
           keywords: activeFilters.keywords.length > 0 ? activeFilters.keywords.join(',') : '',
           weekendFlag: activeFilters.weekendFlag?.length > 0 ? activeFilters.weekendFlag.join(',') : (localFilters.weekendFlag === 'All' ? '' : localFilters.weekendFlag),
           startDate: timeStart?.format?.("YYYY-MM-DD"),
@@ -575,7 +577,7 @@ export default function DrilldownLatestTable() {
     };
 
     fetchData();
-  }, [platform, selectedCategory, selectedLocation, localFilters.weekendFlag, timeStart, timeEnd, activeFilters, selectedProductCategory]);
+  }, [selectedChannel, platform, selectedCategory, selectedBrand, selectedLocation, localFilters.weekendFlag, timeStart, timeEnd, activeFilters, selectedProductCategory]);
 
 
   // --------------- TRANSFORM API DATA ---------------
