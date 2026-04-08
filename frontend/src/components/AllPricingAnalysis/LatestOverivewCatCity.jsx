@@ -133,9 +133,32 @@ const LatestOverivewCatCity = ({
         [contextPlatforms]
     );
 
+    // Fetch product/SKU options from DB for the filter dropdown
+    const [productOptions, setProductOptions] = useState([]);
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const params = {};
+                if (globalPlatform && globalPlatform !== 'All') {
+                    params.platform = Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform;
+                }
+                const res = await axiosInstance.get('/watchtower/products', { params });
+                if (res.data && Array.isArray(res.data)) {
+                    setProductOptions(res.data.map(p => ({ id: p, name: p })));
+                }
+            } catch (err) {
+                console.warn('[CategoryOverview] Failed to fetch products for filter:', err.message);
+            }
+        };
+        if (datesInitialized) {
+            fetchProducts();
+        }
+    }, [datesInitialized, globalPlatform]);
+
     const skuOptions = useMemo(() => 
-        apiData.map(item => ({ id: item.key, name: item.name })), 
-        [apiData]
+        productOptions.length > 0 ? productOptions : (dimension === 'sku' ? apiData.map(e => ({ id: e.key, name: e.name })) : []), 
+        [productOptions, dimension, apiData]
     );
 
     useEffect(() => {

@@ -257,7 +257,7 @@ export default function KeywordAnalysisTable() {
       }
     };
     fetchKeywordData();
-  }, [channel, platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, activeFilters.weekendFlag, selectedProductCategory]);
+  }, [selectedChannel, platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, activeFilters.weekendFlag, selectedProductCategory]);
 
   useEffect(() => {
     const fetchCategories = async () => {
