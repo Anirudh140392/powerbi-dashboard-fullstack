@@ -211,7 +211,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
                                                 <Check size={10} className="text-white" strokeWidth={3} />
                                             )}
                                         </div>
-                                        <span className="truncate">{opt.name}</span>
+                                        <span className="truncate capitalize">{opt.name}</span>
                                     </button>
                                 ))
                             )}
