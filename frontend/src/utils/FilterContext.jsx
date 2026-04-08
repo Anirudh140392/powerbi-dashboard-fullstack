@@ -181,7 +181,7 @@ export const FilterProvider = ({ children }) => {
                     if (newCategories.length > 0) setCategories(newCategories);
                     if (newChannels.length > 0) setChannels(newChannels);
                     if (newLocations.length > 0) setLocations(newLocations);
-                    
+
                     // Validate current platform selection
                     setPlatform(prev => {
                         if (prev === "All") return "All";
