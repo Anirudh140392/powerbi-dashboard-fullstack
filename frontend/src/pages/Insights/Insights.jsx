@@ -12,9 +12,13 @@ import {
     BarChart3,
     Loader2,
     ChevronRight,
+    ChevronDown,
     Search,
     Filter,
     Signal,
+    Package,
+    ArrowRightLeft,
+    MapPin,
 } from "lucide-react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,7 +45,7 @@ import { fetchInsights, fetchInsightsFilters } from "@/api/insightsService";
 import CustomHeaderDropdown from "@/components/CommonLayout/CustomHeaderDropdown";
 import DateRangeComparePicker from "@/components/CommonLayout/DateRangeComparePicker";
 import dayjs from "dayjs";
-import { Typography, Divider } from "@mui/material";
+import { Typography, Divider, Skeleton } from "@mui/material";
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -84,7 +88,7 @@ const SIGNAL_META = {
         FamilyIcon: Radar, metricKey: "impactInr",
         metricLabel: "Opportunity Available", trend: "positive",
     },
-    "Ad Stock Mismatch": {
+    "Remove Ad Low OSA": {
         family: "Performance Marketing",
         color: "#8a6a3d", accent: "#f3ede3",
         FamilyIcon: Megaphone, metricKey: "impactInr",
@@ -96,11 +100,29 @@ const SIGNAL_META = {
         FamilyIcon: Megaphone, metricKey: "impactInr",
         metricLabel: "Wasted Ad Spend", trend: "negative",
     },
-    "Challenger Launch Watch": {
+    "Surplus Stock": {
+        family: "Supply Chain",
+        color: "#6b5ea8", accent: "#eeebf8",
+        FamilyIcon: Package, metricKey: "impactInr",
+        metricLabel: "Excess Inventory Value", trend: "negative",
+    },
+    "Prioritise PO": {
+        family: "Supply Chain",
+        color: "#8a4a6b", accent: "#f5e8ef",
+        FamilyIcon: Truck, metricKey: "impactInr",
+        metricLabel: "Projected Sales Loss", trend: "negative",
+    },
+    "Transfer Issue": {
+        family: "Supply Chain",
+        color: "#5a7a4e", accent: "#ebf3e8",
+        FamilyIcon: ArrowRightLeft, metricKey: "impactInr",
+        metricLabel: "Projected Sales Loss", trend: "negative",
+    },
+    "New Market Entry": {
         family: "Competitive Landscape",
-        color: "#7a5c6e", accent: "#f0e9ee",
-        FamilyIcon: Radar, metricKey: "impactInr",
-        metricLabel: "Missed Opportunity", trend: "negative",
+        color: "#4a6b8a", accent: "#e6eff6",
+        FamilyIcon: MapPin, metricKey: "impactInr",
+        metricLabel: "Competitor Revenue", trend: "negative",
     },
 };
 
@@ -129,9 +151,9 @@ const createEmptySignal = (type, brandName = "Brand") => {
             base.kpis = [{ label: "Other brand OSA", value: "0%" }, { label: `${brandName} OSA`, value: "0%" }, { label: "Cities", value: "0" }];
             base.evidence = [{ category: "-", city: "-", skuOrBrand: "-", otherBrandOsa: 0, kwOsa: 0 }];
             break;
-        case "Ad Stock Mismatch":
+        case "Remove Ad Low OSA":
             base.kpis = [{ label: `${brandName} OSA (avg)`, value: "0%" }, { label: "Ad SOV", value: "0%" }, { label: "Spend", value: "₹0" }];
-            base.evidence = [{ city: "-", skuOrBrand: "-", kwOsa: 0, adSov: 0, spendInr: 0, estLostSalesInr: 0 }];
+            base.evidence = [{ city: "-", platform: "-", skuOrBrand: "-", kwOsa: 0, adSov: 0, spendInr: 0, estLostSalesInr: 0 }];
             break;
         case "Price Parity Radar":
             base.kpis = [{ label: "Max GAP %", value: "0%" }, { label: "Avg PPU", value: "₹0" }];
@@ -141,10 +163,6 @@ const createEmptySignal = (type, brandName = "Brand") => {
             base.kpis = [{ label: "Market Share", value: "0%" }, { label: "Offtake", value: "₹0" }, { label: "Avg share gap", value: "0%" }];
             base.evidence = [{ city: "-", category: "-", brandOsa: 0, marketShare: 0, marketShareMoM: 0, psl: 0, offtake: 0, offtakeMoM: 0, myTopSku: "-", competitorSku: "-", possibleCause: "-" }];
             break;
-        case "Challenger Launch Watch":
-            base.kpis = [{ label: "Share", value: "0%" }, { label: "First seen", value: "-" }, { label: "PPU", value: "0" }];
-            base.evidence = [{ city: "-", category: "-", skuOrBrand: "-", newItemShare: 0, ppu: 0, firstSeen: "-" }];
-            break;
         case "Replenishment Breaks":
             base.kpis = [{ label: "Fill rate", value: "0%" }, { label: "Missing PO", value: "0" }, { label: "Depot", value: "0" }];
             base.evidence = [{ depotOrDb: "-", city: "-", skuOrBrand: "-", plannedQty: 0, dispatchedQty: 0, fillRate: 0, poCreated: false, poNo: "-" }];
@@ -152,6 +170,22 @@ const createEmptySignal = (type, brandName = "Brand") => {
         case "Keyword Efficiency and Budget Caps":
             base.kpis = [{ label: "Waste keywords", value: "0" }, { label: "Best ACOS", value: "0%" }, { label: "Budget caps", value: "-" }];
             base.evidence = [{ keyword: "-", campaign: "-", bid: 0, dailyBudget: 0, spend: 0, sales: 0, acos: 0, budgetCapped: false }];
+            break;
+        case "Surplus Stock":
+            base.kpis = [{ label: "Avg DOI", value: "0 days" }, { label: "Affected SKUs", value: "0" }, { label: "Avg Discount", value: "0%" }];
+            base.evidence = [{ skuName: "-", city: "-", platform: "-", excessInventory: 0, excessDOI: 0, currentDiscount: 0, excessInventoryValue: 0, openPOQty: 0 }];
+            break;
+        case "Prioritise PO":
+            base.kpis = [{ label: "PSL", value: "₹0" }, { label: "Avg OSA", value: "0%" }, { label: "Critical SKUs", value: "0" }];
+            base.evidence = [{ skuName: "-", city: "-", platform: "-", osa: 0, projectedSalesLoss: 0, poRaisedDate: "-", poStatus: "-" }];
+            break;
+        case "Transfer Issue":
+            base.kpis = [{ label: "PSL", value: "₹0" }, { label: "Avg Backed DOI", value: "0 days" }, { label: "Cities", value: "0" }];
+            base.evidence = [{ skuName: "-", city: "-", platform: "-", cpd: 0, backedDOI: 0, osa: 0, projectedSalesLoss: 0 }];
+            break;
+        case "New Market Entry":
+            base.kpis = [{ label: "New SKUs", value: "0" }, { label: "Competitors", value: "0" }, { label: "Cities", value: "0" }];
+            base.evidence = [{ skuName: "-", city: "-", platform: "-", category: "-", competitorName: "-", pfu: 0, firstSeenDate: "-" }];
             break;
         default: break;
     }
@@ -289,7 +323,7 @@ const buildAISegments = (insight) => {
         ];
     }
 
-    if (type === "Ad Stock Mismatch") {
+    if (type === "Remove Ad Low OSA") {
         const totalSpend = allEv.reduce((s, e) => s + (e.spendInr || 0), 0);
         const totalLoss = allEv.reduce((s, e) => s + (e.estLostSalesInr || 0), 0);
         return [
@@ -364,24 +398,99 @@ const buildAISegments = (insight) => {
         ];
     }
 
-    if (type === "Challenger Launch Watch") {
+
+    if (type === "Surplus Stock") {
+        const totalValue = allEv.reduce((s, e) => s + (e.excessInventoryValue || 0), 0);
         return [
             {
-                label: "New Threat", priority: "high",
-                text: `${B("'" + (ev.skuOrBrand || "New entrant") + "'")} entered ${B(ev.category || category)} on ${B(ev.platform || "-")} in ${B(ev.city || city)} — ${B(safePct(ev.newItemShare))} share, PPU ${B("₹" + (ev.ppu || "-"))}.`
+                label: "Surplus Alert", priority: "high",
+                text: `${B(allEv.length.toString())} SKUs carrying ${B(formatINRCompact(totalValue))} excess inventory. Worst: ${B("'" + (ev.skuName || brand) + "'")} in ${B(ev.city || city)} with ${B((ev.excessDOI || 0).toFixed(0))} days DOI.`
             },
             {
-                label: "Challengers", priority: "focus",
-                text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
-                    .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — ${B(safePct(e.newItemShare))} share`).join(" · ") || `New entrant in ${B(category)}.`
+                label: "Slow Movers", priority: "focus",
+                text: allEv.filter(e => e.skuName && e.skuName !== "-").slice(0, 3)
+                    .map(e => `${B(e.skuName)} (${e.city || city}) — ${B((e.excessDOI || 0).toFixed(0))} days DOI`).join(" · ") || `Excess stock in ${B(city)}.`
             },
             {
-                label: "Threat Level", priority: "good",
-                text: `${B(allEv.length.toString())} new SKU(s) detected.${ev.ppu && ev.ppu < 200 ? ` Aggressive pricing at ${B("₹" + ev.ppu)}.` : ` Premium positioning.`}`
+                label: "Discount Gap", priority: "good",
+                text: `Current avg discount: ${B(safePct(ev.currentDiscount))}. ${(ev.currentDiscount || 0) < 10 ? `Consider deeper markdowns to clear stock.` : `Discount already active but DOI still high.`}`
             },
             {
                 label: "Action", priority: "neutral",
-                text: `Counter-promote in ${B(ev.city || city)}. Monitor ${B("'" + (ev.skuOrBrand || "challenger") + "'")} weekly — escalate if share >5%.`
+                text: `Clear surplus via bundle offers / flash sales for ${B("'" + (ev.skuName || brand) + "'")} in ${B(ev.city || city)}. Halt new POs until DOI normalises.`
+            },
+        ];
+    }
+
+    if (type === "Prioritise PO") {
+        const totalPSL = allEv.reduce((s, e) => s + (e.projectedSalesLoss || 0), 0);
+        const criticalCount = allEv.filter(e => e.poStatus === "Critical" || e.poStatus === "High").length;
+        return [
+            {
+                label: "PO Urgency", priority: "high",
+                text: `${B(criticalCount.toString())} critical SKUs need urgent PO. ${B("'" + (ev.skuName || brand) + "'")} in ${B(ev.city || city)} at ${B(safePct(ev.osa))} OSA — PSL: ${B(formatINRCompact(ev.projectedSalesLoss || 0))}.`
+            },
+            {
+                label: "Top PO Needs", priority: "focus",
+                text: allEv.filter(e => e.skuName && e.skuName !== "-").slice(0, 3)
+                    .map(e => `${B(e.skuName)} (${e.city || city}) — OSA ${B(safePct(e.osa))} [${e.poStatus}]`).join(" · ") || `PO needed in ${B(city)}.`
+            },
+            {
+                label: "Revenue at Risk", priority: "good",
+                text: `Combined PSL: ${B(formatINRCompact(totalPSL))} across ${B(allEv.length.toString())} SKU(s).`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: `Raise emergency PO for ${B("'" + (ev.skuName || brand) + "'")}. Prioritise ${B(ev.city || city)} warehouse — OSA at ${B(safePct(ev.osa))}.`
+            },
+        ];
+    }
+
+    if (type === "Transfer Issue") {
+        const totalPSL = allEv.reduce((s, e) => s + (e.projectedSalesLoss || 0), 0);
+        const uniqueCities = new Set(allEv.map(e => e.city).filter(Boolean)).size;
+        return [
+            {
+                label: "Transfer Alert", priority: "high",
+                text: `${B("'" + (ev.skuName || brand) + "'")} in ${B(ev.city || city)} has only ${B((ev.backedDOI || 0).toFixed(1))} days backed DOI with ${B((ev.cpd || 0).toFixed(1))} units/day demand.`
+            },
+            {
+                label: "Affected SKUs", priority: "focus",
+                text: allEv.filter(e => e.skuName && e.skuName !== "-").slice(0, 3)
+                    .map(e => `${B(e.skuName)} (${e.city || city}) — ${B((e.backedDOI || 0).toFixed(1))} days DOI`).join(" · ") || `Supply gaps in ${B(city)}.`
+            },
+            {
+                label: "PSL Impact", priority: "good",
+                text: `${B(formatINRCompact(totalPSL))} across ${B(uniqueCities.toString())} cities. Inter-warehouse transfer can recover this.`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: `Initiate stock transfer to ${B(ev.city || city)}. CPD of ${B((ev.cpd || 0).toFixed(1))} requires immediate replenishment.`
+            },
+        ];
+    }
+
+    if (type === "New Market Entry") {
+        const uniqueCompetitors = new Set(allEv.map(e => e.competitorName).filter(Boolean)).size;
+        const uniqueCities = new Set(allEv.map(e => e.city).filter(Boolean)).size;
+        return [
+            {
+                label: "New Entrant", priority: "high",
+                text: `${B(ev.competitorName || "Competitor")} entered ${B(ev.category || category)} in ${B(ev.city || city)} — PFU ${B("₹" + (ev.pfu || "-"))}, first seen ${B(ev.firstSeenDate || "-")}.`
+            },
+            {
+                label: "Market Expansion", priority: "focus",
+                text: `${B(uniqueCompetitors.toString())} competitor(s) expanding across ${B(uniqueCities.toString())} cities: ` +
+                    (allEv.filter(e => e.competitorName && e.competitorName !== "-").slice(0, 3)
+                        .map(e => `${B(e.competitorName)} in ${e.city || city}`).join(" · ") || `New entries detected.`)
+            },
+            {
+                label: "Threat Assessment", priority: "good",
+                text: `${B(allEv.length.toString())} new SKU(s) detected.${ev.pfu && ev.pfu < 300 ? ` Aggressive pricing at ${B("₹" + ev.pfu)}.` : ` Premium segment entry.`}`
+            },
+            {
+                label: "Action", priority: "neutral",
+                text: `Monitor ${B(ev.competitorName || "new entrant")} in ${B(ev.city || city)}. Strengthen ${B(brand)} presence in ${B(ev.category || category)} with counter-promotions.`
             },
         ];
     }
@@ -642,21 +751,22 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
         if (t === "Competitor OSA Weak Spots") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
-            { key: "otherBrandOsa", label: "Comp OSA", fmt: safePct },
+            { key: "otherBrandOsa", label: "Comp OSA", fmt: (v, r) => `${safePct(v)} (${r.otherBrandOsaChangePct > 0 ? '+' : ''}${safePct(r.otherBrandOsaChangePct)})` },
             { key: "otherBrandMkShare", label: "Comp MK Share", fmt: safePct },
-            { key: "kwOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: safePct },
+            { key: "kwOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: (v, r) => `${safePct(v)} (${r.kwOsaChangePct > 0 ? '+' : ''}${safePct(r.kwOsaChangePct)})` },
             { key: "ourBrandMkShare", label: `${insight.brandName || "Brand"} MK Share`, fmt: safePct },
             { key: "skuOrBrand", label: "Competitor", isText: true },
         ];
         if (t === "Price Parity Radar") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
-            { key: "gapPct", label: "GAP %", fmt: safePct, isNum: true },
-            { key: "ourPpu", label: `${insight.brandName || "Our"} PPU`, fmt: (v) => v != null ? `₹${Number(v).toFixed(1)}` : "-" },
-            { key: "compPpu", label: "Comp PPU", fmt: (v) => v != null ? `₹${Number(v).toFixed(1)}` : "-" },
+            { key: "gapPct", label: "GAP % (Change)", fmt: (v, r) => `${safePct(v)} (${r.gapPctChange > 0 ? '+' : ''}${safePct(r.gapPctChange)})` },
+            { key: "ourPpu", label: `${insight.brandName || "Our"} PPU`, fmt: (v, r) => v != null ? `₹${Number(v).toFixed(1)} (${r.ourPpuChange > 0 ? '+' : ''}${Number(r.ourPpuChange).toFixed(1)})` : "-" },
+            { key: "compPpu", label: "Comp PPU", fmt: (v, r) => v != null ? `₹${Number(v).toFixed(1)} (${r.compPpuChange > 0 ? '+' : ''}${Number(r.compPpuChange).toFixed(1)})` : "-" },
         ];
-        if (t === "Ad Stock Mismatch") return [
+        if (t === "Remove Ad Low OSA") return [
             { key: "skuOrBrand", label: "Product", isText: true },
+            { key: "platform", label: "Platform" },
             { key: "city", label: "City" },
             { key: "kwOsa", label: "OSA % (Change %)", fmt: (v, r) => `${safePct(v)} (${r.kwOsaChangePct > 0 ? '+' : ''}${safePct(r.kwOsaChangePct)})` },
             { key: "adSov", label: "Ad SOV % (Change %)", fmt: (v, r) => `${safePct(v)} (${r.adSovChangePct > 0 ? '+' : ''}${safePct(r.adSovChangePct)})` },
@@ -664,7 +774,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
         if (t === "Keyword Efficiency and Budget Caps") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "platform", label: "Platform" },
-            { key: "acos", label: "ACOS", fmt: safePct },
+            { key: "acos", label: "ACOS", fmt: (v, r) => `${safePct(v)} (${r.acosChangePct > 0 ? '+' : ''}${safePct(r.acosChangePct)})` },
             { key: "spend", label: "Spend", fmt: safeINR },
             { key: "keyword", label: "Keyword", isText: true },
             { key: "campaign", label: "Campaign", isText: true },
@@ -672,16 +782,41 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
         if (t === "Replenishment Breaks") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
-            { key: "fillRate", label: "Fill Rate", fmt: safePct },
+            { key: "fillRate", label: "Fill Rate", fmt: (v, r) => `${safePct(v)} (${r.fillRateChangePct > 0 ? '+' : ''}${safePct(r.fillRateChangePct)})` },
             { key: "plannedQty", label: "Planned" },
             { key: "skuOrBrand", label: "SKU", isText: true },
         ];
-        if (t === "Challenger Launch Watch") return [
-            { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
+        if (t === "Surplus Stock") return [
+            { key: "skuName", label: "SKU Name", isText: true },
+            { key: "city", label: "Warehouse / City" },
+            { key: "excessInventory", label: "Excess Inv", fmt: (v) => `${Number(v || 0).toLocaleString('en-IN')} units` },
+            { key: "excessDOI", label: "Excess DOI", fmt: (v) => `${Number(v || 0).toFixed(0)} days` },
+            { key: "currentDiscount", label: "Discount %", fmt: safePct },
+            { key: "openPOQty", label: "Open PO Qty", fmt: (v) => Number(v || 0).toLocaleString('en-IN') },
+        ];
+        if (t === "Prioritise PO") return [
+            { key: "skuName", label: "SKU Name", isText: true },
+            { key: "city", label: "Facility / City" },
+            { key: "osa", label: "OSA %", fmt: safePct },
+            { key: "projectedSalesLoss", label: "Projected Sales Loss", fmt: safeINR },
+            { key: "poRaisedDate", label: "PO Raised Date", isText: true },
+            { key: "poStatus", label: "PO Status", isText: true },
+        ];
+        if (t === "Transfer Issue") return [
+            { key: "skuName", label: "SKU Name", isText: true },
             { key: "city", label: "City" },
-            { key: "newItemShare", label: "Share", fmt: safePct },
-            { key: "skuOrBrand", label: "SKU / Brand", isText: true },
-            { key: "firstSeen", label: "First Seen", isText: true },
+            { key: "cpd", label: "CPD", fmt: (v) => Number(v || 0).toFixed(1) },
+            { key: "backedDOI", label: "Backed DOI", fmt: (v) => `${Number(v || 0).toFixed(1)} days` },
+            { key: "osa", label: "OSA %", fmt: safePct },
+            { key: "projectedSalesLoss", label: "Projected Sales Loss", fmt: safeINR },
+        ];
+        if (t === "New Market Entry") return [
+            { key: "skuName", label: "SKU Name", isText: true },
+            { key: "category", label: "Category" },
+            { key: "competitorName", label: "Competitor Name", isText: true },
+            { key: "pfu", label: "PFU", fmt: (v) => `₹${Number(v || 0).toLocaleString('en-IN')}` },
+            { key: "firstSeenDate", label: "First Seen Date", isText: true },
+            { key: "city", label: "City" },
         ];
         return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
@@ -719,6 +854,30 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 return [
                     { label: colOur?.label || `${insight.brandName || "Our"} PPU`, value: colOur?.fmt ? colOur.fmt(firstRow.ourPpu, firstRow) : firstRow.ourPpu },
                     { label: colComp?.label || "Comp PPU", value: colComp?.fmt ? colComp.fmt(firstRow.compPpu, firstRow) : firstRow.compPpu }
+                ];
+            }
+            case "Surplus Stock": {
+                return [
+                    { label: "Top SKU", value: firstRow.skuName || "-" },
+                    { label: "Excess DOI", value: `${(firstRow.excessDOI || 0).toFixed(0)} days` }
+                ];
+            }
+            case "Prioritise PO": {
+                return [
+                    { label: "Top SKU", value: firstRow.skuName || "-" },
+                    { label: "PO Status", value: firstRow.poStatus || "-" }
+                ];
+            }
+            case "Transfer Issue": {
+                return [
+                    { label: "SKU", value: firstRow.skuName || "-" },
+                    { label: "Backed DOI", value: `${(firstRow.backedDOI || 0).toFixed(1)} days` }
+                ];
+            }
+            case "New Market Entry": {
+                return [
+                    { label: "Competitor", value: firstRow.competitorName || "-" },
+                    { label: "PFU", value: `₹${firstRow.pfu || "-"}` }
                 ];
             }
             default: {
@@ -1154,8 +1313,12 @@ const getEvidenceView = (type) => {
     if (type === "Keyword Efficiency and Budget Caps") return "keyword";
     if (type === "Price Parity Radar") return "pricing";
     if (type === "Share Headroom Hotspots") return "share";
-    if (type === "Challenger Launch Watch") return "newEntry";
-    if (type === "Ad Stock Mismatch") return "adStock";
+
+    if (type === "Remove Ad Low OSA") return "adStock";
+    if (type === "Surplus Stock") return "surplus";
+    if (type === "Prioritise PO") return "prioritisePO";
+    if (type === "Transfer Issue") return "transferIssue";
+    if (type === "New Market Entry") return "newMarket";
     return "osa";
 };
 
@@ -1170,12 +1333,13 @@ const EvidenceTable = ({ insight, activePlatform }) => {
             data = data.filter((e) => !e.platform || e.platform === activePlatform || e.platform === "-");
         }
 
-        if (insight.type === "Ad Stock Mismatch") {
+        if (insight.type === "Remove Ad Low OSA") {
             data = data.filter((e) => {
                 const osa = Number(e.kwOsa) || 0;
                 const adSovChange = typeof e.adSovChangePct === 'number' ? e.adSovChangePct : 0;
-                return osa < 60 && adSovChange > 0;
-            }).sort((a, b) => (b.adSovChangePct || 0) - (a.adSovChangePct || 0));
+                const kwOsaChange = typeof e.kwOsaChangePct === 'number' ? e.kwOsaChangePct : 0;
+                return osa < 60 && kwOsaChange < 0 && adSovChange > 0;
+            });
         }
 
         if (!search.trim()) return data;
@@ -1250,6 +1414,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                             </>)}
                             {view === "adStock" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Product</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA % (Change %)</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Ad SOV % (Change %)</TableHead>
@@ -1286,6 +1451,41 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Sales</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">ACOS</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Capped</TableHead>
+                            </>)}
+                            {view === "surplus" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Warehouse / City</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Excess Inventory</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Excess DOI (days)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Current Discount %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Open PO Qty</TableHead>
+                            </>)}
+                            {view === "prioritisePO" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Facility / City</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Projected Sales Loss</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PO Raised Date</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">PO Status</TableHead>
+                            </>)}
+                            {view === "transferIssue" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">CPD</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Backed DOI (days)</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Projected Sales Loss</TableHead>
+                            </>)}
+                            {view === "newMarket" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">SKU Name</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor Name</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PFU</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">First Seen Date</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                             </>)}
                         </TableRow>
                     </TableHeader>
@@ -1365,6 +1565,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                             </div>
                                                         </div>
                                                     </TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.platform}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.city}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
                                                         {Number(d.kwOsa || 0).toFixed(1)}% 
@@ -1427,6 +1628,118 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                     </TableCell>
                                                 </>
                                             )}
+                                            {view === "surplus" && (
+                                                <>
+                                                    <TableCell className="px-3 py-3">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[11px] font-semibold text-slate-800">{d.skuName}</span>
+                                                            <span className="text-[9px] text-slate-500 mt-0.5">{d.brandName || '-'}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
+                                                        {Number(d.excessInventory || 0).toLocaleString('en-IN')} units
+                                                        {d.inventoryChange !== 0 && (
+                                                            <span className={`ml-1 text-[10px] ${d.inventoryChange > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                                ({d.inventoryChange > 0 ? '+' : ''}{Number(d.inventoryChange || 0).toLocaleString('en-IN')})
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-amber-600 px-3 py-3">
+                                                        {Number(d.excessDOI || 0).toFixed(0)} days
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
+                                                        {safePct(d.currentDiscount)}
+                                                        {d.discountChange !== 0 && (
+                                                            <span className={`ml-1 text-[10px] ${d.discountChange > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                                ({d.discountChange > 0 ? '+' : ''}{Number(d.discountChange || 0).toFixed(1)}%)
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-500 px-3 py-3">
+                                                        {Number(d.openPOQty || 0).toLocaleString('en-IN')}
+                                                    </TableCell>
+                                                </>
+                                            )}
+                                            {view === "prioritisePO" && (
+                                                <>
+                                                    <TableCell className="px-3 py-3">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[11px] font-semibold text-slate-800">{d.skuName}</span>
+                                                            <span className="text-[9px] text-slate-500 mt-0.5">{d.brandName || '-'}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] px-3 py-3">
+                                                        <span className={`font-medium ${Number(d.osa || 0) < 50 ? 'text-red-600' : Number(d.osa || 0) < 70 ? 'text-amber-600' : 'text-slate-800'}`}>
+                                                            {safePct(d.osa)}
+                                                        </span>
+                                                        {d.osaChange !== 0 && (
+                                                            <span className={`ml-1 text-[10px] ${(d.osaChange || 0) < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                                ({(d.osaChange || 0) > 0 ? '+' : ''}{Number(d.osaChange || 0).toFixed(1)}%)
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">
+                                                        {safeINR(d.projectedSalesLoss)}
+                                                    </TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.poRaisedDate || "-"}</TableCell>
+                                                    <TableCell className="px-3 py-3">
+                                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                                                            d.poStatus === 'Critical' ? 'bg-red-100 text-red-700' :
+                                                            d.poStatus === 'High' ? 'bg-amber-100 text-amber-700' :
+                                                            d.poStatus === 'Medium' ? 'bg-blue-100 text-blue-700' :
+                                                            'bg-slate-100 text-slate-600'
+                                                        }`}>
+                                                            {d.poStatus || "-"}
+                                                        </span>
+                                                    </TableCell>
+                                                </>
+                                            )}
+                                            {view === "transferIssue" && (
+                                                <>
+                                                    <TableCell className="px-3 py-3">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[11px] font-semibold text-slate-800">{d.skuName}</span>
+                                                            <span className="text-[9px] text-slate-500 mt-0.5">{d.brandName || '-'}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
+                                                        {Number(d.cpd || 0).toFixed(1)}
+                                                        {d.cpdChange !== 0 && (
+                                                            <span className={`ml-1 text-[10px] ${(d.cpdChange || 0) > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                                                ({(d.cpdChange || 0) > 0 ? '+' : ''}{Number(d.cpdChange || 0).toFixed(1)})
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className={`text-right text-[11px] font-medium px-3 py-3 ${Number(d.backedDOI || 0) < 7 ? 'text-red-600' : Number(d.backedDOI || 0) < 15 ? 'text-amber-600' : 'text-slate-800'}`}>
+                                                        {Number(d.backedDOI || 0).toFixed(1)} days
+                                                        {d.backedDOIChange !== 0 && (
+                                                            <span className={`ml-1 text-[10px] ${(d.backedDOIChange || 0) < 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                                ({(d.backedDOIChange || 0) > 0 ? '+' : ''}{Number(d.backedDOIChange || 0).toFixed(1)})
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.osa)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safeINR(d.projectedSalesLoss)}</TableCell>
+                                                </>
+                                            )}
+                                            {view === "newMarket" && (
+                                                <>
+                                                    <TableCell className="px-3 py-3">
+                                                        <span className="text-[11px] font-semibold text-slate-800">{d.skuName}</span>
+                                                    </TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.category || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.competitorName || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{Number(d.pfu || 0).toLocaleString('en-IN')}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.firstSeenDate || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                </>
+                                            )}
                                         </TableRow>
                                     </React.Fragment>
                                 );
@@ -1461,6 +1774,98 @@ const PlatformButton = ({ platform, active, onClick }) => (
 );
 
 // ─── DRILL DOWN MODAL ─────────────────────────────────────────────────────────
+
+const DynamicInsightsBar = ({ insight }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const getInsightsText = () => {
+        if (insight?.type === "Remove Ad Low OSA") {
+            if (!insight?.evidence?.length || insight.evidence[0].skuOrBrand === "-") {
+                return [{ label: "Alert", text: "No low OSA ad data available." }];
+            }
+            const offenders = [...insight.evidence].sort((a, b) => {
+                const mismatchA = (a.adSov || 0) - (a.kwOsa || 0);
+                const mismatchB = (b.adSov || 0) - (b.kwOsa || 0);
+                return mismatchB - mismatchA; 
+            });
+            const top1 = offenders[0];
+            const top2 = offenders[1];
+            
+            const arr = [];
+            arr.push({ label: "Observation", text: `Spending high Ad SOV (${(top1.adSov || 0).toFixed(1)}%) for "${top1.skuOrBrand}" in ${top1.city} while availability is only ${(top1.kwOsa || 0).toFixed(1)}%.` });
+            
+            if (top2 && ((top2.adSov || 0) - (top2.kwOsa || 0) > 0)) {
+                 arr.push({ label: "Similarly", text: `"${top2.skuOrBrand}" in ${top2.city} has ${(top2.adSov || 0).toFixed(1)}% Ad SOV despite ${(top2.kwOsa || 0).toFixed(1)}% OSA.` });
+            }
+            arr.push({ label: "Action", text: `For ${insight.brandName || "Brand"}: Pause active campaigns for low OSA products and dynamically redirect ad spends towards well-stocked SKUs.` });
+            return arr;
+        }
+        
+        // For all other signals, use the central generator
+        return buildAISegments(insight);
+    };
+
+    const segments = getInsightsText();
+
+    return (
+        <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
+            <div 
+                onClick={() => setIsOpen(!isOpen)}
+                style={{ 
+                    width: "100%", 
+                    background: "linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%)", /* Matches exact filter button gradient */
+                    color: "white",
+                    padding: "10px 16px", 
+                    borderRadius: isOpen ? "8px 8px 0 0" : "8px",
+                    display: "flex", 
+                    justifyContent: "space-between", 
+                    alignItems: "center",
+                    cursor: "pointer",
+                    transition: "all 0.3s ease",
+                    boxShadow: "0 2px 8px rgba(37,99,235,0.2)"
+                }}
+            >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Sparkles size={14} color="#fff" />
+                    <span style={{ fontSize: "13px", fontWeight: "600", letterSpacing: "0.02em" }}>AI Insights</span>
+                </div>
+                <motion.div 
+                    animate={{ y: isOpen ? 0 : [0, 3, 0] }} 
+                    transition={{ repeat: isOpen ? 0 : Infinity, duration: 1.5, ease: "easeInOut" }}
+                >
+                    <ChevronDown size={18} style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s ease" }} />
+                </motion.div>
+            </div>
+
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        style={{ overflow: "hidden" }}
+                    >
+                        <div style={{ 
+                            background: "#eff6ff", /* Light blue background for content */
+                            padding: "16px 20px",
+                            borderRadius: "0 0 8px 8px",
+                            border: "1px solid #bfdbfe",
+                            borderTop: "none",
+                        }}>
+                           <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#334155", display: "flex", flexDirection: "column", gap: "10px", listStyleType: "disc" }}>
+                               {segments.map((segment, idx) => (
+                                   <li key={idx} style={{ lineHeight: "1.5", fontWeight: segment.label === "Action" ? 600 : 400 }}>
+                                       <strong>{segment.label}:</strong> {renderBoldText(segment.text)}
+                                   </li>
+                               ))}
+                           </ul>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
 
 const getKpiStyle = (label, value) => {
     const l = String(label).toLowerCase();
@@ -1535,75 +1940,26 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                         borderBottom: "1px solid #e2e8f0",
                         padding: "12px 20px",
                         display: "flex", flexWrap: "wrap", alignItems: "center",
-                        justifyContent: "space-between", gap: "12px",
+                        gap: "12px",
                         background: "#fff", flexShrink: 0,
                     }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
-                            {insight.type !== "Ad Stock Mismatch" && (
-                                <>
-                                    <div>
-                                        <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
-                                        <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
+                        <div style={{ display: "flex", alignItems: "center", gap: "20px", width: "100%" }}>
+                            <div>
+                                <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
+                                <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
+                            </div>
+                            <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
+                            <div style={{ display: "flex", gap: "20px" }}>
+                                {(insight.kpis || []).map((k, i) => (
+                                    <div key={i}>
+                                        <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>{k.label}</p>
+                                        <p style={{ fontSize: "14px", fontWeight: 700, margin: 0 }} className={getKpiStyle(k.label, k.value)}>{k.value}</p>
                                     </div>
-                                    <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
-                                    <div style={{ display: "flex", gap: "20px" }}>
-                                        {(insight.kpis || []).map((k, i) => (
-                                            <div key={i}>
-                                                <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>{k.label}</p>
-                                                <p style={{ fontSize: "14px", fontWeight: 700, margin: 0 }} className={getKpiStyle(k.label, k.value)}>{k.value}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
+                                ))}
+                            </div>
                         </div>
-                        <button
-                            onClick={onAI}
-                            className="ai-pulse-button"
-                            style={{
-                                display: "inline-flex", 
-                                alignItems: "center", 
-                                gap: "8px",
-                                padding: "8px 18px",
-                                fontSize: "11px", 
-                                fontWeight: 600,
-                                color: "#fff",
-                                background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
-                                border: "1px solid rgba(255, 255, 255, 0.15)", 
-                                borderRadius: "20px",
-                                cursor: "pointer",
-                                letterSpacing: "0.02em",
-                                boxShadow: "0 4px 14px -2px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255,255,255,0.1)",
-                                transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
-                                flexShrink: 0,
-                                position: "relative",
-                                overflow: "hidden"
-                            }}
-                            onMouseEnter={(e) => { 
-                                e.currentTarget.style.transform = "translateY(-1.5px)"; 
-                                e.currentTarget.style.boxShadow = "0 6px 20px -2px rgba(99, 102, 241, 0.45), inset 0 1px 0 rgba(255,255,255,0.2)"; 
-                                e.currentTarget.style.background = "linear-gradient(135deg, #4338ca 0%, #4f46e5 100%)";
-                            }}
-                            onMouseLeave={(e) => { 
-                                e.currentTarget.style.transform = ""; 
-                                e.currentTarget.style.boxShadow = "0 4px 14px -2px rgba(99, 102, 241, 0.35), inset 0 1px 0 rgba(255,255,255,0.1)"; 
-                                e.currentTarget.style.background = "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)";
-                            }}
-                        >
-                            <BrainCircuit size={13} strokeWidth={2.5} />
-                            <span>AI Insights</span>
-                            {/* <div style={{ 
-                                display: "flex", 
-                                alignItems: "center", 
-                                gap: "4px",
-                                marginLeft: "4px",
-                                paddingLeft: "8px",
-                                borderLeft: "1px solid rgba(255, 255, 255, 0.2)"
-                            }}>
-                                <LiveBadge />
-                                <BetaBadge size="xs" />
-                            </div> */}
-                        </button>
+                        
+                        <DynamicInsightsBar insight={insight} />
                     </div>
 
                     {/* Platform Tabs */}
@@ -1643,6 +1999,69 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
         </Dialog>
     );
 };
+
+// ─── SIGNAL CARD SKELETON ───────────────────────────────────────────────────
+
+const SignalCardSkeleton = () => (
+    <div style={{
+        width: "100%",
+        height: "100%",
+        minHeight: "280px",
+        display: "flex",
+        flexDirection: "column",
+        borderRadius: "12px",
+        background: "#ffffff",
+        overflow: "hidden",
+        position: "relative",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)",
+        border: "1px solid #f1f5f9",
+    }}>
+        {/* Top Badge Row */}
+        <div style={{ padding: "12px 14px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="skeleton-pulse" style={{ width: "45px", height: "14px", borderRadius: "5px" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div className="skeleton-pulse" style={{ width: "35px", height: "14px", borderRadius: "5px" }} />
+                <div className="skeleton-pulse" style={{ width: "22px", height: "22px", borderRadius: "6px" }} />
+            </div>
+        </div>
+
+        {/* Title Section */}
+        <div style={{ padding: "4px 14px 12px" }}>
+            <div className="skeleton-pulse" style={{ width: "40%", height: "9px", borderRadius: "3px", marginBottom: "6px" }} />
+            <div className="skeleton-pulse" style={{ width: "85%", height: "14px", borderRadius: "4px", marginBottom: "4px" }} />
+            <div className="skeleton-pulse" style={{ width: "60%", height: "14px", borderRadius: "4px" }} />
+        </div>
+
+        <Divider sx={{ mx: 1.5, my: 1, borderColor: "#f8fafc" }} />
+
+        {/* Metric Hero Section */}
+        <div style={{ padding: "14px 14px 12px" }}>
+            <div className="skeleton-pulse" style={{ width: "55%", height: "8px", borderRadius: "3px", marginBottom: "12px" }} />
+            <div className="skeleton-pulse" style={{ 
+                width: "110px", height: "36px", borderRadius: "8px"
+            }} />
+        </div>
+
+        <Divider sx={{ mx: 1.5, my: 1, borderColor: "#f8fafc" }} />
+
+        {/* Evidence Rows (Preview) */}
+        <div style={{ padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="skeleton-pulse" style={{ width: "45%", height: "10px", borderRadius: "3px" }} />
+                <div className="skeleton-pulse" style={{ width: "30%", height: "10px", borderRadius: "3px" }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div className="skeleton-pulse" style={{ width: "40%", height: "10px", borderRadius: "3px" }} />
+                <div className="skeleton-pulse" style={{ width: "25%", height: "10px", borderRadius: "3px" }} />
+            </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ marginTop: "auto", padding: "10px 14px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", background: "#fcfdfe" }}>
+            <div className="skeleton-pulse" style={{ width: "70px", height: "10px", borderRadius: "3px" }} />
+        </div>
+    </div>
+);
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
@@ -1707,7 +2126,8 @@ const InsightsSignalHub = () => {
             }
         };
         loadInsights();
-    }, [filters, cityFilter, categoryFilter, platformFilter, startDate, endDate]);
+    }, [filters, cityFilter, categoryFilter, platformFilter, startDate, endDate, compareStartDate, compareEndDate]);
+
 
     const allInsights = useMemo(() => fetchedInsights, [fetchedInsights]);
 
@@ -1814,6 +2234,15 @@ const InsightsSignalHub = () => {
                         box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
                         transform: scale(1);
                     }
+                }
+                @keyframes shimmer {
+                    0% { background-position: -200% 0; }
+                    100% { background-position: 200% 0; }
+                }
+                .skeleton-pulse {
+                    background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 50%, #f1f5f9 75%);
+                    background-size: 200% 100%;
+                    animation: shimmer 2s infinite linear;
                 }
             `}</style>
 
@@ -1949,26 +2378,22 @@ const InsightsSignalHub = () => {
                     {/* ── Signal Grid ─────────────────────────────────────── */}
                     {loading ? (
                         <div style={{
-                            display: "flex", flexDirection: "column", alignItems: "center",
-                            justifyContent: "center", padding: "80px 0",
-                            background: "#fff", border: "1px solid #e5e9f0",
-                            borderRadius: "10px",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(4, 1fr)",
+                            gap: "12px",
+                            flex: 1,
+                            minHeight: 0,
                         }}>
-                            <div style={{
-                                width: 40, height: 40, borderRadius: "10px",
-                                background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                marginBottom: "12px",
-                            }}>
-                                <Loader2 size={20} color="#fff" style={{ animation: "spin 1s linear infinite" }} />
-                            </div>
-                            <div style={{ fontSize: "13px", fontWeight: 600, color: "#1e3a5f", marginBottom: "4px" }}>
-                                Scanning analytics signals...
-                            </div>
-                            <div style={{ fontSize: "11px", color: "#94a3b8" }}>
-                                Powered by Trailytics AI 
-                                {/* <BetaBadge size="xs" /> */}
-                            </div>
+                            {[...Array(11)].map((_, i) => (
+                                <motion.div
+                                    key={`skeleton-${i}`}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ delay: i * 0.05 }}
+                                >
+                                    <SignalCardSkeleton />
+                                </motion.div>
+                            ))}
                         </div>
                     ) : filteredInsights.length === 0 ? (
                         <div style={{

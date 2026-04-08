@@ -10,7 +10,9 @@ export const getInsights = async (req, res) => {
             signal: req.query.signal || 'All signals',
             brand: req.query.brand || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate
         };
 
         const result = await getInsightsData(filters);
