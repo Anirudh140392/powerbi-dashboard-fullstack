@@ -2069,4 +2069,29 @@ export const getMarketShareDrilldown = async (start, end, platformFilter, catego
         return [];
     }
 };
-
+/**
+ * Get the latest available date in rb_ms_olap
+ */
+export const getMarketShareLatestDate = async () => {
+    try {
+        const query = `SELECT MAX(toDate(created_on)) as maxDate FROM rb_ms_olap`;
+        const result = await queryClickHouse(query);
+        const maxDateStr = result?.[0]?.maxDate;
+        const maxDate = maxDateStr ? dayjs(maxDateStr) : dayjs();
+        
+        return {
+            available: !!maxDateStr,
+            maxDate: maxDate.format('YYYY-MM-DD'),
+            defaultEndDate: maxDate.format('YYYY-MM-DD'),
+            defaultStartDate: maxDate.startOf('month').format('YYYY-MM-DD')
+        };
+    } catch (error) {
+        console.error('[getMarketShareLatestDate] Error:', error.message);
+        return {
+            available: false,
+            maxDate: dayjs().format('YYYY-MM-DD'),
+            defaultEndDate: dayjs().format('YYYY-MM-DD'),
+            defaultStartDate: dayjs().startOf('month').format('YYYY-MM-DD')
+        };
+    }
+};

@@ -322,6 +322,16 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                         <SelectBox label="Category Vertical" value={category} onChange={setCategory} options={categoryOptions} />
                         <SelectBox label="Brand Identity" value={brand} onChange={setBrand} options={brandOptions} />
 
+                        {/* SKU dropdown — only visible for Ecom Channel platforms (Amazon, Flipkart) */}
+                        {(() => {
+                            const ch = (platformChannels.find(p => p.platform === platform)?.channel || '').toLowerCase();
+                            const pl = (platform || '').toLowerCase();
+                            const isEcom = ch.includes('e-commerce') || ch.includes('ecom') || pl === 'amazon' || pl === 'flipkart';
+                            return isEcom ? (
+                                <SelectBox label="SKU Selection" value={sku} onChange={setSku} options={skuOptions} />
+                            ) : null;
+                        })()}
+
                         <Box sx={{ mb: 4.5 }}>
                             <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', mb: 1.5, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
                                 Fiscal Period

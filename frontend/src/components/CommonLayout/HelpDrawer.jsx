@@ -114,7 +114,7 @@ const HelpDrawer = ({ userDbName }) => {
       definition: "The rate at which user interactions (such as clicks or views) result in a purchase.",
       usage: "Evaluate funnel efficiency.",
       interpretation: "Higher conversion → strong product appeal.",
-      pitfalls: "", 
+      pitfalls: "",
       example: "500 orders from 10,000 clicks → 5%.",
       logic: "(Orders ÷ Clicks) × 100",
     },
@@ -123,7 +123,7 @@ const HelpDrawer = ({ userDbName }) => {
       definition: "The revenue generated for every unit of advertising spend.",
       usage: "Measure ad efficiency.",
       interpretation: "Higher ROAS → profitable campaigns.",
-      pitfalls: "", 
+      pitfalls: "",
       example: "₹5 revenue on ₹1 spend → ROAS = 5.",
       logic: "Revenue ÷ Ad Spend",
     },
@@ -141,7 +141,7 @@ const HelpDrawer = ({ userDbName }) => {
       definition: "The total investment made in advertising and promotional activities.",
       usage: "Budget tracking.",
       interpretation: "Higher spend → higher investment.",
-      pitfalls: "", 
+      pitfalls: "",
       example: "₹50,000 ad spend.",
       logic: "Sum(Ad Spend)",
     },
@@ -159,7 +159,7 @@ const HelpDrawer = ({ userDbName }) => {
       definition: "The proportion of a brand’s product visibility within sponsored or paid placements in search results.",
       usage: "Track effectiveness of paid visibility strategy.",
       interpretation: "Higher Sponsored SOS → strong paid dominance.",
-      pitfalls: "", 
+      pitfalls: "",
       example: "Out of 4 slots, 2 are sponsored listings of brand → 50%.",
       logic: "Sponsored SOS = (Sponsored Brand Appearances ÷ N) × 100",
     },
@@ -168,7 +168,7 @@ const HelpDrawer = ({ userDbName }) => {
       definition: "The proportion of a brand’s product visibility within organic (non-paid) search results.",
       usage: "Measure natural ranking and SEO performance.",
       interpretation: "Higher Organic SOS → strong organic discoverability.",
-      pitfalls: "", 
+      pitfalls: "",
       example: "Out of 6 slots, 2 organic brand listings → 33%.",
       logic: "Organic SOS = (Organic Brand Appearances ÷ N) × 100",
     },
@@ -186,7 +186,7 @@ const HelpDrawer = ({ userDbName }) => {
       definition: "The cost incurred for each user click on an advertisement.",
       usage: "Measure traffic cost.",
       interpretation: "Lower CPC → efficient clicks.",
-      pitfalls: "", 
+      pitfalls: "",
       example: "₹1,000 spend for 500 clicks → ₹2 CPC.",
       logic: "Spend ÷ Clicks",
     },
@@ -195,7 +195,7 @@ const HelpDrawer = ({ userDbName }) => {
       definition: "The total number of times a product or advertisement is displayed to users.",
       usage: "Measure reach.",
       interpretation: "Higher impressions → higher visibility.",
-      pitfalls: "", 
+      pitfalls: "",
       example: "1,00,000 impressions.",
       logic: "Count of Impressions",
     },
@@ -296,7 +296,7 @@ const HelpDrawer = ({ userDbName }) => {
       logic: "(Available Stores ÷ Total Stores) × 100",
     },
     {
-      kpi: "PSL (Product Service Level)",
+      kpi: "PSL (Potential Sales Loss)",
       definition: "The estimated sales loss due to unavailability, derived by comparing actual sales with expected sales adjusted for availability (OSA).",
       usage: "Identify sales loss caused by stockouts and availability gaps.",
       interpretation: "Higher PSL gap indicates greater loss due to poor availability; lower gap indicates efficient stock availability.",
@@ -733,32 +733,32 @@ const HelpDrawer = ({ userDbName }) => {
                           transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                           overflow: "hidden",
                           "&:hover": {
-                              borderColor: "#cbd5e1",
-                              boxShadow: "0 4px 12px rgba(0,0,0,0.04)"
+                            borderColor: "#cbd5e1",
+                            boxShadow: "0 4px 12px rgba(0,0,0,0.04)"
                           }
                         }}
                       >
                         <ListItemButton
                           onClick={() => setExpandedKpi(isExpanded ? null : item.kpi)}
-                          sx={{ 
-                              p: 2, 
-                              alignItems: "flex-start", 
-                              gap: 2,
-                              "&:hover .kpi-title": {
-                                  color: "#2563eb",
-                                  transform: "translateX(4px)"
-                              }
+                          sx={{
+                            p: 2,
+                            alignItems: "flex-start",
+                            gap: 2,
+                            "&:hover .kpi-title": {
+                              color: "#2563eb",
+                              transform: "translateX(4px)"
+                            }
                           }}
                         >
                           <Box sx={{ flex: 1 }}>
-                            <Typography 
+                            <Typography
                               className="kpi-title"
-                              fontWeight="700" 
-                              sx={{ 
-                                  color: isExpanded ? "#2563eb" : "#1e293b", 
-                                  fontSize: "0.95rem", 
-                                  mb: 0.5,
-                                  transition: "all 0.2s ease"
+                              fontWeight="700"
+                              sx={{
+                                color: isExpanded ? "#2563eb" : "#1e293b",
+                                fontSize: "0.95rem",
+                                mb: 0.5,
+                                transition: "all 0.2s ease"
                               }}
                             >
                               {item.kpi}
