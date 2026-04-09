@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import ReactFlow, {
   Controls,
@@ -49,7 +49,7 @@ const FontLoader = () => (
 // --- Layout & Typography Tokens ---
 const CARD_WIDTH = 1200;
 const CARD_HEIGHT = 440;
-const VERTICAL_GAP = 320;
+const VERTICAL_GAP = 550;
 const HORIZONTAL_STEP = 2200;
 
 const TYPO = {
@@ -269,7 +269,7 @@ const TrendButton = ({ onClick }) => (
  * DETAILED METRICS POPUP (Hover)
  * Shows Brand Identity table with a '+' button to drill down into Modal.
  */
-const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown, nodeValue }) => {
+const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown, nodeValue, nodeId }) => {
   const isBottom = position === "bottom";
   const [activeTab, setActiveTab] = useState("gainers");
 
@@ -441,9 +441,53 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           prevVal = match.rawPrevOrganicCvr !== undefined ? match.rawPrevOrganicCvr : 0;
           delta = (curVal - prevVal); // CVR variance usually absolute points
         } else if (l === "conversion" || l === "indexed-cvr" || l === "cvr" || l.includes("cvr")) {
-          curVal = match.rawCvr || 0;
-          prevVal = match.rawPrevCvr || 0;
+          if (nodeId === "sponsored-product") {
+            curVal = match.rawSpCvr || 0;
+            prevVal = match.rawPrevSpCvr || 0;
+          } else if (nodeId === "sponsored-brand") {
+            curVal = match.rawSbCvr || 0;
+            prevVal = match.rawPrevSbCvr || 0;
+          } else if (nodeId === "sponsored-display") {
+            curVal = match.rawSdCvr || 0;
+            prevVal = match.rawPrevSdCvr || 0;
+          } else if (nodeId === "sponsored-search" || nodeId === "ad-gvs" || nodeId === "ad-impressions") {
+            curVal = match.rawInorganicCvr || 0;
+            prevVal = match.rawPrevInorganicCvr || 0;
+          } else {
+            curVal = match.rawCvr || 0;
+            prevVal = match.rawPrevCvr || 0;
+          }
           delta = (curVal - prevVal); // CVR variance usually absolute points
+        } else if (l === "roas" || l.includes("roas")) {
+          if (nodeId === "sponsored-product" || l === "sp roas") {
+            curVal = match.rawSpRoas || 0;
+            prevVal = match.rawPrevSpRoas || 0;
+          } else if (nodeId === "sponsored-brand" || l === "sb roas") {
+            curVal = match.rawSbRoas || 0;
+            prevVal = match.rawPrevSbRoas || 0;
+          } else if (nodeId === "sponsored-display" || l === "sd roas") {
+            curVal = match.rawSdRoas || 0;
+            prevVal = match.rawPrevSdRoas || 0;
+          } else {
+            curVal = match.rawSearchRoas || 0;
+            prevVal = match.rawPrevSearchRoas || 0;
+          }
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "spend" || l.includes("spend")) {
+          if (nodeId === "sponsored-product" || l === "sp spend") {
+            curVal = match.rawSpSpend || 0;
+            prevVal = match.rawPrevSpSpend || 0;
+          } else if (nodeId === "sponsored-brand" || l === "sb spend") {
+            curVal = match.rawSbSpend || 0;
+            prevVal = match.rawPrevSbSpend || 0;
+          } else if (nodeId === "sponsored-display" || l === "sd spend") {
+            curVal = match.rawSdSpend || 0;
+            prevVal = match.rawPrevSdSpend || 0;
+          } else {
+            curVal = match.rawSearchSpend || 0;
+            prevVal = match.rawPrevSearchSpend || 0;
+          }
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
         } else if (l.includes("discount") || l.includes("disc")) {
           curVal = match.rawDiscount || 0;
           prevVal = match.rawPrevDiscount || 0;
@@ -457,13 +501,21 @@ const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platfo
           curVal = match.rawRating || 0;
           prevVal = match.rawPrevRating || 0;
           delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "sp") {
+        } else if (l === "sp" || l === "sponsored product") {
           curVal = match.rawSp || 0;
           prevVal = match.rawPrevSp || 0;
           delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "sb") {
+        } else if (l === "sb" || l === "sponsored brand") {
           curVal = match.rawSb || 0;
           prevVal = match.rawPrevSb || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "sd" || l === "sponsored display") {
+          curVal = match.rawSd || 0;
+          prevVal = match.rawPrevSd || 0;
+          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+        } else if (l === "sponsored search") {
+          curVal = match.rawAd || 0;
+          prevVal = match.rawPrevAd || 0;
           delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
         }
       }
@@ -681,9 +733,10 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
   const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
   
   const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("keyword");
-  const isEcomSos = isEcom && ((kpiLabel || "").toLowerCase().includes("search") || (kpiLabel || "").toLowerCase().includes("sos") || (kpiLabel || "").toLowerCase().includes("visibility"));
   const kpiLabelLower = (kpiLabel || "").toLowerCase();
-  const isEcomPm = isEcom && (kpiLabelLower === "sp" || kpiLabelLower === "sb" || kpiLabelLower.includes("ad gvs") || kpiLabelLower.includes("ad impressions") || kpiLabelLower.includes("inorganic cvr"));
+  const isSponsoredKpi = kpiLabelLower.includes("sponsored search") || kpiLabelLower.includes("sponsored brand") || kpiLabelLower.includes("sponsored product") || kpiLabelLower.includes("sponsored display");
+  const isEcomSos = isEcom && !isSponsoredKpi && (kpiLabelLower.includes("search") || kpiLabelLower.includes("sos") || kpiLabelLower.includes("visibility"));
+  const isEcomPm = isEcom && (kpiLabelLower === "sb" || kpiLabelLower.includes("ad gvs") || kpiLabelLower.includes("ad impressions") || kpiLabelLower.includes("inorganic cvr"));
   const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
   const isKeywordDrillDown = (isQCPlatform && isKeywordScopedKpi) || isEcomSos || isEcomPm;
 
@@ -767,12 +820,12 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
   const renderExpandBtn = (isExpanded, onClick) => (
     <Box onClick={(e) => { e.stopPropagation(); onClick(); }}
       sx={{
-        width: 26, height: 26, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center",
+        width: 36, height: 36, borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center",
         bgcolor: isExpanded ? "#6366f1" : "rgba(99,102,241,0.12)", color: isExpanded ? "#fff" : "#6366f1",
         cursor: "pointer", transition: "all 0.2s", "&:hover": { bgcolor: isExpanded ? "#4f46e5" : "rgba(99,102,241,0.2)" },
         boxShadow: isExpanded ? "0 4px 12px rgba(99,102,241,0.3)" : "none"
       }}>
-      {isExpanded ? <Minus size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
+      {isExpanded ? <Minus size={20} strokeWidth={3} /> : <Plus size={20} strokeWidth={3} />}
     </Box>
   );
 
@@ -1129,6 +1182,7 @@ const KpiNode = ({ data }) => {
             selectedCategory={data.selectedCategory || ""}
             position={data.popupPosition}
             nodeValue={data.value}
+            nodeId={data.id}
             onDrillDown={(entityToFocus) => {
               onClickDetail({ ...data, focusedEntity: entityToFocus });
             }}
@@ -1181,16 +1235,16 @@ const KpiNode = ({ data }) => {
               }}
               sx={{
                 ml: 0.5,
-                width: 34,
-                height: 34,
-                borderRadius: "12px",
-                border: `1px solid ${TYPO.border}`,
+                width: 64,
+                height: 64,
+                borderRadius: "18px",
+                border: `1.5px solid ${TYPO.border}`,
                 color: TYPO.primary,
                 backgroundColor: "#f8fafc",
                 "&:hover": { backgroundColor: "#eef2ff" },
               }}
             >
-              {isCollapsed ? <Plus size={18} /> : <Minus size={18} />}
+              {isCollapsed ? <Plus size={38} strokeWidth={2.5} /> : <Minus size={38} strokeWidth={2.5} />}
             </IconButton>
           )}
         </Box>
@@ -1200,7 +1254,7 @@ const KpiNode = ({ data }) => {
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 5.5 }}>
           <Box sx={{ flex: 1, minWidth: "fit-content" }}>
             <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Current</Typography>
-            <Typography sx={{ fontSize: TYPO.valueSize, color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{value}</Typography>
+            <Typography sx={{ fontSize: String(value).includes("Coming Soon") || String(value) === "--" ? "68px" : TYPO.valueSize, color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{value}</Typography>
           </Box>
           <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 6, flexShrink: 0 }} />
           <Box sx={{ flex: 1, minWidth: "fit-content" }}>
@@ -1231,7 +1285,7 @@ const KpiNode = ({ data }) => {
                 <Typography sx={{ fontSize: TYPO.footerSize, fontWeight: TYPO.weightBold, color: TYPO.secondary }}>
                   {m.label}
                 </Typography>
-                <Typography sx={{ fontSize: TYPO.footerSize, fontWeight: TYPO.weightHeavy, color: TYPO.primary, whiteSpace: "nowrap" }}>
+                <Typography sx={{ fontSize: String(m.value).includes("Coming Soon") || String(m.value) === "--" ? TYPO.minSize : TYPO.footerSize, fontWeight: TYPO.weightHeavy, color: TYPO.primary, whiteSpace: "nowrap" }}>
                   {m.value}
                   {m.change && (
                     <span
@@ -1264,24 +1318,24 @@ const KpiNode = ({ data }) => {
             }}
             style={{
               position: "absolute",
-              right: -28, // Centered on the source handle at right: -8
+              right: -55,
               top: "50%",
-              marginTop: -20,
-              width: 40,
-              height: 40,
+              marginTop: -55,
+              width: 110,
+              height: 110,
               borderRadius: "50%",
               backgroundColor: "#fff",
               color: "#64748b",
-              border: "2px solid rgba(255, 255, 255, 1)",
+              border: "4.5px solid rgba(255, 255, 255, 1)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
               zIndex: 15,
-              boxShadow: "0 14px 26px -6px rgba(0, 0, 0, 0.16)",
+              boxShadow: "0 28px 50px -8px rgba(0, 0, 0, 0.25)",
             }}
           >
-            {isCollapsed ? <Plus size={22} strokeWidth={3} /> : <Minus size={22} strokeWidth={3} />}
+            {isCollapsed ? <Plus size={64} strokeWidth={3.5} /> : <Minus size={64} strokeWidth={3.5} />}
           </motion.div>
         )
       }
@@ -1460,13 +1514,13 @@ const getDynamicRcaTreeData = (context) => {
                 {
                   id: "dsp",
                   label: "DSP",
-                  value: "-- Coming Soon --",
+                  value: "Coming Soon",
                   change: "0.0%",
                   isPositive: true,
                   category: "ad",
                   meta: [
-                    { label: "Display GVs", value: "-- Coming Soon --" },
-                    { label: "Conversion", value: "-- Coming Soon --" }
+                    { label: "Display GVs", value: "Coming Soon" },
+                    { label: "Conversion", value: "Coming Soon" }
                   ]
                 },
                 {
@@ -1478,7 +1532,9 @@ const getDynamicRcaTreeData = (context) => {
                   category: "ad",
                   meta: [
                     { label: "Search GVs", value: "45.00K", change: "46.74%", isPositive: false },
-                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false }
+                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false },
+                    { label: "ROAS", value: "3.12", change: "5.10%", isPositive: true },
+                    { label: "SPEND", value: "3.2M", change: "12.4%", isPositive: false }
                   ],
                   children: [
                     {
@@ -1928,7 +1984,7 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, plat
 // --- Detail Popup (Updated with Brand Filtering, Download, and Pagination) ---
 const NodeDetailPopup = () => null;
 const RcaTreeInner = ({ context, title, onViewTrends }) => {
-  const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
+  const [collapsedNodes, setCollapsedNodes] = useState(new Set());
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -2033,6 +2089,21 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     [apiTreeData, context]
   );
 
+  // Collapse all parent nodes by default when tree data changes
+  useEffect(() => {
+    if (!currentTreeData) return;
+    const parentIds = new Set();
+    const collect = (node) => {
+      if (node.children && node.children.length > 0) {
+        // Don't collapse root — keep first level visible
+        if (node.id !== 'root') parentIds.add(node.id);
+        node.children.forEach(collect);
+      }
+    };
+    collect(currentTreeData);
+    setCollapsedNodes(parentIds);
+  }, [currentTreeData]);
+
   const index = useMemo(() => buildIndex(currentTreeData), [currentTreeData]);
   const focusId = selectedNodeId || hoveredNodeId;
 
@@ -2044,13 +2115,35 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [focusId, index]);
 
   const onToggleNode = useCallback((id) => {
+    let isExpanding = false;
     setCollapsedNodes((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        isExpanding = true;
+      } else {
+        next.add(id);
+      }
       return next;
     });
-  }, []);
+
+    // To prevent overlaps when the tree expands/collapses, clear any manual drag positions so it auto-arranges perfectly
+    setNodes((nds) => 
+      nds.map((n) => ({ ...n, data: { ...n.data, wasManuallyMoved: false } }))
+    );
+
+    // When expanding, zoom to the toggled node + its direct children after layout settles
+    if (true) {
+      setTimeout(() => {
+        const allNodes = reactFlowInstance?.getNodes?.() || [];
+        const parentNode = allNodes.find(n => n.id === id);
+        if (!parentNode) return;
+
+        // Fit the entire visible tree on screen instead of just the local branch, ensuring overall readability
+        reactFlowInstance.fitView?.({ padding: 0.15, duration: 450, maxZoom: 0.25 });
+      }, 80);
+    }
+  }, [reactFlowInstance]);
 
   const handleCardClick = useCallback(
     (data) => {
@@ -2128,9 +2221,25 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
 
+  const prevContextRef = useRef({ platform: context.platform, brand: context.brand, category: context.category });
+
   useEffect(() => {
+    const isContextChanged = 
+      prevContextRef.current.platform !== context.platform || 
+      prevContextRef.current.brand !== context.brand || 
+      prevContextRef.current.category !== context.category;
+
+    if (isContextChanged) {
+      prevContextRef.current = { platform: context.platform, brand: context.brand, category: context.category };
+    }
+
     setNodes((nds) =>
       computedNodes.map((newNode) => {
+        // If context changed entirely (platform/category switch), reset to auto-layout
+        if (isContextChanged) {
+          return newNode;
+        }
+
         const oldNode = nds.find((n) => n.id === newNode.id);
         // SMART PERSISTENCE: Only keep current position if it was explicitly moved by user
         if (oldNode && oldNode.data?.wasManuallyMoved) {
@@ -2145,12 +2254,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
       })
     );
     setEdges(computedEdges);
-  }, [computedNodes, computedEdges, setNodes, setEdges]);
-
-  // Reset all positions when platform or level changes to ensure a clean tree-wise layout
-  useEffect(() => {
-    setNodes(computedNodes);
-  }, [context.platform, context.brand, context.category, setNodes, computedNodes]);
+  }, [computedNodes, computedEdges, setNodes, setEdges, context.platform, context.brand, context.category]);
 
   useEffect(() => {
     reactFlowInstance.fitView({ padding: 0.05, duration: 800 });
@@ -2201,6 +2305,15 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
         elevateNodesOnSelect={true}
+        onNodeDragStart={(event, node) => {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === node.id
+                ? { ...n, data: { ...n.data, wasManuallyMoved: true } }
+                : n
+            )
+          );
+        }}
         onNodeDragStop={(event, node) => {
           setNodes((nds) =>
             nds.map((n) =>

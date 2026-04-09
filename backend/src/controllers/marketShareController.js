@@ -1,4 +1,4 @@
-import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown } from '../services/marketShareHelper.js';
+import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate } from '../services/marketShareHelper.js';
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
@@ -205,6 +205,17 @@ export const MarketShareDrilldown = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in Market Share Drilldown:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const MarketShareLatestDate = async (req, res) => {
+    try {
+        console.log("Market Share Latest Date request received");
+        const result = await getMarketShareLatestDate();
+        res.json(result);
+    } catch (error) {
+        console.error('Error in Market Share Latest Date:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
