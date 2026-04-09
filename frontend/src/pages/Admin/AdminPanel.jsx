@@ -21,7 +21,14 @@ import AllUsersTable from "./tabs/AllUsersTable";
 import NewRequests from "./tabs/NewRequests";
 
 const AdminPanel = () => {
-    const [activeTab, setActiveTab] = useState("users");
+    const [activeTab, setActiveTab] = useState(() => {
+        return localStorage.getItem("adminActiveTab") || "users";
+    });
+
+    // Persist tab selection
+    React.useEffect(() => {
+        localStorage.setItem("adminActiveTab", activeTab);
+    }, [activeTab]);
     const { logout, user} = useAuth();
 
     const menuItems = [

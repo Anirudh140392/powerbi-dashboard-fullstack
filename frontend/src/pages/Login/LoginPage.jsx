@@ -26,16 +26,23 @@ const LoginPage = () => {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    const { login, isLoggedIn, user } = useAuth();
+    const { login, isLoggedIn, user, isVerifying } = useAuth();
     const navigate = useNavigate();
 
-    // Auto-redirect if already logged in
+    // Auto-redirect if already logged in AND effectively on the login page
     useEffect(() => {
-        if (isLoggedIn) {
-            const redirectPath = user?.role === 'admin' ? "/admin" : "/watch-tower";
+        if (!isVerifying && isLoggedIn && window.location.href.includes('/login')) {
+            const userRole = user?.role?.toLowerCase() || '';
+            const hasAdminAccess = userRole.includes('admin') || userRole.includes('super');
+            const redirectPath = hasAdminAccess ? "/admin" : "/watch-tower";
             navigate(redirectPath, { replace: true });
         }
-    }, [isLoggedIn, navigate, user]);
+    }, [isLoggedIn, isVerifying, navigate, user]);
+
+    // While verifying session, don't render the login form (prevents flash)
+    if (isVerifying) {
+        return null;
+    }
 
     const handleLogin = async (e) => {
         if (e) e.preventDefault();

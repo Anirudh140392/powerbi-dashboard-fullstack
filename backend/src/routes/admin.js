@@ -1,5 +1,5 @@
 // src/routes/admin.js
-import { getUsers, deleteUser, getLiveUsers } from '../controllers/adminController.js';
+import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess } from '../controllers/adminController.js';
 
 export default (app) => {
     // Middleware to log Admin API calls
@@ -59,4 +59,38 @@ export default (app) => {
      *         description: User deleted successfully
      */
     app.delete('/api/admin/users/:id', deleteUser);
+
+    /**
+     * @swagger
+     * /api/admin/pending-requests:
+     *   get:
+     *     summary: Get all pending access requests
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       200:
+     *         description: List of pending requests
+     */
+    app.get('/api/admin/pending-requests', getPendingRequests);
+
+    /**
+     * @swagger
+     * /api/admin/users/access:
+     *   patch:
+     *     summary: Approve or deny a user request
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               id:
+     *                 type: string
+     *               status:
+     *                 type: string
+     *                 enum: [allow, deny]
+     */
+    app.patch('/api/admin/users/access', updateUserAccess);
 };

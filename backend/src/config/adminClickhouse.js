@@ -44,4 +44,23 @@ export const queryAdminDB = async (query, params = {}) => {
     }
 };
 
+/**
+ * Insert data into the admin_master database
+ */
+export const insertAdminDB = async (tableName, values) => {
+    try {
+        console.log(`[AdminDB] Inserting into ${tableName}`);
+        await adminClickhouse.insert({
+            table: tableName,
+            values,
+            format: 'JSONEachRow',
+        });
+        console.log(`[AdminDB] Insert successful into ${tableName}`);
+        return { success: true };
+    } catch (err) {
+        console.error(`[AdminDB] Insert failed into ${tableName}:`, err.message);
+        throw err;
+    }
+};
+
 export default adminClickhouse;

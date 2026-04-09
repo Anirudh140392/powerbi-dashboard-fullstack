@@ -1,6 +1,6 @@
 // src/routes/auth.js
 import express from 'express';
-import { login } from '../controllers/authController.js';
+import { login, verify } from '../controllers/authController.js';
 
 const router = express.Router();
 
@@ -32,4 +32,21 @@ const router = express.Router();
  */
 router.post('/login', login);
 
+/**
+ * @swagger
+ * /api/auth/verify:
+ *   get:
+ *     summary: Verify session
+ *     description: Re-validates JWT token and checks current access permissions
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Session valid, returns user data
+ *       401:
+ *         description: Invalid/expired token or access revoked
+ */
+router.get('/verify', verify);
+
 export default router;
+

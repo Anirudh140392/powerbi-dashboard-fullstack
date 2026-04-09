@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Search,
@@ -20,31 +21,67 @@ import {
  * NewRequests - Displays pending access requests with approve/deny actions.
  */
 const NewRequests = () => {
-    const [requests, setRequests] = useState([
-        { id: 1, email: "dev.kumar@marsinc.com", dbName: "mars", ip: "203.45.67.12", dateTime: "2026-04-06 09:15:32", status: "pending" },
-        { id: 2, email: "neha.jain@gcpl.in", dbName: "gcpl", ip: "182.73.120.44", dateTime: "2026-04-06 08:42:11", status: "pending" },
-        { id: 3, email: "rahul.s@colpal.com", dbName: "colpal", ip: "14.139.56.78", dateTime: "2026-04-05 17:55:09", status: "pending" },
-        { id: 4, email: "anita.m@marsinc.com", dbName: "mars", ip: "49.36.142.91", dateTime: "2026-04-05 14:30:22", status: "pending" },
-        { id: 5, email: "vikash.p@trailytics.com", dbName: "mars", ip: "103.87.45.33", dateTime: "2026-04-05 11:20:45", status: "pending" },
-        { id: 6, email: "sanya.r@gcpl.in", dbName: "gcpl", ip: "122.176.31.88", dateTime: "2026-04-04 16:10:58", status: "pending" },
-        { id: 7, email: "karan.d@colpal.com", dbName: "colpal", ip: "59.94.172.15", dateTime: "2026-04-04 13:05:33", status: "pending" },
-        { id: 8, email: "priti.g@marsinc.com", dbName: "mars", ip: "27.56.83.102", dateTime: "2026-04-04 10:48:17", status: "pending" },
-        { id: 9, email: "mohit.k@trailytics.com", dbName: "admin_master", ip: "106.215.44.67", dateTime: "2026-04-03 19:22:41", status: "pending" },
-        { id: 10, email: "deepa.n@gcpl.in", dbName: "gcpl", ip: "223.189.12.54", dateTime: "2026-04-03 15:33:08", status: "pending" },
-    ]);
-
+    const [requests, setRequests] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterStatus, setFilterStatus] = useState("all"); // all, pending, approved, denied
     const [actionAnimating, setActionAnimating] = useState(null);
 
-    const handleAction = (id, action) => {
-        setActionAnimating(id);
-        setTimeout(() => {
-            setRequests(prev =>
-                prev.map(r => r.id === id ? { ...r, status: action } : r)
+    const API_BASE = import.meta.env.VITE_API_URL
+        ? `${import.meta.env.VITE_API_URL}/api`
+        : "/api";
+
+    const fetchRequests = async () => {
+        try {
+            setLoading(true);
+            const token = localStorage.getItem("token");
+            const response = await axios.get(`${API_BASE}/admin/pending-requests`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (response.data.success) {
+                setRequests(response.data.data);
+                setError(null);
+            } else {
+                setError(response.data.error || "Failed to fetch requests");
+            }
+        } catch (err) {
+            console.error("Error fetching requests:", err);
+            setError("Error connecting to server.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchRequests();
+    }, []);
+
+    const handleAction = async (id, action) => {
+        try {
+            setActionAnimating(id);
+            const token = localStorage.getItem("token");
+            
+            // Map 'approved' to 'allow' for backend status
+            const status = action === "approved" ? "allow" : "deny";
+
+            const response = await axios.patch(`${API_BASE}/admin/users/access`, 
+                { id, status },
+                { headers: { Authorization: `Bearer ${token}` } }
             );
+
+            if (response.data.success) {
+                // Remove from list or update local state
+                setTimeout(() => {
+                    setRequests(prev => prev.filter(r => r.id !== id));
+                    setActionAnimating(null);
+                }, 400);
+            }
+        } catch (err) {
+            console.error("Error updating access:", err);
             setActionAnimating(null);
-        }, 400);
+        }
     };
 
     const filteredRequests = requests.filter((r) => {
@@ -57,8 +94,8 @@ const NewRequests = () => {
     });
 
     const pendingCount = requests.filter(r => r.status === "pending").length;
-    const approvedCount = requests.filter(r => r.status === "approved").length;
-    const deniedCount = requests.filter(r => r.status === "denied").length;
+    const approvedCount = 0; // Requests are filtered out once approved in this view
+    const deniedCount = 0;
 
     const getStatusBadge = (status) => {
         switch (status) {
@@ -179,7 +216,30 @@ const NewRequests = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {filteredRequests.length === 0 ? (
+                            {loading ? (
+                                <tr>
+                                    <td colSpan={6} className="py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="w-10 h-10 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+                                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Loading Requests...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : error ? (
+                                <tr>
+                                    <td colSpan={6} className="py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3 text-rose-500">
+                                            <p className="text-sm font-bold uppercase tracking-widest">{error}</p>
+                                            <button 
+                                                onClick={fetchRequests}
+                                                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-all"
+                                            >
+                                                Retry
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : filteredRequests.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="py-16 text-center">
                                         <div className="flex flex-col items-center gap-3">
@@ -218,7 +278,7 @@ const NewRequests = () => {
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-2">
                                                 <Database className="w-3.5 h-3.5 text-slate-400" />
-                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${dbColors[req.dbName] || "bg-slate-50 text-slate-600 border-slate-100"}`}>
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${dbColors[req.dbName?.toLowerCase()] || "bg-slate-50 text-slate-600 border-slate-100"}`}>
                                                     {req.dbName}
                                                 </span>
                                             </div>

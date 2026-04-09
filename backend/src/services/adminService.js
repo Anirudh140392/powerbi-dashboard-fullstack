@@ -143,3 +143,96 @@ export const getLiveUsers = async () => {
         throw error;
     }
 };
+
+/**
+ * Fetch all pending access requests
+ */
+export const getPendingRequests = async () => {
+    try {
+        // Fetch all rows where access = 'pending'
+        const query = `
+            SELECT 
+                toString(id) as id,
+                user_email as email,
+                user_name as name,
+                toString(db_id) as db_id,
+                ip,
+                last_login as dateTime,
+                access as status
+            FROM tb_user
+            WHERE access = 'pending'
+            AND last_login >= today()
+            ORDER BY last_login DESC
+            LIMIT 1 BY user_email, ip
+        `;
+        const requests = await queryAdminDB(query);
+
+        // Fetch databases to map names
+        const databases = await queryAdminDB("SELECT db_name, toString(db_id) as db_id FROM tb_database");
+        const dbMap = new Map();
+        databases.forEach(db => dbMap.set(db.db_id, db.db_name));
+
+        return requests.map(req => {
+            const userDbIdStr = req.db_id;
+            let finalDbName = 'Unknown';
+
+            // 1. Try direct map lookup first
+            if (dbMap.has(userDbIdStr)) {
+                finalDbName = dbMap.get(userDbIdStr);
+            } else {
+                // 2. Fuzzy match for BigInt/UInt64 precision issues
+                try {
+                    const userDbIdNum = BigInt(userDbIdStr);
+                    let closestDb = null;
+                    let closestDiff = BigInt('999999999999999999');
+
+                    for (const [dbId, name] of dbMap.entries()) {
+                        const dbIdNum = BigInt(dbId);
+                        const diff = userDbIdNum > dbIdNum ? userDbIdNum - dbIdNum : dbIdNum - userDbIdNum;
+                        if (diff < closestDiff) {
+                            closestDiff = diff;
+                            closestDb = name;
+                        }
+                    }
+
+                    // Accept if difference is very small (within tolerance for UInt64 precision errors)
+                    if (closestDiff < BigInt('1000')) {
+                        finalDbName = closestDb;
+                    }
+                } catch (e) {
+                    console.warn(`[AdminService] Error matching db_id for request ${req.id}:`, e.message);
+                }
+            }
+
+            return {
+                ...req,
+                dbName: finalDbName,
+                dateTime: req.dateTime ? new Date(req.dateTime).toISOString().replace('T', ' ').split('.')[0] : 'N/A'
+            };
+        });
+    } catch (error) {
+        console.error('[AdminService] getPendingRequests failed:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Update the access status for a specific login record
+ */
+export const updateUserAccess = async (id, status) => {
+    try {
+        // Find the record by id and update its access column
+        // Using ALTER TABLE UPDATE for ClickHouse Mutations
+        const query = `
+            ALTER TABLE tb_user 
+            UPDATE access = '${status}' 
+            WHERE toString(id) = '${id}'
+        `;
+
+        await queryAdminDB(query);
+        return { success: true };
+    } catch (error) {
+        console.error(`[AdminService] updateUserAccess failed for ${id}:`, error.message);
+        throw error;
+    }
+};
