@@ -86,3 +86,68 @@ export const getLiveUsers = async (req, res) => {
         });
     }
 };
+
+/**
+ * GET /api/admin/pending-requests
+ * Returns list of pending access requests
+ */
+export const getPendingRequests = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const requests = await adminService.getPendingRequests();
+
+        return res.status(200).json({
+            success: true,
+            data: requests
+        });
+    } catch (error) {
+        console.error('[AdminController] getPendingRequests failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
+ * PATCH /api/admin/users/access
+ * Updates access status for a specific login row
+ */
+export const updateUserAccess = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { id, status } = req.body;
+        
+        if (!id || !status) {
+            return res.status(400).json({
+                success: false,
+                error: 'ID and status are required'
+            });
+        }
+
+        await adminService.updateUserAccess(id, status);
+
+        return res.status(200).json({
+            success: true,
+            message: `Access set to ${status}`
+        });
+    } catch (error) {
+        console.error('[AdminController] updateUserAccess failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
