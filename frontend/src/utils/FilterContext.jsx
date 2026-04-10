@@ -114,41 +114,41 @@ export const FilterProvider = ({ children }) => {
     }, [isAuthenticated]);
 
     // ====== FETCH LATEST DATES FROM DB (on mount and hash change) ======
-    useEffect(() => {
-        const fetchDates = async () => {
-            if (!isAuthenticated) return;
+    const refreshDates = useCallback(async () => {
+        if (!isAuthenticated) return;
 
-            setDatesFetched(false);
-            try {
-                // Determine which endpoint to use for initial dates
-                const isMarketShare = currentHash.includes('/market-share');
-                const endpoint = isMarketShare ? '/market-share/latest-date' : '/watchtower/latest-available-month';
-                
-                console.log(`[FilterContext] Fetching basic dates from ${endpoint}...`);
-                const res = await axiosInstance.get(endpoint);
-                if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
-                    const lEnd = dayjs(res.data.defaultEndDate);
-                    const lStart = dayjs(res.data.defaultStartDate);
+        setDatesFetched(false);
+        try {
+            // Use window.location.hash directly to ensure it has the latest path on mount
+            const isMarketShare = window.location.hash.includes('/market-share');
+            const endpoint = isMarketShare ? '/market-share/latest-date' : '/watchtower/latest-available-month';
+            
+            console.log(`[FilterContext] Fetching basic dates from ${endpoint}...`);
+            const res = await axiosInstance.get(endpoint);
+            if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
+                const lEnd = dayjs(res.data.defaultEndDate);
+                const lStart = dayjs(res.data.defaultStartDate);
 
-                    setTimeEnd(lEnd);
-                    setTimeStart(lStart);
-                    setMaxDate(lEnd);
+                setTimeEnd(lEnd);
+                setTimeStart(lStart);
+                setMaxDate(lEnd);
 
-                    // Simple Previous period comparison
-                    setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
-                    setCompareStart(lStart.subtract(1, 'month').startOf('month'));
+                // Simple Previous period comparison
+                setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
+                setCompareStart(lStart.subtract(1, 'month').startOf('month'));
 
-                    console.log(`[FilterContext] Fetched dynamic dates for ${isMarketShare ? 'Market Share' : 'Watchtower'}:`, res.data.defaultStartDate, "to", res.data.defaultEndDate);
-                }
-            } catch (err) {
-                console.warn("[FilterContext] Failed to fetch latest dates:", err.message);
-            } finally {
-                setDatesFetched(true);
+                console.log(`[FilterContext] Fetched dynamic dates for ${isMarketShare ? 'Market Share' : 'Watchtower'}:`, res.data.defaultStartDate, "to", res.data.defaultEndDate);
             }
-        };
-        fetchDates();
-    }, [isAuthenticated, currentHash]);
+        } catch (err) {
+            console.warn("[FilterContext] Failed to fetch latest dates:", err.message);
+        } finally {
+            setDatesFetched(true);
+        }
+    }, [isAuthenticated]);
 
+    useEffect(() => {
+        refreshDates();
+    }, [refreshDates, currentHash]);
 
     // ====== FETCH CHANNELS FROM DB (on mount) ======
     useEffect(() => {
@@ -577,6 +577,7 @@ export const FilterProvider = ({ children }) => {
             datesFetched,
             platformsFetched,
             refreshFilters,
+            refreshDates,
             contentFilterMode,
             setContentFilterMode,
             visibilityOwnBrandsOnly,

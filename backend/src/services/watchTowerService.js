@@ -6935,19 +6935,19 @@ const getKpiTrends = async (filters) => {
             const dimKey = dimension.toLowerCase();
             const val = dimensionValue;
             if (dimKey === 'platform') conds.push(`${pmSrc.f.platform} = '${escapeStr(val)}'`);
-            else if (dimKey === 'category' || dimKey === 'format') conds.push(`${pmSrc.f.category} = '${escapeStr(val)}'`);
-            else if (dimKey === 'brand') conds.push(`${pmSrc.f.brand} = '${escapeStr(val)}'`);
-            else if (dimKey === 'city' || dimKey === 'location') conds.push(`${pmSrc.f.location} = '${escapeStr(val)}'`);
+            else if (dimKey === 'category' || dimKey === 'format') conds.push(`lower(${pmSrc.f.category}) = '${escapeStr(val.toLowerCase())}'`);
+            else if (dimKey === 'brand') conds.push(`lower(${pmSrc.f.brand}) = '${escapeStr(val.toLowerCase())}'`);
+            else if (dimKey === 'city' || dimKey === 'location') conds.push(`lower(${pmSrc.f.location}) = '${escapeStr(val.toLowerCase())}'`);
         }
 
-        if (catArr && catArr.length > 0) conds.push(`${pmSrc.f.category} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        if (catArr && catArr.length > 0) conds.push(`lower(${pmSrc.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
 
         if (brandArr && brandArr.length > 0) {
-            const brandConditions = brandArr.map(b => `${pmSrc.f.brand} LIKE '%${escapeStr(b)}%'`).join(' OR ');
+            const brandConditions = brandArr.map(b => `lower(${pmSrc.f.brand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
             conds.push(`(${brandConditions})`);
         }
 
-        if (locArr && locArr.length > 0) conds.push(`${pmSrc.f.location} IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        if (locArr && locArr.length > 0) conds.push(`lower(${pmSrc.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
         if (platArr && platArr.length > 0) {
             conds.push(`${pmSrc.f.platform} IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
@@ -6959,8 +6959,8 @@ const getKpiTrends = async (filters) => {
         // Enforce "Our Brands" only for PM metrics if no specific brand is selected
         if (!brandArr || brandArr.length === 0 || brandArr.includes('All')) {
             if (validBrandNames && validBrandNames.length > 0) {
-                const brandList = validBrandNames.map(b => `'${escapeStr(b)}'`).join(', ');
-                conds.push(`${pmSrc.f.brand} IN (${brandList})`);
+                const brandList = validBrandNames.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+                conds.push(`lower(${pmSrc.f.brand}) IN (${brandList})`);
             }
         }
 
@@ -7191,8 +7191,8 @@ const getKpiTrends = async (filters) => {
         const pmAdClicks = pmData.clicks;
         const pmAdImpressions = pmData.impressions;
 
-        // 2. Inorganic Sales (Ad Sales from PM / Total Sales * 100)
-        const inorganicSales = totalSales > 0 ? (pmAdSales / totalSales) * 100 : 0;
+        // 2. Inorganic Sales (Ad Sales from PM) - Absolute value as requested
+        const inorganicSales = pmAdSales;
 
         // 3. Conversion (Orders / Clicks * 100) - Using PM data
         const conversion = calculateConversion(pmAdOrders, pmAdImpressions, pmAdClicks);
