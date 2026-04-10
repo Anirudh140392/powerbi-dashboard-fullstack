@@ -1365,13 +1365,16 @@ export const getEcomRcaData = async (filters = {}) => {
                         {
                             id: "delivery-time",
                             label: "Delivery Time",
-                            value: "Same Day",
-                            prevValue: "Same Day",
+                            value: "Coming Soon",
+                            prevValue: "Coming Soon",
                             change: '0.0%',
                             isPositive: true,
                             category: "segment",
                             children: isFlipkart ? [] : [
-                                { id: "same-day", label: `Same Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "100.00%", prevValue: "100.00%", change: '0.0%', isPositive: true, category: "segment" }
+                                { id: "same-day", label: `Same Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
+                                { id: "one-day", label: `1 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
+                                { id: "two-day", label: `2 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
+                                { id: "greater-two", label: `> 2 Days ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" }
                             ]
                         },
                         {
@@ -1383,9 +1386,7 @@ export const getEcomRcaData = async (filters = {}) => {
                             isPositive: discDelta.isPos,
                             category: "discounting",
                             metrics: allNodeMetrics,
-                            children: isFlipkart ? [] : [
-                                { id: "one-day", label: `1 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "0.00%", prevValue: "0.00%", change: '0.0%', isPositive: true, category: "segment" }
-                            ]
+                            children: []
                         },
                         {
                             id: "organic-cvr",
@@ -1396,9 +1397,7 @@ export const getEcomRcaData = async (filters = {}) => {
                             isPositive: cvrOrgDelta.isPos,
                             category: "conversion",
                             metrics: allNodeMetrics,
-                            children: isFlipkart ? [] : [
-                                { id: "two-day", label: `2 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: phValue, prevValue: phValue, change: '0.0%', isPositive: true, category: "segment" }
-                            ]
+                            children: []
                         },
                         {
                             id: "inorganic-cvr",
@@ -1409,9 +1408,7 @@ export const getEcomRcaData = async (filters = {}) => {
                             isPositive: cvrAdDelta.isPos,
                             category: "conversion",
                             metrics: allNodeMetrics,
-                            children: isFlipkart ? [] : [
-                                { id: "greater-two", label: `> 2 Days ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "0.00%", prevValue: "0.00%", change: '0.0%', isPositive: true, category: "segment" }
-                            ]
+                            children: []
                         }
                     ]
                 },
@@ -1434,16 +1431,13 @@ export const getEcomRcaData = async (filters = {}) => {
                 {
                     id: "sns",
                     label: "Subscribe & Save %",
-                    value: "0.00%",
-                    prevValue: "0.00%",
+                    value: "Coming Soon",
+                    prevValue: "Coming Soon",
                     change: '0.0%',
                     isPositive: true,
                     category: "segment",
-                    meta: [{ label: "SnS Sales%", value: "0.00%" }],
-                    children: [
-                        { id: "loyalty", label: "Loyalty/Repeats %", value: phValue, prevValue: phValue, change: '0.0%', isPositive: true, category: "segment" },
-                        { id: "new-cust", label: "New Customer %", value: phValue, prevValue: phValue, change: '0.0%', isPositive: true, category: "segment" }
-                    ]
+                    meta: [{ label: "SnS Sales%", value: "Coming Soon" }],
+                    children: []
                 }
             ]
         };

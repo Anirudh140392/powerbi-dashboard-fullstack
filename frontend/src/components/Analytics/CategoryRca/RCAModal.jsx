@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
+    Autocomplete,
+    TextField,
     Dialog,
     DialogContent,
     DialogTitle,
@@ -24,47 +26,127 @@ import dayjs from "dayjs";
  * - Integration with RCATree
  */
 
-const SelectBox = ({ label, value, onChange, options = [], width = '100%' }) => (
+const SelectBox = ({ label, value, onChange, options = [], width = '100%', widePopup = false }) => (
     <Box sx={{ mb: 4.5 }}>
         <Typography sx={{ fontSize: '10px', fontWeight: 900, color: '#64748b', mb: 1.5, letterSpacing: '1.5px', textTransform: 'uppercase' }}>
             {label}
         </Typography>
-        <Box sx={{ position: 'relative', width }}>
-            <select
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                style={{
-                    width: '100%',
-                    padding: '12px 36px 12px 16px',
-                    fontSize: '14px',
+        <Autocomplete
+            options={options}
+            value={value}
+            onChange={(event, newValue) => {
+                if (newValue !== null) onChange(newValue);
+            }}
+            disableClearable
+            {...(!widePopup && { disablePortal: true })}
+            clearOnBlur
+            selectOnFocus
+            handleHomeEndKeys
+            size="small"
+            getOptionLabel={(option) => option || ''}
+            renderOption={(props, option) => (
+                <li {...props} key={option}>
+                    <Typography sx={{ fontSize: '13px', fontWeight: 600, width: '100%', ...(widePopup ? { whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.4 } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }) }}>
+                        {option}
+                    </Typography>
+                </li>
+            )}
+            sx={{
+                width,
+                '& .MuiInputBase-root': {
+                    padding: '6px 14px !important',
+                    fontSize: '13px',
                     border: '1px solid rgba(15, 23, 42, 0.1)',
                     borderRadius: '14px',
                     backgroundColor: 'rgba(255, 255, 255, 0.6)',
                     color: '#0f172a',
-                    appearance: 'none',
-                    cursor: 'pointer',
                     fontWeight: 800,
-                    outline: 'none',
-                    transition: 'all 0.2s ease',
                     backdropFilter: 'blur(10px)',
-                }}
-                onFocus={(e) => {
-                    e.target.style.borderColor = 'rgba(79, 70, 229, 0.4)';
-                    e.target.style.boxShadow = '0 0 0 4px rgba(79, 70, 229, 0.05)';
-                }}
-                onBlur={(e) => {
-                    e.target.style.borderColor = 'rgba(15, 23, 42, 0.1)';
-                    e.target.style.boxShadow = 'none';
-                }}
-            >
-                {options.map((opt) => (
-                    <option key={opt} value={opt} style={{ backgroundColor: '#fff', color: '#000000' }}>
-                        {opt}
-                    </option>
-                ))}
-            </select>
-            <ChevronDown size={18} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'rgba(15, 23, 42, 0.4)' }} />
-        </Box>
+                    transition: 'all 0.2s ease',
+                    minHeight: '42px',
+                    '& fieldset': { border: 'none' },
+                    '&:hover': {
+                        borderColor: 'rgba(79, 70, 229, 0.4)',
+                    },
+                    '&.Mui-focused': {
+                        borderColor: 'rgba(79, 70, 229, 0.4)',
+                        boxShadow: '0 0 0 4px rgba(79, 70, 229, 0.05)',
+                    }
+                },
+                '& .MuiAutocomplete-input': {
+                    padding: '4px 4px !important',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    color: '#0f172a',
+                    textOverflow: 'ellipsis',
+                },
+                '& .MuiAutocomplete-endAdornment': {
+                    right: '10px !important',
+                    '& .MuiSvgIcon-root': {
+                        fontSize: '20px',
+                        color: 'rgba(15, 23, 42, 0.35)',
+                    }
+                },
+                '& .MuiAutocomplete-popupIndicator': {
+                    '&:hover': { backgroundColor: 'transparent' },
+                },
+            }}
+            componentsProps={{
+                paper: {
+                    sx: {
+                        borderRadius: '14px',
+                        boxShadow: '0 12px 36px rgba(0,0,0,0.12)',
+                        border: '1px solid rgba(15, 23, 42, 0.06)',
+                        mt: 1,
+                        overflow: 'hidden',
+                        ...(widePopup && { minWidth: '500px' }),
+                    }
+                },
+                ...(widePopup && {
+                    popper: {
+                        sx: { minWidth: '500px' },
+                        placement: 'bottom-start',
+                    }
+                })
+            }}
+            renderInput={(params) => (
+                <TextField 
+                    {...params} 
+                    placeholder={`Search ${label.toLowerCase()}...`}
+                    variant="outlined"
+                    InputProps={{
+                        ...params.InputProps,
+                        sx: { fontSize: '13px' }
+                    }}
+                />
+            )}
+            ListboxProps={{
+                sx: {
+                    maxHeight: '280px',
+                    p: 0.75,
+                    '&::-webkit-scrollbar': { width: '5px' },
+                    '&::-webkit-scrollbar-thumb': { backgroundColor: 'rgba(15,23,42,0.15)', borderRadius: '10px' },
+                    '& .MuiAutocomplete-option': {
+                        borderRadius: '10px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        py: '8px !important',
+                        px: '12px !important',
+                        mb: 0.25,
+                        ...(widePopup ? { whiteSpace: 'normal', wordBreak: 'break-word' } : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block !important' }),
+                        '&:hover': {
+                            backgroundColor: 'rgba(79, 70, 229, 0.06)',
+                        },
+                        '&[aria-selected="true"]': {
+                            backgroundColor: 'rgba(79, 70, 229, 0.1) !important',
+                            color: '#4f46e5',
+                            fontWeight: 700,
+                        }
+                    }
+                }
+            }}
+        />
     </Box>
 );
 
@@ -328,7 +410,7 @@ export default function RCAModal({ open, onClose, title, initialData = {} }) {
                             const pl = (platform || '').toLowerCase();
                             const isEcom = ch.includes('e-commerce') || ch.includes('ecom') || pl === 'amazon' || pl === 'flipkart';
                             return isEcom ? (
-                                <SelectBox label="SKU Selection" value={sku} onChange={setSku} options={skuOptions} />
+                                <SelectBox label="SKU Selection" value={sku} onChange={setSku} options={skuOptions} widePopup />
                             ) : null;
                         })()}
 
