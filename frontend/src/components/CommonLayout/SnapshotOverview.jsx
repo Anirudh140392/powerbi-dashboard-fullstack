@@ -16,7 +16,7 @@ import {
     MousePointer2,
     MapPin
 } from 'lucide-react'
-import { AreaChart, Area, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from '../../lib/utils'
 import { Skeleton, Box, Card, Typography, IconButton } from '@mui/material'
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
@@ -588,6 +588,13 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                                 <stop offset="95%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0} />
                             </linearGradient>
                         </defs>
+                        <Tooltip 
+                            contentStyle={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', minWidth: 'auto', border: 'none', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#6366f1" }}
+                            labelStyle={{ display: 'none' }}
+                            cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
+                            formatter={(value) => [typeof value === 'number' ? value.toFixed(1) : value, '']}
+                        />
                         <Area
                             type="monotone"
                             dataKey="v"

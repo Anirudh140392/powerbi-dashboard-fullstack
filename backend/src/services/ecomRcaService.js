@@ -112,7 +112,7 @@ async function getWatchtowerSource() {
             product: r('Product'),
             skuCode: r('Web_Pid'),
             quantitySold: qtySoldCol,
-            overallGv: wrap(r('Overall_GV')),
+            overallGv: wrap(r('overall_gv')),
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
             listingPercent: `if(toFloat64OrZero(toString(${listingPercentCol})) > 0, toFloat64OrZero(toString(${listingPercentCol})), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`
         }
@@ -268,6 +268,14 @@ export const getEcomRcaData = async (filters = {}) => {
                         AVG(CASE WHEN ${src.f.mrp} > 0 
                                 THEN(${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp} 
                                 ELSE 0 END) * 100 as avg_discount,
+                        SUM(ifNull(toFloat64OrZero(toString(sp_ad_clicks)), 0)) as sp_ad_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(sp_ad_sales)), 0)) as sp_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(sp_ad_spend)), 0)) as sp_ad_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(sp_ad_units_sold)), 0)) as sp_ad_units_sold,
+                        SUM(ifNull(toFloat64OrZero(toString(sd_ad_clicks)), 0)) as sd_ad_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(sd_ad_sales)), 0)) as sd_ad_sales,
+                        SUM(ifNull(toFloat64OrZero(toString(sd_ad_spend)), 0)) as sd_ad_spend,
+                        SUM(ifNull(toFloat64OrZero(toString(sd_ad_units_sold)), 0)) as sd_ad_units_sold,
                         AVG(${src.f.listingPercent}) as avg_listing_pct
                     FROM ${src.table}
                     WHERE ${conds} ${parentCond} AND ${src.f.compFlag} = '0' AND ${colName} IS NOT NULL AND ${colName} != ''
@@ -337,16 +345,26 @@ export const getEcomRcaData = async (filters = {}) => {
             };
 
             const kpiLower = (kpiCategory || '').toLowerCase();
-            const isVisibility = kpiLower.includes('visibility') || kpiLower.includes('sos') || kpiLower.includes('search');
+            const isSponsoredKpi = kpiLower.includes('sponsored search') || kpiLower.includes('sponsored brand') || kpiLower.includes('sponsored product') || kpiLower.includes('sponsored display');
+            const isVisibility = !isSponsoredKpi && (kpiLower.includes('visibility') || kpiLower.includes('sos') || kpiLower.includes('search') || kpiLower.includes('keyword'));
 
-            const isPm = kpiLower === 'sp' || kpiLower === 'sb' || kpiLower.includes('ad gvs') || kpiLower.includes('ad impressions') || kpiLower.includes('inorganic cvr');
+            const isPm = kpiLower === 'sb' || kpiLower.includes('sponsored brand') || 
+                         kpiLower.includes('sb spend') || kpiLower.includes('sb roas') || 
+                         kpiLower.includes('inorganic cvr');
             const isOrganicCvr = kpiLower.includes('organic cvr');
+            const isSponsoredSearch = kpiLower.includes('sponsored search');
+            const isAdGv = kpiLower.includes('ad gv') || kpiLower.includes('ad impression');
 
             const getPmDrilldownSQL = (conds, level, parentId) => {
                 let colName = 'lower(brand)';
                 let parentCond = '';
 
-                if (level === 'keyword' || level === 'sku') {
+                if (level === 'sku') {
+                    colName = 'keyword';
+                    if (parentId) {
+                        parentCond = ` AND lower(brand) = '${escapeStr(parentId.toLowerCase())}'`;
+                    }
+                } else if (level === 'keyword') {
                     colName = 'keyword';
                     if (parentId) {
                         parentCond = ` AND lower(brand) = '${escapeStr(parentId.toLowerCase())}'`;
@@ -357,6 +375,8 @@ export const getEcomRcaData = async (filters = {}) => {
                     if (parentId) {
                         if (filters && filters.drilldownParentLevel === 'brand') {
                             parentCond = ` AND lower(brand) = '${escapeStr(parentId.toLowerCase())}'`;
+                        } else if (filters && filters.drilldownParentLevel === 'sku') {
+                            parentCond = ` AND keyword = '${escapeStr(parentId)}'`;
                         } else {
                             parentCond = ` AND keyword = '${escapeStr(parentId)}'`;
                         }
@@ -369,16 +389,37 @@ export const getEcomRcaData = async (filters = {}) => {
                 }
 
                 let orderCol = 'ad_clicks';
-                if (kpiLower === 'sp') orderCol = 'sp_clicks';
-                if (kpiLower === 'sb') orderCol = 'sb_clicks';
+                if (kpiLower === 'sp' || kpiLower.includes('sponsored product')) orderCol = 'sp_clicks';
+                if (kpiLower === 'sb' || kpiLower.includes('sponsored brand')) orderCol = 'sb_clicks';
+                if (kpiLower === 'sd' || kpiLower.includes('sponsored display')) orderCol = 'sd_clicks';
+                if (kpiLower.includes('sponsored search')) orderCol = 'ad_clicks';
 
                 return `
                     SELECT 
                         ${colName} as name,
                         SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sp_clicks,
                         SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks,
-                        SUM(CASE WHEN targeting_type IN ('SPONSORED_PRODUCTS', 'SPONSORED_BRANDS') THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as ad_clicks,
-                        SUM(CASE WHEN targeting_type IN ('SPONSORED_PRODUCTS', 'SPONSORED_BRANDS') THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as ad_orders
+                        SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sd_clicks,
+                        
+                        SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(impressions)), 0) ELSE 0 END) as sp_impressions,
+                        SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(impressions)), 0) ELSE 0 END) as sb_impressions,
+                        SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(impressions)), 0) ELSE 0 END) as sd_impressions,
+
+                        SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sp_sales,
+                        SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sb_sales,
+                        SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sd_sales,
+
+                        SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sp_spend,
+                        SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sb_spend,
+                        SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sd_spend,
+
+                        SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sp_orders,
+                        SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sb_orders,
+                        SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sd_orders,
+
+                        SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as ad_clicks,
+                        SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as ad_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as ad_orders
                     FROM rb_pm_olap
                     WHERE ${conds} ${parentCond} AND ${colName} IS NOT NULL AND ${colName} != ''
                     GROUP BY name
@@ -414,23 +455,106 @@ export const getEcomRcaData = async (filters = {}) => {
                 ]);
 
                 const mergePmIntoOlap = (olap, pm) => {
-                    const pmMap = new Map();
-                    pm.forEach(p => {
-                        if (p.name) pmMap.set(p.name.toString().toLowerCase(), p);
-                    });
-                    return olap.map(o => {
+                    const mergedMap = new Map();
+
+                    olap.forEach(o => {
                         const key = o.name ? o.name.toString().toLowerCase() : '';
-                        const matchedPm = pmMap.get(key);
-                        return {
-                            ...o,
-                            ad_clicks: matchedPm?.ad_clicks || 0,
-                            ad_orders: matchedPm?.ad_orders || 0
-                        };
+                        if (key) {
+                            mergedMap.set(key, {
+                                ...o,
+                                ad_clicks: 0,
+                                ad_orders: 0
+                            });
+                        }
                     });
+
+                    pm.forEach(p => {
+                        const key = p.name ? p.name.toString().toLowerCase() : '';
+                        if (!key) return;
+
+                        if (mergedMap.has(key)) {
+                            const existing = mergedMap.get(key);
+                            mergedMap.set(key, {
+                                ...existing,
+                                ad_clicks: p.ad_clicks || 0,
+                                ad_orders: p.ad_orders || 0
+                            });
+                        } else {
+                            mergedMap.set(key, {
+                                name: p.name,
+                                sales: 0, qty: 0, impressions: 0, clicks: 0, organic_impressions: 0, orders: 0, neno: 0, deno: 0, overall_gv: 0, avg_discount: 0,
+                                sp_ad_clicks: 0, sp_ad_sales: 0, sp_ad_spend: 0, sp_ad_units_sold: 0,
+                                sd_ad_clicks: 0, sd_ad_sales: 0, sd_ad_spend: 0, sd_ad_units_sold: 0,
+                                avg_listing_pct: 0,
+                                ad_clicks: p.ad_clicks || 0,
+                                ad_orders: p.ad_orders || 0
+                            });
+                        }
+                    });
+
+                    return Array.from(mergedMap.values());
                 };
 
                 currDrill = mergePmIntoOlap(cOlap, cPm);
                 prevDrill = mergePmIntoOlap(pOlap, pPm);
+            } else if (isSponsoredSearch || isAdGv) {
+                // Sponsored Search / Ad GVs = SP(PDP) + SB(PM) + SD(PDP)
+                // KPI block uses sp_ad_clicks(rb_pdp_olap) + sb_clicks(rb_pm_olap) + sd_ad_clicks(rb_pdp_olap)
+                // So we merge OLAP (for sp_ad_clicks, sd_ad_clicks) with PM (for sb_clicks)
+                const [cOlap, pOlap, cPm, pPm] = await Promise.all([
+                    queryClickHouse(getDrilldownSQL(currOlapConds, drilldownLevel, drilldownId)),
+                    queryClickHouse(getDrilldownSQL(prevOlapConds, drilldownLevel, drilldownId)),
+                    queryClickHouse(getPmDrilldownSQL(currPmConds, drilldownLevel, drilldownId)),
+                    queryClickHouse(getPmDrilldownSQL(prevPmConds, drilldownLevel, drilldownId))
+                ]);
+
+                const mergeSearchData = (olap, pm) => {
+                    const mergedMap = new Map();
+                    
+                    // Fill from Olap first
+                    olap.forEach(o => {
+                        const key = o.name ? o.name.toString().toLowerCase() : '';
+                        if (key) {
+                            mergedMap.set(key, {
+                                ...o,
+                                sb_clicks: 0, sb_impressions: 0, sb_sales: 0, sb_spend: 0, sb_orders: 0
+                            });
+                        }
+                    });
+
+                    // Update with PM data or add missing brands
+                    pm.forEach(p => {
+                        const key = p.name ? p.name.toString().toLowerCase() : '';
+                        if (!key) return;
+                        
+                        if (mergedMap.has(key)) {
+                            const existing = mergedMap.get(key);
+                            mergedMap.set(key, {
+                                ...existing,
+                                sb_clicks: p.sb_clicks || 0,
+                                sb_impressions: p.sb_impressions || 0,
+                                sb_sales: p.sb_sales || 0,
+                                sb_spend: p.sb_spend || 0,
+                                sb_orders: p.sb_orders || 0
+                            });
+                        } else {
+                            // Brand not found in Olap, create entry with PM data
+                            mergedMap.set(key, {
+                                name: p.name,
+                                sales: 0, qty: 0, impressions: 0, clicks: 0, organic_impressions: 0, orders: 0, neno: 0, deno: 0, overall_gv: 0, avg_discount: 0,
+                                sp_ad_clicks: 0, sp_ad_sales: 0, sp_ad_spend: 0, sp_ad_units_sold: 0,
+                                sd_ad_clicks: 0, sd_ad_sales: 0, sd_ad_spend: 0, sd_ad_units_sold: 0,
+                                avg_listing_pct: 0,
+                                ...p
+                            });
+                        }
+                    });
+
+                    return Array.from(mergedMap.values());
+                };
+
+                currDrill = mergeSearchData(cOlap, cPm);
+                prevDrill = mergeSearchData(pOlap, pPm);
             } else {
                 [currDrill, prevDrill] = await Promise.all([
                     queryClickHouse(drillSQL(cConds, drilldownLevel, drilldownId)),
@@ -480,10 +604,19 @@ export const getEcomRcaData = async (filters = {}) => {
                         return deno > 0 ? (neno / deno) * 100 : 0;
                     }
                     if (cat.includes('discount') || cat.includes('disc')) return parseFloat(obj.avg_discount || 0);
-                    if (cat.includes('ad gvs') || cat.includes('ad impressions')) return parseFloat(obj.ad_clicks || 0);
+
+                    if (cat.includes('sponsored search') || cat.includes('ad gv') || cat.includes('ad impression')) {
+                        return parseFloat(obj.sp_ad_clicks || obj.sp_clicks || 0) + 
+                               parseFloat(obj.sb_clicks || 0) + 
+                               parseFloat(obj.sd_ad_clicks || obj.sd_clicks || 0);
+                    }
+                    if (cat.includes('sponsored product') || cat === 'sp') return parseFloat(obj.sp_clicks || obj.sp_ad_clicks || 0);
+                    if (cat.includes('sponsored brand') || cat === 'sb') return parseFloat(obj.sb_clicks || 0);
+                    if (cat.includes('sponsored display') || cat === 'sd') return parseFloat(obj.sd_clicks || obj.sd_ad_clicks || 0);
+
                     if (cat.includes('organic') && cat.includes('impression')) return parseFloat(obj.organic_impressions || 0);
                     if (cat.includes('impression') || cat.includes('gv')) return parseFloat(obj.overall_gv || 0);
-                    if (cat.includes('visibility') || cat.includes('sos') || cat.includes('search')) {
+                    if ((cat.includes('visibility') || cat.includes('sos') || cat.includes('search')) && !cat.includes('sponsored')) {
                         const raw = parseFloat(obj.brand_kws || 0);
                         let denom = isPrev ? pDrillDenom : cDrillDenom;
                         
@@ -494,9 +627,9 @@ export const getEcomRcaData = async (filters = {}) => {
 
                         return denom > 0 ? (raw / denom) * 100 : 0;
                     }
-                    if (cat === 'sp') return parseFloat(obj.sp_clicks || 0);
-                    if (cat === 'sb') return parseFloat(obj.sb_clicks || 0);
-                    if (cat.includes('ad gvs') || cat.includes('ad impressions')) return parseFloat(obj.ad_clicks || 0);
+
+                    
+
                     if (cat.includes('offtake')) return parseFloat(obj.sales || 0);
                     return parseFloat(obj.sales || 0); // fallback to offtake
                 };
@@ -547,6 +680,14 @@ export const getEcomRcaData = async (filters = {}) => {
                      THEN(${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp} 
                      ELSE 0 END) * 100 as avg_discount,
                 SUM(${src.f.listingPercent}) as listed_count,
+                SUM(ifNull(toFloat64OrZero(toString(sp_ad_clicks)), 0)) as sp_ad_clicks,
+                SUM(ifNull(toFloat64OrZero(toString(sp_ad_sales)), 0)) as sp_ad_sales,
+                SUM(ifNull(toFloat64OrZero(toString(sp_ad_spend)), 0)) as sp_ad_spend,
+                SUM(ifNull(toFloat64OrZero(toString(sp_ad_units_sold)), 0)) as sp_ad_units_sold,
+                SUM(ifNull(toFloat64OrZero(toString(sd_ad_clicks)), 0)) as sd_ad_clicks,
+                SUM(ifNull(toFloat64OrZero(toString(sd_ad_sales)), 0)) as sd_ad_sales,
+                SUM(ifNull(toFloat64OrZero(toString(sd_ad_spend)), 0)) as sd_ad_spend,
+                SUM(ifNull(toFloat64OrZero(toString(sd_ad_units_sold)), 0)) as sd_ad_units_sold,
                 count(*) as total_count
             FROM ${src.table}
             WHERE ${conds} AND ${src.f.compFlag} = '0'
@@ -569,8 +710,21 @@ export const getEcomRcaData = async (filters = {}) => {
                 SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders,
                 SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as impressions,
                 SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks,
+                
                 SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sp_clicks,
-                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks
+                SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sp_orders,
+                SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sp_sales,
+                SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sp_spend,
+
+                SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sd_clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sd_orders,
+                SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sd_sales,
+                SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sd_spend,
+
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sb_orders,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sb_sales,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sb_spend
             FROM rb_pm_olap
             WHERE ${conds}
         `;
@@ -591,6 +745,14 @@ export const getEcomRcaData = async (filters = {}) => {
                         THEN(${src.f.mrp} - ${src.f.sellingPrice}) / ${src.f.mrp} 
                         ELSE 0 END) * 100 as avg_discount,
                 countIf(${src.f.deno} > 0) as listed_count,
+                SUM(ifNull(toFloat64OrZero(toString(sp_ad_clicks)), 0)) as sp_ad_clicks,
+                SUM(ifNull(toFloat64OrZero(toString(sp_ad_sales)), 0)) as sp_ad_sales,
+                SUM(ifNull(toFloat64OrZero(toString(sp_ad_spend)), 0)) as sp_ad_spend,
+                SUM(ifNull(toFloat64OrZero(toString(sp_ad_units_sold)), 0)) as sp_ad_units_sold,
+                SUM(ifNull(toFloat64OrZero(toString(sd_ad_clicks)), 0)) as sd_ad_clicks,
+                SUM(ifNull(toFloat64OrZero(toString(sd_ad_sales)), 0)) as sd_ad_sales,
+                SUM(ifNull(toFloat64OrZero(toString(sd_ad_spend)), 0)) as sd_ad_spend,
+                SUM(ifNull(toFloat64OrZero(toString(sd_ad_units_sold)), 0)) as sd_ad_units_sold,
                 count() as total_count,
                 AVG(${src.f.listingPercent}) as avg_listing_pct
             FROM ${src.table}
@@ -614,8 +776,26 @@ export const getEcomRcaData = async (filters = {}) => {
                 lower(brand) as brand,
                 SUM(ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0)) as orders,
                 SUM(ifNull(toFloat64OrZero(toString(ad_click)), 0)) as clicks,
+                
                 SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sp_clicks,
-                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks
+                SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sp_orders,
+                SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sp_sales,
+                SUM(CASE WHEN targeting_type='SPONSORED_PRODUCTS' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sp_spend,
+
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sb_orders,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sb_sales,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sb_spend,
+
+                SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sd_clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sd_orders,
+                SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sd_sales,
+                SUM(CASE WHEN targeting_type='SPONSORED_DISPLAY' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sd_spend,
+
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_click)), 0) ELSE 0 END) as sb_clicks,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_quantity_sold)), 0) ELSE 0 END) as sb_orders,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_sales)), 0) ELSE 0 END) as sb_sales,
+                SUM(CASE WHEN targeting_type='SPONSORED_BRANDS' THEN ifNull(toFloat64OrZero(toString(ad_spend)), 0) ELSE 0 END) as sb_spend
             FROM rb_pm_olap
             WHERE ${conds} AND brand IS NOT NULL AND brand != ''
             GROUP BY brand
@@ -652,6 +832,39 @@ export const getEcomRcaData = async (filters = {}) => {
         const pk = prevKw[0] || {};
         const cpm = currPm[0] || {};
         const ppm = prevPm[0] || {};
+
+        const cSpAdClicks = parseFloat(c.sp_ad_clicks || 0);
+        const pSpAdClicks = parseFloat(p.sp_ad_clicks || 0);
+        const cSpAdSales = parseFloat(c.sp_ad_sales || 0);
+        const pSpAdSales = parseFloat(p.sp_ad_sales || 0);
+        const cSpAdSpend = parseFloat(c.sp_ad_spend || 0);
+        const pSpAdSpend = parseFloat(p.sp_ad_spend || 0);
+        const cSpRoas = cSpAdSpend > 0 ? (cSpAdSales / cSpAdSpend) : 0;
+        const pSpRoas = pSpAdSpend > 0 ? (pSpAdSales / pSpAdSpend) : 0;
+
+        const cSdAdClicks = parseFloat(c.sd_ad_clicks || 0);
+        const pSdAdClicks = parseFloat(p.sd_ad_clicks || 0);
+        const cSdAdSales = parseFloat(c.sd_ad_sales || 0);
+        const pSdAdSales = parseFloat(p.sd_ad_sales || 0);
+        const cSdAdSpend = parseFloat(c.sd_ad_spend || 0);
+        const pSdAdSpend = parseFloat(p.sd_ad_spend || 0);
+        const cSdRoas = cSdAdSpend > 0 ? (cSdAdSales / cSdAdSpend) : 0;
+        const pSdRoas = pSdAdSpend > 0 ? (pSdAdSales / pSdAdSpend) : 0;
+
+        // Calculate PM Ad Metrics
+        const cSpClicks = parseFloat(cpm.sp_clicks || 0);
+        const pSpClicks = parseFloat(ppm.sp_clicks || 0);
+        const cSpOrders = parseFloat(cpm.sp_orders || 0);
+        const pSpOrders = parseFloat(ppm.sp_orders || 0);
+        const cSpCvr = cSpClicks > 0 ? (cSpOrders / cSpClicks) * 100 : 0;
+        const pSpCvr = pSpClicks > 0 ? (pSpOrders / pSpClicks) * 100 : 0;
+
+        const cSdClicks = parseFloat(cpm.sd_clicks || 0);
+        const pSdClicks = parseFloat(ppm.sd_clicks || 0);
+        const cSdOrders = parseFloat(cpm.sd_orders || 0);
+        const pSdOrders = parseFloat(ppm.sd_orders || 0);
+        const cSdCvr = cSdClicks > 0 ? (cSdOrders / cSdClicks) * 100 : 0;
+        const pSdCvr = pSdClicks > 0 ? (pSdOrders / pSdClicks) * 100 : 0;
 
         const cSales = parseFloat(c.sales || 0);
         const pSales = parseFloat(p.sales || 0);
@@ -690,10 +903,31 @@ export const getEcomRcaData = async (filters = {}) => {
         const pPmImp = parseFloat(ppm.impressions || 0);
         const pPmClicks = parseFloat(ppm.clicks || 0);
         
-        const cSpClicks = parseFloat(cpm.sp_clicks || 0);
-        const pSpClicks = parseFloat(ppm.sp_clicks || 0);
+        
         const cSbClicks = parseFloat(cpm.sb_clicks || 0);
         const pSbClicks = parseFloat(ppm.sb_clicks || 0);
+
+        // SB Conversion = sb_orders / sb_clicks * 100 (from rb_pm_olap)
+        const cSbOrders = parseFloat(cpm.sb_orders || 0);
+        const pSbOrders = parseFloat(ppm.sb_orders || 0);
+        const cSbCvr = cSbClicks > 0 ? (cSbOrders / cSbClicks) * 100 : 0;
+        const pSbCvr = pSbClicks > 0 ? (pSbOrders / pSbClicks) * 100 : 0;
+
+        // SB ROAS = sb_sales / sb_spend
+        const cSbSales = parseFloat(cpm.sb_sales || 0);
+        const pSbSales = parseFloat(ppm.sb_sales || 0);
+        const cSbSpend = parseFloat(cpm.sb_spend || 0);
+        const pSbSpend = parseFloat(ppm.sb_spend || 0);
+        const cSbRoas = cSbSpend > 0 ? (cSbSales / cSbSpend) : 0;
+        const pSbRoas = pSbSpend > 0 ? (pSbSales / pSbSpend) : 0;
+
+        // Sponsored Search Aggregations (SP + SB + SD)
+        const cSearchAdSales = cSpAdSales + cSbSales + cSdAdSales;
+        const pSearchAdSales = pSpAdSales + pSbSales + pSdAdSales;
+        const cSearchAdSpend = cSpAdSpend + cSbSpend + cSdAdSpend;
+        const pSearchAdSpend = pSpAdSpend + pSbSpend + pSdAdSpend;
+        const cSearchRoas = cSearchAdSpend > 0 ? (cSearchAdSales / cSearchAdSpend) : 0;
+        const pSearchRoas = pSearchAdSpend > 0 ? (pSearchAdSales / pSearchAdSpend) : 0;
 
         // Organic GV = Total GV - Ad GV (SP + SB clicks)
         const cImpOrg = Math.max(cTotalGvs - (cSpClicks + cSbClicks), 0);
@@ -720,8 +954,12 @@ export const getEcomRcaData = async (filters = {}) => {
         const cCvrOrg = cImpOrg > 0 ? (cOrgQty / cImpOrg) * 100 : 0;
         const pCvrOrg = pImpOrg > 0 ? (pOrgQty / pImpOrg) * 100 : 0;
         
-        const cCvrAd = cPmClicks > 0 ? (cPmOrders / cPmClicks) * 100 : 0;
-        const pCvrAd = pPmClicks > 0 ? (pPmOrders / pPmClicks) * 100 : 0;
+        const cSearchOrders = cSpOrders + cSbOrders + cSdOrders;
+        const pSearchOrders = pSpOrders + pSbOrders + pSdOrders;
+        const cSearchClicks = cSpClicks + cSbClicks + cSdClicks;
+        const pSearchClicks = pSpClicks + pSbClicks + pSdClicks;
+        const cCvrAd = cSearchClicks > 0 ? (cSearchOrders / cSearchClicks) * 100 : 0;
+        const pCvrAd = pSearchClicks > 0 ? (pSearchOrders / pSearchClicks) * 100 : 0;
 
         const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
         const pSos = pTotalKw > 0 ? (pRbKw / pTotalKw) * 100 : 0;
@@ -761,9 +999,13 @@ export const getEcomRcaData = async (filters = {}) => {
         const cvrDelta = absDelta(cCvr, pCvr);
         const cvrOrgDelta = absDelta(cCvrOrg, pCvrOrg);
         const cvrAdDelta = absDelta(cCvrAd, pCvrAd);
+        const spCvrDelta = absDelta(cSpCvr, pSpCvr);
+        const sdCvrDelta = absDelta(cSdCvr, pSdCvr);
+        const sbCvrDelta = absDelta(cSbCvr, pSbCvr);
         const osaDelta = absDelta(cOsa, pOsa);
         const discDelta = absDelta(cDiscount, pDiscount);
         const sosDelta = absDelta(cSos, pSos);
+        const searchSpendDelta = pctDelta(cSearchAdSpend, pSearchAdSpend);
 
         // Map brand metrics for tooltips
         const brandsMap = new Map();
@@ -811,13 +1053,59 @@ export const getEcomRcaData = async (filters = {}) => {
             const cPmClicksB = parseFloat(cpmB.clicks || 0);
             const pPmClicksB = parseFloat(ppmB.clicks || 0);
             
-            const cSpClicksB = parseFloat(cpmB.sp_clicks || 0);
-            const pSpClicksB = parseFloat(ppmB.sp_clicks || 0);
+            const cSpClicksB = parseFloat(cb.sp_ad_clicks || cpmB.sp_clicks || 0);
+            const pSpClicksB = parseFloat(pb.sp_ad_clicks || ppmB.sp_clicks || 0);
             const cSbClicksB = parseFloat(cpmB.sb_clicks || 0);
             const pSbClicksB = parseFloat(ppmB.sb_clicks || 0);
-            
-            const cCvrAdB = cPmClicksB > 0 ? (cPmOrdersB / cPmClicksB) * 100 : 0;
-            const pCvrAdB = pPmClicksB > 0 ? (pPmOrdersB / pPmClicksB) * 100 : 0;
+
+            const cSpOrdersB = parseFloat(cb.sp_ad_units_sold || cpmB.sp_orders || 0);
+            const pSpOrdersB = parseFloat(pb.sp_ad_units_sold || ppmB.sp_orders || 0);
+            const cSpSalesB = parseFloat(cb.sp_ad_sales || cpmB.sp_sales || 0);
+            const pSpSalesB = parseFloat(pb.sp_ad_sales || ppmB.sp_sales || 0);
+            const cSpSpendB = parseFloat(cb.sp_ad_spend || cpmB.sp_spend || 0);
+            const pSpSpendB = parseFloat(pb.sp_ad_spend || ppmB.sp_spend || 0);
+            const cSpCvrB = cSpClicksB > 0 ? (cSpOrdersB / cSpClicksB) * 100 : 0;
+            const pSpCvrB = pSpClicksB > 0 ? (pSpOrdersB / pSpClicksB) * 100 : 0;
+            const cSpRoasB = cSpSpendB > 0 ? (cSpSalesB / cSpSpendB) : 0;
+            const pSpRoasB = pSpSpendB > 0 ? (pSpSalesB / pSpSpendB) : 0;
+
+            const cSdOrdersB = parseFloat(cb.sd_ad_units_sold || cpmB.sd_orders || 0);
+            const pSdOrdersB = parseFloat(pb.sd_ad_units_sold || ppmB.sd_orders || 0);
+            const cSdClicksB = parseFloat(cb.sd_ad_clicks || cpmB.sd_clicks || 0);
+            const pSdClicksB = parseFloat(pb.sd_ad_clicks || ppmB.sd_clicks || 0);
+            const cSdSalesB = parseFloat(cb.sd_ad_sales || cpmB.sd_sales || 0);
+            const pSdSalesB = parseFloat(pb.sd_ad_sales || ppmB.sd_sales || 0);
+            const cSdSpendB = parseFloat(cb.sd_ad_spend || cpmB.sd_spend || 0);
+            const pSdSpendB = parseFloat(pb.sd_ad_spend || ppmB.sd_spend || 0);
+            const cSdCvrB = cSdClicksB > 0 ? (cSdOrdersB / cSdClicksB) * 100 : 0;
+            const pSdCvrB = pSdClicksB > 0 ? (pSdOrdersB / pSdClicksB) * 100 : 0;
+            const cSdRoasB = cSdSpendB > 0 ? (cSdSalesB / cSdSpendB) : 0;
+            const pSdRoasB = pSdSpendB > 0 ? (pSdSalesB / pSdSpendB) : 0;
+
+            const cSbOrdersB = parseFloat(cpmB.sb_orders || 0);
+            const pSbOrdersB = parseFloat(ppmB.sb_orders || 0);
+            const cSbSalesB = parseFloat(cpmB.sb_sales || 0);
+            const pSbSalesB = parseFloat(ppmB.sb_sales || 0);
+            const cSbSpendB = parseFloat(cpmB.sb_spend || 0);
+            const pSbSpendB = parseFloat(ppmB.sb_spend || 0);
+            const cSbCvrB = cSbClicksB > 0 ? (cSbOrdersB / cSbClicksB) * 100 : 0;
+            const pSbCvrB = pSbClicksB > 0 ? (pSbOrdersB / pSbClicksB) * 100 : 0;
+            const cSbRoasB = cSbSpendB > 0 ? (cSbSalesB / cSbSpendB) : 0;
+            const pSbRoasB = pSbSpendB > 0 ? (pSbSalesB / pSbSpendB) : 0;
+
+            const cSearchOrdersB = cSpOrdersB + cSbOrdersB + cSdOrdersB;
+            const pSearchOrdersB = pSpOrdersB + pSbOrdersB + pSdOrdersB;
+            const cSearchClicksB = cSpClicksB + cSbClicksB + cSdClicksB;
+            const pSearchClicksB = pSpClicksB + pSbClicksB + pSdClicksB;
+            const cSearchSalesB = cSpSalesB + cSbSalesB + cSdSalesB;
+            const pSearchSalesB = pSpSalesB + pSbSalesB + pSdSalesB;
+            const cSearchSpendB = cSpSpendB + cSbSpendB + cSdSpendB;
+            const pSearchSpendB = pSpSpendB + pSbSpendB + pSdSpendB;
+
+            const cCvrAdB = cSearchClicksB > 0 ? (cSearchOrdersB / cSearchClicksB) * 100 : 0;
+            const pCvrAdB = pSearchClicksB > 0 ? (pSearchOrdersB / pSearchClicksB) * 100 : 0;
+            const cSearchRoasB = cSearchSpendB > 0 ? (cSearchSalesB / cSearchSpendB) : 0;
+            const pSearchRoasB = pSearchSpendB > 0 ? (pSearchSalesB / pSearchSpendB) : 0;
 
             return {
                 brand: brandName,
@@ -876,23 +1164,36 @@ export const getEcomRcaData = async (filters = {}) => {
                     ? (Math.max(parseFloat(pb.qty || 0) - pPmOrdersB, 0) / Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0)) * 100 
                     : 0,
 
-                // SP field for tooltip
-                rawSp: cSpClicksB,
-                rawPrevSp: pSpClicksB,
+                // Ad GV (SP(PDP) + SB(PM) + SD(PDP)) matching KPI block
+                rawAd: parseFloat(cb.sp_ad_clicks || 0) + cSbClicksB + parseFloat(cb.sd_ad_clicks || 0),
+                rawPrevAd: parseFloat(pb.sp_ad_clicks || 0) + pSbClicksB + parseFloat(pb.sd_ad_clicks || 0),
 
-                // SB field for tooltip
-                rawSb: cSbClicksB,
-                rawPrevSb: pSbClicksB,
+                // SP / SB / SD clicks for tooltip
+                rawSp: parseFloat(cb.sp_ad_clicks || 0), rawPrevSp: parseFloat(pb.sp_ad_clicks || 0),
+                rawSd: cSdClicksB, rawPrevSd: pSdClicksB,
+                rawSb: cSbClicksB, rawPrevSb: pSbClicksB,
 
-                // Ad GV (SP + SB)
-                rawAd: cSpClicksB + cSbClicksB,
-                rawPrevAd: pSpClicksB + pSbClicksB
+                rawSpCvr: cSpCvrB, rawPrevSpCvr: pSpCvrB,
+                rawSpRoas: cSpRoasB, rawPrevSpRoas: pSpRoasB,
+                rawSpSpend: cSpSpendB, rawPrevSpSpend: pSpSpendB,
+
+                rawSdCvr: cSdCvrB, rawPrevSdCvr: pSdCvrB,
+                rawSdRoas: cSdRoasB, rawPrevSdRoas: pSdRoasB,
+                rawSdSpend: cSdSpendB, rawPrevSdSpend: pSdSpendB,
+
+                rawSbCvr: cSbCvrB, rawPrevSbCvr: pSbCvrB,
+                rawSbRoas: cSbRoasB, rawPrevSbRoas: pSbRoasB,
+                rawSbSpend: cSbSpendB, rawPrevSbSpend: pSbSpendB,
+
+                rawSearchRoas: cSearchRoasB, rawPrevSearchRoas: pSearchRoasB,
+                rawSearchSpend: cSearchSpendB, rawPrevSearchSpend: pSearchSpendB,
+
             };
         });
 
         // Placeholder delta
         const phDelta = { val: '0.0%', isPos: true };
-        const phValue = '-- Coming Soon --';
+        const phValue = 'Coming Soon';
 
         // -------------------------
         // BUILD E-COM TARGET TREE
@@ -904,8 +1205,61 @@ export const getEcomRcaData = async (filters = {}) => {
         let adBreakdownNodes = [];
         if (isAmazon) {
             adBreakdownNodes = [
-                { id: "sp", label: "SP", value: formatCount(cSpClicks), prevValue: formatCount(pSpClicks), change: spDelta.val, isPositive: spDelta.isPos, category: "ad", metrics: allNodeMetrics },
-                { id: "sb", label: "SB", value: formatCount(cSbClicks), prevValue: formatCount(pSbClicks), change: sbDelta.val, isPositive: sbDelta.isPos, category: "ad", metrics: allNodeMetrics }
+                {
+                    id: "dsp",
+                    label: "DSP",
+                    value: phValue,
+                    prevValue: phValue,
+                    change: '0.0%',
+                    isPositive: true,
+                    category: "ad",
+                    meta: [
+                        { label: "Display GVs", value: phValue },
+                        { label: "Conversion", value: phValue }
+                    ]
+                },
+                {
+                    id: "sponsored-search",
+                    label: "Sponsored Search",
+                    value: formatCount(cSpAdClicks + cSbClicks + cSdAdClicks),
+                    prevValue: formatCount(pSpAdClicks + pSbClicks + pSdAdClicks),
+                    change: pctDelta(cSpAdClicks + cSbClicks + cSdAdClicks, pSpAdClicks + pSbClicks + pSdAdClicks).val,
+                    isPositive: pctDelta(cSpAdClicks + cSbClicks + cSdAdClicks, pSpAdClicks + pSbClicks + pSdAdClicks).isPos,
+                    category: "ad",
+                    metrics: allNodeMetrics,
+                    meta: [
+                        { label: "Search GVs", value: formatCount(cSpAdClicks + cSbClicks + cSdAdClicks), change: pctDelta(cSpAdClicks + cSbClicks + cSdAdClicks, pSpAdClicks + pSbClicks + pSdAdClicks).val, isPositive: pctDelta(cSpAdClicks + cSbClicks + cSdAdClicks, pSpAdClicks + pSbClicks + pSdAdClicks).isPos },
+                        { label: "Conversion", value: `${cCvrAd.toFixed(2)}%`, change: cvrAdDelta.val, isPositive: cvrAdDelta.isPos },
+                        { label: "ROAS", value: cSearchRoas.toFixed(2) },
+                        { label: "SPEND", value: formatCount(cSearchAdSpend), change: searchSpendDelta.val, isPositive: searchSpendDelta.isPos }
+                    ],
+                    children: [
+                        { id: "sp", label: "Sponsored Product", value: formatCount(cSpAdClicks), prevValue: formatCount(pSpAdClicks), change: pctDelta(cSpAdClicks, pSpAdClicks).val, isPositive: pctDelta(cSpAdClicks, pSpAdClicks).isPos, category: "ad", metrics: allNodeMetrics,
+                          meta: [
+                              { label: "SP GVs", value: formatCount(cSpAdClicks), change: pctDelta(cSpAdClicks, pSpAdClicks).val, isPositive: pctDelta(cSpAdClicks, pSpAdClicks).isPos },
+                              { label: "Conversion", value: `${cSpCvr.toFixed(2)}%`, change: spCvrDelta.val, isPositive: spCvrDelta.isPos },
+                              { label: "SP ROAS", value: cSpRoas.toFixed(2) },
+                              { label: "SP SPEND", value: formatCount(cSpAdSpend), change: pctDelta(cSpAdSpend, pSpAdSpend).val, isPositive: pctDelta(cSpAdSpend, pSpAdSpend).isPos }
+                          ]
+                        },
+                        { id: "sb", label: "Sponsored Brand", value: formatCount(cSbClicks), prevValue: formatCount(pSbClicks), change: sbDelta.val, isPositive: sbDelta.isPos, category: "ad", metrics: allNodeMetrics,
+                          meta: [
+                              { label: "SB All GVs", value: formatCount(cSbClicks), change: sbDelta.val, isPositive: sbDelta.isPos },
+                              { label: "Conversion", value: `${cSbCvr.toFixed(2)}%`, change: sbCvrDelta.val, isPositive: sbCvrDelta.isPos },
+                              { label: "SB ROAS", value: cSbRoas.toFixed(2) },
+                              { label: "SB SPEND", value: formatCount(cSbSpend), change: pctDelta(cSbSpend, pSbSpend).val, isPositive: pctDelta(cSbSpend, pSbSpend).isPos }
+                          ]
+                        },
+                        { id: "sd", label: "Sponsored Display", value: formatCount(cSdAdClicks), prevValue: formatCount(pSdAdClicks), change: pctDelta(cSdAdClicks, pSdAdClicks).val, isPositive: pctDelta(cSdAdClicks, pSdAdClicks).isPos, category: "ad", metrics: allNodeMetrics,
+                          meta: [
+                              { label: "SD GVs", value: formatCount(cSdAdClicks), change: pctDelta(cSdAdClicks, pSdAdClicks).val, isPositive: pctDelta(cSdAdClicks, pSdAdClicks).isPos },
+                              { label: "Conversion", value: `${cSdCvr.toFixed(2)}%`, change: sdCvrDelta.val, isPositive: sdCvrDelta.isPos },
+                              { label: "SD ROAS", value: cSdRoas.toFixed(2) },
+                              { label: "SD SPEND", value: formatCount(cSdAdSpend), change: pctDelta(cSdAdSpend, pSdAdSpend).val, isPositive: pctDelta(cSdAdSpend, pSdAdSpend).isPos }
+                          ]
+                        }
+                    ]
+                }
             ];
         } else if (isFlipkart) {
             adBreakdownNodes = [
@@ -937,6 +1291,12 @@ export const getEcomRcaData = async (filters = {}) => {
                     category: "impressions",
                     importance: "primary",
                     metrics: allNodeMetrics,
+                    meta: [
+                        { label: "Total GVs", value: formatCount(cTotalGvs), change: gvDelta.val, isPositive: gvDelta.isPos },
+                        { label: "Conversion", value: `${cCvr.toFixed(2)}%`, change: cvrDelta.val, isPositive: cvrDelta.isPos },
+                        { label: "ROAS", value: cSearchRoas.toFixed(2) },
+                        { label: "SPEND", value: formatCount(cSearchAdSpend), change: searchSpendDelta.val, isPositive: searchSpendDelta.isPos }
+                    ],
                     children: [
                         {
                             id: "organic-gvs",
@@ -951,12 +1311,18 @@ export const getEcomRcaData = async (filters = {}) => {
                         {
                             id: `ad-${isAmazon ? 'gvs' : 'impressions'}`,
                             label: `Ad ${isAmazon ? 'GVs' : 'Impressions'}`,
-                            value: formatCount(cSpClicks + cSbClicks),
-                            prevValue: formatCount(pSpClicks + pSbClicks),
-                            change: pctDelta(cSpClicks + cSbClicks, pSpClicks + pSbClicks).val,
-                            isPositive: pctDelta(cSpClicks + cSbClicks, pSpClicks + pSbClicks).isPos,
+                            value: formatCount(isAmazon ? (cSpAdClicks + cSbClicks + cSdAdClicks) : (cSpClicks + cSbClicks)),
+                            prevValue: formatCount(isAmazon ? (pSpAdClicks + pSbClicks + pSdAdClicks) : (pSpClicks + pSbClicks)),
+                            change: pctDelta(isAmazon ? (cSpAdClicks + cSbClicks + cSdAdClicks) : (cSpClicks + cSbClicks), isAmazon ? (pSpAdClicks + pSbClicks + pSdAdClicks) : (pSpClicks + pSbClicks)).val,
+                            isPositive: pctDelta(isAmazon ? (cSpAdClicks + cSbClicks + cSdAdClicks) : (cSpClicks + cSbClicks), isAmazon ? (pSpAdClicks + pSbClicks + pSdAdClicks) : (pSpClicks + pSbClicks)).isPos,
                             category: "ad",
                             metrics: allNodeMetrics,
+                            meta: [
+                                { label: "Ad GVs", value: formatCount(isAmazon ? (cSpAdClicks + cSbClicks + cSdAdClicks) : (cSpClicks + cSbClicks)), change: pctDelta(isAmazon ? (cSpAdClicks + cSbClicks + cSdAdClicks) : (cSpClicks + cSbClicks), isAmazon ? (pSpAdClicks + pSbClicks + pSdAdClicks) : (pSpClicks + pSbClicks)).val, isPositive: pctDelta(isAmazon ? (cSpAdClicks + cSbClicks + cSdAdClicks) : (cSpClicks + cSbClicks), isAmazon ? (pSpAdClicks + pSbClicks + pSdAdClicks) : (pSpClicks + pSbClicks)).isPos },
+                                { label: "Conversion", value: `${cCvrAd.toFixed(2)}%`, change: cvrAdDelta.val, isPositive: cvrAdDelta.isPos },
+                                { label: "ROAS", value: cSearchRoas.toFixed(2) },
+                                { label: "SPEND", value: formatCount(cSearchAdSpend), change: searchSpendDelta.val, isPositive: searchSpendDelta.isPos }
+                            ],
                             children: adBreakdownNodes
                         },
                         {
@@ -990,7 +1356,26 @@ export const getEcomRcaData = async (filters = {}) => {
                             change: osaDelta.val,
                             isPositive: osaDelta.isPos,
                             category: "availability",
-                            metrics: allNodeMetrics
+                            metrics: allNodeMetrics,
+                            children: [
+                                { id: "buybox", label: "BuyBox%", value: phValue, prevValue: phValue, change: '0.0%', isPositive: true, category: "availability" },
+                                { id: "seller-listing", label: "Seller Listing%", value: phValue, prevValue: phValue, change: '0.0%', isPositive: true, category: "availability" }
+                            ]
+                        },
+                        {
+                            id: "delivery-time",
+                            label: "Delivery Time",
+                            value: "Coming Soon",
+                            prevValue: "Coming Soon",
+                            change: '0.0%',
+                            isPositive: true,
+                            category: "segment",
+                            children: isFlipkart ? [] : [
+                                { id: "same-day", label: `Same Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
+                                { id: "one-day", label: `1 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
+                                { id: "two-day", label: `2 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
+                                { id: "greater-two", label: `> 2 Days ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" }
+                            ]
                         },
                         {
                             id: "discounting",
@@ -1000,7 +1385,8 @@ export const getEcomRcaData = async (filters = {}) => {
                             change: discDelta.val,
                             isPositive: discDelta.isPos,
                             category: "discounting",
-                            metrics: allNodeMetrics
+                            metrics: allNodeMetrics,
+                            children: []
                         },
                         {
                             id: "organic-cvr",
@@ -1010,7 +1396,8 @@ export const getEcomRcaData = async (filters = {}) => {
                             change: cvrOrgDelta.val,
                             isPositive: cvrOrgDelta.isPos,
                             category: "conversion",
-                            metrics: allNodeMetrics
+                            metrics: allNodeMetrics,
+                            children: []
                         },
                         {
                             id: "inorganic-cvr",
@@ -1020,7 +1407,8 @@ export const getEcomRcaData = async (filters = {}) => {
                             change: cvrAdDelta.val,
                             isPositive: cvrAdDelta.isPos,
                             category: "conversion",
-                            metrics: allNodeMetrics
+                            metrics: allNodeMetrics,
+                            children: []
                         }
                     ]
                 },
@@ -1033,7 +1421,23 @@ export const getEcomRcaData = async (filters = {}) => {
                     isPositive: aspDelta.isPos,
                     category: "price",
                     importance: "primary",
-                    metrics: allNodeMetrics
+                    metrics: allNodeMetrics,
+                    children: [
+                        { id: "combo-sales", label: "Combo Sales%", value: phValue, prevValue: phValue, change: '0.0%', isPositive: true, category: "segment" },
+                        { id: "large-sales", label: "Large Sales%", value: phValue, prevValue: phValue, change: '0.0%', isPositive: true, category: "segment" },
+                        { id: "premium-sales", label: "Premium Sales%", value: phValue, prevValue: phValue, change: '0.0%', isPositive: true, category: "segment" }
+                    ]
+                },
+                {
+                    id: "sns",
+                    label: "Subscribe & Save %",
+                    value: "Coming Soon",
+                    prevValue: "Coming Soon",
+                    change: '0.0%',
+                    isPositive: true,
+                    category: "segment",
+                    meta: [{ label: "SnS Sales%", value: "Coming Soon" }],
+                    children: []
                 }
             ]
         };

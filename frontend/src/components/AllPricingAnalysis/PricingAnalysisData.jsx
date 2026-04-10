@@ -2405,6 +2405,7 @@ export default function PricingAnalysisData() {
         deltaLabel: `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
         icon: icons[0],
         gradient: gradients[0],
+        trend: d.discount?.sparklineData || [],
         trendDir: (d.discount?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period'
       },
@@ -2417,6 +2418,7 @@ export default function PricingAnalysisData() {
         deltaLabel: `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
         icon: icons[1],
         gradient: gradients[1],
+        trend: d.weightedDiscount?.sparklineData || [],
         trendDir: (d.weightedDiscount?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period'
       },
@@ -2429,6 +2431,7 @@ export default function PricingAnalysisData() {
         deltaLabel: `${(d.asp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.asp?.change || 0).toFixed(1)}%`,
         icon: icons[2],
         gradient: gradients[2],
+        trend: d.asp?.sparklineData || [],
         trendDir: (d.asp?.change || 0) >= 0 ? 'up' : 'down',
         prevText: 'vs Previous Period'
       }
