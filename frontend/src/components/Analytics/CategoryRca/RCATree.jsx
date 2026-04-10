@@ -41,7 +41,7 @@ import {
 
 /* ─── Fonts ───────────────── */
 const FontLoader = () => (
-    <style>{`
+  <style>{`
       @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400&family=DM+Mono:wght@400;500;600&display=swap');
     `}</style>
 );
@@ -286,7 +286,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
   const platformLower = (platform || '').toLowerCase();
   const channelLower = (context?.channel || '').toLowerCase();
   const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
-  
+
   const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("keyword");
   const kpiLabelLower = (kpiLabel || "").toLowerCase();
   const isSponsoredKpi = kpiLabelLower.includes("sponsored search") || kpiLabelLower.includes("sponsored brand") || kpiLabelLower.includes("sponsored product") || kpiLabelLower.includes("sponsored display");
@@ -298,7 +298,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
   // Extracted fetch core to be reusable for both discovery and sub-level drilldowns
   const apiFetch = useCallback(async (level, parentId, tabToFetch) => {
     if (isComingSoon) return [];
-    
+
     const params = {
       platform,
       categoryVal: category,
@@ -334,9 +334,9 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
     try {
       const isTopLevel = level === "brand" || (hasSpecificBrand && !parentId);
       if (isTopLevel) setLoading(true);
-      
+
       const data = await apiFetch(level, parentId, activeTab);
-      
+
       if (isTopLevel) {
         setRows(data);
       } else {
@@ -353,17 +353,17 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
   useEffect(() => {
     if (open) {
       const currentCacheKey = `${platform}-${category}-${kpiLabel}-${selectedBrand}-${focusedEntity}`;
-      
+
       if (fetchKeyRef.current !== currentCacheKey) {
         fetchKeyRef.current = currentCacheKey;
-        
+
         // Reset states for fresh open
         setPage(0);
         setRows([]);
         setDrilldownData({});
         setExpandedBrand(null);
         setExpandedSku(null);
-        
+
         if (isComingSoon) return;
 
         const loadInitialData = async () => {
@@ -374,8 +374,8 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
 
             // Fetch both lists in parallel to determine tab visibility intelligently
             const [gainList, drainList] = await Promise.all([
-               apiFetch(level, parentId, "gainers"),
-               apiFetch(level, parentId, "drainers")
+              apiFetch(level, parentId, "gainers"),
+              apiFetch(level, parentId, "drainers")
             ]);
 
             const hasGain = gainList.length > 0;
@@ -413,7 +413,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
             setLoading(false);
           }
         };
-        
+
         loadInitialData();
       } else {
         // ActiveTab change handled separately when already open
@@ -540,7 +540,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
                 const isLocationLevel = hasSpecificBrand && !isKeywordDrillDown;
                 const isExpanded = hasSpecificBrand ? expandedSku === row.name : expandedBrand === row.name;
                 const subRows = drilldownData[row.name] || [];
-  
+
                 const onToggle = () => {
                   if (hasSpecificBrand) {
                     const newExpanded = expandedSku === row.name ? null : row.name;
@@ -552,7 +552,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
                     if (newExpanded && !drilldownData[newExpanded]) fetchRows(isKeywordDrillDown ? "keyword" : "sku", newExpanded);
                   }
                 };
-  
+
                 return (
                   <React.Fragment key={idx}>
                     <TableRow sx={{ "&:hover": { bgcolor: "rgba(0,0,0,0.01)" } }}>
@@ -583,7 +583,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
                         setExpandedSku(newExp);
                         if (newExp && !drilldownData[newExp]) fetchRows("location", newExp);
                       };
-  
+
                       return (
                         <React.Fragment key={`sub-${sIdx}`}>
                           <TableRow sx={{ bgcolor: "rgba(99,102,241,0.05)" }}>
@@ -687,28 +687,28 @@ const StatusDot = ({ status = "healthy" }) => {
 
 const DeltaBadge = ({ change, isPositive }) => {
   const displayChange = typeof change === 'string' ? change.replace(/^[+-]\s*/, '') : change;
-  
+
   return (
-  <Box
-    sx={{
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 0.5,
-      bgcolor: isPositive ? "rgba(16, 185, 129, 0.18)" : "rgba(239, 68, 68, 0.18)",
-      color: isPositive ? "#0f766e" : "#e11d48",
-      px: 1.3,
-      py: 0.55,
-      borderRadius: "24px",
-      fontSize: TYPO.metaSize,
-      fontWeight: TYPO.weightBold,
-      border: `1px solid ${isPositive ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)"
-        }`,
-      fontFamily: TYPO.fontMain,
-      whiteSpace: "nowrap",
-    }}
-  >
-    {isPositive ? "+" : "-"} {displayChange}
-  </Box>
+    <Box
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0.5,
+        bgcolor: isPositive ? "rgba(16, 185, 129, 0.18)" : "rgba(239, 68, 68, 0.18)",
+        color: isPositive ? "#0f766e" : "#e11d48",
+        px: 1.3,
+        py: 0.55,
+        borderRadius: "24px",
+        fontSize: TYPO.metaSize,
+        fontWeight: TYPO.weightBold,
+        border: `1px solid ${isPositive ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)"
+          }`,
+        fontFamily: TYPO.fontMain,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {isPositive ? "+" : "-"} {displayChange}
+    </Box>
   );
 };
 
@@ -858,8 +858,8 @@ const KpiNode = ({ data }) => {
               }}
               sx={{
                 ml: 0.5,
-                width: 64,
-                height: 64,
+                width: 72,
+                height: 72,
                 borderRadius: "18px",
                 border: `1.5px solid ${TYPO.border}`,
                 color: TYPO.primary,
@@ -867,7 +867,7 @@ const KpiNode = ({ data }) => {
                 "&:hover": { backgroundColor: "#eef2ff" },
               }}
             >
-              {isCollapsed ? <Plus size={38} strokeWidth={2.5} /> : <Minus size={38} strokeWidth={2.5} />}
+              {isCollapsed ? <Plus size={48} strokeWidth={2.5} /> : <Minus size={48} strokeWidth={2.5} />}
             </IconButton>
           )}
         </Box>
@@ -1255,12 +1255,15 @@ const getDynamicRcaTreeData = (context) => {
             {
               id: "delivery-time",
               label: "Delivery Time",
-              value: "Same Day",
-              change: "22.74%",
-              isPositive: false,
+              value: "Coming Soon",
+              change: "0.0%",
+              isPositive: true,
               category: "segment",
               children: isFlipkart ? [] : [
-                { id: "same-day", label: `Same Day ${pluralGvLabel}%`, value: "100.00%", change: "81.09%", isPositive: true, category: "segment" }
+                { id: "same-day", label: `Same Day ${pluralGvLabel}%`, value: "Coming Soon", change: "0.0%", isPositive: true, category: "segment" },
+                { id: "one-day", label: `1 Day ${pluralGvLabel}%`, value: "Coming Soon", change: "0.0%", isPositive: true, category: "segment" },
+                { id: "two-day", label: `2 Day ${pluralGvLabel}%`, value: "Coming Soon", change: "0.0%", isPositive: true, category: "segment" },
+                { id: "greater-two", label: `> 2 Days ${pluralGvLabel}%`, value: "Coming Soon", change: "0.0%", isPositive: true, category: "segment" }
               ]
             },
             {
@@ -1270,9 +1273,7 @@ const getDynamicRcaTreeData = (context) => {
               change: "9.45%",
               isPositive: false,
               category: "discounting",
-              children: isFlipkart ? [] : [
-                { id: "one-day", label: `1 Day ${pluralGvLabel}%`, value: "0.00%", change: "0.05%", isPositive: false, category: "segment" }
-              ]
+              children: []
             },
             {
               id: "organic-cvr",
@@ -1281,9 +1282,7 @@ const getDynamicRcaTreeData = (context) => {
               change: "1.54%",
               isPositive: true,
               category: "organic",
-              children: isFlipkart ? [] : [
-                { id: "two-day", label: `2 Day ${pluralGvLabel}%`, value: "(Blank)", change: "74.95%", isPositive: false, category: "segment" }
-              ]
+              children: []
             },
             {
               id: "inorganic-cvr",
@@ -1292,9 +1291,7 @@ const getDynamicRcaTreeData = (context) => {
               change: "1.81%",
               isPositive: true,
               category: "ad",
-              children: isFlipkart ? [] : [
-                { id: "greater-two", label: `> 2 Days ${pluralGvLabel}%`, value: "0.00%", change: "6.08%", isPositive: false, category: "segment" }
-              ]
+              children: []
             }
           ]
         },
@@ -1315,15 +1312,12 @@ const getDynamicRcaTreeData = (context) => {
         {
           id: "sns",
           label: "Subscribe & Save %",
-          value: "0.00%",
-          change: "0.00%",
+          value: "Coming Soon",
+          change: "0.0%",
           isPositive: true,
           category: "segment",
-          meta: [{ label: "SnS Sales%", value: "0.00%" }],
-          children: [
-            { id: "loyalty", label: "Loyalty/Repeats %", value: "79.62%", change: "1.37%", isPositive: true, category: "segment" },
-            { id: "new-cust", label: "New Customer %", value: "20.38%", change: "1.37%", isPositive: false, category: "segment" }
-          ]
+          meta: [{ label: "SnS Sales%", value: "Coming Soon" }],
+          children: []
         }
       ]
     };
@@ -1487,7 +1481,7 @@ const getDynamicRcaTreeData = (context) => {
         ],
         children: [
           {
-            id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: [
+            id: "qc-discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: [
               { brand: 'Snickers', discount: '7.1%', deltaDiscount: '+0.4%' },
               { brand: 'Galaxy', discount: '9.8%', deltaDiscount: '+1.3%' },
               { brand: 'Bounty', discount: '11.7%', deltaDiscount: '+2.0%' },
@@ -1752,7 +1746,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     });
 
     // To prevent overlaps when the tree expands/collapses, clear any manual drag positions so it auto-arranges perfectly
-    setNodes((nds) => 
+    setNodes((nds) =>
       nds.map((n) => ({ ...n, data: { ...n.data, wasManuallyMoved: false } }))
     );
 
@@ -1848,9 +1842,9 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const prevContextRef = useRef({ platform: context.platform, brand: context.brand, category: context.category });
 
   useEffect(() => {
-    const isContextChanged = 
-      prevContextRef.current.platform !== context.platform || 
-      prevContextRef.current.brand !== context.brand || 
+    const isContextChanged =
+      prevContextRef.current.platform !== context.platform ||
+      prevContextRef.current.brand !== context.brand ||
       prevContextRef.current.category !== context.category;
 
     if (isContextChanged) {
