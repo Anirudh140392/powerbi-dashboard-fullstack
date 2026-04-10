@@ -348,11 +348,12 @@ export const getEcomRcaData = async (filters = {}) => {
             const isSponsoredKpi = kpiLower.includes('sponsored search') || kpiLower.includes('sponsored brand') || kpiLower.includes('sponsored product') || kpiLower.includes('sponsored display');
             const isVisibility = !isSponsoredKpi && (kpiLower.includes('visibility') || kpiLower.includes('sos') || kpiLower.includes('search') || kpiLower.includes('keyword'));
 
-            const isPm = kpiLower === 'sb' || kpiLower === 'sp' || kpiLower === 'sd' ||
-                         kpiLower.includes('sponsored brand') || kpiLower.includes('sponsored product') || kpiLower.includes('sponsored display') || kpiLower.includes('sponsored search') ||
-                         kpiLower.includes('ad gvs') || kpiLower.includes('ad impressions') || kpiLower.includes('inorganic cvr') || kpiLower.includes('roas') || kpiLower.includes('spend');
+            const isPm = kpiLower === 'sb' || kpiLower.includes('sponsored brand') || 
+                         kpiLower.includes('sb spend') || kpiLower.includes('sb roas') || 
+                         kpiLower.includes('inorganic cvr');
             const isOrganicCvr = kpiLower.includes('organic cvr');
             const isSponsoredSearch = kpiLower.includes('sponsored search');
+            const isAdGv = kpiLower.includes('ad gv') || kpiLower.includes('ad impression');
 
             const getPmDrilldownSQL = (conds, level, parentId) => {
                 let colName = 'lower(brand)';
@@ -454,25 +455,50 @@ export const getEcomRcaData = async (filters = {}) => {
                 ]);
 
                 const mergePmIntoOlap = (olap, pm) => {
-                    const pmMap = new Map();
-                    pm.forEach(p => {
-                        if (p.name) pmMap.set(p.name.toString().toLowerCase(), p);
-                    });
-                    return olap.map(o => {
+                    const mergedMap = new Map();
+
+                    olap.forEach(o => {
                         const key = o.name ? o.name.toString().toLowerCase() : '';
-                        const matchedPm = pmMap.get(key);
-                        return {
-                            ...o,
-                            ad_clicks: matchedPm?.ad_clicks || 0,
-                            ad_orders: matchedPm?.ad_orders || 0
-                        };
+                        if (key) {
+                            mergedMap.set(key, {
+                                ...o,
+                                ad_clicks: 0,
+                                ad_orders: 0
+                            });
+                        }
                     });
+
+                    pm.forEach(p => {
+                        const key = p.name ? p.name.toString().toLowerCase() : '';
+                        if (!key) return;
+
+                        if (mergedMap.has(key)) {
+                            const existing = mergedMap.get(key);
+                            mergedMap.set(key, {
+                                ...existing,
+                                ad_clicks: p.ad_clicks || 0,
+                                ad_orders: p.ad_orders || 0
+                            });
+                        } else {
+                            mergedMap.set(key, {
+                                name: p.name,
+                                sales: 0, qty: 0, impressions: 0, clicks: 0, organic_impressions: 0, orders: 0, neno: 0, deno: 0, overall_gv: 0, avg_discount: 0,
+                                sp_ad_clicks: 0, sp_ad_sales: 0, sp_ad_spend: 0, sp_ad_units_sold: 0,
+                                sd_ad_clicks: 0, sd_ad_sales: 0, sd_ad_spend: 0, sd_ad_units_sold: 0,
+                                avg_listing_pct: 0,
+                                ad_clicks: p.ad_clicks || 0,
+                                ad_orders: p.ad_orders || 0
+                            });
+                        }
+                    });
+
+                    return Array.from(mergedMap.values());
                 };
 
                 currDrill = mergePmIntoOlap(cOlap, cPm);
                 prevDrill = mergePmIntoOlap(pOlap, pPm);
-            } else if (isSponsoredSearch) {
-                // Sponsored Search = SP(PDP) + SB(PM) + SD(PDP)
+            } else if (isSponsoredSearch || isAdGv) {
+                // Sponsored Search / Ad GVs = SP(PDP) + SB(PM) + SD(PDP)
                 // KPI block uses sp_ad_clicks(rb_pdp_olap) + sb_clicks(rb_pm_olap) + sd_ad_clicks(rb_pdp_olap)
                 // So we merge OLAP (for sp_ad_clicks, sd_ad_clicks) with PM (for sb_clicks)
                 const [cOlap, pOlap, cPm, pPm] = await Promise.all([
@@ -483,22 +509,48 @@ export const getEcomRcaData = async (filters = {}) => {
                 ]);
 
                 const mergeSearchData = (olap, pm) => {
-                    const pmMap = new Map();
-                    pm.forEach(p => {
-                        if (p.name) pmMap.set(p.name.toString().toLowerCase(), p);
-                    });
-                    return olap.map(o => {
+                    const mergedMap = new Map();
+                    
+                    // Fill from Olap first
+                    olap.forEach(o => {
                         const key = o.name ? o.name.toString().toLowerCase() : '';
-                        const matchedPm = pmMap.get(key);
-                        return {
-                            ...o,
-                            sb_clicks: matchedPm?.sb_clicks || 0,
-                            sb_impressions: matchedPm?.sb_impressions || 0,
-                            sb_sales: matchedPm?.sb_sales || 0,
-                            sb_spend: matchedPm?.sb_spend || 0,
-                            sb_orders: matchedPm?.sb_orders || 0
-                        };
+                        if (key) {
+                            mergedMap.set(key, {
+                                ...o,
+                                sb_clicks: 0, sb_impressions: 0, sb_sales: 0, sb_spend: 0, sb_orders: 0
+                            });
+                        }
                     });
+
+                    // Update with PM data or add missing brands
+                    pm.forEach(p => {
+                        const key = p.name ? p.name.toString().toLowerCase() : '';
+                        if (!key) return;
+                        
+                        if (mergedMap.has(key)) {
+                            const existing = mergedMap.get(key);
+                            mergedMap.set(key, {
+                                ...existing,
+                                sb_clicks: p.sb_clicks || 0,
+                                sb_impressions: p.sb_impressions || 0,
+                                sb_sales: p.sb_sales || 0,
+                                sb_spend: p.sb_spend || 0,
+                                sb_orders: p.sb_orders || 0
+                            });
+                        } else {
+                            // Brand not found in Olap, create entry with PM data
+                            mergedMap.set(key, {
+                                name: p.name,
+                                sales: 0, qty: 0, impressions: 0, clicks: 0, organic_impressions: 0, orders: 0, neno: 0, deno: 0, overall_gv: 0, avg_discount: 0,
+                                sp_ad_clicks: 0, sp_ad_sales: 0, sp_ad_spend: 0, sp_ad_units_sold: 0,
+                                sd_ad_clicks: 0, sd_ad_sales: 0, sd_ad_spend: 0, sd_ad_units_sold: 0,
+                                avg_listing_pct: 0,
+                                ...p
+                            });
+                        }
+                    });
+
+                    return Array.from(mergedMap.values());
                 };
 
                 currDrill = mergeSearchData(cOlap, cPm);
@@ -552,7 +604,16 @@ export const getEcomRcaData = async (filters = {}) => {
                         return deno > 0 ? (neno / deno) * 100 : 0;
                     }
                     if (cat.includes('discount') || cat.includes('disc')) return parseFloat(obj.avg_discount || 0);
-                    if (cat.includes('ad gvs') || cat.includes('ad impressions')) return parseFloat(obj.ad_clicks || 0);
+
+                    if (cat.includes('sponsored search') || cat.includes('ad gv') || cat.includes('ad impression')) {
+                        return parseFloat(obj.sp_ad_clicks || obj.sp_clicks || 0) + 
+                               parseFloat(obj.sb_clicks || 0) + 
+                               parseFloat(obj.sd_ad_clicks || obj.sd_clicks || 0);
+                    }
+                    if (cat.includes('sponsored product') || cat === 'sp') return parseFloat(obj.sp_clicks || obj.sp_ad_clicks || 0);
+                    if (cat.includes('sponsored brand') || cat === 'sb') return parseFloat(obj.sb_clicks || 0);
+                    if (cat.includes('sponsored display') || cat === 'sd') return parseFloat(obj.sd_clicks || obj.sd_ad_clicks || 0);
+
                     if (cat.includes('organic') && cat.includes('impression')) return parseFloat(obj.organic_impressions || 0);
                     if (cat.includes('impression') || cat.includes('gv')) return parseFloat(obj.overall_gv || 0);
                     if ((cat.includes('visibility') || cat.includes('sos') || cat.includes('search')) && !cat.includes('sponsored')) {
@@ -566,12 +627,9 @@ export const getEcomRcaData = async (filters = {}) => {
 
                         return denom > 0 ? (raw / denom) * 100 : 0;
                     }
-                    if (cat.includes('sponsored search')) return parseFloat(obj.sp_ad_clicks || obj.sp_clicks || 0) + parseFloat(obj.sb_clicks || 0) + parseFloat(obj.sd_ad_clicks || obj.sd_clicks || 0);
-                    if (cat.includes('sponsored product') || cat === 'sp') return parseFloat(obj.sp_clicks || obj.sp_ad_clicks || 0);
-                    if (cat.includes('sponsored brand') || cat === 'sb') return parseFloat(obj.sb_clicks || 0);
-                    if (cat.includes('sponsored display') || cat === 'sd') return parseFloat(obj.sd_clicks || obj.sd_ad_clicks || 0);
+
                     
-                    if (cat.includes('ad gvs') || cat.includes('ad impressions')) return parseFloat(obj.ad_impressions || obj.ad_clicks || 0);
+
                     if (cat.includes('offtake')) return parseFloat(obj.sales || 0);
                     return parseFloat(obj.sales || 0); // fallback to offtake
                 };
@@ -995,30 +1053,30 @@ export const getEcomRcaData = async (filters = {}) => {
             const cPmClicksB = parseFloat(cpmB.clicks || 0);
             const pPmClicksB = parseFloat(ppmB.clicks || 0);
             
-            const cSpClicksB = parseFloat(cpmB.sp_clicks || 0);
-            const pSpClicksB = parseFloat(ppmB.sp_clicks || 0);
+            const cSpClicksB = parseFloat(cb.sp_ad_clicks || cpmB.sp_clicks || 0);
+            const pSpClicksB = parseFloat(pb.sp_ad_clicks || ppmB.sp_clicks || 0);
             const cSbClicksB = parseFloat(cpmB.sb_clicks || 0);
             const pSbClicksB = parseFloat(ppmB.sb_clicks || 0);
 
-            const cSpOrdersB = parseFloat(cpmB.sp_orders || 0);
-            const pSpOrdersB = parseFloat(ppmB.sp_orders || 0);
-            const cSpSalesB = parseFloat(cpmB.sp_sales || 0);
-            const pSpSalesB = parseFloat(ppmB.sp_sales || 0);
-            const cSpSpendB = parseFloat(cpmB.sp_spend || 0);
-            const pSpSpendB = parseFloat(ppmB.sp_spend || 0);
+            const cSpOrdersB = parseFloat(cb.sp_ad_units_sold || cpmB.sp_orders || 0);
+            const pSpOrdersB = parseFloat(pb.sp_ad_units_sold || ppmB.sp_orders || 0);
+            const cSpSalesB = parseFloat(cb.sp_ad_sales || cpmB.sp_sales || 0);
+            const pSpSalesB = parseFloat(pb.sp_ad_sales || ppmB.sp_sales || 0);
+            const cSpSpendB = parseFloat(cb.sp_ad_spend || cpmB.sp_spend || 0);
+            const pSpSpendB = parseFloat(pb.sp_ad_spend || ppmB.sp_spend || 0);
             const cSpCvrB = cSpClicksB > 0 ? (cSpOrdersB / cSpClicksB) * 100 : 0;
             const pSpCvrB = pSpClicksB > 0 ? (pSpOrdersB / pSpClicksB) * 100 : 0;
             const cSpRoasB = cSpSpendB > 0 ? (cSpSalesB / cSpSpendB) : 0;
             const pSpRoasB = pSpSpendB > 0 ? (pSpSalesB / pSpSpendB) : 0;
 
-            const cSdOrdersB = parseFloat(cpmB.sd_orders || 0);
-            const pSdOrdersB = parseFloat(ppmB.sd_orders || 0);
-            const cSdClicksB = parseFloat(cpmB.sd_clicks || 0);
-            const pSdClicksB = parseFloat(ppmB.sd_clicks || 0);
-            const cSdSalesB = parseFloat(cpmB.sd_sales || 0);
-            const pSdSalesB = parseFloat(ppmB.sd_sales || 0);
-            const cSdSpendB = parseFloat(cpmB.sd_spend || 0);
-            const pSdSpendB = parseFloat(ppmB.sd_spend || 0);
+            const cSdOrdersB = parseFloat(cb.sd_ad_units_sold || cpmB.sd_orders || 0);
+            const pSdOrdersB = parseFloat(pb.sd_ad_units_sold || ppmB.sd_orders || 0);
+            const cSdClicksB = parseFloat(cb.sd_ad_clicks || cpmB.sd_clicks || 0);
+            const pSdClicksB = parseFloat(pb.sd_ad_clicks || ppmB.sd_clicks || 0);
+            const cSdSalesB = parseFloat(cb.sd_ad_sales || cpmB.sd_sales || 0);
+            const pSdSalesB = parseFloat(pb.sd_ad_sales || ppmB.sd_sales || 0);
+            const cSdSpendB = parseFloat(cb.sd_ad_spend || cpmB.sd_spend || 0);
+            const pSdSpendB = parseFloat(pb.sd_ad_spend || ppmB.sd_spend || 0);
             const cSdCvrB = cSdClicksB > 0 ? (cSdOrdersB / cSdClicksB) * 100 : 0;
             const pSdCvrB = pSdClicksB > 0 ? (pSdOrdersB / pSdClicksB) * 100 : 0;
             const cSdRoasB = cSdSpendB > 0 ? (cSdSalesB / cSdSpendB) : 0;
