@@ -459,103 +459,96 @@ const Sidebar = ({
         py: 2,
         mt: 'auto',
         display: 'flex',
-        flexDirection: 'column',
-        gap: 1.5,
+        flexDirection: isCollapsed ? 'column' : 'row',
+        alignItems: 'center',
+        justifyContent: isCollapsed ? 'center' : 'space-between',
+        gap: isCollapsed ? 1.5 : 1,
         borderTop: "1px solid rgba(0, 0, 0, 0.04)",
         bgcolor: isCollapsed ? "transparent" : "rgba(248, 250, 252, 0.6)",
         backdropFilter: isCollapsed ? "none" : "blur(8px)",
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          px: 0.5,
-          opacity: isCollapsed ? 0 : 1,
-          maxHeight: isCollapsed ? 0 : 40,
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          overflow: 'hidden'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+        {!isCollapsed && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Typography
+                sx={{
+                  fontSize: '0.65rem',
+                  color: '#94a3b8',
+                  fontWeight: 500,
+                  lineHeight: 1.1,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Powered
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: '0.65rem',
+                  color: '#94a3b8',
+                  fontWeight: 500,
+                  lineHeight: 1.1,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                by
+              </Typography>
+            </Box>
             <Typography
               sx={{
-                fontSize: '0.62rem',
-                color: 'rgba(100, 116, 139, 0.6)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                color: '#64748b',
+                letterSpacing: '-0.01em',
                 whiteSpace: 'nowrap'
               }}
             >
-              Powered by
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: '0.74rem',
-                fontWeight: 800,
-                color: 'rgba(30, 41, 59, 0.8)',
-                letterSpacing: '0.01em',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Trailytics
+              trailytics
             </Typography>
           </Box>
-        </Box>
+        )}
 
         <Button
-          fullWidth={!isCollapsed}
-          variant="contained"
           onClick={() => {
             logout();
             localStorage.clear();
             navigate('/login');
           }}
-          startIcon={<LogoutIcon sx={{ 
-            fontSize: "1.1rem !important",
-            mr: isCollapsed ? 0 : 1,
-            transition: 'margin 0.3s'
-          }} />}
           sx={{
-            minWidth: isCollapsed ? 40 : 0,
-            maxWidth: isCollapsed ? 40 : "100%",
-            height: isCollapsed ? 40 : 30,
-            color: "#FFFFFF",
-            bgcolor: "#ef4444",
+            minWidth: isCollapsed ? 36 : 'auto',
+            height: isCollapsed ? 36 : 28,
+            px: isCollapsed ? 0 : 1.2,
+            color: "#ef4444",
+            bgcolor: "transparent",
+            border: "1px solid rgba(239, 68, 68, 0.45)",
             textTransform: "none",
             fontSize: "0.8rem",
             fontWeight: 700,
-            borderRadius: "10px",
-            boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)",
-            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            mx: isCollapsed ? 'auto' : 0,
+            borderRadius: "8px",
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.6,
+            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             "&:hover": {
-              bgcolor: "#dc2626",
-              transform: isCollapsed ? "scale(1.05)" : "translateY(-1px)",
-              boxShadow: "0 6px 16px rgba(239, 68, 68, 0.3)",
-            },
-            ...(isCollapsed ? {
-              px: 0,
-              '& .MuiButton-startIcon': { 
-                margin: 0,
-                display: 'flex',
-                justifyContent: 'center',
-                width: '100%'
+              bgcolor: "#ef4444 !important",
+              color: "#FFFFFF !important",
+              border: "1px solid #ef4444",
+              transform: "translateY(-1px)",
+              "& .MuiSvgIcon-root": {
+                color: "#FFFFFF",
               },
-            } : {
-              px: 2
-            })
+              "& .MuiTypography-root": {
+                color: "#FFFFFF",
+              }
+            },
           }}
         >
-          <Box sx={{ 
-            width: isCollapsed ? 0 : 'auto', 
-            opacity: isCollapsed ? 0 : 1, 
-            transition: 'all 0.3s',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap'
-          }}>
-            Sign Out
-          </Box>
+          <LogoutIcon sx={{ fontSize: "1.05rem", transition: 'color 0.2s' }} />
+          {!isCollapsed && (
+            <Typography component="span" sx={{ fontSize: '0.78rem', fontWeight: 800, transition: 'color 0.2s' }}>
+              SignOut
+            </Typography>
+          )}
         </Button>
       </Box>
     </Box >
