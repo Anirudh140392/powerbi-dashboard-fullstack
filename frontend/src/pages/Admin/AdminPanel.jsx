@@ -22,14 +22,14 @@ import NewRequests from "./tabs/NewRequests";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState(() => {
-        return localStorage.getItem("adminActiveTab") || "users";
+        return sessionStorage.getItem("adminActiveTab") || "users";
     });
 
     // Persist tab selection
     React.useEffect(() => {
-        localStorage.setItem("adminActiveTab", activeTab);
+        sessionStorage.setItem("adminActiveTab", activeTab);
     }, [activeTab]);
-    const { logout, user} = useAuth();
+    const { logout, user } = useAuth();
 
     const menuItems = [
         { id: "users", label: "Live Users", icon: Users },

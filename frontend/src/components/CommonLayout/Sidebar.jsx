@@ -97,7 +97,7 @@ const Sidebar = ({
       //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
-      //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
+      //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> }, 
       { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
       // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
@@ -268,10 +268,18 @@ const Sidebar = ({
             )}
             {items.filter((item) => {
               const dbName = user?.dbName;
+              // If user's DB status is inactive, hide all items
+              if (user?.dbStatus === false) return false;
               // If showOnlyForDb is provided, check if current db is in the list
               if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
               // If hideForDb is provided, check if current db is in the list
               if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
+              // Check per-user tab permissions (from admin panel)
+              const tabPerms = user?.tabPermissions;
+              if (tabPerms && Object.keys(tabPerms).length > 0) {
+                // If this tab label has an explicit permission set, respect it
+                if (tabPerms[item.label] !== undefined && tabPerms[item.label] === false) return false;
+              }
               return true;
             }).map((item) => {
               const isActive = currentPath === item.path;

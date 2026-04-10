@@ -210,7 +210,7 @@ export default function AvailablityAnalysis() {
 
   // Get auth headers for API calls (JWT token from localStorage)
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 

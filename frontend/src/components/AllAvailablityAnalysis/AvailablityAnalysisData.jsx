@@ -292,13 +292,13 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       </div>
 
       {/* -------- MATRIX TABLE -------- */}
-      <CityKpiTrendShowcase 
-        dynamicKey='availability' 
-        data={active.data} 
-        title={active.label} 
-        loading={loading} 
-        onFilterChange={onFiltersChange} 
-        selectedLevel={activeTab} 
+      <CityKpiTrendShowcase
+        dynamicKey='availability'
+        data={active.data}
+        title={active.label}
+        loading={loading}
+        onFilterChange={onFiltersChange}
+        selectedLevel={activeTab}
       />
     </div>
   );
@@ -1243,10 +1243,10 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
   const [olaMode, setOlaMode] = useState("absolute");
   const [availability, setAvailability] = useState("absolute");
   const [localLoading, setLocalLoading] = useState(false);
-  
+
   const isBoatUser = useMemo(() => {
     try {
-      const u = JSON.parse(localStorage.getItem('user'));
+      const u = JSON.parse(sessionStorage.getItem('user'));
       return u?.dbName?.toLowerCase() === 'boat';
     } catch {
       return false;

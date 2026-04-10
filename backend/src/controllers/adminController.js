@@ -151,3 +151,105 @@ export const updateUserAccess = async (req, res) => {
         });
     }
 };
+
+/**
+ * GET /api/admin/permissions/users
+ * Returns list of users with their permission data (db_status, tab_permissions)
+ */
+export const getPermissionsUsers = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const users = await adminService.getPermissionsUsers();
+
+        return res.status(200).json({
+            success: true,
+            data: users
+        });
+    } catch (error) {
+        console.error('[AdminController] getPermissionsUsers failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
+ * PATCH /api/admin/permissions/db-status
+ * Updates db_status for a user
+ */
+export const updateDbStatus = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { email, dbStatus } = req.body;
+
+        if (!email || typeof dbStatus !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                error: 'email and dbStatus (boolean) are required'
+            });
+        }
+
+        await adminService.updateUserDbStatus(email, dbStatus);
+
+        return res.status(200).json({
+            success: true,
+            message: `DB status updated for ${email}`
+        });
+    } catch (error) {
+        console.error('[AdminController] updateDbStatus failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
+ * PATCH /api/admin/permissions/tab-permissions
+ * Updates tab_permissions for a user
+ */
+export const updateTabPermissions = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { email, tabPermissions } = req.body;
+
+        if (!email || typeof tabPermissions !== 'object') {
+            return res.status(400).json({
+                success: false,
+                error: 'email and tabPermissions (object) are required'
+            });
+        }
+
+        await adminService.updateUserTabPermissions(email, tabPermissions);
+
+        return res.status(200).json({
+            success: true,
+            message: `Tab permissions updated for ${email}`
+        });
+    } catch (error) {
+        console.error('[AdminController] updateTabPermissions failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};

@@ -22,7 +22,7 @@ const UsersTable = () => {
     const fetchLiveUsers = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem("token");
+            const token = sessionStorage.getItem("token");
             const API_BASE = import.meta.env.VITE_API_URL
                 ? `${import.meta.env.VITE_API_URL}/api`
                 : "/api";
@@ -57,9 +57,35 @@ const UsersTable = () => {
         user.role.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / rowsPerPage));
     const startIndex = (currentPage - 1) * rowsPerPage;
     const paginatedUsers = filteredUsers.slice(startIndex, startIndex + rowsPerPage);
+
+    const getVisiblePages = () => {
+        const delta = 1;
+        const range = [];
+        const rangeWithDots = [];
+        let l;
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
+                range.push(i);
+            }
+        }
+
+        for (let i of range) {
+            if (l) {
+                if (i - l === 2) {
+                    rangeWithDots.push(l + 1);
+                } else if (i - l !== 1) {
+                    rangeWithDots.push('...');
+                }
+            }
+            rangeWithDots.push(i);
+            l = i;
+        }
+        return rangeWithDots;
+    };
 
     const handleRowsPerPageChange = (e) => {
         setRowsPerPage(parseInt(e.target.value, 10));
@@ -170,7 +196,7 @@ const UsersTable = () => {
                                     <td colSpan={4} className="px-8 py-20 text-center">
                                         <div className="flex flex-col items-center gap-3 text-rose-500">
                                             <p className="text-sm font-bold uppercase tracking-widest">{error}</p>
-                                            <button 
+                                            <button
                                                 onClick={fetchLiveUsers}
                                                 className="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-all"
                                             >
@@ -187,8 +213,8 @@ const UsersTable = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                paginatedUsers.map((user) => (
-                                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
+                                paginatedUsers.map((user, index) => (
+                                    <tr key={`${user.id}-${index}`} className="hover:bg-slate-50/50 transition-colors group">
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm border border-indigo-100 shadow-sm transition-all group-hover:scale-105">
@@ -200,27 +226,27 @@ const UsersTable = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                    <td className="px-8 py-5">
-                                        <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-600">
-                                            <Shield className="w-3 h-3 text-slate-400" />
-                                            {user.role}
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5">
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'Active' ? 'bg-emerald-500' : user.status === 'Away' ? 'bg-amber-500' : 'bg-slate-300'}`} />
-                                            <span className="text-xs font-medium text-slate-600">
-                                                {user.status}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-8 py-5 text-right">
-                                        <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600">
-                                            <MoreHorizontal className="w-5 h-5" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            )))}
+                                        <td className="px-8 py-5">
+                                            <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-600">
+                                                <Shield className="w-3 h-3 text-slate-400" />
+                                                {user.role}
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-1.5 h-1.5 rounded-full ${user.status === 'Active' ? 'bg-emerald-500' : user.status === 'Away' ? 'bg-amber-500' : 'bg-slate-300'}`} />
+                                                <span className="text-xs font-medium text-slate-600">
+                                                    {user.status}
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-8 py-5 text-right">
+                                            <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600">
+                                                <MoreHorizontal className="w-5 h-5" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )))}
                         </tbody>
                     </table>
                 </div>
@@ -262,17 +288,21 @@ const UsersTable = () => {
                             </button>
 
                             <div className="flex items-center gap-1 px-2">
-                                {[...Array(totalPages)].map((_, i) => (
-                                    <button
-                                        key={i + 1}
-                                        onClick={() => setCurrentPage(i + 1)}
-                                        className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${currentPage === i + 1
-                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                                            : 'text-slate-500 hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        {i + 1}
-                                    </button>
+                                {getVisiblePages().map((page, index) => (
+                                    page === '...' ? (
+                                        <span key={`dots-${index}`} className="px-2 text-slate-400 font-bold">...</span>
+                                    ) : (
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                                : 'text-slate-500 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    )
                                 ))}
                             </div>
 
