@@ -99,7 +99,7 @@ async function getPricingSource() {
             wListingPercent: `toFloat64OrZero(toString(p.${listingPercentCol}))`,
             wNenoOsa: wrap(nenoOsaCol),
             wDenoOsa: wrap(denoOsaCol),
-            wPpu: `(${wrap(ppuCol)} * 100)`,
+            wPpu: wrap(ppuCol),
         },
         prodCatSql,
         p_prodCatSql,
@@ -978,7 +978,7 @@ const getDimensionOverview = async (filters = {}) => {
                              AND ${f.wPpu} > 0 
                              AND ${brandCondition}
                         THEN ${f.wPpu} 
-                        ELSE NULL END) AS PricePerUnit,
+                        ELSE NULL END) AS price_per_100g,
                     
                     -- ✅ NEW RPI Logic: Our Brand SP / Competition Brand SP
                     (
@@ -1002,7 +1002,7 @@ const getDimensionOverview = async (filters = {}) => {
                              AND ${f.wPpu} > 0 
                              AND ${brandCondition}
                         THEN ${f.wPpu} 
-                        ELSE NULL END) AS price_per_unit_prev,
+                        ELSE NULL END) AS price_per_100g_prev,
                     
                     -- ✅ NEW RPI Logic (Previous Period)
                     (
@@ -1049,7 +1049,7 @@ const getDimensionOverview = async (filters = {}) => {
                     image_url: r.image_url || null,
                     data: {
                         discount: getMetric(r.Discount, r.discount_prev),
-                        pricePerUnit: getMetric(r.PricePerUnit, r.price_per_unit_prev),
+                        pricePerUnit: getMetric(r.price_per_100g, r.price_per_100g_prev),
                         asp: getMetric(r.ASP, r.asp_prev),
                     }
                 };
