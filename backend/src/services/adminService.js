@@ -236,3 +236,117 @@ export const updateUserAccess = async (id, status) => {
         throw error;
     }
 };
+
+/**
+ * Fetch unique users for the Permissions tab with their latest db_status and tab_permissions
+ */
+export const getPermissionsUsers = async () => {
+    try {
+        // Get unique users by email with their latest row's data
+        // Use argMaxIf for db_status/tab_permissions to pick latest non-empty value
+        const usersQuery = `
+            SELECT 
+                user_email as email,
+                argMax(user_name, last_login) as name,
+                argMax(user_role, last_login) as role,
+                argMax(toString(db_id), last_login) as db_id,
+                ifNull(
+                    argMaxIf(db_status, last_login, db_status != ''),
+                    'active'
+                ) as db_status,
+                ifNull(
+                    argMaxIf(tab_permissions, last_login, tab_permissions != ''),
+                    ''
+                ) as tab_permissions
+            FROM tb_user
+            WHERE status != 'deleted'
+            GROUP BY user_email
+            ORDER BY name ASC
+        `;
+        const users = await queryAdminDB(usersQuery);
+
+        // Fetch all databases for mapping
+        const databasesQuery = `SELECT db_name, toString(db_id) as db_id FROM tb_database`;
+        const databases = await queryAdminDB(databasesQuery);
+
+        const dbMap = new Map();
+        databases.forEach(db => dbMap.set(db.db_id, db.db_name));
+
+        return users.map(user => {
+            let finalDbName = 'N/A';
+            if (dbMap.has(user.db_id)) {
+                finalDbName = dbMap.get(user.db_id);
+            } else {
+                // Fuzzy match for BigInt precision
+                try {
+                    const userDbIdNum = BigInt(user.db_id);
+                    let closestDb = null;
+                    let closestDiff = BigInt('999999999999999999');
+                    for (const [dbId, name] of dbMap.entries()) {
+                        const diff = userDbIdNum > BigInt(dbId) ? userDbIdNum - BigInt(dbId) : BigInt(dbId) - userDbIdNum;
+                        if (diff < closestDiff) { closestDiff = diff; closestDb = name; }
+                    }
+                    if (closestDb && closestDiff < BigInt('1000')) finalDbName = closestDb;
+                } catch (e) { /* ignore */ }
+            }
+
+            // Parse tab_permissions JSON (fallback to empty object)
+            let tabPermissions = {};
+            try {
+                if (user.tab_permissions && user.tab_permissions.trim()) {
+                    tabPermissions = JSON.parse(user.tab_permissions);
+                }
+            } catch (e) { /* ignore parse errors */ }
+
+            return {
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                dbName: finalDbName,
+                dbStatus: (!user.db_status || user.db_status === '' || user.db_status === 'active') ? true : false,
+                tabPermissions
+            };
+        });
+    } catch (error) {
+        console.error('[AdminService] getPermissionsUsers failed:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Update db_status for a user (all rows by email)
+ */
+export const updateUserDbStatus = async (userEmail, dbStatus) => {
+    try {
+        const statusValue = dbStatus ? 'active' : 'inactive';
+        const query = `
+            ALTER TABLE tb_user 
+            UPDATE db_status = '${statusValue}' 
+            WHERE user_email = '${userEmail}'
+        `;
+        await queryAdminDB(query);
+        return { success: true };
+    } catch (error) {
+        console.error(`[AdminService] updateUserDbStatus failed for ${userEmail}:`, error.message);
+        throw error;
+    }
+};
+
+/**
+ * Update tab_permissions JSON for a user (all rows by email)
+ */
+export const updateUserTabPermissions = async (userEmail, tabPermissions) => {
+    try {
+        const jsonStr = JSON.stringify(tabPermissions).replace(/'/g, "\\'");
+        const query = `
+            ALTER TABLE tb_user 
+            UPDATE tab_permissions = '${jsonStr}' 
+            WHERE user_email = '${userEmail}'
+        `;
+        await queryAdminDB(query);
+        return { success: true };
+    } catch (error) {
+        console.error(`[AdminService] updateUserTabPermissions failed for ${userEmail}:`, error.message);
+        throw error;
+    }
+};

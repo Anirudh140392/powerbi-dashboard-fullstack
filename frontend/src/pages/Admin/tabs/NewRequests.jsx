@@ -35,7 +35,7 @@ const NewRequests = () => {
     const fetchRequests = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem("token");
+            const token = sessionStorage.getItem("token");
             const response = await axios.get(`${API_BASE}/admin/pending-requests`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -61,12 +61,12 @@ const NewRequests = () => {
     const handleAction = async (id, action) => {
         try {
             setActionAnimating(id);
-            const token = localStorage.getItem("token");
-            
+            const token = sessionStorage.getItem("token");
+
             // Map 'approved' to 'allow' for backend status
             const status = action === "approved" ? "allow" : "deny";
 
-            const response = await axios.patch(`${API_BASE}/admin/users/access`, 
+            const response = await axios.patch(`${API_BASE}/admin/users/access`,
                 { id, status },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -191,11 +191,10 @@ const NewRequests = () => {
                             <button
                                 key={f}
                                 onClick={() => setFilterStatus(f)}
-                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                                    filterStatus === f
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${filterStatus === f
                                         ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
                                         : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
-                                }`}
+                                    }`}
                             >
                                 {f}
                             </button>
@@ -230,7 +229,7 @@ const NewRequests = () => {
                                     <td colSpan={6} className="py-20 text-center">
                                         <div className="flex flex-col items-center gap-3 text-rose-500">
                                             <p className="text-sm font-bold uppercase tracking-widest">{error}</p>
-                                            <button 
+                                            <button
                                                 onClick={fetchRequests}
                                                 className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition-all"
                                             >

@@ -31,7 +31,7 @@ const AllUsersTable = () => {
         const fetchUsers = async () => {
             try {
                 setLoading(true);
-                const token = localStorage.getItem("token");
+                const token = sessionStorage.getItem("token");
                 const API_BASE = import.meta.env.VITE_API_URL
                     ? `${import.meta.env.VITE_API_URL}/api`
                     : "/api";
@@ -76,9 +76,35 @@ const AllUsersTable = () => {
         user.role.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / rowsPerPage));
     const startIndex = (currentPage - 1) * rowsPerPage;
     const paginatedUsers = filteredUsers.slice(startIndex, startIndex + rowsPerPage);
+
+    const getVisiblePages = () => {
+        const delta = 1;
+        const range = [];
+        const rangeWithDots = [];
+        let l;
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
+                range.push(i);
+            }
+        }
+
+        for (let i of range) {
+            if (l) {
+                if (i - l === 2) {
+                    rangeWithDots.push(l + 1);
+                } else if (i - l !== 1) {
+                    rangeWithDots.push('...');
+                }
+            }
+            rangeWithDots.push(i);
+            l = i;
+        }
+        return rangeWithDots;
+    };
 
     const validateForm = () => {
         const newErrors = {};
@@ -113,7 +139,7 @@ const AllUsersTable = () => {
         if (!window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) return;
 
         try {
-            const token = localStorage.getItem("token");
+            const token = sessionStorage.getItem("token");
             const API_BASE = import.meta.env.VITE_API_URL
                 ? `${import.meta.env.VITE_API_URL}/api`
                 : "/api";
@@ -226,8 +252,8 @@ const AllUsersTable = () => {
                                     </td>
                                 </tr>
                             ) : (
-                                paginatedUsers.map((user) => (
-                                    <tr key={user.id} className="hover:bg-slate-50/50 transition-colors group">
+                                paginatedUsers.map((user, index) => (
+                                    <tr key={`${user.id}-${index}`} className="hover:bg-slate-50/50 transition-colors group">
                                         <td className="px-8 py-5">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs border border-indigo-100 group-hover:scale-105 transition-transform">
@@ -325,17 +351,21 @@ const AllUsersTable = () => {
                         </button>
 
                         <div className="flex items-center gap-1 px-4">
-                            {[...Array(totalPages)].map((_, i) => (
-                                <button
-                                    key={i + 1}
-                                    onClick={() => setCurrentPage(i + 1)}
-                                    className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${currentPage === i + 1
-                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                                        : 'text-slate-500 hover:bg-slate-50'
-                                        }`}
-                                >
-                                    {i + 1}
-                                </button>
+                            {getVisiblePages().map((page, index) => (
+                                page === '...' ? (
+                                    <span key={`dots-${index}`} className="px-2 text-slate-400 font-bold">...</span>
+                                ) : (
+                                    <button
+                                        key={page}
+                                        onClick={() => setCurrentPage(page)}
+                                        className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                            : 'text-slate-500 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {page}
+                                    </button>
+                                )
                             ))}
                         </div>
 

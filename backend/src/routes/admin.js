@@ -1,5 +1,5 @@
 // src/routes/admin.js
-import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess } from '../controllers/adminController.js';
+import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions } from '../controllers/adminController.js';
 
 export default (app) => {
     // Middleware to log Admin API calls
@@ -93,4 +93,57 @@ export default (app) => {
      *                 enum: [allow, deny]
      */
     app.patch('/api/admin/users/access', updateUserAccess);
+
+    /**
+     * @swagger
+     * /api/admin/permissions/users:
+     *   get:
+     *     summary: Get all users with permission data
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       200:
+     *         description: List of users with db_status and tab_permissions
+     */
+    app.get('/api/admin/permissions/users', getPermissionsUsers);
+
+    /**
+     * @swagger
+     * /api/admin/permissions/db-status:
+     *   patch:
+     *     summary: Update a user's DB status
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               email:
+     *                 type: string
+     *               dbStatus:
+     *                 type: boolean
+     */
+    app.patch('/api/admin/permissions/db-status', updateDbStatus);
+
+    /**
+     * @swagger
+     * /api/admin/permissions/tab-permissions:
+     *   patch:
+     *     summary: Update a user's tab permissions
+     *     security:
+     *       - bearerAuth: []
+     *     requestBody:
+     *       content:
+     *         application/json:
+     *           schema:
+     *             type: object
+     *             properties:
+     *               email:
+     *                 type: string
+     *               tabPermissions:
+     *                 type: object
+     */
+    app.patch('/api/admin/permissions/tab-permissions', updateTabPermissions);
 };

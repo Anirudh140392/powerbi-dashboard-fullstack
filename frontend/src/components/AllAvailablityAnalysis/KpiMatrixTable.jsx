@@ -235,7 +235,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                         const qp = new URLSearchParams(filterQueryParams);
                         qp.set('filterType', ft.apiType);
                         const res = await fetch(`/api/availability-analysis/filter-options?${qp.toString()}`, {
-                            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                         });
                         if (!res.ok) return { id: ft.id, label: ft.label, options: [] };
                         const data = await res.json();
@@ -337,7 +337,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                 params.append('ownBrandsOnly', 'true');
 
                 const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?${params.toString()}`, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                    headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const result = await res.json();

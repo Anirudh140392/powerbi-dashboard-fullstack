@@ -12,18 +12,18 @@ const API_BASE = import.meta.env.VITE_API_URL
 
 export const AuthProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(() => {
-        return localStorage.getItem("isLoggedIn") === "true";
+        return sessionStorage.getItem("isLoggedIn") === "true";
     });
 
     const [user, setUser] = useState(() => {
-        const stored = localStorage.getItem("user");
+        const stored = sessionStorage.getItem("user");
         return stored ? JSON.parse(stored) : null;
     });
 
     // Loading state: true while verifying session on mount/refresh
     const [isVerifying, setIsVerifying] = useState(() => {
         // Only need to verify if we think we're logged in
-        return localStorage.getItem("isLoggedIn") === "true";
+        return sessionStorage.getItem("isLoggedIn") === "true";
     });
 
     const login = async (credentials) => {
@@ -51,9 +51,9 @@ export const AuthProvider = ({ children }) => {
                 }
 
                 // Store auth data
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("token", token);
-                localStorage.setItem("user", JSON.stringify(userData));
+                sessionStorage.setItem("isLoggedIn", "true");
+                sessionStorage.setItem("token", token);
+                sessionStorage.setItem("user", JSON.stringify(userData));
 
                 setIsLoggedIn(true);
                 setUser(userData);
@@ -73,16 +73,16 @@ export const AuthProvider = ({ children }) => {
         setIsLoggedIn(false);
         setUser(null);
         setIsVerifying(false);
-        localStorage.removeItem("isLoggedIn");
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        sessionStorage.removeItem("isLoggedIn");
+        sessionStorage.removeItem("token");
+        sessionStorage.removeItem("user");
     };
 
     // Verify session on mount/refresh: re-validate token with backend
     useEffect(() => {
         const verifySession = async () => {
-            const token = localStorage.getItem("token");
-            const storedLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+            const token = sessionStorage.getItem("token");
+            const storedLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
 
             if (!storedLoggedIn || !token) {
                 setIsVerifying(false);
@@ -104,7 +104,7 @@ export const AuthProvider = ({ children }) => {
                     }
                     setIsLoggedIn(true);
                     setUser(userData);
-                    localStorage.setItem("user", JSON.stringify(userData));
+                    sessionStorage.setItem("user", JSON.stringify(userData));
                 } else {
                     // Token invalid or access revoked
                     console.warn("[Auth] Session verification failed:", response.data.error);
@@ -114,7 +114,7 @@ export const AuthProvider = ({ children }) => {
                 console.warn("[Auth] Session verification error:", error.message);
                 // If backend is unreachable, still allow cached session
                 // but normalize the role from cached data
-                const stored = localStorage.getItem("user");
+                const stored = sessionStorage.getItem("user");
                 if (stored) {
                     try {
                         const parsed = JSON.parse(stored);

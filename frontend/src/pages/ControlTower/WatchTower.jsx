@@ -484,7 +484,7 @@ export default function WatchTower() {
 
   // Memoize the PerformanceBreakdownProvider filters to prevent child re-renders
   const perfBreakdownFilters = useMemo(() => ({
-    companyId: localStorage.getItem('selectedCompanyId') || '',
+    companyId: sessionStorage.getItem('selectedCompanyId') || '',
     platform: filters.platform ? [filters.platform].flat() : [],
     dateStart: filters.startDate || undefined,
     dateEnd: filters.endDate || undefined,
@@ -1142,7 +1142,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                                   {k.format(k.compareValue)}
                                 </span>
                               )}
-                            <button 
+                            <button
                               onClick={() => openHelpWithMenu("India Overview")}
                               className="font-medium text-[11px] hover:text-sky-600 transition-colors"
                             >

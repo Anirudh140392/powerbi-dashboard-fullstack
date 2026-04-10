@@ -184,7 +184,7 @@ function CskuMultiSelectDropdown({ label, icon: Icon, options, selected = [], on
 export default function CompareSkuFilterModal({ isOpen, onClose, filters, onApply, brands = null, categories = null, platforms = null, locations = null, kpiOptions: propKpiOptions = null }) {
     const isBoatUser = useMemo(() => {
         try {
-            const u = JSON.parse(localStorage.getItem('user'));
+            const u = JSON.parse(sessionStorage.getItem('user'));
             return u?.dbName?.toLowerCase() === 'boat';
         } catch {
             return false;

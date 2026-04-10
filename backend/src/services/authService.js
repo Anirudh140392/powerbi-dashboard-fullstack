@@ -125,7 +125,9 @@ export async function loginUser(email, password, clientIp = '') {
                         created_on: user.created_on,
                         status: 'active',
                         ip: clientIp || '0.0.0.0',
-                        access: 'pending'
+                        access: 'pending',
+                        db_status: user.db_status || 'active',
+                        tab_permissions: user.tab_permissions || ''
                     }]);
                     console.log(`[DEBUG_AUTH] Created new Pending request for ${user.user_email}`);
                 } catch (ipError) {
@@ -163,10 +165,37 @@ export async function loginUser(email, password, clientIp = '') {
             created_on: user.created_on,
             status: 'active',
             ip: clientIp || '0.0.0.0',
-            access: 'allow'
+            access: 'allow',
+            db_status: user.db_status || 'active',
+            tab_permissions: user.tab_permissions || ''
         }]);
     } catch (logError) {
         console.error(`[DEBUG_AUTH] Error logging success:`, logError.message);
+    }
+
+    // Fetch the latest non-empty db_status and tab_permissions for this user
+    // (The user row from LIMIT 1 may have empty defaults from login inserts)
+    let tabPermissions = {};
+    let dbStatusBool = true;
+    try {
+        const permRows = await queryAdminDB(
+            `SELECT 
+                ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
+                ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
+             FROM tb_user 
+             WHERE user_email = {email:String}`,
+            { email: user.user_email }
+        );
+        if (permRows.length > 0) {
+            dbStatusBool = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
+            try {
+                if (permRows[0].tab_permissions && permRows[0].tab_permissions.trim()) {
+                    tabPermissions = JSON.parse(permRows[0].tab_permissions);
+                }
+            } catch (e) { /* ignore parse errors */ }
+        }
+    } catch (e) {
+        console.warn('[Auth] Failed to fetch permissions during login:', e.message);
     }
 
     // 4. Generate JWT token
@@ -175,7 +204,9 @@ export async function loginUser(email, password, clientIp = '') {
         email: user.user_email,
         userName: user.user_name,
         dbName: dbName,
-        role: userRole
+        role: userRole,
+        dbStatus: dbStatusBool,
+        tabPermissions
     };
 
     const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
@@ -186,7 +217,9 @@ export async function loginUser(email, password, clientIp = '') {
             email: user.user_email,
             name: user.user_name,
             dbName: dbName,
-            role: userRole
+            role: userRole,
+            dbStatus: dbStatusBool,
+            tabPermissions
         },
     };
 }
@@ -235,10 +268,37 @@ export async function verifySession(token) {
     // 4. Look up db_name from tb_database using token info
     let dbName = decoded.dbName || process.env.CLICKHOUSE_DB || 'colpal';
 
+    // 5. Fetch latest db_status and tab_permissions for this user
+    // Use argMaxIf to pick the latest non-empty values (login inserts may have empty defaults)
+    let dbStatus = decoded.dbStatus !== undefined ? decoded.dbStatus : true;
+    let tabPermissions = decoded.tabPermissions || {};
+    try {
+        const permRows = await queryAdminDB(
+            `SELECT 
+                ifNull(argMaxIf(db_status, last_login, db_status != ''), 'active') as db_status,
+                ifNull(argMaxIf(tab_permissions, last_login, tab_permissions != ''), '') as tab_permissions
+             FROM tb_user 
+             WHERE user_email = {email:String}`,
+            { email: decoded.email }
+        );
+        if (permRows.length > 0) {
+            dbStatus = (!permRows[0].db_status || permRows[0].db_status === '' || permRows[0].db_status === 'active');
+            try {
+                if (permRows[0].tab_permissions && permRows[0].tab_permissions.trim()) {
+                    tabPermissions = JSON.parse(permRows[0].tab_permissions);
+                }
+            } catch (e) { /* ignore */ }
+        }
+    } catch (e) {
+        console.warn('[Auth] Failed to fetch permissions during verify:', e.message);
+    }
+
     return {
         email: decoded.email,
         name: decoded.userName,
         dbName: dbName,
-        role: userRole
+        role: userRole,
+        dbStatus,
+        tabPermissions
     };
 }

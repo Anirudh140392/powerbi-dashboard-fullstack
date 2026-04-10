@@ -709,7 +709,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
     if (!showFilterPanel) return;
     // Skip if we already fetched for this exact section config
     if (lastFetchedKey.current === sectionCacheKey && dynamicFilterOptions.length > 0) return;
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     setFilterLoading(true);
     setDynamicFilterOptions([]);
 
