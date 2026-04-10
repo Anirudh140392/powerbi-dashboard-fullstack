@@ -4,16 +4,18 @@ import MarketShareAnalysis from "../../components/AllMarketShares/MarketShareAna
 import { FilterContext } from "../../utils/FilterContext";
 
 export default function MarketShares() {
-  const { refreshFilters } = useContext(FilterContext);
+  const { refreshFilters, refreshDates } = useContext(FilterContext);
   const [showTrends, setShowTrends] = useState(false);
 
-  // Restore comprehensive platform list from rca_sku_dim on mount
-  // (Prevents subsetting from other pages like Performance Marketing)
+  // Restore comprehensive platform list and refresh latest dates
   useEffect(() => {
     if (typeof refreshFilters === 'function') {
       refreshFilters();
     }
-  }, [refreshFilters]);
+    if (typeof refreshDates === 'function') {
+      refreshDates();
+    }
+  }, [refreshFilters, refreshDates]);
 
   const [filters, setFilters] = useState({
     platform: "Blinkit",

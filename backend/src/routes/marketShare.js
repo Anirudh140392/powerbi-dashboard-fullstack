@@ -1,4 +1,4 @@
-import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown } from '../controllers/marketShareController.js';
+import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown, MarketShareLatestDate } from '../controllers/marketShareController.js';
 
 export default (app) => {
     /**
@@ -136,4 +136,5 @@ export default (app) => {
      *         description: Successful response.
      */
     app.get('/api/market-share/drilldown', MarketShareDrilldown);
+    app.get('/api/market-share/latest-date', MarketShareLatestDate);
 };

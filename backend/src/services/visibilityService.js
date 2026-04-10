@@ -275,28 +275,11 @@ async function getVisibilityOverviewData(filters = {}) {
             getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format)
         ]);
 
-        // Aggregate daily points into weekly points for "Weekly" aggregation
-        const aggregateToWeekly = (dailyTrend) => {
-            const weekly = { dates: [], values: [] };
-            if (!dailyTrend || !dailyTrend.values || dailyTrend.values.length === 0) return weekly;
-
-            // Group into weeks (7 days each)
-            for (let i = 0; i < dailyTrend.values.length; i += 7) {
-                const slice = dailyTrend.values.slice(i, i + 7);
-                const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
-
-                // Labels W1, W2, etc. based on the chunks in the selected range
-                const weekLabel = `W${Math.floor(i / 7) + 1}`;
-                weekly.dates.push(weekLabel);
-                weekly.values.push(Number(avg.toFixed(1)));
-            }
-            return weekly;
-        };
-
-        const weeklyTrends = {
-            overall: aggregateToWeekly(trends.overall),
-            sponsored: aggregateToWeekly(trends.sponsored),
-            organic: aggregateToWeekly(trends.organic)
+        // Use daily trends directly for the sparkline graphs
+        const dailyTrends = {
+            overall: trends.overall || { dates: [], values: [] },
+            sponsored: trends.sponsored || { dates: [], values: [] },
+            organic: trends.organic || { dates: [], values: [] }
         };
 
         console.log(`[VisibilityService] Calculated SOS Metrics: Overall=${currentSOS.overall.toFixed(1)}%, Sponsored=${currentSOS.sponsored.toFixed(1)}%, Organic=${currentSOS.organic.toFixed(1)}%`);
@@ -318,8 +301,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "green",
-                    months: weeklyTrends.overall.dates,
-                    sparklineData: weeklyTrends.overall.values
+                    months: dailyTrends.overall.dates,
+                    sparklineData: dailyTrends.overall.values
                 },
                 {
                     title: "Sponsored SOS",
@@ -331,8 +314,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "red",
-                    months: weeklyTrends.sponsored.dates,
-                    sparklineData: weeklyTrends.sponsored.values
+                    months: dailyTrends.sponsored.dates,
+                    sparklineData: dailyTrends.sponsored.values
                 },
                 {
                     title: "Organic SOS",
@@ -344,8 +327,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "green",
-                    months: weeklyTrends.organic.dates,
-                    sparklineData: weeklyTrends.organic.values
+                    months: dailyTrends.organic.dates,
+                    sparklineData: dailyTrends.organic.values
                 }
             ]
         };
