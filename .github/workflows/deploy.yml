@@ -20,22 +20,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set environment variables based on branch
+      - name: Set target variables based on branch
         run: |
           if [ "${{ github.ref_name }}" = "enhancement_01122025_backend_kenil" ]; then
             echo "DEPLOY_ENV=production" >> $GITHUB_ENV
             echo "TARGET_HOST=${{ secrets.EC2_HOST }}" >> $GITHUB_ENV
-            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
-            echo "${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
             echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
             echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_URL }}" >> $GITHUB_ENV
           elif [ "${{ github.ref_name }}" = "enhancement_01122025_dev_kenil" ]; then
             echo "DEPLOY_ENV=development" >> $GITHUB_ENV
             echo "TARGET_HOST=${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_ENV
-            echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
-            echo "${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
             echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
             echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_DEV_URL }}" >> $GITHUB_ENV
           fi
@@ -44,7 +38,11 @@ jobs:
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ env.TARGET_SSH_KEY }}" | tr -d '\r' > ~/.ssh/deploy_key
+          if [ "${{ github.ref_name }}" = "enhancement_01122025_backend_kenil" ]; then
+            echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          else
+            echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          fi
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ env.TARGET_HOST }} >> ~/.ssh/known_hosts
 
