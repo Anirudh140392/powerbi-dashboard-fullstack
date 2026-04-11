@@ -266,25 +266,22 @@ const Sidebar = ({
               />
             )}
 
-            {/* 
-              Commented out MARS logo for mars DB only as requested
-              {user?.dbName === 'mars' && (
-                <img
-                  src={marsLogo}
-                  alt="Mars Logo"
-                  style={{
-                    maxHeight: isCollapsed ? '32px' : '45px',
-                    width: isCollapsed ? '100%' : 'auto',
-                    maxWidth: isCollapsed ? '42px' : '180px',
-                    objectFit: 'contain',
-                    padding: '0',
-                    display: 'block',
-                    borderRadius: '2px',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  }}
-                />
-              )}
-            */}
+            {user?.dbName === 'mars' && (
+              <img
+                src={marsLogo}
+                alt="Mars Logo"
+                style={{
+                  maxHeight: isCollapsed ? '32px' : '45px',
+                  width: isCollapsed ? '100%' : 'auto',
+                  maxWidth: isCollapsed ? '42px' : '180px',
+                  objectFit: 'contain',
+                  padding: '0',
+                  display: 'block',
+                  borderRadius: '2px',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              />
+            )}
           </Box>
         </Box>
 
