@@ -53,29 +53,29 @@ import {
 import { Sparkles } from "lucide-react";
 
 const SidebarStatusBadge = ({ type }) => {
-    const isLive = type === "LIVE";
-    return (
-        <span 
-            className={isLive ? "status-pulse-green" : "status-pulse-blue"}
-            style={{
-                fontSize: "7.5px",
-                fontWeight: 800,
-                background: isLive ? "#10b981" : "#2563eb",
-                color: "#fff",
-                borderRadius: "5px",
-                padding: "2.5px 8px",
-                marginLeft: "8px",
-                display: "inline-flex",
-                alignItems: "center",
-                lineHeight: 1,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                fontFamily: "'Inter', sans-serif",
-                boxShadow: isLive ? "0 2px 4px rgba(16, 185, 129, 0.3)" : "0 2px 4px rgba(37, 99, 235, 0.3)",
-        }}>
-            {type}
-        </span>
-    );
+  const isLive = type === "LIVE";
+  return (
+    <span
+      className={isLive ? "status-pulse-green" : "status-pulse-blue"}
+      style={{
+        fontSize: "7.5px",
+        fontWeight: 800,
+        background: isLive ? "#10b981" : "#2563eb",
+        color: "#fff",
+        borderRadius: "5px",
+        padding: "2.5px 8px",
+        marginLeft: "8px",
+        display: "inline-flex",
+        alignItems: "center",
+        lineHeight: 1,
+        textTransform: "uppercase",
+        letterSpacing: "0.04em",
+        fontFamily: "'Inter', sans-serif",
+        boxShadow: isLive ? "0 2px 4px rgba(16, 185, 129, 0.3)" : "0 2px 4px rgba(37, 99, 235, 0.3)",
+      }}>
+      {type}
+    </span>
+  );
 };
 
 
@@ -249,20 +249,42 @@ const Sidebar = ({
               filter: 'drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.05))'
             }}
           >
-            <img
-              src={activeLogo}
-              alt={activeLogoAlt}
-              style={{
-                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
-                width: isCollapsed ? '100%' : 'auto',
-                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
-                objectFit: 'contain',
-                padding: '0',
-                display: 'block',
-                borderRadius: user?.dbName === 'mamaearth' ? '8px' : '2px',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              }}
-            />
+            {user?.dbName !== 'mars' && (
+              <img
+                src={activeLogo}
+                alt={activeLogoAlt}
+                style={{
+                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
+                  width: isCollapsed ? '100%' : 'auto',
+                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
+                  objectFit: 'contain',
+                  padding: '0',
+                  display: 'block',
+                  borderRadius: user?.dbName === 'mamaearth' ? '8px' : '2px',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              />
+            )}
+
+            {/* 
+              Commented out MARS logo for mars DB only as requested
+              {user?.dbName === 'mars' && (
+                <img
+                  src={marsLogo}
+                  alt="Mars Logo"
+                  style={{
+                    maxHeight: isCollapsed ? '32px' : '45px',
+                    width: isCollapsed ? '100%' : 'auto',
+                    maxWidth: isCollapsed ? '42px' : '180px',
+                    objectFit: 'contain',
+                    padding: '0',
+                    display: 'block',
+                    borderRadius: '2px',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                />
+              )}
+            */}
           </Box>
         </Box>
 
@@ -272,7 +294,7 @@ const Sidebar = ({
             sx={{
               color: 'rgba(30, 41, 59, 0.45)', // Slightly darker for better visibility on white
               p: 0.5,
-              '&:hover': { 
+              '&:hover': {
                 color: '#2563eb',
                 bgcolor: '#FFFFFF',
                 boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.12)',
