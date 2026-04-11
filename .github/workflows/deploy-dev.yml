@@ -1,10 +1,10 @@
-name: Deploy to EC2 (Production)
+name: Deploy to EC2 (Development)
 
 
 on:
   push:
     branches:
-      - enhancement_01122025_backend_kenil
+      - enhancement_01122025_dev_kenil
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -12,7 +12,7 @@ env:
 
 jobs:
   deploy:
-    name: Deploy to EC2 (Production)
+    name: Deploy to EC2 (Development)
     runs-on: ubuntu-latest
     
     steps:
@@ -26,11 +26,11 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_DEV_HOST }} >> ~/.ssh/known_hosts
 
       - name: Create .env file on EC2
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_DEV_HOST }} << 'ENDSSH'
             # Ensure the user has permissions to the directory
             sudo chown -R ${{ secrets.EC2_USER }}:${{ secrets.EC2_USER }} ${{ env.APP_DIR }}
             
@@ -47,18 +47,18 @@ jobs:
           REDIS_DB=${{ secrets.REDIS_DB }}
           REDIS_ENABLED=${{ secrets.REDIS_ENABLED }}
           REDIS_DEFAULT_TTL=${{ secrets.REDIS_DEFAULT_TTL }}
-          CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_URL }}
+          CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_DEV_URL }}
           CLICKHOUSE_USER=${{ secrets.CLICKHOUSE_USER }}
           CLICKHOUSE_PASSWORD=${{ secrets.CLICKHOUSE_PASSWORD }}
           CLICKHOUSE_DB=${{ secrets.CLICKHOUSE_DB }}
           ENABLE_DEBUG_LOGS=true
           EOF
-            echo "✅ .env file created"
+            echo "✅ .env file created for Development"
           ENDSSH
 
       - name: Deploy to EC2
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_DEV_HOST }} << 'ENDSSH'
             set -e
             
             echo "📁 Navigating to app directory..."
@@ -100,8 +100,8 @@ jobs:
         run: |
           echo "## Deployment Summary 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🌍 Environment: \`Production\`" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Deployed to: \`${{ secrets.EC2_HOST }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "🌍 Environment: \`Development\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Deployed to: \`${{ secrets.EC2_DEV_HOST }}\`" >> $GITHUB_STEP_SUMMARY
           echo "📦 Branch: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 App: http://${{ secrets.EC2_HOST }}" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 API: http://${{ secrets.EC2_HOST }}/api" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 App: http://${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 API: http://${{ secrets.EC2_DEV_HOST }}/api" >> $GITHUB_STEP_SUMMARY
