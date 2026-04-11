@@ -34,7 +34,7 @@ jobs:
             echo "DEPLOY_ENV=development" >> $GITHUB_ENV
             echo "TARGET_HOST=${{ secrets.EC2_DEV_HOST }}" >> $GITHUB_ENV
             echo "TARGET_SSH_KEY<<EOF" >> $GITHUB_ENV
-            echo "${{ secrets.EC2_DEV_SSH_KEY }}" >> $GITHUB_ENV
+            echo "${{ secrets.EC2_SSH_KEY }}" >> $GITHUB_ENV
             echo "EOF" >> $GITHUB_ENV
             echo "TARGET_USER=${{ secrets.EC2_USER }}" >> $GITHUB_ENV
             echo "TARGET_CLICKHOUSE_URL=${{ secrets.CLICKHOUSE_DEV_URL }}" >> $GITHUB_ENV
