@@ -36,15 +36,13 @@ jobs:
           echo "🎯 Deploying to ${{ github.ref_name }} environment"
 
       - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          if [ "${{ github.ref_name }}" = "enhancement_01122025_backend_kenil" ]; then
-            echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
-          else
-            echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
-          fi
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ env.TARGET_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ env.TARGET_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Create .env file on EC2
         run: |
