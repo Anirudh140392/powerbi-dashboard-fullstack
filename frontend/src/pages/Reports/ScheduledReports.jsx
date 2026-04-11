@@ -106,7 +106,7 @@ export default function ScheduledReports() {
     // Scheduled reports state (persist in localStorage)
     const [scheduledReports, setScheduledReports] = useState(() => {
         try {
-            const raw = localStorage.getItem("scheduledReports");
+            const raw = sessionStorage.getItem("scheduledReports");
             return raw ? JSON.parse(raw) : [];
         } catch (e) {
             return [];
@@ -117,7 +117,7 @@ export default function ScheduledReports() {
 
     const persistSchedules = (arr) => {
         try {
-            localStorage.setItem("scheduledReports", JSON.stringify(arr));
+            sessionStorage.setItem("scheduledReports", JSON.stringify(arr));
         } catch (e) {
             // ignore
         }

@@ -20,7 +20,7 @@ export function PerformanceBreakdownProvider({ darkMode = false, filters = { pla
     );
 }
 
-function getAuthToken() { return typeof window === "undefined" ? null : localStorage.getItem(AUTH_TOKEN_KEY); }
+function getAuthToken() { return typeof window === "undefined" ? null : sessionStorage.getItem(AUTH_TOKEN_KEY); }
 function buildUrl(endpoint) {
     if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) return endpoint;
     const base = API_BASE_URL ? API_BASE_URL : "";
@@ -98,8 +98,8 @@ function MultiSlicerBar({ onFiltersChange, className = "" }) {
     const fetchOptions = useCallback(async (dimension) => {
         setLoadingOptions(dimension);
         try {
-            const accountId = localStorage.getItem("selectedAccountId") || "";
-            const companyId = globalFilters.companyId || localStorage.getItem("selectedCompanyId") || localStorage.getItem("company_id") || "";
+            const accountId = sessionStorage.getItem("selectedAccountId") || "";
+            const companyId = globalFilters.companyId || sessionStorage.getItem("selectedCompanyId") || sessionStorage.getItem("company_id") || "";
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
@@ -372,8 +372,8 @@ export function AggregatedViewTable() {
         setLoading(true);
         setApiError(null);
         try {
-            const accountId = localStorage.getItem("selectedAccountId") || "";
-            const companyId = localStorage.getItem("selectedCompanyId") || localStorage.getItem("company_id") || filters.companyId || "";
+            const accountId = sessionStorage.getItem("selectedAccountId") || "";
+            const companyId = sessionStorage.getItem("selectedCompanyId") || sessionStorage.getItem("company_id") || filters.companyId || "";
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
@@ -384,11 +384,11 @@ export function AggregatedViewTable() {
             if (filters.category?.length > 0 && !filters.category.includes("All")) params.set("category", filters.category.join(","));
             if (filters.brand && filters.brand !== "All") params.set("brand", Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand);
             if (filters.location?.length > 0 && !filters.location.includes("All")) params.set("location", filters.location.join(","));
-            
+
             // Pass the global context dates if they exist
             if (filters.dateStart) params.set("startDate", filters.dateStart);
             if (filters.dateEnd) params.set("endDate", filters.dateEnd);
-            
+
             params.set("group_by", groupBy);
             // Pass selected period keys so backend can compute comparison data
             if (selectedPeriods.length > 0) {
@@ -408,7 +408,7 @@ export function AggregatedViewTable() {
             const result = res.data;
             if (res.success && result?.success && result.data?.length > 0) {
                 setData(result.data);
-                
+
                 // Dynamically calculate totals strictly based on the fetched row data
                 const calcTotals = result.data.reduce((acc, row) => {
                     acc.impressions += (parseFloat(row.impressions) || 0);
@@ -418,11 +418,11 @@ export function AggregatedViewTable() {
                     acc.sales += (parseFloat(row.sales) || 0);
                     return acc;
                 }, { impressions: 0, clicks: 0, spends: 0, orders: 0, sales: 0 });
-                
+
                 calcTotals.ctr = calcTotals.impressions > 0 ? (calcTotals.clicks / calcTotals.impressions) * 100 : 0;
                 calcTotals.cpc = calcTotals.clicks > 0 ? (calcTotals.spends / calcTotals.clicks) : 0;
                 calcTotals.cvr = calcTotals.clicks > 0 ? (calcTotals.orders / calcTotals.clicks) * 100 : 0;
-                
+
                 setTotals(calcTotals);
                 setUntagged(result.untagged || null);
                 setPeriodComparison(result.period_comparison || null);
