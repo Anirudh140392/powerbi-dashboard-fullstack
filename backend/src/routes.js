@@ -13,8 +13,12 @@ import inventoryAnalysis from './routes/inventoryAnalysis.js';
 import reports from './routes/reports.js';
 import mapIntellect from './routes/mapIntellect.js';
 import insights from './routes/insights.js';
+import admin from './routes/admin.js';
 
 export default (app) => {
+    // Admin routes
+    admin(app);
+
     // Control Tower routes
     controlTower(app);
 

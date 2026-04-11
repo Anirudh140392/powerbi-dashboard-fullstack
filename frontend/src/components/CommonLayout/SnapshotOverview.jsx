@@ -527,7 +527,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                             isMyBrand = kpi.isOwnBrand;
                         } else {
                             try {
-                                const u = JSON.parse(localStorage.getItem('user'));
+                                const u = JSON.parse(sessionStorage.getItem('user'));
                                 const dbName = u?.dbName?.toLowerCase() || '';
                                 isMyBrand = dbName && kpi.brand.toLowerCase().includes(dbName);
                             } catch { /* ignore */ }
@@ -800,10 +800,10 @@ const SnapshotOverview = ({
                         </div>
                         <div className="flex items-center gap-4">
                             {headerRight}
-                            <IconButton 
+                            <IconButton
                                 onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
                                 size="small"
-                                sx={{ 
+                                sx={{
                                     bgcolor: "rgba(37, 99, 235, 0.05)",
                                     color: "#2563eb",
                                     "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
@@ -911,10 +911,10 @@ const SnapshotOverview = ({
                     </div>
                     <div className="flex items-center gap-5">
                         {headerRight}
-                        <IconButton 
+                        <IconButton
                             onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
                             size="small"
-                            sx={{ 
+                            sx={{
                                 bgcolor: "rgba(37, 99, 235, 0.05)",
                                 color: "#2563eb",
                                 "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },

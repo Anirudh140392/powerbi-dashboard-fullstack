@@ -533,7 +533,7 @@ const performanceData = {
               { label: "Chandigarh", values: [7, 7, 10, "2.6%", "2.9%", "2.7%"] },
             ],
           },
-        ],
+          ],
       },
       {
         label: "Competition",

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import axios from "axios";
 
 const AuthContext = createContext(null);
@@ -12,31 +12,52 @@ const API_BASE = import.meta.env.VITE_API_URL
 
 export const AuthProvider = ({ children }) => {
     const [isLoggedIn, setIsLoggedIn] = useState(() => {
-        return localStorage.getItem("isLoggedIn") === "true";
+        return sessionStorage.getItem("isLoggedIn") === "true";
     });
 
     const [user, setUser] = useState(() => {
-        const stored = localStorage.getItem("user");
+        const stored = sessionStorage.getItem("user");
         return stored ? JSON.parse(stored) : null;
+    });
+
+    // Loading state: true while verifying session on mount/refresh
+    const [isVerifying, setIsVerifying] = useState(() => {
+        // Only need to verify if we think we're logged in
+        return sessionStorage.getItem("isLoggedIn") === "true";
     });
 
     const login = async (credentials) => {
         try {
+            let publicIp = '';
+            try {
+                const ipRes = await axios.get('https://api.ipify.org?format=json');
+                publicIp = ipRes.data.ip;
+            } catch (e) {
+                console.warn("Could not fetch public IP", e);
+            }
+
             const response = await axios.post(`${API_BASE}/auth/login`, {
                 email: credentials.email,
                 password: credentials.password,
+                publicIp: publicIp
             });
 
             if (response.data.success) {
                 const { token, user: userData } = response.data;
 
+                // Normalize role to lowercase for consistent checks
+                if (userData.role) {
+                    userData.role = userData.role.toLowerCase();
+                }
+
                 // Store auth data
-                localStorage.setItem("isLoggedIn", "true");
-                localStorage.setItem("token", token);
-                localStorage.setItem("user", JSON.stringify(userData));
+                sessionStorage.setItem("isLoggedIn", "true");
+                sessionStorage.setItem("token", token);
+                sessionStorage.setItem("user", JSON.stringify(userData));
 
                 setIsLoggedIn(true);
                 setUser(userData);
+                setIsVerifying(false);
                 return { success: true };
             }
 
@@ -51,13 +72,68 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         setIsLoggedIn(false);
         setUser(null);
-        localStorage.removeItem("isLoggedIn");
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        setIsVerifying(false);
+        sessionStorage.removeItem("isLoggedIn");
+        sessionStorage.removeItem("token");
+        sessionStorage.removeItem("user");
     };
 
+    // Verify session on mount/refresh: re-validate token with backend
+    useEffect(() => {
+        const verifySession = async () => {
+            const token = sessionStorage.getItem("token");
+            const storedLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
+
+            if (!storedLoggedIn || !token) {
+                setIsVerifying(false);
+                setIsLoggedIn(false);
+                setUser(null);
+                return;
+            }
+
+            try {
+                const response = await axios.get(`${API_BASE}/auth/verify`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+
+                if (response.data.success) {
+                    const userData = response.data.user;
+                    // Normalize role to lowercase for consistent checks
+                    if (userData.role) {
+                        userData.role = userData.role.toLowerCase();
+                    }
+                    setIsLoggedIn(true);
+                    setUser(userData);
+                    sessionStorage.setItem("user", JSON.stringify(userData));
+                } else {
+                    // Token invalid or access revoked
+                    console.warn("[Auth] Session verification failed:", response.data.error);
+                    logout();
+                }
+            } catch (error) {
+                console.warn("[Auth] Session verification error:", error.message);
+                // If backend is unreachable, still allow cached session
+                // but normalize the role from cached data
+                const stored = sessionStorage.getItem("user");
+                if (stored) {
+                    try {
+                        const parsed = JSON.parse(stored);
+                        if (parsed.role) {
+                            parsed.role = parsed.role.toLowerCase();
+                        }
+                        setUser(parsed);
+                    } catch (e) { /* ignore parse error */ }
+                }
+            } finally {
+                setIsVerifying(false);
+            }
+        };
+
+        verifySession();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
     return (
-        <AuthContext.Provider value={{ isLoggedIn, user, login, logout }}>
+        <AuthContext.Provider value={{ isLoggedIn, user, login, logout, isVerifying }}>
             {children}
         </AuthContext.Provider>
     );
