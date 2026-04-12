@@ -7140,6 +7140,28 @@ const getKpiTrends = async (filters) => {
 
     const masterCount = parseInt(masterResult[0]?.total_master, 10) || 0;
 
+    // ===================== KPI AVAILABILITY DETECTION =====================
+    // Determine which data sources actually have data for the selected filters.
+    // If a source returned no rows, the corresponding KPIs will be set to null
+    // so the frontend can show "N/A" instead of misleading zeros.
+    const hasPdpData = kpiResults.length > 0;
+    const hasPmData = pmResults.length > 0;
+    const hasSosData = sosDenominator.length > 0;
+    const hasMsData = msTimeSeriesMap.size > 0 && Array.from(msTimeSeriesMap.values()).some(v => v > 0);
+
+    const kpiAvailability = {
+        // PDP table KPIs: Offtakes, Availability/OSA, Discount/Promo-My, Assortment, Listing
+        pdp: hasPdpData,
+        // PM table KPIs: InorganicSales, Conversion, ROAS, BMI/Sales, Spend, CPM, CPC
+        pm: hasPmData,
+        // KW table KPIs: ShareOfSearch (SOS)
+        kw: hasSosData,
+        // MS table KPIs: MarketShare, CategoryShare
+        ms: hasMsData
+    };
+
+    console.log('[getKpiTrends] KPI Availability:', kpiAvailability);
+
     // 7. Generate time buckets and format data
     const buckets = generateTimeBuckets(startDate, endDate, timeStep);
 
@@ -7219,43 +7241,49 @@ const getKpiTrends = async (filters) => {
         const categoryShare = marketShare;
 
         // Build data point with all KPIs
+        // Use null for KPIs whose data source has no data (frontend shows N/A)
+        const pdpVal = (v) => hasPdpData ? v : null;
+        const pmVal = (v) => hasPmData ? v : null;
+        const kwVal = (v) => hasSosData ? v : null;
+        const msVal = (v) => hasMsData ? v : null;
+
         const dataPoint = {
             date: bucket.label,
             // Core 5 KPIs (Performance Matrix)
-            ShareOfSearch: parseFloat(shareOfSearch.toFixed(2)),
-            InorganicSales: parseFloat(inorganicSales.toFixed(2)),
-            Conversion: parseFloat(conversion.toFixed(2)),
-            Roas: parseFloat(roas.toFixed(2)),
-            BmiSalesRatio: parseFloat(bmiSalesRatio.toFixed(2)),
+            ShareOfSearch: kwVal(parseFloat(shareOfSearch.toFixed(2))),
+            InorganicSales: pmVal(parseFloat(inorganicSales.toFixed(2))),
+            Conversion: pmVal(parseFloat(conversion.toFixed(2))),
+            Roas: pmVal(parseFloat(roas.toFixed(2))),
+            BmiSalesRatio: pmVal(parseFloat(bmiSalesRatio.toFixed(2))),
             // Extended KPIs (Platform/Month/Category/Brand pages)
-            Offtakes: parseFloat(offtakes.toFixed(0)),
-            Spend: parseFloat(spend.toFixed(0)),
-            Availability: parseFloat(availability.toFixed(2)),
-            Osa: parseFloat(availability.toFixed(2)),
-            Listing: masterCount > 0 ? parseFloat(((assortment / masterCount) * 100).toFixed(2)) : parseFloat(availability.toFixed(2)),
-            Assortment: assortment,
-            CPM: parseFloat(cpm.toFixed(2)),
-            CPC: parseFloat(cpc.toFixed(2)),
+            Offtakes: pdpVal(parseFloat(offtakes.toFixed(0))),
+            Spend: pmVal(parseFloat(spend.toFixed(0))),
+            Availability: pdpVal(parseFloat(availability.toFixed(2))),
+            Osa: pdpVal(parseFloat(availability.toFixed(2))),
+            Listing: pdpVal(masterCount > 0 ? parseFloat(((assortment / masterCount) * 100).toFixed(2)) : parseFloat(availability.toFixed(2))),
+            Assortment: pdpVal(assortment),
+            CPM: pmVal(parseFloat(cpm.toFixed(2))),
+            CPC: pmVal(parseFloat(cpc.toFixed(2))),
             // Pricing KPIs
-            'Promo-My': parseFloat(discount.toFixed(2)),
-            PricePerUnit: parseFloat(pricePerUnit.toFixed(2)),
-            ASP: parseFloat(asp.toFixed(2)),
-            RPI: parseFloat(rpi.toFixed(2)),
+            'Promo-My': pdpVal(parseFloat(discount.toFixed(2))),
+            PricePerUnit: pdpVal(parseFloat(pricePerUnit.toFixed(2))),
+            ASP: pdpVal(parseFloat(asp.toFixed(2))),
+            RPI: pdpVal(parseFloat(rpi.toFixed(2))),
             // Mapped aliases for frontend compatibility (DRAWER SYNC)
-            offtake: parseFloat(offtakes.toFixed(0)),       // MyTrendsDrawer
-            Offtake: parseFloat(offtakes.toFixed(0)),       // TrendsCompetitionDrawer
-            osa: parseFloat(availability.toFixed(2)),       // MyTrendsDrawer
-            discount: parseFloat(discount.toFixed(2)),      // MyTrendsDrawer
-            Sos: parseFloat(shareOfSearch.toFixed(2)),      // MyTrendsDrawer
-            SOS: parseFloat(shareOfSearch.toFixed(2)),      // TrendsCompetitionDrawer
-            ROAS: parseFloat(roas.toFixed(2)),
-            InorgSales: parseFloat(inorganicSales.toFixed(2)),
-            MarketShare: parseFloat(marketShare.toFixed(2)),
-            marketShare: parseFloat(marketShare.toFixed(2)),
-            CategoryShare: parseFloat(categoryShare.toFixed(2)),
-            categoryShare: parseFloat(categoryShare.toFixed(2)),
-            PromoMyBrand: parseFloat(discount.toFixed(2)),
-            Discount: parseFloat(discount.toFixed(2)),
+            offtake: pdpVal(parseFloat(offtakes.toFixed(0))),       // MyTrendsDrawer
+            Offtake: pdpVal(parseFloat(offtakes.toFixed(0))),       // TrendsCompetitionDrawer
+            osa: pdpVal(parseFloat(availability.toFixed(2))),       // MyTrendsDrawer
+            discount: pdpVal(parseFloat(discount.toFixed(2))),      // MyTrendsDrawer
+            Sos: kwVal(parseFloat(shareOfSearch.toFixed(2))),      // MyTrendsDrawer
+            SOS: kwVal(parseFloat(shareOfSearch.toFixed(2))),      // TrendsCompetitionDrawer
+            ROAS: pmVal(parseFloat(roas.toFixed(2))),
+            InorgSales: pmVal(parseFloat(inorganicSales.toFixed(2))),
+            MarketShare: msVal(parseFloat(marketShare.toFixed(2))),
+            marketShare: msVal(parseFloat(marketShare.toFixed(2))),
+            CategoryShare: msVal(parseFloat(categoryShare.toFixed(2))),
+            categoryShare: msVal(parseFloat(categoryShare.toFixed(2))),
+            PromoMyBrand: pdpVal(parseFloat(discount.toFixed(2))),
+            Discount: pdpVal(parseFloat(discount.toFixed(2))),
             PromoCompete: 0,  // Placeholder
             DspSales: 0       // Placeholder
         };
@@ -7274,7 +7302,8 @@ const getKpiTrends = async (filters) => {
             Roas: { enabled: true },
             BmiSalesRatio: { enabled: true },
             Discount: { enabled: true }
-        }
+        },
+        kpiAvailability
     };
 };
 
@@ -7815,21 +7844,23 @@ const getCompetitionData = async (filters = {}) => {
             const prevBrand = prevMap.get(brand.Brand) || {};
 
             // Calculate OSA (On-Shelf Availability)
-            const osaBrand = osaMap.get(brand.Brand) || { neno: 0, deno: 0 };
-            const osa = osaBrand.deno > 0 ? (osaBrand.neno / osaBrand.deno) * 100 : 0;
+            const hasOsaData = osaMap.has(brand.Brand);
+            const osaBrand = hasOsaData ? osaMap.get(brand.Brand) : { neno: 0, deno: 0 };
+            const osa = hasOsaData ? (osaBrand.deno > 0 ? (osaBrand.neno / osaBrand.deno) * 100 : 0) : null;
             const prevOsaDeno = parseFloat(prevBrand.deno_osa_sum || 0);
             const prevOsaNeno = parseFloat(prevBrand.neno_osa_sum || 0);
             const osaPrev = prevOsaDeno > 0 ? (prevOsaNeno / prevOsaDeno) * 100 : 0;
-            const osaDelta = calcChange(osa, osaPrev);
+            const osaDelta = osa === null ? null : calcChange(osa, osaPrev);
 
             // Calculate SOS (Share of Search) - using rb_kw_olap logic
             const bNameLower = brand.Brand?.toLowerCase();
-            const neno = sosNenoMap.get(bNameLower) || 0;
-            const sos = sosDeno > 0 ? (neno / sosDeno) * 100 : 0;
+            const hasSosData = sosNenoMap.has(bNameLower);
+            const neno = hasSosData ? sosNenoMap.get(bNameLower) : 0;
+            const sos = hasSosData ? (sosDeno > 0 ? (neno / sosDeno) * 100 : 0) : null;
 
             const nenoPrev = sosNenoMapPrev.get(bNameLower) || 0;
             const sosPrev = sosDenoPrev > 0 ? (nenoPrev / sosDenoPrev) * 100 : 0;
-            const sosDelta = calcPPChange(sos, sosPrev);
+            const sosDelta = sos === null ? null : calcPPChange(sos, sosPrev);
 
             // Pricing Metrics
             const discount = parseFloat(brand.avg_discount || 0);
@@ -7859,18 +7890,20 @@ const getCompetitionData = async (filters = {}) => {
             const brandSales = brandAbsoluteSalesMap.get(brandLower) || 0;
             const brandSalesPrev = brandAbsoluteSalesMapPrev.get(brandLower) || 0;
 
+            const hasMsData = brandSalesMap.has(brandLower);
+
             // Market Share: Individual brand's share = brand's sales / total platform sales
-            const marketShare = brandSalesMap.get(brandLower) || 0;
+            const marketShare = hasMsData ? (brandSalesMap.get(brandLower) || 0) : null;
             const marketSharePrev = brandSalesMapPrev.get(brandLower) || 0;
-            const marketShareDelta = calcChange(marketShare, marketSharePrev);
+            const marketShareDelta = marketShare === null ? null : calcChange(marketShare, marketSharePrev);
 
             // Category Share: Individual brand's share in its specific category
             const lowerBrandCat = brandCategory.toLowerCase();
             const categoryTotalSales = categoryTotalSalesMap.get(lowerBrandCat) || 0;
-            const categoryShare = categoryTotalSales > 0 ? (brandSales / categoryTotalSales) * 100 : 0;
+            const categoryShare = hasMsData ? (categoryTotalSales > 0 ? (brandSales / categoryTotalSales) * 100 : 0) : null;
             const categoryTotalSalesPrev = categoryTotalSalesMapPrev.get(lowerBrandCat) || 0;
             const categorySharePrev = categoryTotalSalesPrev > 0 ? (brandSalesPrev / categoryTotalSalesPrev) * 100 : 0;
-            const categoryShareDelta = calcChange(categoryShare, categorySharePrev);
+            const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
 
             // Listing Percent
             const listingPercent = parseFloat(brand.avg_listing_percent || 0);
@@ -7880,8 +7913,8 @@ const getCompetitionData = async (filters = {}) => {
             return {
                 brand_name: brand.Brand,
                 brand: brand.Brand,
-                OSA: { value: parseFloat(osa.toFixed(2)), delta: parseFloat(osaDelta.toFixed(2)) },
-                SOS: { value: parseFloat(sos.toFixed(3)), delta: parseFloat(sosDelta.toFixed(3)) },
+                OSA: { value: osa === null ? null : parseFloat(osa.toFixed(2)), delta: osaDelta === null ? null : parseFloat(osaDelta.toFixed(2)) },
+                SOS: { value: sos === null ? null : parseFloat(sos.toFixed(3)), delta: sosDelta === null ? null : parseFloat(sosDelta.toFixed(3)) },
                 Discount: { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
                 'Promo-My': { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
                 'PromoMy': { value: parseFloat(discount.toFixed(2)), delta: parseFloat(discountDelta.toFixed(2)) },
@@ -7890,8 +7923,8 @@ const getCompetitionData = async (filters = {}) => {
                 RPI: { value: parseFloat(rpi.toFixed(2)), delta: parseFloat(rpiDelta.toFixed(2)) },
                 // Legacy key for compat if needed
                 Price: { value: parseFloat(avgSellingPrice.toFixed(0)), delta: parseFloat(aspDelta.toFixed(2)) },
-                CategoryShare: { value: parseFloat(categoryShare.toFixed(2)), delta: parseFloat(categoryShareDelta.toFixed(2)) },
-                MarketShare: { value: parseFloat(marketShare.toFixed(2)), delta: parseFloat(marketShareDelta.toFixed(2)) },
+                CategoryShare: { value: categoryShare === null ? null : parseFloat(categoryShare.toFixed(2)), delta: categoryShareDelta === null ? null : parseFloat(categoryShareDelta.toFixed(2)) },
+                MarketShare: { value: marketShare === null ? null : parseFloat(marketShare.toFixed(2)), delta: marketShareDelta === null ? null : parseFloat(marketShareDelta.toFixed(2)) },
                 ListingPercent: { value: parseFloat(listingPercent.toFixed(2)), delta: parseFloat(listingPercentDelta.toFixed(2)) },
                 Assortment: { value: parseInt(brand.assortment || 0), delta: 0 },
                 Listing: { value: parseFloat(listingPercent.toFixed(2)), delta: parseFloat(listingPercentDelta.toFixed(2)) }
@@ -7995,42 +8028,45 @@ const getCompetitionData = async (filters = {}) => {
             const prevSku = skuOsaMapPrev.get(sku.Product) || {};
 
             // Calculate OSA 
+            const hasOsaData = sku.deno_osa_sum !== undefined && sku.neno_osa_sum !== undefined;
             const nenoOsa = parseFloat(sku.neno_osa_sum || 0);
             const denoOsa = parseFloat(sku.deno_osa_sum || 0);
-            const osa = denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0;
+            const osa = hasOsaData ? (denoOsa > 0 ? (nenoOsa / denoOsa) * 100 : 0) : null;
             const prevDenoOsa = parseFloat(prevSku.deno_osa_sum || 0);
             const prevNenoOsa = parseFloat(prevSku.neno_osa_sum || 0);
             const prevOsa = prevDenoOsa > 0 ? (prevNenoOsa / prevDenoOsa) * 100 : 0;
-            const osaDelta = calcChange(osa, prevOsa);
+            const osaDelta = osa === null ? null : calcChange(osa, prevOsa);
 
             // Calculate SOS (Share of Search)
             const prodLower = sku.Product?.toLowerCase();
-            const skuNeno = skuSosNenoMap.get(prodLower) || 0;
-            const sos = sosDeno > 0 ? (skuNeno / sosDeno) * 100 : 0;
+            const hasSosData = skuSosNenoMap.has(prodLower);
+            const skuNeno = hasSosData ? skuSosNenoMap.get(prodLower) : 0;
+            const sos = hasSosData ? (sosDeno > 0 ? (skuNeno / sosDeno) * 100 : 0) : null;
 
             const skuNenoPrev = skuSosNenoMapPrev.get(prodLower) || 0;
             const prevSos = sosDenoPrev > 0 ? (skuNenoPrev / sosDenoPrev) * 100 : 0;
-            const sosDelta = calcPPChange(sos, prevSos);
+            const sosDelta = sos === null ? null : calcPPChange(sos, prevSos);
 
             // Calculate Price
             const prevAvgPrice = parseFloat(prevSku.avg_price || 0);
             const priceDelta = calcChange(avgPrice, prevAvgPrice);
 
             // Market Share: Use the brand's averaged market share directly from helper
-            const marketShare = brandSalesMap.get(sku.Brand?.toLowerCase()) || 0;
+            const hasMsData = brandSalesMap.has(sku.Brand?.toLowerCase());
+            const marketShare = hasMsData ? (brandSalesMap.get(sku.Brand?.toLowerCase()) || 0) : null;
             const marketSharePrev = brandSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
-            const marketShareDelta = calcChange(marketShare, marketSharePrev);
+            const marketShareDelta = marketShare === null ? null : calcChange(marketShare, marketSharePrev);
 
             // Category Share: Our brands' share in this SKU's specific category
             const lowerSkuCat = skuCategory.toLowerCase();
             const skuBrandSales = brandAbsoluteSalesMap.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSales = categoryTotalSalesMap.get(lowerSkuCat) || 0;
-            const categoryShare = skuCategoryTotalSales > 0 ? (skuBrandSales / skuCategoryTotalSales) * 100 : 0;
+            const categoryShare = hasMsData ? (skuCategoryTotalSales > 0 ? (skuBrandSales / skuCategoryTotalSales) * 100 : 0) : null;
 
             const skuBrandSalesPrev = brandAbsoluteSalesMapPrev.get(sku.Brand?.toLowerCase()) || 0;
             const skuCategoryTotalSalesPrev = categoryTotalSalesMapPrev.get(lowerSkuCat) || 0;
             const categorySharePrev = skuCategoryTotalSalesPrev > 0 ? (skuBrandSalesPrev / skuCategoryTotalSalesPrev) * 100 : 0;
-            const categoryShareDelta = calcChange(categoryShare, categorySharePrev);
+            const categoryShareDelta = categoryShare === null ? null : calcChange(categoryShare, categorySharePrev);
 
             // Listing Percent
             const skuListingPercent = parseFloat(sku.avg_listing_percent || 0);
@@ -8041,11 +8077,11 @@ const getCompetitionData = async (filters = {}) => {
                 sku_name: sku.Product,
                 brand_name: sku.Brand,
                 brand: sku.Product,
-                OSA: { value: parseFloat(osa.toFixed(2)), delta: parseFloat(osaDelta.toFixed(2)) },
-                SOS: { value: parseFloat(sos.toFixed(3)), delta: parseFloat(sosDelta.toFixed(3)) },
+                OSA: { value: osa === null ? null : parseFloat(osa.toFixed(2)), delta: osaDelta === null ? null : parseFloat(osaDelta.toFixed(2)) },
+                SOS: { value: sos === null ? null : parseFloat(sos.toFixed(3)), delta: sosDelta === null ? null : parseFloat(sosDelta.toFixed(3)) },
                 Price: { value: parseFloat(avgPrice.toFixed(0)), delta: parseFloat(priceDelta.toFixed(2)) },
-                CategoryShare: { value: parseFloat(categoryShare.toFixed(2)), delta: parseFloat(categoryShareDelta.toFixed(2)) },
-                MarketShare: { value: parseFloat(marketShare.toFixed(2)), delta: parseFloat(marketShareDelta.toFixed(2)) },
+                CategoryShare: { value: categoryShare === null ? null : parseFloat(categoryShare.toFixed(2)), delta: categoryShareDelta === null ? null : parseFloat(categoryShareDelta.toFixed(2)) },
+                MarketShare: { value: marketShare === null ? null : parseFloat(marketShare.toFixed(2)), delta: marketShareDelta === null ? null : parseFloat(marketShareDelta.toFixed(2)) },
                 'Promo-My': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 'PromoMy': { value: parseFloat((sku.avg_discount || 0).toFixed(2)), delta: calcChange(sku.avg_discount || 0, prevSku.avg_discount || 0) },
                 ListingPercent: { value: parseFloat(skuListingPercent.toFixed(2)), delta: parseFloat(skuListingPercentDelta.toFixed(2)) }
