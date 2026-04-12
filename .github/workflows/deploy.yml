@@ -104,7 +104,7 @@ jobs:
             
             echo "🔍 Checking container status..."
             sudo docker compose ps
-            
+            sleep 10
             echo "✅ Health check..."
             curl -sf http://localhost:5000/health || { echo "❌ Backend health check failed"; exit 1; }
             curl -sf http://localhost:9400/ || { echo "❌ Frontend health check failed"; exit 1; }
