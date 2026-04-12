@@ -103,10 +103,11 @@ jobs:
             sleep 10
             
             echo "🔍 Checking container status..."
-            sudo docker compose -p multiple ps
+            sudo docker compose ps
             
             echo "✅ Health check..."
-            curl -sf http://localhost/health || { echo "❌ Health check failed"; exit 1; }
+            curl -sf http://localhost:5000/health || { echo "❌ Backend health check failed"; exit 1; }
+            curl -sf http://localhost:9400/ || { echo "❌ Frontend health check failed"; exit 1; }
             
             echo "🎉 Deployment successful!"
           ENDSSH
