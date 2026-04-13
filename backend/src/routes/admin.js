@@ -1,5 +1,5 @@
 // src/routes/admin.js
-import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions } from '../controllers/adminController.js';
+import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions, getDatabases, createUser } from '../controllers/adminController.js';
 
 export default (app) => {
     // Middleware to log Admin API calls
@@ -146,4 +146,29 @@ export default (app) => {
      *                 type: object
      */
     app.patch('/api/admin/permissions/tab-permissions', updateTabPermissions);
+    /**
+     * @swagger
+     * /api/admin/databases:
+     *   get:
+     *     summary: Get all available databases
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       200:
+     *         description: Successful response
+     */
+    app.get('/api/admin/databases', getDatabases);
+
+    /**
+     * @swagger
+     * /api/admin/users:
+     *   post:
+     *     summary: Create a new user from the admin panel
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       201:
+     *         description: Successful response
+     */
+    app.post('/api/admin/users', createUser);
 };

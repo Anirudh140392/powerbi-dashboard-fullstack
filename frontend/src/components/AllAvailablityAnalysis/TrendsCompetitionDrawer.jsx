@@ -342,10 +342,10 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   </ToggleButtonGroup>
 );
 
-const MetricChip = ({ label, color, active, onClick }) => {
+const MetricChip = ({ label, color, active, onClick, isNA }) => {
   return (
     <Box
-      onClick={onClick}
+      onClick={isNA ? undefined : onClick}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -353,14 +353,15 @@ const MetricChip = ({ label, color, active, onClick }) => {
         px: 1.5,
         py: 0.6,
         borderRadius: "999px",
-        cursor: "pointer",
-        border: `1px solid ${active ? color : "#E5E7EB"}`,
-        backgroundColor: active ? `${color}20` : "white",
-        color: active ? color : "#0f172a",
+        cursor: isNA ? "not-allowed" : "pointer",
+        border: `1px solid ${isNA ? "#E5E7EB" : active ? color : "#E5E7EB"}`,
+        backgroundColor: isNA ? "#F8FAFC" : active ? `${color}20` : "white",
+        color: isNA ? "#94A3B8" : active ? color : "#0f172a",
         fontSize: "12px",
         fontWeight: 600,
         userSelect: "none",
         transition: "all 0.15s ease",
+        opacity: isNA ? 0.7 : 1,
       }}
     >
       {/* CHECKBOX ICON */}
@@ -369,8 +370,8 @@ const MetricChip = ({ label, color, active, onClick }) => {
           width: 14,
           height: 14,
           borderRadius: 3,
-          border: `2px solid ${active ? color : "#CBD5E1"}`,
-          backgroundColor: active ? color : "transparent",
+          border: `2px solid ${isNA ? "#CBD5E1" : active ? color : "#CBD5E1"}`,
+          backgroundColor: isNA ? "#E2E8F0" : active ? color : "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -379,12 +380,51 @@ const MetricChip = ({ label, color, active, onClick }) => {
           lineHeight: 1,
         }}
       >
-        {active && "✓"}
+        {!isNA && active && "✓"}
+        {isNA && "−"}
       </Box>
 
       {label}
+      {isNA && (
+        <Box
+          component="span"
+          sx={{
+            ml: 0.5,
+            px: 0.8,
+            py: 0.1,
+            borderRadius: "4px",
+            backgroundColor: "#FEF3C7",
+            color: "#92400E",
+            fontSize: "9px",
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+          }}
+        >
+          N/A
+        </Box>
+      )}
     </Box>
   );
+};
+
+// Map metric IDs to their data source group for N/A detection
+const KPI_SOURCE_MAP = {
+  // PDP table KPIs
+  Offtakes: 'pdp', Offtake: 'pdp', offtake: 'pdp',
+  Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
+  Discount: 'pdp', 'Promo-My': 'pdp', PromoMyBrand: 'pdp', discount: 'pdp',
+  Assortment: 'pdp', Listing: 'pdp',
+  PricePerUnit: 'pdp', ASP: 'pdp', RPI: 'pdp',
+  // PM table KPIs
+  InorganicSales: 'pm', InorgSales: 'pm',
+  Conversion: 'pm', Roas: 'pm', ROAS: 'pm',
+  BmiSalesRatio: 'pm', Spend: 'pm',
+  CPM: 'pm', CPC: 'pm',
+  // KW table KPIs
+  ShareOfSearch: 'kw', SOS: 'kw', Sos: 'kw',
+  // MS table KPIs
+  MarketShare: 'ms', CategoryShare: 'ms',
+  marketShare: 'ms', categoryShare: 'ms',
 };
 
 
@@ -520,6 +560,7 @@ export default function TrendsCompetitionDrawer({
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);
   const [competitionData, setCompetitionData] = useState([]);
+  const [kpiAvailability, setKpiAvailability] = useState(null); // { pdp, pm, kw, ms } from backend
   const [loading, setLoading] = useState(true);
   const [compLoading, setCompLoading] = useState(false);
 
@@ -647,6 +688,7 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+        setKpiAvailability(null); // Pricing doesn't use kpiAvailability
       } else if (dynamicKey === "marketshare") {
         const params = {
           period: range,
@@ -670,6 +712,7 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+        setKpiAvailability(null); // Market share doesn't use kpiAvailability
       } else if (dynamicKey === "availability") {
         // Use availability-specific API (includes PSL)
         const params = {
@@ -695,6 +738,7 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+        setKpiAvailability(null); // Availability doesn't use kpiAvailability
       } else {
         // Use watchtower API for visibility/performance
         const params = {
@@ -719,11 +763,19 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+        // Store KPI availability from backend response
+        if (response.data?.kpiAvailability) {
+          setKpiAvailability(response.data.kpiAvailability);
+          console.log('[TrendsDrawer] KPI Availability:', response.data.kpiAvailability);
+        } else {
+          setKpiAvailability(null);
+        }
       }
     } catch (error) {
       console.error("[TrendsDrawer] Error fetching trends:", error);
       setTrendError(error.message || "Failed to load trend data");
       setChartData([]);
+      setKpiAvailability(null);
     } finally {
       setLoading(false);
     }
@@ -1865,7 +1917,7 @@ export default function TrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const formatTooltipValue = (val, seriesName) => {
-    if (val === undefined || val === null) return '-';
+    if (val === undefined || val === null) return 'N/A';
     let formatted = val;
     if (typeof val === 'number') {
       const absVal = Math.abs(val);
@@ -2422,21 +2474,27 @@ export default function TrendsCompetitionDrawer({
                 <Box display="flex" gap={1} flexWrap="wrap">
                   {trendMeta.metrics
                     .filter(m => !(isEcom && m.id === 'Listing'))
-                    .map((m) => (
-                      <MetricChip
-                        key={m.id}
-                        label={m.label}
-                        color={m.color}
-                        active={activeMetrics.includes(m.id)}
-                        onClick={() =>
-                          setActiveMetrics((prev) =>
-                            prev.includes(m.id)
-                              ? prev.filter((x) => x !== m.id)
-                              : [...prev, m.id]
-                          )
-                        }
-                      />
-                    ))}
+                    .map((m) => {
+                      // Determine if this metric's data source is unavailable
+                      const sourceGroup = KPI_SOURCE_MAP[m.id];
+                      const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
+                      return (
+                        <MetricChip
+                          key={m.id}
+                          label={m.label}
+                          color={m.color}
+                          active={activeMetrics.includes(m.id) && !isMetricNA}
+                          isNA={isMetricNA}
+                          onClick={() =>
+                            setActiveMetrics((prev) =>
+                              prev.includes(m.id)
+                                ? prev.filter((x) => x !== m.id)
+                                : [...prev, m.id]
+                            )
+                          }
+                        />
+                      );
+                    })}
 
                 </Box>
 

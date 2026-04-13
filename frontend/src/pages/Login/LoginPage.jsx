@@ -144,7 +144,10 @@ const LoginPage = () => {
                         <div className="w-14 h-[5px] bg-[#4c46f5] mt-3 rounded-full mb-10" />
 
                         {error && (
-                            <Alert severity="error" sx={{ mb: 4, borderRadius: "18px" }}>
+                            <Alert 
+                                severity={error.toLowerCase().includes("access request") || error.toLowerCase().includes("access pending") ? "success" : "error"} 
+                                sx={{ mb: 4, borderRadius: "18px" }}
+                            >
                                 {error}
                             </Alert>
                         )}

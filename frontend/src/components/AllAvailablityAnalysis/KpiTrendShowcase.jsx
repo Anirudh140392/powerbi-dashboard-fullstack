@@ -1249,7 +1249,7 @@ const BrandTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSel
                   </td>
                   {kpiKeys.map((k) => {
                     const raw = row[k.key];
-                    const display = raw == null ? '—' : (k.fmt ? k.fmt(raw) : typeof raw === 'number' ? `${raw.toFixed(1)}${k.unit || ''}` : raw);
+                    const display = raw == null ? 'N/A' : (k.fmt ? k.fmt(raw) : typeof raw === 'number' ? `${raw.toFixed(1)}${k.unit || ''}` : raw);
                     return (
                       <td key={k.key} className="px-3 py-2 text-center text-[12px]">
                         <span className="font-semibold text-slate-700">{display}</span>
@@ -1350,7 +1350,7 @@ const SkuTable = ({ rows, kpiKeys = KPI_KEYS, loading, selectedIds = [], onSelec
                   </td>
                   {kpiKeys.map((k) => {
                     const raw = row[k.key];
-                    const display = raw == null ? '—' : (k.fmt ? k.fmt(raw) : typeof raw === 'number' ? `${raw.toFixed(1)}${k.unit || ''}` : raw);
+                    const display = raw == null ? 'N/A' : (k.fmt ? k.fmt(raw) : typeof raw === 'number' ? `${raw.toFixed(1)}${k.unit || ''}` : raw);
                     return (
                       <td key={k.key} className="px-3 py-2 text-center text-[12px]">
                         <span className="font-semibold text-slate-700">{display}</span>
@@ -1541,13 +1541,20 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
     }
 
     return apiBrands.slice(0, 8).map((b, idx) => {
-      const osaVal = b.OSA?.value ?? b.osa?.value ?? b.OSA ?? b.osa ?? 0;
-      const sosVal = b.SOS?.value ?? b.sos?.value ?? b.SOS ?? b.sos ?? 0;
-      const priceVal = b.Price?.value ?? b.price?.value ?? b.Price ?? b.price ?? 0;
-      const listingVal = b.Listing?.value ?? b.listing?.value ?? b.ListingPercent?.value ?? b.Listing ?? b.listing ?? 0;
-      const assortmentVal = b.Assortment?.value ?? b.assortment?.value ?? b.Assortment ?? b.assortment ?? 0;
-      const catShareVal = b.CategoryShare?.value ?? b.categoryShare?.value ?? b.CategoryShare ?? b.categoryShare ?? 0;
-      const mktShareVal = b.MarketShare?.value ?? b.marketShare?.value ?? b.MarketShare ?? b.marketShare ?? 0;
+      const getVal = (v1, v2, v3, v4) => {
+        if (v1 !== undefined) return v1;
+        if (v2 !== undefined) return v2;
+        if (v3 !== undefined) return v3;
+        if (v4 !== undefined) return v4;
+        return 0;
+      };
+      const osaVal = getVal(b.OSA?.value, b.osa?.value, b.OSA, b.osa);
+      const sosVal = getVal(b.SOS?.value, b.sos?.value, b.SOS, b.sos);
+      const priceVal = getVal(b.Price?.value, b.price?.value, b.Price, b.price);
+      const listingVal = getVal(b.Listing?.value, b.listing?.value, b.ListingPercent?.value, b.Listing) ?? getVal(b.listing, undefined, undefined, undefined);
+      const assortmentVal = getVal(b.Assortment?.value, b.assortment?.value, b.Assortment, b.assortment);
+      const catShareVal = getVal(b.CategoryShare?.value, b.categoryShare?.value, b.CategoryShare, b.categoryShare);
+      const mktShareVal = getVal(b.MarketShare?.value, b.marketShare?.value, b.MarketShare, b.marketShare);
       return {
         id: b.brand_name || `brand-${idx}`,
         name: b.brand_name || 'Unknown',
@@ -1598,13 +1605,20 @@ export const KpiTrendShowcase = ({ dynamicKey, dimensionValue, dimensionType } =
     }
 
     return apiSkus.slice(0, 8).map((s, idx) => {
-      const osaVal = s.OSA?.value ?? s.osa?.value ?? s.OSA ?? s.osa ?? 0;
-      const sosVal = s.SOS?.value ?? s.sos?.value ?? s.SOS ?? s.sos ?? 0;
-      const priceVal = s.Price?.value ?? s.price?.value ?? s.Price ?? s.price ?? 0;
-      const listingVal = s.Listing?.value ?? s.listing?.value ?? s.ListingPercent?.value ?? s.Listing ?? s.listing ?? 0;
-      const assortmentVal = s.Assortment?.value ?? s.assortment?.value ?? s.Assortment ?? s.assortment ?? 0;
-      const catShareVal = s.CategoryShare?.value ?? s.categoryShare?.value ?? s.CategoryShare ?? s.categoryShare ?? 0;
-      const mktShareVal = s.MarketShare?.value ?? s.marketShare?.value ?? s.MarketShare ?? s.marketShare ?? 0;
+      const getVal = (v1, v2, v3, v4) => {
+        if (v1 !== undefined) return v1;
+        if (v2 !== undefined) return v2;
+        if (v3 !== undefined) return v3;
+        if (v4 !== undefined) return v4;
+        return 0;
+      };
+      const osaVal = getVal(s.OSA?.value, s.osa?.value, s.OSA, s.osa);
+      const sosVal = getVal(s.SOS?.value, s.sos?.value, s.SOS, s.sos);
+      const priceVal = getVal(s.Price?.value, s.price?.value, s.Price, s.price);
+      const listingVal = getVal(s.Listing?.value, s.listing?.value, s.ListingPercent?.value, s.Listing) ?? getVal(s.listing, undefined, undefined, undefined);
+      const assortmentVal = getVal(s.Assortment?.value, s.assortment?.value, s.Assortment, s.assortment);
+      const catShareVal = getVal(s.CategoryShare?.value, s.categoryShare?.value, s.CategoryShare, s.categoryShare);
+      const mktShareVal = getVal(s.MarketShare?.value, s.marketShare?.value, s.MarketShare, s.marketShare);
       return {
         id: s.sku_name || `sku-${idx}`,
         name: s.sku_name || 'Unknown',
