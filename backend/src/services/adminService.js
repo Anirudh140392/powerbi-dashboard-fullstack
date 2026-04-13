@@ -1,5 +1,6 @@
 // src/services/adminService.js
-import { queryAdminDB } from '../config/adminClickhouse.js';
+import { queryAdminDB, insertAdminDB } from '../config/adminClickhouse.js';
+import bcrypt from 'bcrypt';
 
 /**
  * Fetch all users with their associated database name
@@ -219,17 +220,72 @@ export const getPendingRequests = async () => {
 /**
  * Update the access status for a specific login record
  */
-export const updateUserAccess = async (id, status) => {
+export const updateUserAccess = async (id, status, userName) => {
     try {
         // Find the record by id and update its access column
         // Using ALTER TABLE UPDATE for ClickHouse Mutations
-        const query = `
-            ALTER TABLE tb_user 
-            UPDATE access = '${status}' 
-            WHERE toString(id) = '${id}'
-        `;
+        let query;
+        if (userName) {
+            const safeUserName = userName.replace(/'/g, "\\'");
+            
+            // user_id is a sorting key in ClickHouse, so we cannot update it via ALTER TABLE UPDATE.
+            // We must insert a new row with the new user_id and delete the old pending row.
+            const existing = await queryAdminDB(`
+                SELECT 
+                    user_email,
+                    user_role,
+                    password_hash,
+                    toString(db_id) as db_id_str,
+                    created_on,
+                    status as row_status,
+                    ip,
+                    db_status,
+                    tab_permissions
+                FROM tb_user 
+                WHERE toString(id) = '${id}' 
+                LIMIT 1
+            `);
+            
+            if (existing && existing.length > 0) {
+                const user = existing[0];
+                
+                // Get the new hash for user_name
+                const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${safeUserName}')) as hash`);
+                const newUserId = hashRes[0].hash;
+                const newRowId = Date.now().toString();
+                
+                // Insert the new record representing the approved state
+                await insertAdminDB('tb_user', [{
+                    id: newRowId,
+                    user_id: newUserId,
+                    user_email: user.user_email,
+                    user_name: safeUserName,
+                    user_role: user.user_role,
+                    password_hash: user.password_hash,
+                    db_id: user.db_id_str,
+                    last_login: new Date().toISOString().replace('T', ' ').split('.')[0],
+                    created_on: user.created_on,
+                    status: user.row_status,
+                    ip: user.ip,
+                    access: status,
+                    db_status: user.db_status || 'active',
+                    tab_permissions: user.tab_permissions || ''
+                }]);
+                
+                // Delete the old row
+                await queryAdminDB(`ALTER TABLE tb_user DELETE WHERE toString(id) = '${id}'`);
+            } else {
+                throw new Error("Pending access request not found.");
+            }
+        } else {
+            const query = `
+                ALTER TABLE tb_user 
+                UPDATE access = '${status}' 
+                WHERE toString(id) = '${id}'
+            `;
+            await queryAdminDB(query);
+        }
 
-        await queryAdminDB(query);
         return { success: true };
     } catch (error) {
         console.error(`[AdminService] updateUserAccess failed for ${id}:`, error.message);
@@ -347,6 +403,62 @@ export const updateUserTabPermissions = async (userEmail, tabPermissions) => {
         return { success: true };
     } catch (error) {
         console.error(`[AdminService] updateUserTabPermissions failed for ${userEmail}:`, error.message);
+        throw error;
+    }
+};
+
+/**
+ * Fetch available databases from tb_database
+ */
+export const getDatabases = async () => {
+    try {
+        const query = `
+            SELECT 
+                db_name, 
+                toString(db_id) as db_id 
+            FROM tb_database
+            ORDER BY db_name ASC
+        `;
+        return await queryAdminDB(query);
+    } catch (error) {
+        console.error('[AdminService] getDatabases failed:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Create a new user (admin initiated)
+ */
+export const createUser = async ({ email, password, role, status, db_id }) => {
+    try {
+        const password_hash = await bcrypt.hash(password, 10);
+        
+        // Generate an initial user_id based on email because user_name is blank at creation
+        const hashRes = await queryAdminDB(`SELECT toString(cityHash64('${email}')) as hash`);
+        const user_id = hashRes[0].hash;
+        const id = Date.now().toString();
+        const currentTimestamp = new Date().toISOString().replace('T', ' ').split('.')[0];
+        
+        await insertAdminDB('tb_user', [{
+            id: id,
+            user_id: user_id,
+            user_email: email,
+            user_name: "", 
+            user_role: role.toLowerCase(),
+            password_hash: password_hash,
+            db_id: db_id,
+            last_login: currentTimestamp,
+            created_on: currentTimestamp,
+            status: status.toLowerCase(),
+            ip: "", 
+            access: "pending",
+            db_status: "active",
+            tab_permissions: ""
+        }]);
+
+        return { success: true, id, user_id };
+    } catch (error) {
+        console.error('[AdminService] createUser failed:', error.message);
         throw error;
     }
 };

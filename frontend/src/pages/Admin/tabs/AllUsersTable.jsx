@@ -26,36 +26,58 @@ const AllUsersTable = () => {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [databases, setDatabases] = useState([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const fetchUsers = async () => {
+        try {
+            setLoading(true);
+            const token = sessionStorage.getItem("token");
+            const API_BASE = import.meta.env.VITE_API_URL
+                ? `${import.meta.env.VITE_API_URL}/api`
+                : "/api";
+
+            const response = await axios.get(`${API_BASE}/admin/users`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
+
+            if (response.data.success) {
+                setUsers(response.data.data);
+            } else {
+                setError(response.data.error || "Failed to fetch users");
+            }
+        } catch (err) {
+            console.error("Error fetching users:", err);
+            setError(err.response?.data?.error || "An error occurred while fetching users");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchUsers = async () => {
+        fetchUsers();
+        
+        const fetchDatabases = async () => {
             try {
-                setLoading(true);
                 const token = sessionStorage.getItem("token");
                 const API_BASE = import.meta.env.VITE_API_URL
                     ? `${import.meta.env.VITE_API_URL}/api`
                     : "/api";
 
-                const response = await axios.get(`${API_BASE}/admin/users`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`
-                    }
+                const response = await axios.get(`${API_BASE}/admin/databases`, {
+                    headers: { Authorization: `Bearer ${token}` }
                 });
 
                 if (response.data.success) {
-                    setUsers(response.data.data);
-                } else {
-                    setError(response.data.error || "Failed to fetch users");
+                    setDatabases(response.data.data);
                 }
             } catch (err) {
-                console.error("Error fetching users:", err);
-                setError(err.response?.data?.error || "An error occurred while fetching users");
-            } finally {
-                setLoading(false);
+                console.error("Error fetching databases:", err);
             }
         };
-
-        fetchUsers();
+        fetchDatabases();
     }, []);
 
     const [searchTerm, setSearchTerm] = useState("");
@@ -63,10 +85,11 @@ const AllUsersTable = () => {
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({
-        name: "",
+        password: "",
         email: "",
-        role: "Viewer",
-        status: "Active"
+        role: "user",
+        status: "active",
+        db_id: ""
     });
     const [errors, setErrors] = useState({});
 
@@ -108,30 +131,48 @@ const AllUsersTable = () => {
 
     const validateForm = () => {
         const newErrors = {};
-        if (!formData.name.trim()) newErrors.name = "Full Name is required";
+        if (!formData.password) newErrors.password = "Password is required";
         if (!formData.email.trim()) {
             newErrors.email = "Email Address is required";
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
             newErrors.email = "Invalid email format";
         }
+        if (!formData.db_id) newErrors.db_id = "Database is required";
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleAddUser = (e) => {
+    const handleAddUser = async (e) => {
         e.preventDefault();
         if (validateForm()) {
-            const newUser = {
-                id: Math.max(...users.map(u => u.id)) + 1,
-                ...formData,
-                joined: new Date().toISOString().split('T')[0]
-            };
+            try {
+                setIsSubmitting(true);
+                const token = sessionStorage.getItem("token");
+                const API_BASE = import.meta.env.VITE_API_URL
+                    ? `${import.meta.env.VITE_API_URL}/api`
+                    : "/api";
 
-            setUsers([newUser, ...users]);
-            setShowModal(false);
-            setFormData({ name: "", email: "", role: "Viewer", status: "Active" });
-            setErrors({});
-            setCurrentPage(1);
+                const response = await axios.post(`${API_BASE}/admin/users`, formData, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
+
+                if (response.data.success) {
+                    await fetchUsers(); // Refresh the list
+                    setShowModal(false);
+                    setFormData({ password: "", email: "", role: "user", status: "active", db_id: "" });
+                    setErrors({});
+                    setCurrentPage(1);
+                } else {
+                    alert(response.data.error || "Failed to create user");
+                }
+            } catch (err) {
+                console.error("Error creating user:", err);
+                alert(err.response?.data?.error || "An error occurred while creating user");
+            } finally {
+                setIsSubmitting(false);
+            }
         }
     };
 
@@ -409,15 +450,15 @@ const AllUsersTable = () => {
 
                             <form onSubmit={handleAddUser} className="p-8 space-y-6">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Password</label>
                                     <input
-                                        type="text"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder="e.g. Sanyam Miglani"
-                                        className={`w-full px-5 py-3 bg-slate-50 border ${errors.name ? 'border-rose-300 ring-4 ring-rose-50' : 'border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-2xl text-sm transition-all outline-none font-medium text-slate-700`}
+                                        type="password"
+                                        value={formData.password}
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                        placeholder="••••••••"
+                                        className={`w-full px-5 py-3 bg-slate-50 border ${errors.password ? 'border-rose-300 ring-4 ring-rose-50' : 'border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-2xl text-sm transition-all outline-none font-medium text-slate-700`}
                                     />
-                                    {errors.name && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.name}</p>}
+                                    {errors.password && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.password}</p>}
                                 </div>
 
                                 <div className="space-y-2">
@@ -441,11 +482,8 @@ const AllUsersTable = () => {
                                                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                                                 className="w-full px-5 py-3 bg-slate-50 border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 rounded-2xl text-sm transition-all outline-none appearance-none cursor-pointer font-medium text-slate-700"
                                             >
-                                                <option value="Super Admin">Super Admin</option>
-                                                <option value="Manager">Manager</option>
-                                                <option value="Analyst">Analyst</option>
-                                                <option value="Editor">Editor</option>
-                                                <option value="Viewer">Viewer</option>
+                                                <option value="user">User</option>
+                                                <option value="admin">Admin</option>
                                             </select>
                                             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                                 <ChevronRight className="w-4 h-4 rotate-90" />
@@ -461,15 +499,34 @@ const AllUsersTable = () => {
                                                 onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                                                 className="w-full px-5 py-3 bg-slate-50 border border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 rounded-2xl text-sm transition-all outline-none appearance-none cursor-pointer font-medium text-slate-700"
                                             >
-                                                <option value="Active">Active</option>
-                                                <option value="Away">Away</option>
-                                                <option value="Inactive">Inactive</option>
+                                                <option value="active">Active</option>
+                                                <option value="deactive">Deactive</option>
                                             </select>
                                             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                                                 <ChevronRight className="w-4 h-4 rotate-90" />
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Database</label>
+                                    <div className="relative">
+                                        <select
+                                            value={formData.db_id}
+                                            onChange={(e) => setFormData({ ...formData, db_id: e.target.value })}
+                                            className={`w-full px-5 py-3 bg-slate-50 border ${errors.db_id ? 'border-rose-300 ring-4 ring-rose-50' : 'border-slate-200 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-2xl text-sm transition-all outline-none appearance-none cursor-pointer font-medium text-slate-700`}
+                                        >
+                                            <option value="">Select Database</option>
+                                            {databases.map((db, idx) => (
+                                                <option key={idx} value={db.db_id}>{db.db_name}</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                                            <ChevronRight className="w-4 h-4 rotate-90" />
+                                        </div>
+                                    </div>
+                                    {errors.db_id && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.db_id}</p>}
                                 </div>
 
                                 <div className="pt-6 flex items-center gap-4">
@@ -482,9 +539,20 @@ const AllUsersTable = () => {
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 px-6 py-4 bg-indigo-600 rounded-2xl text-sm font-bold text-white hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-[0.98]"
+                                        disabled={isSubmitting}
+                                        className="flex-1 px-6 py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-200 transition-all active:scale-[0.98] disabled:scale-100 flex items-center justify-center gap-2"
                                     >
-                                        Create User
+                                        {isSubmitting ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                Creating...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <UserPlus className="w-4 h-4" />
+                                                Create User
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             </form>

@@ -128,7 +128,7 @@ export const updateUserAccess = async (req, res) => {
             });
         }
 
-        const { id, status } = req.body;
+        const { id, status, userName } = req.body;
         
         if (!id || !status) {
             return res.status(400).json({
@@ -137,7 +137,7 @@ export const updateUserAccess = async (req, res) => {
             });
         }
 
-        await adminService.updateUserAccess(id, status);
+        await adminService.updateUserAccess(id, status, userName);
 
         return res.status(200).json({
             success: true,
@@ -247,6 +247,72 @@ export const updateTabPermissions = async (req, res) => {
         });
     } catch (error) {
         console.error('[AdminController] updateTabPermissions failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
+ * GET /api/admin/databases
+ * Returns list of available databases
+ */
+export const getDatabases = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const databases = await adminService.getDatabases();
+
+        return res.status(200).json({
+            success: true,
+            data: databases
+        });
+    } catch (error) {
+        console.error('[AdminController] getDatabases failed:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+};
+
+/**
+ * POST /api/admin/users
+ * Creates a new user with hashed password
+ */
+export const createUser = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                error: 'Forbidden: Admin access required'
+            });
+        }
+
+        const { email, password, role, status, db_id } = req.body;
+
+        if (!email || !password || !role || !status || !db_id) {
+            return res.status(400).json({
+                success: false,
+                error: 'email, password, role, status, and db_id are required'
+            });
+        }
+
+        const result = await adminService.createUser({ email, password, role, status, db_id });
+
+        return res.status(201).json({
+            success: true,
+            message: `User created successfully`,
+            data: result
+        });
+    } catch (error) {
+        console.error('[AdminController] createUser failed:', error.message);
         return res.status(500).json({
             success: false,
             error: 'Internal Server Error'

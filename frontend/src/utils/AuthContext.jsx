@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useCallback } from "react";
 import axios from "axios";
+import fpPromise from "@fingerprintjs/fingerprintjs";
 
 const AuthContext = createContext(null);
 
@@ -30,10 +31,11 @@ export const AuthProvider = ({ children }) => {
         try {
             let publicIp = '';
             try {
-                const ipRes = await axios.get('https://api.ipify.org?format=json');
-                publicIp = ipRes.data.ip;
+                const fp = await fpPromise.load();
+                const result = await fp.get();
+                publicIp = result.visitorId;
             } catch (e) {
-                console.warn("Could not fetch public IP", e);
+                console.warn("Could not generate device fingerprint", e);
             }
 
             const response = await axios.post(`${API_BASE}/auth/login`, {

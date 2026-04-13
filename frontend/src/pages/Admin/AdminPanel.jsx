@@ -128,7 +128,7 @@ const AdminPanel = () => {
                 </header>
 
                 {/* Content Container */}
-                <div className="p-10 max-w-7xl mx-auto w-full flex-1">
+                <div className="p-10 mx-auto w-full flex-1">
                     <AnimatePresence mode="wait">
                         <motion.div
                             key={activeTab}
