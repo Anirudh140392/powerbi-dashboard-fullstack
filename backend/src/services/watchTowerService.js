@@ -107,7 +107,8 @@ async function getWatchtowerSource() {
                 skuCode: r('sku_code'),
                 quantitySold: r('total_qty'),
                 discount: `if(${r('mrp')} > 0, (${r('mrp')} - ${r('selling_price')}) / ${r('mrp')} * 100, 0)`,
-                listingPercent: r('avg_listing_percent')
+                listingPercent: r('avg_listing_percent'),
+                channel: r('channel')
             }
         };
     }
@@ -168,7 +169,8 @@ async function getWatchtowerSource() {
             skuCode: webPidCol,
             quantitySold: qtySoldCol,
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
-            listingPercent: `if(toFloat64OrZero(toString(${listingPercentCol})) > 0, toFloat64OrZero(toString(${listingPercentCol})), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`
+            listingPercent: `if(toFloat64OrZero(toString(${listingPercentCol})) > 0, toFloat64OrZero(toString(${listingPercentCol})), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`,
+            channel: columnExists(cols, 'channel') ? r('channel') : null
         }
     };
 }
@@ -198,7 +200,8 @@ async function getPmSource() {
             location: r('location_name'),
             product: r('product'),
             skuCode: r('sku_code'),
-            date: r('DATE')
+            date: r('DATE'),
+            channel: columnExists(cols, 'channel') ? r('channel') : null
         }
     };
 }
@@ -279,31 +282,43 @@ const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
  * @param {string} channel - The selected channel (e.g. 'Ecommerce', 'Modern Trades')
  * @returns {string|null} - The SQL condition for platform
  */
-const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', forceLower = false) => {
+const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', forceLower = false, channelColumn = null) => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
     const formatStr = (s) => forceLower && s ? s.toLowerCase() : s;
+
+    let conditions = [];
 
     if (platform && platform !== 'All') {
         const platforms = Array.isArray(platform) ? platform : (typeof platform === 'string' && platform.includes(',') ? platform.split(',') : [platform]);
         if (platforms.length === 1) {
-            return `${columnName} = '${escapeStr(formatStr(platforms[0]))}'`;
+            conditions.push(`${columnName} = '${escapeStr(formatStr(platforms[0]))}'`);
         } else if (platforms.length > 1) {
             const list = platforms.map(p => `'${escapeStr(formatStr(p.trim()))}'`).join(', ');
-            return `${columnName} IN (${list})`;
+            conditions.push(`${columnName} IN (${list})`);
         }
     }
 
-    if (channel === 'Ecommerce' || channel === 'E-commerce' || channel === 'Ecom') {
-        const ecomPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart'];
-        return `${columnName} IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`;
+    if (channel && channel !== 'All') {
+        const channels = Array.isArray(channel) ? channel : (typeof channel === 'string' && channel.includes(',') ? channel.split(',') : [channel]);
+        if (channelColumn) {
+            // Using the actual database channel column
+            const list = channels.map(c => `'${escapeStr(c.trim())}'`).join(', ');
+            conditions.push(`lower(${channelColumn}) IN (${list.toLowerCase()})`);
+        } else {
+            // Fallback for tables without a channel column (by filtering on platforms)
+            const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
+            const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
+
+            const ecomPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart'];
+            if (isEcom && !isModernTrade) {
+                conditions.push(`${columnName} IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`);
+            } else if (isModernTrade && !isEcom) {
+                conditions.push(`${columnName} NOT IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`);
+            }
+        }
     }
 
-    if (channel === 'Modern Trades' || channel === 'ModernTrade') {
-        const ecomPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart'];
-        return `${columnName} NOT IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`;
-    }
-
-    return null;
+    return conditions.length > 0 ? conditions.join(' AND ') : null;
 };
 
 
@@ -904,11 +919,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const platformCol = src.f.platform;
             const platformArrLocal = normalizeFilterArray(platform);
             if (platformArrLocal && platformArrLocal.length > 0) {
-                const cond = buildPlatformChannelCond(platformArrLocal, channel, `lower(${platformCol})`, true);
+                const cond = buildPlatformChannelCond(platformArrLocal, channel, `lower(${platformCol})`, true, src.f.channel);
                 if (cond) conditions.push(cond);
             } else {
                 // If platform is 'All' or null, handle based on channel
-                const cond = buildPlatformChannelCond(null, channel, `lower(${platformCol})`, true);
+                const cond = buildPlatformChannelCond(null, channel, `lower(${platformCol})`, true, src.f.channel);
                 if (cond) conditions.push(cond);
             }
 
@@ -970,11 +985,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             const platformFilterArr = normalizeFilterArray(platformFilter);
             const platformCol = src.f.platform;
             if (platformFilterArr && platformFilterArr.length > 0) {
-                const cond = buildPlatformChannelCond(platformFilterArr, channel, `lower(${platformCol})`, true);
+                const cond = buildPlatformChannelCond(platformFilterArr, channel, `lower(${platformCol})`, true, src.f.channel);
                 if (cond) conditions.push(cond);
             } else {
                 // If platform is 'All' or null, handle based on channel
-                const cond = buildPlatformChannelCond(null, channel, `lower(${platformCol})`, true);
+                const cond = buildPlatformChannelCond(null, channel, `lower(${platformCol})`, true, src.f.channel);
                 if (cond) conditions.push(cond);
             }
 
@@ -1280,7 +1295,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         // Filter for Our Brands Only (Enforce comp_flag=0 if All brands or specific brands selected)
                         const compFlagCol = src.isAgg ? 'comp_flag' : 'Comp_flag';
                         const brandCondArr = normalizeFilterArray(brand);
-                        
+
                         if (brandCondArr && brandCondArr.length > 0) {
                             // If specific brands are selected, we must ensure they are our brands (comp_flag=0)
                             // or allow them if they are selected. Usually Watch Tower is for our brands.
@@ -1621,21 +1636,21 @@ const computeSummaryMetrics = async (filters, options = {}) => {
             (async () => {
                 try {
                     // Approximate Weekly Trend for SOS by day
-                    const brandsForNumerator = (brand && brand !== 'All') 
+                    const brandsForNumerator = (brand && brand !== 'All')
                         ? (Array.isArray(brand) ? brand : [brand])
                         : (await getGlobalOurBrandsList());
-                    
+
                     const brandInClause = brandsForNumerator.map(b => `'${escapeStr(b)}'`).join(', ');
                     const baseCond = [
                         `toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`
                     ];
-                    
+
                     const locArr = normalizeFilterArray(location);
                     if (locArr && locArr.length > 0) baseCond.push(`lower(location_name) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
-                    
+
                     const catArr = normalizeFilterArray(category);
                     if (catArr && catArr.length > 0) baseCond.push(`lower(keyword_category) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
-                    
+
                     const platArr = normalizeFilterArray(platform);
                     const platCond = buildPlatformChannelCond(platArr, channel, 'lower(platform_name)', true);
                     if (platCond) baseCond.push(platCond);
@@ -1756,7 +1771,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         if (prevOfftakeVal > 0) {
             offtakeChange = ((totalOfftake - prevOfftakeVal) / prevOfftakeVal) * 100;
         } else if (totalOfftake > 0) {
-            offtakeChange = 100; 
+            offtakeChange = 100;
         }
         const offtakeTrendStr = (offtakeChange >= 0 ? "+" : "") + offtakeChange.toFixed(2) + "%";
 
@@ -4855,7 +4870,7 @@ const getPlatformOverview = async (filters) => {
     // Build base conditions for rb_pm_olap (Marketing Metrics)
     const buildPmConds = (start, end) => {
         const conds = [`${pmSrc.f.date} BETWEEN '${start.format('YYYY-MM-DD')}' AND '${end.format('YYYY-MM-DD')}'`];
-        
+
         // Enforce our brands only for Spend (Spend table usually only has our data, but safety first)
         const pmBrandCol = pmSrc.f.brand;
         if (brandArr && brandArr.length > 0) {
@@ -6920,19 +6935,19 @@ const getKpiTrends = async (filters) => {
             const dimKey = dimension.toLowerCase();
             const val = dimensionValue;
             if (dimKey === 'platform') conds.push(`${pmSrc.f.platform} = '${escapeStr(val)}'`);
-            else if (dimKey === 'category' || dimKey === 'format') conds.push(`${pmSrc.f.category} = '${escapeStr(val)}'`);
-            else if (dimKey === 'brand') conds.push(`${pmSrc.f.brand} = '${escapeStr(val)}'`);
-            else if (dimKey === 'city' || dimKey === 'location') conds.push(`${pmSrc.f.location} = '${escapeStr(val)}'`);
+            else if (dimKey === 'category' || dimKey === 'format') conds.push(`lower(${pmSrc.f.category}) = '${escapeStr(val.toLowerCase())}'`);
+            else if (dimKey === 'brand') conds.push(`lower(${pmSrc.f.brand}) = '${escapeStr(val.toLowerCase())}'`);
+            else if (dimKey === 'city' || dimKey === 'location') conds.push(`lower(${pmSrc.f.location}) = '${escapeStr(val.toLowerCase())}'`);
         }
 
-        if (catArr && catArr.length > 0) conds.push(`${pmSrc.f.category} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
-        
+        if (catArr && catArr.length > 0) conds.push(`lower(${pmSrc.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
+
         if (brandArr && brandArr.length > 0) {
-            const brandConditions = brandArr.map(b => `${pmSrc.f.brand} LIKE '%${escapeStr(b)}%'`).join(' OR ');
+            const brandConditions = brandArr.map(b => `lower(${pmSrc.f.brand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
             conds.push(`(${brandConditions})`);
         }
 
-        if (locArr && locArr.length > 0) conds.push(`${pmSrc.f.location} IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        if (locArr && locArr.length > 0) conds.push(`lower(${pmSrc.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
         if (platArr && platArr.length > 0) {
             conds.push(`${pmSrc.f.platform} IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
@@ -6944,8 +6959,8 @@ const getKpiTrends = async (filters) => {
         // Enforce "Our Brands" only for PM metrics if no specific brand is selected
         if (!brandArr || brandArr.length === 0 || brandArr.includes('All')) {
             if (validBrandNames && validBrandNames.length > 0) {
-                const brandList = validBrandNames.map(b => `'${escapeStr(b)}'`).join(', ');
-                conds.push(`${pmSrc.f.brand} IN (${brandList})`);
+                const brandList = validBrandNames.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ');
+                conds.push(`lower(${pmSrc.f.brand}) IN (${brandList})`);
             }
         }
 
@@ -7176,8 +7191,8 @@ const getKpiTrends = async (filters) => {
         const pmAdClicks = pmData.clicks;
         const pmAdImpressions = pmData.impressions;
 
-        // 2. Inorganic Sales (Ad Sales from PM / Total Sales * 100)
-        const inorganicSales = totalSales > 0 ? (pmAdSales / totalSales) * 100 : 0;
+        // 2. Inorganic Sales (Ad Sales from PM) - Absolute value as requested
+        const inorganicSales = pmAdSales;
 
         // 3. Conversion (Orders / Clicks * 100) - Using PM data
         const conversion = calculateConversion(pmAdOrders, pmAdImpressions, pmAdClicks);
@@ -10085,7 +10100,7 @@ const getRcaData = async (filters = {}) => {
                 rawPrevOrgGenericSos: parseFloat(prevBrandOrgGenericSos),
                 rawOrgCompSos: parseFloat(brandOrgCompSos),
                 rawPrevOrgCompSos: parseFloat(prevBrandOrgCompSos),
-                
+
                 rawAdBrandedSos: parseFloat(brandAdBrandedSos),
                 rawPrevAdBrandedSos: parseFloat(prevBrandAdBrandedSos),
                 rawAdGenericSos: parseFloat(brandAdGenericSos),
@@ -10213,7 +10228,7 @@ const getRcaData = async (filters = {}) => {
                     metrics: allNodeMetrics,
                     children: [
                         {
-                            id: "ad-impressions",
+                            id: "cvr-ad-impressions",
                             label: "Ad Impressions",
                             value: formatCount(cAdImpPdp),
                             change: adImpDelta.val,
@@ -10222,11 +10237,11 @@ const getRcaData = async (filters = {}) => {
                             metrics: allNodeMetrics,
                             meta: [{ label: "Ad SOS", value: cTotalKw > 0 ? `${((cAdRbKw / cTotalKw) * 100).toFixed(2)}% ` : "0.0%", change: adRbDelta.val, isPositive: adRbDelta.isPos }],
                             children: [
-                                { id: "ad-branded", label: "Branded Keyword", value: `${cAdBrandedSos}% `, prevValue: `${pAdBrandedSos}% `, change: adBrandedSosDelta.val, isPositive: adBrandedSosDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: adKwData.br },
-                                { id: "ad-comp", label: "Comp Keyword", value: `${cAdCompSos}% `, prevValue: `${pAdCompSos}% `, change: adCompSosDelta.val, isPositive: adCompSosDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: adKwData.co }
+                                { id: "cvr-ad-branded", label: "Branded Keyword", value: `${cAdBrandedSos}% `, prevValue: `${pAdBrandedSos}% `, change: adBrandedSosDelta.val, isPositive: adBrandedSosDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: adKwData.br },
+                                { id: "cvr-ad-comp", label: "Comp Keyword", value: `${cAdCompSos}% `, prevValue: `${pAdCompSos}% `, change: adCompSosDelta.val, isPositive: adCompSosDelta.isPos, category: "ad", metrics: allNodeMetrics, keywordMetrics: adKwData.co }
                             ]
                         },
-                        { id: "discounting", label: "Wt. Disc %", value: `${cDiscount.toFixed(2)}% `, prevValue: `${pDiscount.toFixed(2)}% `, change: discDelta.val, isPositive: discDelta.isPos, category: "discounting", metrics: allNodeMetrics },
+                        { id: "cvr-discounting", label: "Wt. Disc %", value: `${cDiscount.toFixed(2)}% `, prevValue: `${pDiscount.toFixed(2)}% `, change: discDelta.val, isPositive: discDelta.isPos, category: "discounting", metrics: allNodeMetrics },
                         { id: "rating-count", label: "Rating Count", value: formatCount(cQty), prevValue: formatCount(pQty), change: qtyDelta.val, isPositive: qtyDelta.isPos, category: "rating", metrics: allNodeMetrics }
                     ]
                 }
@@ -10941,11 +10956,16 @@ const getPerformanceBreakdownData = async (filters) => {
         }
 
         // ── Filter to only our brands (comp_flag=0) ──
-        const ourBrands = await getGlobalOurBrandsList();
+        // For PM Olap, we don't need to filter by ourBrands list because the PM data 
+        // doesn't always contain the brand name (e.g., has 'Performance', 'Test')
+        // and we only have PM data for our own brands anyway.
         let ourBrandClause = '';
+        /*
+        const ourBrands = await getGlobalOurBrandsList();
         if (ourBrands && ourBrands.length > 0) {
             ourBrandClause = ` AND lower(${pmSrc.f.brand}) IN(${ourBrands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
         }
+        */
 
         // ── Calculate total spends by summing rows later to ensure 100% share consistency ──
         // (Removing separate total_spends query for performance and better percentage alignment)
