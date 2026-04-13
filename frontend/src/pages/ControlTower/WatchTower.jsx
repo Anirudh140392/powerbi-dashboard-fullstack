@@ -192,7 +192,8 @@ export default function WatchTower() {
     datesFetched,
     platformsFetched,
     brands: contextBrands,
-    refreshFilters
+    refreshFilters,
+    refreshDates
   } = React.useContext(FilterContext);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
@@ -201,7 +202,10 @@ export default function WatchTower() {
     if (typeof refreshFilters === 'function') {
       refreshFilters();
     }
-  }, [refreshFilters]);
+    if (typeof refreshDates === 'function') {
+      refreshDates();
+    }
+  }, [refreshFilters, refreshDates]);
 
   // --- DETERMINISTIC JITTER FOR FRONTEND-ONLY VARIATION ---
   const getJitter = (baseVal, kpiKey) => {

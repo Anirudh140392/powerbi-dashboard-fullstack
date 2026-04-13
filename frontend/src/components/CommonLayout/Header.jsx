@@ -13,6 +13,7 @@ import {
   DialogActions,
   Divider,
   Checkbox,
+  Skeleton,
 } from "@mui/material";
 
 import {
@@ -3154,10 +3155,10 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     visibilityCategories,
     selectedCategory,
     setSelectedCategory,
-    productCategories,
     selectedProductCategory,
     setSelectedProductCategory,
     maxDate,
+    datesFetched,
   } = React.useContext(FilterContext);
 
   const [darkStoreData, setDarkStoreData] = React.useState({ totalCount: 0, byPlatform: {} });
@@ -3679,37 +3680,49 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                 >
                   TIME PERIOD
                 </Typography>
-                <DateRangeComparePicker
-                  timeStart={timeStart}
-                  timeEnd={timeEnd}
-                  compareStart={compareStart}
-                  compareEnd={compareEnd}
-                  maxDate={maxDate}
-                  onApply={(start, end, cStart, cEnd, compareOn, label) => {
-                    setTimeStart(start);
-                    setTimeEnd(end);
+                {!datesFetched ? (
+                  <Skeleton 
+                    variant="rounded" 
+                    width="100%" 
+                    height={36} 
+                    sx={{ 
+                      borderRadius: "10px",
+                      bgcolor: "rgba(0,0,0,0.05)"
+                    }} 
+                  />
+                ) : (
+                  <DateRangeComparePicker
+                    timeStart={timeStart}
+                    timeEnd={timeEnd}
+                    compareStart={compareStart}
+                    compareEnd={compareEnd}
+                    maxDate={maxDate}
+                    onApply={(start, end, cStart, cEnd, compareOn, label) => {
+                      setTimeStart(start);
+                      setTimeEnd(end);
 
-                    // Format label for KPI cards
-                    let formattedLabel = "VS PREV. PERIOD";
-                    if (label) {
-                      const up = label.toUpperCase();
-                      if (up === "TODAY") formattedLabel = "VS YESTERDAY";
-                      else if (up === "YESTERDAY") formattedLabel = "VS DAY BEFORE";
-                      else if (up === "THIS MONTH") formattedLabel = "VS PREV. MONTH";
-                      else if (up.includes("LAST")) formattedLabel = up.replace("LAST", "VS PREV.");
-                      else formattedLabel = `VS ${up}`;
-                    }
-                    setComparisonLabel(formattedLabel);
+                      // Format label for KPI cards
+                      let formattedLabel = "VS PREV. PERIOD";
+                      if (label) {
+                        const up = label.toUpperCase();
+                        if (up === "TODAY") formattedLabel = "VS YESTERDAY";
+                        else if (up === "YESTERDAY") formattedLabel = "VS DAY BEFORE";
+                        else if (up === "THIS MONTH") formattedLabel = "VS PREV. MONTH";
+                        else if (up.includes("LAST")) formattedLabel = up.replace("LAST", "VS PREV.");
+                        else formattedLabel = `VS ${up}`;
+                      }
+                      setComparisonLabel(formattedLabel);
 
-                    if (compareOn) {
-                      setCompareStart(cStart);
-                      setCompareEnd(cEnd);
-                    } else {
-                      setCompareStart(null);
-                      setCompareEnd(null);
-                    }
-                  }}
-                />
+                      if (compareOn) {
+                        setCompareStart(cStart);
+                        setCompareEnd(cEnd);
+                      } else {
+                        setCompareStart(null);
+                        setCompareEnd(null);
+                      }
+                    }}
+                  />
+                )}
               </Box>
             </Box>
           )}

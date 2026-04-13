@@ -546,6 +546,35 @@ const LatestOverivewCatCity = ({
                                                         {expandedSku === e.key ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                     </div>
                                                 )}
+                                                
+                                                {/* Rendering Image if present, else fallback to standard icons */}
+                                                {(e.image_url && e.image_url !== '') ? (
+                                                    <div className="relative w-6 h-6 flex-shrink-0">
+                                                        <img 
+                                                            src={e.image_url} 
+                                                            alt={e.name} 
+                                                            className="w-full h-full rounded-md object-contain bg-slate-50 border border-slate-100" 
+                                                            onError={(ev) => {
+                                                                ev.currentTarget.style.display = 'none';
+                                                                if (ev.currentTarget.nextElementSibling) {
+                                                                    ev.currentTarget.nextElementSibling.style.display = 'flex';
+                                                                }
+                                                            }}
+                                                        />
+                                                        <div className="w-full h-full rounded-md bg-slate-100 items-center justify-center text-slate-400 hidden">
+                                                            {dimension === 'platform' ? <LayoutGrid size={14} /> :
+                                                             dimension === 'sku' ? <Package size={14} /> :
+                                                             <Grid3X3 size={14} />}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-6 h-6 flex-shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-slate-400">
+                                                        {dimension === 'platform' ? <LayoutGrid size={14} /> :
+                                                         dimension === 'sku' ? <Package size={14} /> :
+                                                         <Grid3X3 size={14} />}
+                                                    </div>
+                                                )}
+
                                                 <div className="flex flex-col flex-1 truncate">
                                                     <span
                                                         className="text-[13px] font-bold text-slate-700 truncate"

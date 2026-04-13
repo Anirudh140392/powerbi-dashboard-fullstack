@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import ReactFlow, {
   Controls,
@@ -41,7 +41,7 @@ import {
 
 /* ─── Fonts ───────────────── */
 const FontLoader = () => (
-    <style>{`
+  <style>{`
       @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400&family=DM+Mono:wght@400;500;600&display=swap');
     `}</style>
 );
@@ -49,7 +49,7 @@ const FontLoader = () => (
 // --- Layout & Typography Tokens ---
 const CARD_WIDTH = 1200;
 const CARD_HEIGHT = 440;
-const VERTICAL_GAP = 320;
+const VERTICAL_GAP = 550;
 const HORIZONTAL_STEP = 2200;
 
 const TYPO = {
@@ -263,359 +263,13 @@ const TrendButton = ({ onClick }) => (
 );
 
 /**
- * SLEEK MINI PREVIEW (Hover)
- */
-/**
- * DETAILED METRICS POPUP (Hover)
- * Shows Brand Identity table with a '+' button to drill down into Modal.
- */
-const HoverMetricsPopup = ({ kpiLabel, category, metrics, keywordMetrics, platform, selectedBrand, selectedSku, selectedCategory, position = "top", onDrillDown, nodeValue }) => {
-  const isBottom = position === "bottom";
-  const [activeTab, setActiveTab] = useState("gainers");
-
-  // Show a clean "Coming Soon" placeholder for nodes without real data
-  const isComingSoon = nodeValue && (String(nodeValue).includes('Coming Soon') || String(nodeValue).includes('--'));
-  if (isComingSoon) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        style={{
-          position: "absolute",
-          bottom: "calc(100% + 180px)",
-          left: "50%",
-          transform: "translateX(-50%)",
-          right: "auto",
-          width: "2000px", backgroundColor: "#fff", borderRadius: "100px",
-          padding: "0", zIndex: 100001, pointerEvents: "auto",
-          boxShadow: "0 150px 300px -60px rgba(15,23,42,0.5)",
-          border: "3px solid rgba(0,0,0,0.1)", overflow: "hidden"
-        }}
-      >
-        <Box sx={{ p: 5, textAlign: 'center' }}>
-          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center' }}>
-            <Box sx={{
-              width: 64, height: 64, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 8px 24px rgba(99,102,241,0.15)'
-            }}>
-              <Zap size={28} color="#6366f1" />
-            </Box>
-          </Box>
-          <Typography sx={{ fontSize: '22px', fontWeight: 900, color: '#0f172a', mb: 1, letterSpacing: '-0.5px' }}>
-            {kpiLabel}
-          </Typography>
-          <Typography sx={{ fontSize: '15px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '2px' }}>
-            Coming Soon
-          </Typography>
-          <Typography sx={{ fontSize: '13px', color: '#cbd5e1', mt: 1.5 }}>
-            Brand-level analytics for this metric will be available shortly.
-          </Typography>
-        </Box>
-      </motion.div>
-    );
-  }
-
-  // Decide which entity level to show based on sidebar selection
-  const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands";
-  const isSkuFilterActive = selectedSku && selectedSku !== "All SKUs";
-  const l = (kpiLabel || "").toLowerCase();
-  const isKeywordKpi = l.includes("impression") || l.includes("conversion") || l.includes("conv") || l.includes("keyword");
-
-  // If SKU is selected, breakdown is City. If Brand is selected, breakdown is SKU. Otherwise Brand.
-  let entityType = isSkuFilterActive ? "City" : isBrandFilterActive ? "SKU" : "Brand";
-
-  // Dedicated keyword breakdown branches (Branded Keyword, Generic Keyword, etc) pass keywordMetrics
-  if (isBrandFilterActive && keywordMetrics && keywordMetrics.length > 0) {
-    entityType = "Keyword";
-  }
-
-  // Use real metrics if available (backend now provides appropriate level in metrics array)
-  let entities = [];
-  if (entityType === "Keyword" && keywordMetrics && keywordMetrics.length > 0) {
-    entities = keywordMetrics.map(m => m.keyword).slice(0, 12);
-  } else if (metrics && metrics.length > 0) {
-    entities = metrics.map(m => m.brand || m.label || m.Product).filter(Boolean).slice(0, 12);
-  } else {
-    // Fallback to mock data if no real metrics
-    const brandPrefix = selectedBrand && selectedBrand !== "All Brands" ? selectedBrand : "Brand";
-
-    if (entityType === "City" || entityType === "Location") {
-      entities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Lucknow", "Surat", "Kanpur"];
-    } else if (entityType === "Keyword") {
-      entities = [`Best ${brandPrefix}`, `${brandPrefix} reviews`, `Buy ${brandPrefix}`, `${brandPrefix} discount`, `${brandPrefix} deals`, `${brandPrefix} near me`, `${brandPrefix} price`, `Top ${brandPrefix}`];
-    } else if (entityType === "SKU") {
-      entities = [`${brandPrefix} 100g Pack`, `${brandPrefix} 250g Box`, `${brandPrefix} Single Bar`, `${brandPrefix} Multipack`, `${brandPrefix} Value Pack`, `${brandPrefix} Twin Pack`, `${brandPrefix} Family Pack`];
-    } else {
-      entities = ["Snickers", "Galaxy", "Twix", "Orbit", "Bounty", "Boomer", "Mars", "Skittles", "Doublemint", "M&M's", "Hubba Bubba", "Extra"];
-    }
-  }
-
-  const allRows = entities.map((name, i) => {
-    const seed = getSeedFromStr(`${category}-${kpiLabel}-${name}-${i}`);
-
-    let curVal, delta;
-    if (isKeywordKpi) {
-      // Range -2.5% to +2.5% for conversion changes
-      curVal = 5 + seed * 10;
-      delta = (seed * 5) - 2.5;
-    } else if (l.includes("discount") || l.includes("disc")) {
-      // Logical Mars discount range: 5% to 25%
-      curVal = 5 + seed * 20;
-      delta = (seed * 10) - 5;
-    } else {
-      curVal = 70 + seed * 80;
-      delta = (seed * 12) - 5;
-    }
-
-    let prevVal = curVal / (1 + delta / 100);
-
-    // Override with REAL data if available (supports Brand, SKU, and City levels)
-    if (metrics && metrics.length > 0) {
-      const match = metrics.find(m => m.brand === name);
-      if (match) {
-        if (l === "ad impressions" || l === "ad gvs") {
-          curVal = match.rawAd || 0;
-          prevVal = match.rawPrevAd || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "impressions" || l === "indexed-impressions" || l === "gvs" || l.includes("gv")) {
-          curVal = match.rawGv !== undefined ? match.rawGv : match.rawImpressions || 0;
-          prevVal = match.rawPrevGv !== undefined ? match.rawPrevGv : match.rawPrevImpressions || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "organic impressions") {
-          curVal = match.rawOrganic || 0;
-          prevVal = match.rawPrevOrganic || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("offtake")) {
-          curVal = match.rawOfftake || 0;
-          prevVal = match.rawPrevOfftake || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("price") || l.includes("asp")) {
-          curVal = match.rawPrice || 0;
-          prevVal = match.rawPrevPrice || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l.includes("osa")) {
-          // Wt. OSA % — use rawOsa (neno/deno ratio)
-          curVal = match.rawOsa || 0;
-          prevVal = match.rawPrevOsa || 0;
-          delta = (curVal - prevVal); // OSA % variance in absolute points
-        } else if (l.includes("listing")) {
-          curVal = match.rawListing || 0;
-          prevVal = match.rawPrevListing || 0;
-          delta = (curVal - prevVal); // Listing % variance in absolute points
-        } else if (l.includes("comp keyword")) {
-          if (category === "organic") {
-            curVal = match.rawOrgCompSos || 0;
-            prevVal = match.rawPrevOrgCompSos || 0;
-          } else {
-            curVal = match.rawAdCompSos || 0;
-            prevVal = match.rawPrevAdCompSos || 0;
-          }
-          delta = (curVal - prevVal);
-        } else if (l.includes("branded keyword")) {
-          if (category === "organic") {
-            curVal = match.rawOrgBrandedSos || 0;
-            prevVal = match.rawPrevOrgBrandedSos || 0;
-          } else {
-            curVal = match.rawAdBrandedSos || 0;
-            prevVal = match.rawPrevAdBrandedSos || 0;
-          }
-          delta = (curVal - prevVal);
-        } else if (l.includes("generic keyword")) {
-          if (category === "organic") {
-            curVal = match.rawOrgGenericSos || 0;
-            prevVal = match.rawPrevOrgGenericSos || 0;
-          } else {
-            curVal = match.rawAdGenericSos || 0;
-            prevVal = match.rawPrevAdGenericSos || 0;
-          }
-          delta = (curVal - prevVal);
-        } else if (l === "inorganic cvr") {
-          curVal = match.rawInorganicCvr || 0;
-          prevVal = match.rawPrevInorganicCvr || 0;
-          delta = (curVal - prevVal); // CVR variance usually absolute points
-        } else if (l === "organic cvr") {
-          curVal = match.rawOrganicCvr !== undefined ? match.rawOrganicCvr : 0;
-          prevVal = match.rawPrevOrganicCvr !== undefined ? match.rawPrevOrganicCvr : 0;
-          delta = (curVal - prevVal); // CVR variance usually absolute points
-        } else if (l === "conversion" || l === "indexed-cvr" || l === "cvr" || l.includes("cvr")) {
-          curVal = match.rawCvr || 0;
-          prevVal = match.rawPrevCvr || 0;
-          delta = (curVal - prevVal); // CVR variance usually absolute points
-        } else if (l.includes("discount") || l.includes("disc")) {
-          curVal = match.rawDiscount || 0;
-          prevVal = match.rawPrevDiscount || 0;
-          delta = (curVal - prevVal); // Discount % variance usually absolute points
-        } else if (l === "share of search overall" || l.includes("sos") || l === "sov-overall") {
-          curVal = match.rawSos || 0;
-          prevVal = match.rawPrevSos || 0;
-          delta = (curVal - prevVal); // SOS % variance usually absolute points
-        } else if (l.includes("rating")) {
-          // Rating Count — use rawRating (qty)
-          curVal = match.rawRating || 0;
-          prevVal = match.rawPrevRating || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "sp") {
-          curVal = match.rawSp || 0;
-          prevVal = match.rawPrevSp || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        } else if (l === "sb") {
-          curVal = match.rawSb || 0;
-          prevVal = match.rawPrevSb || 0;
-          delta = prevVal > 0 ? ((curVal - prevVal) / prevVal) * 100 : (curVal > 0 ? 100 : 0);
-        }
-      }
-    }
-
-    // Override with REAL data for Keywords
-    if (isKeywordKpi && isBrandFilterActive && keywordMetrics && keywordMetrics.length > 0 && entityType === "Keyword") {
-      const match = keywordMetrics.find(m => m.keyword === name);
-      if (match) {
-        return {
-          name,
-          current: match.current,
-          prev: match.previous,
-          change: match.rawChange || 0,
-          changeStr: match.change,
-          rawCurrent: match.rawCurrent || 0,
-          pos: match.isPositive
-        };
-      }
-    }
-
-    return {
-      name,
-      current: formatValue(curVal, kpiLabel),
-      prev: formatValue(prevVal, kpiLabel),
-      change: delta,
-      changeStr: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "%",
-      rawCurrent: curVal,
-      pos: delta >= 0
-    };
-  });
-
-  // Filter: Gainers = only positive (green), Drainers = only negative (red)
-  const filteredRows = allRows.filter(r => activeTab === "gainers" ? r.change > 0 : r.change < 0);
-  
-  // Sort descending by highest value (rawCurrent) instead of variance
-  const sortedRows = [...filteredRows].sort((a, b) => b.rawCurrent - a.rawCurrent);
-  
-  const displayRows = sortedRows.slice(0, 5);
-
-  const canDrillDown = entityType === "Brand" || (entityType === "SKU");
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      style={{
-        position: "absolute",
-        bottom: "calc(100% + 180px)",
-        left: "50%",
-        transform: "translateX(-50%)",
-        right: "auto",
-        width: "3600px",
-        backgroundColor: "#fff",
-        borderRadius: "150px",
-        padding: "0",
-        zIndex: 100001,
-        pointerEvents: "auto",
-        boxShadow: "0 250px 500px -120px rgba(15,23,42,0.8), 0 0 300px rgba(99,102,241,0.65)",
-        border: "6px solid rgba(0,0,0,0.18)",
-        overflow: "hidden"
-      }}
-    >
-      <Box sx={{ p: 20, bgcolor: "#f8fafc", borderBottom: "2px solid #edf2f7", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography sx={{ fontSize: "110px", fontWeight: 1000, color: "#0f172a", textTransform: "uppercase", letterSpacing: "14px" }}>
-            {entityType} Analysis: {category === "ad" ? "Ad " : category === "organic" ? "Organic " : ""}{kpiLabel} {l.includes("keyword") ? "SOS" : ""}
-          </Typography>
-          <Typography sx={{ fontSize: "60px", fontWeight: 700, color: "#64748b", mt: 8, textTransform: "uppercase", letterSpacing: "6px" }}>
-            Flagship {entityType} Performance comparison matrix
-          </Typography>
-        </Box>
-        <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 7.5, borderRadius: "80px", gap: 9 }}>
-          {["gainers", "drainers"].map(t => (
-            <Box key={t} onClick={(e) => { e.stopPropagation(); setActiveTab(t); }}
-              sx={{
-                px: 12, py: 5, borderRadius: "48px", cursor: 'pointer', transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                bgcolor: activeTab === t ? (t === 'gainers' ? "#059669" : "#dc2626") : "transparent",
-                color: activeTab === t ? "#fff" : "#64748b", fontWeight: 1000, fontSize: "42px", textTransform: 'uppercase',
-                boxShadow: activeTab === t ? "0 40px 80px rgba(0,0,0,0.45)" : "none",
-                transform: activeTab === t ? "scale(1.2)" : "scale(1)"
-              }}>
-              {t}
-            </Box>
-          ))}
-        </Box>
-      </Box>
-      <Box sx={{ p: 0 }}>
-        <Table size="large" sx={{ tableLayout: 'fixed' }}>
-          <TableHead>
-            <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 1.0)", "& th": { py: 15 } }}>
-              <TableCell align="left" sx={{ width: '25%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pl: 25, whiteSpace: 'nowrap' }}>{entityType} Name</TableCell>
-              <TableCell align="left" sx={{ width: '25%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Current Period</TableCell>
-              <TableCell align="left" sx={{ width: '30%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", whiteSpace: 'nowrap' }}>Comparison Period</TableCell>
-              <TableCell align="left" sx={{ width: '20%', fontSize: "80px", fontWeight: 900, color: "#0f172a", textTransform: "uppercase", pr: 35, whiteSpace: 'nowrap' }}>Variance %</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {displayRows.map((r, i) => (
-              <TableRow key={i} sx={{ "&:hover": { bgcolor: "rgba(99,102,241,0.08)" }, borderBottom: i === displayRows.length - 1 ? "none" : "1px solid #f1f5f9", height: "420px" }}>
-                <TableCell align="left" sx={{ py: 0, pl: 25 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-                    {canDrillDown && (
-                      <Box onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDrillDown(r.name); }}
-                        sx={{
-                          width: 140, height: 140, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                          bgcolor: "rgba(99,102,241,0.2)", color: "#6366f1", cursor: "pointer",
-                          transition: "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
-                          "&:hover": { bgcolor: "#6366f1", color: "#fff", transform: "scale(1.3) rotate(180deg)", boxShadow: "0 0 100px rgba(99,102,241,0.7)" }
-                        }}>
-                        <Plus size={72} strokeWidth={4} />
-                      </Box>
-                    )}
-                    {!canDrillDown && <Box sx={{ width: 140 }} />}
-                    <Typography sx={{ fontSize: "96px", fontWeight: 500, color: "#1e293b", letterSpacing: "3.5px" }}>{r.name}</Typography>
-                  </Box>
-                </TableCell>
-                <TableCell align="left" sx={{ fontSize: "84px", fontWeight: 900, color: "#0f172a" }}>{r.current}</TableCell>
-                <TableCell align="left" sx={{ fontSize: "84px", fontWeight: 700, color: "#94a3b8" }}>{r.prev}</TableCell>
-                <TableCell align="left" sx={{ py: 0, pr: 35 }}>
-                  <Typography sx={{
-                    fontSize: "64px",
-                    fontWeight: 1000,
-                    color: r.pos ? "#059669" : "#dc2626",
-                    bgcolor: r.pos ? "rgba(5, 150, 105, 0.2)" : "rgba(220, 38, 38, 0.2)",
-                    px: 15, py: 6, borderRadius: "64px", display: "inline-block",
-                    border: `10px solid ${r.pos ? "rgba(5, 150, 105, 0.35)" : "rgba(220, 38, 38, 0.35)"}`
-                  }}>
-                    {r.changeStr}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Box>
-      <Box sx={{ p: 15, textAlign: "center", bgcolor: "#f8fafc", borderTop: "12px solid #edf2f7" }}>
-        <Typography sx={{ fontSize: "60px", fontWeight: 800, color: "#94a3b8", letterSpacing: "6px", textTransform: 'uppercase' }}>
-          Ultra-Precision Driver Diagnostics • {canDrillDown ? "Use [+] for Deep Entity Trace" : "Absolute Ground Level Analysis"}
-        </Typography>
-      </Box>
-    </motion.div>
-  );
-};
-
-/**
  * PREMIUM FULL MODAL (Click)
  */
-const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedBrand, selectedSku, selectedCategory, focusedEntity, context }) => {
+const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, selectedBrand, selectedSku, selectedCategory, focusedEntity, context }) => {
   const [page, setPage] = useState(0);
   const [activeTab, setActiveTab] = useState("gainers");
+  // Manage which tabs are available based on data
+  const [availableTabs, setAvailableTabs] = useState(["gainers", "drainers"]);
   const [expandedBrand, setExpandedBrand] = useState(null);
   const [expandedSku, setExpandedSku] = useState(null);
   const [rows, setRows] = useState([]);
@@ -623,28 +277,165 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
   const [drilldownData, setDrilldownData] = useState({}); // { brandName: { skuRows }, skuName: { cityRows } }
   const rowsPerPage = 6;
 
+  const isComingSoon = value && String(value).toLowerCase().includes("coming soon");
+
+  // Ref to track if we've completed the initial discovery phase for this specific drilldown session
+  const fetchKeyRef = useRef("");
+
+  const isQCPlatform = ["blinkit", "zepto", "instamart"].includes((platform || "").toLowerCase());
+  const platformLower = (platform || '').toLowerCase();
+  const channelLower = (context?.channel || '').toLowerCase();
+  const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
+
+  const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("keyword");
+  const kpiLabelLower = (kpiLabel || "").toLowerCase();
+  const isSponsoredKpi = kpiLabelLower.includes("sponsored search") || kpiLabelLower.includes("sponsored brand") || kpiLabelLower.includes("sponsored product") || kpiLabelLower.includes("sponsored display");
+  const isEcomSos = isEcom && !isSponsoredKpi && (kpiLabelLower.includes("search") || kpiLabelLower.includes("sos") || kpiLabelLower.includes("visibility"));
+  const isEcomPm = isEcom && (kpiLabelLower === "sb" || kpiLabelLower.includes("ad gvs") || kpiLabelLower.includes("ad impressions") || kpiLabelLower.includes("inorganic cvr"));
+  const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
+  const isKeywordDrillDown = (isQCPlatform && isKeywordScopedKpi) || isEcomSos || isEcomPm;
+
+  // Extracted fetch core to be reusable for both discovery and sub-level drilldowns
+  const apiFetch = useCallback(async (level, parentId, tabToFetch) => {
+    if (isComingSoon) return [];
+
+    const params = {
+      platform,
+      categoryVal: category,
+      category: context?.category || context?.categoryVal || 'All',
+      kpiCategory: kpiLabel,
+      drilldownLevel: level,
+      drilldownId: parentId,
+      activeTab: tabToFetch,
+      brand: selectedBrand || 'All',
+      sku: selectedSku || 'All',
+      brandScope: selectedBrand || 'All',
+    };
+    if ((level === 'location' || level === 'keyword') && hasSpecificBrand && !parentId) {
+      params.drilldownId = selectedBrand;
+      params.drilldownParentLevel = 'brand';
+    } else if (level === 'location' && parentId) {
+      params.drilldownParentLevel = 'sku';
+    }
+    if (context?.timeStart) params.startDate = context.timeStart.format('YYYY-MM-DD');
+    if (context?.timeEnd) params.endDate = context.timeEnd.format('YYYY-MM-DD');
+    if (context?.compareOn && context?.compareStart) {
+      params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
+      params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
+    }
+    const endpoint = isEcom ? '/ecom-rca' : '/category-rca';
+    const res = await axiosInstance.get(endpoint, { params });
+    return res.data?.rows || [];
+  }, [platform, category, kpiLabel, context, selectedBrand, selectedSku, hasSpecificBrand, isEcom, isComingSoon]);
+
+  // Traditional progressive drilldown trigger
+  const fetchRows = useCallback(async (level = "brand", parentId = null) => {
+    if (isComingSoon) return;
+    try {
+      const isTopLevel = level === "brand" || (hasSpecificBrand && !parentId);
+      if (isTopLevel) setLoading(true);
+
+      const data = await apiFetch(level, parentId, activeTab);
+
+      if (isTopLevel) {
+        setRows(data);
+      } else {
+        setDrilldownData(prev => ({ ...prev, [parentId]: data }));
+      }
+    } catch (err) {
+      console.error(`[KpiDetailModal] Fetch failed for ${level}:`, err);
+    } finally {
+      if (level === "brand" || (hasSpecificBrand && !parentId)) setLoading(false);
+    }
+  }, [apiFetch, activeTab, hasSpecificBrand, isComingSoon]);
+
+  // Handle modal open -> discovery phase
   useEffect(() => {
     if (open) {
-      if (focusedEntity) {
-        const isBrandFilterActive = selectedBrand && selectedBrand !== "All Brands" && selectedBrand !== "All";
-        if (isBrandFilterActive) {
-          setExpandedBrand(selectedBrand);
-          setExpandedSku(focusedEntity);
-        } else {
-          setExpandedBrand(focusedEntity);
-          setExpandedSku(null);
-        }
-      } else {
+      const currentCacheKey = `${platform}-${category}-${kpiLabel}-${selectedBrand}-${focusedEntity}`;
+
+      if (fetchKeyRef.current !== currentCacheKey) {
+        fetchKeyRef.current = currentCacheKey;
+
+        // Reset states for fresh open
+        setPage(0);
+        setRows([]);
+        setDrilldownData({});
         setExpandedBrand(null);
         setExpandedSku(null);
+
+        if (isComingSoon) return;
+
+        const loadInitialData = async () => {
+          setLoading(true);
+          try {
+            const level = hasSpecificBrand ? (isKeywordDrillDown ? "keyword" : "location") : "brand";
+            const parentId = focusedEntity || null;
+
+            // Fetch both lists in parallel to determine tab visibility intelligently
+            const [gainList, drainList] = await Promise.all([
+              apiFetch(level, parentId, "gainers"),
+              apiFetch(level, parentId, "drainers")
+            ]);
+
+            const hasGain = gainList.length > 0;
+            const hasDrain = drainList.length > 0;
+
+            let visibleTabs = ["gainers", "drainers"];
+            let defaultTab = "gainers"; // Fallback target
+            let resultingData = gainList;
+
+            if (hasGain && hasDrain) {
+              visibleTabs = ["gainers", "drainers"];
+              defaultTab = "gainers";
+              resultingData = gainList;
+            } else if (hasDrain && !hasGain) {
+              visibleTabs = ["drainers"];
+              defaultTab = "drainers";
+              resultingData = drainList;
+            } else if (hasGain && !hasDrain) {
+              visibleTabs = ["gainers"];
+              defaultTab = "gainers";
+              resultingData = gainList;
+            } else {
+              // Complete 0/0 fallback - default to what we had
+              visibleTabs = ["gainers", "drainers"];
+              defaultTab = "gainers";
+              resultingData = gainList;
+            }
+
+            setAvailableTabs(visibleTabs);
+            setActiveTab(defaultTab);
+            setRows(resultingData);
+          } catch (err) {
+            console.error("[KpiDetailModal] Parallel discovery fetch failed.", err);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        loadInitialData();
+      } else {
+        // ActiveTab change handled separately when already open
       }
-      setPage(0);
+    } else {
+      // Clear cache on close so it re-evaluates fresh on next open
+      fetchKeyRef.current = "";
     }
-  }, [open, selectedBrand, activeTab, focusedEntity]);
+  }, [open, focusedEntity, selectedBrand, kpiLabel, category, platform, hasSpecificBrand, isKeywordDrillDown, apiFetch]);
+
+  // Listen to tab clicks internally and refresh rows
+  useEffect(() => {
+    // Rely on fetchKeyRef meaning the modal is fully opened and past discovery
+    if (open && fetchKeyRef.current !== "") {
+      const topLevel = hasSpecificBrand ? (isKeywordDrillDown ? "keyword" : "location") : "brand";
+      const topParent = focusedEntity || null;
+      fetchRows(topLevel, topParent);
+    }
+  }, [activeTab]);
 
   const handleDownload = () => {
     let csv = `Entity,Current Period,Comparison Period,Change\n`;
-    
     const escapeCSV = (val) => {
       if (val === undefined || val === null) return "";
       const str = String(val);
@@ -653,11 +444,9 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
 
     rows.forEach(row => {
       csv += `${escapeCSV(row.name)},${escapeCSV(formatValue(row.currentVal, kpiLabel))},${escapeCSV(formatValue(row.prevVal, kpiLabel))},${escapeCSV(row.change)}\n`;
-      
       if (drilldownData[row.name]) {
         drilldownData[row.name].forEach(sr => {
           csv += `  - ${escapeCSV(sr.name)},${escapeCSV(formatValue(sr.currentVal, kpiLabel))},${escapeCSV(formatValue(sr.prevVal, kpiLabel))},${escapeCSV(sr.change)}\n`;
-          
           if (drilldownData[sr.name]) {
             drilldownData[sr.name].forEach(ssr => {
               csv += `    - ${escapeCSV(ssr.name)},${escapeCSV(formatValue(ssr.currentVal, kpiLabel))},${escapeCSV(formatValue(ssr.prevVal, kpiLabel))},${escapeCSV(ssr.change)}\n`;
@@ -675,87 +464,6 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
     a.click();
   };
 
-  const isQCPlatform = ["blinkit", "zepto", "instamart"].includes((platform || "").toLowerCase());
-  const platformLower = (platform || '').toLowerCase();
-  const channelLower = (context?.channel || '').toLowerCase();
-  const isEcom = channelLower.includes('e-commerce') || channelLower.includes('ecom') || platformLower === 'amazon' || platformLower === 'flipkart';
-  
-  const isKeywordScopedKpi = (kpiLabel || "").toLowerCase().includes("impression") || (kpiLabel || "").toLowerCase().includes("conversion") || (kpiLabel || "").toLowerCase().includes("keyword");
-  const isEcomSos = isEcom && ((kpiLabel || "").toLowerCase().includes("search") || (kpiLabel || "").toLowerCase().includes("sos") || (kpiLabel || "").toLowerCase().includes("visibility"));
-  const kpiLabelLower = (kpiLabel || "").toLowerCase();
-  const isEcomPm = isEcom && (kpiLabelLower === "sp" || kpiLabelLower === "sb" || kpiLabelLower.includes("ad gvs") || kpiLabelLower.includes("ad impressions") || kpiLabelLower.includes("inorganic cvr"));
-  const hasSpecificBrand = selectedBrand && selectedBrand !== "All" && selectedBrand !== "All Brands";
-  const isKeywordDrillDown = (isQCPlatform && isKeywordScopedKpi) || isEcomSos || isEcomPm;
-
-  const fetchRows = useCallback(async (level = "brand", parentId = null, isInitialLoad = false) => {
-    try {
-      if (level === "brand" || isInitialLoad) setLoading(true);
-      const params = {
-        platform,
-        categoryVal: category, // This is "organic" / "ad"
-        category: context?.category || context?.categoryVal || 'All', // This is product category e.g. "GMFC"
-        kpiCategory: kpiLabel,
-        drilldownLevel: level,
-        drilldownId: parentId,
-        activeTab,
-        brand: selectedBrand || 'All',
-        sku: selectedSku || 'All',
-        brandScope: selectedBrand || 'All',
-      };
-      // Tell backend what kind of parent the drilldownId refers to
-      if ((level === 'location' || level === 'keyword') && hasSpecificBrand && !parentId) {
-        params.drilldownId = selectedBrand;
-        params.drilldownParentLevel = 'brand';
-      } else if (level === 'location' && parentId) {
-        // When expanding sub-row (SKU -> location), parentId is SKU
-        params.drilldownParentLevel = 'sku';
-      }
-      // Date Range Support from context
-      if (context?.timeStart) params.startDate = context.timeStart.format('YYYY-MM-DD');
-      if (context?.timeEnd) params.endDate = context.timeEnd.format('YYYY-MM-DD');
-      if (context?.compareOn && context?.compareStart) {
-        params.compareStartDate = context.compareStart.format('YYYY-MM-DD');
-        params.compareEndDate = context.compareEnd.format('YYYY-MM-DD');
-      }
-
-      console.log("[KpiDetailModal] fetching", params);
-      const endpoint = isEcom ? '/ecom-rca' : '/category-rca';
-      const res = await axiosInstance.get(endpoint, { params });
-      const data = res.data?.rows || [];
-
-      if (level === "brand" || isInitialLoad) {
-        // For initial load (whether brand-level or sku-level), set as main rows
-        setRows(data);
-      } else {
-        // For subsequent drilldowns (expand within table), set as drilldown data
-        setDrilldownData(prev => ({
-          ...prev,
-          [parentId]: data
-        }));
-      }
-    } catch (err) {
-      console.error(`[KpiDetailModal] Fetch failed for ${level}:`, err);
-    } finally {
-      if (level === "brand" || isInitialLoad) setLoading(false);
-    }
-  }, [platform, category, kpiLabel, activeTab, context, selectedBrand, selectedSku, hasSpecificBrand]);
-
-  useEffect(() => {
-    if (open) {
-      setPage(0);
-      setRows([]);
-      setDrilldownData({});
-      setExpandedBrand(null);
-      setExpandedSku(null);
-
-      if (hasSpecificBrand) {
-        fetchRows(isKeywordDrillDown ? "keyword" : "location", focusedEntity || null, true);
-      } else {
-        fetchRows("brand", null, true);
-      }
-    }
-  }, [open, fetchRows, hasSpecificBrand, selectedBrand, isKeywordDrillDown, focusedEntity]);
-
   const allRows = rows;
   const topRows = allRows.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const headerColumn = hasSpecificBrand ? (isKeywordDrillDown ? "Keyword" : "Location") : "Brand Identity";
@@ -767,12 +475,12 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
   const renderExpandBtn = (isExpanded, onClick) => (
     <Box onClick={(e) => { e.stopPropagation(); onClick(); }}
       sx={{
-        width: 26, height: 26, borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center",
+        width: 36, height: 36, borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center",
         bgcolor: isExpanded ? "#6366f1" : "rgba(99,102,241,0.12)", color: isExpanded ? "#fff" : "#6366f1",
         cursor: "pointer", transition: "all 0.2s", "&:hover": { bgcolor: isExpanded ? "#4f46e5" : "rgba(99,102,241,0.2)" },
         boxShadow: isExpanded ? "0 4px 12px rgba(99,102,241,0.3)" : "none"
       }}>
-      {isExpanded ? <Minus size={14} strokeWidth={3} /> : <Plus size={14} strokeWidth={3} />}
+      {isExpanded ? <Minus size={20} strokeWidth={3} /> : <Plus size={20} strokeWidth={3} />}
     </Box>
   );
 
@@ -795,7 +503,7 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
             </IconButton>
           </Tooltip>
           <Box sx={{ display: 'flex', bgcolor: "#f1f5f9", p: 0.5, borderRadius: "10px" }}>
-            {["gainers", "drainers"].map(t => (
+            {availableTabs.map(t => (
               <Box key={t} onClick={() => { setActiveTab(t); setPage(0); }}
                 sx={{
                   px: 2, py: 0.75, borderRadius: "8px", cursor: 'pointer', transition: 'all 0.2s',
@@ -810,131 +518,140 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, category, platform, selectedB
         </Box>
       </Box>
       <DialogContent sx={{ p: 0, maxHeight: "70vh", overflowY: "auto", scrollBehavior: "smooth" }}>
-        <Table stickyHeader>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ ...thStyle, pl: 5 }}>{headerColumn}</TableCell>
-              <TableCell sx={thStyle}>Current Period</TableCell>
-              <TableCell sx={thStyle}>Comparison Period</TableCell>
-              <TableCell sx={thStyle}>Change</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow><TableCell colSpan={4} align="center" sx={{ py: 10 }}><CircularProgress /></TableCell></TableRow>
-            ) : topRows.map((row, idx) => {
-              const isLocationLevel = hasSpecificBrand && !isKeywordDrillDown;
-              const isExpanded = hasSpecificBrand ? expandedSku === row.name : expandedBrand === row.name;
-              const subRows = drilldownData[row.name] || [];
+        {isComingSoon ? (
+          <Box sx={{ py: 15, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+            <Typography sx={{ fontSize: "28px", fontWeight: 800, color: "#cbd5e1" }}>COMING SOON</Typography>
+            <Typography sx={{ fontSize: "15px", fontWeight: 600, color: "#94a3b8", mt: 1.5 }}>Metrics for this KPI are currently being integrated.</Typography>
+          </Box>
+        ) : (
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ ...thStyle, pl: 5 }}>{headerColumn}</TableCell>
+                <TableCell sx={thStyle}>Current Period</TableCell>
+                <TableCell sx={thStyle}>Comparison Period</TableCell>
+                <TableCell sx={thStyle}>Change</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow><TableCell colSpan={4} align="center" sx={{ py: 10 }}><CircularProgress /></TableCell></TableRow>
+              ) : topRows.map((row, idx) => {
+                const isLocationLevel = hasSpecificBrand && !isKeywordDrillDown;
+                const isExpanded = hasSpecificBrand ? expandedSku === row.name : expandedBrand === row.name;
+                const subRows = drilldownData[row.name] || [];
 
-              const onToggle = () => {
-                if (hasSpecificBrand) {
-                  const newExpanded = expandedSku === row.name ? null : row.name;
-                  setExpandedSku(newExpanded);
-                  if (newExpanded && !drilldownData[newExpanded]) fetchRows("location", newExpanded);
-                } else {
-                  const newExpanded = expandedBrand === row.name ? null : row.name;
-                  setExpandedBrand(newExpanded);
-                  if (newExpanded && !drilldownData[newExpanded]) fetchRows(isKeywordDrillDown ? "keyword" : "sku", newExpanded);
-                }
-              };
+                const onToggle = () => {
+                  if (hasSpecificBrand) {
+                    const newExpanded = expandedSku === row.name ? null : row.name;
+                    setExpandedSku(newExpanded);
+                    if (newExpanded && !drilldownData[newExpanded]) fetchRows("location", newExpanded);
+                  } else {
+                    const newExpanded = expandedBrand === row.name ? null : row.name;
+                    setExpandedBrand(newExpanded);
+                    if (newExpanded && !drilldownData[newExpanded]) fetchRows(isKeywordDrillDown ? "keyword" : "sku", newExpanded);
+                  }
+                };
 
-              return (
-                <React.Fragment key={idx}>
-                  <TableRow sx={{ "&:hover": { bgcolor: "rgba(0,0,0,0.01)" } }}>
-                    <TableCell sx={{ ...tdStyle, pl: 4 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                        {!isLocationLevel && renderExpandBtn(isExpanded, onToggle)}
-                        {isLocationLevel && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />}
-                        <Typography sx={{ ...tdStyle, fontSize: "15px", p: 0 }}>{row.name}</Typography>
-                      </Box>
-                    </TableCell>
-                    <TableCell sx={tdStyle}>{formatValue(row.currentVal, kpiLabel)}</TableCell>
-                    <TableCell sx={tdMuted}>{formatValue(row.prevVal, kpiLabel)}</TableCell>
-                    <TableCell>
-                      <Typography sx={{
-                        color: row.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
-                        bgcolor: row.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
-                        px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
-                      }}>
-                        {row.change}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                  {isExpanded && subRows.map((sr, sIdx) => {
-                    const subExpanded = expandedSku === sr.name;
-                    const cityRows = drilldownData[sr.name] || [];
-                    const onToggleSub = () => {
-                      const newExp = subExpanded ? null : sr.name;
-                      setExpandedSku(newExp);
-                      if (newExp && !drilldownData[newExp]) fetchRows("location", newExp);
-                    };
+                return (
+                  <React.Fragment key={idx}>
+                    <TableRow sx={{ "&:hover": { bgcolor: "rgba(0,0,0,0.01)" } }}>
+                      <TableCell sx={{ ...tdStyle, pl: 4 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          {!isLocationLevel && renderExpandBtn(isExpanded, onToggle)}
+                          {isLocationLevel && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />}
+                          <Typography sx={{ ...tdStyle, fontSize: "15px", p: 0 }}>{row.name}</Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell sx={tdStyle}>{formatValue(row.currentVal, kpiLabel)}</TableCell>
+                      <TableCell sx={tdMuted}>{formatValue(row.prevVal, kpiLabel)}</TableCell>
+                      <TableCell>
+                        <Typography sx={{
+                          color: row.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
+                          bgcolor: row.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
+                          px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
+                        }}>
+                          {row.change}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                    {isExpanded && subRows.map((sr, sIdx) => {
+                      const subExpanded = expandedSku === sr.name;
+                      const cityRows = drilldownData[sr.name] || [];
+                      const onToggleSub = () => {
+                        const newExp = subExpanded ? null : sr.name;
+                        setExpandedSku(newExp);
+                        if (newExp && !drilldownData[newExp]) fetchRows("location", newExp);
+                      };
 
-                    return (
-                      <React.Fragment key={`sub-${sIdx}`}>
-                        <TableRow sx={{ bgcolor: "rgba(99,102,241,0.05)" }}>
-                          <TableCell sx={{ ...tdStyle, pl: 7 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                              {!hasSpecificBrand && renderExpandBtn(subExpanded, onToggleSub)}
-                              {hasSpecificBrand && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />}
-                              <Typography sx={{ ...tdStyle, fontSize: "14px", p: 0 }}>{sr.name}</Typography>
-                            </Box>
-                          </TableCell>
-                          <TableCell sx={tdStyle}>{formatValue(sr.currentVal, kpiLabel)}</TableCell>
-                          <TableCell sx={tdMuted}>{formatValue(sr.prevVal, kpiLabel)}</TableCell>
-                          <TableCell>
-                            <Typography sx={{
-                              color: sr.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
-                              bgcolor: sr.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
-                              px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
-                            }}>
-                              {sr.change}
-                            </Typography>
-                          </TableCell>
-                        </TableRow>
-                        {subExpanded && cityRows.map((cr, cIdx) => (
-                          <TableRow key={`city-${cIdx}`} sx={{ bgcolor: "rgba(99,102,241,0.03)" }}>
-                            <TableCell sx={{ ...tdStyle, pl: 11 }}>
+                      return (
+                        <React.Fragment key={`sub-${sIdx}`}>
+                          <TableRow sx={{ bgcolor: "rgba(99,102,241,0.05)" }}>
+                            <TableCell sx={{ ...tdStyle, pl: 7 }}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                                <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />
-                                <Typography sx={{ ...tdStyle, fontSize: "13px", p: 0 }}>{cr.name}</Typography>
+                                {!hasSpecificBrand && renderExpandBtn(subExpanded, onToggleSub)}
+                                {hasSpecificBrand && <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />}
+                                <Typography sx={{ ...tdStyle, fontSize: "14px", p: 0 }}>{sr.name}</Typography>
                               </Box>
                             </TableCell>
-                            <TableCell sx={tdStyle}>{formatValue(cr.currentVal, kpiLabel)}</TableCell>
-                            <TableCell sx={tdMuted}>{formatValue(cr.prevVal, kpiLabel)}</TableCell>
+                            <TableCell sx={tdStyle}>{formatValue(sr.currentVal, kpiLabel)}</TableCell>
+                            <TableCell sx={tdMuted}>{formatValue(sr.prevVal, kpiLabel)}</TableCell>
                             <TableCell>
                               <Typography sx={{
-                                color: cr.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
-                                bgcolor: cr.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
+                                color: sr.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
+                                bgcolor: sr.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
                                 px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
                               }}>
-                                {cr.change}
+                                {sr.change}
                               </Typography>
                             </TableCell>
                           </TableRow>
-                        ))}
-                      </React.Fragment>
-                    );
-                  })}
-                </React.Fragment>
-              );
-            })}
-          </TableBody>
-        </Table>
+                          {subExpanded && cityRows.map((cr, cIdx) => (
+                            <TableRow key={`city-${cIdx}`} sx={{ bgcolor: "rgba(99,102,241,0.03)" }}>
+                              <TableCell sx={{ ...tdStyle, pl: 11 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                  <Box sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "#6366f1", ml: 1.25, mr: 0.75 }} />
+                                  <Typography sx={{ ...tdStyle, fontSize: "13px", p: 0 }}>{cr.name}</Typography>
+                                </Box>
+                              </TableCell>
+                              <TableCell sx={tdStyle}>{formatValue(cr.currentVal, kpiLabel)}</TableCell>
+                              <TableCell sx={tdMuted}>{formatValue(cr.prevVal, kpiLabel)}</TableCell>
+                              <TableCell>
+                                <Typography sx={{
+                                  color: cr.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
+                                  bgcolor: cr.change.startsWith("-") ? "rgba(220,38,38,0.06)" : "rgba(5,150,105,0.06)",
+                                  px: 1.5, py: 0.5, borderRadius: "8px", display: "inline-block", fontSize: "14px"
+                                }}>
+                                  {cr.change}
+                                </Typography>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </DialogContent>
-      <TablePagination
-        rowsPerPageOptions={[]}
-        component="div"
-        count={allRows.length}
-        rowsPerPage={rowsPerPage}
-        page={page}
-        onPageChange={(e, p) => setPage(p)}
-        sx={{
-          bgcolor: "#fafafa", borderTop: "1px solid #eee",
-          "& .MuiTablePagination-toolbar": { minHeight: "48px" },
-          "& .MuiTypography-root": { fontWeight: 800, fontSize: "12px", color: "#64748b" }
-        }}
-      />
+      {!isComingSoon && (
+        <TablePagination
+          rowsPerPageOptions={[]}
+          component="div"
+          count={allRows.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={(e, p) => setPage(p)}
+          sx={{
+            bgcolor: "#fafafa", borderTop: "1px solid #eee",
+            "& .MuiTablePagination-toolbar": { minHeight: "48px" },
+            "& .MuiTypography-root": { fontWeight: 800, fontSize: "12px", color: "#64748b" }
+          }}
+        />
+      )}
     </Dialog>
   );
 };
@@ -970,28 +687,28 @@ const StatusDot = ({ status = "healthy" }) => {
 
 const DeltaBadge = ({ change, isPositive }) => {
   const displayChange = typeof change === 'string' ? change.replace(/^[+-]\s*/, '') : change;
-  
+
   return (
-  <Box
-    sx={{
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 0.5,
-      bgcolor: isPositive ? "rgba(16, 185, 129, 0.18)" : "rgba(239, 68, 68, 0.18)",
-      color: isPositive ? "#0f766e" : "#e11d48",
-      px: 1.3,
-      py: 0.55,
-      borderRadius: "24px",
-      fontSize: TYPO.metaSize,
-      fontWeight: TYPO.weightBold,
-      border: `1px solid ${isPositive ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)"
-        }`,
-      fontFamily: TYPO.fontMain,
-      whiteSpace: "nowrap",
-    }}
-  >
-    {isPositive ? "+" : "-"} {displayChange}
-  </Box>
+    <Box
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 0.5,
+        bgcolor: isPositive ? "rgba(16, 185, 129, 0.18)" : "rgba(239, 68, 68, 0.18)",
+        color: isPositive ? "#0f766e" : "#e11d48",
+        px: 1.3,
+        py: 0.55,
+        borderRadius: "24px",
+        fontSize: TYPO.metaSize,
+        fontWeight: TYPO.weightBold,
+        border: `1px solid ${isPositive ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)"
+          }`,
+        fontFamily: TYPO.fontMain,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {isPositive ? "+" : "-"} {displayChange}
+    </Box>
   );
 };
 
@@ -1096,46 +813,6 @@ const KpiNode = ({ data }) => {
     >
       <Handle type="target" position={Position.Left} style={{ background: "transparent", border: "none", width: 0, height: 0, left: -8, top: "50%" }} />
 
-      {/* Hover bridge to keep popup open when moving mouse between card and popup */}
-      {
-        localHover && hoveredNodeId === data.id && !isDimmed && (
-          <Box
-            sx={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              height: "200px", // Galactic gap bridge
-              zIndex: 99999,
-              background: "transparent",
-              ...(data.popupPosition === "bottom"
-                ? { top: "100%" }
-                : { bottom: "100%" }
-              ),
-            }}
-          />
-        )
-      }
-
-      <AnimatePresence>
-        {localHover && hoveredNodeId === data.id && !isDimmed && (
-          <HoverMetricsPopup
-            kpiLabel={label}
-            category={data.category}
-            metrics={data.metrics}
-            keywordMetrics={data.keywordMetrics}
-            platform={data.platform || ""}
-            selectedBrand={data.selectedBrand || ""}
-            selectedSku={data.selectedSku || ""}
-            selectedCategory={data.selectedCategory || ""}
-            position={data.popupPosition}
-            nodeValue={data.value}
-            onDrillDown={(entityToFocus) => {
-              onClickDetail({ ...data, focusedEntity: entityToFocus });
-            }}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Top accent strip */}
       <Box
         sx={{
@@ -1181,16 +858,16 @@ const KpiNode = ({ data }) => {
               }}
               sx={{
                 ml: 0.5,
-                width: 34,
-                height: 34,
-                borderRadius: "12px",
-                border: `1px solid ${TYPO.border}`,
+                width: 72,
+                height: 72,
+                borderRadius: "18px",
+                border: `1.5px solid ${TYPO.border}`,
                 color: TYPO.primary,
                 backgroundColor: "#f8fafc",
                 "&:hover": { backgroundColor: "#eef2ff" },
               }}
             >
-              {isCollapsed ? <Plus size={18} /> : <Minus size={18} />}
+              {isCollapsed ? <Plus size={48} strokeWidth={2.5} /> : <Minus size={48} strokeWidth={2.5} />}
             </IconButton>
           )}
         </Box>
@@ -1200,7 +877,7 @@ const KpiNode = ({ data }) => {
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 5.5 }}>
           <Box sx={{ flex: 1, minWidth: "fit-content" }}>
             <Typography sx={{ fontSize: "28px", color: TYPO.secondary, fontWeight: 700, textTransform: "uppercase", mb: 2.5, letterSpacing: "2.5px", whiteSpace: "nowrap" }}>Current</Typography>
-            <Typography sx={{ fontSize: TYPO.valueSize, color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{value}</Typography>
+            <Typography sx={{ fontSize: String(value).includes("Coming Soon") || String(value) === "--" ? "68px" : TYPO.valueSize, color: TYPO.primary, fontWeight: TYPO.weightHeavy, lineHeight: 1, whiteSpace: "nowrap", fontFamily: TYPO.fontMono }}>{value}</Typography>
           </Box>
           <Box sx={{ width: "4px", height: "150px", bgcolor: TYPO.border, mx: 6, flexShrink: 0 }} />
           <Box sx={{ flex: 1, minWidth: "fit-content" }}>
@@ -1231,7 +908,7 @@ const KpiNode = ({ data }) => {
                 <Typography sx={{ fontSize: TYPO.footerSize, fontWeight: TYPO.weightBold, color: TYPO.secondary }}>
                   {m.label}
                 </Typography>
-                <Typography sx={{ fontSize: TYPO.footerSize, fontWeight: TYPO.weightHeavy, color: TYPO.primary, whiteSpace: "nowrap" }}>
+                <Typography sx={{ fontSize: String(m.value).includes("Coming Soon") || String(m.value) === "--" ? TYPO.minSize : TYPO.footerSize, fontWeight: TYPO.weightHeavy, color: TYPO.primary, whiteSpace: "nowrap" }}>
                   {m.value}
                   {m.change && (
                     <span
@@ -1264,24 +941,24 @@ const KpiNode = ({ data }) => {
             }}
             style={{
               position: "absolute",
-              right: -28, // Centered on the source handle at right: -8
+              right: -55,
               top: "50%",
-              marginTop: -20,
-              width: 40,
-              height: 40,
+              marginTop: -55,
+              width: 110,
+              height: 110,
               borderRadius: "50%",
               backgroundColor: "#fff",
               color: "#64748b",
-              border: "2px solid rgba(255, 255, 255, 1)",
+              border: "4.5px solid rgba(255, 255, 255, 1)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
               zIndex: 15,
-              boxShadow: "0 14px 26px -6px rgba(0, 0, 0, 0.16)",
+              boxShadow: "0 28px 50px -8px rgba(0, 0, 0, 0.25)",
             }}
           >
-            {isCollapsed ? <Plus size={22} strokeWidth={3} /> : <Minus size={22} strokeWidth={3} />}
+            {isCollapsed ? <Plus size={64} strokeWidth={3.5} /> : <Minus size={64} strokeWidth={3.5} />}
           </motion.div>
         )
       }
@@ -1460,13 +1137,13 @@ const getDynamicRcaTreeData = (context) => {
                 {
                   id: "dsp",
                   label: "DSP",
-                  value: "-- Coming Soon --",
+                  value: "Coming Soon",
                   change: "0.0%",
                   isPositive: true,
                   category: "ad",
                   meta: [
-                    { label: "Display GVs", value: "-- Coming Soon --" },
-                    { label: "Conversion", value: "-- Coming Soon --" }
+                    { label: "Display GVs", value: "Coming Soon" },
+                    { label: "Conversion", value: "Coming Soon" }
                   ]
                 },
                 {
@@ -1478,7 +1155,9 @@ const getDynamicRcaTreeData = (context) => {
                   category: "ad",
                   meta: [
                     { label: "Search GVs", value: "45.00K", change: "46.74%", isPositive: false },
-                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false }
+                    { label: "Conversion", value: "25.41%", change: "2.18%", isPositive: false },
+                    { label: "ROAS", value: "3.12", change: "5.10%", isPositive: true },
+                    { label: "SPEND", value: "3.2M", change: "12.4%", isPositive: false }
                   ],
                   children: [
                     {
@@ -1576,12 +1255,15 @@ const getDynamicRcaTreeData = (context) => {
             {
               id: "delivery-time",
               label: "Delivery Time",
-              value: "Same Day",
-              change: "22.74%",
-              isPositive: false,
+              value: "Coming Soon",
+              change: "0.0%",
+              isPositive: true,
               category: "segment",
               children: isFlipkart ? [] : [
-                { id: "same-day", label: `Same Day ${pluralGvLabel}%`, value: "100.00%", change: "81.09%", isPositive: true, category: "segment" }
+                { id: "same-day", label: `Same Day ${pluralGvLabel}%`, value: "Coming Soon", change: "0.0%", isPositive: true, category: "segment" },
+                { id: "one-day", label: `1 Day ${pluralGvLabel}%`, value: "Coming Soon", change: "0.0%", isPositive: true, category: "segment" },
+                { id: "two-day", label: `2 Day ${pluralGvLabel}%`, value: "Coming Soon", change: "0.0%", isPositive: true, category: "segment" },
+                { id: "greater-two", label: `> 2 Days ${pluralGvLabel}%`, value: "Coming Soon", change: "0.0%", isPositive: true, category: "segment" }
               ]
             },
             {
@@ -1591,9 +1273,7 @@ const getDynamicRcaTreeData = (context) => {
               change: "9.45%",
               isPositive: false,
               category: "discounting",
-              children: isFlipkart ? [] : [
-                { id: "one-day", label: `1 Day ${pluralGvLabel}%`, value: "0.00%", change: "0.05%", isPositive: false, category: "segment" }
-              ]
+              children: []
             },
             {
               id: "organic-cvr",
@@ -1602,9 +1282,7 @@ const getDynamicRcaTreeData = (context) => {
               change: "1.54%",
               isPositive: true,
               category: "organic",
-              children: isFlipkart ? [] : [
-                { id: "two-day", label: `2 Day ${pluralGvLabel}%`, value: "(Blank)", change: "74.95%", isPositive: false, category: "segment" }
-              ]
+              children: []
             },
             {
               id: "inorganic-cvr",
@@ -1613,9 +1291,7 @@ const getDynamicRcaTreeData = (context) => {
               change: "1.81%",
               isPositive: true,
               category: "ad",
-              children: isFlipkart ? [] : [
-                { id: "greater-two", label: `> 2 Days ${pluralGvLabel}%`, value: "0.00%", change: "6.08%", isPositive: false, category: "segment" }
-              ]
+              children: []
             }
           ]
         },
@@ -1636,15 +1312,12 @@ const getDynamicRcaTreeData = (context) => {
         {
           id: "sns",
           label: "Subscribe & Save %",
-          value: "0.00%",
-          change: "0.00%",
+          value: "Coming Soon",
+          change: "0.0%",
           isPositive: true,
           category: "segment",
-          meta: [{ label: "SnS Sales%", value: "0.00%" }],
-          children: [
-            { id: "loyalty", label: "Loyalty/Repeats %", value: "79.62%", change: "1.37%", isPositive: true, category: "segment" },
-            { id: "new-cust", label: "New Customer %", value: "20.38%", change: "1.37%", isPositive: false, category: "segment" }
-          ]
+          meta: [{ label: "SnS Sales%", value: "Coming Soon" }],
+          children: []
         }
       ]
     };
@@ -1808,7 +1481,7 @@ const getDynamicRcaTreeData = (context) => {
         ],
         children: [
           {
-            id: "discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: [
+            id: "qc-discounting", label: "Wt. Disc %", value: getVal(18.5, true, seed + "disc", 30), change: getChange("meta6").val, isPositive: getChange("meta6").isPos, category: "discounting", metrics: [
               { brand: 'Snickers', discount: '7.1%', deltaDiscount: '+0.4%' },
               { brand: 'Galaxy', discount: '9.8%', deltaDiscount: '+1.3%' },
               { brand: 'Bounty', discount: '11.7%', deltaDiscount: '+2.0%' },
@@ -1928,7 +1601,7 @@ const layoutTreeNodes = (node, x, y, collapsedNodes, results, onViewTrends, plat
 // --- Detail Popup (Updated with Brand Filtering, Download, and Pagination) ---
 const NodeDetailPopup = () => null;
 const RcaTreeInner = ({ context, title, onViewTrends }) => {
-  const [collapsedNodes, setCollapsedNodes] = useState(new Set(["listing", "ad-impressions"]));
+  const [collapsedNodes, setCollapsedNodes] = useState(new Set());
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -1944,6 +1617,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const handleKpiClick = useCallback((data) => {
     setSelectedKpiModalData({
       label: data.label,
+      value: data.value,
       category: data.category,
       platform: data.platform,
       selectedBrand: data.brand || context.brand,
@@ -2033,6 +1707,21 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
     [apiTreeData, context]
   );
 
+  // Collapse all parent nodes by default when tree data changes
+  useEffect(() => {
+    if (!currentTreeData) return;
+    const parentIds = new Set();
+    const collect = (node) => {
+      if (node.children && node.children.length > 0) {
+        // Don't collapse root — keep first level visible
+        if (node.id !== 'root') parentIds.add(node.id);
+        node.children.forEach(collect);
+      }
+    };
+    collect(currentTreeData);
+    setCollapsedNodes(parentIds);
+  }, [currentTreeData]);
+
   const index = useMemo(() => buildIndex(currentTreeData), [currentTreeData]);
   const focusId = selectedNodeId || hoveredNodeId;
 
@@ -2044,13 +1733,35 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   }, [focusId, index]);
 
   const onToggleNode = useCallback((id) => {
+    let isExpanding = false;
     setCollapsedNodes((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+        isExpanding = true;
+      } else {
+        next.add(id);
+      }
       return next;
     });
-  }, []);
+
+    // To prevent overlaps when the tree expands/collapses, clear any manual drag positions so it auto-arranges perfectly
+    setNodes((nds) =>
+      nds.map((n) => ({ ...n, data: { ...n.data, wasManuallyMoved: false } }))
+    );
+
+    // When expanding, zoom to the toggled node + its direct children after layout settles
+    if (true) {
+      setTimeout(() => {
+        const allNodes = reactFlowInstance?.getNodes?.() || [];
+        const parentNode = allNodes.find(n => n.id === id);
+        if (!parentNode) return;
+
+        // Fit the entire visible tree on screen instead of just the local branch, ensuring overall readability
+        reactFlowInstance.fitView?.({ padding: 0.15, duration: 450, maxZoom: 0.25 });
+      }, 80);
+    }
+  }, [reactFlowInstance]);
 
   const handleCardClick = useCallback(
     (data) => {
@@ -2128,9 +1839,25 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState(computedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(computedEdges);
 
+  const prevContextRef = useRef({ platform: context.platform, brand: context.brand, category: context.category });
+
   useEffect(() => {
+    const isContextChanged =
+      prevContextRef.current.platform !== context.platform ||
+      prevContextRef.current.brand !== context.brand ||
+      prevContextRef.current.category !== context.category;
+
+    if (isContextChanged) {
+      prevContextRef.current = { platform: context.platform, brand: context.brand, category: context.category };
+    }
+
     setNodes((nds) =>
       computedNodes.map((newNode) => {
+        // If context changed entirely (platform/category switch), reset to auto-layout
+        if (isContextChanged) {
+          return newNode;
+        }
+
         const oldNode = nds.find((n) => n.id === newNode.id);
         // SMART PERSISTENCE: Only keep current position if it was explicitly moved by user
         if (oldNode && oldNode.data?.wasManuallyMoved) {
@@ -2145,12 +1872,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
       })
     );
     setEdges(computedEdges);
-  }, [computedNodes, computedEdges, setNodes, setEdges]);
-
-  // Reset all positions when platform or level changes to ensure a clean tree-wise layout
-  useEffect(() => {
-    setNodes(computedNodes);
-  }, [context.platform, context.brand, context.category, setNodes, computedNodes]);
+  }, [computedNodes, computedEdges, setNodes, setEdges, context.platform, context.brand, context.category]);
 
   useEffect(() => {
     reactFlowInstance.fitView({ padding: 0.05, duration: 800 });
@@ -2201,6 +1923,15 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
         maxZoom={2}
         defaultEdgeOptions={{ animated: false, type: "step" }}
         elevateNodesOnSelect={true}
+        onNodeDragStart={(event, node) => {
+          setNodes((nds) =>
+            nds.map((n) =>
+              n.id === node.id
+                ? { ...n, data: { ...n.data, wasManuallyMoved: true } }
+                : n
+            )
+          );
+        }}
         onNodeDragStop={(event, node) => {
           setNodes((nds) =>
             nds.map((n) =>
@@ -2236,6 +1967,7 @@ const RcaTreeInner = ({ context, title, onViewTrends }) => {
           open={kpiModalOpen}
           onClose={() => setKpiModalOpen(false)}
           kpiLabel={selectedKpiModalData.label}
+          value={selectedKpiModalData.value}
           category={selectedKpiModalData.category}
           platform={selectedKpiModalData.platform}
           selectedBrand={selectedKpiModalData.selectedBrand}
