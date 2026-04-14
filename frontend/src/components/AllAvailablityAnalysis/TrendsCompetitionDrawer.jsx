@@ -412,9 +412,8 @@ const KPI_SOURCE_MAP = {
   // PDP table KPIs
   Offtakes: 'pdp', Offtake: 'pdp', offtake: 'pdp',
   Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
-  Discount: 'pdp', 'Promo-My': 'pdp', PromoMyBrand: 'pdp', discount: 'pdp',
+  'Promo-My': 'pdp', PromoMyBrand: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
-  PricePerUnit: 'pdp', ASP: 'pdp', RPI: 'pdp',
   // PM table KPIs
   InorganicSales: 'pm', InorgSales: 'pm',
   Conversion: 'pm', Roas: 'pm', ROAS: 'pm',
@@ -425,6 +424,11 @@ const KPI_SOURCE_MAP = {
   // MS table KPIs
   MarketShare: 'ms', CategoryShare: 'ms',
   marketShare: 'ms', categoryShare: 'ms',
+  // Pricing-specific KPIs (per-KPI granularity from pricing backend)
+  Discount: 'Discount', discount: 'Discount',
+  PricePerUnit: 'PricePerUnit',
+  ASP: 'ASP',
+  RPI: 'ASP',  // RPI depends on ASP (selling price) data
 };
 
 
@@ -688,7 +692,13 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
-        setKpiAvailability(null); // Pricing doesn't use kpiAvailability
+        // Store KPI availability from pricing backend response
+        if (response.data?.kpiAvailability) {
+          setKpiAvailability(response.data.kpiAvailability);
+          console.log('[TrendsDrawer] Pricing KPI Availability:', response.data.kpiAvailability);
+        } else {
+          setKpiAvailability(null);
+        }
       } else if (dynamicKey === "marketshare") {
         const params = {
           period: range,
@@ -1943,8 +1953,11 @@ export default function TrendsCompetitionDrawer({
 
   const createTooltipFormatter = (params) => {
     if (!params || !params.length) return '';
-    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${params[0].axisValue}</div>`;
-    params.forEach(param => {
+    // Filter out series whose value is null (unavailable KPIs) — only show visible lines
+    const visibleParams = params.filter(p => p.value !== null && p.value !== undefined);
+    if (!visibleParams.length) return '';
+    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${visibleParams[0].axisValue}</div>`;
+    visibleParams.forEach(param => {
       const formattedValue = formatTooltipValue(param.value, param.seriesName);
       html += `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px;">

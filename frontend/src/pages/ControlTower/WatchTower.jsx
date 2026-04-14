@@ -326,16 +326,17 @@ export default function WatchTower() {
       return categoryOverview.map(cat => {
         const getColVal = (title) => {
           const col = cat.columns?.find(c => c.title.toLowerCase().includes(title.toLowerCase()));
-          if (!col || !col.value) return 0;
+          if (!col || !col.value || col.value === "N/A") return null;
           const strVal = String(col.value).replace(/,/g, '').replace(/₹/g, '').trim();
           const numMatch = strVal.match(/-?[\d.]+/);
-          let val = numMatch ? parseFloat(numMatch[0]) : 0;
+          let val = numMatch ? parseFloat(numMatch[0]) : null;
+
+          if (val === null) return null;
 
           // Reverse-parse backend formatted strings back to raw numbers
           if (strVal.toLowerCase().includes('cr')) val *= 10000000;
           else if (strVal.toLowerCase().includes('lac') || strVal.toLowerCase().includes('lak')) val *= 100000;
           else if (strVal.toLowerCase().includes('k')) val *= 1000;
-          // If no suffix, treat as raw number
 
           return val;
         };
@@ -798,22 +799,24 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
     [rows]
   );
   const formatNumber = (value) =>
-    Number.isFinite(value) ? value.toLocaleString("en-IN") : "NaN";
-  const clamp01 = (value) => Math.max(0, Math.min(1, value));
+    Number.isFinite(value) ? value.toLocaleString("en-IN") : "N/A";
+  const clamp01 = (value) => Math.max(0, Math.min(1, value || 0));
   const pct = (value) =>
-    Number.isFinite(value) ? `${value.toFixed(1)}%` : "NaN";
+    Number.isFinite(value) ? `${value.toFixed(1)}%` : "N/A";
   const [visibleCount, setVisibleCount] = useState(7);
   const visibleItems = rows.slice(0, visibleCount);
   const total = rows.length;
 
   const formatCurrencyShort = (val) => {
-    if (!Number.isFinite(val) || val === 0) return "0";
+    if (val === null || !Number.isFinite(val)) return "N/A";
+    if (val === 0) return "0";
     const absVal = Math.abs(val);
     if (absVal >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
     if (absVal >= 100000) return `${(val / 100000).toFixed(2)} Lac`;
     if (absVal >= 1000) return `${(val / 1000).toFixed(2)} K`;
     return val.toFixed(2);
   };
+
 
   const kpiBands = [
     {
@@ -980,8 +983,9 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                           fontSize: "0.75rem",
                         }}
                       >
-                        Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {f.roas.toFixed(1)}x
+                        Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {Number.isFinite(f.roas) ? `${f.roas.toFixed(1)}x` : "N/A"}
                       </div>
+
                     </div>
                   </div>
 
@@ -994,9 +998,10 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                       fontSize: "0.75rem",
                     }}
                   >
-                    <span>MS {f.marketSharePct}%</span>
-                    <span>Conv {f.conversionPct}%</span>
+                    <span>MS {Number.isFinite(f.marketSharePct) ? `${f.marketSharePct}%` : "N/A"}</span>
+                    <span>Conv {Number.isFinite(f.conversionPct) ? `${f.conversionPct}%` : "N/A"}</span>
                   </div>
+
                 </motion.button>
               );
             })
@@ -1048,8 +1053,9 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                     Market share
                   </div>
                   <div className="text-sm font-medium">
-                    {active.marketSharePct}%
+                    {Number.isFinite(active.marketSharePct) ? `${active.marketSharePct}%` : "N/A"}
                   </div>
+
                   {compare && (
                     <div className="mt-1 text-[10px] text-rose-500">
                       Delta ROAS{" "}
@@ -1118,8 +1124,9 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
                     <div className="text-[10px] text-slate-500">ROAS</div>
                     <div className="text-base font-semibold">
-                      {active.roas.toFixed(1)}x
+                      {Number.isFinite(active.roas) ? `${active.roas.toFixed(1)}x` : "N/A"}
                     </div>
+
                     {compare && (
                       <div className="text-[9px] text-violet-600 mt-0.5">
                         vs {compare.roas.toFixed(1)}x
