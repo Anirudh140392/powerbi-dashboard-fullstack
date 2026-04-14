@@ -19,7 +19,7 @@ const FALLBACK_CHANNELS = ["Ecom", "ModernTrade"];
 export const FilterProvider = ({ children }) => {
     const { isLoggedIn } = useAuth();
     // Check if user is logged in (has a valid token) before making API calls
-    const isAuthenticated = isLoggedIn || !!localStorage.getItem('token');
+    const isAuthenticated = isLoggedIn || !!sessionStorage.getItem('token');
 
     // Channel state (fetched dynamically from rca_sku_dim)
     const [channels, setChannels] = useState(FALLBACK_CHANNELS);

@@ -527,7 +527,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                             isMyBrand = kpi.isOwnBrand;
                         } else {
                             try {
-                                const u = JSON.parse(localStorage.getItem('user'));
+                                const u = JSON.parse(sessionStorage.getItem('user'));
                                 const dbName = u?.dbName?.toLowerCase() || '';
                                 isMyBrand = dbName && kpi.brand.toLowerCase().includes(dbName);
                             } catch { /* ignore */ }
@@ -593,7 +593,16 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                             itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#6366f1" }}
                             labelStyle={{ display: 'none' }}
                             cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
-                            formatter={(value) => [typeof value === 'number' ? value.toFixed(1) : value, '']}
+                            formatter={(value) => {
+                                if (typeof value !== 'number') return [value, ''];
+                                let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
+                                let prefix = isCurrency ? '₹ ' : '';
+                                let formatted = value.toFixed(1);
+                                if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
+                                else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
+                                else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
+                                return [`${prefix}${formatted}`, ''];
+                            }}
                         />
                         <Area
                             type="monotone"
@@ -800,10 +809,10 @@ const SnapshotOverview = ({
                         </div>
                         <div className="flex items-center gap-4">
                             {headerRight}
-                            <IconButton 
+                            <IconButton
                                 onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
                                 size="small"
-                                sx={{ 
+                                sx={{
                                     bgcolor: "rgba(37, 99, 235, 0.05)",
                                     color: "#2563eb",
                                     "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
@@ -911,10 +920,10 @@ const SnapshotOverview = ({
                     </div>
                     <div className="flex items-center gap-5">
                         {headerRight}
-                        <IconButton 
+                        <IconButton
                             onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
                             size="small"
-                            sx={{ 
+                            sx={{
                                 bgcolor: "rgba(37, 99, 235, 0.05)",
                                 color: "#2563eb",
                                 "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
