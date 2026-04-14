@@ -53,29 +53,29 @@ import {
 import { Sparkles } from "lucide-react";
 
 const SidebarStatusBadge = ({ type }) => {
-    const isLive = type === "LIVE";
-    return (
-        <span 
-            className={isLive ? "status-pulse-green" : "status-pulse-blue"}
-            style={{
-                fontSize: "7.5px",
-                fontWeight: 800,
-                background: isLive ? "#10b981" : "#2563eb",
-                color: "#fff",
-                borderRadius: "5px",
-                padding: "2.5px 8px",
-                marginLeft: "8px",
-                display: "inline-flex",
-                alignItems: "center",
-                lineHeight: 1,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                fontFamily: "'Inter', sans-serif",
-                boxShadow: isLive ? "0 2px 4px rgba(16, 185, 129, 0.3)" : "0 2px 4px rgba(37, 99, 235, 0.3)",
-        }}>
-            {type}
-        </span>
-    );
+  const isLive = type === "LIVE";
+  return (
+    <span
+      className={isLive ? "status-pulse-green" : "status-pulse-blue"}
+      style={{
+        fontSize: "7.5px",
+        fontWeight: 800,
+        background: isLive ? "#10b981" : "#2563eb",
+        color: "#fff",
+        borderRadius: "5px",
+        padding: "2.5px 8px",
+        marginLeft: "8px",
+        display: "inline-flex",
+        alignItems: "center",
+        lineHeight: 1,
+        textTransform: "uppercase",
+        letterSpacing: "0.04em",
+        fontFamily: "'Inter', sans-serif",
+        boxShadow: isLive ? "0 2px 4px rgba(16, 185, 129, 0.3)" : "0 2px 4px rgba(37, 99, 235, 0.3)",
+      }}>
+      {type}
+    </span>
+  );
 };
 
 
@@ -127,7 +127,7 @@ const Sidebar = ({
       //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
-      //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> },
+      //{ label: "Portfolio Analysis", path: "/volume-cohort", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} /> }, 
       { label: "Content Analysis", path: "/content-score", icon: <ArticleIcon sx={{ fontSize: '1rem' }} />, showOnlyForDb: ['mars'] },
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
       // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
@@ -249,20 +249,39 @@ const Sidebar = ({
               filter: 'drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.05))'
             }}
           >
-            <img
-              src={activeLogo}
-              alt={activeLogoAlt}
-              style={{
-                maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
-                width: isCollapsed ? '100%' : 'auto',
-                maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
-                objectFit: 'contain',
-                padding: '0',
-                display: 'block',
-                borderRadius: user?.dbName === 'mamaearth' ? '8px' : '2px',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              }}
-            />
+            {user?.dbName !== 'mars' && (
+              <img
+                src={activeLogo}
+                alt={activeLogoAlt}
+                style={{
+                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
+                  width: isCollapsed ? '100%' : 'auto',
+                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
+                  objectFit: 'contain',
+                  padding: '0',
+                  display: 'block',
+                  borderRadius: user?.dbName === 'mamaearth' ? '8px' : '2px',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              />
+            )}
+
+            {user?.dbName === 'mars' && (
+              <img
+                src={marsLogo}
+                alt="Mars Logo"
+                style={{
+                  maxHeight: isCollapsed ? '32px' : '45px',
+                  width: isCollapsed ? '100%' : 'auto',
+                  maxWidth: isCollapsed ? '42px' : '180px',
+                  objectFit: 'contain',
+                  padding: '0',
+                  display: 'block',
+                  borderRadius: '2px',
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              />
+            )}
           </Box>
         </Box>
 
@@ -272,7 +291,7 @@ const Sidebar = ({
             sx={{
               color: 'rgba(30, 41, 59, 0.45)', // Slightly darker for better visibility on white
               p: 0.5,
-              '&:hover': { 
+              '&:hover': {
                 color: '#2563eb',
                 bgcolor: '#FFFFFF',
                 boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.12)',
@@ -343,10 +362,18 @@ const Sidebar = ({
             )}
             {items.filter((item) => {
               const dbName = user?.dbName;
+              // If user's DB status is inactive, hide all items
+              if (user?.dbStatus === false) return false;
               // If showOnlyForDb is provided, check if current db is in the list
               if (item.showOnlyForDb && !item.showOnlyForDb.includes(dbName)) return false;
               // If hideForDb is provided, check if current db is in the list
               if (item.hideForDb && item.hideForDb.includes(dbName)) return false;
+              // Check per-user tab permissions (from admin panel)
+              const tabPerms = user?.tabPermissions;
+              if (tabPerms && Object.keys(tabPerms).length > 0) {
+                // If this tab label has an explicit permission set, respect it
+                if (tabPerms[item.label] !== undefined && tabPerms[item.label] === false) return false;
+              }
               return true;
             }).map((item) => {
               const isActive = currentPath === item.path;
@@ -459,103 +486,96 @@ const Sidebar = ({
         py: 2,
         mt: 'auto',
         display: 'flex',
-        flexDirection: 'column',
-        gap: 1.5,
+        flexDirection: isCollapsed ? 'column' : 'row',
+        alignItems: 'center',
+        justifyContent: isCollapsed ? 'center' : 'space-between',
+        gap: isCollapsed ? 1.5 : 1,
         borderTop: "1px solid rgba(0, 0, 0, 0.04)",
         bgcolor: isCollapsed ? "transparent" : "rgba(248, 250, 252, 0.6)",
         backdropFilter: isCollapsed ? "none" : "blur(8px)",
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       }}>
-        <Box sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between', 
-          px: 0.5,
-          opacity: isCollapsed ? 0 : 1,
-          maxHeight: isCollapsed ? 0 : 40,
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          overflow: 'hidden'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
+        {!isCollapsed && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Typography
+                sx={{
+                  fontSize: '0.65rem',
+                  color: '#94a3b8',
+                  fontWeight: 500,
+                  lineHeight: 1.1,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Powered
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: '0.65rem',
+                  color: '#94a3b8',
+                  fontWeight: 500,
+                  lineHeight: 1.1,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                by
+              </Typography>
+            </Box>
             <Typography
               sx={{
-                fontSize: '0.62rem',
-                color: 'rgba(100, 116, 139, 0.6)',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
+                fontSize: '0.85rem',
+                fontWeight: 700,
+                color: '#64748b',
+                letterSpacing: '-0.01em',
                 whiteSpace: 'nowrap'
               }}
             >
-              Powered by
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: '0.74rem',
-                fontWeight: 800,
-                color: 'rgba(30, 41, 59, 0.8)',
-                letterSpacing: '0.01em',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Trailytics
+              trailytics
             </Typography>
           </Box>
-        </Box>
+        )}
 
         <Button
-          fullWidth={!isCollapsed}
-          variant="contained"
           onClick={() => {
             logout();
             localStorage.clear();
             navigate('/login');
           }}
-          startIcon={<LogoutIcon sx={{ 
-            fontSize: "1.1rem !important",
-            mr: isCollapsed ? 0 : 1,
-            transition: 'margin 0.3s'
-          }} />}
           sx={{
-            minWidth: isCollapsed ? 40 : 0,
-            maxWidth: isCollapsed ? 40 : "100%",
-            height: isCollapsed ? 40 : 30,
-            color: "#FFFFFF",
-            bgcolor: "#ef4444",
+            minWidth: isCollapsed ? 36 : 'auto',
+            height: isCollapsed ? 36 : 28,
+            px: isCollapsed ? 0 : 1.2,
+            color: "#ef4444",
+            bgcolor: "transparent",
+            border: "1px solid rgba(239, 68, 68, 0.45)",
             textTransform: "none",
             fontSize: "0.8rem",
             fontWeight: 700,
-            borderRadius: "10px",
-            boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)",
-            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-            mx: isCollapsed ? 'auto' : 0,
+            borderRadius: "8px",
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.6,
+            transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             "&:hover": {
-              bgcolor: "#dc2626",
-              transform: isCollapsed ? "scale(1.05)" : "translateY(-1px)",
-              boxShadow: "0 6px 16px rgba(239, 68, 68, 0.3)",
-            },
-            ...(isCollapsed ? {
-              px: 0,
-              '& .MuiButton-startIcon': { 
-                margin: 0,
-                display: 'flex',
-                justifyContent: 'center',
-                width: '100%'
+              bgcolor: "#ef4444 !important",
+              color: "#FFFFFF !important",
+              border: "1px solid #ef4444",
+              transform: "translateY(-1px)",
+              "& .MuiSvgIcon-root": {
+                color: "#FFFFFF",
               },
-            } : {
-              px: 2
-            })
+              "& .MuiTypography-root": {
+                color: "#FFFFFF",
+              }
+            },
           }}
         >
-          <Box sx={{ 
-            width: isCollapsed ? 0 : 'auto', 
-            opacity: isCollapsed ? 0 : 1, 
-            transition: 'all 0.3s',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap'
-          }}>
-            Sign Out
-          </Box>
+          <LogoutIcon sx={{ fontSize: "1.05rem", transition: 'color 0.2s' }} />
+          {!isCollapsed && (
+            <Typography component="span" sx={{ fontSize: '0.78rem', fontWeight: 800, transition: 'color 0.2s' }}>
+              SignOut
+            </Typography>
+          )}
         </Button>
       </Box>
     </Box >

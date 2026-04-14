@@ -1354,7 +1354,7 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
 
         const fetchSignalLab = async () => {
             try {
-                const token = localStorage.getItem('token');
+                const token = sessionStorage.getItem('token');
                 const params = new URLSearchParams();
                 params.append('type', metricType);
                 params.append('signalType', signalType);
@@ -1439,7 +1439,7 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
 
         const fetchPage = async () => {
             try {
-                const token = localStorage.getItem('token');
+                const token = sessionStorage.getItem('token');
                 const params = new URLSearchParams();
                 params.append('type', metricType);
                 params.append('signalType', signalType);
@@ -1520,7 +1520,7 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
         <>
             <div className="flex justify-between items-center flex-wrap gap-4">
                 <h2 className="text-lg font-semibold capitalize flex items-center gap-2">
-                    Signal Lab - {(() => { try { const u = JSON.parse(localStorage.getItem('user')); return u?.dbName ? u.dbName.charAt(0).toUpperCase() + u.dbName.slice(1) : 'Brand'; } catch { return 'Brand'; } })()} ({metricType === "performance" ? "Performance Marketing" : metricType})
+                    Signal Lab - {(() => { try { const u = JSON.parse(sessionStorage.getItem('user')); return u?.dbName ? u.dbName.charAt(0).toUpperCase() + u.dbName.slice(1) : 'Brand'; } catch { return 'Brand'; } })()} ({metricType === "performance" ? "Performance Marketing" : metricType})
                     <div className="group relative cursor-help">
                         <Info size={16} className="text-slate-400 hover:text-sky-500 transition-colors" />
                         <div className="absolute left-0 top-full mt-2 w-64 p-3 bg-slate-900 text-white text-[11px] rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 font-normal normal-case leading-relaxed">

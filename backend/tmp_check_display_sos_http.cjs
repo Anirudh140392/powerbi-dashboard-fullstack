@@ -34,3 +34,4 @@ req.on('error', (e) => {
 
 req.write("SELECT name, type FROM system.columns WHERE table = 'rb_kw_olap' FORMAT JSON");
 req.end();
+

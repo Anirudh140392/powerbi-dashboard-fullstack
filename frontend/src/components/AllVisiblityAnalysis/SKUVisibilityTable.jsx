@@ -38,7 +38,7 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
 
     const defaultBrand = useMemo(() => {
         try {
-            const u = JSON.parse(localStorage.getItem('user'));
+            const u = JSON.parse(sessionStorage.getItem('user'));
             return u?.dbName ? u.dbName.charAt(0).toUpperCase() + u.dbName.slice(1) : 'Brand';
         } catch {
             return 'Brand';
@@ -302,8 +302,8 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                                                         </td>
                                                         {activeTab === "ALL SKUs" && (
                                                             <td className="px-6 py-2 text-[10px] text-slate-500 font-semibold">
-                                                            {getCorrectBrand(sku.skuName, sku.brand, brandName)}
-                                                        </td>
+                                                                {getCorrectBrand(sku.skuName, sku.brand, brandName)}
+                                                            </td>
                                                         )}
                                                         <td className="px-6 py-2 text-center text-[10px] font-bold text-slate-500">
                                                             {sku.paidRank}

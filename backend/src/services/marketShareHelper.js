@@ -432,11 +432,31 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
 
         const currentResult = await queryClickHouse(currentQuery);
         if (!currentResult || currentResult.length === 0) {
-            return { brand: 'N/A', sales: 0, prevSales: 0, delta: 0, deltaAbs: 0 };
+            return { brand: 'N/A', sales: 0, prevSales: 0, delta: 0, deltaAbs: 0, trend: [] };
         }
 
         const leaderBrand = currentResult[0].brand;
         const leaderSales = parseFloat(currentResult[0].total_sales || 0);
+
+        const trendQuery = `
+            SELECT formatDateTime(toDate(created_on), '%Y-%m-%d') as date_group,
+                   SUM(toFloat64OrZero(toString(sales))) as daily_sales
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
+            AND group_brand = '${leaderBrand.replace(/'/g, "''")}'
+            GROUP BY date_group
+            ORDER BY date_group
+        `;
+        const trendResult = await queryClickHouse(trendQuery);
+        const trendMap = {};
+        trendResult.forEach(t => trendMap[t.date_group] = parseFloat(t.daily_sales || 0));
+        const trend = [];
+        let curr = start;
+        while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+             trend.push(trendMap[curr.format('YYYY-MM-DD')] || 0);
+             curr = curr.add(1, 'day');
+        }
 
         // Previous period: same brand's sales
         const prevQuery = `
@@ -457,11 +477,12 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
             sales: leaderSales,
             prevSales,
             delta: parseFloat(delta.toFixed(2)),
-            deltaAbs: parseFloat(deltaAbs.toFixed(2))
+            deltaAbs: parseFloat(deltaAbs.toFixed(2)),
+            trend
         };
     } catch (error) {
         console.error('[MarketLeaderSales] Error:', error.message);
-        return { brand: 'N/A', sales: 0, prevSales: 0, delta: 0, deltaAbs: 0 };
+        return { brand: 'N/A', sales: 0, prevSales: 0, delta: 0, deltaAbs: 0, trend: [] };
     }
 };
 
@@ -541,10 +562,31 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
             ${marsFilter}
         `;
 
-        const [currentResult, prevResult] = await Promise.all([
+        const trendQuery = `
+            SELECT formatDateTime(toDate(created_on), '%Y-%m-%d') as date_group,
+                   SUM(toFloat64OrZero(toString(sales))) as daily_sales
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
+            ${marsFilter}
+            GROUP BY date_group
+            ORDER BY date_group
+        `;
+
+        const [currentResult, prevResult, trendResult] = await Promise.all([
             queryClickHouse(currentQuery),
-            queryClickHouse(prevQuery)
+            queryClickHouse(prevQuery),
+            queryClickHouse(trendQuery)
         ]);
+
+        const trendMap = {};
+        trendResult.forEach(t => trendMap[t.date_group] = parseFloat(t.daily_sales || 0));
+        const trend = [];
+        let curr = start;
+        while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+             trend.push(trendMap[curr.format('YYYY-MM-DD')] || 0);
+             curr = curr.add(1, 'day');
+        }
 
         const sales = parseFloat(currentResult?.[0]?.total_sales || 0);
         const prevSales = parseFloat(prevResult?.[0]?.total_sales || 0);
@@ -555,11 +597,12 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
             sales,
             prevSales,
             delta: parseFloat(delta.toFixed(2)),
-            deltaAbs: parseFloat(deltaAbs.toFixed(2))
+            deltaAbs: parseFloat(deltaAbs.toFixed(2)),
+            trend
         };
     } catch (error) {
         console.error('[MarsWrigleySales] Error:', error.message);
-        return { sales: 0, prevSales: 0, delta: 0, deltaAbs: 0 };
+        return { sales: 0, prevSales: 0, delta: 0, deltaAbs: 0, trend: [] };
     }
 };
 
@@ -622,10 +665,30 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
             ${baseCond}
         `;
 
-        const [currentResult, prevResult] = await Promise.all([
+        const trendQuery = `
+            SELECT formatDateTime(toDate(created_on), '%Y-%m-%d') as date_group,
+                   SUM(toFloat64OrZero(toString(sales))) as daily_sales
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
+            GROUP BY date_group
+            ORDER BY date_group
+        `;
+
+        const [currentResult, prevResult, trendResult] = await Promise.all([
             queryClickHouse(currentQuery),
-            queryClickHouse(prevQuery)
+            queryClickHouse(prevQuery),
+            queryClickHouse(trendQuery)
         ]);
+
+        const trendMap = {};
+        trendResult.forEach(t => trendMap[t.date_group] = parseFloat(t.daily_sales || 0));
+        const trend = [];
+        let curr = start;
+        while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+             trend.push(trendMap[curr.format('YYYY-MM-DD')] || 0);
+             curr = curr.add(1, 'day');
+        }
 
         const size = parseFloat(currentResult?.[0]?.total_category_size || 0);
         const prevSize = parseFloat(prevResult?.[0]?.total_category_size || 0);
@@ -636,11 +699,12 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
             size,
             prevSize,
             delta: parseFloat(delta.toFixed(2)),
-            deltaAbs: parseFloat(deltaAbs.toFixed(2))
+            deltaAbs: parseFloat(deltaAbs.toFixed(2)),
+            trend
         };
     } catch (error) {
         console.error('[CategorySize] Error:', error.message);
-        return { size: 0, prevSize: 0, delta: 0, deltaAbs: 0 };
+        return { size: 0, prevSize: 0, delta: 0, deltaAbs: 0, trend: [] };
     }
 };
 
