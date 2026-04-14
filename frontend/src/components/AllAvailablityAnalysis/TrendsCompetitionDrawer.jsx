@@ -412,9 +412,8 @@ const KPI_SOURCE_MAP = {
   // PDP table KPIs
   Offtakes: 'pdp', Offtake: 'pdp', offtake: 'pdp',
   Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
-  Discount: 'pdp', 'Promo-My': 'pdp', PromoMyBrand: 'pdp', discount: 'pdp',
+  'Promo-My': 'pdp', PromoMyBrand: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
-  PricePerUnit: 'pdp', ASP: 'pdp', RPI: 'pdp',
   // PM table KPIs
   InorganicSales: 'pm', InorgSales: 'pm',
   Conversion: 'pm', Roas: 'pm', ROAS: 'pm',
@@ -425,6 +424,11 @@ const KPI_SOURCE_MAP = {
   // MS table KPIs
   MarketShare: 'ms', CategoryShare: 'ms',
   marketShare: 'ms', categoryShare: 'ms',
+  // Pricing-specific KPIs (per-KPI granularity from pricing backend)
+  Discount: 'Discount', discount: 'Discount',
+  PricePerUnit: 'PricePerUnit',
+  ASP: 'ASP',
+  RPI: 'ASP',  // RPI depends on ASP (selling price) data
 };
 
 
@@ -486,7 +490,7 @@ export default function TrendsCompetitionDrawer({
     }
   }, [open, initialAudience]);
 
-  const { maxDate } = React.useContext(FilterContext);
+  const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
   const [view, setView] = useState(defaultView || "Trends");
@@ -519,43 +523,70 @@ export default function TrendsCompetitionDrawer({
     SKU: "All"
   });
 
-  // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
+  // ===================== CONSOLIDATED DRAWER FILTER INITIALIZATION =====================
+  // All filter initialization happens in ONE atomic state update to prevent
+  // race conditions where multiple effects override each other.
   useEffect(() => {
-    if (selectedColumn && open) {
-      if (dynamicKey === "pricing") {
-        setSelectedPlatform(initialPlatform || "Blinkit");
-        setDrawerFilters(prev => ({
-          ...prev,
-          Platform: initialPlatform || "All",
-          City: "All",
-          Brand: "All",
-          Format: "All",
-          SKU: "All",
-        }));
-      } else {
-        setSelectedPlatform(initialPlatform || selectedColumn || "Blinkit");
+    if (!open) return;
 
-        const currentAudience = initialAudience || allTrendMeta.context.audience;
-        setDrawerFilters(prev => ({
-          ...prev,
-          Platform: initialPlatform || prev.Platform,
-          [currentAudience]: selectedColumn,
-        }));
+    // Set view
+    setView(defaultView || "Trends");
+
+    if (dynamicKey === "pricing") {
+      setSelectedPlatform(initialPlatform || "Blinkit");
+      setDrawerFilters({
+        Platform: initialPlatform || "All",
+        City: "All",
+        Brand: "All",
+        Format: "All",
+        SKU: "All",
+      });
+    } else {
+      // Determine the audience dimension being drilled into
+      const currentAudience = initialAudience || allTrendMeta.context.audience;
+
+      // Build the complete filter state atomically
+      const newFilters = {
+        Platform: "All",
+        City: "All",
+        Brand: "All",
+        Format: "All",
+        SKU: "All",
+      };
+
+      // 1. Apply initialPlatform if provided
+      if (initialPlatform && initialPlatform !== 'All') {
+        newFilters.Platform = initialPlatform;
       }
+
+      // 2. For availability, inherit global filters from FilterContext
+      if (dynamicKey === 'availability') {
+        if (globalPlatform && globalPlatform !== 'All' && (!initialPlatform || initialPlatform === 'All')) {
+          newFilters.Platform = globalPlatform;
+        }
+        if (globalBrand && globalBrand !== 'All') {
+          newFilters.Brand = globalBrand;
+        }
+        if (globalLocation && globalLocation !== 'All') {
+          newFilters.City = globalLocation;
+        }
+        if (globalCategory && globalCategory !== 'All') {
+          newFilters.Format = globalCategory;
+        }
+      }
+
+      // 3. Apply the selectedColumn to the correct dimension (this takes priority)
+      if (selectedColumn && currentAudience) {
+        newFilters[currentAudience] = selectedColumn;
+      }
+
+      // Set platform pill selection
+      setSelectedPlatform(newFilters.Platform !== 'All' ? newFilters.Platform : (initialPlatform || selectedColumn || "Blinkit"));
+
+      setDrawerFilters(newFilters);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColumn, open, dynamicKey, initialPlatform]);
-
-  useEffect(() => {
-    if (open) {
-      setView(defaultView || "Trends");
-      setSelectedPlatform(initialPlatform || selectedPlatform || "Blinkit");
-      setDrawerFilters(prev => ({
-        ...prev,
-        Platform: initialPlatform || prev.Platform || "All",
-      }));
-    }
-  }, [open, defaultView, initialPlatform]);
+  }, [selectedColumn, open, dynamicKey, initialPlatform, defaultView, globalPlatform, globalBrand, globalLocation, globalCategory]);
 
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);
@@ -688,7 +719,13 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
-        setKpiAvailability(null); // Pricing doesn't use kpiAvailability
+        // Store KPI availability from pricing backend response
+        if (response.data?.kpiAvailability) {
+          setKpiAvailability(response.data.kpiAvailability);
+          console.log('[TrendsDrawer] Pricing KPI Availability:', response.data.kpiAvailability);
+        } else {
+          setKpiAvailability(null);
+        }
       } else if (dynamicKey === "marketshare") {
         const params = {
           period: range,
@@ -1943,8 +1980,11 @@ export default function TrendsCompetitionDrawer({
 
   const createTooltipFormatter = (params) => {
     if (!params || !params.length) return '';
-    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${params[0].axisValue}</div>`;
-    params.forEach(param => {
+    // Filter out series whose value is null (unavailable KPIs) — only show visible lines
+    const visibleParams = params.filter(p => p.value !== null && p.value !== undefined);
+    if (!visibleParams.length) return '';
+    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${visibleParams[0].axisValue}</div>`;
+    visibleParams.forEach(param => {
       const formattedValue = formatTooltipValue(param.value, param.seriesName);
       html += `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px;">
@@ -2089,16 +2129,15 @@ export default function TrendsCompetitionDrawer({
     else if (newAudience === "Brand") firstOption = BRAND_OPTIONS[0];
     else if (newAudience === "SKU") firstOption = SKU_OPTIONS[0];
 
-    setSelectedPlatform(firstOption);
+    const existingFilter = drawerFilters[newAudience];
+    const newSelectedPill = (existingFilter && existingFilter !== "All") ? existingFilter : firstOption;
 
-    // Sync with drawerFilters
+    setSelectedPlatform(newSelectedPill);
+
+    // Sync with drawerFilters without resetting others
     setDrawerFilters(prev => ({
       ...prev,
-      Platform: newAudience === "Platform" ? firstOption : "All",
-      Format: newAudience === "Format" ? firstOption : "All",
-      City: newAudience === "City" ? firstOption : "All",
-      Brand: newAudience === "Brand" ? firstOption : "All",
-      SKU: newAudience === "SKU" ? firstOption : "All"
+      [newAudience]: newSelectedPill
     }));
 
     setShowPlatformPills(true);
@@ -2376,10 +2415,12 @@ export default function TrendsCompetitionDrawer({
                         <Box
                           key={p}
                           onClick={() => {
-                            setSelectedPlatform(p);
+                            const isAlreadySelected = selectedPlatform === p;
+                            const newValue = isAlreadySelected ? "All" : p;
+                            setSelectedPlatform(newValue);
                             setDrawerFilters(prev => ({
                               ...prev,
-                              [allTrendMeta.context.audience]: p
+                              [allTrendMeta.context.audience]: newValue
                             }));
                           }}
                           sx={{

@@ -593,7 +593,16 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                             itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#6366f1" }}
                             labelStyle={{ display: 'none' }}
                             cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
-                            formatter={(value) => [typeof value === 'number' ? value.toFixed(1) : value, '']}
+                            formatter={(value) => {
+                                if (typeof value !== 'number') return [value, ''];
+                                let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
+                                let prefix = isCurrency ? '₹ ' : '';
+                                let formatted = value.toFixed(1);
+                                if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
+                                else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
+                                else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
+                                return [`${prefix}${formatted}`, ''];
+                            }}
                         />
                         <Area
                             type="monotone"
