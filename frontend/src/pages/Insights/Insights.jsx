@@ -149,7 +149,7 @@ const createEmptySignal = (type, brandName = "Brand") => {
     switch (type) {
         case "Competitor OSA Weak Spots":
             base.kpis = [{ label: "Other brand OSA", value: "0%" }, { label: `${brandName} OSA`, value: "0%" }, { label: "Cities", value: "0" }];
-            base.evidence = [{ category: "-", city: "-", skuOrBrand: "-", otherBrandOsa: 0, kwOsa: 0 }];
+            base.evidence = [{ category: "-", city: "-", platform: "-", skuOrBrand: "-", otherBrandOsa: 0, otherBrandOsaChangePct: 0, kwOsa: 0, ourBrandMkShare: null, gapPct: 0 }];
             break;
         case "Remove Ad Low OSA":
             base.kpis = [{ label: `${brandName} OSA (avg)`, value: "0%" }, { label: "Ad SOV", value: "0%" }, { label: "Spend", value: "₹0" }];
@@ -169,7 +169,7 @@ const createEmptySignal = (type, brandName = "Brand") => {
             break;
         case "Keyword Efficiency and Budget Caps":
             base.kpis = [{ label: "Waste keywords", value: "0" }, { label: "Best ACOS", value: "0%" }, { label: "Budget caps", value: "-" }];
-            base.evidence = [{ keyword: "-", campaign: "-", bid: 0, dailyBudget: 0, spend: 0, sales: 0, acos: 0, budgetCapped: false }];
+            base.evidence = [{ keyword: "-", city: "-", campaign: "-", bid: 0, dailyBudget: 0, spend: 0, sales: 0, acos: 0, budgetCapped: false }];
             break;
         case "Surplus Stock":
             base.kpis = [{ label: "Avg DOI", value: "0 days" }, { label: "Affected SKUs", value: "0" }, { label: "Avg Discount", value: "0%" }];
@@ -744,18 +744,42 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
         if (t === "Share Headroom Hotspots") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
+            { key: "brandOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: (v, r) => v != null ? (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
+                    <span style={{ fontSize: '10px', color: (r.brandOsaDelta || 0) < 0 ? '#ef4444' : '#10b981' }}>
+                        {(r.brandOsaDelta || 0) >= 0 ? "+" : ""}{(r.brandOsaDelta || 0).toFixed(1)}%
+                    </span>
+                </div>
+            ) : "-" },
             { key: "marketShare", label: "Mkt Share", fmt: (v, r) => v != null ? `${safePct(v)} (${r.marketShareMoM >= 0 ? "+" : ""}${safePct(r.marketShareMoM)})` : "-" },
-            { key: "offtake", label: "Offtake", fmt: (v, r) => v != null ? `${safeINR(v)} (${safePct(r.offtakeMoM)})` : "-" },
+            { key: "offtake", label: "Offtake", fmt: (v, r) => v != null ? (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 600 }}>{safeINR(v)}</span>
+                    <span style={{ fontSize: '10px', color: (r.offtakeDelta || 0) < 0 ? '#ef4444' : '#10b981' }}>
+                        {(r.offtakeDelta || 0) >= 0 ? "+" : ""}{safeINR(r.offtakeDelta)} ({(r.offtakeMoM || 0) >= 0 ? "+" : ""}{safePct(r.offtakeMoM)})
+                    </span>
+                </div>
+            ) : "-" },
             { key: "possibleCause", label: "Cause", isText: true },
         ];
         if (t === "Competitor OSA Weak Spots") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
+            { key: "platform", label: "Platform", fmt: (v) => v || "-" },
             { key: "city", label: "City" },
-            { key: "otherBrandOsa", label: "Comp OSA", fmt: (v, r) => `${safePct(v)} (${r.otherBrandOsaChangePct > 0 ? '+' : ''}${safePct(r.otherBrandOsaChangePct)})` },
-            { key: "otherBrandMkShare", label: "Comp MK Share", fmt: safePct },
-            { key: "kwOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: (v, r) => `${safePct(v)} (${r.kwOsaChangePct > 0 ? '+' : ''}${safePct(r.kwOsaChangePct)})` },
-            { key: "ourBrandMkShare", label: `${insight.brandName || "Brand"} MK Share`, fmt: safePct },
             { key: "skuOrBrand", label: "Competitor", isText: true },
+            { key: "otherBrandOsa", label: "Comp OSA", fmt: (v, r) => (
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontWeight: 600 }}>{safePct(v)}</span>
+                    <span style={{ fontSize: '10px', color: (r.otherBrandOsaChangePct || 0) < 0 ? '#ef4444' : '#10b981' }}>
+                        {(r.otherBrandOsaChangePct || 0) >= 0 ? "+" : ""}{(r.otherBrandOsaChangePct || 0).toFixed(1)}%
+                    </span>
+                </div>
+            ) },
+            { key: "otherBrandMkShare", label: "Comp MK Share", fmt: safePct },
+            { key: "kwOsa", label: `${insight.brandName || "Brand"} OSA`, fmt: safePct },
+            { key: "gapPct", label: "Gap %", fmt: (v) => <span style={{ color: (v || 0) < 0 ? '#ef4444' : '#10b981', fontWeight: 600 }}>{safePct(v)}</span> },
+            { key: "ourBrandMkShare", label: `${insight.brandName || "Brand"} Mkt Share`, fmt: safePct },
         ];
         if (t === "Price Parity Radar") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
@@ -774,6 +798,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
         if (t === "Keyword Efficiency and Budget Caps") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "platform", label: "Platform" },
+            { key: "city", label: "City" },
             { key: "acos", label: "ACOS", fmt: (v, r) => `${safePct(v)} (${r.acosChangePct > 0 ? '+' : ''}${safePct(r.acosChangePct)})` },
             { key: "spend", label: "Spend", fmt: safeINR },
             { key: "keyword", label: "Keyword", isText: true },
@@ -1326,11 +1351,24 @@ const EvidenceTable = ({ insight, activePlatform }) => {
     const view = getEvidenceView(insight.type);
     const [search, setSearch] = useState("");
     const [activePopupIdx, setActivePopupIdx] = useState(null);
+    const [categoryFilter, setCategoryFilter] = useState("All");
+
+    const categories = useMemo(() => {
+        const cats = new Set();
+        (insight.evidence || []).forEach(e => {
+            if (e.category && e.category !== "-") cats.add(e.category);
+        });
+        return ["All", ...Array.from(cats)];
+    }, [insight.evidence]);
 
     const filtered = useMemo(() => {
         let data = insight.evidence || [];
         if (activePlatform && activePlatform !== "-" && activePlatform !== "All platforms") {
             data = data.filter((e) => !e.platform || e.platform === activePlatform || e.platform === "-");
+        }
+
+        if (view === "share" && categoryFilter !== "All") {
+            data = data.filter(e => e.category === categoryFilter);
         }
 
         if (insight.type === "Remove Ad Low OSA") {
@@ -1345,7 +1383,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
         if (!search.trim()) return data;
         const q = search.toLowerCase();
         return data.filter((row) => Object.values(row).some((v) => String(v).toLowerCase().includes(q)));
-    }, [insight.evidence, search, activePlatform, insight.type]);
+    }, [insight.evidence, search, activePlatform, insight.type, categoryFilter, view]);
 
     return (
         <div style={{
@@ -1361,18 +1399,45 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                 <span style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a5f", letterSpacing: "0.02em" }}>
                     Evidence Data
                 </span>
-                <div style={{ position: "relative" }}>
-                    <Search size={11} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-                    <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search..."
-                        style={{
-                            paddingLeft: "26px", paddingRight: "8px", paddingTop: "5px", paddingBottom: "5px",
-                            fontSize: "11px", border: "1px solid #bfdbfe", borderRadius: "6px",
-                            background: "#fff", outline: "none", width: "180px", color: "#1e3a5f",
-                        }}
-                    />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {view === "share" && categories.length > 1 && (
+                        <select
+                            value={categoryFilter}
+                            onChange={(e) => setCategoryFilter(e.target.value)}
+                            style={{
+                                padding: "6px 28px 6px 12px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                color: categoryFilter !== "All" ? "#ffffff" : "#475569",
+                                background: categoryFilter !== "All" ? "#0f172a" : "#ffffff",
+                                border: categoryFilter !== "All" ? "1px solid #0f172a" : "1px solid #e2e8f0",
+                                borderRadius: "8px",
+                                outline: "none",
+                                cursor: "pointer",
+                                transition: "all 0.2s ease",
+                                appearance: "none",
+                                backgroundPosition: "right 8px center",
+                                backgroundRepeat: "no-repeat",
+                                backgroundSize: "10px",
+                                backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${categoryFilter !== "All" ? "%23ffffff" : "%23475569"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`
+                            }}
+                        >
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    )}
+                    <div style={{ position: "relative" }}>
+                        <Search size={11} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                        <input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search..."
+                            style={{
+                                paddingLeft: "26px", paddingRight: "8px", paddingTop: "5px", paddingBottom: "5px",
+                                fontSize: "11px", border: "1px solid #bfdbfe", borderRadius: "6px",
+                                background: "#fff", outline: "none", width: "180px", color: "#1e3a5f",
+                            }}
+                        />
+                    </div>
                 </div>
             </div>
             <ScrollArea className="h-[380px] w-full">
@@ -1387,13 +1452,14 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp OSA</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Comp MK Share</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} OSA</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} MK Share</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Gap %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Mkt Share</TableHead>
                             </>)}
                             {view === "share" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Brand OSA</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} OSA</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Mkt Share</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Offtake</TableHead>
@@ -1507,9 +1573,17 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.skuOrBrand ?? "-"}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safePct(d.otherBrandOsa)}</TableCell>
+                                                    <TableCell className="text-right px-3 py-3">
+                                                        <div className="flex flex-col items-end">
+                                                            <span className="text-[11px] font-medium text-red-600">{safePct(d.otherBrandOsa)}</span>
+                                                            <span className={`text-[10px] mt-0.5 ${(d.otherBrandOsaChangePct || 0) < 0 ? "text-red-500" : "text-emerald-500"}`}>
+                                                                {(d.otherBrandOsaChangePct || 0) >= 0 ? '+' : ''}{(d.otherBrandOsaChangePct || 0).toFixed(1)}%
+                                                            </span>
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safePct(d.otherBrandMkShare)}</TableCell>
                                                     <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.kwOsa)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-semibold text-emerald-600 px-3 py-3">{safePct(d.gapPct)}</TableCell>
                                                     <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.ourBrandMkShare)}</TableCell>
                                                 </>
                                             )}
@@ -1518,13 +1592,27 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                     <CategoryCell category={d.category ?? insight.category ?? "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.brandOsa)}</TableCell>
+                                                    <TableCell className="text-right px-3 py-3">
+                                                        <div className="flex flex-col items-end">
+                                                            <span className="text-[11px] font-medium text-blue-600">{safePct(d.brandOsa)}</span>
+                                                            {d.brandOsaDelta !== undefined && d.brandOsaDelta !== 0 && (
+                                                                <span className={`text-[10px] mt-0.5 ${(d.brandOsaDelta || 0) < 0 ? "text-red-500" : "text-emerald-500"}`}>
+                                                                    {(d.brandOsaDelta || 0) > 0 ? '+' : ''}{d.brandOsaDelta.toFixed(1)}%
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
                                                         {safePct(d.marketShare)} <span className={d.marketShareMoM < 0 ? "text-red-600" : "text-emerald-600"}>({d.marketShareMoM > 0 ? '+' : ''}{safePct(d.marketShareMoM)})</span>
                                                     </TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{safeINR(d.psl)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
-                                                        {safeINR(d.offtake)} <span className={(d.offtakeDelta || 0) < 0 ? "text-red-600" : "text-emerald-600"}>({(d.offtakeDelta || 0) > 0 ? '+' : ''}{safeINR(d.offtakeDelta)} / {safePct(d.offtakeMoM)})</span>
+                                                    <TableCell className="text-right px-3 py-3">
+                                                        <div className="flex flex-col items-end">
+                                                            <span className="text-[11px] font-semibold text-slate-800">{safeINR(d.offtake)}</span>
+                                                            <span className={`text-[10px] mt-0.5 ${(d.offtakeDelta || 0) < 0 ? "text-red-500" : "text-emerald-500"}`}>
+                                                                {(d.offtakeDelta || 0) >= 0 ? '+' : ''}{safeINR(d.offtakeDelta)} ({(d.offtakeMoM || 0) >= 0 ? '+' : ''}{safePct(d.offtakeMoM)})
+                                                            </span>
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="px-3 py-3"><span className="text-[11px] text-slate-800 truncate max-w-[120px] block">{d.myTopSku || "-"}</span></TableCell>
                                                     <TableCell className="px-3 py-3"><span className="text-[11px] text-slate-800 truncate max-w-[120px] block">{d.competitorSku || "-"}</span></TableCell>
