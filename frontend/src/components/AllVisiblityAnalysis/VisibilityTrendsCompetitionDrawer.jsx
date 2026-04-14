@@ -1147,23 +1147,22 @@ export default function VisibilityTrendsCompetitionDrawer({
                       context: { ...prev.context, audience: newAudience },
                     }));
 
-                    // Reset selected value when audience switches to ensure valid selection
-                    let options = [];
-                    if (newAudience === "Platform") options = filterOptions.platforms;
-                    else if (newAudience === "Format") options = filterOptions.formats;
-                    else if (newAudience === "City") options = filterOptions.cities;
-                    else if (newAudience === "Brand") options = filterOptions.brands;
+                    const existingFilter = drawerFilters[newAudience];
+                    const options = newAudience === "Platform" ? filterOptions.platforms :
+                                    newAudience === "Format" ? filterOptions.formats :
+                                    newAudience === "City" ? filterOptions.cities :
+                                    newAudience === "Brand" ? filterOptions.brands : [];
+                    
+                    const firstOption = options.length > 0 ? options[0] : "All";
+                    const newSelectedPill = (existingFilter && existingFilter !== "All") ? existingFilter : firstOption;
 
-                    if (options.length > 0) {
-                      const firstOption = options[0];
-                      setSelectedPlatform(firstOption);
+                    setSelectedPlatform(newSelectedPill);
 
-                      // Sync with drawerFilters
-                      setDrawerFilters(prev => ({
-                        ...prev,
-                        [newAudience]: firstOption
-                      }));
-                    }
+                    // Sync with drawerFilters without resetting others
+                    setDrawerFilters(prev => ({
+                      ...prev,
+                      [newAudience]: newSelectedPill
+                    }));
 
                     setShowPlatformPills(true);
                   }}
@@ -1224,12 +1223,14 @@ export default function VisibilityTrendsCompetitionDrawer({
                       <Box
                         key={p}
                         onClick={() => {
-                          setSelectedPlatform(p);
-                          // Sync with drawerFilters
                           const audience = allTrendMeta.context.audience;
+                          const isAlreadySelected = selectedPlatform === p;
+                          const newValue = isAlreadySelected ? "All" : p;
+                          
+                          setSelectedPlatform(newValue);
                           setDrawerFilters(prev => ({
                             ...prev,
-                            [audience]: p
+                            [audience]: newValue
                           }));
                         }}
                         sx={{
