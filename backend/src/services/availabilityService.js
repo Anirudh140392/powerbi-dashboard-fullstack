@@ -92,14 +92,10 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         dimension, dimensionValue
     } = filters;
 
-    // Apply dashboard drill-down dimension override overrides base filters
-    if (dimension && dimensionValue && dimensionValue !== 'All') {
-        const dimKey = dimension.toLowerCase();
-        if (dimKey === 'platform') platform = dimensionValue;
-        else if (dimKey === 'brand') brand = dimensionValue;
-        else if (dimKey === 'city' || dimKey === 'location') location = dimensionValue;
-        else if (dimKey === 'category' || dimKey === 'format') categories = dimensionValue;
-    }
+    // Dashboard drill-down dimension overrides have been removed here.
+    // The frontend (TrendsCompetitionDrawer) now fully aggregates all filters
+    // (global context, selected column, and manual drawer changes) and explicitly
+    // passes them in standard params (platform, brand, category, sku, etc).
 
     const conditions = [];
 
@@ -231,7 +227,7 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
         conditions.push(`lower(trim(BOTH '\t\n ' FROM ${prefix}${actualPcCol})) IN (${uniquePcArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
     }
 
-    // SKU filter
+    // SKU filter (Web_Pid based)
     const sArr = [];
     if (sku && sku !== 'All') {
         if (Array.isArray(sku)) {
@@ -252,7 +248,20 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
 
     if (sArr.length > 0) {
         const uniqueSArr = [...new Set(sArr)];
-        conditions.push(`${prefix}Web_Pid IN (${uniqueSArr.map(s => `'${escapeStr(s)}'`).join(',')})`);
+        // Match against BOTH Web_Pid (ID) and Product (name) columns
+        // so the filter works whether the frontend sends IDs or names
+        const pidConds = uniqueSArr.map(s => `'${escapeStr(s)}'`).join(',');
+        const nameConds = uniqueSArr.map(s => `${prefix}Product ILIKE '%${escapeStr(s)}%'`).join(' OR ');
+        conditions.push(`(${prefix}Web_Pid IN (${pidConds}) OR ${nameConds})`);
+    }
+
+    // SKU name filter (Product name based - from drawer skuName param)
+    if (filters.skuName && filters.skuName !== 'All') {
+        const snArr = Array.isArray(filters.skuName) ? filters.skuName.filter(v => v !== 'All') : [filters.skuName];
+        if (snArr.length > 0) {
+            const snConds = snArr.map(s => `${prefix}Product ILIKE '%${escapeStr(s)}%'`).join(' OR ');
+            conditions.push(`(${snConds})`);
+        }
     }
 
     // Date/Month range
@@ -1843,14 +1852,8 @@ const getAvailabilityKpiTrends = async (filters) => {
         try {
             let { platform, brand, location, category, period = '1M', timeStep = 'daily', startDate: filterStart, endDate: filterEnd, dimension, dimensionValue } = filters;
             
-            // Apply dimension overrides
-            if (dimension && dimensionValue && dimensionValue !== 'All') {
-                const dimKey = dimension.toLowerCase();
-                if (dimKey === 'platform') platform = dimensionValue;
-                else if (dimKey === 'brand') brand = dimensionValue;
-                else if (dimKey === 'city' || dimKey === 'location') location = dimensionValue;
-                else if (dimKey === 'category' || dimKey === 'format') category = dimensionValue;
-            }
+            // Dimension overrides have been removed here.
+            // The frontend explicitly sends all necessary filters.
 
             console.log(`\n[DEBUG TRENDS] Filters:`, JSON.stringify(filters));
 

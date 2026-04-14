@@ -378,6 +378,8 @@ export const getAvailabilityKpiTrends = async (req, res) => {
             location: parseFilter(req.query.location),
             category: parseFilter(req.query.category),
             productCategory: parseFilter(req.query.productCategory),
+            sku: parseFilter(req.query.sku),
+            skuName: parseFilter(req.query.skuName),
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             channel: req.query.channel,
