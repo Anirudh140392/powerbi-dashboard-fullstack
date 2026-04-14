@@ -484,7 +484,7 @@ const KPI_KEYS = [
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading }) => {
+const BrandTable = ({ rows, loading, isEcom }) => {
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
@@ -555,7 +555,7 @@ const BrandTable = ({ rows, loading }) => {
     );
 };
 
-const SkuTable = ({ rows, loading }) => {
+const SkuTable = ({ rows, loading, isEcom }) => {
     return (
         <Card className="mt-3 border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b pb-2">
@@ -1024,7 +1024,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
                 <TabsContent value="brand" className="mt-3">
                     {viewMode === "table" ? (
-                        <BrandTable rows={brandRows} loading={loading} />
+                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} />
                     ) : (
                         <TrendView
                             mode="brand"
@@ -1032,13 +1032,14 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             city={city}
                             onBackToTable={() => setViewMode("table")}
                             apiTrendData={trendData}
+                            isEcom={isEcom}
                         />
                     )}
                 </TabsContent>
 
                 <TabsContent value="sku" className="mt-3">
                     {viewMode === "table" ? (
-                        <SkuTable rows={skuRows} loading={loading} />
+                        <SkuTable rows={skuRows} loading={loading} isEcom={isEcom} />
                     ) : (
                         <TrendView
                             mode="sku"
@@ -1046,6 +1047,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             city={city}
                             onBackToTable={() => setViewMode("table")}
                             apiTrendData={trendData}
+                            isEcom={isEcom}
                         />
                     )}
                 </TabsContent>
