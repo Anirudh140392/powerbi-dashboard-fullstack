@@ -773,38 +773,46 @@ const PlatformOverviewNew = ({
                                             {/* KPI Cards - Enhanced with gradient glow */}
                                             {selectedKpis.map(kpi => {
                                                 const cell = e.data[kpi.key]
-                                                const textColor = getStatusText(cell?.delta)
+                                                const isNA = cell?.value === 'N/A'
+                                                const textColor = isNA ? 'text-slate-400' : getStatusText(cell?.delta)
                                                 const isUp = cell?.delta?.dir === 'up'
 
                                                 return (
                                                     <motion.button
                                                         key={kpi.key}
-                                                        onClick={() => copy(`${e.name} ${kpi.label}`, cell?.value)}
+                                                        onClick={() => { if (!isNA) copy(`${e.name} ${kpi.label}`, cell?.value) }}
                                                         className={cn(
                                                             'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
                                                             'bg-gradient-to-br from-white to-slate-50',
                                                             'border',
-                                                            isUp ? 'border-emerald-100' : 'border-rose-100',
+                                                            isNA ? 'border-slate-100 cursor-not-allowed cursor-not-allowed opacity-80' : isUp ? 'border-emerald-100' : 'border-rose-100',
                                                             'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
-                                                            'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1',
-                                                            'active:scale-[0.98]',
+                                                            !isNA && 'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1 active:scale-[0.98]',
                                                             cardSize.minW, cardSize.py
                                                         )}
-                                                        title={`${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
-                                                        whileHover={{ scale: 1.02 }}
-                                                        whileTap={{ scale: 0.98 }}
+                                                        title={isNA ? `${kpi.label}: N/A (Data Not Available)` : `${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
+                                                        whileHover={isNA ? {} : { scale: 1.02 }}
+                                                        whileTap={isNA ? {} : { scale: 0.98 }}
                                                     >
                                                         {/* Subtle glow effect */}
-                                                        <div className={cn(
-                                                            'absolute inset-0 opacity-10 rounded-xl',
-                                                            isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
-                                                        )} />
-                                                        <div className={cn('font-bold text-slate-900 tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                                        {!isNA && (
+                                                            <div className={cn(
+                                                                'absolute inset-0 opacity-10 rounded-xl',
+                                                                isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
+                                                            )} />
+                                                        )}
+                                                        <div className={cn('font-bold tabular-nums relative z-10 leading-tight', isNA ? 'text-slate-400' : 'text-slate-900', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
                                                             {cell?.value}
                                                         </div>
                                                         <div className={cn('font-bold flex items-center justify-center gap-0.5 mt-0.5 relative z-10', textColor, cardSize.delta)}>
-                                                            <span className="opacity-80">{isUp ? '↑' : '↓'}</span>
-                                                            <span>{cell?.delta?.value?.replace(/[+-]/, '')}</span>
+                                                            {isNA ? (
+                                                                <span className="opacity-60">-</span>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="opacity-80">{isUp ? '↑' : '↓'}</span>
+                                                                    <span>{cell?.delta?.value?.replace(/[+-]/, '')}</span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </motion.button>
                                                 )
