@@ -15,6 +15,7 @@ import {
     SlidersHorizontal,
     Scale,
     PieChart,
+    ChevronDown
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
@@ -22,6 +23,7 @@ import { cn } from '../../../lib/utils'
 import FlipkartLogo from '@/lib/Flipkart logo.png'
 
 /* --- HELPER COMPONENTS & UTILS --- */
+const isEcomChannel = (chan) => chan && chan.toLowerCase().includes('ecom');
 const BrandLogo = ({ name, src, className, imgClassName }) => {
     const [error, setError] = useState(false);
 
@@ -100,7 +102,8 @@ const BACKEND_TITLE_TO_KEY = {
     'Category Size': 'categorySize',
     'CPM': 'cpm',
     'CPC': 'cpc',
-    'Promo': 'discount'
+    'Promo': 'discount',
+    'Buy Box %': 'buyBoxPct'
 }
 
 // Map backend API response entity → frontend entity format
@@ -142,7 +145,9 @@ const PlatformOverviewNew = ({
     onViewRca = () => { },
 }) => {
     const {
+        channels,
         selectedChannel,
+        setSelectedChannel,
         platform: globalPlatform,
         selectedBrand,
         brands: globalBrands,
@@ -173,23 +178,35 @@ const PlatformOverviewNew = ({
         { key: 'asp', label: 'ASP' },
         { key: 'marketShare', label: 'Market Share' },
         { key: 'categorySize', label: 'Category Size' },
+        { key: 'buyBoxPct', label: 'Buy Box %' },
     ]
     const [dimension, setDimension] = useState('platform')
 
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
+        let baseKpis = kpis;
+        if (isEcomChannel(selectedChannel)) {
+            baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
+        } else {
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
+        }
+
         if (dimension === 'sku') {
-            return kpis.filter(k => {
+            return baseKpis.filter(k => {
                 if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
                 return true;
             });
         }
-        if (dimension === 'brand') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
-        return kpis;
-    }, [dimension, kpis]);
+        if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
+        return baseKpis;
+    }, [dimension, selectedChannel]);
 
     const defaultKpiKeys = useMemo(() => {
-        const base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
+        let base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
+        if (isEcomChannel(selectedChannel)) {
+            base = ['offtakes', 'spend', 'availability', 'buyBoxPct', 'conversion'];
+        }
+
         if (dimension === 'sku') {
             return base.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
@@ -198,7 +215,7 @@ const PlatformOverviewNew = ({
         }
         if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         return base;
-    }, [dimension]);
+    }, [dimension, selectedChannel]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -224,11 +241,13 @@ const PlatformOverviewNew = ({
     })
     const fetchIdRef = useRef(0)
 
-    // Re-sync glanceKpis when dimension changes
+    // Re-sync glanceKpis when dimension changes or channel changes
     useEffect(() => {
         if (dimension === 'sku') {
             setGlanceKpis(prev => prev.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume') return false;
+                if (isEcomChannel(selectedChannel) && (k === 'marketShare' || k === 'cpm')) return false;
+                if (!isEcomChannel(selectedChannel) && k === 'buyBoxPct') return false;
                 return true;
             }));
         } else if (dimension === 'brand') {
@@ -236,20 +255,42 @@ const PlatformOverviewNew = ({
                 let next = prev.filter(k => k !== 'categorySize' && k !== 'marketShare');
                 if (!next.includes('spend')) next.push('spend');
                 if (!next.includes('conversion')) next.push('conversion');
+                if (isEcomChannel(selectedChannel)) {
+                    next = next.filter(k => k !== 'cpm');
+                    if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                } else {
+                    next = next.filter(k => k !== 'buyBoxPct');
+                }
                 return next;
             });
         } else {
             // platform, month, category
             setGlanceKpis(prev => {
                 let next = [...prev];
-                if (!next.includes('categorySize')) next.push('categorySize');
-                if (!next.includes('spend')) next.push('spend');
-                if (!next.includes('conversion')) next.push('conversion');
-                if (!next.includes('marketShare')) next.push('marketShare');
+                if (isEcomChannel(selectedChannel)) {
+                    next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
+                    if (!next.includes('spend')) next.push('spend');
+                    if (!next.includes('conversion')) next.push('conversion');
+                    if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                } else {
+                    next = next.filter(k => k !== 'buyBoxPct');
+                    if (!next.includes('categorySize')) next.push('categorySize');
+                    if (!next.includes('spend')) next.push('spend');
+                    if (!next.includes('conversion')) next.push('conversion');
+                    if (!next.includes('marketShare')) next.push('marketShare');
+                }
                 return next;
             });
         }
-    }, [dimension]);
+    }, [dimension, selectedChannel]);
+
+    // Auto-select first channel if "All" is selected (since we removed "All" from the dropdown)
+    useEffect(() => {
+        if (selectedChannel === 'All' && channels && channels.length > 0) {
+            const firstChannel = channels.find(c => c !== 'All') || channels[0];
+            if (firstChannel) setSelectedChannel(firstChannel);
+        }
+    }, [channels, selectedChannel, setSelectedChannel]);
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
@@ -532,6 +573,23 @@ const PlatformOverviewNew = ({
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
                     headerRight={
                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            {/* Channel Dropdown */}
+                            {dimension !== 'platform' && (
+                                <div className="relative flex items-center">
+                                    <select
+                                        value={selectedChannel || 'All'}
+                                        onChange={(e) => setSelectedChannel(e.target.value)}
+                                        className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
+                                        style={{ fontFamily: 'Roboto, sans-serif' }}
+                                    >
+                                        {channels?.filter(c => c !== 'All').map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
+                                </div>
+                            )}
+
                             {/* Dimension Tabs */}
                             <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/50 overflow-x-auto no-scrollbar max-w-full">
                                 {Object.entries(dimensionMeta).map(([key, dim]) => {
@@ -899,6 +957,7 @@ const PlatformOverviewNew = ({
                         categories={categoryOptions}
                         platforms={platformOptions}
                         skus={skuOptions}
+                        kpiOptions={filteredKpis}
                     />
                 )
             })()}
