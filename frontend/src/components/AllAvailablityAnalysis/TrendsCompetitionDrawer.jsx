@@ -725,6 +725,22 @@ export default function TrendsCompetitionDrawer({
     loading: true
   });
 
+  // ===================== PLATFORM → CHANNEL MAPPING =====================
+  const [platformChannelMap, setPlatformChannelMap] = useState({});
+
+  // Derive channel from the currently selected platform
+  const derivedChannel = useMemo(() => {
+    const plat = drawerFilters.Platform;
+    if (!plat || plat === 'All') return '';
+    return platformChannelMap[plat] || '';
+  }, [drawerFilters.Platform, platformChannelMap]);
+
+  // Whether to hide PM metrics (Spend, Conversion, ROAS, Inorganic Sales, CPC)
+  const isQuickcommSku = useMemo(() => {
+    const isSkuSelected = drawerFilters.SKU && drawerFilters.SKU !== 'All';
+    return isSkuSelected && derivedChannel.toLowerCase() === 'quickcomm';
+  }, [drawerFilters.SKU, derivedChannel]);
+
   const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : [
     "Blinkit",
     "Zepto",
@@ -744,13 +760,24 @@ export default function TrendsCompetitionDrawer({
     const fetchFilterOptions = async () => {
       try {
         console.log("[TrendsDrawer] Fetching filter options");
-        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes] = await Promise.all([
+        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes, platformChannelsRes] = await Promise.all([
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'platforms' } }),
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'categories' } }),
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'cities' } }),
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'brands' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'skus' } })
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'skus' } }),
+          axiosInstance.get('/watchtower/platform-channels')
         ]);
+
+        // Build platform → channel lookup map
+        const channelMap = {};
+        (platformChannelsRes.data || []).forEach(item => {
+          if (item.platform && item.channel) {
+            channelMap[item.platform] = item.channel;
+          }
+        });
+        setPlatformChannelMap(channelMap);
+        console.log('[TrendsDrawer] Platform→Channel map:', channelMap);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
         const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
@@ -911,6 +938,7 @@ export default function TrendsCompetitionDrawer({
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          channel: derivedChannel || undefined,
         };
 
         const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
@@ -936,7 +964,7 @@ export default function TrendsCompetitionDrawer({
     } finally {
       setLoading(false);
     }
-  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;
@@ -2003,6 +2031,18 @@ export default function TrendsCompetitionDrawer({
     }
   }, [isEcom, activeMetrics]);
 
+  // Sync active metrics: remove PM metrics if Quickcomm + SKU selected
+  useEffect(() => {
+    if (isQuickcommSku) {
+      const pmIds = ['Spend', 'Conversion', 'Roas', 'ROAS', 'InorgSales', 'InorganicSales', 'CPC'];
+      setActiveMetrics(prev => {
+        const filtered = prev.filter(m => !pmIds.includes(m));
+        // If all were removed, default to first available non-PM metric
+        return filtered.length > 0 ? filtered : prev.filter(m => !pmIds.includes(m));
+      });
+    }
+  }, [isQuickcommSku]);
+
 
   const platformRef = useRef(null);
 
@@ -2014,7 +2054,18 @@ export default function TrendsCompetitionDrawer({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const trendMeta = DASHBOARD_DATA.trends || { metrics: [], points: [] };
+  const trendMetaRaw = DASHBOARD_DATA.trends || { metrics: [], points: [] };
+
+  // Hide PM metrics from pills when Quickcomm + SKU selected
+  const PM_METRIC_IDS = ['Spend', 'Conversion', 'Roas', 'ROAS', 'InorgSales', 'InorganicSales', 'CPC'];
+  const trendMeta = useMemo(() => {
+    if (!isQuickcommSku) return trendMetaRaw;
+    return {
+      ...trendMetaRaw,
+      metrics: (trendMetaRaw.metrics || []).filter(m => !PM_METRIC_IDS.includes(m.id)),
+    };
+  }, [trendMetaRaw, isQuickcommSku]);
+
   const compMeta = DASHBOARD_DATA.competition || {};
   const compareMeta = DASHBOARD_DATA.compareSkus || {};
 
@@ -2360,9 +2411,9 @@ export default function TrendsCompetitionDrawer({
             color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
-            label="City"
-            value={drawerFilters.City}
-            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+            label="Category"
+            value={drawerFilters.Format}
+            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
             label="Brand"
@@ -2370,9 +2421,9 @@ export default function TrendsCompetitionDrawer({
             color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
-            label="Category"
-            value={drawerFilters.Format}
-            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+            label="City"
+            value={drawerFilters.City}
+            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
             label="SKU"
@@ -2440,16 +2491,22 @@ export default function TrendsCompetitionDrawer({
                   onChange={(v) => setDrawerFilters(prev => ({...prev, Platform: v}))} 
                 />
                 <FilterDropdown 
-                  title="City" 
-                  value={drawerFilters.City} 
-                  options={CITY_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, City: v}))} 
+                  title="Category" 
+                  value={drawerFilters.Format} 
+                  options={FORMAT_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Format: v}))} 
                 />
                 <FilterDropdown 
                   title="Brand" 
                   value={drawerFilters.Brand} 
                   options={BRAND_OPTIONS} 
                   onChange={(v) => setDrawerFilters(prev => ({...prev, Brand: v}))} 
+                />
+                <FilterDropdown 
+                  title="City" 
+                  value={drawerFilters.City} 
+                  options={CITY_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, City: v}))} 
                 />
                 
                 <Button
@@ -2473,7 +2530,7 @@ export default function TrendsCompetitionDrawer({
                     }
                   }}
                 >
-                  More Filters
+                  SKU Filter
                 </Button>
               </Box>
 
@@ -2541,29 +2598,13 @@ export default function TrendsCompetitionDrawer({
             }}
           >
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-              <Typography variant="h6" fontWeight={700} fontSize="1.05rem">Additional Filters</Typography>
+              <Typography variant="h6" fontWeight={700} fontSize="1.05rem">SKU Selection</Typography>
               <IconButton onClick={() => setIsMoreFiltersOpen(false)} size="small">
                 <X size={18} />
               </IconButton>
             </Box>
 
             <Box display="flex" flexDirection="column" gap={3} flex={1}>
-              <Box>
-                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">Category</Typography>
-                <Select
-                  fullWidth
-                  size="small"
-                  value={drawerFilters.Format}
-                  onChange={(e) => setDrawerFilters(prev => ({...prev, Format: e.target.value}))}
-                  displayEmpty
-                  sx={{ borderRadius: 2 }}
-                >
-                  <MenuItem value="All">All Categories</MenuItem>
-                  {FORMAT_OPTIONS.map(opt => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
-                </Select>
-              </Box>
-
-
               
               <Box>
                 <Typography variant="body2" fontWeight={600} mb={1} color="#475569">SKU</Typography>
@@ -2634,7 +2675,7 @@ export default function TrendsCompetitionDrawer({
                       return (
                         <Box
                           key={opt}
-                          onClick={() => setDrawerFilters(prev => ({...prev, SKU: opt}))}
+                          onClick={() => setDrawerFilters(prev => ({...prev, SKU: prev.SKU === opt ? 'All' : opt}))}
                           title={opt}
                           sx={{
                             display: 'flex',
