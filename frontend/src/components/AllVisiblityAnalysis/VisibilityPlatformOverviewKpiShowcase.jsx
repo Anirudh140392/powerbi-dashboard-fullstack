@@ -702,7 +702,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
                     </div>
                 ) : chartData.length === 0 ? (
                     <div className="h-[280px] w-full flex items-center justify-center">
-                        <div className="text-slate-400">No trend data available. Select brands from the filter.</div>
+                        <div className="text-slate-400">No data is available. Try adjusting your filters.</div>
                     </div>
                 ) : metricMeta.comingSoon ? (
                     <div className="h-[280px] w-full flex items-center justify-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
@@ -833,7 +833,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, apiTrendData, tren
                     </div>
                 ) : selectedBrands.length === 0 ? (
                     <div className="col-span-2 flex h-48 items-center justify-center">
-                        <div className="text-slate-400">No data available. Select brands from the filter.</div>
+                        <div className="text-slate-400">No data is available. Try adjusting your filters.</div>
                     </div>
                 ) : (
                     KPI_KEYS.map((kpi) => (
@@ -924,7 +924,7 @@ const BrandTable = ({ rows, loading }) => {
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
-                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No brands found</td></tr>
+                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No data is available</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -978,7 +978,7 @@ const SkuTable = ({ rows, loading }) => {
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
-                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No SKUs found</td></tr>
+                                <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-400">No data is available</td></tr>
                             )}
                         </tbody>
                     </table>

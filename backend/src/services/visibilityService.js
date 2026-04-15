@@ -2037,6 +2037,7 @@ class VisibilityService {
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
                 const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
                 const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+                const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
                 // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
                 const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand', { isBrand: true }); // Dynamic SOS
 
@@ -2072,6 +2073,7 @@ class VisibilityService {
                   AND ${formatCondition}
                   AND ${keywordTypeCondition}
                   AND ${keywordCondition}
+                  AND ${skuCondition}
                 GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
@@ -2156,6 +2158,7 @@ class VisibilityService {
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
                 const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
                 const brandCondition = buildCHCondition(brandFilter, 'brand');
+                const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
 
                 // [FIX] Separate filters: volume filters should NOT include the specific brand filter
                 // so that SOS is calculated against the total category volume.
@@ -2165,6 +2168,7 @@ class VisibilityService {
                 AND ${formatCondition}
                 AND ${keywordCondition}
                 AND ${keywordTypeCondition}
+                AND ${skuCondition}
             `;
 
                 const allFilters = `
