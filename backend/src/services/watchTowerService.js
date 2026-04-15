@@ -7311,11 +7311,11 @@ const getKpiTrends = async (filters) => {
     const hasDiscountData = kpiResults.some(r => parseFloat(r.avg_discount || 0) > 0);
     const hasPricingData = kpiResults.some(r => parseFloat(r.avg_selling_price || 0) > 0);
     
-    let hasPmAdSalesData = pmResults.some(r => parseFloat(r.adSales || 0) > 0);
-    let hasPmSpendData = pmResults.some(r => parseFloat(r.spend || 0) > 0);
-    let hasPmOrdersData = pmResults.some(r => parseFloat(r.orders || 0) > 0);
-    let hasPmClicksData = pmResults.some(r => parseFloat(r.clicks || 0) > 0);
-    let hasPmImpressionsData = pmResults.some(r => parseFloat(r.impressions || 0) > 0);
+    let hasPmAdSalesData = pmResults.some(r => parseFloat(r.pm_ad_sales || 0) > 0);
+    let hasPmSpendData = pmResults.some(r => parseFloat(r.pm_ad_spend || 0) > 0);
+    let hasPmOrdersData = pmResults.some(r => parseFloat(r.pm_ad_orders || 0) > 0);
+    let hasPmClicksData = pmResults.some(r => parseFloat(r.pm_ad_clicks || 0) > 0);
+    let hasPmImpressionsData = pmResults.some(r => parseFloat(r.pm_ad_impressions || 0) > 0);
 
     // [FEATURE OVERRIDE]: If platform belongs to 'Quickcomm', automatically resolve hasPm data availability flags to true
     // This allows the Trend charts to effectively process available graph lines rendering '0' values rather than nulling them entirely making them disappear off the face of the graph
