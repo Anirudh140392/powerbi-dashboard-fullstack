@@ -593,7 +593,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
             const groupColumn = vMode === 'platform' ? 'Platform' :
                 (vMode === 'format' || vMode === 'category') ? 'Category' :
-                        'Location';
+                    'Location';
             console.log(`[DEBUG KPI MATRIX] groupColumn: "${groupColumn}"`);
             // Build base filter conditions using the helper (excluding date as it's handled separately for current/prev)
             const baseFilterParams = { ...filters };
@@ -1131,7 +1131,9 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
 
             // Process results into nested map: SKU -> Date -> OSA, and SKU -> City -> Date -> OSA
             results.forEach(row => {
-                const skuId = row.sku;
+                // Normalize Web_Pid to lowercase – ClickHouse may return mixed-case
+                // UUIDs across different dates, causing duplicate skuMap entries.
+                const skuId = (row.sku || '').toLowerCase();
                 const cityStr = row.city;
                 const dateStr = dayjs(row.DATE).format('YYYY-MM-DD');
 
@@ -1141,7 +1143,7 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 if (!skuMap[skuId]) {
                     skuMap[skuId] = {
                         name: row.name,
-                        sku: row.sku,
+                        sku: skuId, // Use normalized lowercase SKU
                         brand: row.brand,
                         platform: row.platform,
                         category_name: row.category_name,
@@ -1285,7 +1287,7 @@ const getDOI = async (filters) => {
             // This query follows the exact logic requested:
             // Latest Inventory (where total > 0) divided by 30rd Qty_Sold, times 30.
             const thirtyDaysAgo = currentEndDate.subtract(29, 'day');
-            
+
             const mainDoiQuery = `
                 SELECT
                     latest_inventory,
@@ -1779,7 +1781,9 @@ const getOsaDetailByCategory = async (filters) => {
             }
 
             results.forEach(row => {
-                const skuId = row.sku;
+                // Normalize Web_Pid to lowercase – ClickHouse may return mixed-case
+                // UUIDs across different dates, causing duplicate skuMap entries.
+                const skuId = (row.sku || '').toLowerCase();
                 const dateStr = dayjs(row.DATE).format('YYYY-MM-DD');
 
                 const neno = parseFloat(row.sum_neno) || 0;
@@ -1789,7 +1793,7 @@ const getOsaDetailByCategory = async (filters) => {
                 if (!skuMap[skuId]) {
                     skuMap[skuId] = {
                         name: row.name,
-                        sku: row.sku,
+                        sku: skuId, // Use normalized lowercase SKU
                         dailyOsa: {},
                         totalNeno: 0,
                         totalDeno: 0
@@ -1803,31 +1807,31 @@ const getOsaDetailByCategory = async (filters) => {
             const categories = Object.values(skuMap)
                 .filter(item => item.totalNeno > 0 || item.totalDeno > 0)
                 .map(item => {
-                // Map to sortedDates and fill gaps with 0
-                const values = sortedDates.map(d => item.dailyOsa[d] ?? 0);
+                    // Map to sortedDates and fill gaps with 0
+                    const values = sortedDates.map(d => item.dailyOsa[d] ?? 0);
 
-                // Overall average
-                const totalSum = values.reduce((a, b) => a + b, 0);
-                const avg31 = values.length > 0 ? Math.round(totalSum / values.length) : 0;
+                    // Overall average
+                    const totalSum = values.reduce((a, b) => a + b, 0);
+                    const avg31 = values.length > 0 ? Math.round(totalSum / values.length) : 0;
 
-                // Health status logic (based on last 7 days of the selected range)
-                const last7Values = values.slice(-7);
-                const avg7 = last7Values.length > 0
-                    ? Math.round(last7Values.reduce((a, b) => a + b, 0) / last7Values.length)
-                    : avg31;
+                    // Health status logic (based on last 7 days of the selected range)
+                    const last7Values = values.slice(-7);
+                    const avg7 = last7Values.length > 0
+                        ? Math.round(last7Values.reduce((a, b) => a + b, 0) / last7Values.length)
+                        : avg31;
 
-                let status = "Healthy";
-                if (avg7 < 70) status = "Action";
-                else if (avg7 < 85) status = "Watch";
+                    let status = "Healthy";
+                    if (avg7 < 70) status = "Action";
+                    else if (avg7 < 85) status = "Watch";
 
-                return {
-                    name: item.name,
-                    sku: item.sku,
-                    values: values,
-                    avg31: avg31,
-                    status: status
-                };
-            });
+                    return {
+                        name: item.name,
+                        sku: item.sku,
+                        values: values,
+                        avg31: avg31,
+                        status: status
+                    };
+                });
 
             return {
                 section: "osa_percentage_detail",
@@ -1851,7 +1855,7 @@ const getAvailabilityKpiTrends = async (filters) => {
     return getCachedOrCompute(cacheKey, async () => {
         try {
             let { platform, brand, location, category, period = '1M', timeStep = 'daily', startDate: filterStart, endDate: filterEnd, dimension, dimensionValue } = filters;
-            
+
             // Dimension overrides have been removed here.
             // The frontend explicitly sends all necessary filters.
 

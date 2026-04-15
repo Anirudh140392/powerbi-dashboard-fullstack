@@ -275,7 +275,8 @@ export const getVisibilityKpiTrends = async (req, res) => {
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            sku: req.query.sku || req.query.skus || 'All'
         };
         console.log('\n========== VISIBILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -315,7 +316,8 @@ export const getVisibilityCompetition = async (req, res) => {
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || req.query.format || 'All',
             brand: req.query.brand || 'All',  // Filter by specific competitor brand
-            period: req.query.period || '1M'
+            period: req.query.period || '1M',
+            sku: req.query.sku || req.query.skus || 'All'
         };
         console.log('\n========== VISIBILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
