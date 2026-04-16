@@ -438,12 +438,36 @@ const getAbsoluteOsaOverview = async (filters) => {
             const prevFilters = { ...filters, startDate: prevStartDate.format('YYYY-MM-DD'), endDate: prevEndDate.format('YYYY-MM-DD') };
             const prevWhere = await buildAvailabilityWhereClause(prevFilters);
 
+            // Check if delivery_date column exists before using it
+            let deliveryDaysSQL = 'NULL';
+            try {
+                const pdpCols = await getTableColumns('rb_pdp_olap');
+                if (columnExists(pdpCols, 'delivery_date')) {
+                    deliveryDaysSQL = `
+                        IF(
+                            delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
+                            NULL,
+                            dateDiff('day', today(), 
+                                IF(
+                                    parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))) < today(),
+                                    addYears(parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))), 1),
+                                    parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today()))))
+                                )
+                            )
+                        )
+                    `;
+                }
+            } catch (colCheckErr) {
+                console.warn('[getAbsoluteOsaOverview] Could not check delivery_date column, defaulting to NULL:', colCheckErr.message);
+            }
+
             const queryTemplate = (where) => `
                 SELECT 
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNenoOsa,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDenoOsa,
                     SUM(ifNull(toFloat64OrZero(toString(buy_box_neno_osa)), 0)) as sumBuyBoxNeno,
-                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sumSales
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sumSales,
+                    avg(${deliveryDaysSQL}) as avgDeliveryDays
                 FROM rb_pdp_olap
                 WHERE ${where}
             `;
@@ -485,6 +509,13 @@ const getAbsoluteOsaOverview = async (filters) => {
             const psl = stockAvailability > 0 ? currSumSales * ((100 / stockAvailability) - 1) : 0;
             const prevPslValue = prevStockAvailability > 0 ? prevSumSales * ((100 / prevStockAvailability) - 1) : 0;
 
+            const currAvgDeliveryDays = parseFloat(curr.avgDeliveryDays);
+            let deliveryTime = "N/A";
+            if (!isNaN(currAvgDeliveryDays)) {
+                const roundedDays = Math.round(currAvgDeliveryDays);
+                deliveryTime = roundedDays <= 0 ? "Same Day" : `${roundedDays} Days`;
+            }
+
             const result = {
                 section: "availability_overview",
                 stockAvailability: parseFloat(stockAvailability.toFixed(2)),
@@ -494,7 +525,7 @@ const getAbsoluteOsaOverview = async (filters) => {
                 skuCount: skuCount,
                 psl: parseFloat(psl.toFixed(2)),
                 prevPsl: parseFloat(prevPslValue.toFixed(2)),
-                deliveryTime: "Coming soon",
+                deliveryTime: deliveryTime,
                 sumNenoOsa: currSumNeno,
                 sumDenoOsa: currSumDeno,
                 filters: filters,
@@ -724,6 +755,29 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const doiLookbackDate = currentEndDate.subtract(29, 'day').format('YYYY-MM-DD');
             const prevDoiLookbackDate = prevEndDate.subtract(29, 'day').format('YYYY-MM-DD');
 
+            // Check if delivery_date column exists before using it
+            let deliveryDaysSQL = 'NULL';
+            try {
+                const pdpColsMatrix = await getTableColumns('rb_pdp_olap');
+                if (columnExists(pdpColsMatrix, 'delivery_date')) {
+                    deliveryDaysSQL = `
+                        IF(
+                            delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
+                            NULL,
+                            dateDiff('day', today(), 
+                                IF(
+                                    parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))) < today(),
+                                    addYears(parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))), 1),
+                                    parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today()))))
+                                )
+                            )
+                        )
+                    `;
+                }
+            } catch (colCheckErr) {
+                console.warn('[getAbsoluteOsaPlatformKpiMatrix] Could not check delivery_date column, defaulting to NULL:', colCheckErr.message);
+            }
+
             const kpiQuery = `
                 WITH daily_stats AS (
                     SELECT 
@@ -754,7 +808,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_metro_neno,
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_metro_deno,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
-                    any(l.latest_inventory) as latest_inventory
+                    any(l.latest_inventory) as latest_inventory,
+                    avg(${deliveryDaysSQL}) as avg_delivery_days
                 FROM rb_pdp_olap t1
                 LEFT JOIN latest_inv_stats l ON t1.${groupColumn} = l.col_value
                 WHERE t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}'
@@ -793,7 +848,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_metro_neno,
                     SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_metro_deno,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
-                    any(l.latest_inventory) as latest_inventory
+                    any(l.latest_inventory) as latest_inventory,
+                    avg(${deliveryDaysSQL}) as avg_delivery_days
                 FROM rb_pdp_olap t1
                 LEFT JOIN latest_inv_stats l ON t1.${groupColumn} = l.col_value
                 WHERE t1.DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
@@ -906,8 +962,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 kpiRows.skucount[colValue] = currSku;
                 kpiRows.skucount.trend[colValue] = currSku - prevSku;
 
-                // Delivery Time (mocked)
-                kpiRows.delivery[colValue] = "Coming soon";
+                // Delivery Time
+                const currAvgDelivery = parseFloat(curr.avg_delivery_days);
+                kpiRows.delivery[colValue] = !isNaN(currAvgDelivery) ? (Math.round(currAvgDelivery) <= 0 ? "Same Day" : `${Math.round(currAvgDelivery)} Days`) : "N/A";
                 kpiRows.delivery.trend[colValue] = 0;
 
                 // Metro Stock Availability
@@ -949,7 +1006,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         SUM(if(t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}', ifNull(toFloat64OrZero(toString(t1.Qty_Sold)), 0), 0)) as doi_total_qty_sold,
                         
                         -- Latest Inventory (across selected period, prioritized by non-zero)
-                        argMax(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0), if(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0) > 0, t1.DATE, toDate('1970-01-01'))) as latest_inventory
+                        argMax(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0), if(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0) > 0, t1.DATE, toDate('1970-01-01'))) as latest_inventory,
+                        avg(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ${deliveryDaysSQL}, NULL)) as avg_delivery_days
+
                     FROM rb_pdp_olap t1
                     LEFT JOIN location_mapping l ON lower(t1.Location) = l.l_key
                     WHERE t1.DATE BETWEEN '${doiLookbackDate}' AND '${currentEndDate.format('YYYY-MM-DD')}'
@@ -972,7 +1031,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 breakdownResults.forEach(r => {
                     const {
                         col_value, drill_item, sum_neno, sum_deno, sum_buybox_neno,
-                        sum_msl, sum_sales, doi_total_qty_sold, latest_inventory
+                        sum_msl, sum_sales, doi_total_qty_sold, latest_inventory, avg_delivery_days
                     } = r;
                     const item = drill_item || 'Unknown';
 
@@ -994,6 +1053,10 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         const osaVal = kpiRows.osa.breakdown[col_value][item] || 0;
                         const psl = osaVal > 0 ? (salesVal / (osaVal / 100)) - salesVal : 0;
                         kpiRows.psl.breakdown[col_value][item] = parseFloat(psl.toFixed(2));
+                    }
+                    if (kpiRows.delivery && kpiRows.delivery.breakdown[col_value]) {
+                        const dr = parseFloat(avg_delivery_days);
+                        kpiRows.delivery.breakdown[col_value][item] = !isNaN(dr) ? (Math.round(dr) <= 0 ? "Same Day" : `${Math.round(dr)} Days`) : "N/A";
                     }
                     drillItemsSet.add(item);
                 });
@@ -1075,6 +1138,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         // as they involve complex lookbacks per period
                         if (kpiRows.doi.breakdown[cv]) kpiRows.doi.breakdown[cv][periodKey] = kpiRows.doi.data?.[cv]?.value || 0;
                         if (kpiRows.psl.breakdown[cv]) kpiRows.psl.breakdown[cv][periodKey] = kpiRows.psl.data?.[cv]?.value || 0;
+                        if (kpiRows.delivery && kpiRows.delivery.breakdown[cv]) kpiRows.delivery.breakdown[cv][periodKey] = kpiRows.delivery[cv] || "N/A";
                     });
                 });
             } else if (includeBreakdown && drillDimension === 'competitors') {
