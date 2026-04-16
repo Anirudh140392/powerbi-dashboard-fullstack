@@ -58,24 +58,58 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 /**
  * Helper to build platform condition based on channel selection
  * @param {string} platform - The selected platform (e.g. 'All', 'Blinkit')
- * @param {string} channel - The selected channel (e.g. 'Ecommerce', 'Modern Trades')
- * @param {string} prefix - Table prefix
- * @returns {string|null} - The SQL condition for platform
+ * @param {string} channel - The selected channel (e.g. 'Ecommerce', 'QuickComm')
+ * @param {string} prefix - Table prefix (e.g. 't1.' or '')
+ * @returns {Promise<string|null>} - The SQL condition for platform/channel
  */
-const buildPlatformChannelCond = (platform, channel, prefix = '') => {
+const buildPlatformChannelCond = async (platform, channel, prefix = '') => {
+    let pArr = [];
     if (platform && platform !== 'All') {
-        const pArr = Array.isArray(platform) ? platform : [platform];
+        pArr = Array.isArray(platform) ? platform : [platform];
+    } else if (channel && channel !== 'All') {
+        try {
+            // Dynamically resolve valid platforms for this channel using rca_sku_dim
+            // Handle variations like 'Ecom', 'Ecommerce', 'Quickcomm'
+            const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
+            const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${escapeStr(channel.toLowerCase())}%`);
+            
+            const cols = await getTableColumns('rca_sku_dim');
+            const platformCol = resolveColumn(cols, 'platform');
+            const channelCol = resolveColumn(cols, 'channel');
+            const hasChannel = columnExists(cols, 'channel');
+            
+            if (hasChannel) {
+                const plats = await queryClickHouse(`SELECT DISTINCT ${platformCol} as platform FROM rca_sku_dim WHERE lower(${channelCol}) LIKE '${searchPattern}'`);
+                if (plats && plats.length > 0) {
+                    pArr = plats.map(r => r.platform).filter(Boolean);
+                }
+            }
+        } catch (error) {
+            console.error(`[buildPlatformChannelCond] Failed to fetch platforms for channel ${channel}:`, error.message);
+        }
+    }
+
+    if (pArr.length > 0) {
         return `lower(replace(${prefix}Platform, ' ', '_')) IN (${pArr.map(p => `'${escapeStr(p.toLowerCase().replace(/\s+/g, '_'))}'`).join(',')})`;
     }
-
-    if (channel === 'Ecommerce' || channel === 'E-commerce') {
-        // Ecommerce mapped to Blinkit
-        return `lower(${prefix}Platform) = 'blinkit'`;
-    }
-
-    if (channel === 'Modern Trades') {
-        // Modern Trades mapped to everything except Blinkit
-        return `lower(${prefix}Platform) != 'blinkit'`;
+    
+    // Fallback if no platforms resolved but channel is selected (prevent empty return which acts as NO filter)
+    if (channel && channel !== 'All') {
+        const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
+        const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${escapeStr(channel.toLowerCase())}%`);
+        
+        try {
+            // Try identifying if rb_pdp_olap has a channel column safely
+            const rbpCols = await getTableColumns('rb_pdp_olap');
+            if (columnExists(rbpCols, 'channel')) {
+                const rbpChannelCol = resolveColumn(rbpCols, 'channel');
+                return `lower(${prefix}${rbpChannelCol}) LIKE '${searchPattern}'`;
+            }
+        } catch (e) {
+            console.error(`[buildPlatformChannelCond] fallback col resolution failed:`, e.message);
+        }
+        
+        return null;
     }
 
     return null;
@@ -102,7 +136,7 @@ const buildAvailabilityWhereClause = async (filters, tableAlias = '') => {
     const prefix = tableAlias ? `${tableAlias}.` : '';
 
     // Standard filters with Channel Support
-    const platformCond = buildPlatformChannelCond(platform, filters.channel, prefix);
+    const platformCond = await buildPlatformChannelCond(platform, filters.channel, prefix);
     if (platformCond) {
         conditions.push(platformCond);
     }
@@ -408,7 +442,8 @@ const getAbsoluteOsaOverview = async (filters) => {
                 SELECT 
                     SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sumNenoOsa,
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDenoOsa,
-                    SUM(ifNull(toFloat64OrZero(toString(buy_box_neno_osa)), 0)) as sumBuyBoxNeno
+                    SUM(ifNull(toFloat64OrZero(toString(buy_box_neno_osa)), 0)) as sumBuyBoxNeno,
+                    SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sumSales
                 FROM rb_pdp_olap
                 WHERE ${where}
             `;
@@ -425,10 +460,12 @@ const getAbsoluteOsaOverview = async (filters) => {
             const currSumNeno = parseFloat(curr.sumNenoOsa) || 0;
             const currSumDeno = parseFloat(curr.sumDenoOsa) || 0;
             const currSumBuyBox = parseFloat(curr.sumBuyBoxNeno) || 0;
+            const currSumSales = parseFloat(curr.sumSales) || 0;
 
             const prevSumNeno = parseFloat(prev.sumNenoOsa) || 0;
             const prevSumDeno = parseFloat(prev.sumDenoOsa) || 0;
             const prevSumBuyBox = parseFloat(prev.sumBuyBoxNeno) || 0;
+            const prevSumSales = parseFloat(prev.sumSales) || 0;
 
             const stockAvailability = currSumDeno > 0 ? (currSumNeno / currSumDeno) * 100 : 0;
             const prevStockAvailability = prevSumDeno > 0 ? (prevSumNeno / prevSumDeno) * 100 : 0;
@@ -436,12 +473,28 @@ const getAbsoluteOsaOverview = async (filters) => {
             const fillRate = currSumDeno > 0 ? (currSumBuyBox / currSumDeno) * 100 : 0;
             const prevFillRate = prevSumDeno > 0 ? (prevSumBuyBox / prevSumDeno) * 100 : 0;
 
+            const skuCountQuery = `SELECT count(DISTINCT sku_name) as sku_count FROM rb_sku_platform WHERE is_competitor = 0`;
+            let skuCount = 0;
+            try {
+                const skuCountResult = await queryClickHouse(skuCountQuery);
+                skuCount = skuCountResult[0] ? parseFloat(skuCountResult[0].sku_count) : 0;
+            } catch (e) {
+                console.error('[getAbsoluteOsaOverview] Error fetching SKU Count:', e.message);
+            }
+
+            const psl = stockAvailability > 0 ? currSumSales * ((100 / stockAvailability) - 1) : 0;
+            const prevPslValue = prevStockAvailability > 0 ? prevSumSales * ((100 / prevStockAvailability) - 1) : 0;
+
             const result = {
                 section: "availability_overview",
                 stockAvailability: parseFloat(stockAvailability.toFixed(2)),
                 prevStockAvailability: parseFloat(prevStockAvailability.toFixed(2)),
                 fillRate: parseFloat(fillRate.toFixed(2)),
                 prevFillRate: parseFloat(prevFillRate.toFixed(2)),
+                skuCount: skuCount,
+                psl: parseFloat(psl.toFixed(2)),
+                prevPsl: parseFloat(prevPslValue.toFixed(2)),
+                deliveryTime: "Coming soon",
                 sumNenoOsa: currSumNeno,
                 sumDenoOsa: currSumDeno,
                 filters: filters,
@@ -657,6 +710,14 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 };
             }
 
+            let metroLocationList = [];
+            try {
+                const check = await queryClickHouse(`SELECT DISTINCT location FROM rb_location_darkstore WHERE tier IN ('Tier 1', 'Tier 2')`);
+                metroLocationList = check.map(r => `'${escapeStr(r.location)}'`);
+            } catch (e) {}
+
+            const metroFilter = metroLocationList.length > 0 ? `Location IN (${metroLocationList.join(',')})` : '1=0';
+
             // Calculate KPIs for all columns in a single optimized query
             // OSA uses the selected period
             // DOI uses latest inventory and a 30-day sales lookback (from currentEndDate)
@@ -690,6 +751,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
+                    SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_metro_neno,
+                    SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_metro_deno,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory
                 FROM rb_pdp_olap t1
@@ -727,6 +790,8 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(t1.buy_box_neno_osa)), 0)) as sum_buybox_neno,
                     SUM(ifNull(toFloat64OrZero(toString(t1.MSL)), 0)) as sum_msl,
                     SUM(ifNull(toFloat64OrZero(toString(t1.Sales)), 0)) as sum_sales,
+                    SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_metro_neno,
+                    SUM(if(${metroFilter}, ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_metro_deno,
                     COUNT(DISTINCT t1.Web_Pid) as assortment_count,
                     any(l.latest_inventory) as latest_inventory
                 FROM rb_pdp_olap t1
@@ -781,7 +846,11 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             // Build KPI rows
             const kpiRows = {
                 osa: { kpi: 'OSA', trend: {} },
+                buybox: { kpi: 'BUY BOX %', trend: {} },
                 doi: { kpi: 'DOI', trend: {} },
+                delivery: { kpi: 'DELIVERY TIME', trend: {} },
+                skucount: { kpi: 'SKU COUNT', trend: {} },
+                metroAvailability: { kpi: 'METRO STOCK AVAILABILITY', trend: {} },
                 fillrate: { kpi: 'FILLRATE', trend: {} },
                 psl: { kpi: 'PSL', trend: {} }
             };
@@ -826,6 +895,28 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
                 kpiRows.psl[colValue] = parseFloat(currPsl.toFixed(2));
                 kpiRows.psl.trend[colValue] = parseFloat((currPsl - prevPsl).toFixed(2));
+
+                // Buy Box (same as fillrate)
+                kpiRows.buybox[colValue] = Math.round(currFillrate);
+                kpiRows.buybox.trend[colValue] = Math.round(currFillrate - prevFillrate);
+
+                // SKU Count
+                const currSku = parseInt(curr.assortment_count) || 0;
+                const prevSku = parseInt(prev.assortment_count) || 0;
+                kpiRows.skucount[colValue] = currSku;
+                kpiRows.skucount.trend[colValue] = currSku - prevSku;
+
+                // Delivery Time (mocked)
+                kpiRows.delivery[colValue] = "Coming soon";
+                kpiRows.delivery.trend[colValue] = 0;
+
+                // Metro Stock Availability
+                const currMetroOsa = (parseFloat(curr.sum_metro_deno) > 0)
+                    ? (parseFloat(curr.sum_metro_neno) / parseFloat(curr.sum_metro_deno)) * 100 : 0;
+                const prevMetroOsa = (parseFloat(prev.sum_metro_deno) > 0)
+                    ? (parseFloat(prev.sum_metro_neno) / parseFloat(prev.sum_metro_deno)) * 100 : 0;
+                kpiRows.metroAvailability[colValue] = Math.round(currMetroOsa);
+                kpiRows.metroAvailability.trend[colValue] = Math.round(currMetroOsa - prevMetroOsa);
             }
 
             // --- BREAKDOWN LOGIC ---
@@ -1041,7 +1132,7 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                 section: "platform_kpi_matrix",
                 viewMode,
                 columns: ['KPI', ...columnValues],
-                rows: [kpiRows.osa, kpiRows.doi, kpiRows.fillrate, kpiRows.psl],
+                rows: [kpiRows.osa, kpiRows.buybox, kpiRows.doi, kpiRows.delivery, kpiRows.skucount, kpiRows.metroAvailability, kpiRows.fillrate, kpiRows.psl],
                 applicableDrillItems: kpiRows.applicableDrillItems || [],
                 currentPeriod: { start: currentStartDate.format('YYYY-MM-DD'), end: currentEndDate.format('YYYY-MM-DD') },
                 comparisonPeriod: { start: prevStartDate.format('YYYY-MM-DD'), end: prevEndDate.format('YYYY-MM-DD') },
