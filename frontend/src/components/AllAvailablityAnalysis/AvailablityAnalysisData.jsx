@@ -175,6 +175,10 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
 
       const { columns: origColumns, rows: origRowsArray } = apiData.platformKpi;
 
+      // Guard against malformed API responses (e.g. error objects without columns/rows)
+      if (!Array.isArray(origColumns) || !Array.isArray(origRowsArray)) {
+        // Fall through to mock data below
+      } else {
       // Standardize the first column to "kpi" (lowercase) which Showcase expects
       const normalizedColumns = origColumns.map((col, idx) => idx === 0 ? "kpi" : col);
 
@@ -225,7 +229,9 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
         columns: filteredColumns,
         rows: filteredRows
       };
-    } else {
+      } // end of valid columns/rows guard
+    }
+    if (!platformData) {
       // Fallback to mock data
       platformData = {
         columns: ["kpi", ...FORMAT_MATRIX[olaMode].PlatformColumns],
@@ -235,7 +241,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
 
     // ---- Format tab ----
     let formatData = null;
-    if (apiData?.formatKpi) {
+    if (apiData?.formatKpi && Array.isArray(apiData.formatKpi?.columns) && Array.isArray(apiData.formatKpi?.rows)) {
       const { columns: fOrigColumns, rows: fOrigRowsArray } = apiData.formatKpi;
       const fNormalizedColumns = fOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const fMappedRows = [];
@@ -258,7 +264,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
 
     // ---- City tab ----
     let cityData = null;
-    if (apiData?.cityKpi) {
+    if (apiData?.cityKpi && Array.isArray(apiData.cityKpi?.columns) && Array.isArray(apiData.cityKpi?.rows)) {
       const { columns: cOrigColumns, rows: cOrigRowsArray } = apiData.cityKpi;
       const cNormalizedColumns = cOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const cMappedRows = [];
@@ -1340,11 +1346,11 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Fillrate || 0) || []
     } : null;
 
-    const deliveryCardData = {
-      value: "Coming soon",
+    const deliveryCardData = apiData?.overview ? {
+      value: apiData.overview.deliveryTime !== undefined ? apiData.overview.deliveryTime : "Coming soon",
       delta: 0,
       trend: []
-    };
+    } : null;
 
     const skuCountData = apiData?.overview ? {
       value: formatNumber(apiData.overview.skuCount || 0),
