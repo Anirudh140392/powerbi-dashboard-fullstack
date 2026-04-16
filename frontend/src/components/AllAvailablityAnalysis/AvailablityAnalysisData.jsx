@@ -113,6 +113,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
   const {
     selectedChannel,
     platform: globalPlatform,
+    platforms: channelPlatforms,
     selectedBrand,
     selectedLocation,
     timeStart,
@@ -180,13 +181,9 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       // Convert array elements
       const mappedRows = [];
       if (Array.isArray(origRowsArray)) {
-        const kpiNames = ["OSA", "DOI", null, "PSL"];
-        origRowsArray.forEach((rowData, idx) => {
-          if (!rowData) return;
-          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
+        origRowsArray.forEach((rowData) => {
+          if (!rowData || !rowData.kpi) return;
           const newRow = { ...rowData };
-
-          newRow.kpi = kpiNames[idx] || 'Unknown';
 
           // Also add trend and series objects if missing, to prevent Showcase from crashing
           if (!newRow.trend) newRow.trend = {};
@@ -196,9 +193,37 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
         });
       }
 
+      // Filter columns to only show platforms belonging to the selected channel
+      let filteredColumns = normalizedColumns;
+      let filteredRows = mappedRows;
+      if (channelPlatforms && channelPlatforms.length > 0) {
+        const allowedPlatformsLower = channelPlatforms.map(p => p.toLowerCase().replace(/\s+/g, '_'));
+        filteredColumns = normalizedColumns.filter((col, idx) => {
+          if (idx === 0) return true; // Always keep the 'kpi' column
+          return allowedPlatformsLower.includes(col.toLowerCase().replace(/\s+/g, '_'));
+        });
+        // Also strip disallowed platform keys from each row's data and trend
+        const allowedColSet = new Set(filteredColumns.slice(1)); // exclude 'kpi'
+        filteredRows = mappedRows.map(row => {
+          const newRow = { kpi: row.kpi };
+          const newTrend = {};
+          const newSeries = {};
+          for (const col of allowedColSet) {
+            if (col in row) newRow[col] = row[col];
+            if (row.trend && col in row.trend) newTrend[col] = row.trend[col];
+            if (row.series && col in row.series) newSeries[col] = row.series[col];
+          }
+          newRow.trend = newTrend;
+          newRow.series = newSeries;
+          // Preserve breakdown if present
+          if (row.breakdown) newRow.breakdown = row.breakdown;
+          return newRow;
+        });
+      }
+
       platformData = {
-        columns: normalizedColumns,
-        rows: mappedRows
+        columns: filteredColumns,
+        rows: filteredRows
       };
     } else {
       // Fallback to mock data
@@ -215,13 +240,9 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       const fNormalizedColumns = fOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const fMappedRows = [];
       if (Array.isArray(fOrigRowsArray)) {
-        const kpiNames = ["OSA", "DOI", null, "PSL"];
-        fOrigRowsArray.forEach((rowData, idx) => {
-          if (!rowData) return;
-          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
+        fOrigRowsArray.forEach((rowData) => {
+          if (!rowData || !rowData.kpi) return;
           const newRow = { ...rowData };
-
-          newRow.kpi = kpiNames[idx] || 'Unknown';
           if (!newRow.trend) newRow.trend = {};
           if (!newRow.series) newRow.series = {};
           fMappedRows.push(newRow);
@@ -242,13 +263,9 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       const cNormalizedColumns = cOrigColumns.map((col, idx) => idx === 0 ? "kpi" : col);
       const cMappedRows = [];
       if (Array.isArray(cOrigRowsArray)) {
-        const kpiNames = ["OSA", "DOI", null, "PSL"];
-        cOrigRowsArray.forEach((rowData, idx) => {
-          if (!rowData) return;
-          if (idx >= kpiNames.length || kpiNames[idx] === null) return;
+        cOrigRowsArray.forEach((rowData) => {
+          if (!rowData || !rowData.kpi) return;
           const newRow = { ...rowData };
-
-          newRow.kpi = kpiNames[idx] || 'Unknown';
           if (!newRow.trend) newRow.trend = {};
           if (!newRow.series) newRow.series = {};
           cMappedRows.push(newRow);
@@ -270,7 +287,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       { key: "format", label: "Category", data: formatData },
       { key: "city", label: "City", data: cityData },
     ];
-  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
+  }, [olaMode, selectedChannel, globalPlatform, channelPlatforms, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
 
   const active = tabs.find((t) => t.key === activeTab);
 
@@ -1284,6 +1301,10 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     return { osa: osaSeries };
   }, [apiData?.kpiTrends]);
 
+  const isQuickCom = typeof selectedChannel === 'string' 
+    ? selectedChannel.toLowerCase().includes('quick') 
+    : (Array.isArray(selectedChannel) && selectedChannel.some(c => c.toLowerCase().includes('quick')));
+
   const availabilityKpis = useMemo(() => {
     // Icons and gradients for the cards
     const icons = [Layers, Package, MapPin];
@@ -1313,27 +1334,64 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
     } : null;
 
+    const buyBoxCardData = apiData?.overview ? {
+      value: `${Number(apiData.overview.fillRate || 0).toFixed(2)}%`,
+      delta: Number(apiData.overview.fillRate || 0) - Number(apiData.overview.prevFillRate || 0),
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Fillrate || 0) || []
+    } : null;
+
+    const deliveryCardData = {
+      value: "Coming soon",
+      delta: 0,
+      trend: []
+    };
+
+    const skuCountData = apiData?.overview ? {
+      value: formatNumber(apiData.overview.skuCount || 0),
+      delta: 0,
+      trend: []
+    } : null;
+
+    const pslCardData = apiData?.overview ? {
+      value: `₹${formatNumber(apiData.overview.psl || 0)}`,
+      delta: Number(apiData.overview.psl || 0) - Number(apiData.overview.prevPsl || 0),
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
+    } : null;
+
     // Fallback mock logic for single KPI if API missing
     const getMock = (kpi) => {
       const val = getLogicalKpiValue(kpi, platformContext);
       const isUp = getLogicalKpiValue(kpi + 'dir', platformContext) > 50;
       const delta = (getLogicalKpiValue(kpi + 'delta', platformContext) / 20).toFixed(1);
       return {
-        value: kpi === 'doi' ? val.toFixed(1) : `${val.toFixed(2)}%`,
+        value: kpi === 'doi' || kpi === 'skucount' ? val.toFixed(1) : (kpi === 'delivery' ? 'Coming soon' : `${val.toFixed(2)}%`),
         delta: parseFloat(delta) * (isUp ? 1 : -1),
         trend: getLogicalKpiTrend(kpi, platformContext)
       };
     };
 
-    const cards_config = [
-      { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData },
-      { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData },
-      { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData }
-    ];
+    let cards_config = [];
+    if (isQuickCom) {
+      cards_config = [
+        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
+        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#14b8a6', '#06b6d4'] },
+        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#8b5cf6', '#a855f7'] }
+      ];
+    } else {
+      cards_config = [
+        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
+        { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#f59e0b', '#d97706'] },
+        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#14b8a6', '#06b6d4'] },
+        { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#ec4899', '#be185d'] },
+        { key: 'skucount', title: "SKU count", sub: "Total SKUs tracked", api: skuCountData, icon: MapPin, gradient: ['#8b5cf6', '#a855f7'] }
+      ];
+    }
 
     return cards_config.map((cfg, idx) => {
       const data = cfg.api || getMock(cfg.key);
       const delta = Number(data.delta || 0);
+      const deltaText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${cfg.key === 'psl' ? '₹' + formatNumber(Math.abs(delta)) : Math.abs(delta).toFixed(1)}${cfg.key === 'doi' ? ' days' : (cfg.key === 'psl' ? '' : '%')}`);
+      const prevText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : "vs Previous Period");
 
       return {
         id: `avail-card-${cfg.key}`,
@@ -1341,16 +1399,16 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         value: data.value,
         subtitle: data.isNotMetro ? `Selected location is not a metro city` : cfg.sub,
         delta: parseFloat(delta.toFixed(1)),
-        deltaLabel: data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}${cfg.key === 'doi' ? ' days' : '%'}`,
-        icon: icons[idx],
-        gradient: gradients[idx],
+        deltaLabel: deltaText,
+        icon: cfg.icon,
+        gradient: cfg.gradient,
         trend: data.trend || [],
         trendSeries: data.trend || [],
-        prevText: data.isNotMetro ? "" : "vs Previous Period",
+        prevText: prevText,
         isNotMetro: data.isNotMetro
       };
     });
-  }, [availability, globalPlatform, apiData, trendSeriesMap]);
+  }, [availability, globalPlatform, apiData, trendSeriesMap, selectedChannel]);
 
   return (
 
@@ -1394,7 +1452,30 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
           <TabbedHeatmapTable
             olaMode={availability}
             loading={isLoading}
-            apiData={apiData}
+            apiData={{
+              ...apiData,
+              platformKpi: {
+                ...apiData?.platformKpi,
+                rows: apiData?.platformKpi?.rows?.filter(row => {
+                  if (isQuickCom) return ['OSA', 'DOI', 'PSL'].includes(row.kpi);
+                  return ['OSA', 'DOI', 'PSL', 'BUY BOX %', 'DELIVERY TIME', 'SKU COUNT'].includes(row.kpi);
+                }) || []
+              },
+              formatKpi: {
+                ...apiData?.formatKpi,
+                rows: apiData?.formatKpi?.rows?.filter(row => {
+                  if (isQuickCom) return ['OSA', 'DOI', 'PSL'].includes(row.kpi);
+                  return ['OSA', 'DOI', 'PSL', 'BUY BOX %', 'DELIVERY TIME', 'SKU COUNT'].includes(row.kpi);
+                }) || []
+              },
+              cityKpi: {
+                ...apiData?.cityKpi,
+                rows: apiData?.cityKpi?.rows?.filter(row => {
+                  if (isQuickCom) return ['OSA', 'DOI', 'PSL'].includes(row.kpi);
+                  return ['OSA', 'DOI', 'PSL', 'BUY BOX %', 'DELIVERY TIME', 'SKU COUNT'].includes(row.kpi);
+                }) || []
+              }
+            }}
             onFiltersChange={(matrixFilters) => {
               if (!props.onFiltersChange) return;
               // Map Matrix filter keys to Global filter keys

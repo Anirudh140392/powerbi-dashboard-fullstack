@@ -48,6 +48,7 @@ import {
   defaultPlatforms,
   defaultSkus,
 } from "../../utils/DataCenter";
+import { ChevronDown } from "lucide-react";
 import {
   getLogicalKpiValue,
   getLogicalKpiTrend
@@ -192,6 +193,7 @@ export default function WatchTower() {
     datesFetched,
     platformsFetched,
     brands: contextBrands,
+    channels,
     refreshFilters,
     refreshDates
   } = React.useContext(FilterContext);
@@ -375,7 +377,9 @@ export default function WatchTower() {
 
 
   const [fetchError, setFetchError] = useState(null);
-  const fetchIdRef = useRef(0);
+  const [categoryChannel, setCategoryChannel] = useState("All");
+  const overviewFetchIdRef = useRef(0);
+  const categoryFetchIdRef = useRef(0);
 
   // Sync filters state from context (used only by child props, NOT for triggering fetches)
   useEffect(() => {
@@ -392,16 +396,24 @@ export default function WatchTower() {
     }));
   }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
+  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${categoryChannel}`;
+
   // Sync loading state with filter changes to prevent one-frame flicker
-  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}`;
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${selectedChannel}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
 
   if (prevFilterKey !== currentFilterKey) {
     setPrevFilterKey(currentFilterKey);
     setLoading(true);
-    setCategoryDataLoading(true);
+    // setCategoryDataLoading(true); // Handled by categoryFilterKey now
     setPerformanceLoading(true);
     setFetchError(null);
+  }
+
+  const [prevCategoryFilterKey, setPrevCategoryFilterKey] = useState(categoryFilterKey);
+  if (prevCategoryFilterKey !== categoryFilterKey) {
+    setPrevCategoryFilterKey(categoryFilterKey);
+    setCategoryDataLoading(true);
   }
 
   // Single debounced data-fetch effect — reads context directly, no intermediate state
@@ -411,16 +423,17 @@ export default function WatchTower() {
       return;
     }
 
-    const currentFetchId = ++fetchIdRef.current;
+    const currentFetchId = ++overviewFetchIdRef.current;
 
     const debounceTimer = setTimeout(async () => {
       // If another update arrived while we were waiting, skip this one
-      if (currentFetchId !== fetchIdRef.current) return;
+      if (currentFetchId !== overviewFetchIdRef.current) return;
 
       const params = {
         platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+        channel: selectedChannel === "All" ? undefined : selectedChannel,
         location: undefined, // Enforced isolation from global location filter
         keyword: selectedKeyword || undefined,
         startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
@@ -432,7 +445,7 @@ export default function WatchTower() {
       // 1. Fetch fast overview data
       axiosInstance.get("/watchtower/overview", { params })
         .then(response => {
-          if (currentFetchId === fetchIdRef.current && response.data) {
+          if (currentFetchId === overviewFetchIdRef.current && response.data) {
             console.log("Fetched Watch Tower Overview:", response.data);
             setDashboardData(prev => ({
               ...prev,
@@ -449,26 +462,10 @@ export default function WatchTower() {
           }
         });
 
-      // 2. Fetch Category performance data independently
-      axiosInstance.get("/watchtower/category-overview", { params })
-        .then(response => {
-          if (currentFetchId === fetchIdRef.current && response.data) {
-            console.log("Fetched Category Overview:", response.data);
-            setCategoryOverview(response.data);
-            setCategoryDataLoading(false);
-          }
-        })
-        .catch(error => {
-          if (currentFetchId === fetchIdRef.current) {
-            console.error("Error fetching Category Overview:", error);
-            setCategoryDataLoading(false);
-          }
-        });
-
       // 3. Fetch Performance Metrics KPIs independently
       axiosInstance.get("/watchtower/performance-metrics", { params })
         .then(response => {
-          if (currentFetchId === fetchIdRef.current && response.data) {
+          if (currentFetchId === overviewFetchIdRef.current && response.data) {
             console.log("Fetched Performance Metrics KPIs:", response.data);
             setDashboardData(prev => ({
               ...prev,
@@ -485,7 +482,44 @@ export default function WatchTower() {
     }, 1000);
 
     return () => clearTimeout(debounceTimer);
-  }, [platform, selectedBrand, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd, compareStart, compareEnd, datesFetched, platformsFetched]);
+  }, [currentFilterKey, datesFetched, platformsFetched]);
+
+  // Separate Effect for Category Performance (Isolated Channel Filter)
+  useEffect(() => {
+    if (!datesFetched || !platformsFetched) return;
+
+    const currentFetchId = ++categoryFetchIdRef.current; 
+
+    const debounceTimer = setTimeout(async () => {
+      if (currentFetchId !== categoryFetchIdRef.current) return;
+
+      const params = {
+        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+        brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
+        category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+        channel: categoryChannel === "All" ? undefined : categoryChannel,
+        startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+        endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+        compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+        compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
+      };
+
+      axiosInstance.get("/watchtower/category-overview", { params })
+        .then(response => {
+          if (currentFetchId === categoryFetchIdRef.current && response.data) {
+            setCategoryOverview(response.data);
+            setCategoryDataLoading(false);
+          }
+        })
+        .catch(error => {
+          if (currentFetchId === categoryFetchIdRef.current) {
+            setCategoryDataLoading(false);
+          }
+        });
+    }, 1000);
+
+    return () => clearTimeout(debounceTimer);
+  }, [categoryFilterKey, datesFetched, platformsFetched]);
 
   // Memoize the PerformanceBreakdownProvider filters to prevent child re-renders
   const perfBreakdownFilters = useMemo(() => ({
@@ -501,7 +535,8 @@ export default function WatchTower() {
 
   // Retry handler for error overlay — bumps fetchIdRef to trigger the effect
   const retryFetch = useCallback(() => {
-    fetchIdRef.current++; // force a new cycle
+    overviewFetchIdRef.current++; // force a new cycle
+    categoryFetchIdRef.current++;
     // Trigger re-render by toggling a dummy dependency — we simply re-call the effect
     setFetchError(null);
     setLoading(true);
@@ -727,7 +762,14 @@ export default function WatchTower() {
             />
           </Box> */}
 
-          <FormatPerformanceStudio rows={FORMAT_ROWS} loading={categoryDataLoading} openHelpWithMenu={openHelpWithMenu} />
+          <FormatPerformanceStudio 
+            rows={FORMAT_ROWS} 
+            loading={categoryDataLoading} 
+            openHelpWithMenu={openHelpWithMenu} 
+            channels={channels}
+            categoryChannel={categoryChannel}
+            setCategoryChannel={setCategoryChannel}
+          />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -775,7 +817,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
+const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, categoryChannel, setCategoryChannel }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -915,6 +957,22 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
             >
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
+          </div>
+
+          {/* Local Channel Dropdown */}
+          <div className="relative flex items-center">
+            <select
+              value={categoryChannel || 'All'}
+              onChange={(e) => setCategoryChannel(e.target.value)}
+              className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
+              style={{ fontFamily: 'Roboto, sans-serif' }}
+            >
+              <option value="All">All Channels</option>
+              {channels?.filter(c => c !== 'All').map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
           </div>
         </div>
 

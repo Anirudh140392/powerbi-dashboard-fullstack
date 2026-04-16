@@ -3283,7 +3283,30 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                   >
                     {title}
                   </Typography>
-                  {title !== "Performance Marketing" && (
+                  {title === "Availability Analysis" ? (
+                    <Box sx={{ display: 'flex', mt: 0.5, bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
+                      {channels?.filter(c => c !== 'All').map((c) => (
+                        <Box
+                          key={c}
+                          onClick={() => setSelectedChannel(c)}
+                          sx={{
+                            px: 1.5, py: 0.3,
+                            fontSize: '0.65rem',
+                            fontWeight: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? 700 : 500,
+                            color: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '#2563eb' : '#64748b',
+                            bgcolor: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '#ffffff' : 'transparent',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            boxShadow: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.2s',
+                            fontFamily: "'Inter', 'Roboto', sans-serif"
+                          }}
+                        >
+                          {c}
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : title !== "Performance Marketing" && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                       <Box
                         sx={{

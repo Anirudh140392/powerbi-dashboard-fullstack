@@ -146,8 +146,8 @@ const PlatformOverviewNew = ({
 }) => {
     const {
         channels,
-        selectedChannel,
-        setSelectedChannel,
+        // selectedChannel, <-- Removed global
+        // setSelectedChannel, <-- Removed global
         platform: globalPlatform,
         selectedBrand,
         brands: globalBrands,
@@ -181,6 +181,7 @@ const PlatformOverviewNew = ({
         { key: 'buyBoxPct', label: 'Buy Box %' },
     ]
     const [dimension, setDimension] = useState('platform')
+    const [localChannel, setLocalChannel] = useState('All')
 
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
@@ -188,7 +189,7 @@ const PlatformOverviewNew = ({
         if (dimension === 'platform') {
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
         } else {
-            if (isEcomChannel(selectedChannel)) {
+            if (isEcomChannel(localChannel)) {
                 baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
             } else {
                 baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
@@ -203,14 +204,14 @@ const PlatformOverviewNew = ({
         }
         if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return baseKpis;
-    }, [dimension, selectedChannel]);
+    }, [dimension, localChannel]);
 
     const defaultKpiKeys = useMemo(() => {
         let base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'];
         if (dimension === 'platform') {
             base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'];
         } else {
-            if (isEcomChannel(selectedChannel)) {
+            if (isEcomChannel(localChannel)) {
                 base = ['offtakes', 'spend', 'availability', 'buyBoxPct', 'conversion'];
             } else {
                 base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
@@ -225,7 +226,7 @@ const PlatformOverviewNew = ({
         }
         if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         return base;
-    }, [dimension, selectedChannel]);
+    }, [dimension, localChannel]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -256,8 +257,8 @@ const PlatformOverviewNew = ({
         if (dimension === 'sku') {
             setGlanceKpis(prev => prev.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume') return false;
-                if (isEcomChannel(selectedChannel) && (k === 'marketShare' || k === 'cpm')) return false;
-                if (!isEcomChannel(selectedChannel) && k === 'buyBoxPct') return false;
+                if (isEcomChannel(localChannel) && (k === 'marketShare' || k === 'cpm')) return false;
+                if (!isEcomChannel(localChannel) && k === 'buyBoxPct') return false;
                 return true;
             }));
         } else if (dimension === 'brand') {
@@ -265,7 +266,7 @@ const PlatformOverviewNew = ({
                 let next = prev.filter(k => k !== 'categorySize' && k !== 'marketShare');
                 if (!next.includes('spend')) next.push('spend');
                 if (!next.includes('conversion')) next.push('conversion');
-                if (isEcomChannel(selectedChannel)) {
+                if (isEcomChannel(localChannel)) {
                     next = next.filter(k => k !== 'cpm');
                     if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
                 } else {
@@ -287,7 +288,7 @@ const PlatformOverviewNew = ({
             // month, category
             setGlanceKpis(prev => {
                 let next = [...prev];
-                if (isEcomChannel(selectedChannel)) {
+                if (isEcomChannel(localChannel)) {
                     next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
@@ -302,15 +303,9 @@ const PlatformOverviewNew = ({
                 return next;
             });
         }
-    }, [dimension, selectedChannel]);
+    }, [dimension, localChannel]);
 
-    // Auto-select first channel if "All" is selected (since we removed "All" from the dropdown)
-    useEffect(() => {
-        if (selectedChannel === 'All' && channels && channels.length > 0) {
-            const firstChannel = channels.find(c => c !== 'All') || channels[0];
-            if (firstChannel) setSelectedChannel(firstChannel);
-        }
-    }, [channels, selectedChannel, setSelectedChannel]);
+
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
@@ -347,7 +342,7 @@ const PlatformOverviewNew = ({
         const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
         const reqEndDate = advancedFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : '');
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
-        const reqChannel = selectedChannel || 'All';
+        const reqChannel = localChannel || 'All';
 
         return JSON.stringify({
             dimension,
@@ -364,7 +359,7 @@ const PlatformOverviewNew = ({
                 filterLogic: advancedFilters.filterLogic
             }
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters]);
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, localChannel, advancedFilters]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -597,11 +592,12 @@ const PlatformOverviewNew = ({
                             {dimension !== 'platform' && (
                                 <div className="relative flex items-center">
                                     <select
-                                        value={selectedChannel || 'All'}
-                                        onChange={(e) => setSelectedChannel(e.target.value)}
+                                        value={localChannel || 'All'}
+                                        onChange={(e) => setLocalChannel(e.target.value)}
                                         className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
+                                        <option value="All">All Channels</option>
                                         {channels?.filter(c => c !== 'All').map(c => (
                                             <option key={c} value={c}>{c}</option>
                                         ))}
