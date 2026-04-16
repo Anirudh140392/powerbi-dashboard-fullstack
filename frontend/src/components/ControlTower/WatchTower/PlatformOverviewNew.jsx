@@ -185,10 +185,14 @@ const PlatformOverviewNew = ({
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
         let baseKpis = kpis;
-        if (isEcomChannel(selectedChannel)) {
-            baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
-        } else {
+        if (dimension === 'platform') {
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
+        } else {
+            if (isEcomChannel(selectedChannel)) {
+                baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
+            } else {
+                baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
+            }
         }
 
         if (dimension === 'sku') {
@@ -202,9 +206,15 @@ const PlatformOverviewNew = ({
     }, [dimension, selectedChannel]);
 
     const defaultKpiKeys = useMemo(() => {
-        let base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
-        if (isEcomChannel(selectedChannel)) {
-            base = ['offtakes', 'spend', 'availability', 'buyBoxPct', 'conversion'];
+        let base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'];
+        if (dimension === 'platform') {
+            base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'];
+        } else {
+            if (isEcomChannel(selectedChannel)) {
+                base = ['offtakes', 'spend', 'availability', 'buyBoxPct', 'conversion'];
+            } else {
+                base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
+            }
         }
 
         if (dimension === 'sku') {
@@ -217,7 +227,7 @@ const PlatformOverviewNew = ({
         return base;
     }, [dimension, selectedChannel]);
 
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)
@@ -263,8 +273,18 @@ const PlatformOverviewNew = ({
                 }
                 return next;
             });
+        } else if (dimension === 'platform') {
+            setGlanceKpis(prev => {
+                let next = prev.filter(k => k !== 'buyBoxPct');
+                if (!next.includes('categorySize')) next.push('categorySize');
+                if (!next.includes('spend')) next.push('spend');
+                if (!next.includes('conversion')) next.push('conversion');
+                if (!next.includes('marketShare')) next.push('marketShare');
+                if (!next.includes('cpc')) next.push('cpc');
+                return next;
+            });
         } else {
-            // platform, month, category
+            // month, category
             setGlanceKpis(prev => {
                 let next = [...prev];
                 if (isEcomChannel(selectedChannel)) {
