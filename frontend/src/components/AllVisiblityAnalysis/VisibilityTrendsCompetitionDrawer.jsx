@@ -709,7 +709,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   selectedColumn,
   initialAudience,
 }) {
-  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory } = useContext(FilterContext);
+  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel } = useContext(FilterContext);
 
   const [view, setView] = useState("Trends");
   const [allTrendMeta, allSetTrendMeta] = useState({
@@ -823,11 +823,11 @@ export default function VisibilityTrendsCompetitionDrawer({
       try {
         console.log("[VisibilityTrendsDrawer] Fetching filter options");
         const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes] = await Promise.all([
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', ownBrandsOnly: true } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'skus', ownBrandsOnly: true } })
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms', channel: selectedChannel || 'All' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats', channel: selectedChannel || 'All' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities', channel: selectedChannel || 'All' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', channel: selectedChannel || 'All', ownBrandsOnly: true } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'skus', channel: selectedChannel || 'All', ownBrandsOnly: true } })
         ]);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
@@ -883,7 +883,7 @@ export default function VisibilityTrendsCompetitionDrawer({
     };
 
     fetchFilterOptions();
-  }, [open]);
+  }, [open, selectedChannel]);
 
   // ===================== FETCH TREND DATA =====================
   useEffect(() => {
@@ -901,6 +901,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          channel: selectedChannel || 'All'
         };
 
         // Determine which pivot filter to apply based on the selected audience
@@ -935,7 +936,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel]);
 
   // ===================== FETCH COMPETITION DATA =====================
   // Fetch competition data when drawer opens (not just when Competition view is selected)
@@ -957,6 +958,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          channel: selectedChannel || 'All'
         };
 
         console.log("[VisibilityTrendsDrawer] Fetching competition data with params:", params);
@@ -991,7 +993,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [selectedColumn, open, filterOptions.loading, drawerFilters]);
+  }, [selectedColumn, open, filterOptions.loading, drawerFilters, selectedChannel]);
 
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({

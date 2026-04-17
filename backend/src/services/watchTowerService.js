@@ -43,7 +43,17 @@ const PRODUCT_CATEGORY_SQL = `if(Category IS NOT NULL AND Category != '' AND Cat
 )`;
 
 // Helper for delivery time calculation logic
-const DELIVERY_TIME_SQL = (col) => `dateDiff('day', today(), IF(parseDateTimeBestEffort(concat(${col}, ' ', toString(toYear(today())))) < today(), addYears(parseDateTimeBestEffort(concat(${col}, ' ', toString(toYear(today())))), 1), parseDateTimeBestEffort(concat(${col}, ' ', toString(toYear(today()))))))`;
+const DELIVERY_TIME_SQL = (col, dateCol = 'DATE') => `
+    CASE 
+      WHEN ${col} IS NULL OR ${col} = '' OR ${col} = '0' THEN NULL
+      ELSE
+        CASE
+          WHEN dateDiff('day', ${dateCol}, parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol}))))) < 0 THEN 0
+          WHEN dateDiff('day', ${dateCol}, parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol}))))) > 30 THEN NULL
+          ELSE dateDiff('day', ${dateCol}, parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol})))))
+        END
+    END
+`;
 
 // 🔹 Materialized View Fallback Logic
 let aggTableExists = null;
@@ -175,9 +185,9 @@ async function getWatchtowerSource() {
             skuCode: webPidCol,
             quantitySold: qtySoldCol,
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
-            listingPercent: `if(toFloat64OrZero(toString(${listingPercentCol})) > 0, toFloat64OrZero(toString(${listingPercentCol})), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`,
+            listingPercent: `if(toFloat64OrZero(toString(listing_percent)) > 0, toFloat64OrZero(toString(listing_percent)), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`,
             channel: columnExists(cols, 'channel') ? r('channel') : null,
-            deliveryDays: columnExists(cols, 'delivery_date') ? DELIVERY_TIME_SQL(r('delivery_date')) : null
+            deliveryDays: columnExists(cols, 'delivery_date') ? DELIVERY_TIME_SQL(r('delivery_date'), dateCol) : null
         }
     };
 }
@@ -314,13 +324,19 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
         } else {
             // Fallback for tables without a channel column (by filtering on platforms)
             const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
+            const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
             const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
 
-            const ecomPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Amazon', 'Flipkart'];
-            if (isEcom && !isModernTrade) {
+            const ecomPlatforms = ['Amazon', 'Flipkart'];
+            const quickPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Swiggy'];
+
+            if (isQuickComm) {
+                conditions.push(`${columnName} IN (${quickPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`);
+            } else if (isEcom && !isModernTrade) {
                 conditions.push(`${columnName} IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`);
             } else if (isModernTrade && !isEcom) {
-                conditions.push(`${columnName} NOT IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`);
+                const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
+                conditions.push(`${columnName} NOT IN (${allEcomQuick.map(p => `'${formatStr(p)}'`).join(', ')})`);
             }
         }
     }
@@ -601,7 +617,13 @@ const generateKpiColumns = ({
     const fmtX = (v) => isNA(v) ? "N/A" : `${(parseFloat(v) || 0).toFixed(2)}x`;
     const fmtRs = (v) => isNA(v) ? "N/A" : `₹${(parseFloat(v) || 0).toFixed(2)}`;
     const fmtChg = (v, isPP = false) => isNA(v) ? "N/A" : formatChange(v, isPP);
-    const fmtDays = (v) => isNA(v) || isNaN(v) ? "N/A" : (Math.round(v) <= 0 ? "Same Day" : `${Math.round(v)} Days`);
+    const fmtDays = (v) => {
+        if (isNA(v) || isNaN(v)) return "N/A";
+        const rounded = Math.round(v);
+        if (rounded <= 0) return "Same Day";
+        if (rounded === 1) return "1 Day";
+        return `${rounded} Days`;
+    };
 
     return [
         { title: "Offtakes", value: fmtCurr(offtake), change: { text: fmtChg(offtakeChange), positive: offtakeChange >= 0 }, meta: { units: `${formatUnits(offtakeUnits)} units`, change: fmtChg(offtakeChange) } },

@@ -62,7 +62,7 @@ const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
  * @param {string} prefix - Table prefix (e.g. 't1.' or '')
  * @returns {Promise<string|null>} - The SQL condition for platform/channel
  */
-const buildPlatformChannelCond = async (platform, channel, prefix = '') => {
+export const buildPlatformChannelCond = async (platform, channel, prefix = '') => {
     let pArr = [];
     if (platform && platform !== 'All') {
         pArr = Array.isArray(platform) ? platform : [platform];
@@ -447,15 +447,14 @@ const getAbsoluteOsaOverview = async (filters) => {
                         IF(
                             delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
                             NULL,
-                            dateDiff('day', today(), 
-                                IF(
-                                    parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))) < today(),
-                                    addYears(parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))), 1),
-                                    parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today()))))
-                                )
-                            )
+                            CASE
+                                WHEN dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) < 0 THEN 0
+                                WHEN dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) > 30 THEN NULL
+                                ELSE dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))
+                            END
                         )
                     `;
+
                 }
             } catch (colCheckErr) {
                 console.warn('[getAbsoluteOsaOverview] Could not check delivery_date column, defaulting to NULL:', colCheckErr.message);
@@ -513,7 +512,9 @@ const getAbsoluteOsaOverview = async (filters) => {
             let deliveryTime = "N/A";
             if (!isNaN(currAvgDeliveryDays)) {
                 const roundedDays = Math.round(currAvgDeliveryDays);
-                deliveryTime = roundedDays <= 0 ? "Same Day" : `${roundedDays} Days`;
+                if (roundedDays <= 0) deliveryTime = "Same Day";
+                else if (roundedDays === 1) deliveryTime = "1 Day";
+                else deliveryTime = `${roundedDays} Days`;
             }
 
             const result = {
@@ -764,15 +765,14 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         IF(
                             delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
                             NULL,
-                            dateDiff('day', today(), 
-                                IF(
-                                    parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))) < today(),
-                                    addYears(parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))), 1),
-                                    parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today()))))
-                                )
-                            )
+                            CASE
+                                WHEN dateDiff('day', today(), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today()))))) < 0 THEN 0
+                                WHEN dateDiff('day', today(), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today()))))) > 30 THEN NULL
+                                ELSE dateDiff('day', today(), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))))
+                            END
                         )
                     `;
+
                 }
             } catch (colCheckErr) {
                 console.warn('[getAbsoluteOsaPlatformKpiMatrix] Could not check delivery_date column, defaulting to NULL:', colCheckErr.message);
@@ -964,7 +964,12 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
 
                 // Delivery Time
                 const currAvgDelivery = parseFloat(curr.avg_delivery_days);
-                kpiRows.delivery[colValue] = !isNaN(currAvgDelivery) ? (Math.round(currAvgDelivery) <= 0 ? "Same Day" : `${Math.round(currAvgDelivery)} Days`) : "N/A";
+                if (!isNaN(currAvgDelivery)) {
+                    const rounded = Math.round(currAvgDelivery);
+                    kpiRows.delivery[colValue] = rounded <= 0 ? "Same Day" : (rounded === 1 ? "1 Day" : `${rounded} Days`);
+                } else {
+                    kpiRows.delivery[colValue] = "N/A";
+                }
                 kpiRows.delivery.trend[colValue] = 0;
 
                 // Metro Stock Availability
@@ -1007,7 +1012,16 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                         
                         -- Latest Inventory (across selected period, prioritized by non-zero)
                         argMax(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0), if(ifNull(toFloat64OrZero(toString(t1.Inventory)), 0) > 0, t1.DATE, toDate('1970-01-01'))) as latest_inventory,
-                        avg(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', ${deliveryDaysSQL}, NULL)) as avg_delivery_days
+                        avg(if(t1.DATE BETWEEN '${currentStartDate.format('YYYY-MM-DD')}' AND '${currentEndDate.format('YYYY-MM-DD')}', 
+                            IF(
+                                delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
+                                NULL,
+                                CASE
+                                    WHEN dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))) < 0 THEN 0
+                                    WHEN dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))) > 30 THEN NULL
+                                    ELSE dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))
+                                END
+                            ), NULL)) as avg_delivery_days
 
                     FROM rb_pdp_olap t1
                     LEFT JOIN location_mapping l ON lower(t1.Location) = l.l_key
@@ -1056,7 +1070,12 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                     }
                     if (kpiRows.delivery && kpiRows.delivery.breakdown[col_value]) {
                         const dr = parseFloat(avg_delivery_days);
-                        kpiRows.delivery.breakdown[col_value][item] = !isNaN(dr) ? (Math.round(dr) <= 0 ? "Same Day" : `${Math.round(dr)} Days`) : "N/A";
+                        if (!isNaN(dr)) {
+                            const rounded = Math.round(dr);
+                            kpiRows.delivery.breakdown[col_value][item] = rounded <= 0 ? "Same Day" : (rounded === 1 ? "1 Day" : `${rounded} Days`);
+                        } else {
+                            kpiRows.delivery.breakdown[col_value][item] = "N/A";
+                        }
                     }
                     drillItemsSet.add(item);
                 });
@@ -1685,7 +1704,7 @@ const getMetroCityStockAvailability = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
-const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, productCategory, city, location, months, metroFlag, ownBrandsOnly }) => {
+const getAvailabilityFilterOptions = async ({ filterType, platform, brand, category, productCategory, city, location, months, metroFlag, ownBrandsOnly, channel }) => {
     const pKey = Array.isArray(platform) ? platform.join(',') : (platform || 'all');
     const bKey = Array.isArray(brand) ? brand.join(',') : (brand || 'all');
     const cKey = Array.isArray(category) ? category.join(',') : (category || 'all');
@@ -1693,9 +1712,10 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
     const ctKey = Array.isArray(city) ? city.join(',') : (city || 'all');
     const mKey = Array.isArray(months) ? months.join(',') : (months || 'all');
     const mfKey = Array.isArray(metroFlag) ? metroFlag.join(',') : (metroFlag || 'all');
+    const chKey = Array.isArray(channel) ? channel.join(',') : (channel || 'all');
     const obKey = ownBrandsOnly ? 'own' : 'all';
 
-    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${pcKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}:${obKey}`;
+    const cacheKey = `availability_filter:${filterType}:${pKey.toLowerCase()}:${bKey.toLowerCase()}:${cKey.toLowerCase()}:${pcKey.toLowerCase()}:${ctKey.toLowerCase()}:${mKey.toLowerCase()}:${mfKey.toLowerCase()}:${chKey.toLowerCase()}:${obKey}`;
 
     // Helper to build IN clause or equality
     const buildInClause = (col, val) => {
@@ -1706,14 +1726,16 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     if (filterType === 'categories' || filterType === 'formats') {
         try {
-            // Dynamically resolve Category column
             const pdpColsMap = await getTableColumns('rb_pdp_olap');
             const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+            
+            const platformCond = await buildPlatformChannelCond(platform, channel);
+            const whereClause = platformCond ? `WHERE ${actualCatCol} IS NOT NULL AND ${actualCatCol} != '' AND ${platformCond}` : `WHERE ${actualCatCol} IS NOT NULL AND ${actualCatCol} != ''`;
 
             const query = `
                         SELECT DISTINCT ${actualCatCol} as value 
                         FROM rb_pdp_olap
-                        WHERE ${actualCatCol} IS NOT NULL AND ${actualCatCol} != ''
+                        ${whereClause}
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1726,14 +1748,16 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
 
     if (filterType === 'productCategories') {
         try {
-            // Dynamically resolve Product_type column
             const pdpColsMap = await getTableColumns('rb_pdp_olap');
             const actualPcCol = resolveColumn(pdpColsMap, 'Product_type', 'Product_type');
+
+            const platformCond = await buildPlatformChannelCond(platform, channel);
+            const whereClause = platformCond ? `WHERE ${actualPcCol} IS NOT NULL AND ${actualPcCol} != '' AND ${platformCond}` : `WHERE ${actualPcCol} IS NOT NULL AND ${actualPcCol} != ''`;
 
             const query = `
                         SELECT DISTINCT ${actualPcCol} as value 
                         FROM rb_pdp_olap
-                        WHERE ${actualPcCol} IS NOT NULL AND ${actualPcCol} != ''
+                        ${whereClause}
                         ORDER BY value
                     `;
             const results = await queryClickHouse(query);
@@ -1749,7 +1773,9 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
             console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
 
             if (filterType === 'platforms') {
-                const query = `SELECT DISTINCT platform as value FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
+                const platformCond = await buildPlatformChannelCond(null, channel);
+                const whereClause = platformCond ? `WHERE platform IS NOT NULL AND platform != '' AND ${platformCond}` : `WHERE platform IS NOT NULL AND platform != ''`;
+                const query = `SELECT DISTINCT platform as value FROM rca_sku_dim ${whereClause} ORDER BY platform`;
                 const results = await queryClickHouse(query);
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
@@ -2253,7 +2279,7 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const { platform = 'All', location = 'All', category = 'All', brand = 'All' } = filters;
 
         // 1. Build base condition (Platform and Location)
-        const baseWhere = await buildAvailabilityWhereClause({ platform, location, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const baseWhere = await buildAvailabilityWhereClause({ platform, location, channel: filters.channel, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const baseCondsStr = baseWhere !== '1=1' ? `${baseWhere} AND ` : '';
 
         // Dynamically resolve columns
@@ -2265,12 +2291,12 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         const catQuery = `SELECT DISTINCT ${catCol} as value FROM rb_pdp_olap WHERE ${baseCondsStr}${catCol} IS NOT NULL AND ${catCol} != '' ORDER BY value`;
 
         // 3. Build Brand conditions (filtered by Platform/Location/Advanced/Category)
-        const brandWhere = await buildAvailabilityWhereClause({ platform, location, category, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const brandWhere = await buildAvailabilityWhereClause({ platform, location, category, channel: filters.channel, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const brandCondsStr = brandWhere !== '1=1' ? `${brandWhere} AND ` : '';
         const brandQuery = `SELECT DISTINCT Brand as value FROM rb_pdp_olap WHERE ${brandCondsStr}Brand IS NOT NULL AND Brand != '' ORDER BY Brand`;
 
         // 4. Build SKU conditions (filtered by Platform/Location/Advanced/Category/Brand)
-        const skuWhere = await buildAvailabilityWhereClause({ platform, location, category, brand, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
+        const skuWhere = await buildAvailabilityWhereClause({ platform, location, category, brand, channel: filters.channel, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const skuCondsStr = skuWhere !== '1=1' ? `${skuWhere} AND ` : '';
         const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuCondsStr}Product IS NOT NULL AND Product != '' ORDER BY Product LIMIT 200`;
 

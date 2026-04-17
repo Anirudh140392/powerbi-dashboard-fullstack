@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useContext, createContext } from "react";
 import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import {
   Filter,
@@ -509,6 +510,7 @@ const DATA_MODEL = buildDataModel();
 /* -------------------------------------------------------------------------- */
 
 const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
+  const { selectedChannel } = useContext(FilterContext);
   // initial tab: platform for visibility mode (Platform KPI Matrix)
   const [activeTab, setActiveTab] = useState("platform");
   const [search, setSearch] = useState("");
@@ -534,11 +536,11 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
       try {
         // Fetch all filter types in parallel (including platforms from rb_kw_olap)
         const [platformsRes, formatsRes, citiesRes, productNamesRes, brandsRes] = await Promise.all([
-          axiosInstance.get('/visibility-analysis/filter-options?filterType=platforms'),
-          axiosInstance.get('/visibility-analysis/filter-options?filterType=formats'),
-          axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities${value.formats.length ? `&format=${value.formats[0]}` : ''}`),
-          axiosInstance.get('/visibility-analysis/filter-options?filterType=productName'),
-          axiosInstance.get('/visibility-analysis/filter-options?filterType=brands')
+          axiosInstance.get(`/visibility-analysis/filter-options?filterType=platforms&channel=${selectedChannel || 'All'}`),
+          axiosInstance.get(`/visibility-analysis/filter-options?filterType=formats&channel=${selectedChannel || 'All'}`),
+          axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities${value.formats.length ? `&format=${value.formats[0]}` : ''}&channel=${selectedChannel || 'All'}`),
+          axiosInstance.get(`/visibility-analysis/filter-options?filterType=productName&channel=${selectedChannel || 'All'}`),
+          axiosInstance.get(`/visibility-analysis/filter-options?filterType=brands&channel=${selectedChannel || 'All'}`)
         ]);
 
         setFilterOptions({
@@ -843,7 +845,8 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
           location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
           format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
-          period: '1M'
+          period: '1M',
+          channel: selectedChannel || 'All'
         };
 
         // Remove undefined values
@@ -865,7 +868,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
     };
 
     fetchTrendData();
-  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats]);
+  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, selectedChannel]);
 
 
 
@@ -1100,7 +1103,8 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
           location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
           format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
-          period: '1M'
+          period: '1M',
+          channel: selectedChannel || 'All'
         };
 
         // Remove undefined values
@@ -1119,7 +1123,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
     };
 
     fetchTrendData();
-  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats]);
+  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, selectedChannel]);
 
   // Build chart data for a specific KPI
   const chartDataFor = (kpiKey) => {
@@ -1542,6 +1546,7 @@ const TableSkeleton = () => (
 /* -------------------------------------------------------------------------- */
 
 export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], skus: [] }, loading = false }) => {
+  const { selectedChannel } = useContext(FilterContext);
   const [tab, setTab] = useState("brand"); // "brand" | "sku" | "keyword"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1575,6 +1580,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
         city: filters.cities.length > 0 ? filters.cities.join(',') : undefined,
         productName: filters.productNames.length > 0 ? filters.productNames.join(',') : undefined,
         brand: filters.brands.length > 0 ? filters.brands.join(',') : undefined,
+        channel: selectedChannel || 'All'
       };
 
       // Remove undefined values

@@ -135,6 +135,7 @@ export default function SearchTermsPerformance() {
     selectedCategory,
     selectedKeyword,
     selectedKeywordType,
+    selectedChannel,
     timeStart,
     timeEnd,
     platforms: globalPlatforms
@@ -166,10 +167,11 @@ export default function SearchTermsPerformance() {
     keyword: selectedKeyword || "All",
     keywordTypeFilter: activeFilter,
     keywordType: selectedKeywordType || "All",
+    channel: selectedChannel || "All",
     ownBrandsOnly: activeView === "sku",
     startDate: timeStart,
     endDate: timeEnd,
-  }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, activeFilter, timeStart, timeEnd]);
+  }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -196,7 +198,13 @@ export default function SearchTermsPerformance() {
     if (!locationData[itemName] && !locationLoading[itemName]) {
       setLocationLoading(prev => ({ ...prev, [itemName]: true }));
       try {
-        const params = { platform: globalPlatform || "All", brand: selectedBrand || "All", startDate: timeStart, endDate: timeEnd };
+        const params = { 
+          platform: globalPlatform || "All", 
+          brand: selectedBrand || "All", 
+          channel: selectedChannel || "All",
+          startDate: timeStart, 
+          endDate: timeEnd 
+        };
         if (activeView === "keyword") params.keyword = itemName;
         else params.sku = itemName;
         const data = await fetchSearchTermsLocations(params);
@@ -225,6 +233,7 @@ export default function SearchTermsPerformance() {
         startDate: timeStart, endDate: timeEnd,
         keywordTypeFilter: activeFilter,
         keywordType: selectedKeywordType || "All",
+        channel: selectedChannel || "All",
         keyword: keywordName,
         ownBrandsOnly: isMySkus,
       });
