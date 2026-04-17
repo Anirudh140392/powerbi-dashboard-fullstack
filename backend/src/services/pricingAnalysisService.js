@@ -1158,15 +1158,48 @@ const getDimensionTrends = async (filters = {}) => {
         console.log(`[PricingAnalysisService] Fetching Dimension Trends (${dimensionParam}=${dimensionValue})...`);
         const results = await queryClickHouse(query);
 
+        // ===================== KPI AVAILABILITY DETECTION =====================
+        // Run a lightweight presence check to see if the selected filters actually
+        // match any rows in rb_pdp_olap. Since all pricing KPIs come from the same
+        // single table, the availability check is: does the filter combination exist?
+        const presenceQuery = `
+            SELECT
+                count(*) AS total_rows,
+                countIf(${f.wMrp} > 0 AND ${brandCondition}) AS has_discount_data,
+                countIf(${f.wPpu} > 0 AND ${brandCondition}) AS has_ppu_data,
+                countIf(${brandCondition} AND ${f.wSellingPrice} > 0) AS has_asp_data,
+                sum(ifNull(toFloat64OrZero(toString(p.${f.qtySold})), 0)) AS has_offtake_data
+            FROM ${src.table} p
+            WHERE ${whereClause}
+        `;
+        const presenceResult = await queryClickHouse(presenceQuery);
+        const pr = presenceResult[0] || {};
+
+        const hasDiscountData = parseInt(pr.has_discount_data || 0) > 0;
+        const hasPpuData = parseInt(pr.has_ppu_data || 0) > 0;
+        const hasAspData = parseInt(pr.has_asp_data || 0) > 0;
+        const hasOfftakeData = parseFloat(pr.has_offtake_data || 0) > 0;
+
+        const kpiAvailability = {
+            // All pricing KPIs come from rb_pdp_olap, but each has its own data requirement
+            pdp: parseInt(pr.total_rows || 0) > 0,
+            Discount: hasDiscountData,
+            PricePerUnit: hasPpuData,
+            ASP: hasAspData,
+            Offtake: hasOfftakeData,
+        };
+
+        console.log('[PricingAnalysisService] KPI Availability:', kpiAvailability);
+
         const timeSeries = (results || []).map(r => ({
             date: r.date,
-            Discount: parseFloat(r.discount) || 0,
-            PricePerUnit: parseFloat(r.price_per_unit) || 0,
-            ASP: parseFloat(r.asp) || 0,
-            Offtake: parseFloat(r.offtake) || 0,
+            Discount: hasDiscountData ? (parseFloat(r.discount) || 0) : null,
+            PricePerUnit: hasPpuData ? (parseFloat(r.price_per_unit) || 0) : null,
+            ASP: hasAspData ? (parseFloat(r.asp) || 0) : null,
+            Offtake: hasOfftakeData ? (parseFloat(r.offtake) || 0) : null,
         }));
 
-        return { success: true, timeSeries };
+        return { success: true, timeSeries, kpiAvailability };
     } catch (error) {
         console.error('[PricingAnalysisService] Error in getDimensionTrends:', error);
         return { success: false, error: error.message, timeSeries: [] };

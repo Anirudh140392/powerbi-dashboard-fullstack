@@ -27,7 +27,8 @@ export const downloadReport = async (params = {}) => {
     try {
         const response = await axiosInstance.get("/reports/download", {
             params: formatParams(params),
-            responseType: 'blob'
+            responseType: 'blob',
+            timeout: 10 * 60 * 1000, // 10 minutes – report queries can be slow for large date ranges
         });
         return response.data;
     } catch (error) {

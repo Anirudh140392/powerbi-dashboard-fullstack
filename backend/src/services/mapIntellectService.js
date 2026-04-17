@@ -401,11 +401,11 @@ const getMapIntellectCategories = async (metric, platform) => {
     if (!src) return [];
 
     let query = `SELECT DISTINCT ${src.f.category} as category FROM ${src.table} WHERE ${src.f.category} IS NOT NULL AND ${src.f.category} != ''`;
-    
+
     if (platform && platform !== 'All') {
         query += ` AND ${src.f.platform} LIKE '%${escapeStr(platform)}%'`;
     }
-    
+
     query += ` ORDER BY category`;
 
     try {

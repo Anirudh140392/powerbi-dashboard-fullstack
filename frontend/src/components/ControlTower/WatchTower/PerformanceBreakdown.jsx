@@ -20,7 +20,7 @@ export function PerformanceBreakdownProvider({ darkMode = false, filters = { pla
     );
 }
 
-function getAuthToken() { return typeof window === "undefined" ? null : localStorage.getItem(AUTH_TOKEN_KEY); }
+function getAuthToken() { return typeof window === "undefined" ? null : sessionStorage.getItem(AUTH_TOKEN_KEY); }
 function buildUrl(endpoint) {
     if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) return endpoint;
     const base = API_BASE_URL ? API_BASE_URL : "";
@@ -98,8 +98,8 @@ function MultiSlicerBar({ onFiltersChange, className = "" }) {
     const fetchOptions = useCallback(async (dimension) => {
         setLoadingOptions(dimension);
         try {
-            const accountId = localStorage.getItem("selectedAccountId") || "";
-            const companyId = globalFilters.companyId || localStorage.getItem("selectedCompanyId") || localStorage.getItem("company_id") || "";
+            const accountId = sessionStorage.getItem("selectedAccountId") || "";
+            const companyId = globalFilters.companyId || sessionStorage.getItem("selectedCompanyId") || sessionStorage.getItem("company_id") || "";
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
@@ -335,7 +335,9 @@ function formatPercent(value) { if (value === null || value === undefined || isN
 export function AggregatedViewTable() {
     const { darkMode } = useTheme();
     const { filters } = useFilters();
+    const { channels } = useContext(FilterContext);
     const [groupBy, setGroupBy] = useState("category");
+    const [localChannel, setLocalChannel] = useState("All");
     const [showDropdown, setShowDropdown] = useState(false);
     const [data, setData] = useState([]);
     const [totals, setTotals] = useState(null);
@@ -372,23 +374,31 @@ export function AggregatedViewTable() {
         setLoading(true);
         setApiError(null);
         try {
-            const accountId = localStorage.getItem("selectedAccountId") || "";
-            const companyId = localStorage.getItem("selectedCompanyId") || localStorage.getItem("company_id") || filters.companyId || "";
+            const accountId = sessionStorage.getItem("selectedAccountId") || "";
+            const companyId = sessionStorage.getItem("selectedCompanyId") || sessionStorage.getItem("company_id") || filters.companyId || "";
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
             if (filters.platform?.length > 0 && !filters.platform.includes("all") && !filters.platform.includes("All")) {
                 params.set("platform_uuid", filters.platform.join(","));
             }
-            if (filters.channel) params.set("channel", filters.channel);
+            
+            // Ensure we handle "Overall" correctly by explicitly managing the channel param.
+            // If localChannel is "All", we delete any global channel filter to show total values.
+            if (localChannel && localChannel !== "All") {
+                params.set("channel", localChannel);
+            } else {
+                params.delete("channel");
+            }
+            
             if (filters.category?.length > 0 && !filters.category.includes("All")) params.set("category", filters.category.join(","));
             if (filters.brand && filters.brand !== "All") params.set("brand", Array.isArray(filters.brand) ? filters.brand.join(",") : filters.brand);
             if (filters.location?.length > 0 && !filters.location.includes("All")) params.set("location", filters.location.join(","));
-            
+
             // Pass the global context dates if they exist
             if (filters.dateStart) params.set("startDate", filters.dateStart);
             if (filters.dateEnd) params.set("endDate", filters.dateEnd);
-            
+
             params.set("group_by", groupBy);
             // Pass selected period keys so backend can compute comparison data
             if (selectedPeriods.length > 0) {
@@ -408,7 +418,7 @@ export function AggregatedViewTable() {
             const result = res.data;
             if (res.success && result?.success && result.data?.length > 0) {
                 setData(result.data);
-                
+
                 // Dynamically calculate totals strictly based on the fetched row data
                 const calcTotals = result.data.reduce((acc, row) => {
                     acc.impressions += (parseFloat(row.impressions) || 0);
@@ -418,11 +428,11 @@ export function AggregatedViewTable() {
                     acc.sales += (parseFloat(row.sales) || 0);
                     return acc;
                 }, { impressions: 0, clicks: 0, spends: 0, orders: 0, sales: 0 });
-                
+
                 calcTotals.ctr = calcTotals.impressions > 0 ? (calcTotals.clicks / calcTotals.impressions) * 100 : 0;
                 calcTotals.cpc = calcTotals.clicks > 0 ? (calcTotals.spends / calcTotals.clicks) : 0;
                 calcTotals.cvr = calcTotals.clicks > 0 ? (calcTotals.orders / calcTotals.clicks) * 100 : 0;
-                
+
                 setTotals(calcTotals);
                 setUntagged(result.untagged || null);
                 setPeriodComparison(result.period_comparison || null);
@@ -443,7 +453,7 @@ export function AggregatedViewTable() {
                 setLoading(false);
             }
         }
-    }, [groupBy, filters, selectedPeriods]);
+    }, [groupBy, filters, selectedPeriods, localChannel]);
     // DO NOT ADD fetchOptions or objects to dependencies that change on render
 
     useEffect(() => {
@@ -471,6 +481,22 @@ export function AggregatedViewTable() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                        {/* Channel Dropdown */}
+                        <div className="relative flex items-center">
+                            <select
+                                value={localChannel || 'All'}
+                                onChange={(e) => setLocalChannel(e.target.value)}
+                                className={`appearance-none border py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all ${darkMode ? "bg-slate-700/50 border-slate-600 text-blue-400 hover:bg-slate-700" : "bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100/50"}`}
+                                style={{ fontFamily: 'Roboto, sans-serif' }}
+                            >
+                                <option value="All">All Channels</option>
+                                {channels?.filter(c => c !== 'All').map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
+                        </div>
+
                         <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => setIsPeriodPanelOpen(!isPeriodPanelOpen)} />
                         {untagged && untagged.percent > 0 && (<div className={`px-3 py-1.5 rounded-full text-xs font-medium ${darkMode ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-700"}`}>{untagged.percent.toFixed(1)}% untagged</div>)}
                         <div className="relative">
