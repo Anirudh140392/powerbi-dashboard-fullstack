@@ -37,6 +37,14 @@ export const FilterProvider = ({ children }) => {
     const [locations, setLocations] = useState(FALLBACK_LOCATIONS);
     const [selectedLocation, setSelectedLocation] = useState("All");
 
+    // Additional Location Filters
+    const [zones, setZones] = useState([]);
+    const [selectedZone, setSelectedZone] = useState("All");
+    const [metroFlags, setMetroFlags] = useState([]);
+    const [selectedMetroFlag, setSelectedMetroFlag] = useState("All");
+    const [pincodes, setPincodes] = useState([]);
+    const [selectedPincode, setSelectedPincode] = useState("All");
+
     // Keyword state (for visibility analysis) - fetched dynamically from rb_kw_olap
     const [keywords, setKeywords] = useState([]);
     const [selectedKeyword, setSelectedKeyword] = useState(["All"]);
@@ -99,6 +107,12 @@ export const FilterProvider = ({ children }) => {
             setSelectedBrand("All");
             setLocations(FALLBACK_LOCATIONS);
             setSelectedLocation("All");
+            setZones([]);
+            setSelectedZone("All");
+            setMetroFlags([]);
+            setSelectedMetroFlag("All");
+            setPincodes([]);
+            setSelectedPincode("All");
             setKeywords([]);
             setSelectedKeyword(["All"]);
             setKeywordTypes([]);
@@ -581,7 +595,19 @@ export const FilterProvider = ({ children }) => {
             contentFilterMode,
             setContentFilterMode,
             visibilityOwnBrandsOnly,
-            setVisibilityOwnBrandsOnly
+            setVisibilityOwnBrandsOnly,
+            zones,
+            setZones,
+            selectedZone,
+            setSelectedZone,
+            metroFlags,
+            setMetroFlags,
+            selectedMetroFlag,
+            setSelectedMetroFlag,
+            pincodes,
+            setPincodes,
+            selectedPincode,
+            setSelectedPincode
         }}>
             {children}
         </FilterContext.Provider>

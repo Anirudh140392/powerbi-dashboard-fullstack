@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
 import axiosInstance from "../../api/axiosInstance";
+import { FilterContext } from "../../utils/FilterContext";
 import {
     Filter,
     LineChart as LineChartIcon,
@@ -362,11 +363,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
                 // Use watchtower competition-filter-options for ALL tabs
                 // This fetches from rb_pdp_olap so filter values match the competition table data
                 const params = new URLSearchParams();
-                if (selectedPlatform && selectedPlatform !== 'All') params.append('platform', selectedPlatform);
-                if (city && city !== 'All India') params.append('location', city);
-                if (value.categories.length > 0) params.append('category', value.categories.join(','));
-                if (value.brands.length > 0) params.append('brand', value.brands.join(','));
-
+                if (selectedChannel && selectedChannel !== 'All') params.append('channel', selectedChannel);
                 const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
                 if (response.data) {
                     setFilterOptions({
@@ -994,6 +991,7 @@ const SkuTable = ({ rows, loading }) => {
 /* -------------------------------------------------------------------------- */
 
 const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep }) => {
+    const { selectedChannel } = useContext(FilterContext);
     const [tab, setTab] = useState("brand");
     const [city, setCity] = useState("All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1040,7 +1038,8 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                     format: filters.categories.length > 0 ? filters.categories[0] : 'All',
                     dimension: 'brand',
                     period: period || '1M',
-                    timeStep: timeStep
+                    timeStep: timeStep,
+                    channel: selectedChannel || 'All'
                 };
 
                 const res = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
@@ -1055,12 +1054,12 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchBrandTrends();
-    }, [viewMode, city, filters.brands, filters.categories, period, timeStep, apiBrandData]);
+    }, [viewMode, city, filters.brands, filters.categories, period, timeStep, apiBrandData, selectedChannel]);
 
     useEffect(() => {
         const fetchFilterOptions = async () => {
             try {
-                const res = await axiosInstance.get('/visibility-analysis/filter-options?filterType=cities');
+                const res = await axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities&channel=${selectedChannel || 'All'}`);
                 if (res.data) {
                     setFilterOptions(prev => ({ ...prev, locations: ['All India', ...(res.data.options || [])] }));
                 }
@@ -1069,7 +1068,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchFilterOptions();
-    }, []);
+    }, [selectedChannel]);
 
     useEffect(() => {
         const fetchCompetitionData = async () => {
@@ -1080,7 +1079,8 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                     location: city !== 'All India' ? city : 'All',
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
-                    period: period || '1M'
+                    period: period || '1M',
+                    channel: selectedChannel || 'All'
                 };
 
                 const res = await axiosInstance.get('/visibility-analysis/competition', { params });
@@ -1121,7 +1121,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchCompetitionData();
-    }, [city, filters.brands, filters.categories, selectedPlatform, period]);
+    }, [city, filters.brands, filters.categories, selectedPlatform, period, selectedChannel]);
 
     const selectionCount = filters.categories.length + filters.brands.length + filters.skus.length;
 

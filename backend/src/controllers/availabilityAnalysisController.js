@@ -1,4 +1,4 @@
-import availabilityService from '../services/availabilityService.js';
+import availabilityService, { buildPlatformChannelCond } from '../services/availabilityService.js';
 import { generateCacheKey, getCachedOrCompute, CACHE_TTL } from '../utils/cacheHelper.js';
 import { queryClickHouse, getCurrentDbName } from '../config/clickhouse.js';
 import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
@@ -309,6 +309,7 @@ export const getAvailabilityFilterOptions = async (req, res) => {
             location: parseFilter(location),
             months: parseFilter(months),
             metroFlag: parseFilter(metroFlag),
+            channel: req.query.channel,
             ownBrandsOnly: req.query.ownBrandsOnly
         });
 
@@ -450,7 +451,8 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
             platform: parseFilter(platform),
             location: parseFilter(location),
             category: parseFilter(category),
-            brand: parseFilter(brand)
+            brand: parseFilter(brand),
+            channel: req.query.channel
         });
 
         console.log('[RESPONSE]:', data.locations?.length, 'locations,', data.categories?.length, 'categories,', data.brands?.length, 'brands');
@@ -478,6 +480,7 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
             location: parseFilter(location || 'All'),
             category: parseFilter(category || 'All'),
             period: period || '1M',
+            channel: req.query.channel,
             startDate,
             endDate
         });
@@ -523,6 +526,7 @@ export const getSignalLabData = async (req, res) => {
                 limit = 5,
                 signalType = 'drainer',
                 keyword = 'All',
+                channel = 'All',
                 groupBy = 'sku'
             } = req.query;
 
@@ -572,7 +576,7 @@ export const getSignalLabData = async (req, res) => {
             const dynamicCatCol = hasCategoryCol ? 'Category' : 'Product_type';
 
             // Build WHERE clause for ClickHouse
-            const buildWhereClause = (includeCompDates = false, ignoreBrand = false) => {
+            const buildWhereClause = async (includeCompDates = false, ignoreBrand = false) => {
                 const conditions = [];
 
                 if (includeCompDates) {
@@ -581,12 +585,9 @@ export const getSignalLabData = async (req, res) => {
                     conditions.push(`toDate(DATE) BETWEEN '${start}' AND '${end}'`);
                 }
 
-                if (platformFilter) {
-                    if (Array.isArray(platformFilter)) {
-                        conditions.push(`LOWER(Platform) IN (${platformFilter.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
-                    } else {
-                        conditions.push(`Platform ILIKE '${escapeStr(platformFilter)}'`);
-                    }
+                const platformCond = await buildPlatformChannelCond(platformFilter, channel);
+                if (platformCond) {
+                    conditions.push(platformCond);
                 }
 
                 if (locationFilter) {
@@ -846,7 +847,7 @@ export const getSignalLabData = async (req, res) => {
                     ${mainOsaExpr} as absoluteOsa,
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', toFloat64(Sales), 0.0)) as currSales
                 FROM rb_pdp_olap
-                WHERE ${buildWhereClause(true)}
+                WHERE ${await buildWhereClause(true)}
                 GROUP BY ${groupCol}
                 ${havingClause}
                 ORDER BY toFloat64(currSales) DESC
@@ -865,7 +866,7 @@ export const getSignalLabData = async (req, res) => {
             const totalMarketSalesQuery = `
                 SELECT sum(toFloat64OrZero(toString(Sales))) as totalMarketSales
                 FROM rb_pdp_olap
-                WHERE ${buildWhereClause(false, true)}
+                WHERE ${await buildWhereClause(false, true)}
             `;
             const totalMarketSalesResult = await queryClickHouse(totalMarketSalesQuery);
             const totalMarketSales = Number(totalMarketSalesResult?.[0]?.totalMarketSales || 0);
@@ -874,7 +875,7 @@ export const getSignalLabData = async (req, res) => {
                 SELECT count() as count FROM (
                     SELECT ${groupCol}
                     FROM rb_pdp_olap
-                    WHERE ${buildWhereClause(true)}
+                    WHERE ${await buildWhereClause(true)}
                     GROUP BY ${groupCol}
                     ${havingClause}
                 ) as temp
@@ -909,7 +910,7 @@ export const getSignalLabData = async (req, res) => {
                     sum(if(toDate(DATE) BETWEEN '${compStart}' AND '${compEnd}', abs(toFloat64(Sales)), 0.0)) AS prevSales
                 FROM rb_pdp_olap
                 WHERE ${filterCol} IN (${webPidsStr})
-                    AND ${buildWhereClause(true, true)}
+                    AND ${await buildWhereClause(true, true)}
                 GROUP BY ${groupCol}
             `;
 
@@ -931,7 +932,7 @@ export const getSignalLabData = async (req, res) => {
                     sum(if(toDate(DATE) BETWEEN '${start}' AND '${end}', abs(toFloat64(Sales)), 0.0)) as citySales
                 FROM rb_pdp_olap
                 WHERE ${filterCol} IN (${webPidsStr})
-                    AND ${buildWhereClause(true, true)}
+                    AND ${await buildWhereClause(true, true)}
                 GROUP BY ${groupCol}, Location
             `;
             const cityRows = await queryClickHouse(cityAggQuery);

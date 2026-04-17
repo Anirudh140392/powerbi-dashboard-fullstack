@@ -17,7 +17,8 @@ import {
     getVisibilityGainersAndDrainers,
     getSearchTermsPerformance,
     getSearchTermsLocationDrilldown,
-    getSearchTermsBrandBreakdown
+    getSearchTermsBrandBreakdown,
+    getVisibilityBSRData
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
@@ -312,5 +313,8 @@ export default (app) => {
     app.get('/api/visibility-analysis/search-terms-performance', getSearchTermsPerformance);
     app.get('/api/visibility-analysis/search-terms-locations', getSearchTermsLocationDrilldown);
     app.get('/api/visibility-analysis/search-terms-brand-breakdown', getSearchTermsBrandBreakdown);
+
+    // BSR Data for Ecommerce
+    app.get('/api/visibility-analysis/bsr-data', getVisibilityBSRData);
 };
 
