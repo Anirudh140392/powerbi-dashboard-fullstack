@@ -14,8 +14,12 @@ export default function VisibilityAnalysis() {
     selectedKeyword,
     selectedKeywordType,
     selectedCategory,
+    selectedChannel,
     timeStart,
     timeEnd,
+    selectedZone,
+    selectedMetroFlag,
+    selectedPincode,
     refreshFilters,
   } = useContext(FilterContext);
 
@@ -32,6 +36,10 @@ export default function VisibilityAnalysis() {
     keyword: selectedKeyword || "All",
     keywordType: selectedKeywordType || "All",
     category: selectedCategory || "All",
+    channel: selectedChannel || "All",
+    zone: selectedZone || "All",
+    metroFlag: selectedMetroFlag || "All",
+    pincode: selectedPincode || "All",
     months: 6,
     timeStep: "Weekly",
     startDate: null,  // Will be set after fetching latest available dates
@@ -100,9 +108,14 @@ export default function VisibilityAnalysis() {
     // Only update if filters actually changed to avoid unnecessary re-renders/aborts
     const currentPlatform = platform || filters.platform;
     const currentBrand = selectedBrand || filters.brand;
+    const currentLocation = selectedLocation || filters.location;
     const currentKeyword = selectedKeyword || filters.keyword;
     const currentKeywordType = selectedKeywordType || filters.keywordType;
     const currentCategory = selectedCategory || filters.category;
+    const currentChannel = selectedChannel || filters.channel;
+    const currentZone = selectedZone || filters.zone;
+    const currentMetroFlag = selectedMetroFlag || filters.metroFlag;
+    const currentPincode = selectedPincode || filters.pincode;
     const currentStartDate = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : filters.startDate;
     const currentEndDate = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : filters.endDate;
 
@@ -112,6 +125,11 @@ export default function VisibilityAnalysis() {
       currentKeyword !== filters.keyword ||
       currentKeywordType !== filters.keywordType ||
       currentCategory !== filters.category ||
+      currentChannel !== filters.channel ||
+      currentLocation !== filters.location ||
+      currentZone !== filters.zone ||
+      currentMetroFlag !== filters.metroFlag ||
+      currentPincode !== filters.pincode ||
       currentStartDate !== filters.startDate ||
       currentEndDate !== filters.endDate
     ) {
@@ -120,15 +138,19 @@ export default function VisibilityAnalysis() {
         ...prev,
         platform: currentPlatform,
         brand: currentBrand,
-        location: selectedLocation || "All",
+        location: currentLocation,
+        zone: currentZone,
+        metroFlag: currentMetroFlag,
+        pincode: currentPincode,
         keyword: currentKeyword,
         keywordType: currentKeywordType,
         category: currentCategory,
+        channel: currentChannel,
         startDate: currentStartDate,
         endDate: currentEndDate
       }));
     }
-  }, [platform, selectedBrand, selectedLocation, selectedKeyword, selectedKeywordType, selectedCategory, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, selectedZone, selectedMetroFlag, selectedPincode, selectedKeyword, selectedKeywordType, selectedCategory, selectedChannel, timeStart, timeEnd]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -252,6 +274,7 @@ export default function VisibilityAnalysis() {
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
+      channel: filters.channel || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
     };
@@ -264,6 +287,7 @@ export default function VisibilityAnalysis() {
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
+      channel: filters.channel || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
     }).toString();
@@ -303,6 +327,7 @@ export default function VisibilityAnalysis() {
       keyword: filters.keyword,
       keywordType: filters.keywordType,
       category: filters.category,
+      channel: filters.channel,
       startDate: filters.startDate,
       endDate: filters.endDate,
     });
@@ -356,24 +381,19 @@ export default function VisibilityAnalysis() {
           platform: filters.platform || 'All',
           brand: filters.brand || 'All',
           location: filters.location || 'All',
+          zone: filters.zone || 'All',
+          metroFlag: filters.metroFlag || 'All',
+          pincode: filters.pincode || 'All',
           keyword: filters.keyword || 'All',
           keywordType: filters.keywordType || 'All',
           category: filters.category || 'All',
+          channel: filters.channel || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         };
 
         const queryParams = new URLSearchParams(baseParams).toString();
-        const matrixParams = new URLSearchParams({
-          platform: filters.platform || 'All',
-          brand: filters.brand || 'All',
-          location: filters.location || 'All',
-          keyword: filters.keyword || 'All',
-          keywordType: filters.keywordType || 'All',
-          category: filters.category || 'All',
-          startDate: filters.startDate,
-          endDate: filters.endDate
-        }).toString();
+        const matrixParams = new URLSearchParams(baseParams).toString();
 
 
         console.log('📡 [Visibility] Fetching segments in parallel...');

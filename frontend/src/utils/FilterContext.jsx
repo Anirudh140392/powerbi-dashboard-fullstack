@@ -19,7 +19,7 @@ const FALLBACK_CHANNELS = ["Ecom", "ModernTrade"];
 export const FilterProvider = ({ children }) => {
     const { isLoggedIn } = useAuth();
     // Check if user is logged in (has a valid token) before making API calls
-    const isAuthenticated = isLoggedIn || !!localStorage.getItem('token');
+    const isAuthenticated = isLoggedIn || !!sessionStorage.getItem('token');
 
     // Channel state (fetched dynamically from rca_sku_dim)
     const [channels, setChannels] = useState(FALLBACK_CHANNELS);
@@ -36,6 +36,14 @@ export const FilterProvider = ({ children }) => {
     // Location state
     const [locations, setLocations] = useState(FALLBACK_LOCATIONS);
     const [selectedLocation, setSelectedLocation] = useState("All");
+
+    // Additional Location Filters
+    const [zones, setZones] = useState([]);
+    const [selectedZone, setSelectedZone] = useState("All");
+    const [metroFlags, setMetroFlags] = useState([]);
+    const [selectedMetroFlag, setSelectedMetroFlag] = useState("All");
+    const [pincodes, setPincodes] = useState([]);
+    const [selectedPincode, setSelectedPincode] = useState("All");
 
     // Keyword state (for visibility analysis) - fetched dynamically from rb_kw_olap
     const [keywords, setKeywords] = useState([]);
@@ -73,6 +81,18 @@ export const FilterProvider = ({ children }) => {
     // Visibility-specific segment toggle (My SKUs vs All SKUs)
     const [visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly] = useState(true);
 
+    // Track current hash to detect page changes
+    const [currentHash, setCurrentHash] = useState(window.location.hash);
+
+    useEffect(() => {
+        const handleHashChange = () => {
+            console.log("[FilterContext] Hash changed to:", window.location.hash);
+            setCurrentHash(window.location.hash);
+        };
+        window.addEventListener('hashchange', handleHashChange);
+        return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
+
     const datesInitialized = Boolean(timeStart && timeEnd);
 
     // ====== RESET STATE ON LOGOUT ======
@@ -87,6 +107,12 @@ export const FilterProvider = ({ children }) => {
             setSelectedBrand("All");
             setLocations(FALLBACK_LOCATIONS);
             setSelectedLocation("All");
+            setZones([]);
+            setSelectedZone("All");
+            setMetroFlags([]);
+            setSelectedMetroFlag("All");
+            setPincodes([]);
+            setSelectedPincode("All");
             setKeywords([]);
             setSelectedKeyword(["All"]);
             setKeywordTypes([]);
@@ -101,37 +127,42 @@ export const FilterProvider = ({ children }) => {
         }
     }, [isAuthenticated]);
 
-    // ====== FETCH LATEST DATES FROM DB (on mount) ======
-    useEffect(() => {
-        const fetchDates = async () => {
-            if (!isAuthenticated) return;
+    // ====== FETCH LATEST DATES FROM DB (on mount and hash change) ======
+    const refreshDates = useCallback(async () => {
+        if (!isAuthenticated) return;
 
-            setDatesFetched(false);
-            try {
-                const res = await axiosInstance.get('/watchtower/latest-available-month');
-                if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
-                    const lEnd = dayjs(res.data.defaultEndDate);
-                    const lStart = dayjs(res.data.defaultStartDate);
+        setDatesFetched(false);
+        try {
+            // Use window.location.hash directly to ensure it has the latest path on mount
+            const isMarketShare = window.location.hash.includes('/market-share');
+            const endpoint = isMarketShare ? '/market-share/latest-date' : '/watchtower/latest-available-month';
+            
+            console.log(`[FilterContext] Fetching basic dates from ${endpoint}...`);
+            const res = await axiosInstance.get(endpoint);
+            if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
+                const lEnd = dayjs(res.data.defaultEndDate);
+                const lStart = dayjs(res.data.defaultStartDate);
 
-                    setTimeEnd(lEnd);
-                    setTimeStart(lStart);
-                    setMaxDate(lEnd);
+                setTimeEnd(lEnd);
+                setTimeStart(lStart);
+                setMaxDate(lEnd);
 
-                    // Simple Previous period comparison
-                    setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
-                    setCompareStart(lStart.subtract(1, 'month').startOf('month'));
+                // Simple Previous period comparison
+                setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
+                setCompareStart(lStart.subtract(1, 'month').startOf('month'));
 
-                    console.log("[FilterContext] Fetched dynamic dates:", res.data.defaultStartDate, "to", res.data.defaultEndDate);
-                }
-            } catch (err) {
-                console.warn("[FilterContext] Failed to fetch latest dates:", err.message);
-            } finally {
-                setDatesFetched(true);
+                console.log(`[FilterContext] Fetched dynamic dates for ${isMarketShare ? 'Market Share' : 'Watchtower'}:`, res.data.defaultStartDate, "to", res.data.defaultEndDate);
             }
-        };
-        fetchDates();
+        } catch (err) {
+            console.warn("[FilterContext] Failed to fetch latest dates:", err.message);
+        } finally {
+            setDatesFetched(true);
+        }
     }, [isAuthenticated]);
 
+    useEffect(() => {
+        refreshDates();
+    }, [refreshDates, currentHash]);
 
     // ====== FETCH CHANNELS FROM DB (on mount) ======
     useEffect(() => {
@@ -181,7 +212,7 @@ export const FilterProvider = ({ children }) => {
                     if (newCategories.length > 0) setCategories(newCategories);
                     if (newChannels.length > 0) setChannels(newChannels);
                     if (newLocations.length > 0) setLocations(newLocations);
-                    
+
                     // Validate current platform selection
                     setPlatform(prev => {
                         if (prev === "All") return "All";
@@ -258,7 +289,7 @@ export const FilterProvider = ({ children }) => {
 
     useEffect(() => {
         fetchPlatformsFromDb();
-    }, [fetchPlatformsFromDb]);
+    }, [fetchPlatformsFromDb, currentHash]);
 
     // refreshFilters — can be called by child components to re-fetch filter options
     const refreshFilters = useCallback(() => {
@@ -560,10 +591,23 @@ export const FilterProvider = ({ children }) => {
             datesFetched,
             platformsFetched,
             refreshFilters,
+            refreshDates,
             contentFilterMode,
             setContentFilterMode,
             visibilityOwnBrandsOnly,
-            setVisibilityOwnBrandsOnly
+            setVisibilityOwnBrandsOnly,
+            zones,
+            setZones,
+            selectedZone,
+            setSelectedZone,
+            metroFlags,
+            setMetroFlags,
+            selectedMetroFlag,
+            setSelectedMetroFlag,
+            pincodes,
+            setPincodes,
+            selectedPincode,
+            setSelectedPincode
         }}>
             {children}
         </FilterContext.Provider>

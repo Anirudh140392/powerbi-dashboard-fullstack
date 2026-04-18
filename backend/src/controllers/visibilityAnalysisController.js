@@ -36,6 +36,10 @@ export const getVisibilityOverview = async (req, res) => {
             keyword: req.query.keyword || 'All',
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
+            channel: req.query.channel || 'All',
+            pincode: req.query.pincode || 'All',
+            zone: req.query.zone || 'All',
+            metroFlag: req.query.metroFlag || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -77,6 +81,7 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             keyword: req.query.keyword || 'All',
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
+            channel: req.query.channel || 'All',
             pincode: req.query.pincode || 'All',
             zone: req.query.zone || 'All',
             metroFlag: req.query.metroFlag || 'All',
@@ -123,8 +128,12 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
             sku: req.query.sku || 'All',
             city: req.query.city || 'All',
             view: req.query.view || 'keywords', // keywords, skus, platforms
+            pincode: req.query.pincode || 'All',
+            zone: req.query.zone || 'All',
+            metroFlag: req.query.metroFlag || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY KEYWORDS AT GLANCE API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -275,7 +284,8 @@ export const getVisibilityKpiTrends = async (req, res) => {
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            sku: req.query.sku || req.query.skus || 'All'
         };
         console.log('\n========== VISIBILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -315,7 +325,8 @@ export const getVisibilityCompetition = async (req, res) => {
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || req.query.format || 'All',
             brand: req.query.brand || 'All',  // Filter by specific competitor brand
-            period: req.query.period || '1M'
+            period: req.query.period || '1M',
+            sku: req.query.sku || req.query.skus || 'All'
         };
         console.log('\n========== VISIBILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -533,8 +544,12 @@ export const getVisibilityGainersAndDrainers = async (req, res) => {
             keyword: req.query.keyword || 'All',
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
+            pincode: req.query.pincode || 'All',
+            zone: req.query.zone || 'All',
+            metroFlag: req.query.metroFlag || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY GAINERS & DRAINERS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -576,7 +591,8 @@ export const getSearchTermsPerformance = async (req, res) => {
             category: req.query.category || 'All',
             ownBrandsOnly: req.query.ownBrandsOnly === 'true',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            channel: req.query.channel || 'All'
         };
         console.log('\n========== SEARCH TERMS PERFORMANCE API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -673,6 +689,42 @@ export const getSearchTermsBrandBreakdown = async (req, res) => {
         console.error('[ERROR] Search Terms Brand Breakdown:', error);
         console.error('[TIMING] Failed after:', Date.now() - startTime, 'ms');
         res.status(500).json({ error: 'Internal Server Error', brands: [] });
+    }
+};
+
+/**
+ * Get BSR Data - AVG of best_seller_rank (Min_Rank) as integer
+ * Returns: SKU-level table data with Current/Prev BSR and Discount
+ */
+export const getVisibilityBSRData = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
+            location: req.query.location || req.query.city || 'All',
+            category: req.query.category || req.query.format || 'All',
+            channel: req.query.channel || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('\n========== VISIBILITY BSR DATA API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+
+        const cacheKey = generateCacheKey('visibility_bsr_v2', filters);
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            return await visibilityService.getBSRData(filters);
+        }, CACHE_TTL.METRICS);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE]: Rows count:', data?.length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('==============================================\n');
+
+        res.json({ data });
+    } catch (error) {
+        console.error('[ERROR] Visibility BSR Data:', error);
+        res.status(500).json({ error: 'Internal Server Error', data: [] });
     }
 };
 

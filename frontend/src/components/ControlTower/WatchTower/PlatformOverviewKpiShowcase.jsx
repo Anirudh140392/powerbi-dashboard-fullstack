@@ -35,6 +35,28 @@ function cn(...classes) {
 /* -------------------------------------------------------------------------- */
 
 /* Card */
+
+// Map metric IDs to their data source group for N/A detection
+export const KPI_SOURCE_MAP = {
+  // PDP table KPIs
+  Offtakes: 'pdp', offtakes: 'pdp', Offtake: 'pdp',
+  Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
+  Discount: 'pdp', 'Promo-My': 'pdp', 'promo-my': 'pdp', PromoMyBrand: 'pdp', discount: 'pdp',
+  Assortment: 'pdp', Listing: 'pdp',
+  PricePerUnit: 'pdp', ASP: 'pdp', RPI: 'pdp',
+  // PM table KPIs
+  InorganicSales: 'pm', InorgSales: 'pm',
+  Conversion: 'pm', conversion: 'pm', Roas: 'pm', ROAS: 'pm', roas: 'pm',
+  BmiSalesRatio: 'pm', Spend: 'pm', spend: 'pm',
+  CPM: 'pm', cpm: 'pm', CPC: 'pm', cpc: 'pm',
+  dspSales: 'pm',
+  // KW table KPIs
+  ShareOfSearch: 'kw', SOS: 'kw', Sos: 'kw', sos: 'kw',
+  // MS table KPIs
+  MarketShare: 'ms', CategoryShare: 'ms',
+  marketShare: 'ms', categoryShare: 'ms',
+};
+
 const DASHBOARD_DATA = {
   /* =====================================================================
      TRENDS (MAIN LINE CHART)
@@ -1236,10 +1258,10 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
   );
 };
 
-const MetricChip = ({ label, color, active, onClick }) => {
+const MetricChip = ({ label, color, active, onClick, isNA }) => {
   return (
     <Box
-      onClick={onClick}
+      onClick={isNA ? undefined : onClick}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -1247,14 +1269,15 @@ const MetricChip = ({ label, color, active, onClick }) => {
         px: 1.5,
         py: 0.6,
         borderRadius: "999px",
-        cursor: "pointer",
-        border: `1px solid ${active ? color : "#E5E7EB"}`,
-        backgroundColor: active ? `${color}20` : "white",
-        color: active ? color : "#0f172a",
+        cursor: isNA ? "not-allowed" : "pointer",
+        border: `1px solid ${isNA ? "#E5E7EB" : active ? color : "#E5E7EB"}`,
+        backgroundColor: isNA ? "#F8FAFC" : active ? `${color}20` : "white",
+        color: isNA ? "#94A3B8" : active ? color : "#0f172a",
         fontSize: "12px",
         fontWeight: 600,
         userSelect: "none",
         transition: "all 0.15s ease",
+        opacity: isNA ? 0.7 : 1,
       }}
     >
       {/* CHECKBOX ICON */}
@@ -1263,8 +1286,8 @@ const MetricChip = ({ label, color, active, onClick }) => {
           width: 14,
           height: 14,
           borderRadius: 3,
-          border: `2px solid ${active ? color : "#CBD5E1"}`,
-          backgroundColor: active ? color : "transparent",
+          border: `2px solid ${isNA ? "#CBD5E1" : active ? color : "#CBD5E1"}`,
+          backgroundColor: isNA ? "#E2E8F0" : active ? color : "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1273,10 +1296,29 @@ const MetricChip = ({ label, color, active, onClick }) => {
           lineHeight: 1,
         }}
       >
-        {active && "✓"}
+        {!isNA && active && "✓"}
+        {isNA && "−"}
       </Box>
 
       {label}
+      {isNA && (
+        <Box
+          component="span"
+          sx={{
+            ml: 0.5,
+            px: 0.8,
+            py: 0.1,
+            borderRadius: "4px",
+            backgroundColor: "#FEF3C7",
+            color: "#92400E",
+            fontSize: "9px",
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+          }}
+        >
+          N/A
+        </Box>
+      )}
     </Box>
   );
 };
@@ -1336,6 +1378,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
 
   const [apiTrendData, setApiTrendData] = useState(null);
   const [primaryBrand, setPrimaryBrand] = useState(null);
+  const [kpiAvailability, setKpiAvailability] = useState(null);
   const [trendLoading, setTrendLoading] = useState(false);
   const [trendError, setTrendError] = useState(null);
 
@@ -1359,6 +1402,11 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
 
       const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
       setApiTrendData(response.data);
+      if (response.data?.kpiAvailability) {
+        setKpiAvailability(response.data.kpiAvailability);
+      } else {
+        setKpiAvailability(null);
+      }
       if (response.data?.metadata?.primaryBrand) {
         setPrimaryBrand(response.data.metadata.primaryBrand);
       }
@@ -1416,15 +1464,22 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
           <Box display="flex" gap={1} flexWrap="wrap">
             {(isBrandMode ? KPI_KEYS : KPI_KEYS.filter(m => m.key !== 'sos'))
               .filter(m => !hideMarketShare || m.key !== 'marketShare')
-              .map((m) => (
-              <MetricChip
-                key={m.key}
-                label={m.label}
-                color={m.color}
-                active={activeMetric === m.key}
-                onClick={() => setActiveMetric(m.key)}
-              />
-            ))}
+              .map((m) => {
+                const sourceGroup = KPI_SOURCE_MAP[m.key];
+                const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
+                return (
+                  <MetricChip
+                    key={m.key}
+                    label={m.label}
+                    color={m.color}
+                    active={activeMetric === m.key && !isMetricNA}
+                    isNA={isMetricNA}
+                    onClick={() => {
+                        if (!isMetricNA) setActiveMetric(m.key)
+                    }}
+                  />
+                );
+              })}
           </Box>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={onSwitchToKpi}>
@@ -1582,8 +1637,28 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
                   tick={{ fill: '#94A3B8' }}
                 />
                 <Tooltip
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  formatter={formatValue}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const validParams = payload.filter(p => p.value !== null && p.value !== undefined);
+                      if (!validParams.length) return null;
+                      return (
+                        <div className="bg-white p-3 border border-slate-100 rounded-lg shadow-lg text-sm min-w-[140px]">
+                          <p className="font-semibold mb-2 text-slate-700 text-xs">{label}</p>
+                          {validParams.map((entry, index) => (
+                            <div key={index} className="flex items-center justify-between gap-4 mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-[3px]" style={{ backgroundColor: entry.color }}></span>
+                                <span className="text-slate-600 font-medium whitespace-nowrap text-[12px]">{entry.name}</span>
+                              </div>
+                              <span className="font-bold text-slate-900 text-[13px]">{formatValue(entry.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                  cursor={{ strokeWidth: 1, strokeDasharray: '4 4', stroke: '#94A3B8' }}
                 />
                 <Legend verticalAlign="top" height={36} content={() => (
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1">

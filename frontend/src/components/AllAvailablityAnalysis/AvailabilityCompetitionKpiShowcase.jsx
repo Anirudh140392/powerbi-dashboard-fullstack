@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
+import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
 // import PaginationFooter from "../CommonLayout/PaginationFooter"; // Removed pagination
 import {
@@ -484,7 +485,7 @@ const KPI_KEYS = [
 /*                                 Tables                                     */
 /* -------------------------------------------------------------------------- */
 
-const BrandTable = ({ rows, loading }) => {
+const BrandTable = ({ rows, loading, isEcom }) => {
     return (
         <Card className="mt-3">
             <CardHeader className="border-b pb-2">
@@ -555,7 +556,7 @@ const BrandTable = ({ rows, loading }) => {
     );
 };
 
-const SkuTable = ({ rows, loading }) => {
+const SkuTable = ({ rows, loading, isEcom }) => {
     return (
         <Card className="mt-3 border-slate-200 bg-white shadow-sm">
             <CardHeader className="border-b pb-2">
@@ -635,7 +636,7 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Filter Dialog                                  */
 /* -------------------------------------------------------------------------- */
 
-const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location }) => {
+const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location, channel }) => {
     const [activeTab, setActiveTab] = useState(
         mode === "brand" ? "category" : "sku"
     );
@@ -658,6 +659,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
             try {
                 const params = new URLSearchParams();
                 if (platform) params.append('platform', platform);
+                if (channel) params.append('channel', channel);
                 if (location) params.append('location', location === 'All India' ? 'All' : location);
                 if (value.categories.length > 0) {
                     params.append('category', value.categories.join(','));
@@ -847,6 +849,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
     const isEcom = platform?.toLowerCase() === "amazon" || platform?.toLowerCase() === "flipkart";
     const [tab, setTab] = useState("brand");
 
+    const { selectedChannel } = useContext(FilterContext);
     const [city, setCity] = useState("All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
     const [filters, setFilters] = useState({
@@ -866,7 +869,10 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
         const fetchCities = async () => {
             try {
                 const response = await axiosInstance.get('/availability-analysis/competition-filter-options', {
-                    params: { platform: platform || 'All' }
+                    params: { 
+                        platform: platform || 'All',
+                        channel: selectedChannel || 'All'
+                    }
                 });
                 if (response.data && response.data.locations) {
                     setAvailableCities(response.data.locations);
@@ -884,6 +890,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             try {
                 const params = {
                     platform: platform || 'All',
+                    channel: selectedChannel || 'All',
                     location: city === 'All India' ? 'All' : city,
                     category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
@@ -1024,7 +1031,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
 
                 <TabsContent value="brand" className="mt-3">
                     {viewMode === "table" ? (
-                        <BrandTable rows={brandRows} loading={loading} />
+                        <BrandTable rows={brandRows} loading={loading} isEcom={isEcom} />
                     ) : (
                         <TrendView
                             mode="brand"
@@ -1032,13 +1039,14 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             city={city}
                             onBackToTable={() => setViewMode("table")}
                             apiTrendData={trendData}
+                            isEcom={isEcom}
                         />
                     )}
                 </TabsContent>
 
                 <TabsContent value="sku" className="mt-3">
                     {viewMode === "table" ? (
-                        <SkuTable rows={skuRows} loading={loading} />
+                        <SkuTable rows={skuRows} loading={loading} isEcom={isEcom} />
                     ) : (
                         <TrendView
                             mode="sku"
@@ -1046,6 +1054,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             city={city}
                             onBackToTable={() => setViewMode("table")}
                             apiTrendData={trendData}
+                            isEcom={isEcom}
                         />
                     )}
                 </TabsContent>
@@ -1058,6 +1067,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 value={filters}
                 onChange={setFilters}
                 platform={platform}
+                channel={selectedChannel}
                 location={city}
             />
         </div>

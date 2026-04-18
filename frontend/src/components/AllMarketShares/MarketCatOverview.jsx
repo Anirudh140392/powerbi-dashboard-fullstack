@@ -68,7 +68,7 @@ const MarketCatOverview = ({
     // Derive display name from the logged-in user's dbName
     const dbDisplayName = useMemo(() => {
         try {
-            const u = JSON.parse(localStorage.getItem('user'));
+            const u = JSON.parse(sessionStorage.getItem('user'));
             if (u?.dbName) {
                 if (u.dbName.toLowerCase() === 'mamaearth') {
                     return 'The Derma Co.';

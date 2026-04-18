@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Shield,
@@ -14,7 +14,8 @@ import {
     XCircle,
     ChevronLeft,
     ChevronsLeft,
-    ChevronsRight
+    ChevronsRight,
+    Loader2
 } from "lucide-react";
 import {
     Table,
@@ -24,6 +25,11 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import axios from "axios";
+
+const API_BASE = import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api`
+    : "/api";
 
 const Switch = ({ checked, onChange }) => (
     <button
@@ -50,106 +56,87 @@ const RolesPermissions = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(8);
     const [showModal, setShowModal] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [formData, setFormData] = useState({
         id: "",
         db_id: "",
         db_name: "",
-        created_on: new Date().toISOString().slice(0, 16), // Default to now
+        created_on: new Date().toISOString().slice(0, 16),
         status: "Active"
     });
     const [errors, setErrors] = useState({});
 
+    // These are the tab labels that match the Sidebar menu items
     const tabsList = [
-        "Watch Tower", "Map Intellect", "Insights", "Availability Analysis",
+        "Business Overview", "India Overview", "Insights", "Availability Analysis",
         "Visibility Analysis", "Market Share", "Sales Data", "Pricing Analysis",
         "Performance Marketing", "Portfolio Analysis", "Content Analysis",
         "Inventory Analysis", "Play it Yourself", "Category RCA",
         "Scheduled Reports", "Ad Auto", "Rating", "Supply", "Content"
     ];
 
-    const [usersData, setUsersData] = useState([
-        {
-            id: 1,
-            name: "Sanyam Miglani",
-            email: "sanyam.m@trailytics.com",
-            role: "Manager",
-            dbName: "Mars",
-            dbStatus: true,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: true }), {})
-        },
-        {
-            id: 3,
-            name: "Arjun Singh",
-            email: "arjun.si@trailytics.com",
-            role: "Viewer",
-            dbName: "Report_DB",
-            dbStatus: false,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: ["Insights", "Sales Data"].includes(tab) }), {})
-        },
-        {
-            id: 4,
-            name: "Priya Sharma",
-            email: "priya.sh@trailytics.com",
-            role: "Analyst",
-            dbName: "Market_Intelligence",
-            dbStatus: true,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: tab.includes("Analysis") }), {})
-        },
-        {
-            id: 5,
-            name: "Rahul Verma",
-            email: "rahul.v@trailytics.com",
-            role: "Manager",
-            dbName: "Sales_Tracker",
-            dbStatus: true,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: ["Sales Data", "Insights", "Watch Tower"].includes(tab) }), {})
-        },
-        {
-            id: 6,
-            name: "Ananya Iyer",
-            email: "ananya.i@trailytics.com",
-            role: "Super Admin",
-            dbName: "Core_System",
-            dbStatus: true,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: true }), {})
-        },
-        {
-            id: 7,
-            name: "Vikram Malhotra",
-            email: "vikram.m@trailytics.com",
-            role: "Viewer",
-            dbName: "ReadOnly_Store",
-            dbStatus: true,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: ["Rating", "Supply", "Content"].includes(tab) }), {})
-        },
-        {
-            id: 8,
-            name: "Sneha Kapoor",
-            email: "sneha.k@trailytics.com",
-            role: "Manager",
-            dbName: "Ad_Operations",
-            dbStatus: false,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: tab.startsWith("Ad") || tab === "Scheduled Reports" }), {})
-        },
-        {
-            id: 9,
-            name: "Amit Patel",
-            email: "amit.p@trailytics.com",
-            role: "Analyst",
-            dbName: "Supply_Chain_DB",
-            dbStatus: true,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: ["Supply", "Inventory Analysis", "Watch Tower"].includes(tab) }), {})
-        },
-        {
-            id: 10,
-            name: "Kavita Reddy",
-            email: "kavita.r@trailytics.com",
-            role: "Super Admin",
-            dbName: "Analytics_Pro",
-            dbStatus: true,
-            tabs: tabsList.reduce((acc, tab) => ({ ...acc, [tab]: true }), {})
+    const [usersData, setUsersData] = useState([]);
+    const [allDatabases, setAllDatabases] = useState([]);
+    const [selectedAllDb, setSelectedAllDb] = useState("mars");
+
+    // Fetch users and databases from the API on mount
+    useEffect(() => {
+        fetchPermissionsUsers();
+        fetchDatabases();
+    }, []);
+
+    const fetchDatabases = async () => {
+        try {
+            const token = sessionStorage.getItem("token");
+            const response = await axios.get(`${API_BASE}/admin/databases`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data.success) {
+                setAllDatabases(response.data.data);
+            }
+        } catch (err) {
+            console.error('[RolesPermissions] Failed to fetch databases:', err);
         }
-    ]);
+    };
+
+    const fetchPermissionsUsers = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const token = sessionStorage.getItem("token");
+            const response = await axios.get(`${API_BASE}/admin/permissions/users`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (response.data.success) {
+                const users = response.data.data.map((user, idx) => {
+                    // Build tabs object: if tabPermissions has entries, use them; otherwise default all to true
+                    const tabPerms = user.tabPermissions || {};
+                    const hasAnyPerm = Object.keys(tabPerms).length > 0;
+                    const tabs = tabsList.reduce((acc, tab) => {
+                        acc[tab] = hasAnyPerm ? (tabPerms[tab] !== undefined ? tabPerms[tab] : true) : true;
+                        return acc;
+                    }, {});
+
+                    return {
+                        id: idx + 1,
+                        email: user.email,
+                        name: user.name || user.email.split('@')[0],
+                        role: user.role || 'user',
+                        dbName: user.dbName || 'N/A',
+                        dbStatus: user.dbStatus,
+                        tabs
+                    };
+                });
+                setUsersData(users);
+            }
+        } catch (err) {
+            console.error('[RolesPermissions] Failed to fetch users:', err);
+            setError('Failed to load permission data');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const toggleUserExpansion = (userId) => {
         setExpandedUsers(prev => ({
@@ -158,28 +145,119 @@ const RolesPermissions = () => {
         }));
     };
 
-    const handleTabStatusChange = (userId, tabName) => {
-        setUsersData(prev => prev.map(user => {
-            if (user.id === userId) {
-                return {
-                    ...user,
-                    tabs: {
-                        ...user.tabs,
-                        [tabName]: !user.tabs[tabName]
-                    }
-                };
+    const handleTabStatusChange = async (userId, tabName) => {
+        const user = usersData.find(u => u.id === userId);
+        if (!user) return;
+
+        const newTabValue = !user.tabs[tabName];
+        const updatedTabs = { ...user.tabs, [tabName]: newTabValue };
+
+        // Optimistic update
+        setUsersData(prev => prev.map(u => {
+            if (u.id === userId) {
+                return { ...u, tabs: updatedTabs };
             }
-            return user;
+            return u;
         }));
+
+        // Persist to backend
+        try {
+            const token = sessionStorage.getItem("token");
+            await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
+                email: user.email,
+                tabPermissions: updatedTabs
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+        } catch (err) {
+            console.error('[RolesPermissions] Failed to update tab permissions:', err);
+            // Revert on error
+            setUsersData(prev => prev.map(u => {
+                if (u.id === userId) {
+                    return { ...u, tabs: { ...updatedTabs, [tabName]: !newTabValue } };
+                }
+                return u;
+            }));
+        }
     };
 
-    const handleDbStatusChange = (userId) => {
-        setUsersData(prev => prev.map(user => {
-            if (user.id === userId) {
-                return { ...user, dbStatus: !user.dbStatus };
+    const handleAllTabsToggle = async (userId) => {
+        const user = usersData.find(u => u.id === userId);
+        if (!user) return;
+
+        const allActive = tabsList.every(tab => user.tabs[tab]);
+        const newValue = !allActive;
+        const updatedTabs = tabsList.reduce((acc, tab) => {
+            acc[tab] = newValue;
+            return acc;
+        }, {});
+
+        // Optimistic update
+        setUsersData(prev => prev.map(u => {
+            if (u.id === userId) {
+                return { ...u, tabs: updatedTabs };
             }
-            return user;
+            return u;
         }));
+
+        // Persist to backend
+        try {
+            const token = sessionStorage.getItem("token");
+            await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
+                email: user.email,
+                tabPermissions: updatedTabs
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+        } catch (err) {
+            console.error('[RolesPermissions] Failed to toggle all tab permissions:', err);
+            // Revert on error
+            const revertedTabs = tabsList.reduce((acc, tab) => {
+                acc[tab] = !newValue;
+                return acc;
+            }, {});
+            setUsersData(prev => prev.map(u => {
+                if (u.id === userId) {
+                    return { ...u, tabs: revertedTabs };
+                }
+                return u;
+            }));
+        }
+    };
+
+    const handleDbStatusChange = async (userId) => {
+        const user = usersData.find(u => u.id === userId);
+        if (!user) return;
+
+        const newStatus = !user.dbStatus;
+
+        // Optimistic update
+        setUsersData(prev => prev.map(u => {
+            if (u.id === userId) {
+                return { ...u, dbStatus: newStatus };
+            }
+            return u;
+        }));
+
+        // Persist to backend
+        try {
+            const token = sessionStorage.getItem("token");
+            await axios.patch(`${API_BASE}/admin/permissions/db-status`, {
+                email: user.email,
+                dbStatus: newStatus
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+        } catch (err) {
+            console.error('[RolesPermissions] Failed to update db status:', err);
+            // Revert on error
+            setUsersData(prev => prev.map(u => {
+                if (u.id === userId) {
+                    return { ...u, dbStatus: !newStatus };
+                }
+                return u;
+            }));
+        }
     };
 
     const validateForm = () => {
@@ -197,7 +275,6 @@ const RolesPermissions = () => {
         e.preventDefault();
         if (validateForm()) {
             console.log("Adding Database:", formData);
-            // Logic to add to usersData or separate databases list could go here
             setShowModal(false);
             setFormData({ 
                 id: "", 
@@ -225,6 +302,30 @@ const RolesPermissions = () => {
         setCurrentPage(1);
     };
 
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
+                <span className="ml-3 text-sm text-slate-500 font-medium">Loading permissions data...</span>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+                <XCircle className="w-8 h-8 text-rose-500" />
+                <span className="text-sm text-slate-600 font-medium">{error}</span>
+                <button 
+                    onClick={fetchPermissionsUsers}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all cursor-pointer"
+                >
+                    Retry
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-0.5 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
@@ -245,7 +346,7 @@ const RolesPermissions = () => {
                     </div>
                     <button 
                         onClick={() => setShowModal(true)}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap cursor-pointer"
                     >
                         <UserPlus className="w-4 h-4" />
                         Add Database
@@ -261,14 +362,175 @@ const RolesPermissions = () => {
                             <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider py-4 pl-4">User</TableHead>
                             <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider py-4">Tab Permission</TableHead>
                             <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider py-4">Email</TableHead>
-                            {/* <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider py-4">Tab Status</TableHead> */}
                             <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider py-4">Db Name</TableHead>
                             <TableHead className="text-[10px] font-bold text-slate-500 uppercase tracking-wider py-4">Db status</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
+                        {/* "All" Master Control Row */}
+                        {currentPage === 1 && (
+                            <React.Fragment key="all-master-row">
+                                <TableRow
+                                    className={`group cursor-pointer transition-colors border-slate-100 ${expandedUsers['all'] ? "bg-slate-50/80" : "hover:bg-slate-50/50"}`}
+                                    style={{ borderLeft: '3px solid #6366f1' }}
+                                    onClick={() => toggleUserExpansion('all')}
+                                >
+                                    <TableCell className="pl-4 py-4">
+                                        <div className="text-slate-400 transition-transform duration-200" style={{ transform: expandedUsers['all'] ? 'rotate(90deg)' : 'none' }}>
+                                            <ChevronRight className="w-4 h-4" />
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-bold text-[9px] shadow-sm shadow-indigo-200">
+                                                ALL
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-slate-900">All</p>
+                                                <p className="text-[10px] text-slate-500 font-medium">Master Control</p>
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                        <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg w-fit">
+                                            <Layout className="w-3 h-3 text-slate-400" />
+                                            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                                                Expand for details
+                                            </span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                        <p className="text-xs font-medium text-slate-600">-</p>
+                                    </TableCell>
+                                    <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
+                                        <div className="relative flex items-center gap-2">
+                                            <Database className="w-3.5 h-3.5 text-slate-400" />
+                                            <div className="relative">
+                                                <select
+                                                    value={selectedAllDb}
+                                                    onChange={(e) => setSelectedAllDb(e.target.value)}
+                                                    className="appearance-none bg-white border border-slate-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 cursor-pointer transition-all hover:border-indigo-300"
+                                                >
+                                                    {allDatabases.map(db => (
+                                                        <option key={db.db_id} value={db.db_name.toLowerCase()}>
+                                                            {db.db_name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
+                                        <div className="flex items-center gap-3">
+                                            {(() => {
+                                                const filteredByDb = usersData.filter(u => u.dbName.toLowerCase() === selectedAllDb.toLowerCase());
+                                                const allDbActive = filteredByDb.length > 0 && filteredByDb.every(u => u.dbStatus);
+                                                return (
+                                                    <>
+                                                        <span className={`text-[9px] font-bold uppercase tracking-wider ${allDbActive ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                            {allDbActive ? 'Active' : 'Inactive'}
+                                                        </span>
+                                                        <Switch
+                                                            checked={allDbActive}
+                                                            onChange={async () => {
+                                                                const newStatus = !allDbActive;
+                                                                setUsersData(prev => prev.map(u => {
+                                                                    if (u.dbName.toLowerCase() === selectedAllDb.toLowerCase()) {
+                                                                        return { ...u, dbStatus: newStatus };
+                                                                    }
+                                                                    return u;
+                                                                }));
+                                                                try {
+                                                                    const token = sessionStorage.getItem("token");
+                                                                    await Promise.all(filteredByDb.map(u =>
+                                                                        axios.patch(`${API_BASE}/admin/permissions/db-status`, {
+                                                                            email: u.email,
+                                                                            dbStatus: newStatus
+                                                                        }, { headers: { Authorization: `Bearer ${token}` } })
+                                                                    ));
+                                                                } catch (err) {
+                                                                    console.error('[RolesPermissions] Failed to toggle DB statuses for selected DB:', err);
+                                                                    fetchPermissionsUsers();
+                                                                }
+                                                            }}
+                                                        />
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+
+                                <AnimatePresence>
+                                    {expandedUsers['all'] && (
+                                        <TableRow className="hover:bg-transparent border-none">
+                                            <TableCell colSpan={7} className="p-0">
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: "auto", opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                                                    className="overflow-hidden bg-indigo-50/20"
+                                                >
+                                                    <div className="px-14 py-4 space-y-2">
+                                                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                            {tabsList.map((tab) => {
+                                                                const allUsersHaveTab = usersData.length > 0 && usersData.every(u => u.tabs[tab]);
+                                                                return (
+                                                                    <div
+                                                                        key={tab}
+                                                                        className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-all"
+                                                                    >
+                                                                        <div className="flex flex-col gap-1">
+                                                                            <span className="text-[11px] font-semibold text-slate-600">{tab}</span>
+                                                                        </div>
+                                                                        <div className="flex flex-col items-end gap-1">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${allUsersHaveTab ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                                    {allUsersHaveTab ? 'Active' : 'Inactive'}
+                                                                                </span>
+                                                                                <Switch
+                                                                                    checked={allUsersHaveTab}
+                                                                                    onChange={async () => {
+                                                                                        const newVal = !allUsersHaveTab;
+                                                                                        // Optimistic update for all users
+                                                                                        setUsersData(prev => prev.map(u => ({
+                                                                                            ...u,
+                                                                                            tabs: { ...u.tabs, [tab]: newVal }
+                                                                                        })));
+                                                                                        // Persist for each user
+                                                                                        try {
+                                                                                            const token = sessionStorage.getItem("token");
+                                                                                            await Promise.all(usersData.map(u => {
+                                                                                                const updatedTabs = { ...u.tabs, [tab]: newVal };
+                                                                                                return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
+                                                                                                    email: u.email,
+                                                                                                    tabPermissions: updatedTabs
+                                                                                                }, { headers: { Authorization: `Bearer ${token}` } });
+                                                                                            }));
+                                                                                        } catch (err) {
+                                                                                            console.error('[RolesPermissions] Failed to toggle all tab permissions:', err);
+                                                                                            fetchPermissionsUsers();
+                                                                                        }
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                </motion.div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </AnimatePresence>
+                            </React.Fragment>
+                        )}
                         {paginatedUsers.map((user) => (
-                            <React.Fragment key={user.id}>
+                            <React.Fragment key={user.email}>
                                 <TableRow
                                     className={`group cursor-pointer transition-colors border-slate-100 ${expandedUsers[user.id] ? "bg-indigo-50/30" : "hover:bg-slate-50/50"
                                         }`}
@@ -282,11 +544,11 @@ const RolesPermissions = () => {
                                     <TableCell className="py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-[10px]">
-                                                {user.name.split(' ').map(n => n[0]).join('')}
+                                                {user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                                             </div>
                                             <div>
                                                 <p className="text-xs font-bold text-slate-900">{user.name}</p>
-                                                <p className="text-[10px] text-slate-500 font-medium">{user.role}</p>
+                                                <p className="text-[10px] text-slate-500 font-medium capitalize">{user.role}</p>
                                             </div>
                                         </div>
                                     </TableCell>
@@ -301,14 +563,6 @@ const RolesPermissions = () => {
                                     <TableCell className="py-4">
                                         <p className="text-xs font-medium text-slate-600">{user.email}</p>
                                     </TableCell>
-                                    {/* <TableCell className="py-4">
-                                        <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 rounded-lg w-fit">
-                                            <Layout className="w-3 h-3 text-slate-400" />
-                                            <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                                                Expand for details
-                                            </span>
-                                        </div>
-                                    </TableCell> */}
                                     <TableCell className="py-4">
                                         <div className="flex items-center gap-2">
                                             <Database className="w-3.5 h-3.5 text-slate-400" />
@@ -324,11 +578,6 @@ const RolesPermissions = () => {
                                                 checked={user.dbStatus}
                                                 onChange={() => handleDbStatusChange(user.id)}
                                             />
-                                            {/* {user.dbStatus ? (
-                                                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                            ) : (
-                                                <XCircle className="w-4 h-4 text-rose-500" />
-                                            )} */}
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -346,6 +595,29 @@ const RolesPermissions = () => {
                                                 >
                                                     <div className="px-14 py-4 space-y-2">
                                                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                                                            {/* All - Master Toggle */}
+                                                            <div
+                                                                className={`flex items-center justify-between p-3 rounded-xl hover:shadow-sm transition-all border-2 ${
+                                                                    tabsList.every(tab => user.tabs[tab])
+                                                                        ? 'bg-indigo-50 border-indigo-300'
+                                                                        : 'bg-white border-indigo-200'
+                                                                }`}
+                                                            >
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className="text-[11px] font-bold text-indigo-700">All</span>
+                                                                </div>
+                                                                <div className="flex flex-col items-end gap-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={`text-[9px] font-bold uppercase tracking-wider ${tabsList.every(tab => user.tabs[tab]) ? 'text-indigo-600' : 'text-slate-300'}`}>
+                                                                            {tabsList.every(tab => user.tabs[tab]) ? 'Active' : 'Inactive'}
+                                                                        </span>
+                                                                        <Switch
+                                                                            checked={tabsList.every(tab => user.tabs[tab])}
+                                                                            onChange={() => handleAllTabsToggle(user.id)}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                             {tabsList.map((tab) => (
                                                                 <div
                                                                     key={tab}
@@ -394,7 +666,7 @@ const RolesPermissions = () => {
                                 <option value={8}>8</option>
                                 <option value={10}>10</option>
                                 <option value={20}>20</option>
-                                <option value={20}>30</option>
+                                <option value={30}>30</option>
                             </select>
                         </div>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -406,14 +678,14 @@ const RolesPermissions = () => {
                         <button
                             onClick={() => setCurrentPage(1)}
                             disabled={currentPage === 1}
-                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
                         >
                             <ChevronsLeft className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                             disabled={currentPage === 1}
-                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
@@ -434,14 +706,14 @@ const RolesPermissions = () => {
                         <button
                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                             disabled={currentPage === totalPages}
-                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
                         >
                             <ChevronRight className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => setCurrentPage(totalPages)}
                             disabled={currentPage === totalPages}
-                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors"
+                            className="p-2 text-slate-400 hover:text-indigo-600 disabled:opacity-30 disabled:hover:text-slate-400 transition-colors cursor-pointer"
                         >
                             <ChevronsRight className="w-4 h-4" />
                         </button>
@@ -462,7 +734,7 @@ const RolesPermissions = () => {
                                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">Add New Database</h3>
                                 <button
                                     onClick={() => setShowModal(false)}
-                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600"
+                                    className="p-2 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
                                 >
                                     <X className="w-4 h-4" />
                                 </button>
@@ -540,13 +812,13 @@ const RolesPermissions = () => {
                                     <button
                                         type="button"
                                         onClick={() => setShowModal(false)}
-                                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all font-sans"
+                                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all font-sans cursor-pointer"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 px-4 py-2.5 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 font-sans"
+                                        className="flex-1 px-4 py-2.5 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 font-sans cursor-pointer"
                                     >
                                         Create Database
                                     </button>
