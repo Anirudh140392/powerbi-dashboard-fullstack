@@ -3137,7 +3137,7 @@ class VisibilityService {
      */
     async getSearchTermsPerformance(filters = {}) {
         console.log('[VisibilityService] getSearchTermsPerformance called');
-        const cacheKey = generateCacheKey('search_terms_perf_v2', filters);
+        const cacheKey = generateCacheKey('search_terms_perf_v4', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -3235,10 +3235,109 @@ class VisibilityService {
 
                 const items = Object.values(itemsMap).sort((a, b) => b.overallSOS - a.overallSOS);
 
-                return { items, mode: viewMode };
+                // ── Summary row: aggregate SOS across all keywords at filter level (keyword mode only) ──
+                let summary = null;
+                if (viewMode === 'keyword') {
+                    try {
+                        // Query 1: Aggregate SOS + leading brand + keyword count across all keywords
+                        const summaryQuery = `
+                            SELECT
+                                arrayElement(topK(1)(brand), 1) as leading_brand,
+                                count(DISTINCT keyword) as total_keywords,
+                                count(*) as total_search_volume,
+                                sumIf(toInt32(overall), flag = 1) as num_overall,
+                                sum(toInt32(overall)) as den_overall,
+                                ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+
+                                sumIf(toInt32(organic), flag = 1) as num_organic,
+                                sum(toInt32(organic)) as den_organic,
+                                ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+
+                                sumIf(toInt32(spons), flag = 1) as num_spons,
+                                ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
+                            FROM rb_kw_olap
+                            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                              AND ${platformCondition}
+                              AND ${channelCondition}
+                              AND ${locationCondition}
+                              AND ${categoryCondition}
+                              AND ${brandCondition}
+                              AND ${globalKeywordTypeCondition}
+                              AND ${localKeywordTypeCondition}
+                              AND ${keywordCondition}
+                              ${ownBrandsCondition}
+                              AND keyword IS NOT NULL AND keyword != ''
+                        `;
+
+                        // Query 2: Location-level breakdown for summary drill-down
+                        const summaryLocQuery = `
+                            SELECT
+                                location_name as city,
+                                sumIf(toInt32(overall), flag = 1) as num_overall,
+                                sum(toInt32(overall)) as den_overall,
+                                ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+
+                                sumIf(toInt32(organic), flag = 1) as num_organic,
+                                sum(toInt32(organic)) as den_organic,
+                                ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+
+                                sumIf(toInt32(spons), flag = 1) as num_spons,
+                                ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
+                            FROM rb_kw_olap
+                            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                              AND ${platformCondition}
+                              AND ${channelCondition}
+                              AND ${locationCondition}
+                              AND ${categoryCondition}
+                              AND ${brandCondition}
+                              AND ${globalKeywordTypeCondition}
+                              AND ${localKeywordTypeCondition}
+                              AND ${keywordCondition}
+                              ${ownBrandsCondition}
+                              AND keyword IS NOT NULL AND keyword != ''
+                              AND location_name IS NOT NULL AND location_name != ''
+                            GROUP BY location_name
+                            ORDER BY overall_sos DESC
+                        `;
+
+                        const [summaryRes, locRes] = await Promise.all([
+                            queryClickHouse(summaryQuery),
+                            queryClickHouse(summaryLocQuery)
+                        ]);
+
+                        const sRow = summaryRes[0];
+                        if (sRow) {
+                            const locations = (locRes || [])
+                                .filter(l => l.city && l.city.toLowerCase() !== 'other' && l.city.toLowerCase() !== 'others')
+                                .map(l => ({
+                                    city: l.city,
+                                    overallSOS: Number(l.overall_sos) || 0,
+                                    organicSOS: Number(l.organic_sos) || 0,
+                                    paidSOS: Number(l.paid_sos) || 0
+                                }));
+
+                            summary = {
+                                leadingBrand: sRow.leading_brand || 'Other',
+                                overallSOS: Number(sRow.overall_sos) || 0,
+                                organicSOS: Number(sRow.organic_sos) || 0,
+                                paidSOS: Number(sRow.paid_sos) || 0,
+                                totalKeywords: Number(sRow.total_keywords) || 0,
+                                totalSearchVolume: Number(sRow.total_search_volume) || 0,
+                                filterLabel: keywordTypeFilter !== 'All' ? keywordTypeFilter : 'All',
+                                locations
+                            };
+                        }
+                        console.log('[VisibilityService] Summary computed:', summary ? `Overall SOS: ${summary.overallSOS}%, Keywords: ${summary.totalKeywords}` : 'null');
+                    } catch (sumErr) {
+                        console.error('[VisibilityService] Error computing summary row:', sumErr);
+                        // Non-critical — continue without summary
+                    }
+                }
+
+                return { items, mode: viewMode, summary };
             } catch (error) {
                 console.error('[VisibilityService] Error in getSearchTermsPerformance:', error);
-                return { items: [], mode: filters.viewMode || 'keyword' };
+                return { items: [], mode: filters.viewMode || 'keyword', summary: null };
             }
         }, CACHE_TTL.ONE_HOUR);
     }
