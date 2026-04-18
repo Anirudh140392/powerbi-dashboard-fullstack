@@ -1037,7 +1037,7 @@ const PRICING_KPI_KEYS = [
   },
   {
     key: "PricePerUnit",
-    label: "Price/Unit",
+    label: "Price/Unit 1g / 1 piece",
     color: "#14B8A6",
     prefix: "₹",
     fmt: (v) => `₹${v < 10 ? v.toFixed(2) : v.toFixed(0)}`,

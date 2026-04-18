@@ -154,6 +154,8 @@ export default function SearchTermsPerformance() {
   const [hoveredKeyword, setHoveredKeyword] = useState(null);
   const [bbData, setBbData] = useState({});
   const [bbLoading, setBbLoading] = useState(false);
+  const [summaryData, setSummaryData] = useState(null);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   // Removed local skuPlatform state - now using global platform filter
   const currentSkuPlatform = globalPlatform || "All";
@@ -179,12 +181,17 @@ export default function SearchTermsPerformance() {
       setLoading(true);
       setExpandedRows({});
       setLocationData({});
+      setSummaryExpanded(false);
       try {
         const data = await fetchSearchTermsPerformance(filterParams);
-        if (!cancelled) { setItems(data.items || []); setPage(0); }
+        if (!cancelled) {
+          setItems(data.items || []);
+          setSummaryData(data.summary || null);
+          setPage(0);
+        }
       } catch (err) {
         console.error("Error fetching search terms performance:", err);
-        if (!cancelled) setItems([]);
+        if (!cancelled) { setItems([]); setSummaryData(null); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -333,6 +340,146 @@ export default function SearchTermsPerformance() {
           <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8", fontSize: 14, fontFamily: "'Inter', sans-serif" }}>No data available for the selected filters</div>
         ) : (
           <>
+            {/* ── Summary Aggregate Row ── */}
+            {summaryData && activeView === "keyword" && (
+              <div style={{ borderBottom: "2px solid #c7d2fe" }}>
+                {/* Main Summary Row */}
+                <div
+                  style={{
+                    display: "grid", gridTemplateColumns: GRID, padding: "16px 24px", alignItems: "center", gap: 8,
+                    background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
+                    cursor: "pointer", transition: "background 0.15s",
+                  }}
+                  onClick={() => setSummaryExpanded(prev => !prev)}
+                >
+                  {/* Name Cell */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSummaryExpanded(prev => !prev); }}
+                        title="Show location breakdown"
+                        style={{
+                          width: 22, height: 22, borderRadius: 6,
+                          border: `1.5px solid ${summaryExpanded ? "#4f46e5" : "#818cf8"}`,
+                          background: summaryExpanded ? "#4f46e5" : "#fff",
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0, padding: 0, transition: "all 0.18s",
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: summaryExpanded ? "rotate(90deg)" : "none", transition: "transform 0.18s" }}>
+                          <path d="M3 2L7 5L3 8" stroke={summaryExpanded ? "#fff" : "#4f46e5"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                        </svg>
+                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{
+                          fontSize: 14, fontWeight: 800, color: "#312e81", letterSpacing: "-0.01em",
+                          fontFamily: "'Inter', sans-serif",
+                        }}>
+                          {activeFilter === "All" ? "All Keywords" : `${activeFilter} Keywords`}
+                        </span>
+                        <span style={{
+                          background: "#4f46e5", color: "#fff", fontSize: 9, fontWeight: 700,
+                          borderRadius: 4, padding: "2px 8px", letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                        }}>
+                          AGGREGATE
+                        </span>
+                      </div>
+                      {(() => {
+                        const summaryVolPercent = items.reduce((sum, item) => sum + (item.volShare || 0), 0);
+                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0) ? (
+                          <div style={{ display: "flex", gap: 6, paddingLeft: 30, marginTop: 4 }}>
+                            {summaryData.totalKeywords > 0 && (
+                              <span style={{
+                                background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700,
+                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
+                              }}>
+                                {summaryData.totalKeywords.toLocaleString()} Keywords
+                              </span>
+                            )}
+                            {summaryVolPercent > 0 && (
+                              <span style={{
+                                background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700,
+                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
+                              }}>
+                                {summaryVolPercent.toFixed(2)}% VOL.
+                              </span>
+                            )}
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Leading Brand */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{
+                      background: "#e0e7ff", color: "#3730a3", borderRadius: 6, padding: "5px 12px",
+                      fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block",
+                      textTransform: "uppercase",
+                    }}>
+                      {summaryData.leadingBrand}
+                    </span>
+                  </div>
+
+                  {/* Overall SOS */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.overallSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                      {summaryData.overallSOS != null ? `${Number(summaryData.overallSOS).toFixed(2)}%` : "—"}
+                    </span>
+                  </div>
+
+                  {/* Organic SOS */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.organicSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                      {summaryData.organicSOS != null ? `${Number(summaryData.organicSOS).toFixed(2)}%` : "—"}
+                    </span>
+                  </div>
+
+                  {/* Paid SOS */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.paidSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                      {summaryData.paidSOS != null ? `${Number(summaryData.paidSOS).toFixed(2)}%` : "—"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Summary Drilldown — Location Breakdown */}
+                {summaryExpanded && (
+                  <div style={{ background: "#f0f0ff", borderTop: "1px solid #c7d2fe", animation: "slideDown 0.18s ease" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #c7d2fe" }}>
+                      <div style={{ paddingLeft: 30, fontSize: 10, fontWeight: 700, color: "#4f46e5", letterSpacing: "0.08em", textTransform: "uppercase" }}>📍 Location Breakdown</div>
+                      <div />
+                      {["Overall SOS", "Organic SOS", "Paid SOS"].map((h) => (
+                        <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>{h}</div>
+                      ))}
+                    </div>
+
+                    {(!summaryData.locations || summaryData.locations.length === 0) ? (
+                      <div style={{ padding: "16px 24px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>No location data available</div>
+                    ) : (
+                      summaryData.locations.map((loc, li) => (
+                        <div key={li} style={{
+                          display: "grid", gridTemplateColumns: GRID, padding: "11px 24px", alignItems: "center", gap: 8,
+                          borderBottom: li < summaryData.locations.length - 1 ? "1px solid #ddd6fe" : "none",
+                          background: li % 2 === 0 ? "#f5f3ff" : "#ede9fe",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 30 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#6366f1", display: "inline-block", flexShrink: 0 }} />
+                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{loc.city}</span>
+                          </div>
+                          <div />
+                          <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
+                          <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>
+                          <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {paginatedItems.map((row, rowIdx) => (
               <div key={row.name + rowIdx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                 {/* Main Row */}
