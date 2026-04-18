@@ -1119,11 +1119,11 @@ const AVAIL_FILTER_TABS = [
 
 function AvailabilityFilterModal({
   open, onClose,
-  channels, selectedChannel, setSelectedChannel,
-  platforms, platform, setPlatform,
-  categories, selectedCategory, setSelectedCategory,
-  brands, selectedBrand, setSelectedBrand,
-  locations, selectedLocation, setSelectedLocation,
+  channels = [], selectedChannel, setSelectedChannel,
+  platforms = [], platform, setPlatform,
+  categories = [], selectedCategory, setSelectedCategory,
+  brands = [], selectedBrand, setSelectedBrand,
+  locations = [], selectedLocation, setSelectedLocation,
 }) {
   const [activeTab, setActiveTab] = React.useState("channel");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -1723,12 +1723,12 @@ const VIS_FILTER_TABS = [
 function VisibilityFilterModal({
   open, onClose,
   selectedChannel,
-  platforms, platform, setPlatform,
-  categories, selectedCategory, setSelectedCategory,
-  brands, selectedBrand, setSelectedBrand,
-  locations, selectedLocation, setSelectedLocation,
-  keywordTypes, selectedKeywordType, setSelectedKeywordType,
-  keywords, selectedKeyword, setSelectedKeyword,
+  platforms = [], platform, setPlatform,
+  categories = [], selectedCategory, setSelectedCategory,
+  brands = [], selectedBrand, setSelectedBrand,
+  locations = [], selectedLocation, setSelectedLocation,
+  keywordTypes = [], selectedKeywordType, setSelectedKeywordType,
+  keywords = [], selectedKeyword, setSelectedKeyword,
 }) {
   const [activeTab, setActiveTab] = React.useState("platform");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -2068,11 +2068,11 @@ const PRICING_FILTER_TABS = [
 
 function PricingFilterModal({
   open, onClose,
-  channels, selectedChannel, setSelectedChannel,
-  platforms, platform, setPlatform,
-  categories, selectedCategory, setSelectedCategory,
-  brands, selectedBrand, setSelectedBrand,
-  locations, selectedLocation, setSelectedLocation,
+  channels = [], selectedChannel, setSelectedChannel,
+  platforms = [], platform, setPlatform,
+  categories = [], selectedCategory, setSelectedCategory,
+  brands = [], selectedBrand, setSelectedBrand,
+  locations = [], selectedLocation, setSelectedLocation,
 }) {
   const [activeTab, setActiveTab] = React.useState("channel");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -2330,11 +2330,11 @@ const PERFORMANCE_FILTER_TABS = [
 
 function PerformanceFilterModal({
   open, onClose,
-  channels, selectedChannel, setSelectedChannel,
-  platforms, platform, setPlatform,
-  categories, selectedCategory, setSelectedCategory,
-  brands, selectedBrand, setSelectedBrand,
-  locations, selectedLocation, setSelectedLocation,
+  channels = [], selectedChannel, setSelectedChannel,
+  platforms = [], platform, setPlatform,
+  categories = [], selectedCategory, setSelectedCategory,
+  brands = [], selectedBrand, setSelectedBrand,
+  locations = [], selectedLocation, setSelectedLocation,
 }) {
   const [activeTab, setActiveTab] = React.useState("channel");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -3494,12 +3494,15 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       categories={visibilityCategories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
-                      keywordTypes={keywordTypes}
-                      selectedKeywordType={selectedKeywordType}
-                      setSelectedKeywordType={setSelectedKeywordType}
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      locations={locations}
+                      selectedLocation={selectedLocation}
+                      setSelectedLocation={setSelectedLocation}
+                      keywordTypes={keywordTypes}
+                      selectedKeywordType={selectedKeywordType}
+                      setSelectedKeywordType={setSelectedKeywordType}
                       keywords={keywords}
                       selectedKeyword={selectedKeyword}
                       setSelectedKeyword={setSelectedKeyword}
