@@ -41,7 +41,7 @@ const cardSize = {
 
 const kpiLabels = {
     discount: 'Discount %',
-    pricePerUnit: 'Price/Unit (per 100gm)',
+    pricePerUnit: 'Price/Unit 1g / 1 piece',
     asp: 'Average Selling Price',
 };
 
@@ -55,7 +55,7 @@ const LatestOverivewCatCity = ({
 }) => {
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount %' },
-        { key: 'pricePerUnit', label: 'Price/Unit (per 100gm)' },
+        { key: 'pricePerUnit', label: 'Price/Unit 1g / 1 piece' },
         { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
 
@@ -133,9 +133,32 @@ const LatestOverivewCatCity = ({
         [contextPlatforms]
     );
 
+    // Fetch product/SKU options from DB for the filter dropdown
+    const [productOptions, setProductOptions] = useState([]);
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const params = {};
+                if (globalPlatform && globalPlatform !== 'All') {
+                    params.platform = Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform;
+                }
+                const res = await axiosInstance.get('/watchtower/products', { params });
+                if (res.data && Array.isArray(res.data)) {
+                    setProductOptions(res.data.map(p => ({ id: p, name: p })));
+                }
+            } catch (err) {
+                console.warn('[CategoryOverview] Failed to fetch products for filter:', err.message);
+            }
+        };
+        if (datesInitialized) {
+            fetchProducts();
+        }
+    }, [datesInitialized, globalPlatform]);
+
     const skuOptions = useMemo(() => 
-        apiData.map(item => ({ id: item.key, name: item.name })), 
-        [apiData]
+        productOptions.length > 0 ? productOptions : (dimension === 'sku' ? apiData.map(e => ({ id: e.key, name: e.name })) : []), 
+        [productOptions, dimension, apiData]
     );
 
     useEffect(() => {
@@ -523,6 +546,35 @@ const LatestOverivewCatCity = ({
                                                         {expandedSku === e.key ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                                                     </div>
                                                 )}
+                                                
+                                                {/* Rendering Image if present, else fallback to standard icons */}
+                                                {(e.image_url && e.image_url !== '') ? (
+                                                    <div className="relative w-6 h-6 flex-shrink-0">
+                                                        <img 
+                                                            src={e.image_url} 
+                                                            alt={e.name} 
+                                                            className="w-full h-full rounded-md object-contain bg-slate-50 border border-slate-100" 
+                                                            onError={(ev) => {
+                                                                ev.currentTarget.style.display = 'none';
+                                                                if (ev.currentTarget.nextElementSibling) {
+                                                                    ev.currentTarget.nextElementSibling.style.display = 'flex';
+                                                                }
+                                                            }}
+                                                        />
+                                                        <div className="w-full h-full rounded-md bg-slate-100 items-center justify-center text-slate-400 hidden">
+                                                            {dimension === 'platform' ? <LayoutGrid size={14} /> :
+                                                             dimension === 'sku' ? <Package size={14} /> :
+                                                             <Grid3X3 size={14} />}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-6 h-6 flex-shrink-0 rounded-md bg-slate-100 flex items-center justify-center text-slate-400">
+                                                        {dimension === 'platform' ? <LayoutGrid size={14} /> :
+                                                         dimension === 'sku' ? <Package size={14} /> :
+                                                         <Grid3X3 size={14} />}
+                                                    </div>
+                                                )}
+
                                                 <div className="flex flex-col flex-1 truncate">
                                                     <span
                                                         className="text-[13px] font-bold text-slate-700 truncate"

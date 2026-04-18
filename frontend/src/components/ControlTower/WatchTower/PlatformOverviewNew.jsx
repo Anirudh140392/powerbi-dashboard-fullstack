@@ -15,6 +15,7 @@ import {
     SlidersHorizontal,
     Scale,
     PieChart,
+    ChevronDown
 } from 'lucide-react'
 import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
@@ -22,6 +23,7 @@ import { cn } from '../../../lib/utils'
 import FlipkartLogo from '@/lib/Flipkart logo.png'
 
 /* --- HELPER COMPONENTS & UTILS --- */
+const isEcomChannel = (chan) => chan && chan.toLowerCase().includes('ecom');
 const BrandLogo = ({ name, src, className, imgClassName }) => {
     const [error, setError] = useState(false);
 
@@ -81,7 +83,8 @@ const kpiLabels = {
     dspSales: 'DSP Sales',
     asp: 'ASP',
     categorySize: 'Category Size',
-    discount: 'Promo'
+    discount: 'Promo',
+    deliveryTime: 'Delivery Time'
 };
 
 // Map backend KPI title → frontend kpiKey
@@ -100,7 +103,9 @@ const BACKEND_TITLE_TO_KEY = {
     'Category Size': 'categorySize',
     'CPM': 'cpm',
     'CPC': 'cpc',
-    'Promo': 'discount'
+    'Promo': 'discount',
+    'Buy Box %': 'buyBoxPct',
+    'Delivery Time': 'deliveryTime'
 }
 
 // Map backend API response entity → frontend entity format
@@ -142,7 +147,9 @@ const PlatformOverviewNew = ({
     onViewRca = () => { },
 }) => {
     const {
-        selectedChannel,
+        channels,
+        // selectedChannel, <-- Removed global
+        // setSelectedChannel, <-- Removed global
         platform: globalPlatform,
         selectedBrand,
         brands: globalBrands,
@@ -173,23 +180,47 @@ const PlatformOverviewNew = ({
         { key: 'asp', label: 'ASP' },
         { key: 'marketShare', label: 'Market Share' },
         { key: 'categorySize', label: 'Category Size' },
+        { key: 'buyBoxPct', label: 'Buy Box %' },
+        { key: 'deliveryTime', label: 'Delivery Time' },
     ]
     const [dimension, setDimension] = useState('platform')
+    const [localChannel, setLocalChannel] = useState('All')
 
     // Filter out unwanted KPIs
     const filteredKpis = useMemo(() => {
+        let baseKpis = kpis;
+        if (dimension === 'platform') {
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
+        } else {
+                if (isEcomChannel(localChannel)) {
+                    baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
+                } else {
+                    baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
+                }
+            }
+
         if (dimension === 'sku') {
-            return kpis.filter(k => {
+            return baseKpis.filter(k => {
                 if (k.key === 'categorySize' || k.key === 'shareOfVolume' || k.key === 'ad_sov' || k.key === 'organic_sov') return false;
                 return true;
             });
         }
-        if (dimension === 'brand') return kpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
-        return kpis;
-    }, [dimension, kpis]);
+        if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
+        return baseKpis;
+    }, [dimension, localChannel]);
 
     const defaultKpiKeys = useMemo(() => {
-        const base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
+        let base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'];
+        if (dimension === 'platform') {
+            base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'];
+        } else {
+                if (isEcomChannel(localChannel)) {
+                    base = ['offtakes', 'spend', 'availability', 'buyBoxPct', 'deliveryTime', 'conversion'];
+                } else {
+                    base = ['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'];
+                }
+            }
+
         if (dimension === 'sku') {
             return base.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
@@ -198,9 +229,9 @@ const PlatformOverviewNew = ({
         }
         if (dimension === 'brand') return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         return base;
-    }, [dimension]);
+    }, [dimension, localChannel]);
 
-    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion'])
+    const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
     const navigate = useNavigate()
     const [currentPage, setCurrentPage] = useState(1)
@@ -224,11 +255,13 @@ const PlatformOverviewNew = ({
     })
     const fetchIdRef = useRef(0)
 
-    // Re-sync glanceKpis when dimension changes
+    // Re-sync glanceKpis when dimension changes or channel changes
     useEffect(() => {
         if (dimension === 'sku') {
             setGlanceKpis(prev => prev.filter(k => {
                 if (k === 'categorySize' || k === 'shareOfVolume') return false;
+                if (isEcomChannel(localChannel) && (k === 'marketShare' || k === 'cpm')) return false;
+                if (!isEcomChannel(localChannel) && (k === 'buyBoxPct' || k === 'deliveryTime')) return false;
                 return true;
             }));
         } else if (dimension === 'brand') {
@@ -236,20 +269,48 @@ const PlatformOverviewNew = ({
                 let next = prev.filter(k => k !== 'categorySize' && k !== 'marketShare');
                 if (!next.includes('spend')) next.push('spend');
                 if (!next.includes('conversion')) next.push('conversion');
+                if (isEcomChannel(localChannel)) {
+                    next = next.filter(k => k !== 'cpm');
+                    if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    if (!next.includes('deliveryTime')) next.push('deliveryTime');
+                } else {
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
+                }
                 return next;
             });
-        } else {
-            // platform, month, category
+        } else if (dimension === 'platform') {
             setGlanceKpis(prev => {
-                let next = [...prev];
+                let next = prev.filter(k => k !== 'buyBoxPct');
                 if (!next.includes('categorySize')) next.push('categorySize');
                 if (!next.includes('spend')) next.push('spend');
                 if (!next.includes('conversion')) next.push('conversion');
                 if (!next.includes('marketShare')) next.push('marketShare');
+                if (!next.includes('cpc')) next.push('cpc');
+                return next.filter(k => k !== 'deliveryTime');
+            });
+        } else {
+            // month, category
+            setGlanceKpis(prev => {
+                let next = [...prev];
+                if (isEcomChannel(localChannel)) {
+                    next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
+                    if (!next.includes('spend')) next.push('spend');
+                    if (!next.includes('conversion')) next.push('conversion');
+                    if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
+                    if (!next.includes('deliveryTime')) next.push('deliveryTime');
+                } else {
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
+                    if (!next.includes('categorySize')) next.push('categorySize');
+                    if (!next.includes('spend')) next.push('spend');
+                    if (!next.includes('conversion')) next.push('conversion');
+                    if (!next.includes('marketShare')) next.push('marketShare');
+                }
                 return next;
             });
         }
-    }, [dimension]);
+    }, [dimension, localChannel]);
+
+
 
     // Static dimension metadata (icons, logos for known platforms)
     const dimensionMeta = {
@@ -286,7 +347,7 @@ const PlatformOverviewNew = ({
         const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
         const reqEndDate = advancedFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : '');
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
-        const reqChannel = selectedChannel || 'All';
+        const reqChannel = localChannel || 'All';
 
         return JSON.stringify({
             dimension,
@@ -303,7 +364,7 @@ const PlatformOverviewNew = ({
                 filterLogic: advancedFilters.filterLogic
             }
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, selectedChannel, advancedFilters]);
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, localChannel, advancedFilters]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -532,6 +593,24 @@ const PlatformOverviewNew = ({
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
                     headerRight={
                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            {/* Channel Dropdown */}
+                            {dimension !== 'platform' && (
+                                <div className="relative flex items-center">
+                                    <select
+                                        value={localChannel || 'All'}
+                                        onChange={(e) => setLocalChannel(e.target.value)}
+                                        className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
+                                        style={{ fontFamily: 'Roboto, sans-serif' }}
+                                    >
+                                        <option value="All">All Channels</option>
+                                        {channels?.filter(c => c !== 'All').map(c => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
+                                </div>
+                            )}
+
                             {/* Dimension Tabs */}
                             <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl border border-slate-200/50 overflow-x-auto no-scrollbar max-w-full">
                                 {Object.entries(dimensionMeta).map(([key, dim]) => {
@@ -773,38 +852,46 @@ const PlatformOverviewNew = ({
                                             {/* KPI Cards - Enhanced with gradient glow */}
                                             {selectedKpis.map(kpi => {
                                                 const cell = e.data[kpi.key]
-                                                const textColor = getStatusText(cell?.delta)
+                                                const isNA = cell?.value === 'N/A'
+                                                const textColor = isNA ? 'text-slate-400' : getStatusText(cell?.delta)
                                                 const isUp = cell?.delta?.dir === 'up'
 
                                                 return (
                                                     <motion.button
                                                         key={kpi.key}
-                                                        onClick={() => copy(`${e.name} ${kpi.label}`, cell?.value)}
+                                                        onClick={() => { if (!isNA) copy(`${e.name} ${kpi.label}`, cell?.value) }}
                                                         className={cn(
                                                             'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
                                                             'bg-gradient-to-br from-white to-slate-50',
                                                             'border',
-                                                            isUp ? 'border-emerald-100' : 'border-rose-100',
+                                                            isNA ? 'border-slate-100 cursor-not-allowed cursor-not-allowed opacity-80' : isUp ? 'border-emerald-100' : 'border-rose-100',
                                                             'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
-                                                            'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1',
-                                                            'active:scale-[0.98]',
+                                                            !isNA && 'hover:shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:-translate-y-1 active:scale-[0.98]',
                                                             cardSize.minW, cardSize.py
                                                         )}
-                                                        title={`${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
-                                                        whileHover={{ scale: 1.02 }}
-                                                        whileTap={{ scale: 0.98 }}
+                                                        title={isNA ? `${kpi.label}: N/A (Data Not Available)` : `${kpi.label}: ${cell?.value} (${cell?.delta?.dir === 'up' ? '▲' : '▼'} ${cell?.delta?.value})`}
+                                                        whileHover={isNA ? {} : { scale: 1.02 }}
+                                                        whileTap={isNA ? {} : { scale: 0.98 }}
                                                     >
                                                         {/* Subtle glow effect */}
-                                                        <div className={cn(
-                                                            'absolute inset-0 opacity-10 rounded-xl',
-                                                            isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
-                                                        )} />
-                                                        <div className={cn('font-bold text-slate-900 tabular-nums relative z-10 leading-tight', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
+                                                        {!isNA && (
+                                                            <div className={cn(
+                                                                'absolute inset-0 opacity-10 rounded-xl',
+                                                                isUp ? 'bg-gradient-to-br from-emerald-100 to-transparent' : 'bg-gradient-to-br from-rose-100 to-transparent'
+                                                            )} />
+                                                        )}
+                                                        <div className={cn('font-bold tabular-nums relative z-10 leading-tight', isNA ? 'text-slate-400' : 'text-slate-900', cardSize.text)} style={{ fontFamily: 'Roboto, sans-serif' }}>
                                                             {cell?.value}
                                                         </div>
                                                         <div className={cn('font-bold flex items-center justify-center gap-0.5 mt-0.5 relative z-10', textColor, cardSize.delta)}>
-                                                            <span className="opacity-80">{isUp ? '↑' : '↓'}</span>
-                                                            <span>{cell?.delta?.value?.replace(/[+-]/, '')}</span>
+                                                            {isNA ? (
+                                                                <span className="opacity-60">-</span>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="opacity-80">{isUp ? '↑' : '↓'}</span>
+                                                                    <span>{cell?.delta?.value?.replace(/[+-]/, '')}</span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </motion.button>
                                                 )
@@ -891,6 +978,7 @@ const PlatformOverviewNew = ({
                         categories={categoryOptions}
                         platforms={platformOptions}
                         skus={skuOptions}
+                        kpiOptions={filteredKpis}
                     />
                 )
             })()}

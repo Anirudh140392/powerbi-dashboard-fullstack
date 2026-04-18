@@ -16,7 +16,7 @@ import {
     MousePointer2,
     MapPin
 } from 'lucide-react'
-import { AreaChart, Area, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
 import { cn } from '../../lib/utils'
 import { Skeleton, Box, Card, Typography, IconButton } from '@mui/material'
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
@@ -527,7 +527,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                             isMyBrand = kpi.isOwnBrand;
                         } else {
                             try {
-                                const u = JSON.parse(localStorage.getItem('user'));
+                                const u = JSON.parse(sessionStorage.getItem('user'));
                                 const dbName = u?.dbName?.toLowerCase() || '';
                                 isMyBrand = dbName && kpi.brand.toLowerCase().includes(dbName);
                             } catch { /* ignore */ }
@@ -588,6 +588,22 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                                 <stop offset="95%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0} />
                             </linearGradient>
                         </defs>
+                        <Tooltip 
+                            contentStyle={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', minWidth: 'auto', border: 'none', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#6366f1" }}
+                            labelStyle={{ display: 'none' }}
+                            cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
+                            formatter={(value) => {
+                                if (typeof value !== 'number') return [value, ''];
+                                let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
+                                let prefix = isCurrency ? '₹ ' : '';
+                                let formatted = value.toFixed(1);
+                                if (Math.abs(value) >= 10000000) formatted = `${(value / 10000000).toFixed(2)} Cr`;
+                                else if (Math.abs(value) >= 100000) formatted = `${(value / 100000).toFixed(2)} L`;
+                                else if (Math.abs(value) >= 1000) formatted = `${(value / 1000).toFixed(2)} K`;
+                                return [`${prefix}${formatted}`, ''];
+                            }}
+                        />
                         <Area
                             type="monotone"
                             dataKey="v"
@@ -793,10 +809,10 @@ const SnapshotOverview = ({
                         </div>
                         <div className="flex items-center gap-4">
                             {headerRight}
-                            <IconButton 
+                            <IconButton
                                 onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
                                 size="small"
-                                sx={{ 
+                                sx={{
                                     bgcolor: "rgba(37, 99, 235, 0.05)",
                                     color: "#2563eb",
                                     "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
@@ -904,10 +920,10 @@ const SnapshotOverview = ({
                     </div>
                     <div className="flex items-center gap-5">
                         {headerRight}
-                        <IconButton 
+                        <IconButton
                             onClick={() => helpMenu ? openHelpWithMenu(helpMenu) : toggleHelp()}
                             size="small"
-                            sx={{ 
+                            sx={{
                                 bgcolor: "rgba(37, 99, 235, 0.05)",
                                 color: "#2563eb",
                                 "&:hover": { bgcolor: "rgba(37, 99, 235, 0.1)" },
@@ -940,7 +956,7 @@ const SnapshotOverview = ({
                 </div>
 
                 <div className="p-4 sm:p-6 lg:p-8">
-                    <div className={`grid grid-cols-1 sm:grid-cols-2 ${detailedKpis.length === 3 ? 'lg:grid-cols-3' : detailedKpis.length === 6 ? 'lg:grid-cols-6' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${detailedKpis.length === 5 ? 'lg:grid-cols-5' : detailedKpis.length === 6 ? 'lg:grid-cols-6' : detailedKpis.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 sm:gap-5 lg:gap-6`}>
                         {loading ? (
                             Array.from({ length: detailedKpis.length || 3 }).map((_, i) => (
                                 <DetailedSparklineCard key={i} loading={true} />

@@ -211,7 +211,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
                                                 <Check size={10} className="text-white" strokeWidth={3} />
                                             )}
                                         </div>
-                                        <span className="truncate">{opt.name}</span>
+                                        <span className="truncate capitalize">{opt.name}</span>
                                     </button>
                                 ))
                             )}
@@ -228,7 +228,7 @@ function MultiSelectDropdown({ label, icon: Icon, options, selected = [], onChan
 export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply, currentDimension = 'platform', brands = null, categories = null, platforms = null, skus = null, kpiOptions: propKpiOptions = null }) {
     const isBoatUser = useMemo(() => {
         try {
-            const u = JSON.parse(localStorage.getItem('user'));
+            const u = JSON.parse(sessionStorage.getItem('user'));
             return u?.dbName?.toLowerCase() === 'boat';
         } catch {
             return false;

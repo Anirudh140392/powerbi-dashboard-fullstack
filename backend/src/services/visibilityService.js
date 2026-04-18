@@ -1,6 +1,7 @@
 import dayjs from 'dayjs';
 import { queryClickHouse } from '../config/clickhouse.js';
 import { getCachedOrCompute, generateCacheKey, CACHE_TTL } from '../utils/cacheHelper.js';
+import { getTableColumns, resolveColumn } from '../utils/schemaHelper.js';
 
 const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
@@ -62,11 +63,48 @@ const processKeywordType = (val) => {
     return val;
 };
 
+/**
+ * Shared helper to build platform condition based on channel
+ * Mimics watchTowerService logic for rb_kw_olap which lacks a channel structure
+ */
+function buildChannelCondition(channel, columnName = 'platform_name') {
+    if (!channel || channel === 'All') return "1=1";
+    
+    const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
+    const channels = Array.isArray(channel) ? channel : (typeof channel === 'string' && channel.includes(',') ? channel.split(',') : [channel]);
+    
+    if (channels.length === 0 || channels.every(c => c.toLowerCase() === 'all')) return "1=1";
+
+    const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(String(c).toLowerCase()));
+    const isQuickComm = channels.some(c => String(c).toLowerCase().includes('quick'));
+    const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(String(c).toLowerCase()));
+
+    // Distinct lists for platforms
+    const ecomPlatforms = ['Amazon', 'Flipkart'];
+    const quickPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Swiggy'];
+    
+    let conditions = [];
+
+    if (isQuickComm) {
+        conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+    } else if (isEcom && !isModernTrade) {
+        // If Ecommerce selected (and NOT Modern Trade or Quick Commerce), only show pure Ecom platforms
+        conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+    } else if (isModernTrade && !isEcom) {
+        // If Modern Trade selected (and NOT Ecom), exclude all Ecom and Quick platforms
+        const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
+        conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+    }
+
+    return conditions.length > 0 ? conditions.join(' OR ') : "1=1";
+}
 
 
-async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, keywordType = null, category = null) {
+
+async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, location = null, keyword = null, keywordType = null, category = null, channel = null) {
     try {
         const platformCondition = buildCHCondition(platform, 'platform_name');
+        const channelCondition = buildChannelCondition(channel, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand', { isBrand: true });
         const keywordCondition = buildCHCondition(keyword, 'keyword');
@@ -81,6 +119,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
+              AND ${channelCondition}
               AND ${locationCondition}
               AND ${keywordCondition}
               AND ${keywordTypeCondition}
@@ -107,7 +146,7 @@ async function calculateAllSOS(dateFrom, dateTo, platform = null, brand = null, 
  * @param {string|null} platform - Platform filter
  * @returns {Promise<{overall: {dates: string[], values: number[]}, sponsored: {dates: string[], values: number[]}, organic: {dates: string[], values: number[]}}>}
  */
-async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, keywordType = null, category = null) {
+async function getAllSOSTrends(days = 7, platform = null, brand = null, location = null, customStartDate = null, customEndDate = null, keyword = null, keywordType = null, category = null, channel = null) {
     try {
         let startDate, endDate;
         if (customStartDate && customEndDate) {
@@ -122,6 +161,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
         const dateTo = endDate.format('YYYY-MM-DD');
 
         const platformCondition = buildCHCondition(platform, 'platform_name');
+        const channelCondition = buildChannelCondition(channel, 'platform_name');
         const locationCondition = buildCHCondition(location, 'location_name');
         const brandSOSCondition = buildCHCondition(brand, 'brand', { isBrand: true });
         const keywordCondition = buildCHCondition(keyword, 'keyword');
@@ -137,6 +177,7 @@ async function getAllSOSTrends(days = 7, platform = null, brand = null, location
             FROM rb_kw_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
               AND ${platformCondition}
+              AND ${channelCondition}
               AND ${locationCondition}
               AND ${keywordCondition}
               AND ${keywordTypeCondition}
@@ -270,33 +311,16 @@ async function getVisibilityOverviewData(filters = {}) {
         // OPTIMIZED: Only 3 database queries instead of 9
         // Fetch trend data for the SELECTED range to display weekly points
         const [currentSOS, prevSOS, trends] = await Promise.all([
-            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format),
-            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format),
-            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format)
+            calculateAllSOS(dateRanges.current.start, dateRanges.current.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel),
+            calculateAllSOS(dateRanges.previous.start, dateRanges.previous.end, platform, filters.brand, filters.location, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel),
+            getAllSOSTrends(null, platform, filters.brand, filters.location, dateRanges.current.start, dateRanges.current.end, filters.keyword, filters.keywordType, filters.category || filters.format, filters.channel)
         ]);
 
-        // Aggregate daily points into weekly points for "Weekly" aggregation
-        const aggregateToWeekly = (dailyTrend) => {
-            const weekly = { dates: [], values: [] };
-            if (!dailyTrend || !dailyTrend.values || dailyTrend.values.length === 0) return weekly;
-
-            // Group into weeks (7 days each)
-            for (let i = 0; i < dailyTrend.values.length; i += 7) {
-                const slice = dailyTrend.values.slice(i, i + 7);
-                const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
-
-                // Labels W1, W2, etc. based on the chunks in the selected range
-                const weekLabel = `W${Math.floor(i / 7) + 1}`;
-                weekly.dates.push(weekLabel);
-                weekly.values.push(Number(avg.toFixed(1)));
-            }
-            return weekly;
-        };
-
-        const weeklyTrends = {
-            overall: aggregateToWeekly(trends.overall),
-            sponsored: aggregateToWeekly(trends.sponsored),
-            organic: aggregateToWeekly(trends.organic)
+        // Use daily trends directly for the sparkline graphs
+        const dailyTrends = {
+            overall: trends.overall || { dates: [], values: [] },
+            sponsored: trends.sponsored || { dates: [], values: [] },
+            organic: trends.organic || { dates: [], values: [] }
         };
 
         console.log(`[VisibilityService] Calculated SOS Metrics: Overall=${currentSOS.overall.toFixed(1)}%, Sponsored=${currentSOS.sponsored.toFixed(1)}%, Organic=${currentSOS.organic.toFixed(1)}%`);
@@ -318,8 +342,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "green",
-                    months: weeklyTrends.overall.dates,
-                    sparklineData: weeklyTrends.overall.values
+                    months: dailyTrends.overall.dates,
+                    sparklineData: dailyTrends.overall.values
                 },
                 {
                     title: "Sponsored SOS",
@@ -331,8 +355,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "red",
-                    months: weeklyTrends.sponsored.dates,
-                    sparklineData: weeklyTrends.sponsored.values
+                    months: dailyTrends.sponsored.dates,
+                    sparklineData: dailyTrends.sponsored.values
                 },
                 {
                     title: "Organic SOS",
@@ -344,8 +368,8 @@ async function getVisibilityOverviewData(filters = {}) {
                     extra: "",
                     extraChange: "",
                     extraChangeColor: "green",
-                    months: weeklyTrends.organic.dates,
-                    sparklineData: weeklyTrends.organic.values
+                    months: dailyTrends.organic.dates,
+                    sparklineData: dailyTrends.organic.values
                 }
             ]
         };
@@ -647,6 +671,11 @@ class VisibilityService {
                 // Base WHERE clause for rb_kw_olap
                 let baseWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
 
+                if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
+                    const channelCond = buildChannelCondition(filters.channel, 'platform_name');
+                    if (channelCond !== '1=1') baseWhere += ` AND ${channelCond}`;
+                }
+
                 // Apply platform filter if provided
                 if (filters.platform && filters.platform !== 'All') {
                     const platCond = buildCHCondition(filters.platform, 'platform_name');
@@ -741,6 +770,10 @@ class VisibilityService {
 
                 // Base WHERE for previous period
                 let prevBaseWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
+                if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
+                    const channelCond = buildChannelCondition(filters.channel, 'platform_name');
+                    if (channelCond !== '1=1') prevBaseWhere += ` AND ${channelCond}`;
+                }
                 if (filters.platform && filters.platform !== 'All') {
                     prevBaseWhere += ` AND ${buildCHCondition(filters.platform, 'platform_name')}`;
                 }
@@ -771,13 +804,23 @@ class VisibilityService {
 
                     // Helper to add condition if not excluded
                     const addCond = (val, col, exclusionKeys) => {
-                        if (val && val !== 'All' && !exclusionKeys.includes(col)) {
+                        // If a specific filter is provided (not "All"), we should respect it even if it's the dimension being aggregated
+                        // This allows the user to drill down into a specific city/category in the matrix view
+                        if (val && val !== 'All' && val !== 'all') {
                             const isCat = col === 'keyword_category';
                             const cond = buildCHCondition(val, col, { isCategory: isCat });
                             currentWhere += ` AND ${cond}`;
                             prevWhere += ` AND ${cond}`;
                         }
                     };
+
+                    if (filters.channel && filters.channel !== 'All' && filters.channel !== 'all') {
+                        const channelCond = buildChannelCondition(filters.channel, 'platform_name');
+                        if (channelCond !== '1=1') {
+                            currentWhere += ` AND ${channelCond}`;
+                            prevWhere += ` AND ${channelCond}`;
+                        }
+                    }
 
                     addCond(filters.platform, 'platform_name', filtersToExclude);
                     addCond(filters.location, 'location_name', filtersToExclude);
@@ -801,7 +844,7 @@ class VisibilityService {
                     // Re-apply city list filter if zones/metroFlags were used
                     if (baseWhere.includes('location_name IN (')) {
                         const cityListMatch = baseWhere.match(/location_name IN \(([^)]+)\)/);
-                        if (cityListMatch && !filtersToExclude.includes('location_name')) {
+                        if (cityListMatch) {
                             currentWhere += ` AND location_name IN (${cityListMatch[1]})`;
                             prevWhere += ` AND location_name IN (${cityListMatch[1]})`;
                         }
@@ -954,6 +997,10 @@ class VisibilityService {
                 if (filters.platform && filters.platform !== 'All') {
                     const platCond = buildCHCondition(filters.platform, 'platform_name');
                     whereConditions.push(platCond);
+                }
+                if (filters.channel && filters.channel !== 'All') {
+                    const channelCond = buildChannelCondition(filters.channel, 'platform_name');
+                    whereConditions.push(channelCond);
                 }
                 if (filters.keyword && filters.keyword !== 'All') {
                     whereConditions.push(buildCHCondition(filters.keyword, 'keyword'));
@@ -1602,6 +1649,7 @@ class VisibilityService {
                 const location = filters.location || 'All';
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
+                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
                 const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
@@ -1634,6 +1682,7 @@ class VisibilityService {
                       AND (DATE BETWEEN '${currStart}' AND '${currEnd}' OR DATE BETWEEN '${prevStartStr}' AND '${prevEndStr}')
                       AND POSITION < 11
                       AND ${platformCondition}
+                      AND ${channelCondition}
                       AND ${locationCondition}
                       AND ${keywordTypeCondition}
                       ${categoryClause}
@@ -1654,6 +1703,7 @@ class VisibilityService {
                       AND (DATE BETWEEN '${currStart}' AND '${currEnd}' OR DATE BETWEEN '${prevStartStr}' AND '${prevEndStr}')
                       AND POSITION < 11
                       AND ${platformCondition} 
+                      AND ${channelCondition}
                       AND ${locationCondition}
                       AND ${keywordTypeCondition}
                       ${categoryClause}
@@ -2050,10 +2100,12 @@ class VisibilityService {
                 const categoryValue = filters.category || filters.format || null;
 
                 const platformCondition = buildCHCondition(platform, 'platform_name');
+                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
                 const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
                 const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+                const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
                 // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
                 const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand', { isBrand: true }); // Dynamic SOS
 
@@ -2085,10 +2137,12 @@ class VisibilityService {
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
+                  AND ${channelCondition}
                   AND ${locationCondition}
                   AND ${formatCondition}
                   AND ${keywordTypeCondition}
                   AND ${keywordCondition}
+                  AND ${skuCondition}
                 GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
@@ -2168,20 +2222,24 @@ class VisibilityService {
                 const brandFilter = filters.brand || null;
 
                 const platformCondition = buildCHCondition(filters.platform, 'platform_name');
+                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
                 const locationCondition = buildCHCondition(filters.location, 'location_name');
                 const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
                 const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
                 const brandCondition = buildCHCondition(brandFilter, 'brand');
+                const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
 
                 // [FIX] Separate filters: volume filters should NOT include the specific brand filter
                 // so that SOS is calculated against the total category volume.
                 const volumeFilters = `
                 AND ${platformCondition}
+                AND ${channelCondition}
                 AND ${locationCondition}
                 AND ${formatCondition}
                 AND ${keywordCondition}
                 AND ${keywordTypeCondition}
+                AND ${skuCondition}
             `;
 
                 const allFilters = `
@@ -2342,6 +2400,7 @@ class VisibilityService {
                 else if (dimension === 'keyword') dimColumn = 'keyword';
 
                 const platformCondition = buildCHCondition(filters.platform, 'platform_name');
+                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
                 const locationCondition = buildCHCondition(filters.location, 'location_name');
                 const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
@@ -2591,10 +2650,10 @@ class VisibilityService {
      * Get SKU-level Visibility Drilldown for a specific keyword
      */
     async getSkuDrilldown(filters) {
-        const { keyword, platform, keywordType, category, brand, ownBrandsOnly } = filters;
+        const { keyword, platform, channel, keywordType, category, brand, ownBrandsOnly } = filters;
         let { startDate, endDate } = filters;
 
-        console.log(`[VisibilityService] getSkuDrilldown called for keyword: "${keyword}"`, { startDate, endDate });
+        console.log(`[VisibilityService] getSkuDrilldown called for keyword: "${keyword}"`, { startDate, endDate, channel });
 
         // If dates not provided, fetch latest available date from DB
         if (!startDate || !endDate) {
@@ -2630,6 +2689,7 @@ class VisibilityService {
             FROM rb_kw_olap
             WHERE lower(keyword) = lower({kw:String})
             AND DATE BETWEEN {sd:String} AND {ed:String}
+            AND ${buildChannelCondition(channel, 'platform_name')}
         `;
 
         if (ownBrandsOnly) {
@@ -2664,10 +2724,10 @@ class VisibilityService {
      * Get City-level Visibility Drilldown for a specific SKU and keyword
      */
     async getCityDrilldown(filters) {
-        const { keyword, sku, platform, brand } = filters;
+        const { keyword, sku, platform, channel, brand } = filters;
         let { startDate, endDate } = filters;
 
-        console.log(`[VisibilityService] getCityDrilldown called for SKU: "${sku}" at Keyword: "${keyword}"`, { startDate, endDate });
+        console.log(`[VisibilityService] getCityDrilldown called for SKU: "${sku}" at Keyword: "${keyword}"`, { startDate, endDate, channel });
 
         // If dates not provided, fetch latest available date from DB
         if (!startDate || !endDate) {
@@ -2689,6 +2749,7 @@ class VisibilityService {
                 FROM rb_kw_olap
                 WHERE lower(keyword) = lower({kw:String})
                 AND DATE BETWEEN {sd:String} AND {ed:String}
+                AND ${buildChannelCondition(channel, 'platform_name')}
                 GROUP BY location_name
             )
             SELECT 
@@ -2738,7 +2799,7 @@ class VisibilityService {
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                let { startDate, endDate, platform, brand, location, keyword, keywordType, category } = filters;
+                const { startDate, endDate, platform, brand, location, keyword, keywordType, category, channel } = filters;
 
                 // If dates not provided, fetch latest available date from DB
                 if (!startDate || !endDate) {
@@ -2756,6 +2817,7 @@ class VisibilityService {
 
                 // Build filter conditions — same helpers as calculateAllSOS
                 const platformCond = buildCHCondition(platform, 'platform_name');
+                const channelCond = buildChannelCondition(channel, 'platform_name');
                 const locationCond = buildCHCondition(location, 'location_name');
                 const keywordCond = buildCHCondition(keyword, 'keyword');
                 const keywordTypeCond = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
@@ -2763,6 +2825,7 @@ class VisibilityService {
 
                 const globalFilterClause = `
                     AND ${platformCond}
+                    AND ${channelCond}
                     AND ${locationCond}
                     AND ${categoryCond}
                 `;
@@ -3074,7 +3137,7 @@ class VisibilityService {
      */
     async getSearchTermsPerformance(filters = {}) {
         console.log('[VisibilityService] getSearchTermsPerformance called');
-        const cacheKey = generateCacheKey('search_terms_perf_v2', filters);
+        const cacheKey = generateCacheKey('search_terms_perf_v4', filters);
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -3089,7 +3152,8 @@ class VisibilityService {
                     ownBrandsOnly = false,
                     startDate,
                     endDate,
-                    category = 'All'
+                    category = 'All',
+                    channel = 'All'
                 } = filters;
 
                 const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
@@ -3097,6 +3161,7 @@ class VisibilityService {
 
                 // Conditions
                 const platformCondition = buildCHCondition(platform, 'platform_name');
+                const channelCondition = buildChannelCondition(channel, 'platform_name');
                 const brandCondition = buildCHCondition(brand, 'brand');
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
@@ -3134,8 +3199,10 @@ class VisibilityService {
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                       AND ${platformCondition}
+                      AND ${channelCondition}
                       AND ${locationCondition}
                       AND ${categoryCondition}
+                      AND ${brandCondition}
                       AND ${globalKeywordTypeCondition}
                       AND ${localKeywordTypeCondition}
                       AND ${keywordCondition}
@@ -3168,10 +3235,109 @@ class VisibilityService {
 
                 const items = Object.values(itemsMap).sort((a, b) => b.overallSOS - a.overallSOS);
 
-                return { items, mode: viewMode };
+                // ── Summary row: aggregate SOS across all keywords at filter level (keyword mode only) ──
+                let summary = null;
+                if (viewMode === 'keyword') {
+                    try {
+                        // Query 1: Aggregate SOS + leading brand + keyword count across all keywords
+                        const summaryQuery = `
+                            SELECT
+                                arrayElement(topK(1)(brand), 1) as leading_brand,
+                                count(DISTINCT keyword) as total_keywords,
+                                count(*) as total_search_volume,
+                                sumIf(toInt32(overall), flag = 1) as num_overall,
+                                sum(toInt32(overall)) as den_overall,
+                                ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+
+                                sumIf(toInt32(organic), flag = 1) as num_organic,
+                                sum(toInt32(organic)) as den_organic,
+                                ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+
+                                sumIf(toInt32(spons), flag = 1) as num_spons,
+                                ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
+                            FROM rb_kw_olap
+                            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                              AND ${platformCondition}
+                              AND ${channelCondition}
+                              AND ${locationCondition}
+                              AND ${categoryCondition}
+                              AND ${brandCondition}
+                              AND ${globalKeywordTypeCondition}
+                              AND ${localKeywordTypeCondition}
+                              AND ${keywordCondition}
+                              ${ownBrandsCondition}
+                              AND keyword IS NOT NULL AND keyword != ''
+                        `;
+
+                        // Query 2: Location-level breakdown for summary drill-down
+                        const summaryLocQuery = `
+                            SELECT
+                                location_name as city,
+                                sumIf(toInt32(overall), flag = 1) as num_overall,
+                                sum(toInt32(overall)) as den_overall,
+                                ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+
+                                sumIf(toInt32(organic), flag = 1) as num_organic,
+                                sum(toInt32(organic)) as den_organic,
+                                ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+
+                                sumIf(toInt32(spons), flag = 1) as num_spons,
+                                ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
+                            FROM rb_kw_olap
+                            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                              AND ${platformCondition}
+                              AND ${channelCondition}
+                              AND ${locationCondition}
+                              AND ${categoryCondition}
+                              AND ${brandCondition}
+                              AND ${globalKeywordTypeCondition}
+                              AND ${localKeywordTypeCondition}
+                              AND ${keywordCondition}
+                              ${ownBrandsCondition}
+                              AND keyword IS NOT NULL AND keyword != ''
+                              AND location_name IS NOT NULL AND location_name != ''
+                            GROUP BY location_name
+                            ORDER BY overall_sos DESC
+                        `;
+
+                        const [summaryRes, locRes] = await Promise.all([
+                            queryClickHouse(summaryQuery),
+                            queryClickHouse(summaryLocQuery)
+                        ]);
+
+                        const sRow = summaryRes[0];
+                        if (sRow) {
+                            const locations = (locRes || [])
+                                .filter(l => l.city && l.city.toLowerCase() !== 'other' && l.city.toLowerCase() !== 'others')
+                                .map(l => ({
+                                    city: l.city,
+                                    overallSOS: Number(l.overall_sos) || 0,
+                                    organicSOS: Number(l.organic_sos) || 0,
+                                    paidSOS: Number(l.paid_sos) || 0
+                                }));
+
+                            summary = {
+                                leadingBrand: sRow.leading_brand || 'Other',
+                                overallSOS: Number(sRow.overall_sos) || 0,
+                                organicSOS: Number(sRow.organic_sos) || 0,
+                                paidSOS: Number(sRow.paid_sos) || 0,
+                                totalKeywords: Number(sRow.total_keywords) || 0,
+                                totalSearchVolume: Number(sRow.total_search_volume) || 0,
+                                filterLabel: keywordTypeFilter !== 'All' ? keywordTypeFilter : 'All',
+                                locations
+                            };
+                        }
+                        console.log('[VisibilityService] Summary computed:', summary ? `Overall SOS: ${summary.overallSOS}%, Keywords: ${summary.totalKeywords}` : 'null');
+                    } catch (sumErr) {
+                        console.error('[VisibilityService] Error computing summary row:', sumErr);
+                        // Non-critical — continue without summary
+                    }
+                }
+
+                return { items, mode: viewMode, summary };
             } catch (error) {
                 console.error('[VisibilityService] Error in getSearchTermsPerformance:', error);
-                return { items: [], mode: filters.viewMode || 'keyword' };
+                return { items: [], mode: filters.viewMode || 'keyword', summary: null };
             }
         }, CACHE_TTL.ONE_HOUR);
     }
@@ -3289,6 +3455,141 @@ class VisibilityService {
             }
         }, CACHE_TTL.ONE_HOUR);
     }
-}
 
+    /**
+     * Get BSR Data for proprietary SKUs
+     * Returns: SKU, Current BSR (integer Avg), Previous BSR (integer Avg), BSR Delta, Current Discount, Previous Discount, Discount Delta
+     * @param {Object} filters - Global filters
+     */
+    async getBSRData(filters = {}) {
+        console.log('[VisibilityService] getBSRData called with filters:', JSON.stringify(filters));
+        const cacheKey = generateCacheKey('visibility_bsr_data_v10', filters);
+
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                // Discover actual column names for rb_pdp_olap
+                const pdpCols = await getTableColumns('rb_pdp_olap');
+                const r = (exp, fallback = null) => resolveColumn(pdpCols, exp, fallback);
+
+                // Define standard column mappings (case-insensitive resolution)
+                const skuCol = r('Product', 'Product');
+                const bsrCol = r('best_seller_rank', 'best_seller_rank');
+                const discountCol = r('Discount', 'Discount');
+                const channelCol = r('channel', 'channel');
+                const flagCol = r('Comp_flag', 'Comp_flag');
+                const dateCol = r('DATE', 'DATE');
+                const pltCol = r('Platform', 'Platform');
+                const brdCol = r('Brand', 'Brand');
+                const locCol = r('Location', 'Location');
+                const catCol = r('Category', 'Category');
+
+                console.log('[BSR] Resolved Columns for rb_pdp_olap:', {
+                    skuCol, bsrCol, discountCol, channelCol, flagCol, dateCol, pltCol, brdCol, locCol, catCol
+                });
+
+                const startDate = filters.startDate || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+                
+                // Build filters for rb_pdp_olap
+                let filterConditions = ['1=1'];
+                
+                // Build channel condition directly (channel column has 'Ecommerce'/'QuickComm' values)
+                if (filters.channel && filters.channel !== 'All') {
+                    const ch = filters.channel.toLowerCase();
+                    if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
+                        filterConditions.push(`${channelCol} = 'Ecommerce'`);
+                    } else if (ch.includes('quick')) {
+                        filterConditions.push(`${channelCol} = 'QuickComm'`);
+                    }
+                }
+
+                if (filters.platform && filters.platform !== 'All') {
+                    filterConditions.push(`lower(${pltCol}) = lower('${escapeCH(filters.platform)}')`);
+                }
+                if (filters.brand && filters.brand !== 'All') {
+                    filterConditions.push(`lower(${brdCol}) = lower('${escapeCH(filters.brand)}')`);
+                }
+                if (filters.location && filters.location !== 'All') {
+                    filterConditions.push(`lower(${locCol}) = lower('${escapeCH(filters.location)}')`);
+                }
+                if (filters.category && filters.category !== 'All') {
+                    filterConditions.push(`lower(${catCol}) = lower('${escapeCH(filters.category)}')`);
+                }
+
+                const filterClause = filterConditions.join(' AND ');
+
+                console.log('[BSR] Date range:', startDate, 'to', endDate);
+                console.log('[BSR] Filter Clause:', filterClause);
+
+                // Use CTEs to get current and previous period data
+                const query = `
+                    WITH
+                        current_period AS (
+                            SELECT 
+                                ${skuCol} as sku,
+                                AVG(toInt64OrZero(${bsrCol})) as avg_bsr,
+                                AVG(${discountCol}) as avg_discount
+                            FROM rb_pdp_olap
+                            WHERE ${dateCol} BETWEEN '${startDate}' AND '${endDate}'
+                              AND ${filterClause}
+                              AND ${flagCol} = 0
+                              AND ${skuCol} IS NOT NULL AND ${skuCol} != ''
+                            GROUP BY sku
+                        ),
+                        previous_period AS (
+                            SELECT 
+                                ${skuCol} as sku,
+                                AVG(toInt64OrZero(${bsrCol})) as avg_bsr,
+                                AVG(${discountCol}) as avg_discount
+                            FROM rb_pdp_olap
+                            WHERE ${dateCol} BETWEEN (toDate('${startDate}') - (toDate('${endDate}') - toDate('${startDate}') + 1)) 
+                                  AND (toDate('${startDate}') - 1)
+                              AND ${filterClause}
+                              AND ${flagCol} = 0
+                              AND ${skuCol} IS NOT NULL AND ${skuCol} != ''
+                            GROUP BY sku
+                        )
+                    SELECT 
+                        c.sku as sku,
+                        ROUND(c.avg_bsr) as current_bsr,
+                        ROUND(p.avg_bsr) as prev_bsr,
+                        ROUND(c.avg_discount, 1) as current_discount,
+                        ROUND(p.avg_discount, 1) as prev_discount
+                    FROM current_period c
+                    LEFT JOIN previous_period p ON c.sku = p.sku
+                    ORDER BY c.sku ASC
+                `;
+
+                console.log('[BSR] Executing Query (Dynamic)...');
+                const results = await queryClickHouse(query);
+                console.log('[BSR] Query returned', results.length, 'rows');
+
+                return results.map(row => {
+                    const rawBSR = Number(row.current_bsr);
+                    const rawPrevBSR = Number(row.prev_bsr);
+                    const currentBSR = (rawBSR > 0) ? rawBSR : null;
+                    const prevBSR = (rawPrevBSR > 0) ? rawPrevBSR : null;
+                    
+                    const currentDiscount = Number(row.current_discount) || 0;
+                    const prevDiscount = Number(row.prev_discount) || 0;
+
+                    return {
+                        sku: row.sku,
+                        currentBSR,
+                        prevBSR,
+                        bsrDelta: (currentBSR !== null && prevBSR !== null) ? (currentBSR - prevBSR) : null,
+                        currentDiscount,
+                        prevDiscount,
+                        discountDelta: (currentDiscount - prevDiscount)
+                    };
+                });
+            } catch (error) {
+                console.error('[BSR] ❌ ERROR in getBSRData:', error.message);
+                console.error('[BSR] ❌ Full error:', error);
+                return [];
+            }
+        }, CACHE_TTL.METRICS);
+    }
+
+}
 export default new VisibilityService();

@@ -329,10 +329,10 @@ export default function MarketShareAnalysis() {
   // Derive display name from the logged-in user's dbName
   const dbDisplayName = useMemo(() => {
     try {
-      const u = JSON.parse(localStorage.getItem('user'));
+      const u = JSON.parse(sessionStorage.getItem('user'));
       if (u?.dbName) {
         if (u.dbName.toLowerCase() === 'mamaearth') {
-            return 'The Derma Co.';
+          return 'The Derma Co.';
         }
         return u.dbName
           .replace(/_/g, ' ')
@@ -415,6 +415,7 @@ export default function MarketShareAnalysis() {
                 delta: catData.delta,
                 deltaLabel: `${arrow} ${Math.abs(catData.delta)}% (${prevValueCr})`,
                 extraChangeColor: catData.delta >= 0 ? "green" : "red",
+                trend: catData.trend,
               };
             }
 
@@ -442,6 +443,7 @@ export default function MarketShareAnalysis() {
                 delta: leader.delta,
                 deltaLabel: `${arrow} ${Math.abs(leader.delta)}% (${prevValueCr})`,
                 extraChangeColor: leader.delta >= 0 ? "green" : "red",
+                trend: leader.trend,
               };
             }
 
@@ -468,6 +470,7 @@ export default function MarketShareAnalysis() {
                 delta: mars.delta,
                 deltaLabel: `${arrow} ${Math.abs(mars.delta)}% (${prevValueCr})`,
                 extraChangeColor: mars.delta >= 0 ? "green" : "red",
+                trend: mars.trend,
               };
             }
 

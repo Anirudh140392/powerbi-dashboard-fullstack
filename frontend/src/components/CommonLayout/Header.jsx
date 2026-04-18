@@ -13,6 +13,7 @@ import {
   DialogActions,
   Divider,
   Checkbox,
+  Skeleton,
 } from "@mui/material";
 
 import {
@@ -23,7 +24,6 @@ import {
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
-import dayjs from "dayjs";
 import { AppThemeContext } from "../../utils/ThemeContext";
 import { FilterContext } from "../../utils/FilterContext";
 import DateRangeComparePicker from "./DateRangeComparePicker";
@@ -77,6 +77,7 @@ function WatchTowerFilterModal({
       setActiveTab("channel");
       setSearchTerm("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // ─── CASCADE: when draftChannel changes → fetch available platforms ───
@@ -516,7 +517,482 @@ function WatchTowerFilterModal({
                 </Typography>
               </Box>
             ) : (
-              filteredOptions.map((opt, idx) => {
+              filteredOptions.map((opt) => {
+                const isChecked = selected.includes(opt);
+                return (
+                  <Box
+                    key={opt}
+                    onClick={() => toggle(opt)}
+                    sx={{
+                      display: "flex", alignItems: "center", gap: 1.5,
+                      px: 1.5, py: 1,
+                      mx: 0.5, my: 0.3,
+                      cursor: "pointer",
+                      borderRadius: "10px",
+                      bgcolor: isChecked ? "#eff6ff" : "transparent",
+                      border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent",
+                      transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+                      "&:hover": {
+                        bgcolor: isChecked ? "#dbeafe" : "#f8fafc",
+                        transform: "translateX(2px)",
+                      },
+                    }}
+                  >
+                    <Checkbox
+                      size="small"
+                      checked={isChecked}
+                      sx={{
+                        p: 0.3,
+                        color: "#cbd5e1",
+                        "&.Mui-checked": { color: "#2563eb" },
+                        transition: "all 0.15s ease",
+                      }}
+                    />
+                    <Typography
+                      sx={{
+                        fontSize: "0.84rem",
+                        fontWeight: isChecked ? 600 : 450,
+                        color: isChecked ? "#1e40af" : "#475569",
+                        fontFamily: "'Inter', 'Roboto', sans-serif",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      {opt}
+                    </Typography>
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+        </Box>
+      </Box>
+
+      {/* ── FOOTER ── */}
+      <Box
+        sx={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          borderTop: "1px solid #e2e8f0",
+          px: 3, py: 1.8,
+          background: "linear-gradient(180deg, #ffffff 0%, #fafbfc 100%)",
+        }}
+      >
+        <Button
+          variant="text"
+          onClick={handleResetAll}
+          startIcon={<X size={14} />}
+          sx={{
+            textTransform: "none", borderRadius: "10px", fontWeight: 600, fontSize: "0.78rem",
+            color: "#ef4444", px: 1.5,
+            fontFamily: "'Inter', 'Roboto', sans-serif",
+            "&:hover": { bgcolor: "#fef2f2" },
+            transition: "all 0.15s ease",
+          }}
+        >
+          Reset All
+        </Button>
+
+        <Box sx={{ display: "flex", gap: 1.2 }}>
+          <Button
+            variant="outlined"
+            onClick={handleCancel}
+            sx={{
+              textTransform: "none", borderRadius: "10px", fontWeight: 600, fontSize: "0.78rem",
+              borderColor: "#e2e8f0", color: "#64748b", px: 2.5,
+              fontFamily: "'Inter', 'Roboto', sans-serif",
+              "&:hover": { borderColor: "#cbd5e1", bgcolor: "#f8fafc" },
+              transition: "all 0.15s ease",
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleApply}
+            sx={{
+              textTransform: "none", borderRadius: "10px", fontWeight: 700, fontSize: "0.8rem",
+              background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
+              color: "white",
+              px: 3.5, py: 0.8,
+              fontFamily: "'Inter', 'Roboto', sans-serif",
+              boxShadow: "0 4px 14px rgba(37,99,235,0.35)",
+              "&:hover": {
+                background: "linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)",
+                boxShadow: "0 6px 20px rgba(37,99,235,0.45)",
+                transform: "translateY(-1px)",
+              },
+              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          >
+            Apply Filters
+          </Button>
+        </Box>
+      </Box>
+    </Dialog>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARKET SHARE FILTER MODAL — Channel, Platform, Category
+   ═══════════════════════════════════════════════════════════════════ */
+const MS_FILTER_TABS = [
+  { key: "channel",  label: "Channel",  icon: Layers },
+  { key: "platform", label: "Platform", icon: Monitor },
+  { key: "category", label: "Category", icon: LayoutGrid },
+];
+
+function MarketShareFilterModal({
+  open, onClose,
+  channels, selectedChannel, setSelectedChannel,
+  platforms, platform, setPlatform,
+  categories, selectedCategory, setSelectedCategory,
+}) {
+  const [activeTab, setActiveTab] = React.useState("channel");
+  const [searchTerm, setSearchTerm] = React.useState("");
+
+  const [draftChannel,  setDraftChannel]  = React.useState(selectedChannel);
+  const [draftPlatform, setDraftPlatform] = React.useState(platform);
+  const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
+
+  React.useEffect(() => {
+    if (open) {
+      setDraftChannel(selectedChannel);
+      setDraftPlatform(platform);
+      setDraftCategory(selectedCategory);
+      setActiveTab("channel");
+      setSearchTerm("");
+    }
+  }, [open, selectedChannel, platform, selectedCategory]);
+
+  React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
+
+  const tabConfig = {
+    channel:  { options: channels,   value: draftChannel,  onChange: setDraftChannel },
+    platform: { options: platforms,  value: draftPlatform, onChange: setDraftPlatform },
+    category: { options: categories, value: draftCategory, onChange: setDraftCategory },
+  };
+
+  const { options, value, onChange } = tabConfig[activeTab];
+
+  const getSelected = (v, opts) => {
+    if (v === "All" || (Array.isArray(v) && v.includes("All"))) return [...opts];
+    if (Array.isArray(v)) return v;
+    if (!v) return [];
+    return [v];
+  };
+
+  const selected = getSelected(value, options);
+  const filteredOptions = options.filter(o => o.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const toggle = (opt) => {
+    let next;
+    if (selected.includes(opt)) {
+      next = selected.filter(s => s !== opt && s !== "All");
+    } else {
+      next = [...selected.filter(s => s !== "All"), opt];
+    }
+    if (next.length === options.length && options.length > 0) onChange("All");
+    else onChange(next);
+  };
+
+  const selectAll = () => onChange("All");
+  const clearAll  = () => onChange([]);
+
+  const tabMeta = MS_FILTER_TABS.find(t => t.key === activeTab);
+
+  const countFor = (key) => {
+    const cfg = tabConfig[key];
+    const v = cfg.value;
+    const opts = cfg.options;
+    if (v === "All" || (Array.isArray(v) && v.includes("All"))) return 0;
+    if (Array.isArray(v) && v.length === opts.length && opts.length > 0) return 0;
+    if (Array.isArray(v)) return v.length;
+    if (v) return 1;
+    return 0;
+  };
+
+  const handleApply = () => {
+    setSelectedChannel(draftChannel);
+    setPlatform(draftPlatform);
+    setSelectedCategory(draftCategory);
+    onClose();
+  };
+
+  const handleCancel = () => {
+    onClose();
+  };
+
+  const handleResetAll = () => {
+    setDraftChannel("All");
+    setDraftPlatform("All");
+    setDraftCategory("All");
+  };
+
+  const totalActiveCount = MS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleCancel}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: "18px",
+          boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)",
+          overflow: "hidden",
+          height: "540px",
+          display: "flex",
+          flexDirection: "column",
+          background: "#fff",
+        }
+      }}
+    >
+      {/* ── BODY: sidebar + content ── */}
+      <Box sx={{ display: "flex", flex: 1, minHeight: 0 }}>
+
+        {/* LEFT SIDEBAR */}
+        <Box
+          sx={{
+            width: 230,
+            flexShrink: 0,
+            background: "linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)",
+            borderRight: "1px solid #e2e8f0",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Sidebar header */}
+          <Box
+            sx={{
+              px: 2.5, pt: 2.5, pb: 2,
+              background: "linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%)",
+              display: "flex",
+              alignItems: "center",
+              gap: 1.2,
+            }}
+          >
+            <Box
+              sx={{
+                width: 32, height: 32,
+                borderRadius: "10px",
+                background: "rgba(255,255,255,0.18)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backdropFilter: "blur(8px)",
+              }}
+            >
+              <SlidersHorizontal size={16} color="white" />
+            </Box>
+            <Box>
+              <Typography
+                sx={{
+                  fontSize: "0.95rem", fontWeight: 700,
+                  color: "white",
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  lineHeight: 1.2,
+                }}
+              >
+                Filters
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: "0.65rem", fontWeight: 500,
+                  color: "rgba(255,255,255,0.7)",
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                }}
+              >
+                {totalActiveCount > 0 ? `${totalActiveCount} active` : "None active"}
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Tabs */}
+          <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
+            {MS_FILTER_TABS.map(tab => {
+              const isActive = activeTab === tab.key;
+              const cnt = countFor(tab.key);
+              const TabIcon = tab.icon;
+              return (
+                <Box
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  sx={{
+                    mx: 1, mb: 0.5, px: 1.8, py: 1.3,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.2,
+                    borderRadius: "10px",
+                    bgcolor: isActive ? "white" : "transparent",
+                    color: isActive ? "#1e3a5f" : "#64748b",
+                    fontWeight: isActive ? 700 : 500,
+                    fontSize: "0.85rem",
+                    fontFamily: "'Inter', 'Roboto', sans-serif",
+                    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                    boxShadow: isActive ? "0 2px 8px rgba(37,99,235,0.10)" : "none",
+                    border: isActive ? "1px solid rgba(37,99,235,0.12)" : "1px solid transparent",
+                    "&:hover": {
+                      bgcolor: isActive ? "white" : "rgba(255,255,255,0.65)",
+                      transform: "translateX(2px)",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 28, height: 28,
+                      borderRadius: "8px",
+                      background: isActive ? "linear-gradient(135deg, #2563eb, #3b82f6)" : "#e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    <TabIcon size={14} color={isActive ? "white" : "#94a3b8"} />
+                  </Box>
+                  <span style={{ flex: 1 }}>{tab.label}</span>
+                  {cnt > 0 && (
+                    <Box
+                      component="span"
+                      sx={{
+                        background: isActive ? "linear-gradient(135deg, #2563eb, #3b82f6)" : "#94a3b8",
+                        color: "white",
+                        borderRadius: "6px",
+                        px: 0.7, py: 0.15,
+                        fontSize: "0.6rem",
+                        fontWeight: 700,
+                        minWidth: 18,
+                        textAlign: "center",
+                        lineHeight: "16px",
+                      }}
+                    >
+                      {cnt}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+
+        {/* RIGHT CONTENT PANEL */}
+        <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+
+          {/* Header row */}
+          <Box sx={{ px: 3, pt: 2.5, pb: 1.5, position: "relative" }}>
+            {/* Close button */}
+            <IconButton
+              onClick={handleCancel}
+              sx={{
+                position: "absolute", top: 12, right: 12,
+                width: 32, height: 32,
+                bgcolor: "#f1f5f9",
+                "&:hover": { bgcolor: "#e2e8f0" },
+                transition: "all 0.15s ease",
+              }}
+            >
+              <X size={16} color="#64748b" />
+            </IconButton>
+
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pr: 5 }}>
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: "1.1rem", fontFamily: "'Inter', 'Roboto', sans-serif", color: "#0f172a", letterSpacing: "-0.01em" }}>
+                  {tabMeta?.label}
+                </Typography>
+                <Typography sx={{ fontSize: "0.76rem", color: "#94a3b8", mt: 0.2, fontFamily: "'Inter', 'Roboto', sans-serif" }}>
+                  Select {tabMeta?.label?.toLowerCase()}s to filter your dashboard
+                </Typography>
+              </Box>
+              <Box
+                sx={{
+                  background: selected.length === options.length ? "linear-gradient(135deg, #2563eb, #3b82f6)" : "#f1f5f9",
+                  color: selected.length === options.length ? "white" : "#475569",
+                  borderRadius: "20px",
+                  px: 1.5, py: 0.4,
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                {selected.length === options.length ? "All" : selected.length} selected
+              </Box>
+            </Box>
+
+            {/* Select all / Clear + Search */}
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 1.5 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={selectAll}
+                sx={{
+                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Select all
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={clearAll}
+                sx={{
+                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                  fontFamily: "'Inter', 'Roboto', sans-serif",
+                  "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
+                  transition: "all 0.15s ease",
+                }}
+              >
+                Clear
+              </Button>
+              <TextField
+                size="small"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: <Search size={14} style={{ marginRight: 6, color: "#94a3b8" }} />,
+                  sx: {
+                    borderRadius: "10px", bgcolor: "#f8fafc", height: "32px",
+                    fontSize: "0.78rem",
+                    fontFamily: "'Inter', 'Roboto', sans-serif",
+                    "& fieldset": { borderColor: "#e2e8f0" },
+                    "&:hover fieldset": { borderColor: "#cbd5e1 !important" },
+                    "&.Mui-focused fieldset": { borderColor: "#2563eb !important", borderWidth: "1.5px !important" },
+                  },
+                }}
+                sx={{ ml: "auto", width: 190 }}
+              />
+            </Box>
+          </Box>
+
+          <Divider sx={{ borderColor: "#f1f5f9" }} />
+
+          {/* Checkbox list */}
+          <Box
+            sx={{
+              flex: 1, overflowY: "auto", px: 1.5, py: 0.5,
+              "&::-webkit-scrollbar": { width: "5px" },
+              "&::-webkit-scrollbar-track": { bgcolor: "transparent" },
+              "&::-webkit-scrollbar-thumb": { bgcolor: "#d1d5db", borderRadius: "10px" },
+              "&::-webkit-scrollbar-thumb:hover": { bgcolor: "#9ca3af" },
+            }}
+          >
+            {filteredOptions.length === 0 ? (
+              <Box sx={{ textAlign: "center", py: 6 }}>
+                <Search size={32} color="#cbd5e1" style={{ marginBottom: 8 }} />
+                <Typography sx={{ color: "#94a3b8", fontSize: "0.85rem", fontFamily: "'Inter', 'Roboto', sans-serif" }}>
+                  No results found
+                </Typography>
+              </Box>
+            ) : (
+              filteredOptions.map((opt) => {
                 const isChecked = selected.includes(opt);
                 return (
                   <Box
@@ -678,6 +1154,7 @@ function AvailabilityFilterModal({
       setActiveTab("channel");
       setSearchTerm("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // CASCADE: draftChannel → platforms, categories, locations
@@ -791,6 +1268,7 @@ function AvailabilityFilterModal({
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftPlatform, open]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
@@ -1236,61 +1714,65 @@ function AvailabilityFilterModal({
    VISIBILITY ANALYSIS FILTER MODAL — Channel, Platform, Category, Keyword Type, Keyword
    ═══════════════════════════════════════════════════════════════════ */
 const VIS_FILTER_TABS = [
-  { key: "channel",     label: "Channel",      icon: Layers },
   { key: "platform",    label: "Platform",     icon: Monitor },
   { key: "category",    label: "Category",     icon: LayoutGrid },
   { key: "brand",       label: "Brand",        icon: Tag },
+  { key: "location",    label: "Location",     icon: MapPin },
   { key: "keywordType", label: "Keyword Type", icon: Type },
   { key: "keyword",     label: "Keyword",      icon: Hash },
 ];
 
 function VisibilityFilterModal({
   open, onClose,
-  channels, selectedChannel, setSelectedChannel,
+  selectedChannel,
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
+  locations, selectedLocation, setSelectedLocation,
   keywordTypes, selectedKeywordType, setSelectedKeywordType,
   keywords, selectedKeyword, setSelectedKeyword,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const [activeTab, setActiveTab] = React.useState("platform");
   const [searchTerm, setSearchTerm] = React.useState("");
 
-  const [draftChannel,     setDraftChannel]     = React.useState(selectedChannel);
   const [draftPlatform,    setDraftPlatform]    = React.useState(platform);
   const [draftCategory,    setDraftCategory]    = React.useState(selectedCategory);
   const [draftBrand,       setDraftBrand]       = React.useState(selectedBrand);
+  const [draftLocation,    setDraftLocation]    = React.useState(selectedLocation);
   const [draftKeywordType, setDraftKeywordType] = React.useState(selectedKeywordType);
   const [draftKeyword,     setDraftKeyword]     = React.useState(selectedKeyword);
 
   const [localPlatforms,    setLocalPlatforms]    = React.useState(platforms);
   const [localCategories,   setLocalCategories]   = React.useState(categories);
   const [localBrands,       setLocalBrands]       = React.useState(brands);
+  const [localLocations,    setLocalLocations]    = React.useState(locations);
   const [localKeywordTypes, setLocalKeywordTypes] = React.useState(keywordTypes);
   const [localKeywords,     setLocalKeywords]     = React.useState(keywords);
 
   React.useEffect(() => {
     if (open) {
-      setDraftChannel(selectedChannel);
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
+      setDraftLocation(selectedLocation);
       setDraftKeywordType(selectedKeywordType);
       setDraftKeyword(selectedKeyword);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
+      setLocalLocations(locations);
       setLocalKeywordTypes(keywordTypes);
       setLocalKeywords(keywords);
-      setActiveTab("channel");
+      setActiveTab("platform");
       setSearchTerm("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // CASCADE: draftChannel → platforms
+  // CASCADE: selectedChannel → platforms
   React.useEffect(() => {
     if (!open) return;
-    const channelParam = draftChannel === "All" ? undefined : (Array.isArray(draftChannel) ? draftChannel.join(",") : draftChannel);
+    const channelParam = selectedChannel === "All" ? undefined : (Array.isArray(selectedChannel) ? selectedChannel.join(",") : selectedChannel);
     axiosInstance.get("/watchtower/platforms", { params: { channel: channelParam } })
       .then(res => {
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -1305,7 +1787,7 @@ function VisibilityFilterModal({
         }
       })
       .catch(() => {});
-  }, [draftChannel, open]);
+  }, [selectedChannel, open]);
 
   // CASCADE: draftPlatform → categories, keywordTypes, keywords
   React.useEffect(() => {
@@ -1360,6 +1842,7 @@ function VisibilityFilterModal({
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftPlatform, draftCategory, open]);
 
   // CASCADE: draftPlatform → brands
@@ -1382,15 +1865,16 @@ function VisibilityFilterModal({
         }
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftPlatform, open]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
   const tabConfig = {
-    channel:     { options: channels,          value: draftChannel,     onChange: setDraftChannel },
     platform:    { options: localPlatforms,    value: draftPlatform,    onChange: setDraftPlatform },
     category:    { options: localCategories,   value: draftCategory,    onChange: setDraftCategory },
     brand:       { options: localBrands,       value: draftBrand,       onChange: setDraftBrand },
+    location:    { options: localLocations,    value: draftLocation,    onChange: setDraftLocation },
     keywordType: { options: localKeywordTypes, value: draftKeywordType, onChange: setDraftKeywordType },
     keyword:     { options: localKeywords,     value: draftKeyword,     onChange: setDraftKeyword },
   };
@@ -1435,10 +1919,10 @@ function VisibilityFilterModal({
   };
 
   const handleApply = () => {
-    setSelectedChannel(draftChannel);
     setPlatform(draftPlatform);
     setSelectedCategory(draftCategory);
     setSelectedBrand(draftBrand);
+    setSelectedLocation(draftLocation);
     setSelectedKeywordType(draftKeywordType);
     setSelectedKeyword(draftKeyword);
     onClose();
@@ -1447,12 +1931,12 @@ function VisibilityFilterModal({
   const handleCancel = () => { onClose(); };
 
   const handleResetAll = () => {
-    setDraftChannel("All");
     setDraftPlatform("All");
     setDraftCategory("All");
     setDraftBrand("All");
-    setDraftKeywordType("All");
-    setDraftKeyword("All");
+    setDraftLocation("All");
+    setDraftKeywordType(["All"]);
+    setDraftKeyword(["All"]);
   };
 
   const totalActiveCount = VIS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -1622,6 +2106,7 @@ function PricingFilterModal({
       setActiveTab("channel");
       setSearchTerm("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // CASCADE: when draftChannel changes → fetch available platforms
@@ -1810,7 +2295,7 @@ function PricingFilterModal({
             {filteredOptions.length === 0 ? (
               <Box sx={{ textAlign: "center", py: 6 }}><Search size={32} color="#cbd5e1" style={{ marginBottom: 8 }} /><Typography sx={{ color: "#94a3b8", fontSize: "0.85rem", fontFamily: "'Inter', 'Roboto', sans-serif" }}>No results found</Typography></Box>
             ) : (
-              filteredOptions.map((opt, idx) => {
+              filteredOptions.map((opt) => {
                 const isChecked = selected.includes(opt);
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
@@ -1881,6 +2366,7 @@ function PerformanceFilterModal({
       setActiveTab("channel");
       setSearchTerm("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // CASCADE: Channel -> Platforms
@@ -2069,7 +2555,7 @@ function PerformanceFilterModal({
             {filteredOptions.length === 0 ? (
               <Box sx={{ textAlign: "center", py: 6 }}><Search size={32} color="#cbd5e1" style={{ marginBottom: 8 }} /><Typography sx={{ color: "#94a3b8", fontSize: "0.85rem", fontFamily: "'Inter', 'Roboto', sans-serif" }}>No results found</Typography></Box>
             ) : (
-              filteredOptions.map((opt, idx) => {
+              filteredOptions.map((opt) => {
                 const isChecked = selected.includes(opt);
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
@@ -2140,6 +2626,7 @@ function ContentFilterModal({
       setActiveTab("channel");
       setSearchTerm("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // CASCADE: Channel -> Platforms
@@ -2328,7 +2815,7 @@ function ContentFilterModal({
             {filteredOptions.length === 0 ? (
               <Box sx={{ textAlign: "center", py: 6 }}><Search size={32} color="#cbd5e1" style={{ marginBottom: 8 }} /><Typography sx={{ color: "#94a3b8", fontSize: "0.85rem", fontFamily: "'Inter', 'Roboto', sans-serif" }}>No results found</Typography></Box>
             ) : (
-              filteredOptions.map((opt, idx) => {
+              filteredOptions.map((opt) => {
                 const isChecked = selected.includes(opt);
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
@@ -2398,6 +2885,7 @@ function InventoryFilterModal({
       setActiveTab("channel");
       setSearchTerm("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // CASCADE: Channel -> Platforms
@@ -2613,7 +3101,7 @@ function InventoryFilterModal({
             {(filteredOptions || []).length === 0 ? (
               <Box sx={{ textAlign: "center", py: 6 }}><Search size={32} color="#cbd5e1" style={{ marginBottom: 8 }} /><Typography sx={{ color: "#94a3b8", fontSize: "0.85rem", fontFamily: "'Inter', 'Roboto', sans-serif" }}>No results found</Typography></Box>
             ) : (
-              (filteredOptions || []).map((opt, idx) => {
+              (filteredOptions || []).map((opt) => {
                 const isChecked = selected.includes(opt);
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
@@ -2638,14 +3126,13 @@ function InventoryFilterModal({
 }
 
 const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false }) => {
-  const [priceMode, setPriceMode] = React.useState("MRP");
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [filterModalOpen, setFilterModalOpen] = React.useState(false);
   const [availFilterModalOpen, setAvailFilterModalOpen] = React.useState(false);
   const [visibilityFilterModalOpen, setVisibilityFilterModalOpen] = React.useState(false);
   const [pricingFilterModalOpen, setPricingFilterModalOpen] = React.useState(false);
   const [performanceFilterModalOpen, setPerformanceFilterModalOpen] = React.useState(false);
-
+  const [marketShareFilterModalOpen, setMarketShareFilterModalOpen] = React.useState(false);
   const [contentFilterModalOpen, setContentFilterModalOpen] = React.useState(false);
   const [inventoryFilterModalOpen, setInventoryFilterModalOpen] = React.useState(false);
 
@@ -2681,40 +3168,13 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     visibilityCategories,
     selectedCategory,
     setSelectedCategory,
-    productCategories,
-    selectedProductCategory,
-    setSelectedProductCategory,
     maxDate,
+    datesFetched,
   } = React.useContext(FilterContext);
-
-  const [darkStoreData, setDarkStoreData] = React.useState({ totalCount: 0, byPlatform: {} });
-
-  React.useEffect(() => {
-    const fetchDarkStoreCount = async () => {
-      try {
-        const params = {
-          platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
-          location: selectedLocation === "All" ? undefined : (Array.isArray(selectedLocation) ? selectedLocation.join(",") : selectedLocation),
-          channel: selectedChannel === "All" ? undefined : selectedChannel,
-          startDate: timeStart ? timeStart.format("YYYY-MM-DD") : null,
-          endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
-        };
-        const res = await axiosInstance.get("/watchtower/dark-store-count", { params });
-        if (res.data) {
-          setDarkStoreData(res.data);
-        }
-      } catch (err) {
-        console.warn("[Header] Failed to fetch darkstore count:", err.message);
-      }
-    };
-
-    fetchDarkStoreCount();
-  }, [platform, selectedLocation, selectedChannel, timeStart, timeEnd]);
 
   const location = useLocation();
 
   // 🌗 Dark/Light Mode
-  const { mode } = React.useContext(AppThemeContext);
 
   const isGeoPage = location.pathname === "/geo-intelligence";
 
@@ -2725,7 +3185,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
           display: { xs: "flex", sm: "none" },
           bgcolor: (theme) => theme.palette.background.paper,
           borderBottom: "1px solid",
-          borderColor: (theme) => "#e5e7eb",
+          borderColor: "#e5e7eb",
           px: 2,
           py: 0.8,
           position: "sticky",
@@ -2749,7 +3209,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
       sx={{
         bgcolor: (theme) => theme.palette.background.paper,
         borderBottom: "1px solid",
-        borderColor: (theme) => "#e5e7eb",
+        borderColor: "#e5e7eb",
         px: { xs: 2, sm: 3 },
         py: 0.8,
         position: "sticky",
@@ -2809,7 +3269,30 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                   >
                     {title}
                   </Typography>
-                  {title !== "Performance Marketing" && (
+                  {title === "Availability Analysis" || title === "Visibility Analysis" ? (
+                    <Box sx={{ display: 'flex', mt: 0.5, bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
+                      {channels?.filter(c => c !== 'All').map((c) => (
+                        <Box
+                          key={c}
+                          onClick={() => setSelectedChannel(c)}
+                          sx={{
+                            px: 1.5, py: 0.3,
+                            fontSize: '0.65rem',
+                            fontWeight: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? 700 : 500,
+                            color: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '#2563eb' : '#64748b',
+                            bgcolor: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '#ffffff' : 'transparent',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            boxShadow: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                            transition: 'all 0.2s',
+                            fontFamily: "'Inter', 'Roboto', sans-serif"
+                          }}
+                        >
+                          {c}
+                        </Box>
+                      ))}
+                    </Box>
+                  ) : title !== "Performance Marketing" && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                       <Box
                         sx={{
@@ -2858,13 +3341,14 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
               }}
             >
 
-              {/* ============ WATCH TOWER / PRICING ANALYSIS / INVENTORY ANALYSIS: SINGLE FILTER BUTTON ============ */}
-              {(title === "Business Overview" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
+              {/* ============ WATCH TOWER / MARKET SHARE / PRICING ANALYSIS / INVENTORY ANALYSIS: SINGLE FILTER BUTTON ============ */}
+              {(title === "Business Overview" || title === "Market Share" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
                 <>
                   <Box sx={{ display: "flex", alignItems: "flex-end" }}>
                     <Button
                       onClick={() => {
                         if (title === "Business Overview") setFilterModalOpen(true);
+                        else if (title === "Market Share") setMarketShareFilterModalOpen(true);
                         else if (title === "Availability Analysis") setAvailFilterModalOpen(true);
                         else if (title === "Visibility Analysis") setVisibilityFilterModalOpen(true);
                         else if (title === "Pricing Analysis") setPricingFilterModalOpen(true);
@@ -2911,7 +3395,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                         } else if (title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
-                        } else {
+                        } else if (title !== "Market Share") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.length === brands.length)) count++;
                         }
                         return count > 0 ? (
@@ -2960,6 +3444,23 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     />
                   )}
 
+                  {/* MARKET SHARE FILTER MODAL */}
+                  {title === "Market Share" && (
+                    <MarketShareFilterModal
+                      open={marketShareFilterModalOpen}
+                      onClose={() => setMarketShareFilterModalOpen(false)}
+                      channels={channels}
+                      selectedChannel={selectedChannel}
+                      setSelectedChannel={setSelectedChannel}
+                      platforms={platforms}
+                      platform={platform}
+                      setPlatform={setPlatform}
+                      categories={categories}
+                      selectedCategory={selectedCategory}
+                      setSelectedCategory={setSelectedCategory}
+                    />
+                  )}
+
                   {/* AVAILABILITY ANALYSIS FILTER MODAL */}
                   {title === "Availability Analysis" && (
                     <AvailabilityFilterModal
@@ -2988,9 +3489,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     <VisibilityFilterModal
                       open={visibilityFilterModalOpen}
                       onClose={() => setVisibilityFilterModalOpen(false)}
-                      channels={channels}
                       selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
                       platforms={platforms}
                       platform={platform}
                       setPlatform={setPlatform}
@@ -3136,7 +3635,6 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
 
                   {title !== "Business Overview" && 
                    !location.pathname.includes("market-share") && 
-                   !location.pathname.includes("visibility") && 
                    !location.pathname.includes("content-score") && (
                     <CustomHeaderDropdown
                       label="LOCATION"
@@ -3188,37 +3686,49 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                 >
                   TIME PERIOD
                 </Typography>
-                <DateRangeComparePicker
-                  timeStart={timeStart}
-                  timeEnd={timeEnd}
-                  compareStart={compareStart}
-                  compareEnd={compareEnd}
-                  maxDate={maxDate}
-                  onApply={(start, end, cStart, cEnd, compareOn, label) => {
-                    setTimeStart(start);
-                    setTimeEnd(end);
+                {!datesFetched ? (
+                  <Skeleton 
+                    variant="rounded" 
+                    width="100%" 
+                    height={36} 
+                    sx={{ 
+                      borderRadius: "10px",
+                      bgcolor: "rgba(0,0,0,0.05)"
+                    }} 
+                  />
+                ) : (
+                  <DateRangeComparePicker
+                    timeStart={timeStart}
+                    timeEnd={timeEnd}
+                    compareStart={compareStart}
+                    compareEnd={compareEnd}
+                    maxDate={maxDate}
+                    onApply={(start, end, cStart, cEnd, compareOn, label) => {
+                      setTimeStart(start);
+                      setTimeEnd(end);
 
-                    // Format label for KPI cards
-                    let formattedLabel = "VS PREV. PERIOD";
-                    if (label) {
-                      const up = label.toUpperCase();
-                      if (up === "TODAY") formattedLabel = "VS YESTERDAY";
-                      else if (up === "YESTERDAY") formattedLabel = "VS DAY BEFORE";
-                      else if (up === "THIS MONTH") formattedLabel = "VS PREV. MONTH";
-                      else if (up.includes("LAST")) formattedLabel = up.replace("LAST", "VS PREV.");
-                      else formattedLabel = `VS ${up}`;
-                    }
-                    setComparisonLabel(formattedLabel);
+                      // Format label for KPI cards
+                      let formattedLabel = "VS PREV. PERIOD";
+                      if (label) {
+                        const up = label.toUpperCase();
+                        if (up === "TODAY") formattedLabel = "VS YESTERDAY";
+                        else if (up === "YESTERDAY") formattedLabel = "VS DAY BEFORE";
+                        else if (up === "THIS MONTH") formattedLabel = "VS PREV. MONTH";
+                        else if (up.includes("LAST")) formattedLabel = up.replace("LAST", "VS PREV.");
+                        else formattedLabel = `VS ${up}`;
+                      }
+                      setComparisonLabel(formattedLabel);
 
-                    if (compareOn) {
-                      setCompareStart(cStart);
-                      setCompareEnd(cEnd);
-                    } else {
-                      setCompareStart(null);
-                      setCompareEnd(null);
-                    }
-                  }}
-                />
+                      if (compareOn) {
+                        setCompareStart(cStart);
+                        setCompareEnd(cEnd);
+                      } else {
+                        setCompareStart(null);
+                        setCompareEnd(null);
+                      }
+                    }}
+                  />
+                )}
               </Box>
             </Box>
           )}

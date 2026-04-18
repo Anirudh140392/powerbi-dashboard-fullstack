@@ -35,6 +35,7 @@ export default function CityDetailedTable({ sku, onClose }) {
         selectedCategory,
         selectedLocation,
         selectedBrand,
+        selectedChannel,
         timeStart,
         timeEnd,
         compareStart,
@@ -67,6 +68,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                     brand: selectedBrand !== 'All' ? (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand) : undefined,
                     category: selectedCategory !== 'All' ? (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory) : undefined,
                     location: selectedLocation !== 'All' ? (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation) : undefined,
+                    channel: selectedChannel !== 'All' ? selectedChannel : undefined,
                 };
 
                 let endpoint = '/availability-analysis/signal-lab/city-details';
@@ -116,7 +118,7 @@ export default function CityDetailedTable({ sku, onClose }) {
 
         fetchDetails();
         return () => { mounted = false; };
-    }, [sku.Web_Pid, timeStart, timeEnd, platform, selectedBrand, selectedCategory, selectedLocation]);
+    }, [sku.Web_Pid, timeStart, timeEnd, platform, selectedBrand, selectedCategory, selectedLocation, selectedChannel]);
 
     const totalPages = Math.ceil(allCities.length / rowsPerPage);
     const displayedData = allCities.slice((page - 1) * rowsPerPage, page * rowsPerPage);

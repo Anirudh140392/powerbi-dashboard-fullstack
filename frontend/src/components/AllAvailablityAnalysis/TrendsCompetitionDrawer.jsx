@@ -28,8 +28,15 @@ import {
   TableRow,
   Select,
   MenuItem,
+  Popover,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Checkbox,
+  Drawer as MuiDrawer,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus, Filter, BarChart3 } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter, BarChart3, SlidersHorizontal } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import AddSkuDrawer, { SKU_DATA } from "./AddSkuDrawer";
 import KpiTrendShowcase from "./KpiTrendShowcase";
@@ -38,6 +45,133 @@ import { AvailabilityCompetitionKpiShowcase } from "./AvailabilityCompetitionKpi
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../CommonLayout/ErrorRetryOverlay";
 import { FilterContext } from "../../utils/FilterContext";
+
+/**
+ * ---------------------------------------------------------------------------
+ * FILTER DROPDOWN COMPONENT
+ * ---------------------------------------------------------------------------
+ */
+const FilterDropdown = ({ title, value, options, onChange, searchable = true }) => {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const handleClick = (e) => setAnchorEl(e.currentTarget);
+  const handleClose = () => {
+    setAnchorEl(null);
+    setSearch("");
+  };
+
+  const filteredOptions = searchable 
+    ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  const isActive = value && value !== "All";
+
+  return (
+    <>
+      <Button
+        onClick={handleClick}
+        endIcon={<ChevronDown size={14} color={isActive ? "#1D4ED8" : "#94A3B8"} />}
+        sx={{
+          borderRadius: "999px",
+          border: "1px solid",
+          borderColor: isActive ? "#3B82F6" : "#E2E8F0",
+          backgroundColor: "white",
+          color: "#0F172A",
+          textTransform: "none",
+          fontSize: "13px",
+          fontWeight: 600,
+          px: 1.5,
+          py: 0.5,
+          minHeight: 32,
+          "&:hover": {
+            backgroundColor: "#F8FAFC",
+            borderColor: isActive ? "#3B82F6" : "#CBD5E1",
+          }
+        }}
+      >
+        {isActive ? (
+          <Box display="flex" alignItems="center" gap={0.5}>
+            {value}
+            <Box 
+              component="span" 
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange("All");
+              }}
+              sx={{ display: 'flex', alignItems: 'center', ml: 0.5, color: '#94A3B8', '&:hover': { color: '#ef4444' } }}
+            >
+              <X size={14} />
+            </Box>
+          </Box>
+        ) : (
+          <Typography sx={{ color: "#64748B", fontSize: "13px", fontWeight: 500 }}>
+            {title}
+          </Typography>
+        )}
+      </Button>
+      <Popover
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
+        onClose={handleClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        PaperProps={{
+          sx: { mt: 1, borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', minWidth: 220, maxHeight: 320 }
+        }}
+      >
+        {searchable && (
+          <Box p={1} sx={{ position: 'sticky', top: 0, bgcolor: 'white', zIndex: 1, borderBottom: '1px solid #F1F5F9' }}>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder={`Search ${title.toLowerCase()}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search size={14} color="#94A3B8" />
+                  </InputAdornment>
+                ),
+                sx: { fontSize: '13px', borderRadius: '6px', '& fieldset': { borderColor: '#E2E8F0' } }
+              }}
+            />
+          </Box>
+        )}
+        <List sx={{ p: 0 }}>
+          {filteredOptions.length === 0 ? (
+            <MenuItem disabled sx={{ fontSize: '13px', py: 1.5 }}>No results found</MenuItem>
+          ) : (
+            filteredOptions.map((opt) => (
+              <MenuItem
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  handleClose();
+                }}
+                sx={{ 
+                  fontSize: '13px', 
+                  py: 0.75,
+                  backgroundColor: value === opt ? "#F8FAFC" : "transparent"
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 32 }}>
+                  <Checkbox
+                    checked={value === opt}
+                    size="small"
+                    sx={{ p: 0, color: '#CBD5E1', '&.Mui-checked': { color: '#3B82F6' } }}
+                  />
+                </ListItemIcon>
+                <ListItemText primary={opt} primaryTypographyProps={{ fontSize: '13px', fontWeight: value === opt ? 600 : 400 }} />
+              </MenuItem>
+            ))
+          )}
+        </List>
+      </Popover>
+    </>
+  );
+};
 
 /**
  * ---------------------------------------------------------------------------
@@ -342,49 +476,77 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   </ToggleButtonGroup>
 );
 
-const MetricChip = ({ label, color, active, onClick }) => {
+const MetricChip = ({ label, color, active, onClick, isNA }) => {
   return (
     <Box
-      onClick={onClick}
+      onClick={isNA ? undefined : onClick}
       sx={{
         display: "flex",
         alignItems: "center",
         gap: 0.8,
-        px: 1.5,
-        py: 0.6,
+        px: 2,
+        py: 0.8,
         borderRadius: "999px",
-        cursor: "pointer",
-        border: `1px solid ${active ? color : "#E5E7EB"}`,
-        backgroundColor: active ? `${color}20` : "white",
-        color: active ? color : "#0f172a",
-        fontSize: "12px",
+        cursor: isNA ? "not-allowed" : "pointer",
+        border: `1px solid ${isNA ? "#E5E7EB" : active ? color : "#E2E8F0"}`,
+        backgroundColor: isNA ? "#F8FAFC" : active ? color : "white",
+        color: isNA ? "#94A3B8" : active ? "white" : "#475569",
+        fontSize: "13px",
         fontWeight: 600,
         userSelect: "none",
         transition: "all 0.15s ease",
+        opacity: isNA ? 0.7 : 1,
+        whiteSpace: "nowrap",
+        "&:hover": {
+          backgroundColor: isNA ? "#F8FAFC" : active ? color : "#F8FAFC",
+        }
       }}
     >
-      {/* CHECKBOX ICON */}
-      <Box
-        sx={{
-          width: 14,
-          height: 14,
-          borderRadius: 3,
-          border: `2px solid ${active ? color : "#CBD5E1"}`,
-          backgroundColor: active ? color : "transparent",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "white",
-          fontSize: 10,
-          lineHeight: 1,
-        }}
-      >
-        {active && "✓"}
-      </Box>
-
       {label}
+      {isNA && (
+        <Box
+          component="span"
+          sx={{
+            ml: 0.5,
+            px: 0.8,
+            py: 0.1,
+            borderRadius: "4px",
+            backgroundColor: "#FEF3C7",
+            color: "#92400E",
+            fontSize: "9px",
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+          }}
+        >
+          N/A
+        </Box>
+      )}
     </Box>
   );
+};
+
+// Map metric IDs to their data source group for N/A detection
+const KPI_SOURCE_MAP = {
+  // PDP table KPIs
+  Offtakes: 'pdp', Offtake: 'pdp', offtake: 'pdp',
+  Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
+  'Promo-My': 'pdp', PromoMyBrand: 'pdp',
+  Assortment: 'pdp', Listing: 'pdp',
+  // PM table KPIs
+  InorganicSales: 'pm', InorgSales: 'pm',
+  Conversion: 'pm', Roas: 'pm', ROAS: 'pm',
+  BmiSalesRatio: 'pm', Spend: 'pm',
+  CPM: 'pm', CPC: 'pm',
+  // KW table KPIs
+  ShareOfSearch: 'kw', SOS: 'kw', Sos: 'kw',
+  // MS table KPIs
+  MarketShare: 'ms', CategoryShare: 'ms',
+  marketShare: 'ms', categoryShare: 'ms',
+  // Pricing-specific KPIs (per-KPI granularity from pricing backend)
+  Discount: 'Discount', discount: 'Discount',
+  PricePerUnit: 'PricePerUnit',
+  ASP: 'ASP',
+  RPI: 'ASP',  // RPI depends on ASP (selling price) data
 };
 
 
@@ -446,7 +608,7 @@ export default function TrendsCompetitionDrawer({
     }
   }, [open, initialAudience]);
 
-  const { maxDate } = React.useContext(FilterContext);
+  const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
   const [view, setView] = useState(defaultView || "Trends");
@@ -455,6 +617,8 @@ export default function TrendsCompetitionDrawer({
   const [activeMetrics, setActiveMetrics] = useState([]);
   const [compTab, setCompTab] = useState("Brands");
   const [search, setSearch] = useState("");
+  const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
+  const [skuSearchTerm, setSkuSearchTerm] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
@@ -479,47 +643,75 @@ export default function TrendsCompetitionDrawer({
     SKU: "All"
   });
 
-  // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
+  // ===================== CONSOLIDATED DRAWER FILTER INITIALIZATION =====================
+  // All filter initialization happens in ONE atomic state update to prevent
+  // race conditions where multiple effects override each other.
   useEffect(() => {
-    if (selectedColumn && open) {
-      if (dynamicKey === "pricing") {
-        setSelectedPlatform(initialPlatform || "Blinkit");
-        setDrawerFilters(prev => ({
-          ...prev,
-          Platform: initialPlatform || "All",
-          City: "All",
-          Brand: "All",
-          Format: "All",
-          SKU: "All",
-        }));
-      } else {
-        setSelectedPlatform(initialPlatform || selectedColumn || "Blinkit");
+    if (!open) return;
 
-        const currentAudience = initialAudience || allTrendMeta.context.audience;
-        setDrawerFilters(prev => ({
-          ...prev,
-          Platform: initialPlatform || prev.Platform,
-          [currentAudience]: selectedColumn,
-        }));
+    // Set view
+    setView(defaultView || "Trends");
+
+    if (dynamicKey === "pricing") {
+      setSelectedPlatform(initialPlatform || "Blinkit");
+      setDrawerFilters({
+        Platform: initialPlatform || "All",
+        City: "All",
+        Brand: "All",
+        Format: "All",
+        SKU: "All",
+      });
+    } else {
+      // Determine the audience dimension being drilled into
+      const currentAudience = initialAudience || allTrendMeta.context.audience;
+
+      // Build the complete filter state atomically
+      const newFilters = {
+        Platform: "All",
+        City: "All",
+        Brand: "All",
+        Format: "All",
+        SKU: "All",
+      };
+
+      // 1. Apply initialPlatform if provided
+      if (initialPlatform && initialPlatform !== 'All') {
+        newFilters.Platform = initialPlatform;
       }
+
+      // 2. For availability, inherit global filters from FilterContext
+      if (dynamicKey === 'availability') {
+        if (globalPlatform && globalPlatform !== 'All' && (!initialPlatform || initialPlatform === 'All')) {
+          newFilters.Platform = globalPlatform;
+        }
+        if (globalBrand && globalBrand !== 'All') {
+          newFilters.Brand = globalBrand;
+        }
+        if (globalLocation && globalLocation !== 'All') {
+          newFilters.City = globalLocation;
+        }
+        if (globalCategory && globalCategory !== 'All') {
+          newFilters.Format = globalCategory;
+        }
+      }
+
+      // 3. Apply the selectedColumn to the correct dimension (this takes priority)
+      if (selectedColumn && currentAudience) {
+        newFilters[currentAudience] = selectedColumn;
+      }
+
+      // Set platform pill selection
+      setSelectedPlatform(newFilters.Platform !== 'All' ? newFilters.Platform : (initialPlatform || selectedColumn || "Blinkit"));
+
+      setDrawerFilters(newFilters);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedColumn, open, dynamicKey, initialPlatform]);
-
-  useEffect(() => {
-    if (open) {
-      setView(defaultView || "Trends");
-      setSelectedPlatform(initialPlatform || selectedPlatform || "Blinkit");
-      setDrawerFilters(prev => ({
-        ...prev,
-        Platform: initialPlatform || prev.Platform || "All",
-      }));
-    }
-  }, [open, defaultView, initialPlatform]);
+  }, [selectedColumn, open, dynamicKey, initialPlatform, defaultView, globalPlatform, globalBrand, globalLocation, globalCategory]);
 
   // ===================== API STATE =====================
   const [chartData, setChartData] = useState([]);
   const [competitionData, setCompetitionData] = useState([]);
+  const [kpiAvailability, setKpiAvailability] = useState(null); // { pdp, pm, kw, ms } from backend
   const [loading, setLoading] = useState(true);
   const [compLoading, setCompLoading] = useState(false);
 
@@ -532,6 +724,22 @@ export default function TrendsCompetitionDrawer({
     skus: [],
     loading: true
   });
+
+  // ===================== PLATFORM → CHANNEL MAPPING =====================
+  const [platformChannelMap, setPlatformChannelMap] = useState({});
+
+  // Derive channel from the currently selected platform
+  const derivedChannel = useMemo(() => {
+    const plat = drawerFilters.Platform;
+    if (!plat || plat === 'All') return '';
+    return platformChannelMap[plat] || '';
+  }, [drawerFilters.Platform, platformChannelMap]);
+
+  // Whether to hide PM metrics (Spend, Conversion, ROAS, Inorganic Sales, CPC)
+  const isQuickcommSku = useMemo(() => {
+    const isSkuSelected = drawerFilters.SKU && drawerFilters.SKU !== 'All';
+    return isSkuSelected && derivedChannel.toLowerCase() === 'quickcomm';
+  }, [drawerFilters.SKU, derivedChannel]);
 
   const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : [
     "Blinkit",
@@ -552,13 +760,24 @@ export default function TrendsCompetitionDrawer({
     const fetchFilterOptions = async () => {
       try {
         console.log("[TrendsDrawer] Fetching filter options");
-        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes] = await Promise.all([
+        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes, platformChannelsRes] = await Promise.all([
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'platforms' } }),
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'categories' } }),
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'cities' } }),
           axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'brands' } }),
-          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'skus' } })
+          axiosInstance.get('/watchtower/trends-filter-options', { params: { filterType: 'skus' } }),
+          axiosInstance.get('/watchtower/platform-channels')
         ]);
+
+        // Build platform → channel lookup map
+        const channelMap = {};
+        (platformChannelsRes.data || []).forEach(item => {
+          if (item.platform && item.channel) {
+            channelMap[item.platform] = item.channel;
+          }
+        });
+        setPlatformChannelMap(channelMap);
+        console.log('[TrendsDrawer] Platform→Channel map:', channelMap);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
         const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
@@ -647,6 +866,13 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+        // Store KPI availability from pricing backend response
+        if (response.data?.kpiAvailability) {
+          setKpiAvailability(response.data.kpiAvailability);
+          console.log('[TrendsDrawer] Pricing KPI Availability:', response.data.kpiAvailability);
+        } else {
+          setKpiAvailability(null);
+        }
       } else if (dynamicKey === "marketshare") {
         const params = {
           period: range,
@@ -670,6 +896,7 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+        setKpiAvailability(null); // Market share doesn't use kpiAvailability
       } else if (dynamicKey === "availability") {
         // Use availability-specific API (includes PSL)
         const params = {
@@ -695,6 +922,7 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+        setKpiAvailability(null); // Availability doesn't use kpiAvailability
       } else {
         // Use watchtower API for visibility/performance
         const params = {
@@ -710,6 +938,7 @@ export default function TrendsCompetitionDrawer({
           category: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           skuName: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          channel: derivedChannel || undefined,
         };
 
         const response = await axiosInstance.get('/watchtower/kpi-trends', { params });
@@ -719,15 +948,23 @@ export default function TrendsCompetitionDrawer({
         } else {
           setChartData([]);
         }
+        // Store KPI availability from backend response
+        if (response.data?.kpiAvailability) {
+          setKpiAvailability(response.data.kpiAvailability);
+          console.log('[TrendsDrawer] KPI Availability:', response.data.kpiAvailability);
+        } else {
+          setKpiAvailability(null);
+        }
       }
     } catch (error) {
       console.error("[TrendsDrawer] Error fetching trends:", error);
       setTrendError(error.message || "Failed to load trend data");
       setChartData([]);
+      setKpiAvailability(null);
     } finally {
       setLoading(false);
     }
-  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta]);
+  }, [view, range, drawerFilters, timeStep, customStart, customEnd, open, dynamicKey, selectedColumn, selectedLevel, allTrendMeta, derivedChannel]);
 
   useEffect(() => {
     if (view !== "Trends" || !open) return;
@@ -1289,7 +1526,7 @@ export default function TrendsCompetitionDrawer({
           columns: [
             { id: "brand", label: "Brand", type: "text" },
             { id: "Discount", label: "Promo-My %", type: "metric" },
-            { id: "PricePerUnit", label: "Price/Unit", type: "metric" },
+            { id: "PricePerUnit", label: "Price/Unit 1g / 1 piece", type: "metric" },
             { id: "ASP", label: "ASP", type: "metric" },
           ],
           brands: BRAND_OPTIONS.map((b, i) => ({
@@ -1794,6 +2031,18 @@ export default function TrendsCompetitionDrawer({
     }
   }, [isEcom, activeMetrics]);
 
+  // Sync active metrics: remove PM metrics if Quickcomm + SKU selected
+  useEffect(() => {
+    if (isQuickcommSku) {
+      const pmIds = ['Spend', 'Conversion', 'Roas', 'ROAS', 'InorgSales', 'InorganicSales', 'CPC'];
+      setActiveMetrics(prev => {
+        const filtered = prev.filter(m => !pmIds.includes(m));
+        // If all were removed, default to first available non-PM metric
+        return filtered.length > 0 ? filtered : prev.filter(m => !pmIds.includes(m));
+      });
+    }
+  }, [isQuickcommSku]);
+
 
   const platformRef = useRef(null);
 
@@ -1805,7 +2054,18 @@ export default function TrendsCompetitionDrawer({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const trendMeta = DASHBOARD_DATA.trends || { metrics: [], points: [] };
+  const trendMetaRaw = DASHBOARD_DATA.trends || { metrics: [], points: [] };
+
+  // Hide PM metrics from pills when Quickcomm + SKU selected
+  const PM_METRIC_IDS = ['Spend', 'Conversion', 'Roas', 'ROAS', 'InorgSales', 'InorganicSales', 'CPC'];
+  const trendMeta = useMemo(() => {
+    if (!isQuickcommSku) return trendMetaRaw;
+    return {
+      ...trendMetaRaw,
+      metrics: (trendMetaRaw.metrics || []).filter(m => !PM_METRIC_IDS.includes(m.id)),
+    };
+  }, [trendMetaRaw, isQuickcommSku]);
+
   const compMeta = DASHBOARD_DATA.competition || {};
   const compareMeta = DASHBOARD_DATA.compareSkus || {};
 
@@ -1865,7 +2125,7 @@ export default function TrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const formatTooltipValue = (val, seriesName) => {
-    if (val === undefined || val === null) return '-';
+    if (val === undefined || val === null) return 'N/A';
     let formatted = val;
     if (typeof val === 'number') {
       const absVal = Math.abs(val);
@@ -1891,8 +2151,11 @@ export default function TrendsCompetitionDrawer({
 
   const createTooltipFormatter = (params) => {
     if (!params || !params.length) return '';
-    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${params[0].axisValue}</div>`;
-    params.forEach(param => {
+    // Filter out series whose value is null (unavailable KPIs) — only show visible lines
+    const visibleParams = params.filter(p => p.value !== null && p.value !== undefined);
+    if (!visibleParams.length) return '';
+    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${visibleParams[0].axisValue}</div>`;
+    visibleParams.forEach(param => {
       const formattedValue = formatTooltipValue(param.value, param.seriesName);
       html += `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px;">
@@ -2037,16 +2300,15 @@ export default function TrendsCompetitionDrawer({
     else if (newAudience === "Brand") firstOption = BRAND_OPTIONS[0];
     else if (newAudience === "SKU") firstOption = SKU_OPTIONS[0];
 
-    setSelectedPlatform(firstOption);
+    const existingFilter = drawerFilters[newAudience];
+    const newSelectedPill = (existingFilter && existingFilter !== "All") ? existingFilter : firstOption;
 
-    // Sync with drawerFilters
+    setSelectedPlatform(newSelectedPill);
+
+    // Sync with drawerFilters without resetting others
     setDrawerFilters(prev => ({
       ...prev,
-      Platform: newAudience === "Platform" ? firstOption : "All",
-      Format: newAudience === "Format" ? firstOption : "All",
-      City: newAudience === "City" ? firstOption : "All",
-      Brand: newAudience === "Brand" ? firstOption : "All",
-      SKU: newAudience === "SKU" ? firstOption : "All"
+      [newAudience]: newSelectedPill
     }));
 
     setShowPlatformPills(true);
@@ -2080,6 +2342,8 @@ export default function TrendsCompetitionDrawer({
           display: "flex",
           flexDirection: "column",
           gap: 2,
+          position: "relative",
+          overflow: "hidden",
         }}
       >
         {/* Header row */}
@@ -2147,9 +2411,9 @@ export default function TrendsCompetitionDrawer({
             color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
-            label="City"
-            value={drawerFilters.City}
-            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+            label="Category"
+            value={drawerFilters.Format}
+            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
             label="Brand"
@@ -2157,9 +2421,9 @@ export default function TrendsCompetitionDrawer({
             color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
-            label="Format"
-            value={drawerFilters.Format}
-            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+            label="City"
+            value={drawerFilters.City}
+            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
             label="SKU"
@@ -2195,210 +2459,295 @@ export default function TrendsCompetitionDrawer({
 
         {/* TRENDS VIEW */}
         {view === "Trends" && (
-          <Box display="flex" flexDirection="column" gap={2}>
-            {/* HEADER + PLATFORM FILTER */}
-            {/* HEADER + PLATFORM FILTER */}
-            <Box display="flex" flexDirection="column" gap={2}>
-              {/* Title Block */}
-              <Box>
-                <Typography 
-                  variant="h6" 
-                  fontWeight={800} 
-                  sx={{ 
-                    fontSize: '1.25rem', 
-                    color: '#0f172a',
-                    lineHeight: 1.2,
-                    letterSpacing: '-0.02em'
+          <Box display="flex" flexDirection="column" gap={0}>
+            {/* Title Block */}
+            <Typography 
+              variant="h5" 
+              fontWeight={800} 
+              sx={{ 
+                color: '#0f172a',
+                lineHeight: 1.2,
+                mb: 2,
+              }}
+            >
+              {selectedColumn || "KPI Trends"}
+            </Typography>
+
+            {/* HEADER FILTER CONTAINER */}
+            <Box 
+              display="flex" 
+              alignItems="center" 
+              justifyContent="space-between" 
+              flexWrap="wrap" 
+              gap={2}
+              mb={3}
+            >
+              {/* PRIMARY FILTERS */}
+              <Box display="flex" alignItems="center" gap={1}>
+                <FilterDropdown 
+                  title="Platform" 
+                  value={drawerFilters.Platform} 
+                  options={PLATFORM_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Platform: v}))} 
+                />
+                <FilterDropdown 
+                  title="Category" 
+                  value={drawerFilters.Format} 
+                  options={FORMAT_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Format: v}))} 
+                />
+                <FilterDropdown 
+                  title="Brand" 
+                  value={drawerFilters.Brand} 
+                  options={BRAND_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Brand: v}))} 
+                />
+                <FilterDropdown 
+                  title="City" 
+                  value={drawerFilters.City} 
+                  options={CITY_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, City: v}))} 
+                />
+                
+                <Button
+                  onClick={() => setIsMoreFiltersOpen(prev => !prev)}
+                  startIcon={<SlidersHorizontal size={14} />}
+                  sx={{
+                    borderRadius: "999px",
+                    border: "1px solid",
+                    borderColor: isMoreFiltersOpen ? "#3B82F6" : "#E2E8F0",
+                    backgroundColor: isMoreFiltersOpen ? "#EFF6FF" : "white",
+                    color: "#0F172A",
+                    textTransform: "none",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    px: 2,
+                    py: 0.5,
+                    minHeight: 32,
+                    ml: 1,
+                    "&:hover": {
+                      backgroundColor: isMoreFiltersOpen ? "#DBEAFE" : "#F8FAFC",
+                    }
                   }}
                 >
-                  {selectedColumn || "KPI Trends"}
-                </Typography>
+                  SKU Filter
+                </Button>
               </Box>
-              
-              {/* Filter Row: Audience Select + Pill Container */}
-              <Box display="flex" alignItems="center" gap={1.5} sx={{ minWidth: 0, mb: 1 }}>
-                {/* Audience Selection Dropdown */}
-                <Box sx={{ flexShrink: 0 }}>
-                  <Select
-                    size="small"
-                    value={allTrendMeta.context.audience}
-                    onChange={handleAudienceChange}
-                    sx={{
-                      width: 140,
-                      height: 36,
-                      backgroundColor: "#f8fafc",
-                      borderRadius: "10px",
-                      fontSize: "0.8rem",
-                      fontWeight: 700,
-                      color: "#475569",
-                      "& .MuiOutlinedInput-notchedOutline": {
-                        borderColor: "#e2e8f0",
-                        borderWidth: '1.5px'
-                      },
-                      "&:hover .MuiOutlinedInput-notchedOutline": {
-                        borderColor: "#cbd5e1",
-                      },
-                      "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                        borderColor: "#3b82f6",
-                      },
-                    }}
-                  >
-                    <MenuItem value="Platform">Platform</MenuItem>
-                    <MenuItem value="Format">Format</MenuItem>
-                    <MenuItem value="Brand">Brand</MenuItem>
-                    <MenuItem value="City">City</MenuItem>
-                    <MenuItem value="SKU">SKU</MenuItem>
-                  </Select>
+
+              {/* RANGE + TIMESTEP — stacked vertically */}
+              <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+                <Box display="flex" alignItems="center" gap={1}>
+                  <PillToggleGroup
+                    value={range}
+                    onChange={setRange}
+                    options={trendMeta.rangeOptions}
+                  />
+                  {range === "Custom" && (
+                    <Box display="flex" alignItems="center" gap={1} ml={1}>
+                      <input
+                        type="date"
+                        value={customStart}
+                        onChange={(e) => setCustomStart(e.target.value)}
+                        max={maxDateStr}
+                        style={{ border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 8px', outline: 'none', fontSize: '13px', color: '#475569' }}
+                      />
+                      <Typography variant="body2" color="#94a3b8" sx={{ fontSize: '12px' }}>to</Typography>
+                      <input
+                        type="date"
+                        value={customEnd}
+                        onChange={(e) => setCustomEnd(e.target.value)}
+                        max={maxDateStr}
+                        style={{ border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 8px', outline: 'none', fontSize: '13px', color: '#475569' }}
+                      />
+                    </Box>
+                  )}
                 </Box>
 
+                <Box display="flex" alignItems="center" gap={1}>
+                  <Typography variant="body2" color="#64748B" fontWeight={500} sx={{ fontSize: '12px' }}>Time Step:</Typography>
+                  <PillToggleGroup
+                    value={timeStep}
+                    onChange={setTimeStep}
+                    options={trendMeta.timeSteps}
+                  />
+                </Box>
+              </Box>
+            </Box>
 
+        {/* ADDITIONAL FILTERS INLINE PANEL — slides in from the right within the drawer */}
+        {isMoreFiltersOpen && (
+          <Box
+            sx={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 300,
+              bgcolor: "white",
+              borderLeft: "1px solid #E2E8F0",
+              boxShadow: "-4px 0 20px rgba(0,0,0,0.06)",
+              zIndex: 10,
+              display: "flex",
+              flexDirection: "column",
+              p: 3,
+              animation: "slideInRight 0.2s ease-out",
+              "@keyframes slideInRight": {
+                from: { transform: "translateX(100%)" },
+                to: { transform: "translateX(0)" },
+              },
+            }}
+          >
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Typography variant="h6" fontWeight={700} fontSize="1.05rem">SKU Selection</Typography>
+              <IconButton onClick={() => setIsMoreFiltersOpen(false)} size="small">
+                <X size={18} />
+              </IconButton>
+            </Box>
 
-                {/* DYNAMIC PILLS */}
-                {showPlatformPills && (() => {
-                  // Show skeleton loader while filter options are loading
-                  if (filterOptions.loading) {
-                    return (
-                      <Box display="flex" gap={0.5} flexWrap="wrap" alignItems="center">
-                        {[1, 2, 3, 4, 5].map((i) => (
-                          <Box
-                            key={`skeleton-${i}`}
-                            sx={{
-                              px: 1.5,
-                              py: 0.7,
-                              borderRadius: "999px",
-                              border: "1px solid #E5E7EB",
-                              backgroundColor: "#F1F5F9",
-                              width: `${50 + i * 12}px`,
-                              height: "28px",
-                              animation: "pulse 1.5s ease-in-out infinite",
-                              "@keyframes pulse": {
-                                "0%, 100%": { opacity: 0.4 },
-                                "50%": { opacity: 1 },
-                              },
-                            }}
-                          />
-                        ))}
-                      </Box>
-                    );
-                  }
+            <Box display="flex" flexDirection="column" gap={3} flex={1}>
+              
+              <Box>
+                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">SKU</Typography>
+                {/* Search input */}
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search SKUs..."
+                  value={skuSearchTerm || ''}
+                  onChange={(e) => setSkuSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search size={14} color="#94A3B8" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    mb: 1,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      fontSize: '13px',
+                    }
+                  }}
+                />
+                {/* Scrollable SKU list */}
+                <Box
+                  sx={{
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 2,
+                    '&::-webkit-scrollbar': { width: 6 },
+                    '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
+                  }}
+                >
+                  {/* "All SKUs" option */}
+                  <Box
+                    onClick={() => setDrawerFilters(prev => ({...prev, SKU: 'All'}))}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 1.5,
+                      py: 1,
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #F1F5F9',
+                      backgroundColor: drawerFilters.SKU === 'All' ? '#EFF6FF' : 'transparent',
+                      '&:hover': { backgroundColor: '#F8FAFC' },
+                    }}
+                  >
+                    <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${drawerFilters.SKU === 'All' ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: drawerFilters.SKU === 'All' ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {drawerFilters.SKU === 'All' && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </Box>
+                    <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All SKUs</Typography>
+                  </Box>
 
-                  const allOptions = allTrendMeta.context.audience === "Platform"
-                    ? PLATFORM_OPTIONS
-                    : allTrendMeta.context.audience === "Format"
-                      ? FORMAT_OPTIONS
-                      : allTrendMeta.context.audience === "City"
-                        ? CITY_OPTIONS
-                        : allTrendMeta.context.audience === "Brand"
-                          ? BRAND_OPTIONS
-                          : allTrendMeta.context.audience === "SKU"
-                            ? SKU_OPTIONS
-                            : [];
-                  const visibleOptions = allOptions;
+                  {/* Filtered SKU items */}
+                  {SKU_OPTIONS
+                    .filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase()))
+                    .map(opt => {
+                      const isSelected = drawerFilters.SKU === opt;
+                      // Truncate display: show last part in parentheses as variant hint
+                      const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
+                      const variant = parenMatch ? parenMatch[1] : '';
+                      const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
 
-                  return (
-                    <Box
-                      display="flex"
-                      gap={0.5}
-                      flexWrap="nowrap"
-                      alignItems="center"
-                      sx={{
-                        overflowX: "auto",
-                        pb: 0.5, // Add a little padding for scrollbar
-                        "&::-webkit-scrollbar": {
-                          height: "4px",
-                        },
-                        "&::-webkit-scrollbar-track": {
-                          background: "#f1f1f1",
-                          borderRadius: "4px",
-                        },
-                        "&::-webkit-scrollbar-thumb": {
-                          background: "#cbd5e1",
-                          borderRadius: "4px",
-                        },
-                        "&::-webkit-scrollbar-thumb:hover": {
-                          background: "#94a3b8",
-                        },
-                      }}
-                    >
-                      {visibleOptions.map((p) => (
+                      return (
                         <Box
-                          key={p}
-                          onClick={() => {
-                            setSelectedPlatform(p);
-                            setDrawerFilters(prev => ({
-                              ...prev,
-                              [allTrendMeta.context.audience]: p
-                            }));
-                          }}
+                          key={opt}
+                          onClick={() => setDrawerFilters(prev => ({...prev, SKU: prev.SKU === opt ? 'All' : opt}))}
+                          title={opt}
                           sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
                             px: 1.5,
-                            py: 0.7,
-                            borderRadius: "999px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            border: "1px solid #E5E7EB",
-                            backgroundColor:
-                              selectedPlatform === p ? "#0ea5e9" : "white",
-                            color: selectedPlatform === p ? "white" : "#0f172a",
-                            whiteSpace: "nowrap",
+                            py: 0.8,
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #F8FAFC',
+                            backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                            transition: 'background 0.15s',
+                            '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
                           }}
                         >
-                          {p}
+                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                          </Box>
+                          <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
+                            <Typography sx={{
+                              fontSize: '12px',
+                              fontWeight: isSelected ? 600 : 400,
+                              color: isSelected ? '#1E40AF' : '#334155',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: 200,
+                            }}>
+                              {mainName}
+                            </Typography>
+                            {variant && (
+                              <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
+                                {variant}
+                              </Typography>
+                            )}
+                          </Box>
                         </Box>
-                      ))}
-                    </Box>
-                  );
-                })()}
-              </Box>
-
-              {/* AUDIENCE CHIP */}
-            </Box>
-
-            {/* RANGE + TIMESTEP */}
-            <Box
-              display="flex"
-              justifyContent="space-between"
-              alignItems="center"
-              gap={2}
-              flexWrap="wrap"
-            >
-              <Box display="flex" alignItems="center" gap={1}>
-                <PillToggleGroup
-                  value={range}
-                  onChange={setRange}
-                  options={trendMeta.rangeOptions}
-                />
-                {range === "Custom" && (
-                  <Box display="flex" alignItems="center" gap={1} ml={1}>
-                    <input
-                      type="date"
-                      value={customStart}
-                      onChange={(e) => setCustomStart(e.target.value)}
-                      max={maxDateStr}
-                      style={{ border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 8px', outline: 'none', fontSize: '12px' }}
-                    />
-                    <Typography variant="body2" color="#64748b" sx={{ fontSize: '12px' }}>to</Typography>
-                    <input
-                      type="date"
-                      value={customEnd}
-                      onChange={(e) => setCustomEnd(e.target.value)}
-                      max={maxDateStr}
-                      style={{ border: '1px solid #e2e8f0', borderRadius: 4, padding: '4px 8px', outline: 'none', fontSize: '12px' }}
-                    />
-                  </Box>
-                )}
-              </Box>
-
-              <Box display="flex" alignItems="center" gap={2}>
-                <Typography variant="body2">Time Step:</Typography>
-                <PillToggleGroup
-                  value={timeStep}
-                  onChange={setTimeStep}
-                  options={trendMeta.timeSteps}
-                />
+                      );
+                    })
+                  }
+                  {SKU_OPTIONS.filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase())).length === 0 && (
+                    <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No SKUs found</Typography>
+                  )}
+                </Box>
               </Box>
             </Box>
+
+            <Box display="flex" justifyContent="flex-end" gap={2} pt={3} borderTop="1px solid #F1F5F9">
+              <Button 
+                onClick={() => setIsMoreFiltersOpen(false)}
+                variant="outlined"
+                sx={{ borderRadius: 2, textTransform: 'none', borderColor: '#E2E8F0', color: '#475569', minWidth: 90, fontSize: '13px' }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => setIsMoreFiltersOpen(false)}
+                variant="contained"
+                sx={{ 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  boxShadow: 'none', 
+                  bgcolor: '#0F172A',
+                  '&:hover': { bgcolor: '#1E293B', boxShadow: 'none' },
+                  minWidth: 120,
+                  fontSize: '13px'
+                }}
+              >
+                Apply Filters
+              </Button>
+            </Box>
+          </Box>
+        )}
 
             {/* CHART */}
             <Paper
@@ -2414,20 +2763,31 @@ export default function TrendsCompetitionDrawer({
               <Box
                 display="flex"
                 alignItems="center"
-                justifyContent="space-between"
-                gap={2}
-                flexWrap="wrap"
-                mb={2}
+                gap={1.5}
+                mb={3}
+                sx={{
+                  overflowX: "auto",
+                  pb: 1,
+                  "&::-webkit-scrollbar": {
+                    display: "none",
+                  },
+                  msOverflowStyle: "none",
+                  scrollbarWidth: "none",
+                }}
               >
-                <Box display="flex" gap={1} flexWrap="wrap">
-                  {trendMeta.metrics
-                    .filter(m => !(isEcom && m.id === 'Listing'))
-                    .map((m) => (
+                {trendMeta.metrics
+                  .filter(m => !(isEcom && m.id === 'Listing'))
+                  .map((m) => {
+                    // Determine if this metric's data source is unavailable
+                    const sourceGroup = KPI_SOURCE_MAP[m.id];
+                    const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
+                    return (
                       <MetricChip
                         key={m.id}
                         label={m.label}
                         color={m.color}
-                        active={activeMetrics.includes(m.id)}
+                        active={activeMetrics.includes(m.id) && !isMetricNA}
+                        isNA={isMetricNA}
                         onClick={() =>
                           setActiveMetrics((prev) =>
                             prev.includes(m.id)
@@ -2436,10 +2796,8 @@ export default function TrendsCompetitionDrawer({
                           )
                         }
                       />
-                    ))}
-
-                </Box>
-
+                    );
+                  })}
               </Box>
 
               {/* Chart */}

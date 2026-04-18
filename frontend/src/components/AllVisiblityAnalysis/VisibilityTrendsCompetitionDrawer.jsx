@@ -29,14 +29,148 @@ import {
   Select,
   MenuItem,
   Skeleton,
+  Popover,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  Checkbox,
 } from "@mui/material";
-import { ChevronDown, X, Search, Plus, Filter } from "lucide-react";
+import { ChevronDown, X, Search, Plus, Filter, SlidersHorizontal } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
 import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
+
+/**
+ * ---------------------------------------------------------------------------
+ * FILTER DROPDOWN COMPONENT
+ * ---------------------------------------------------------------------------
+ */
+const FilterDropdown = ({ title, value, options, onChange, searchable = true }) => {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const handleClick = (e) => setAnchorEl(e.currentTarget);
+  const handleClose = () => {
+    setAnchorEl(null);
+    setSearch("");
+  };
+
+  const filteredOptions = searchable 
+    ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
+    : options;
+
+  const isActive = value && value !== "All";
+
+  return (
+    <>
+      <Button
+        onClick={handleClick}
+        endIcon={<ChevronDown size={14} color={isActive ? "#1D4ED8" : "#94A3B8"} />}
+        sx={{
+          borderRadius: "999px",
+          border: "1px solid",
+          borderColor: isActive ? "#3B82F6" : "#E2E8F0",
+          backgroundColor: isActive ? "#EFF6FF" : "white",
+          color: "#0F172A",
+          textTransform: "none",
+          fontSize: "13px",
+          fontWeight: 600,
+          px: 1.5,
+          py: 0.5,
+          minHeight: 32,
+          "&:hover": {
+            backgroundColor: "#F8FAFC",
+            borderColor: isActive ? "#3B82F6" : "#CBD5E1",
+          }
+        }}
+      >
+        {isActive ? (
+          <Box display="flex" alignItems="center" gap={0.5}>
+            {value}
+            <Box 
+              component="span" 
+              onClick={(e) => {
+                e.stopPropagation();
+                onChange("All");
+              }}
+              sx={{ display: 'flex', alignItems: 'center', ml: 0.5, color: '#94A3B8', '&:hover': { color: '#ef4444' } }}
+            >
+              <X size={14} />
+            </Box>
+          </Box>
+        ) : (
+          <Typography sx={{ color: "#64748B", fontSize: "13px", fontWeight: 500 }}>
+            {title}
+          </Typography>
+        )}
+      </Button>
+      <Popover
+        open={Boolean(anchorEl)}
+        anchorEl={anchorEl}
+        onClose={handleClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        PaperProps={{
+          sx: { mt: 1, borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.1)', minWidth: 220, maxHeight: 320 }
+        }}
+      >
+        {searchable && (
+          <Box p={1} sx={{ position: 'sticky', top: 0, bgcolor: 'white', zIndex: 1, borderBottom: '1px solid #F1F5F9' }}>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder={`Search ${title.toLowerCase()}...`}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search size={14} color="#94A3B8" />
+                  </InputAdornment>
+                ),
+                sx: { fontSize: '13px', borderRadius: '6px', '& fieldset': { borderColor: '#E2E8F0' } }
+              }}
+            />
+          </Box>
+        )}
+        <List sx={{ p: 0 }}>
+          {filteredOptions.length === 0 ? (
+            <MenuItem disabled sx={{ fontSize: '13px', py: 1.5 }}>No data is available</MenuItem>
+          ) : (
+            filteredOptions.map((opt) => (
+              <MenuItem
+                key={opt}
+                onClick={() => {
+                  onChange(opt);
+                  handleClose();
+                }}
+                sx={{ 
+                  fontSize: '13px', 
+                  py: 0.75,
+                  backgroundColor: value === opt ? "#F8FAFC" : "transparent"
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: 32 }}>
+                  <Checkbox 
+                    checked={value === opt} 
+                    icon={<Box sx={{ width: 14, height: 14, borderRadius: '4px', border: '1.5px solid #CBD5E1' }} />}
+                    checkedIcon={<Box sx={{ width: 14, height: 14, borderRadius: '4px', bgcolor: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={10} color="white" style={{ transform: 'rotate(45deg)' }} /></Box>}
+                    sx={{ p: 0 }}
+                  />
+                </ListItemIcon>
+                <ListItemText primary={opt} primaryTypographyProps={{ fontSize: '13px', fontWeight: value === opt ? 600 : 400 }} />
+              </MenuItem>
+            ))
+          )}
+        </List>
+      </Popover>
+    </>
+  );
+};
 
 /**
  * ---------------------------------------------------------------------------
@@ -575,7 +709,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   selectedColumn,
   initialAudience,
 }) {
-  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory } = useContext(FilterContext);
+  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel } = useContext(FilterContext);
 
   const [view, setView] = useState("Trends");
   const [allTrendMeta, allSetTrendMeta] = useState({
@@ -603,6 +737,8 @@ export default function VisibilityTrendsCompetitionDrawer({
   const [compTab, setCompTab] = useState("Brands");
   const [search, setSearch] = useState("");
   const [periodMode, setPeriodMode] = useState("primary");
+  const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
+  const [skuSearchTerm, setSkuSearchTerm] = useState("");
 
   const [addSkuOpen, setAddSkuOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
@@ -613,7 +749,8 @@ export default function VisibilityTrendsCompetitionDrawer({
     Platform: globalPlatform || "All",
     Format: selectedCategory || "All",
     Brand: selectedBrand || "All",
-    City: selectedLocation || "All"
+    City: selectedLocation || "All",
+    SKU: "All"
   });
 
   // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
@@ -685,16 +822,18 @@ export default function VisibilityTrendsCompetitionDrawer({
     const fetchFilterOptions = async () => {
       try {
         console.log("[VisibilityTrendsDrawer] Fetching filter options");
-        const [platformsRes, formatsRes, citiesRes, brandsRes] = await Promise.all([
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', ownBrandsOnly: true } })
+        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes] = await Promise.all([
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms', channel: selectedChannel || 'All' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats', channel: selectedChannel || 'All' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities', channel: selectedChannel || 'All' } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', channel: selectedChannel || 'All', ownBrandsOnly: true } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'skus', channel: selectedChannel || 'All', ownBrandsOnly: true } })
         ]);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
         const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
         const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
+        const skus = (skusRes.data?.options || []).filter(s => s !== 'All');
 
         const TIER_1_CITIES = [
           "Ahmedabad",
@@ -715,13 +854,14 @@ export default function VisibilityTrendsCompetitionDrawer({
           .filter(c => TIER_1_CITIES.some(t => c.toLowerCase().includes(t.toLowerCase())));
         const cities = ["All India", ...defaultCities];
 
-        console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length });
+        console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length, skus: skus.length });
 
         setFilterOptions({
           platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart"],
           formats: formats.length > 0 ? formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
           cities: cities.length > 0 ? cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"],
           brands: brands.length > 0 ? brands : [],
+          skus: skus.length > 0 ? skus : [],
           loading: false
         });
 
@@ -736,13 +876,14 @@ export default function VisibilityTrendsCompetitionDrawer({
           formats: ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"],
           cities: ["Delhi", "Mumbai", "Bangalore", "Chennai"],
           brands: [],
+          skus: [],
           loading: false
         });
       }
     };
 
     fetchFilterOptions();
-  }, [open]);
+  }, [open, selectedChannel]);
 
   // ===================== FETCH TREND DATA =====================
   useEffect(() => {
@@ -759,6 +900,8 @@ export default function VisibilityTrendsCompetitionDrawer({
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          channel: selectedChannel || 'All'
         };
 
         // Determine which pivot filter to apply based on the selected audience
@@ -793,7 +936,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel]);
 
   // ===================== FETCH COMPETITION DATA =====================
   // Fetch competition data when drawer opens (not just when Competition view is selected)
@@ -814,6 +957,8 @@ export default function VisibilityTrendsCompetitionDrawer({
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
+          sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
+          channel: selectedChannel || 'All'
         };
 
         console.log("[VisibilityTrendsDrawer] Fetching competition data with params:", params);
@@ -848,7 +993,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [selectedColumn, open, filterOptions.loading, drawerFilters]);
+  }, [selectedColumn, open, filterOptions.loading, drawerFilters, selectedChannel]);
 
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({
@@ -877,8 +1022,8 @@ export default function VisibilityTrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const trendOption = useMemo(() => {
-    // Use fetched API data if available, otherwise fallback to hardcoded
-    const dataSource = chartData.length > 0 ? chartData : trendPoints;
+    // Only use fetched API data. If empty, UI will show 'No data is available'
+    const dataSource = chartData;
     const xData = dataSource.map((p) => p.date);
 
     const series = trendMeta.metrics
@@ -931,11 +1076,8 @@ export default function VisibilityTrendsCompetitionDrawer({
   }, [trendMeta, activeMetrics, trendPoints, chartData]);
 
   const competitionRows = useMemo(() => {
-    // Use fetched API data if available, otherwise fallback to hardcoded
-    const hasApiData = competitionData.brands.length > 0 || competitionData.skus.length > 0;
-    const baseRows = hasApiData
-      ? (compTab === "Brands" ? competitionData.brands : competitionData.skus)
-      : (compTab === "Brands" ? compMeta.brands : compMeta.skus || compMeta.brands);
+    // Only use fetched API data
+    const baseRows = compTab === "Brands" ? (competitionData.brands || []) : (competitionData.skus || []);
 
     return baseRows.filter((r) =>
       search.trim()
@@ -996,6 +1138,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   const FORMAT_OPTIONS = filterOptions.formats.length > 0 ? filterOptions.formats : ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
   const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : [];
+  const SKU_OPTIONS = filterOptions.skus && filterOptions.skus.length > 0 ? filterOptions.skus : [];
 
   if (!open) return null;
 
@@ -1015,6 +1158,8 @@ export default function VisibilityTrendsCompetitionDrawer({
     >
       <Box
         sx={{
+          position: "relative",
+          overflow: "hidden",
           mt: { xs: 2, md: 4 },
           width: "min(1200px, 100%)",
           bgcolor: "white",
@@ -1098,9 +1243,18 @@ export default function VisibilityTrendsCompetitionDrawer({
             color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
-            label="Format"
+            label="Category"
             value={drawerFilters.Format}
             color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="SKU"
+            value={
+              drawerFilters.SKU !== 'All' && typeof drawerFilters.SKU === 'string' && drawerFilters.SKU.split(' ').length > 4
+                ? drawerFilters.SKU.split(' ').slice(0, 4).join(' ') + ' ...'
+                : drawerFilters.SKU
+            }
+            color={drawerFilters.SKU !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
             label="Date"
@@ -1108,10 +1262,10 @@ export default function VisibilityTrendsCompetitionDrawer({
           />
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All') && (
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All') && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All" })}
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All" })}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
@@ -1127,157 +1281,86 @@ export default function VisibilityTrendsCompetitionDrawer({
 
         {/* TRENDS VIEW */}
         {view === "Trends" && (
-          <Box display="flex" flexDirection="column" gap={2}>
-            {/* HEADER + PLATFORM FILTER */}
-            <Box display="flex" flexDirection="column" gap={1.5}>
-              {/* Title */}
-              <Typography variant="h5" fontWeight={700} sx={{ color: "#0f172a" }}>
-                {selectedColumn || "KPI Trends"}
-              </Typography>
+          <Box display="flex" flexDirection="column" gap={0}>
+            {/* Title Block */}
+            <Typography 
+              variant="h5" 
+              fontWeight={800} 
+              sx={{ 
+                color: '#0f172a',
+                lineHeight: 1.2,
+                mb: 2,
+              }}
+            >
+              {selectedColumn || "KPI Trends"}
+            </Typography>
 
-              {/* PLATFORM FILTER WRAPPER */}
-              <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
-                <Select
-                  size="small"
-                  value={allTrendMeta.context.audience}
-                  onChange={(e) => {
-                    const newAudience = e.target.value;
-                    allSetTrendMeta((prev) => ({
-                      ...prev,
-                      context: { ...prev.context, audience: newAudience },
-                    }));
-
-                    // Reset selected value when audience switches to ensure valid selection
-                    let options = [];
-                    if (newAudience === "Platform") options = filterOptions.platforms;
-                    else if (newAudience === "Format") options = filterOptions.formats;
-                    else if (newAudience === "City") options = filterOptions.cities;
-                    else if (newAudience === "Brand") options = filterOptions.brands;
-
-                    if (options.length > 0) {
-                      const firstOption = options[0];
-                      setSelectedPlatform(firstOption);
-
-                      // Sync with drawerFilters
-                      setDrawerFilters(prev => ({
-                        ...prev,
-                        [newAudience]: firstOption
-                      }));
-                    }
-
-                    setShowPlatformPills(true);
-                  }}
+            {/* HEADER FILTER CONTAINER */}
+            <Box 
+              display="flex" 
+              alignItems="center" 
+              justifyContent="space-between" 
+              flexWrap="wrap" 
+              gap={2}
+              mb={3}
+            >
+              {/* PRIMARY FILTERS */}
+              <Box display="flex" alignItems="center" gap={1}>
+                <FilterDropdown 
+                  title="Platform" 
+                  value={drawerFilters.Platform} 
+                  options={PLATFORM_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Platform: v}))} 
+                />
+                <FilterDropdown 
+                  title="City" 
+                  value={drawerFilters.City} 
+                  options={CITY_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, City: v}))} 
+                />
+                <FilterDropdown 
+                  title="Brand" 
+                  value={drawerFilters.Brand} 
+                  options={BRAND_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, Brand: v}))} 
+                />
+                
+                <Button 
+                  onClick={() => setIsMoreFiltersOpen(prev => !prev)}
+                  startIcon={<SlidersHorizontal size={14} />}
                   sx={{
-                    width: { xs: "100%", sm: 160 },
-                    height: 38,
-                    backgroundColor: "#F8FAFC",
-                    borderRadius: "8px",
-                    fontSize: "0.85rem",
-                    fontWeight: 500,
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#E2E8F0",
-                    },
-                    "&:hover .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#CBD5E1",
-                    },
-                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#3B82F6",
-                    },
+                    ml: 1,
+                    textTransform: 'none',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: isMoreFiltersOpen ? '#1D4ED8' : '#475569',
+                    backgroundColor: isMoreFiltersOpen ? '#EFF6FF' : 'transparent',
+                    border: '1px solid',
+                    borderColor: isMoreFiltersOpen ? '#BFDBFE' : '#E2E8F0',
+                    borderRadius: '999px',
+                    px: 2,
+                    py: 0.5,
+                    minHeight: 32,
+                    '&:hover': {
+                      backgroundColor: isMoreFiltersOpen ? '#DBEAFE' : '#F1F5F9',
+                      borderColor: isMoreFiltersOpen ? '#93C5FD' : '#CBD5E1',
+                    }
                   }}
                 >
-                  <MenuItem value="Platform">Platform</MenuItem>
-                  <MenuItem value="Format">Format</MenuItem>
-                  <MenuItem value="Brand">Brand</MenuItem>
-                  <MenuItem value="City">City</MenuItem>
-                </Select>
-
-                {/* DYNAMIC PILLS - with scroll for many options */}
-                {showPlatformPills && (
-                  <Box
-                    display="flex"
-                    gap={0.5}
-                    sx={{
-                      maxWidth: { xs: '100%', md: '500px' },
-                      overflowX: 'auto',
-                      overflowY: 'hidden',
-                      flexWrap: 'nowrap',
-                      pb: 0.5,
-                      '&::-webkit-scrollbar': {
-                        height: '4px',
-                      },
-                      '&::-webkit-scrollbar-thumb': {
-                        backgroundColor: '#cbd5e1',
-                        borderRadius: '4px',
-                      },
-                    }}
-                  >
-                    {(allTrendMeta.context.audience === "Platform"
-                      ? PLATFORM_OPTIONS
-                      : allTrendMeta.context.audience === "Format"
-                        ? FORMAT_OPTIONS
-                        : allTrendMeta.context.audience === "City"
-                          ? CITY_OPTIONS
-                          : allTrendMeta.context.audience === "Brand"
-                            ? BRAND_OPTIONS
-                            : []
-                    ).map((p) => (
-                      <Box
-                        key={p}
-                        onClick={() => {
-                          setSelectedPlatform(p);
-                          // Sync with drawerFilters
-                          const audience = allTrendMeta.context.audience;
-                          setDrawerFilters(prev => ({
-                            ...prev,
-                            [audience]: p
-                          }));
-                        }}
-                        sx={{
-                          px: 1.5,
-                          py: 0.7,
-                          borderRadius: "999px",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                          border: "1px solid #E5E7EB",
-                          backgroundColor:
-                            selectedPlatform === p ? "#0ea5e9" : "white",
-                          color: selectedPlatform === p ? "white" : "#0f172a",
-                          whiteSpace: 'nowrap',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {p}
-                      </Box>
-                    ))}
-                  </Box>
-                )}
+                  More Filters
+                </Button>
               </Box>
 
-              {/* AUDIENCE CHIP */}
-            </Box>
-
-            {/* RANGE + TIMESTEP */}
-            <Box
-              display="flex"
-              justifyContent="space-between"
-              alignItems="center"
-              gap={2}
-              flexWrap="wrap"
-            >
-              <PillToggleGroup
-                value={range}
-                onChange={setRange}
-                options={trendMeta.rangeOptions}
-              />
-
-              <Box display="flex" alignItems="center" gap={2}>
-                <Typography variant="body2">Time Step:</Typography>
-                <PillToggleGroup
-                  value={timeStep}
-                  onChange={setTimeStep}
-                  options={trendMeta.timeSteps}
-                />
+              {/* RANGE + TIMESTEP — stacked vertically */}
+              <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+                <Box display="flex" alignItems="center" gap={1.5}>
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Range</Typography>
+                  <PillToggleGroup value={range} onChange={setRange} options={trendMeta.rangeOptions} />
+                </Box>
+                <Box display="flex" alignItems="center" gap={1.5}>
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Step Size</Typography>
+                  <PillToggleGroup value={timeStep} onChange={setTimeStep} options={trendMeta.timeSteps} />
+                </Box>
               </Box>
             </Box>
 
@@ -1353,6 +1436,11 @@ export default function VisibilityTrendsCompetitionDrawer({
                       <Skeleton variant="text" width="15%" height={20} animation="wave" />
                       <Skeleton variant="text" width="15%" height={20} animation="wave" />
                     </Box>
+                  </Box>
+                ) : chartData.length === 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', gap: 1 }}>
+                    <Typography variant="body1" fontWeight={500}>No data is available</Typography>
+                    <Typography variant="body2">Try adjusting your filters to find more results</Typography>
                   </Box>
                 ) : (
                   <ReactECharts
@@ -1485,14 +1573,217 @@ export default function VisibilityTrendsCompetitionDrawer({
             {/* Chart */}
             <Paper sx={{ p: 2, borderRadius: 3, border: "1px solid #E5E7EB" }}>
               <Box sx={{ height: 350 }}>
-                <ReactECharts
-                  key={selectedCompareSkus.map((s) => s.id).join("-")}
-                  option={compareOption}
-                  notMerge={true}
-                  style={{ height: "100%", width: "100%" }}
-                />
+                {selectedCompareSkus.length === 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', gap: 1 }}>
+                    <Typography variant="body1" fontWeight={500}>No data is available</Typography>
+                    <Typography variant="body2">Try adjusting your filters to find more results</Typography>
+                  </Box>
+                ) : (
+                  <ReactECharts
+                    key={selectedCompareSkus.map((s) => s.id).join("-")}
+                    option={compareOption}
+                    notMerge={true}
+                    style={{ height: "100%", width: "100%" }}
+                  />
+                )}
               </Box>
             </Paper>
+          </Box>
+        )}
+
+        {/* ADDITIONAL FILTERS INLINE PANEL — slides in from the right within the drawer */}
+        {isMoreFiltersOpen && (
+          <Box
+            sx={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: 300,
+              bgcolor: "white",
+              borderLeft: "1px solid #E2E8F0",
+              boxShadow: "-4px 0 20px rgba(0,0,0,0.06)",
+              zIndex: 10,
+              display: "flex",
+              flexDirection: "column",
+              p: 3,
+              animation: "slideInRight 0.2s ease-out",
+              "@keyframes slideInRight": {
+                from: { transform: "translateX(100%)" },
+                to: { transform: "translateX(0)" },
+              },
+            }}
+          >
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+              <Typography variant="subtitle1" fontWeight={700} sx={{ color: "#0F172A", display: "flex", alignItems: "center", gap: 1 }}>
+                <Filter size={16} /> Additional Filters
+              </Typography>
+              <IconButton onClick={() => setIsMoreFiltersOpen(false)} size="small" sx={{ color: "#64748B", "&:hover": { bgcolor: "#F1F5F9" } }}>
+                <X size={18} />
+              </IconButton>
+            </Box>
+
+            <Box flex={1} overflow="auto" sx={{ display: "flex", flexDirection: "column", gap: 3, pr: 1 }}>
+              <Box>
+                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">Category</Typography>
+                <Select
+                  fullWidth
+                  size="small"
+                  value={drawerFilters.Format}
+                  onChange={(e) => setDrawerFilters(prev => ({...prev, Format: e.target.value}))}
+                  sx={{
+                    fontSize: "13px",
+                    borderRadius: "8px",
+                    backgroundColor: "#F8FAFC",
+                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "#E2E8F0" },
+                    "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#CBD5E1" },
+                  }}
+                >
+                  <MenuItem value="All">All Categories</MenuItem>
+                  {FORMAT_OPTIONS.map(opt => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
+                </Select>
+              </Box>
+
+              <Box>
+                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">SKU</Typography>
+                {/* Search input */}
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search SKUs..."
+                  value={skuSearchTerm || ''}
+                  onChange={(e) => setSkuSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search size={14} color="#94A3B8" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    mb: 1,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      fontSize: '13px',
+                    }
+                  }}
+                />
+                {/* Scrollable SKU list */}
+                <Box
+                  sx={{
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 2,
+                    '&::-webkit-scrollbar': { width: 6 },
+                    '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
+                  }}
+                >
+                  {/* "All SKUs" option */}
+                  <Box
+                    onClick={() => setDrawerFilters(prev => ({...prev, SKU: 'All'}))}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 1.5,
+                      py: 1,
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #F1F5F9',
+                      backgroundColor: drawerFilters.SKU === 'All' ? '#EFF6FF' : 'transparent',
+                      '&:hover': { backgroundColor: '#F8FAFC' },
+                    }}
+                  >
+                    <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${drawerFilters.SKU === 'All' ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: drawerFilters.SKU === 'All' ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {drawerFilters.SKU === 'All' && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </Box>
+                    <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All SKUs</Typography>
+                  </Box>
+
+                  {/* Filtered SKU items */}
+                  {SKU_OPTIONS
+                    .filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase()))
+                    .map(opt => {
+                      const isSelected = drawerFilters.SKU === opt;
+                      // Truncate display: show last part in parentheses as variant hint
+                      const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
+                      const variant = parenMatch ? parenMatch[1] : '';
+                      const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
+
+                      return (
+                        <Box
+                          key={opt}
+                          onClick={() => setDrawerFilters(prev => ({...prev, SKU: opt}))}
+                          title={opt}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 1.5,
+                            py: 0.8,
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #F8FAFC',
+                            backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                            transition: 'background 0.15s',
+                            '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
+                          }}
+                        >
+                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                          </Box>
+                          <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
+                            <Typography sx={{
+                              fontSize: '12px',
+                              fontWeight: isSelected ? 600 : 400,
+                              color: isSelected ? '#1E40AF' : '#334155',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: 200,
+                            }}>
+                              {mainName}
+                            </Typography>
+                            {variant && (
+                              <Typography sx={{ fontSize: '10px', color: '#94A3B8', mt: '-1px' }}>
+                                {variant}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      );
+                    })
+                  }
+                  {SKU_OPTIONS.filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase())).length === 0 && (
+                    <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No data is available</Typography>
+                  )}
+                </Box>
+              </Box>
+            </Box>
+
+            <Box display="flex" justifyContent="flex-end" gap={2} pt={3} borderTop="1px solid #F1F5F9">
+              <Button 
+                onClick={() => setIsMoreFiltersOpen(false)}
+                variant="outlined"
+                sx={{ borderRadius: 2, textTransform: 'none', borderColor: '#E2E8F0', color: '#475569', minWidth: 90, fontSize: '13px' }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => setIsMoreFiltersOpen(false)}
+                variant="contained"
+                sx={{ 
+                  borderRadius: 2, 
+                  textTransform: 'none', 
+                  boxShadow: 'none', 
+                  bgcolor: '#0F172A',
+                  '&:hover': { bgcolor: '#1E293B', boxShadow: 'none' },
+                  minWidth: 90,
+                  fontSize: '13px'
+                }}
+              >
+                Apply
+              </Button>
+            </Box>
           </Box>
         )}
 

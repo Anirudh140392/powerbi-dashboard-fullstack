@@ -13,6 +13,7 @@ export const fetchVisibilityOverview = async (filters = {}) => {
     if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
     if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
     if (filters.location && filters.location !== 'All') params.append('location', filters.location);
+    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
@@ -30,6 +31,7 @@ export const fetchVisibilityPlatformKpiMatrix = async (filters = {}) => {
     if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
     if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
     if (filters.location && filters.location !== 'All') params.append('location', filters.location);
+    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
@@ -46,6 +48,7 @@ export const fetchVisibilityKeywordsAtGlance = async (filters = {}) => {
     if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
     if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
     if (filters.location && filters.location !== 'All') params.append('location', filters.location);
+    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
     if (filters.view) params.append('view', filters.view);
     if (filters.startDate) params.append('startDate', filters.startDate);
@@ -67,6 +70,7 @@ export const fetchVisibilityTopSearchTerms = async (filters = {}) => {
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
     if (filters.keywordType && filters.keywordType !== 'All') params.append('keywordType', filters.keywordType);
     if (filters.category && filters.category !== 'All') params.append('category', filters.category);
+    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
     if (filters.filter && filters.filter !== 'All') params.append('filter', filters.filter);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
@@ -84,6 +88,7 @@ export const fetchVisibilityBrandDrilldown = async (filters = {}) => {
     if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
     if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
     if (filters.location && filters.location !== 'All') params.append('location', filters.location);
+    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
 
@@ -153,6 +158,7 @@ export const fetchSearchTermsPerformance = async (filters = {}) => {
     if (filters.keywordType && filters.keywordType !== 'All') params.append('keywordType', filters.keywordType);
     if (filters.keywordTypeFilter && filters.keywordTypeFilter !== 'All') params.append('keywordTypeFilter', filters.keywordTypeFilter);
     if (filters.category && filters.category !== 'All') params.append('category', filters.category);
+    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
     if (filters.ownBrandsOnly) params.append('ownBrandsOnly', filters.ownBrandsOnly);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
@@ -181,6 +187,7 @@ export const fetchSearchTermsLocations = async (params) => {
 export const fetchSearchTermsBrandBreakdown = async (filters = {}) => {
     const params = new URLSearchParams();
     if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
+    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
