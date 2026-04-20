@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useContext, useMemo } from 'react';
-import { Box, Typography, Paper, CircularProgress, Table, TableContainer, TableHead, TableRow, TableCell, TableBody, Chip, TextField, IconButton } from '@mui/material';
+import { Box, Typography, Paper, CircularProgress, Table, TableContainer, TableHead, TableRow, TableCell, TableBody, Chip, TextField, IconButton, Skeleton } from '@mui/material';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import DownloadIcon from '@mui/icons-material/Download';
 import api from '../../api/axiosInstance';
 import { FilterContext } from '../../utils/FilterContext';
-import { Package } from 'lucide-react';
-import { LineChart, Line, ResponsiveContainer } from 'recharts';
+import { Package, TrendingUp } from 'lucide-react';
+import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, CartesianGrid } from 'recharts';
 import SnapshotOverview from '../CommonLayout/SnapshotOverview';
+import BSRTrendsDrawer from './BSRTrendsDrawer';
 
 const BSRAnalysisSegment = () => {
     const {
@@ -26,6 +27,7 @@ const BSRAnalysisSegment = () => {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('gainers');
     const [searchQuery, setSearchQuery] = useState('');
+    const [showTrendsDrawer, setShowTrendsDrawer] = useState(false);
 
     useEffect(() => {
         if (timeStart && timeEnd) {
@@ -354,6 +356,14 @@ const BSRAnalysisSegment = () => {
                         <p className="text-xs text-slate-500 font-medium">Hover on any value to see trend sparkline</p>
                     </div>
                     <div className="flex items-center gap-4 text-xs font-semibold">
+                        <button
+                            onClick={() => setShowTrendsDrawer(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-all text-xs font-bold"
+                            title="View Trends"
+                        >
+                            <TrendingUp size={14} />
+                            Trends
+                        </button>
                         <button 
                             onClick={() => downloadCSV(categoryAggregatedData, 'Category_BSR_Performance', true)}
                             className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors"
@@ -577,6 +587,12 @@ const BSRAnalysisSegment = () => {
             </Paper>
             </>
             )}
+            {/* Trends Drawer */}
+            <BSRTrendsDrawer 
+                open={showTrendsDrawer} 
+                onClose={() => setShowTrendsDrawer(false)}
+                selectedCategory={selectedCategory === 'All' ? 'All' : selectedCategory}
+            />
         </Box>
     );
 };

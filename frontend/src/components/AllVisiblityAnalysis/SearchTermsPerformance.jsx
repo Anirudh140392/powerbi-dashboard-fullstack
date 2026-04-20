@@ -436,7 +436,7 @@ export default function SearchTermsPerformance() {
                       </div>
                       {(() => {
                         const summaryVolPercent = items.reduce((sum, item) => sum + (item.volShare || 0), 0);
-                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0) ? (
+                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0 || (summaryData.totalSearchVolume || 0) > 0) ? (
                           <div style={{ display: "flex", gap: 6, paddingLeft: 30, marginTop: 4 }}>
                             {summaryData.totalKeywords > 0 && (
                               <span style={{
@@ -448,10 +448,11 @@ export default function SearchTermsPerformance() {
                             )}
                             {summaryVolPercent > 0 && (
                               <span style={{
-                                background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700,
+                                background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
                                 borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
+                                border: "1px solid #ffedd5"
                               }}>
-                                {summaryVolPercent.toFixed(2)}% VOL.
+                                {summaryVolPercent.toFixed(2)}% Total Vol. Share
                               </span>
                             )}
                           </div>

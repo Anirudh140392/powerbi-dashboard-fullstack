@@ -729,5 +729,33 @@ export const getVisibilityBSRData = async (req, res) => {
 };
 
 
+export const getVisibilityBSRTrends = async (req, res) => {
+    const startTime = Date.now();
+    try {
+        const filters = {
+            platform: req.query.platform || 'All',
+            brand: req.query.brand || 'All',
+            location: req.query.location || req.query.city || 'All',
+            category: req.query.category || req.query.format || 'All',
+            channel: req.query.channel || 'All',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate
+        };
+        console.log('\n========== VISIBILITY BSR TRENDS API ==========');
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+
+        const data = await visibilityService.getBSRTrends(filters);
+
+        const duration = Date.now() - startTime;
+        console.log('[RESPONSE] Days:', data?.days?.length, 'Categories:', Object.keys(data?.categories || {}).length);
+        console.log('[TIMING] Response time:', duration, 'ms');
+        console.log('==============================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Visibility BSR Trends:', error);
+        res.status(500).json({ error: 'Internal Server Error', days: [], categories: {} });
+    }
+};
 
 
