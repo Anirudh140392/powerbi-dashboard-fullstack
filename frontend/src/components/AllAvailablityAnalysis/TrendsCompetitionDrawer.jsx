@@ -2779,7 +2779,12 @@ export default function TrendsCompetitionDrawer({
                   .filter(m => !(isEcom && m.id === 'Listing'))
                   .map((m) => {
                     // Determine if this metric's data source is unavailable
-                    const sourceGroup = KPI_SOURCE_MAP[m.id];
+                    let sourceGroup = KPI_SOURCE_MAP[m.id];
+                    // IMPORTANT FIX: In WatchTower, 'Discount' is evaluated under the 'pdp' group, not the 'Discount' flag which is pricing specific
+                    if (dynamicKey !== "pricing" && (m.id === "Discount" || m.id === "discount")) {
+                      sourceGroup = 'pdp';
+                    }
+                    
                     const isMetricNA = kpiAvailability && sourceGroup ? !kpiAvailability[sourceGroup] : false;
                     return (
                       <MetricChip
