@@ -3527,6 +3527,8 @@ class VisibilityService {
                         current_period AS (
                             SELECT 
                                 ${skuCol} as sku,
+                                any(${catCol}) as category,
+                                any(${pltCol}) as platform,
                                 AVG(toInt64OrZero(${bsrCol})) as avg_bsr,
                                 AVG(${discountCol}) as avg_discount
                             FROM rb_pdp_olap
@@ -3551,6 +3553,8 @@ class VisibilityService {
                         )
                     SELECT 
                         c.sku as sku,
+                        c.category as category,
+                        c.platform as platform,
                         ROUND(c.avg_bsr) as current_bsr,
                         ROUND(p.avg_bsr) as prev_bsr,
                         ROUND(c.avg_discount, 1) as current_discount,
@@ -3564,7 +3568,7 @@ class VisibilityService {
                 const results = await queryClickHouse(query);
                 console.log('[BSR] Query returned', results.length, 'rows');
 
-                return results.map(row => {
+                const skusResult = results.map(row => {
                     const rawBSR = Number(row.current_bsr);
                     const rawPrevBSR = Number(row.prev_bsr);
                     const currentBSR = (rawBSR > 0) ? rawBSR : null;
@@ -3575,6 +3579,8 @@ class VisibilityService {
 
                     return {
                         sku: row.sku,
+                        category: row.category,
+                        platform: row.platform,
                         currentBSR,
                         prevBSR,
                         bsrDelta: (currentBSR !== null && prevBSR !== null) ? (currentBSR - prevBSR) : null,
@@ -3583,6 +3589,93 @@ class VisibilityService {
                         discountDelta: (currentDiscount - prevDiscount)
                     };
                 });
+
+                // ==========================================
+                // Calculate BSR SOV from rb_kw_olap using the valid SKUs
+                // ==========================================
+                let globalSov = 0, prevGlobalSov = 0;
+                let categorySovs = {};
+
+                const currentSkus = skusResult.filter(r => r.currentBSR !== null).map(r => escapeCH(r.sku));
+                const prevSkus = skusResult.filter(r => r.prevBSR !== null).map(r => escapeCH(r.sku));
+
+                if (currentSkus.length > 0 || prevSkus.length > 0) {
+                    const currTokens = currentSkus.length ? currentSkus.map(s => `'${s}'`).join(',') : "''";
+                    const prevTokens = prevSkus.length ? prevSkus.map(s => `'${s}'`).join(',') : "''";
+
+                    // Build kw_olap specific filter
+                    const kwPlatformCond = buildCHCondition(filters.platform, 'platform_name');
+                    const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name');
+                    const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
+                    const kwLocationCond = buildCHCondition(filters.location, 'location_name');
+                    
+                    const kwFilterClauseList = [kwPlatformCond, kwChannelCond, kwCategoryCond, kwLocationCond].filter(c => c && c !== '1=1');
+                    const kwFilterClause = kwFilterClauseList.length > 0 ? kwFilterClauseList.join(' AND ') : '1=1';
+
+                    const sovQuery = `
+                        SELECT 
+                            'current' as period,
+                            multiIf(keyword_category = '', 'Uncategorized', keyword_category) as category,
+                            SUM(toInt32(overall)) as total_overall,
+                            SUM(IF(keyword_search_product IN (${currTokens}), toInt32(overall), 0)) as bsr_overall
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${startDate}' AND '${endDate}' 
+                          AND ${kwFilterClause}
+                        GROUP BY category
+                        UNION ALL
+                        SELECT 
+                            'previous' as period,
+                            multiIf(keyword_category = '', 'Uncategorized', keyword_category) as category,
+                            SUM(toInt32(overall)) as total_overall,
+                            SUM(IF(keyword_search_product IN (${prevTokens}), toInt32(overall), 0)) as bsr_overall
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN (toDate('${startDate}') - (toDate('${endDate}') - toDate('${startDate}') + 1)) 
+                              AND (toDate('${startDate}') - 1)
+                          AND ${kwFilterClause}
+                        GROUP BY category
+                    `;
+
+                    console.log('[BSR] Executing BSR SOV Query...');
+                    const sovResults = await queryClickHouse(sovQuery);
+                    
+                    let globalCNum = 0, globalCDen = 0, globalPNum = 0, globalPDen = 0;
+
+                    sovResults.forEach(r => {
+                        const period = r.period;
+                        const cat = r.category || 'Uncategorized';
+                        const num = Number(r.bsr_overall) || 0;
+                        const den = Number(r.total_overall) || 0;
+
+                        if (!categorySovs[cat]) categorySovs[cat] = { current: 0, prev: 0, delta: 0 };
+
+                        if (period === 'current') {
+                            globalCNum += num;
+                            globalCDen += den;
+                            categorySovs[cat].current = den > 0 ? (num * 100 / den) : 0;
+                        } else {
+                            globalPNum += num;
+                            globalPDen += den;
+                            categorySovs[cat].prev = den > 0 ? (num * 100 / den) : 0;
+                        }
+                    });
+
+                    Object.values(categorySovs).forEach(c => c.delta = c.current - c.prev);
+
+                    globalSov = globalCDen > 0 ? (globalCNum * 100 / globalCDen) : 0;
+                    prevGlobalSov = globalPDen > 0 ? (globalPNum * 100 / globalPDen) : 0;
+                }
+
+                return {
+                    skus: skusResult,
+                    bsrSov: {
+                        global: {
+                            current: globalSov,
+                            prev: prevGlobalSov,
+                            delta: globalSov - prevGlobalSov
+                        },
+                        categories: categorySovs
+                    }
+                };
             } catch (error) {
                 console.error('[BSR] ❌ ERROR in getBSRData:', error.message);
                 console.error('[BSR] ❌ Full error:', error);

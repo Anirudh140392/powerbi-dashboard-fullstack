@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext, useCallback } from 'react'
+import React, { useMemo, useState, useContext, useCallback, useEffect } from 'react'
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -43,6 +43,7 @@ import {
 
 import KeywordVisibilityDashboard from './KeywordVisibilityDashboard';
 import SearchTermsPerformance from './SearchTermsPerformance';
+import BSRAnalysisSegment from './BSRAnalysisSegment';
 
 // Reusable "No Data Available" component
 const NoDataAvailable = ({ title = 'No data available' }) => (
@@ -460,7 +461,7 @@ const VisiblityAnalysisData = ({
   onFiltersChange,
   filters: parentFilters
 }) => {
-  const { visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly } = useContext(FilterContext);
+  const { visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly, visibilityMode, setVisibilityMode } = useContext(FilterContext);
   const [metric, setMetric] = useState('visibility')
   const [activeCategory, setActiveCategory] = useState(categoryCards[0])
   const [activeCity, setActiveCity] = useState(pulseData[0])
@@ -599,11 +600,45 @@ const VisiblityAnalysisData = ({
   const {
     selectedChannel,
     platform: globalPlatform,
+    platforms: availablePlatforms,
     selectedBrand,
     selectedLocation,
     timeStart,
     timeEnd
   } = useContext(FilterContext);
+
+  // BSR visibility logic
+  const isEcommerceChannel = ['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase());
+
+  const isAmazonSelected = useMemo(() => {
+    if (!globalPlatform) return false;
+    if (typeof globalPlatform === 'string') return globalPlatform.toLowerCase() === 'amazon';
+    if (Array.isArray(globalPlatform)) return globalPlatform.length === 1 && globalPlatform[0].toLowerCase() === 'amazon';
+    return false;
+  }, [globalPlatform]);
+
+  const isOnlyAmazonAvailable = useMemo(() => {
+    if (!availablePlatforms || !Array.isArray(availablePlatforms)) return false;
+    const filtered = availablePlatforms.filter(p => typeof p === 'string' && p.toLowerCase() !== 'all');
+    return filtered.length === 1 && filtered[0].toLowerCase() === 'amazon';
+  }, [availablePlatforms]);
+
+  // Show toggle when Ecommerce + (Amazon explicitly selected OR only Amazon available)
+  const showBSRToggle = isEcommerceChannel && (isAmazonSelected || isOnlyAmazonAvailable);
+
+  // Auto-select BSR when only Amazon is available under Ecommerce
+  useEffect(() => {
+    if (isEcommerceChannel && isOnlyAmazonAvailable) {
+      setVisibilityMode('bsr');
+    }
+  }, [isEcommerceChannel, isOnlyAmazonAvailable]);
+
+  // Reset to SOS when leaving Ecommerce channel
+  useEffect(() => {
+    if (!isEcommerceChannel) {
+      setVisibilityMode('sos');
+    }
+  }, [isEcommerceChannel]);
 
   const visibilityKpis = useMemo(() => {
     const icons = [PieChart, Target, TrendingUp, Monitor];
@@ -859,7 +894,12 @@ const VisiblityAnalysisData = ({
       </div>
 
       {/* Section 1: Visibility Overview */}
-      {apiErrors?.overview ? (
+      {visibilityMode === 'bsr' && showBSRToggle ? (
+        <BSRAnalysisSegment />
+      ) : (
+        <>
+          {/* Section 1: Visibility Overview */}
+          {apiErrors?.overview ? (
         <ErrorRetryOverlay onRetry={() => onRetry?.('overview')} message={apiErrors.overview} compact />
       ) : (loading?.overview || apiData?.overview === undefined) ? (
         <VisibilityOverviewSkeleton />
@@ -1088,6 +1128,8 @@ const VisiblityAnalysisData = ({
         loading={loading?.gainersAndDrainers || apiData?.gainersAndDrainers === undefined}
       />
       <SearchTermsPerformance />
+        </>
+      )}
     </div>
   )
 }
