@@ -6840,6 +6840,22 @@ const getBrandsOverview = async (filters) => {
     const currBrandCatSize = parseFloat(currCatSizeTotal[0]?.cat_size || 0);
     const prevBrandCatSize = parseFloat(prevCatSizeTotal[0]?.cat_size || 0);
 
+    // Fetch brand images from rb_brands table (ClickHouse)
+    let brandImageMap = new Map();
+    try {
+        const brandImages = await queryClickHouse(
+            `SELECT brand_name, brand_description FROM rb_brands WHERE status = 1`
+        );
+        brandImages.forEach(b => {
+            if (b.brand_name && b.brand_description) {
+                brandImageMap.set(b.brand_name.toLowerCase(), b.brand_description);
+            }
+        });
+        console.log(`[getBrandsOverview] Fetched ${brandImageMap.size} brand images from rb_brands`);
+    } catch (err) {
+        console.warn('[getBrandsOverview] Could not fetch brand images from rb_brands:', err.message);
+    }
+
     const buildMap = (data, keyField, valField) => new Map(data.map(r => [r[keyField] != null ? String(r[keyField]).toLowerCase() : '', r[valField]]));
     const currBrandMap = new Map(currBrandData.map(d => [d.Brand != null ? String(d.Brand).toLowerCase() : '', d]));
     const prevBrandMap = new Map(prevBrandData.map(d => [d.Brand != null ? String(d.Brand).toLowerCase() : '', d]));
@@ -6966,6 +6982,7 @@ const getBrandsOverview = async (filters) => {
             key: brandKey.replace(/\s+/g, '_'),
             label: brandName,
             type: "Brand",
+            logo: brandImageMap.get(brandKey) || null,
             columns: generateKpiColumns({
                 offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, promoMyBrand, promoCompete, categorySize: hasMsCheck ? currBrandCatSize : null, adSov, organicSov, buyBoxPct, deliveryTime,
                 prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? prevBrandCatSize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,

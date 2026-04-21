@@ -97,6 +97,13 @@ const formatValue = (val, kpiLabel) => {
   const absVal = Math.abs(num);
   const l = (kpiLabel || "").toLowerCase();
 
+  // Delivery Time logic — format avg_delivery_days as human-readable text
+  if (l === "delivery time") {
+    const days = Math.round(num);
+    if (days === 0) return "Same Day";
+    return `${days} ${days === 1 ? 'Day' : 'Days'}`;
+  }
+
   // Offtake / Revenue logic
   if (l.includes("offtake")) {
     if (absVal >= 10000000) return `₹ ${(num / 10000000).toFixed(2)} Cr`;
