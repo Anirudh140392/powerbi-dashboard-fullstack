@@ -660,7 +660,7 @@ function TrendIcon({ trend }) {
 //   );
 // }
 function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilterOptions, filterApiUrl = "/api/availability-analysis/filter-options", filterSections, firstColLabel = "KPI", onFilterChange, selectedLevel }) {
-  console.log("dynamicKey", dynamicKey);
+  console.log("🖼️ [MatrixVariant] Render - dynamicKey:", dynamicKey);
   if (!data?.columns || !data?.rows) return null;
   const isPercentageBased = dynamicKey === "availability" || dynamicKey === "visibility";
   const isColumnPagination = dynamicKey === "availability" || dynamicKey === "visibility";
@@ -745,11 +745,13 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
   // Handle section change from KpiFilterPanel
   const handleSectionChange = React.useCallback((sectionId, values) => {
+    console.log(`⏱️ [MatrixVariant] Selection changed in modal: ${sectionId} =`, values);
     setPendingSectionValues(prev => ({ ...prev, [sectionId]: values }));
   }, []);
 
   // Apply filters: copy pending to applied, close modal
   const handleApplyFilters = React.useCallback(() => {
+    console.log('🚀 [MatrixVariant] "Apply" button clicked. Triggering onFilterChange...');
     setAppliedSectionValues({ ...pendingSectionValues });
     setShowFilterPanel(false);
     // Reset pagination when filters change
