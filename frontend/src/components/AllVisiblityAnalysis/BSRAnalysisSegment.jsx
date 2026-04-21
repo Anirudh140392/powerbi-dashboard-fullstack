@@ -545,7 +545,15 @@ const BSRAnalysisSegment = () => {
                                     <TableRow key={index} sx={{ '&:hover': { bgcolor: '#f8fafc' }, td: { borderBottom: '1px solid #f1f5f9' } }}>
                                         <TableCell sx={{ py: 1.5, minWidth: 350 }}>
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/60 shadow-sm shrink-0">
+                                                {row.imageUrl ? (
+                                                    <img
+                                                        src={row.imageUrl}
+                                                        alt={row.sku}
+                                                        onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                                        style={{ width: 40, height: 40, borderRadius: 12, objectFit: 'cover', border: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}
+                                                    />
+                                                ) : null}
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/60 shadow-sm shrink-0" style={{ display: row.imageUrl ? 'none' : 'flex' }}>
                                                     <Package size={20} strokeWidth={1.5} />
                                                 </div>
                                                 <Typography sx={{ fontWeight: 600, color: '#1e293b', fontSize: '13px', lineHeight: 1.4 }}>

@@ -3242,9 +3242,35 @@ class VisibilityService {
                         volShare: Number(row.max_vol_share) || 0,
                         impressions: Number(row.impressions),
                         adPosition: Number(row.ad_position) || null,
-                        organicPosition: Number(row.organic_position) || null
+                        organicPosition: Number(row.organic_position) || null,
+                        imageUrl: null
                     };
                 });
+
+                // Fetch SKU images from rb_sku_platform when in SKU view mode
+                if (viewMode !== 'keyword') {
+                    const skuNames = Object.keys(itemsMap).filter(Boolean);
+                    if (skuNames.length > 0) {
+                        try {
+                            const imgQuery = `
+                                SELECT sku_name, any(image_url) as img
+                                FROM rb_sku_platform
+                                WHERE sku_name IN (${skuNames.map(n => `'${escapeCH(n)}'`).join(',')})
+                                GROUP BY sku_name
+                            `;
+                            const imgData = await queryClickHouse(imgQuery);
+                            imgData.forEach(row => {
+                                if (row.sku_name && itemsMap[row.sku_name]) {
+                                    const imgUrl = row.img ? String(row.img).split(',')[0].trim() : null;
+                                    itemsMap[row.sku_name].imageUrl = imgUrl || null;
+                                }
+                            });
+                            console.log(`[VisibilityService] Fetched ${imgData.length} SKU images from rb_sku_platform`);
+                        } catch (imgError) {
+                            console.error('[VisibilityService] Failed to fetch SKU images from rb_sku_platform:', imgError);
+                        }
+                    }
+                }
 
                 const items = Object.values(itemsMap).sort((a, b) => b.overallSOS - a.overallSOS);
 
@@ -3603,6 +3629,34 @@ class VisibilityService {
                         discountDelta: (currentDiscount - prevDiscount)
                     };
                 });
+
+                // ==========================================
+                // Fetch SKU images from rb_sku_platform
+                // ==========================================
+                const skuNamesForImg = skusResult.map(r => r.sku).filter(Boolean);
+                if (skuNamesForImg.length > 0) {
+                    try {
+                        const imgQuery = `
+                            SELECT sku_name, any(image_url) as img
+                            FROM rb_sku_platform
+                            WHERE sku_name IN (${skuNamesForImg.map(n => `'${escapeCH(n)}'`).join(',')})
+                            GROUP BY sku_name
+                        `;
+                        const imgData = await queryClickHouse(imgQuery);
+                        const imgMap = {};
+                        imgData.forEach(row => {
+                            if (row.sku_name) {
+                                imgMap[row.sku_name] = row.img ? String(row.img).split(',')[0].trim() : null;
+                            }
+                        });
+                        skusResult.forEach(item => {
+                            item.imageUrl = imgMap[item.sku] || null;
+                        });
+                        console.log(`[BSR] Fetched ${imgData.length} SKU images from rb_sku_platform`);
+                    } catch (imgError) {
+                        console.error('[BSR] Failed to fetch SKU images:', imgError);
+                    }
+                }
 
                 // ==========================================
                 // Calculate BSR SOV from rb_kw_olap using the valid SKUs
