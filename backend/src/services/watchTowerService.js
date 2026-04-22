@@ -212,11 +212,11 @@ async function getPmSource() {
             impressions: wrap(r('impressions')),
             orders: wrap(r('Ad_Quantity_sold')),
             platform: r('Platform'),
-            brand: r('brand'),
-            category: r('category'),
-            location: r('location_name'),
-            product: r('product'),
-            skuCode: r('sku_code'),
+            brand: columnExists(cols, 'brand') ? r('brand') : "'Unknown'",
+            category: columnExists(cols, 'category') ? r('category') : "'Unknown'",
+            location: columnExists(cols, 'location_name') ? r('location_name') : (columnExists(cols, 'location') ? r('location') : "'Unknown'"),
+            product: columnExists(cols, 'product') ? r('product') : "'Unknown'",
+            skuCode: columnExists(cols, 'sku_code') ? r('sku_code') : "'Unknown'",
             date: r('DATE'),
             channel: columnExists(cols, 'channel') ? r('channel') : null
         }

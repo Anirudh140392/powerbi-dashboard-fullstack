@@ -42,7 +42,7 @@ export const getTrendData = async (req, res) => {
         // UPDATED: Extract all 4 filter keys with default values
         const filters = {
             platform: req.query.platform || "All",
-            location: "All",
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             brand: req.query.brand || "All",
             category: req.query.category || "All",
             channel: req.query.channel,
@@ -295,7 +295,7 @@ export const getKpiTrends = async (req, res) => {
         // UPDATED: Extract all 4 filter keys with default values
         const filters = {
             platform: req.query.platform || "All",
-            location: "All",
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             brand: req.query.brand || "All",
             category: req.query.category || "All",
             channel: req.query.channel,
@@ -339,7 +339,7 @@ export const getCompetition = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: 'All',
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             category: req.query.category || 'All',
             brand: req.query.brand || 'All',
             sku: req.query.sku || 'All',
@@ -362,11 +362,12 @@ export const getCompetition = async (req, res) => {
  */
 export const getCompetitionFilterOptions = async (req, res) => {
     try {
-        const { platform, category, brand, context } = req.query;
-        console.log('[getCompetitionFilterOptions] API call with:', { platform, location: 'All', category, brand, context });
+        const { platform, location, category, brand, context } = req.query;
+        const resolvedLocation = location && location !== 'All India' ? location : 'All';
+        console.log('[getCompetitionFilterOptions] API call with:', { platform, location: resolvedLocation, category, brand, context });
         const data = await watchTowerService.getCompetitionFilterOptions({
             platform: platform || 'All',
-            location: 'All',
+            location: resolvedLocation,
             category: category || 'All',
             brand: brand || 'All',
             context: context || undefined
@@ -385,14 +386,17 @@ export const getCompetitionFilterOptions = async (req, res) => {
  */
 export const getCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, skus, category, period } = req.query;
-        console.log('[getCompetitionBrandTrends] Request:', { brands, skus, location: 'All', category, period });
+        const { brands, skus, category, period, location, platform, timeStep } = req.query;
+        const resolvedLocation = location && location !== 'All India' ? location : 'All';
+        console.log('[getCompetitionBrandTrends] Request:', { brands, skus, location: resolvedLocation, platform, category, period, timeStep });
         const data = await watchTowerService.getCompetitionBrandTrends({
             brands,
             skus,
-            location: 'All',
+            location: resolvedLocation,
+            platform: platform || 'All',
             category,
-            period
+            period,
+            timeStep
         });
 
         res.json(data);
@@ -410,7 +414,7 @@ export const getDarkStoreCount = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: 'All',
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -432,7 +436,7 @@ export const getTopActions = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: 'All',
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
             endDate: req.query.endDate
         };
@@ -452,7 +456,7 @@ export const getOsaDeepDive = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: 'All',
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
             endDate: req.query.endDate
         };
