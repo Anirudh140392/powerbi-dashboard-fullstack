@@ -156,7 +156,7 @@ const createEmptySignal = (type, brandName = "Brand") => {
             base.evidence = [{ city: "-", platform: "-", skuOrBrand: "-", kwOsa: 0, adSov: 0, spendInr: 0, estLostSalesInr: 0 }];
             break;
         case "Price Parity Radar":
-            base.kpis = [{ label: "Max GAP %", value: "0%" }, { label: "Avg PPU", value: "₹0" }];
+            base.kpis = [];
             base.evidence = [{ city: "-", category: "-", ourPpu: 0, compPpu: 0, impactedSku: "-", compSku: "-", gapPct: 0, psl: 0 }];
             break;
         case "Share Headroom Hotspots":
@@ -784,6 +784,8 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
         if (t === "Price Parity Radar") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
+            { key: "impactedSku", label: "Impacted SKU", isText: true },
+            { key: "compSku", label: "Comp SKU", isText: true },
             { key: "gapPct", label: "GAP % (Change)", fmt: (v, r) => `${safePct(v)} (${r.gapPctChange > 0 ? '+' : ''}${safePct(r.gapPctChange)})` },
             { key: "ourPpu", label: `${insight.brandName || "Our"} PPU`, fmt: (v, r) => v != null ? `₹${Number(v).toFixed(1)} (${r.ourPpuChange > 0 ? '+' : ''}${Number(r.ourPpuChange).toFixed(1)})` : "-" },
             { key: "compPpu", label: "Comp PPU", fmt: (v, r) => v != null ? `₹${Number(v).toFixed(1)} (${r.compPpuChange > 0 ? '+' : ''}${Number(r.compPpuChange).toFixed(1)})` : "-" },
@@ -852,70 +854,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
 
     const columns = getColumns();
 
-    const getPreviewItems = () => {
-        if (isEmpty) return [];
-        const firstRow = evidence[0] || {};
-        
-        switch (insight.type) {
-            case "Share Headroom Hotspots": {
-                const offCol = columns.find(c => c.key === "offtake");
-                const msCol = columns.find(c => c.key === "marketShare");
-                return [
-                    { label: offCol?.label || "Offtake", value: offCol?.fmt ? offCol.fmt(firstRow.offtake, firstRow) : firstRow.offtake },
-                    { label: msCol?.label || "Mkt Share", value: msCol?.fmt ? msCol.fmt(firstRow.marketShare, firstRow) : firstRow.marketShare }
-                ];
-            }
-            case "Competitor OSA Weak Spots": {
-                const colOther = columns.find(c => c.key === "otherBrandOsa");
-                const colOur = columns.find(c => c.key === "kwOsa");
-                return [
-                    { label: colOther?.label || "Comp OSA", value: colOther?.fmt ? colOther.fmt(firstRow.otherBrandOsa, firstRow) : firstRow.otherBrandOsa },
-                    { label: colOur?.label || `${insight.brandName || "Brand"} OSA`, value: colOur?.fmt ? colOur.fmt(firstRow.kwOsa, firstRow) : firstRow.kwOsa }
-                ];
-            }
-            case "Price Parity Radar": {
-                const colOur = columns.find(c => c.key === "ourPpu");
-                const colComp = columns.find(c => c.key === "compPpu");
-                return [
-                    { label: colOur?.label || `${insight.brandName || "Our"} PPU`, value: colOur?.fmt ? colOur.fmt(firstRow.ourPpu, firstRow) : firstRow.ourPpu },
-                    { label: colComp?.label || "Comp PPU", value: colComp?.fmt ? colComp.fmt(firstRow.compPpu, firstRow) : firstRow.compPpu }
-                ];
-            }
-            case "Surplus Stock": {
-                return [
-                    { label: "Top SKU", value: firstRow.skuName || "-" },
-                    { label: "Excess DOI", value: `${(firstRow.excessDOI || 0).toFixed(0)} days` }
-                ];
-            }
-            case "Prioritise PO": {
-                return [
-                    { label: "Top SKU", value: firstRow.skuName || "-" },
-                    { label: "PO Status", value: firstRow.poStatus || "-" }
-                ];
-            }
-            case "Transfer Issue": {
-                return [
-                    { label: "SKU", value: firstRow.skuName || "-" },
-                    { label: "Backed DOI", value: `${(firstRow.backedDOI || 0).toFixed(1)} days` }
-                ];
-            }
-            case "New Market Entry": {
-                return [
-                    { label: "Competitor", value: firstRow.competitorName || "-" },
-                    { label: "PFU", value: `₹${firstRow.pfu || "-"}` }
-                ];
-            }
-            default: {
-                const primaryCol = columns[2] || { label: "Value", key: "value" };
-                return displayRows.slice(0, 2).map((row) => ({
-                    label: primaryCol.label,
-                    value: primaryCol.fmt ? primaryCol.fmt(row[primaryCol.key], row) : (row[primaryCol.key] ?? "-")
-                }));
-            }
-        }
-    };
 
-    const previewItems = getPreviewItems();
 
     const getCellStyle = (col, val) => {
         const base = { fontSize: "11px", color: "#374151", maxWidth: "100px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
@@ -956,12 +895,12 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                             ? "0 12px 20px -5px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)"
                             : "0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)",
                     transition: "all 0.2s ease",
-                    transform: hovered ? "translateY(-10px) translateX(5px)" : "translateY(0px)",
+                    transform: hovered ? "translateY(-6px)" : "translateY(0px)",
                 }}
             >
                 {/* Top Badge Row */}
                 <div style={{ 
-                    padding: "12px 14px 6px", 
+                    padding: "10px 14px 4px", 
                     display: "flex", 
                     alignItems: "center", 
                     justifyContent: "space-between" 
@@ -980,18 +919,18 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 </div>
 
                 {/* Title Section */}
-                <div style={{ padding: "4px 14px 12px" }}>
+                <div style={{ padding: "2px 14px 8px" }}>
                     <div style={{ 
                         fontSize: "9px", fontWeight: 700, 
                         color: "#94748b", textTransform: "uppercase", 
-                        letterSpacing: "0.06em", marginBottom: "3.5px"
+                        letterSpacing: "0.06em", marginBottom: "3px"
                     }}>
                         {family}
                     </div>
                     <div style={{ 
-                        fontSize: "13.5px", fontWeight: 800, 
+                        fontSize: "13px", fontWeight: 800, 
                         color: "#1e293b", lineHeight: 1.3,
-                        minHeight: "36px" 
+                        minHeight: "18px" 
                     }}>
                         {insight.type}
                     </div>
@@ -1000,17 +939,17 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 <Divider sx={{ mx: 1.5, borderColor: "#f1f5f9" }} />
 
                 {/* Metric Hero Section */}
-                <div style={{ padding: "14px 14px 12px" }}>
+                <div style={{ padding: "10px 14px 10px" }}>
                     <div style={{ 
                         fontSize: "8.5px", fontWeight: 700, 
                         color: "#94a3b8", textTransform: "uppercase", 
-                        letterSpacing: "0.05em", marginBottom: "10px" 
+                        letterSpacing: "0.05em", marginBottom: "8px" 
                     }}>
                         {metricLabel}
                     </div>
                     <div style={{
                         display: "inline-flex",
-                        padding: "7px 15px",
+                        padding: "5px 13px",
                         borderRadius: "8px",
                         background: isEmpty 
                             ? "#f1f5f9" 
@@ -1018,7 +957,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                         border: `1px solid ${isEmpty ? "#e2e8f0" : (isNegative ? "#fee2e2" : "#dcfce7")}`,
                     }}>
                         <span style={{
-                            fontSize: "18px", fontWeight: 900,
+                            fontSize: "16px", fontWeight: 900,
                             color: isEmpty ? "#94a3b8" : (isNegative ? "#dc2626" : "#16a34a"),
                             letterSpacing: "-0.01em"
                         }}>
@@ -1027,34 +966,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                     </div>
                 </div>
 
-                <Divider sx={{ mx: 1.5, borderColor: "#f1f5f9" }} />
 
-                {/* Evidence Rows (Preview) */}
-                <div style={{ padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: "9px" }}>
-                    {isEmpty ? (
-                        <div style={{
-                            textAlign: "center", padding: "12px 0",
-                            color: "#cbd5e1", fontSize: "11px", fontWeight: 500
-                        }}>
-                            No active hotspots detected
-                        </div>
-                    ) : (
-                        previewItems.map((item, i) => (
-                            <div key={i} style={{ 
-                                display: "flex", 
-                                alignItems: "center", 
-                                justifyContent: "space-between",
-                            }}>
-                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>
-                                    {item.label}
-                                </span>
-                                <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#1e293b" }}>
-                                    {item.value}
-                                </span>
-                            </div>
-                        ))
-                    )}
-                </div>
 
                 <div style={{
                     padding: "8px 14px",
@@ -1351,6 +1263,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
     const view = getEvidenceView(insight.type);
     const [search, setSearch] = useState("");
     const [activePopupIdx, setActivePopupIdx] = useState(null);
+    const [previewImage, setPreviewImage] = useState(null);
     const [categoryFilter, setCategoryFilter] = useState("All");
 
     const categories = useMemo(() => {
@@ -1476,7 +1389,6 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Impacted SKU</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor SKU</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">GAP %</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
                             </>)}
                             {view === "adStock" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Product</TableHead>
@@ -1633,7 +1545,6 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                         <span className="truncate max-w-[160px] block">{d.compSku || '-'}</span>
                                                     </TableCell>
                                                     <TableCell className={`text-right text-[11px] font-medium px-3 py-3 ${d.gapPct > 0 ? 'text-red-600' : d.gapPct < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>{safePct(d.gapPct)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-amber-600 px-3 py-3">{safeINR(d.psl)}</TableCell>
                                                 </>
                                             )}
                                             {view === "adStock" && (
@@ -1641,9 +1552,14 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                     <TableCell className="px-3 py-3">
                                                         <div className="flex items-center gap-3">
                                                             <img 
-                                                                src={d.image_url || `https://picsum.photos/seed/${String(d.skuOrBrand).length}/40/40`} 
+                                                                src={d.imageUrl || `https://placehold.co/40x40/f1f5f9/94a3b8?text=${encodeURIComponent((d.skuOrBrand || '?')[0])}`} 
                                                                 alt={d.skuOrBrand} 
-                                                                className="w-10 h-10 rounded-md border border-slate-200 object-cover" 
+                                                                className="w-10 h-10 rounded-md border border-slate-200 object-cover cursor-pointer hover:ring-2 hover:ring-blue-400 hover:shadow-lg transition-all duration-200" 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (d.imageUrl) setPreviewImage({ url: d.imageUrl, name: d.skuOrBrand, platform: d.platform, city: d.city });
+                                                                }}
+                                                                onError={(e) => { e.target.src = `https://placehold.co/40x40/f1f5f9/94a3b8?text=${encodeURIComponent((d.skuOrBrand || '?')[0])}`; }}
                                                             />
                                                             <div className="flex flex-col">
                                                                 <span className="text-[11px] font-semibold text-slate-800">{d.skuOrBrand}</span>
@@ -1836,6 +1752,151 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                     </TableBody>
                 </Table>
             </ScrollArea>
+
+            {/* ─── Image Preview Lightbox ─── */}
+            <AnimatePresence>
+                {previewImage && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        onClick={() => setPreviewImage(null)}
+                        style={{
+                            position: "fixed",
+                            inset: 0,
+                            zIndex: 9999,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "rgba(0, 0, 0, 0.6)",
+                            backdropFilter: "blur(12px)",
+                            WebkitBackdropFilter: "blur(12px)",
+                            cursor: "zoom-out",
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0, y: 30 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.85, opacity: 0, y: 20 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                background: "#ffffff",
+                                borderRadius: "20px",
+                                padding: "0",
+                                boxShadow: "0 40px 80px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.15)",
+                                maxWidth: "480px",
+                                width: "90vw",
+                                overflow: "hidden",
+                                cursor: "default",
+                            }}
+                        >
+                            {/* Image Container */}
+                            <div style={{
+                                position: "relative",
+                                background: "linear-gradient(145deg, #f8fafc, #f1f5f9)",
+                                padding: "32px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minHeight: "320px",
+                            }}>
+                                <img
+                                    src={previewImage.url}
+                                    alt={previewImage.name}
+                                    style={{
+                                        maxWidth: "100%",
+                                        maxHeight: "320px",
+                                        objectFit: "contain",
+                                        borderRadius: "12px",
+                                        filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.1))",
+                                    }}
+                                    onError={(e) => { e.target.src = `https://placehold.co/300x300/f1f5f9/94a3b8?text=Image+Not+Found`; }}
+                                />
+                                {/* Close button */}
+                                <button
+                                    onClick={() => setPreviewImage(null)}
+                                    style={{
+                                        position: "absolute",
+                                        top: "12px",
+                                        right: "12px",
+                                        width: "32px",
+                                        height: "32px",
+                                        borderRadius: "50%",
+                                        background: "rgba(255,255,255,0.9)",
+                                        backdropFilter: "blur(8px)",
+                                        border: "1px solid rgba(226,232,240,0.8)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        cursor: "pointer",
+                                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                                        transition: "all 0.2s ease",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = "rgba(239,68,68,0.1)";
+                                        e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = "rgba(255,255,255,0.9)";
+                                        e.currentTarget.style.borderColor = "rgba(226,232,240,0.8)";
+                                    }}
+                                >
+                                    <X size={14} color="#64748b" />
+                                </button>
+                            </div>
+                            {/* Product Info Footer */}
+                            <div style={{
+                                padding: "16px 24px 20px",
+                                borderTop: "1px solid #f1f5f9",
+                            }}>
+                                <h3 style={{
+                                    fontSize: "14px",
+                                    fontWeight: 700,
+                                    color: "#0f172a",
+                                    margin: "0 0 8px 0",
+                                    lineHeight: 1.4,
+                                    letterSpacing: "-0.01em",
+                                }}>
+                                    {previewImage.name}
+                                </h3>
+                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                    {previewImage.platform && (
+                                        <span style={{
+                                            fontSize: "10px",
+                                            fontWeight: 600,
+                                            color: "#3b82f6",
+                                            background: "#eff6ff",
+                                            border: "1px solid #dbeafe",
+                                            padding: "3px 10px",
+                                            borderRadius: "20px",
+                                            textTransform: "uppercase",
+                                            letterSpacing: "0.04em",
+                                        }}>
+                                            {previewImage.platform}
+                                        </span>
+                                    )}
+                                    {previewImage.city && (
+                                        <span style={{
+                                            fontSize: "10px",
+                                            fontWeight: 600,
+                                            color: "#64748b",
+                                            background: "#f8fafc",
+                                            border: "1px solid #e2e8f0",
+                                            padding: "3px 10px",
+                                            borderRadius: "20px",
+                                            letterSpacing: "0.04em",
+                                        }}>
+                                            {previewImage.city}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
@@ -2332,16 +2393,46 @@ const InsightsSignalHub = () => {
                     background-size: 200% 100%;
                     animation: shimmer 2s infinite linear;
                 }
+                /* ── Responsive Signal Grid ── */
+                .insights-signal-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 12px;
+                }
+                @media (max-width: 1400px) {
+                    .insights-signal-grid { grid-template-columns: repeat(3, 1fr); }
+                }
+                @media (max-width: 1100px) {
+                    .insights-signal-grid { grid-template-columns: repeat(2, 1fr); }
+                }
+                @media (max-width: 700px) {
+                    .insights-signal-grid { grid-template-columns: 1fr; }
+                }
+                /* ── Responsive Filter Grid ── */
+                .insights-filter-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 10px;
+                    align-items: start;
+                    flex: 1;
+                    min-width: 0;
+                }
+                @media (max-width: 1100px) {
+                    .insights-filter-grid { grid-template-columns: repeat(2, 1fr); }
+                }
+                @media (max-width: 700px) {
+                    .insights-filter-grid { grid-template-columns: 1fr; }
+                }
             `}</style>
 
             <div className="insights-page" style={{
                 background: "#ffffff",
-                height: "calc(100vh - 100px)",
+                height: "100%",
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
             }}>
-                <div style={{ maxWidth: "1440px", width: "100%", margin: "0 auto", padding: "6px 24px 12px 24px", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <div style={{ width: "100%", margin: "0 auto", padding: "6px 24px 12px 24px", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
 
                     {/* ── Page Header ────────────────────────────────────── */}
                     <div style={{
@@ -2428,7 +2519,7 @@ const InsightsSignalHub = () => {
                             <Filter size={12} />
                             <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Filters</span>
                         </div>
-                        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", alignItems: "start" }}>
+                        <div className="insights-filter-grid">
                             <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
                                 <CustomHeaderDropdown label="SIGNAL" options={slicerOptions.types} value={typeFilter} onChange={(v) => setTypeFilter(v === "All" ? "All signals" : v)} multiSelect={false} />
                             </div>
@@ -2465,12 +2556,13 @@ const InsightsSignalHub = () => {
 
                     {/* ── Signal Grid ─────────────────────────────────────── */}
                     {loading ? (
-                        <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(4, 1fr)",
-                            gap: "12px",
+                        <div className="insights-signal-grid" style={{
                             flex: 1,
                             minHeight: 0,
+                            overflowY: "auto",
+                            overflowX: "hidden",
+                            alignContent: "start",
+                            paddingBottom: "12px",
                         }}>
                             {[...Array(11)].map((_, i) => (
                                 <motion.div
@@ -2497,12 +2589,13 @@ const InsightsSignalHub = () => {
                             <p style={{ fontSize: "12px", color: "#9ca3af" }}>Adjust filters to broaden scope.</p>
                         </div>
                     ) : (
-                        <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(4, 1fr)",
-                            gap: "12px",
+                        <div className="insights-signal-grid" style={{
                             flex: 1,
                             minHeight: 0,
+                            overflowY: "auto",
+                            overflowX: "hidden",
+                            alignContent: "start",
+                            paddingBottom: "12px",
                         }}>
                             {filteredInsights.map((ins, idx) => (
                                 <motion.div
