@@ -1361,7 +1361,9 @@ export const getInsightsData = async (filters) => {
             safeQuery(newMarketEntryQuery, 'NewMarketEntry')
         ]);
 
-        // ── Fetch image URLs separately for RemoveAdLowOSA (avoids JOIN ambiguity) ──
+        // ── Universal image URL resolution for ALL signals ──
+        // Step 1: Fetch by web_pid for RemoveAdLowOSA (already has web_pid)
+        const pidImageMap = {};
         if (removeAdLowOSAData.length > 0) {
             const webPids = removeAdLowOSAData.map(r => r.webPid).filter(Boolean);
             if (webPids.length > 0) {
@@ -1370,17 +1372,74 @@ export const getInsightsData = async (filters) => {
                     const imageRows = await queryClickHouse(
                         `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${uniquePids.map(p => `'${escapeCH(String(p))}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`
                     );
-                    const imageMap = {};
                     for (const row of imageRows) {
-                        imageMap[String(row.web_pid)] = row.image_url;
+                        pidImageMap[String(row.web_pid)] = row.image_url;
                     }
                     for (const r of removeAdLowOSAData) {
-                        r.imageUrl = imageMap[String(r.webPid)] || null;
+                        r.imageUrl = pidImageMap[String(r.webPid)] || null;
                     }
                 } catch (imgErr) {
-                    console.log('[Insights] Image URL fetch failed (non-critical):', imgErr.message);
+                    console.log('[Insights] Image URL fetch (web_pid) failed (non-critical):', imgErr.message);
                 }
             }
+        }
+
+        // Step 2: Collect ALL product/SKU names from all signal datasets
+        const productImageMap = {};
+        try {
+            const allProductNames = new Set();
+            // From signals that use Product / skuName
+            for (const r of (surplusStockData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
+            for (const r of (prioritisePOData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
+            for (const r of (transferIssueData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
+            for (const r of (newMarketEntryData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
+            for (const r of (replData || [])) { if (r.skuOrBrand && r.skuOrBrand !== '-') allProductNames.add(r.skuOrBrand); }
+            // From pricing: impactedSku / compSku
+            for (const r of (priceData || [])) {
+                if (r.impactedSku && r.impactedSku !== '-') allProductNames.add(r.impactedSku);
+                if (r.compSku && r.compSku !== '-') allProductNames.add(r.compSku);
+            }
+            // From Share Headroom (via trend data topSku)
+            for (const r of (ownShareRows || [])) { if (r.topSku && r.topSku !== '-') allProductNames.add(r.topSku); }
+            for (const r of (compShareRows || [])) { if (r.topSku && r.topSku !== '-') allProductNames.add(r.topSku); }
+
+            if (allProductNames.size > 0) {
+                const namesList = [...allProductNames].slice(0, 200); // cap to avoid massive IN clause
+                const productPidQuery = `
+                    SELECT DISTINCT Product, argMax(Web_Pid, DATE) AS web_pid
+                    FROM rb_pdp_olap
+                    WHERE Product IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')})
+                      AND Web_Pid IS NOT NULL AND Web_Pid != ''
+                    GROUP BY Product
+                `;
+                const productPidRows = await queryClickHouse(productPidQuery);
+                const productPidMap = {};
+                const allNewPids = new Set();
+                for (const row of productPidRows) {
+                    productPidMap[row.Product] = String(row.web_pid);
+                    if (!pidImageMap[String(row.web_pid)]) {
+                        allNewPids.add(String(row.web_pid));
+                    }
+                }
+
+                // Fetch images for any new pids not already in pidImageMap
+                if (allNewPids.size > 0) {
+                    const newPidList = [...allNewPids];
+                    const imgRows = await queryClickHouse(
+                        `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${newPidList.map(p => `'${escapeCH(p)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`
+                    );
+                    for (const row of imgRows) {
+                        pidImageMap[String(row.web_pid)] = row.image_url;
+                    }
+                }
+
+                // Build product name → image URL map
+                for (const [product, pid] of Object.entries(productPidMap)) {
+                    productImageMap[product] = pidImageMap[pid] || null;
+                }
+            }
+        } catch (imgErr) {
+            console.log('[Insights] Universal image resolve failed (non-critical):', imgErr.message);
         }
 
         // Build Performance Lookup (Sales & OSA)
@@ -1600,7 +1659,9 @@ export const getInsightsData = async (filters) => {
                     offtakeDelta: offtakeDelta,
                     appCategory: perf.category,
                     myTopSku: catShare?.topSku || "-",
+                    myTopSkuImageUrl: productImageMap[catShare?.topSku] || null,
                     competitorSku: threat?.topSku || "-",
+                    competitorSkuImageUrl: productImageMap[threat?.topSku] || null,
                     possibleCause: possibleCause,
                     topThreat: threat ? threat.brandName : 'N/A',
                     threatShare: threat ? threat.currSharePct : 0,
@@ -1690,7 +1751,9 @@ export const getInsightsData = async (filters) => {
                 ourPpu: Number(p.ourPpu) || 0,
                 compPpu: Number(p.compPpu) || 0,
                 impactedSku: p.impactedSku || '-',
+                impactedSkuImageUrl: productImageMap[p.impactedSku] || null,
                 compSku: p.compSku || '-',
+                compSkuImageUrl: productImageMap[p.compSku] || null,
                 gapPct: Number(p.gapPct) || 0,
                 gapPctChange: Number(p.gapPctChange) || 0,
                 ourPpuChange: Number(p.ourPpuChange) || 0,
@@ -1781,6 +1844,7 @@ export const getInsightsData = async (filters) => {
                     platform: r.platform,
                     category: r.category,
                     skuOrBrand: r.skuOrBrand,
+                    imageUrl: productImageMap[r.skuOrBrand] || null,
                     plannedQty: Math.floor(r.total_sold * 1.5),
                     dispatchedQty: Math.floor(r.avg_inventory),
                     fillRate: r.fillRate,
@@ -1898,6 +1962,7 @@ export const getInsightsData = async (filters) => {
                     city: c.city,
                     platform: c.platform,
                     skuOrBrand: c.skuOrBrand,
+                    imageUrl: productImageMap[c.skuOrBrand] || null,
                     otherBrandOsa: Number(c.otherBrandOsa),
                     otherBrandOsaChangePct: Number(c.otherBrandOsaChangePct) || 0,
                     otherBrandMkShare: c.otherBrandMkShare != null ? Number(c.otherBrandMkShare) : null,
@@ -2059,6 +2124,7 @@ export const getInsightsData = async (filters) => {
                 ] : ["-", "-"],
                 evidence: hasData ? filteredData.map(r => ({
                     skuName: r.skuName || '-',
+                    imageUrl: productImageMap[r.skuName] || null,
                     city: r.city,
                     platform: r.platform,
                     category: r.category,
@@ -2116,6 +2182,7 @@ export const getInsightsData = async (filters) => {
                 ] : ["-", "-"],
                 evidence: hasData ? filteredData.map(r => ({
                     skuName: r.skuName || '-',
+                    imageUrl: productImageMap[r.skuName] || null,
                     city: r.city,
                     platform: r.platform,
                     category: r.category,
@@ -2172,6 +2239,7 @@ export const getInsightsData = async (filters) => {
                 ] : ["-", "-"],
                 evidence: hasData ? filteredData.map(r => ({
                     skuName: r.skuName || '-',
+                    imageUrl: productImageMap[r.skuName] || null,
                     city: r.city,
                     platform: r.platform,
                     category: r.category,
@@ -2229,6 +2297,7 @@ export const getInsightsData = async (filters) => {
                 ] : ["-", "-"],
                 evidence: hasData ? filteredData.map(r => ({
                     skuName: r.skuName || '-',
+                    imageUrl: productImageMap[r.skuName] || null,
                     city: r.city,
                     platform: r.platform,
                     category: r.category,

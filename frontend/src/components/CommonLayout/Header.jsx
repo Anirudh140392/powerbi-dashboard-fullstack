@@ -3393,12 +3393,12 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
             >
 
               {/* ============ WATCH TOWER / MARKET SHARE / PRICING ANALYSIS / INVENTORY ANALYSIS: SINGLE FILTER BUTTON ============ */}
-              {(title === "Business Overview" || title === "Market Share" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
+              {(title === "Business Overview" || title === "Insights" || title === "Market Share" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
                 <>
                   <Box sx={{ display: "flex", alignItems: "flex-end" }}>
                     <Button
                       onClick={() => {
-                        if (title === "Business Overview") setFilterModalOpen(true);
+                        if (title === "Business Overview" || title === "Insights") setFilterModalOpen(true);
                         else if (title === "Market Share") setMarketShareFilterModalOpen(true);
                         else if (title === "Availability Analysis") setAvailFilterModalOpen(true);
                         else if (title === "Visibility Analysis") setVisibilityFilterModalOpen(true);
@@ -3476,7 +3476,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                   </Box>
 
                   {/* WATCH TOWER FILTER MODAL */}
-                  {title === "Business Overview" && (
+                  {(title === "Business Overview" || title === "Insights") && (
                     <WatchTowerFilterModal
                       open={filterModalOpen}
                       onClose={() => setFilterModalOpen(false)}
