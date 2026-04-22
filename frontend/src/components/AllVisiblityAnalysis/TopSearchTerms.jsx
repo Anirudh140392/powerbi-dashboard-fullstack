@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
-import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2, PieChart } from "lucide-react";
+import { ArrowUp, ArrowDown, X, LineChart, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Check, Loader2, PieChart, Download } from "lucide-react";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 import { motion, AnimatePresence } from "framer-motion";
 import { fetchVisibilityBrandDrilldown, fetchVisibilitySkuDrilldown, fetchVisibilityCityDrilldown } from "../../api/visibilityService";
@@ -339,6 +339,33 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
         exit: { opacity: 0, scale: 0.95, transition: { duration: 0.2 } }
     };
 
+    const downloadCSV = () => {
+        if (!activeData || activeData.length === 0) return;
+        
+        const headers = ["Keywords", "Volume Share", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"];
+        
+        const rows = activeData.map(row => [
+            `"${row.keyword}"`,
+            `"${getVolShare(row.keyword)}%"`,
+            `"${(row.topBrand && row.topBrand !== "1" ? row.topBrand : "Other").replace(/"/g, '""')}"`,
+            `"${row.overallSos}%"`,
+            `"${row.organicSos}%"`,
+            `"${row.paidSos}%"`
+        ]);
+
+        const csvContent = headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Top_Search_Terms_${skuTab.replace(/\s+/g, '_')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="w-full rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden relative">
             {/* Header */}
@@ -357,10 +384,13 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                 </div>
 
                 <div className="flex items-center gap-4">
-                    {/* Tabs */}
-
-
-
+                    <button 
+                        onClick={downloadCSV}
+                        className="p-1.5 border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors"
+                        title="Download CSV"
+                    >
+                        <Download size={18} />
+                    </button>
                 </div>
             </div>
 

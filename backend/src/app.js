@@ -129,9 +129,13 @@ app.get("/health", (req, res) => {
 });
 
 const port = process.env.PORT || 5000;
-app.listen(port, () => {
+const server = app.listen(port, () => {
     console.log(`✅ Backend running on: http://localhost:${port}`);
 });
+
+// Extend server timeout to 10 minutes (600,000ms) for large report downloads
+server.timeout = 10 * 60 * 1000;
+server.keepAliveTimeout = 10 * 60 * 1000;
 
 export default app; // ESM export
 // restart trigger 9
