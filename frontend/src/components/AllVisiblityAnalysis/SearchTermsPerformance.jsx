@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useContext, useMemo } from "re
 import { FilterContext } from "../../utils/FilterContext";
 import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown } from "../../api/visibilityService";
 import { motion, AnimatePresence } from "framer-motion";
+import { Download } from "lucide-react";
 
 const sosColor = (val) => {
   if (val === 0) return "#94a3b8";
@@ -135,6 +136,7 @@ export default function SearchTermsPerformance() {
     selectedCategory,
     selectedKeyword,
     selectedKeywordType,
+    selectedChannel,
     timeStart,
     timeEnd,
     platforms: globalPlatforms
@@ -153,6 +155,8 @@ export default function SearchTermsPerformance() {
   const [hoveredKeyword, setHoveredKeyword] = useState(null);
   const [bbData, setBbData] = useState({});
   const [bbLoading, setBbLoading] = useState(false);
+  const [summaryData, setSummaryData] = useState(null);
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
 
   // Removed local skuPlatform state - now using global platform filter
   const currentSkuPlatform = globalPlatform || "All";
@@ -166,10 +170,11 @@ export default function SearchTermsPerformance() {
     keyword: selectedKeyword || "All",
     keywordTypeFilter: activeFilter,
     keywordType: selectedKeywordType || "All",
+    channel: selectedChannel || "All",
     ownBrandsOnly: activeView === "sku",
     startDate: timeStart,
     endDate: timeEnd,
-  }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, activeFilter, timeStart, timeEnd]);
+  }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,12 +182,17 @@ export default function SearchTermsPerformance() {
       setLoading(true);
       setExpandedRows({});
       setLocationData({});
+      setSummaryExpanded(false);
       try {
         const data = await fetchSearchTermsPerformance(filterParams);
-        if (!cancelled) { setItems(data.items || []); setPage(0); }
+        if (!cancelled) {
+          setItems(data.items || []);
+          setSummaryData(data.summary || null);
+          setPage(0);
+        }
       } catch (err) {
         console.error("Error fetching search terms performance:", err);
-        if (!cancelled) setItems([]);
+        if (!cancelled) { setItems([]); setSummaryData(null); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -196,7 +206,13 @@ export default function SearchTermsPerformance() {
     if (!locationData[itemName] && !locationLoading[itemName]) {
       setLocationLoading(prev => ({ ...prev, [itemName]: true }));
       try {
-        const params = { platform: globalPlatform || "All", brand: selectedBrand || "All", startDate: timeStart, endDate: timeEnd };
+        const params = { 
+          platform: globalPlatform || "All", 
+          brand: selectedBrand || "All", 
+          channel: selectedChannel || "All",
+          startDate: timeStart, 
+          endDate: timeEnd 
+        };
         if (activeView === "keyword") params.keyword = itemName;
         else params.sku = itemName;
         const data = await fetchSearchTermsLocations(params);
@@ -225,6 +241,7 @@ export default function SearchTermsPerformance() {
         startDate: timeStart, endDate: timeEnd,
         keywordTypeFilter: activeFilter,
         keywordType: selectedKeywordType || "All",
+        channel: selectedChannel || "All",
         keyword: keywordName,
         ownBrandsOnly: isMySkus,
       });
@@ -249,6 +266,38 @@ export default function SearchTermsPerformance() {
     
     return !isEcomOnly;
   }, [globalPlatform]);
+
+  const downloadCSV = () => {
+    if (!items || items.length === 0) return;
+    
+    const isKeyword = activeView === "keyword";
+    const headers = isKeyword 
+      ? ["Keyword", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"]
+      : ["SKU", "Overall SOS", "Organic SOS", "Paid SOS"];
+      
+    const rows = items.map(item => {
+      const row = [
+        `"${(item.name || "").replace(/"/g, '""')}"`,
+        ...(isKeyword ? [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`] : []),
+        `"${(item.overallSOS || 0).toFixed(2)}%"`,
+        `"${(item.organicSOS || 0).toFixed(2)}%"`,
+        `"${(item.paidSOS || 0).toFixed(2)}%"`
+      ];
+      return row;
+    });
+
+    const csvContent = headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Top_Search_Terms_${activeView}_${activeFilter}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const totalPages = Math.max(1, Math.ceil(items.length / rowsPerPage));
   const paginatedItems = items.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
@@ -296,6 +345,22 @@ export default function SearchTermsPerformance() {
               }}>{f}</button>
             ))
           )}
+          <button 
+            onClick={downloadCSV}
+            title="Download CSV"
+            style={{
+              padding: "6px 12px", borderRadius: 10, cursor: "pointer",
+              fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+              border: "1.5px solid #cbd5e1", background: "#fff", color: "#475569",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              marginLeft: 8
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#94a3b8"; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
+          >
+            <Download size={16} />
+            <span>Export</span>
+          </button>
         </div>
       </div>
 
@@ -324,6 +389,147 @@ export default function SearchTermsPerformance() {
           <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8", fontSize: 14, fontFamily: "'Inter', sans-serif" }}>No data available for the selected filters</div>
         ) : (
           <>
+            {/* ── Summary Aggregate Row ── */}
+            {summaryData && activeView === "keyword" && (
+              <div style={{ borderBottom: "2px solid #c7d2fe" }}>
+                {/* Main Summary Row */}
+                <div
+                  style={{
+                    display: "grid", gridTemplateColumns: GRID, padding: "16px 24px", alignItems: "center", gap: 8,
+                    background: "linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)",
+                    cursor: "pointer", transition: "background 0.15s",
+                  }}
+                  onClick={() => setSummaryExpanded(prev => !prev)}
+                >
+                  {/* Name Cell */}
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setSummaryExpanded(prev => !prev); }}
+                        title="Show location breakdown"
+                        style={{
+                          width: 22, height: 22, borderRadius: 6,
+                          border: `1.5px solid ${summaryExpanded ? "#4f46e5" : "#818cf8"}`,
+                          background: summaryExpanded ? "#4f46e5" : "#fff",
+                          cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                          flexShrink: 0, padding: 0, transition: "all 0.18s",
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 10 10" style={{ transform: summaryExpanded ? "rotate(90deg)" : "none", transition: "transform 0.18s" }}>
+                          <path d="M3 2L7 5L3 8" stroke={summaryExpanded ? "#fff" : "#4f46e5"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                        </svg>
+                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{
+                          fontSize: 14, fontWeight: 800, color: "#312e81", letterSpacing: "-0.01em",
+                          fontFamily: "'Inter', sans-serif",
+                        }}>
+                          {activeFilter === "All" ? "All Keywords" : `${activeFilter} Keywords`}
+                        </span>
+                        <span style={{
+                          background: "#4f46e5", color: "#fff", fontSize: 9, fontWeight: 700,
+                          borderRadius: 4, padding: "2px 8px", letterSpacing: "0.06em",
+                          textTransform: "uppercase",
+                        }}>
+                          AGGREGATE
+                        </span>
+                      </div>
+                      {(() => {
+                        const summaryVolPercent = items.reduce((sum, item) => sum + (item.volShare || 0), 0);
+                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0 || (summaryData.totalSearchVolume || 0) > 0) ? (
+                          <div style={{ display: "flex", gap: 6, paddingLeft: 30, marginTop: 4 }}>
+                            {summaryData.totalKeywords > 0 && (
+                              <span style={{
+                                background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700,
+                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
+                              }}>
+                                {summaryData.totalKeywords.toLocaleString()} Keywords
+                              </span>
+                            )}
+                            {summaryVolPercent > 0 && (
+                              <span style={{
+                                background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
+                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
+                                border: "1px solid #ffedd5"
+                              }}>
+                                {summaryVolPercent.toFixed(2)}% Total Vol. Share
+                              </span>
+                            )}
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Leading Brand */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{
+                      background: "#e0e7ff", color: "#3730a3", borderRadius: 6, padding: "5px 12px",
+                      fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block",
+                      textTransform: "uppercase",
+                    }}>
+                      {summaryData.leadingBrand}
+                    </span>
+                  </div>
+
+                  {/* Overall SOS */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.overallSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                      {summaryData.overallSOS != null ? `${Number(summaryData.overallSOS).toFixed(2)}%` : "—"}
+                    </span>
+                  </div>
+
+                  {/* Organic SOS */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.organicSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                      {summaryData.organicSOS != null ? `${Number(summaryData.organicSOS).toFixed(2)}%` : "—"}
+                    </span>
+                  </div>
+
+                  {/* Paid SOS */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: sosColor(summaryData.paidSOS), letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif" }}>
+                      {summaryData.paidSOS != null ? `${Number(summaryData.paidSOS).toFixed(2)}%` : "—"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Summary Drilldown — Location Breakdown */}
+                {summaryExpanded && (
+                  <div style={{ background: "#f0f0ff", borderTop: "1px solid #c7d2fe", animation: "slideDown 0.18s ease" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "9px 24px 7px", gap: 8, borderBottom: "1px solid #c7d2fe" }}>
+                      <div style={{ paddingLeft: 30, fontSize: 10, fontWeight: 700, color: "#4f46e5", letterSpacing: "0.08em", textTransform: "uppercase" }}>📍 Location Breakdown</div>
+                      <div />
+                      {["Overall SOS", "Organic SOS", "Paid SOS"].map((h) => (
+                        <div key={h} style={{ fontSize: 10, fontWeight: 600, color: "#6366f1", textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center" }}>{h}</div>
+                      ))}
+                    </div>
+
+                    {(!summaryData.locations || summaryData.locations.length === 0) ? (
+                      <div style={{ padding: "16px 24px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>No location data available</div>
+                    ) : (
+                      summaryData.locations.map((loc, li) => (
+                        <div key={li} style={{
+                          display: "grid", gridTemplateColumns: GRID, padding: "11px 24px", alignItems: "center", gap: 8,
+                          borderBottom: li < summaryData.locations.length - 1 ? "1px solid #ddd6fe" : "none",
+                          background: li % 2 === 0 ? "#f5f3ff" : "#ede9fe",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 30 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#6366f1", display: "inline-block", flexShrink: 0 }} />
+                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{loc.city}</span>
+                          </div>
+                          <div />
+                          <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
+                          <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>
+                          <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {paginatedItems.map((row, rowIdx) => (
               <div key={row.name + rowIdx} style={{ borderBottom: "1px solid #f1f5f9" }}>
                 {/* Main Row */}
@@ -342,6 +548,26 @@ export default function SearchTermsPerformance() {
                         </button>
                       ) : (
                         <div style={{ width: 22, height: 22, flexShrink: 0 }} />
+                      )}
+                      {/* SKU Image Thumbnail — only in SKU view */}
+                      {activeView === "sku" && (
+                        row.imageUrl ? (
+                          <img
+                            src={row.imageUrl}
+                            alt={row.name}
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }}
+                            style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e8f0", background: "#f8fafc" }}
+                          />
+                        ) : null
+                      )}
+                      {activeView === "sku" && !row.imageUrl && (
+                        <div style={{ width: 36, height: 36, borderRadius: 8, background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                            <line x1="12" y1="22.08" x2="12" y2="12" />
+                          </svg>
+                        </div>
                       )}
                       <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>{row.name}</span>
                       {row.volShare > 0 && activeView === "keyword" && (

@@ -84,9 +84,16 @@ async function getWatchtowerSource() {
     const sellingPriceCol = r('Selling_Price');
     const listingPercentCol = r('listing_percent');
 
+    const hasDeliveryDate = columnExists(cols, 'delivery_date');
+    const deliveryDateCol = hasDeliveryDate ? r('delivery_date') : null;
+    const overallGvCol = r('overall_gv');
+
     return {
         table: 'rb_pdp_olap',
         isAgg: false,
+        hasDeliveryDate,
+        deliveryDateCol,
+        overallGvCol,
         f: {
             sales: wrap(salesCol),
             spend: wrap(adSpendCol),
@@ -112,7 +119,7 @@ async function getWatchtowerSource() {
             product: r('Product'),
             skuCode: r('Web_Pid'),
             quantitySold: qtySoldCol,
-            overallGv: wrap(r('overall_gv')),
+            overallGv: wrap(overallGvCol),
             discount: `if(${wrap(mrpCol)} > 0, (${wrap(mrpCol)} - ${wrap(sellingPriceCol)}) / ${wrap(mrpCol)} * 100, 0)`,
             listingPercent: `if(toFloat64OrZero(toString(${listingPercentCol})) > 0, toFloat64OrZero(toString(${listingPercentCol})), (${wrap(nenoOsaCol)} / NULLIF(${wrap(denoOsaCol)}, 0)) * 100)`
         }
@@ -354,6 +361,7 @@ export const getEcomRcaData = async (filters = {}) => {
             const isOrganicCvr = kpiLower.includes('organic cvr');
             const isSponsoredSearch = kpiLower.includes('sponsored search');
             const isAdGv = kpiLower.includes('ad gv') || kpiLower.includes('ad impression');
+            const isDeliveryKpi = kpiLower === 'delivery time' || kpiLower.includes('same day') || kpiLower.includes('1 day') || kpiLower.includes('2 day') || kpiLower.includes('> 2 day') || kpiLower.includes('>2 day') || kpiLower.includes('greater');
 
             const getPmDrilldownSQL = (conds, level, parentId) => {
                 let colName = 'lower(brand)';
@@ -428,9 +436,56 @@ export const getEcomRcaData = async (filters = {}) => {
                 `;
             };
 
-            const drillSQL = isVisibility ? getKwDrilldownSQL : (isPm ? getPmDrilldownSQL : getDrilldownSQL);
-            const cConds = isVisibility ? currKwConds : (isPm ? currPmConds : currOlapConds);
-            const pConds = isVisibility ? prevKwConds : (isPm ? prevPmConds : prevOlapConds);
+            // Delivery time drilldown SQL - groups by brand/sku/location and calculates delivery day GV buckets
+            const getDeliveryDrilldownSQL = (conds, level, parentId) => {
+                if (!src.hasDeliveryDate) return getDrilldownSQL(conds, level, parentId); // fallback
+
+                let colName = src.f.brand;
+                if (level === 'sku') colName = src.f.product;
+                else if (level === 'location') colName = src.f.location;
+
+                let parentCond = '';
+                if (parentId) {
+                    if (level === 'sku') parentCond = ` AND ${src.f.brand} = '${escapeStr(parentId)}'`;
+                    else parentCond = ` AND ${src.f.product} = '${escapeStr(parentId)}'`;
+                }
+
+                return `
+                    WITH delivery_base AS (
+                        SELECT
+                            ${colName} as name,
+                            ${src.overallGvCol} AS gv_val,
+                            CASE
+                                WHEN ${src.deliveryDateCol} IS NULL OR ${src.deliveryDateCol} = '' OR ${src.deliveryDateCol} = '0' THEN NULL
+                                ELSE
+                                    CASE
+                                        WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date}))))) < 0 THEN 0
+                                        WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date}))))) > 30 THEN NULL
+                                        ELSE dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date})))))
+                                    END
+                            END AS delivery_days
+                        FROM ${src.table}
+                        WHERE ${conds} ${parentCond} AND ${src.f.compFlag} = '0' AND ${colName} IS NOT NULL AND ${colName} != ''
+                    )
+                    SELECT
+                        name,
+                        sumIf(gv_val, delivery_days = 0) AS same_day_gv,
+                        sumIf(gv_val, delivery_days = 1) AS one_day_gv,
+                        sumIf(gv_val, delivery_days = 2) AS two_day_gv,
+                        sumIf(gv_val, delivery_days > 2) AS gt_two_day_gv,
+                        sum(gv_val) AS total_delivery_gv,
+                        round(avg(delivery_days)) AS avg_delivery_days
+                    FROM delivery_base
+                    WHERE delivery_days IS NOT NULL
+                    GROUP BY name
+                    ORDER BY total_delivery_gv DESC
+                    LIMIT 2000
+                `;
+            };
+
+            const drillSQL = isDeliveryKpi ? getDeliveryDrilldownSQL : (isVisibility ? getKwDrilldownSQL : (isPm ? getPmDrilldownSQL : getDrilldownSQL));
+            const cConds = isDeliveryKpi ? currOlapConds : (isVisibility ? currKwConds : (isPm ? currPmConds : currOlapConds));
+            const pConds = isDeliveryKpi ? prevOlapConds : (isVisibility ? prevKwConds : (isPm ? prevPmConds : prevOlapConds));
 
             let cDrillDenom = 1;
             let pDrillDenom = 1;
@@ -614,6 +669,31 @@ export const getEcomRcaData = async (filters = {}) => {
                     if (cat.includes('sponsored brand') || cat === 'sb') return parseFloat(obj.sb_clicks || 0);
                     if (cat.includes('sponsored display') || cat === 'sd') return parseFloat(obj.sd_clicks || obj.sd_ad_clicks || 0);
 
+                    // Delivery time KPIs — must be checked BEFORE the generic 'gv' match below
+                    if (cat === 'delivery time') {
+                        return parseFloat(obj.avg_delivery_days || 0);
+                    }
+                    if (cat.includes('same day')) {
+                        const sdGv = parseFloat(obj.same_day_gv || 0);
+                        const tGv = parseFloat(obj.total_delivery_gv || obj.overall_gv || 0);
+                        return tGv > 0 ? (sdGv / tGv) * 100 : 0;
+                    }
+                    if (cat.includes('1 day') && !cat.includes('ad')) {
+                        const odGv = parseFloat(obj.one_day_gv || 0);
+                        const tGv = parseFloat(obj.total_delivery_gv || obj.overall_gv || 0);
+                        return tGv > 0 ? (odGv / tGv) * 100 : 0;
+                    }
+                    if (cat.includes('2 day') && !cat.includes('ad')) {
+                        const tdGv = parseFloat(obj.two_day_gv || 0);
+                        const tGv = parseFloat(obj.total_delivery_gv || obj.overall_gv || 0);
+                        return tGv > 0 ? (tdGv / tGv) * 100 : 0;
+                    }
+                    if (cat.includes('> 2 day') || cat.includes('>2 day') || cat.includes('greater')) {
+                        const gtGv = parseFloat(obj.gt_two_day_gv || 0);
+                        const tGv = parseFloat(obj.total_delivery_gv || obj.overall_gv || 0);
+                        return tGv > 0 ? (gtGv / tGv) * 100 : 0;
+                    }
+
                     if (cat.includes('organic') && cat.includes('impression')) return parseFloat(obj.organic_impressions || 0);
                     if (cat.includes('impression') || cat.includes('gv')) return parseFloat(obj.overall_gv || 0);
                     if ((cat.includes('visibility') || cat.includes('sos') || cat.includes('search')) && !cat.includes('sponsored')) {
@@ -627,8 +707,6 @@ export const getEcomRcaData = async (filters = {}) => {
 
                         return denom > 0 ? (raw / denom) * 100 : 0;
                     }
-
-                    
 
                     if (cat.includes('offtake')) return parseFloat(obj.sales || 0);
                     return parseFloat(obj.sales || 0); // fallback to offtake
@@ -694,6 +772,37 @@ export const getEcomRcaData = async (filters = {}) => {
         `;
 
         // No hardcoded brand list — comp_flag=0 in the DB determines "our brands"
+
+        // Delivery time query - Same Day / 1 Day / 2 Day / >2 Days GV%
+        const deliveryQuery = (conds) => {
+            if (!src.hasDeliveryDate) return null;
+            return `
+                WITH base AS (
+                    SELECT
+                        ${src.overallGvCol} AS gv_val,
+                        CASE
+                            WHEN ${src.deliveryDateCol} IS NULL OR ${src.deliveryDateCol} = '' OR ${src.deliveryDateCol} = '0' THEN NULL
+                            ELSE
+                                CASE
+                                    WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date}))))) < 0 THEN 0
+                                    WHEN dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date}))))) > 30 THEN NULL
+                                    ELSE dateDiff('day', ${src.f.date}, parseDateTimeBestEffortOrNull(concat(${src.deliveryDateCol}, ' ', toString(toYear(${src.f.date})))))
+                                END
+                        END AS delivery_days
+                    FROM ${src.table}
+                    WHERE ${conds} AND ${src.f.compFlag} = '0'
+                )
+                SELECT
+                    sumIf(gv_val, delivery_days = 0) AS same_day_gv,
+                    sumIf(gv_val, delivery_days = 1) AS one_day_gv,
+                    sumIf(gv_val, delivery_days = 2) AS two_day_gv,
+                    sumIf(gv_val, delivery_days > 2) AS gt_two_day_gv,
+                    sum(gv_val) AS total_gv,
+                    round(avg(delivery_days)) AS avg_delivery_days
+                FROM base
+                WHERE delivery_days IS NOT NULL
+            `;
+        };
 
         const kwQuery = (conds) => `
             SELECT 
@@ -801,13 +910,18 @@ export const getEcomRcaData = async (filters = {}) => {
             GROUP BY brand
         `;
 
+        // Build delivery queries (may be null if column doesn't exist)
+        const currDeliverySQL = deliveryQuery(currOlapConds);
+        const prevDeliverySQL = deliveryQuery(prevOlapConds);
+
         const [
             currOlap, prevOlap,
             currKw, prevKw,
             currPm, prevPm,
             currBrands, prevBrands,
             currKwBrands, prevKwBrands,
-            currPmBrands, prevPmBrands
+            currPmBrands, prevPmBrands,
+            currDelivery, prevDelivery
         ] = await Promise.all([
             queryClickHouse(olapQuery(currOlapConds)),
             queryClickHouse(olapQuery(prevOlapConds)),
@@ -820,7 +934,9 @@ export const getEcomRcaData = async (filters = {}) => {
             queryClickHouse(kwBrandQuery(currKwConds)),
             queryClickHouse(kwBrandQuery(prevKwConds)),
             queryClickHouse(pmBrandQuery(currPmConds)),
-            queryClickHouse(pmBrandQuery(prevPmConds))
+            queryClickHouse(pmBrandQuery(prevPmConds)),
+            currDeliverySQL ? queryClickHouse(currDeliverySQL) : Promise.resolve([]),
+            prevDeliverySQL ? queryClickHouse(prevDeliverySQL) : Promise.resolve([])
         ]);
 
         // -------------------------
@@ -963,6 +1079,29 @@ export const getEcomRcaData = async (filters = {}) => {
 
         const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
         const pSos = pTotalKw > 0 ? (pRbKw / pTotalKw) * 100 : 0;
+
+        // Parse delivery time data
+        const cd = (currDelivery && currDelivery[0]) || {};
+        const pd = (prevDelivery && prevDelivery[0]) || {};
+        const hasDeliveryData = src.hasDeliveryDate && (parseFloat(cd.total_gv || 0) > 0);
+
+        const cSameDayPct = parseFloat(cd.total_gv || 0) > 0 ? (parseFloat(cd.same_day_gv || 0) / parseFloat(cd.total_gv)) * 100 : 0;
+        const pSameDayPct = parseFloat(pd.total_gv || 0) > 0 ? (parseFloat(pd.same_day_gv || 0) / parseFloat(pd.total_gv)) * 100 : 0;
+        const cOneDayPct = parseFloat(cd.total_gv || 0) > 0 ? (parseFloat(cd.one_day_gv || 0) / parseFloat(cd.total_gv)) * 100 : 0;
+        const pOneDayPct = parseFloat(pd.total_gv || 0) > 0 ? (parseFloat(pd.one_day_gv || 0) / parseFloat(pd.total_gv)) * 100 : 0;
+        const cTwoDayPct = parseFloat(cd.total_gv || 0) > 0 ? (parseFloat(cd.two_day_gv || 0) / parseFloat(cd.total_gv)) * 100 : 0;
+        const pTwoDayPct = parseFloat(pd.total_gv || 0) > 0 ? (parseFloat(pd.two_day_gv || 0) / parseFloat(pd.total_gv)) * 100 : 0;
+        const cGtTwoDayPct = parseFloat(cd.total_gv || 0) > 0 ? (parseFloat(cd.gt_two_day_gv || 0) / parseFloat(cd.total_gv)) * 100 : 0;
+        const pGtTwoDayPct = parseFloat(pd.total_gv || 0) > 0 ? (parseFloat(pd.gt_two_day_gv || 0) / parseFloat(pd.total_gv)) * 100 : 0;
+
+        // Avg delivery days
+        const cAvgDelivDays = Math.round(parseFloat(cd.avg_delivery_days || 0));
+        const pAvgDelivDays = Math.round(parseFloat(pd.avg_delivery_days || 0));
+        const formatDelivTime = (days) => days === 0 ? 'Same Day' : `${days} ${days === 1 ? 'Day' : 'Days'}`;
+        const cAvgDelivTime = formatDelivTime(cAvgDelivDays);
+        const pAvgDelivTime = formatDelivTime(pAvgDelivDays);
+
+        console.log(`[getEcomRcaData] Delivery data available: ${hasDeliveryData}, Avg: ${cAvgDelivTime}, Same Day: ${cSameDayPct.toFixed(2)}%`);
 
         // -------------------------
         // FORMAT FORMATTERS
@@ -1365,16 +1504,16 @@ export const getEcomRcaData = async (filters = {}) => {
                         {
                             id: "delivery-time",
                             label: "Delivery Time",
-                            value: "Coming Soon",
-                            prevValue: "Coming Soon",
-                            change: '0.0%',
-                            isPositive: true,
+                            value: hasDeliveryData ? cAvgDelivTime : "Coming Soon",
+                            prevValue: hasDeliveryData ? pAvgDelivTime : "Coming Soon",
+                            change: hasDeliveryData ? absDelta(cAvgDelivDays, pAvgDelivDays).val : '0.0%',
+                            isPositive: hasDeliveryData ? (cAvgDelivDays <= pAvgDelivDays) : true,
                             category: "segment",
                             children: isFlipkart ? [] : [
-                                { id: "same-day", label: `Same Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
-                                { id: "one-day", label: `1 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
-                                { id: "two-day", label: `2 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" },
-                                { id: "greater-two", label: `> 2 Days ${isAmazon ? 'GVs' : 'Impressions'}%`, value: "Coming Soon", prevValue: "Coming Soon", change: '0.0%', isPositive: true, category: "segment" }
+                                { id: "same-day", label: `Same Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: hasDeliveryData ? `${cSameDayPct.toFixed(2)}%` : "Coming Soon", prevValue: hasDeliveryData ? `${pSameDayPct.toFixed(2)}%` : "Coming Soon", change: hasDeliveryData ? absDelta(cSameDayPct, pSameDayPct).val : '0.0%', isPositive: hasDeliveryData ? absDelta(cSameDayPct, pSameDayPct).isPos : true, category: "segment" },
+                                { id: "one-day", label: `1 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: hasDeliveryData ? `${cOneDayPct.toFixed(2)}%` : "Coming Soon", prevValue: hasDeliveryData ? `${pOneDayPct.toFixed(2)}%` : "Coming Soon", change: hasDeliveryData ? absDelta(cOneDayPct, pOneDayPct).val : '0.0%', isPositive: hasDeliveryData ? absDelta(cOneDayPct, pOneDayPct).isPos : true, category: "segment" },
+                                { id: "two-day", label: `2 Day ${isAmazon ? 'GVs' : 'Impressions'}%`, value: hasDeliveryData ? `${cTwoDayPct.toFixed(2)}%` : "Coming Soon", prevValue: hasDeliveryData ? `${pTwoDayPct.toFixed(2)}%` : "Coming Soon", change: hasDeliveryData ? absDelta(cTwoDayPct, pTwoDayPct).val : '0.0%', isPositive: hasDeliveryData ? absDelta(cTwoDayPct, pTwoDayPct).isPos : true, category: "segment" },
+                                { id: "greater-two", label: `> 2 Days ${isAmazon ? 'GVs' : 'Impressions'}%`, value: hasDeliveryData ? `${cGtTwoDayPct.toFixed(2)}%` : "Coming Soon", prevValue: hasDeliveryData ? `${pGtTwoDayPct.toFixed(2)}%` : "Coming Soon", change: hasDeliveryData ? absDelta(cGtTwoDayPct, pGtTwoDayPct).val : '0.0%', isPositive: hasDeliveryData ? absDelta(cGtTwoDayPct, pGtTwoDayPct).isPos : true, category: "segment" }
                             ]
                         },
                         {

@@ -94,11 +94,11 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
 
         const ourSales = parseFloat(numResult?.[0]?.our_sales || 0);
         const totalSales = parseFloat(denomResult?.[0]?.total_sales || 0);
-        const ms = totalSales > 0 ? (ourSales / totalSales) * 100 : 0;
-        return parseFloat(ms.toFixed(2));
+        const ms = totalSales > 0 ? (ourSales / totalSales) * 100 : null;
+        return ms !== null ? parseFloat(ms.toFixed(2)) : null;
     } catch (error) {
         console.error('[MarketShare] Error:', error.message);
-        return 0;
+        return null;
     }
 };
 

@@ -48,6 +48,7 @@ import {
   defaultPlatforms,
   defaultSkus,
 } from "../../utils/DataCenter";
+import { ChevronDown } from "lucide-react";
 import {
   getLogicalKpiValue,
   getLogicalKpiTrend
@@ -192,6 +193,7 @@ export default function WatchTower() {
     datesFetched,
     platformsFetched,
     brands: contextBrands,
+    channels,
     refreshFilters,
     refreshDates
   } = React.useContext(FilterContext);
@@ -326,16 +328,17 @@ export default function WatchTower() {
       return categoryOverview.map(cat => {
         const getColVal = (title) => {
           const col = cat.columns?.find(c => c.title.toLowerCase().includes(title.toLowerCase()));
-          if (!col || !col.value) return 0;
+          if (!col || !col.value || col.value === "N/A") return null;
           const strVal = String(col.value).replace(/,/g, '').replace(/₹/g, '').trim();
           const numMatch = strVal.match(/-?[\d.]+/);
-          let val = numMatch ? parseFloat(numMatch[0]) : 0;
+          let val = numMatch ? parseFloat(numMatch[0]) : null;
+
+          if (val === null) return null;
 
           // Reverse-parse backend formatted strings back to raw numbers
           if (strVal.toLowerCase().includes('cr')) val *= 10000000;
           else if (strVal.toLowerCase().includes('lac') || strVal.toLowerCase().includes('lak')) val *= 100000;
           else if (strVal.toLowerCase().includes('k')) val *= 1000;
-          // If no suffix, treat as raw number
 
           return val;
         };
@@ -374,7 +377,9 @@ export default function WatchTower() {
 
 
   const [fetchError, setFetchError] = useState(null);
-  const fetchIdRef = useRef(0);
+  const [categoryChannel, setCategoryChannel] = useState("All");
+  const overviewFetchIdRef = useRef(0);
+  const categoryFetchIdRef = useRef(0);
 
   // Sync filters state from context (used only by child props, NOT for triggering fetches)
   useEffect(() => {
@@ -391,16 +396,24 @@ export default function WatchTower() {
     }));
   }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
+  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${categoryChannel}`;
+
   // Sync loading state with filter changes to prevent one-frame flicker
-  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}`;
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${selectedChannel}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
 
   if (prevFilterKey !== currentFilterKey) {
     setPrevFilterKey(currentFilterKey);
     setLoading(true);
-    setCategoryDataLoading(true);
+    // setCategoryDataLoading(true); // Handled by categoryFilterKey now
     setPerformanceLoading(true);
     setFetchError(null);
+  }
+
+  const [prevCategoryFilterKey, setPrevCategoryFilterKey] = useState(categoryFilterKey);
+  if (prevCategoryFilterKey !== categoryFilterKey) {
+    setPrevCategoryFilterKey(categoryFilterKey);
+    setCategoryDataLoading(true);
   }
 
   // Single debounced data-fetch effect — reads context directly, no intermediate state
@@ -410,16 +423,17 @@ export default function WatchTower() {
       return;
     }
 
-    const currentFetchId = ++fetchIdRef.current;
+    const currentFetchId = ++overviewFetchIdRef.current;
 
     const debounceTimer = setTimeout(async () => {
       // If another update arrived while we were waiting, skip this one
-      if (currentFetchId !== fetchIdRef.current) return;
+      if (currentFetchId !== overviewFetchIdRef.current) return;
 
       const params = {
         platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+        channel: selectedChannel === "All" ? undefined : selectedChannel,
         location: undefined, // Enforced isolation from global location filter
         keyword: selectedKeyword || undefined,
         startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
@@ -431,7 +445,7 @@ export default function WatchTower() {
       // 1. Fetch fast overview data
       axiosInstance.get("/watchtower/overview", { params })
         .then(response => {
-          if (currentFetchId === fetchIdRef.current && response.data) {
+          if (currentFetchId === overviewFetchIdRef.current && response.data) {
             console.log("Fetched Watch Tower Overview:", response.data);
             setDashboardData(prev => ({
               ...prev,
@@ -448,26 +462,10 @@ export default function WatchTower() {
           }
         });
 
-      // 2. Fetch Category performance data independently
-      axiosInstance.get("/watchtower/category-overview", { params })
-        .then(response => {
-          if (currentFetchId === fetchIdRef.current && response.data) {
-            console.log("Fetched Category Overview:", response.data);
-            setCategoryOverview(response.data);
-            setCategoryDataLoading(false);
-          }
-        })
-        .catch(error => {
-          if (currentFetchId === fetchIdRef.current) {
-            console.error("Error fetching Category Overview:", error);
-            setCategoryDataLoading(false);
-          }
-        });
-
       // 3. Fetch Performance Metrics KPIs independently
       axiosInstance.get("/watchtower/performance-metrics", { params })
         .then(response => {
-          if (currentFetchId === fetchIdRef.current && response.data) {
+          if (currentFetchId === overviewFetchIdRef.current && response.data) {
             console.log("Fetched Performance Metrics KPIs:", response.data);
             setDashboardData(prev => ({
               ...prev,
@@ -484,7 +482,44 @@ export default function WatchTower() {
     }, 1000);
 
     return () => clearTimeout(debounceTimer);
-  }, [platform, selectedBrand, selectedCategory, selectedLocation, selectedKeyword, timeStart, timeEnd, compareStart, compareEnd, datesFetched, platformsFetched]);
+  }, [currentFilterKey, datesFetched, platformsFetched]);
+
+  // Separate Effect for Category Performance (Isolated Channel Filter)
+  useEffect(() => {
+    if (!datesFetched || !platformsFetched) return;
+
+    const currentFetchId = ++categoryFetchIdRef.current; 
+
+    const debounceTimer = setTimeout(async () => {
+      if (currentFetchId !== categoryFetchIdRef.current) return;
+
+      const params = {
+        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+        brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
+        category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
+        channel: categoryChannel === "All" ? undefined : categoryChannel,
+        startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
+        endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
+        compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
+        compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
+      };
+
+      axiosInstance.get("/watchtower/category-overview", { params })
+        .then(response => {
+          if (currentFetchId === categoryFetchIdRef.current && response.data) {
+            setCategoryOverview(response.data);
+            setCategoryDataLoading(false);
+          }
+        })
+        .catch(error => {
+          if (currentFetchId === categoryFetchIdRef.current) {
+            setCategoryDataLoading(false);
+          }
+        });
+    }, 1000);
+
+    return () => clearTimeout(debounceTimer);
+  }, [categoryFilterKey, datesFetched, platformsFetched]);
 
   // Memoize the PerformanceBreakdownProvider filters to prevent child re-renders
   const perfBreakdownFilters = useMemo(() => ({
@@ -500,7 +535,8 @@ export default function WatchTower() {
 
   // Retry handler for error overlay — bumps fetchIdRef to trigger the effect
   const retryFetch = useCallback(() => {
-    fetchIdRef.current++; // force a new cycle
+    overviewFetchIdRef.current++; // force a new cycle
+    categoryFetchIdRef.current++;
     // Trigger re-render by toggling a dummy dependency — we simply re-call the effect
     setFetchError(null);
     setLoading(true);
@@ -726,7 +762,14 @@ export default function WatchTower() {
             />
           </Box> */}
 
-          <FormatPerformanceStudio rows={FORMAT_ROWS} loading={categoryDataLoading} openHelpWithMenu={openHelpWithMenu} />
+          <FormatPerformanceStudio 
+            rows={FORMAT_ROWS} 
+            loading={categoryDataLoading} 
+            openHelpWithMenu={openHelpWithMenu} 
+            channels={channels}
+            categoryChannel={categoryChannel}
+            setCategoryChannel={setCategoryChannel}
+          />
 
           {/* {activeTab === "sku" && (
             <Box sx={{ p: 3 }}>
@@ -774,7 +817,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
+const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, categoryChannel, setCategoryChannel }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -798,22 +841,24 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
     [rows]
   );
   const formatNumber = (value) =>
-    Number.isFinite(value) ? value.toLocaleString("en-IN") : "NaN";
-  const clamp01 = (value) => Math.max(0, Math.min(1, value));
+    Number.isFinite(value) ? value.toLocaleString("en-IN") : "N/A";
+  const clamp01 = (value) => Math.max(0, Math.min(1, value || 0));
   const pct = (value) =>
-    Number.isFinite(value) ? `${value.toFixed(1)}%` : "NaN";
+    Number.isFinite(value) ? `${value.toFixed(1)}%` : "N/A";
   const [visibleCount, setVisibleCount] = useState(7);
   const visibleItems = rows.slice(0, visibleCount);
   const total = rows.length;
 
   const formatCurrencyShort = (val) => {
-    if (!Number.isFinite(val) || val === 0) return "0";
+    if (val === null || !Number.isFinite(val)) return "N/A";
+    if (val === 0) return "0";
     const absVal = Math.abs(val);
     if (absVal >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
     if (absVal >= 100000) return `${(val / 100000).toFixed(2)} Lac`;
     if (absVal >= 1000) return `${(val / 1000).toFixed(2)} K`;
     return val.toFixed(2);
   };
+
 
   const kpiBands = [
     {
@@ -913,6 +958,22 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
               Hover a format to see its DNA. Click a pill below to compare.
             </p>
           </div>
+
+          {/* Local Channel Dropdown */}
+          <div className="relative flex items-center">
+            <select
+              value={categoryChannel || 'All'}
+              onChange={(e) => setCategoryChannel(e.target.value)}
+              className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
+              style={{ fontFamily: 'Roboto, sans-serif' }}
+            >
+              <option value="All">All Channels</option>
+              {channels?.filter(c => c !== 'All').map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
+          </div>
         </div>
 
         <div className="space-y-2 max-h-150 overflow-y-auto pr-1 ">
@@ -980,8 +1041,9 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                           fontSize: "0.75rem",
                         }}
                       >
-                        Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {f.roas.toFixed(1)}x
+                        Offtakes ₹{formatCurrencyShort(f.offtakes)} · ROAS {Number.isFinite(f.roas) ? `${f.roas.toFixed(1)}x` : "N/A"}
                       </div>
+
                     </div>
                   </div>
 
@@ -994,9 +1056,10 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                       fontSize: "0.75rem",
                     }}
                   >
-                    <span>MS {f.marketSharePct}%</span>
-                    <span>Conv {f.conversionPct}%</span>
+                    <span>MS {Number.isFinite(f.marketSharePct) ? `${f.marketSharePct}%` : "N/A"}</span>
+                    <span>Conv {Number.isFinite(f.conversionPct) ? `${f.conversionPct}%` : "N/A"}</span>
                   </div>
+
                 </motion.button>
               );
             })
@@ -1048,8 +1111,9 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                     Market share
                   </div>
                   <div className="text-sm font-medium">
-                    {active.marketSharePct}%
+                    {Number.isFinite(active.marketSharePct) ? `${active.marketSharePct}%` : "N/A"}
                   </div>
+
                   {compare && (
                     <div className="mt-1 text-[10px] text-rose-500">
                       Delta ROAS{" "}
@@ -1118,8 +1182,9 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu }) => {
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-xs">
                     <div className="text-[10px] text-slate-500">ROAS</div>
                     <div className="text-base font-semibold">
-                      {active.roas.toFixed(1)}x
+                      {Number.isFinite(active.roas) ? `${active.roas.toFixed(1)}x` : "N/A"}
                     </div>
+
                     {compare && (
                       <div className="text-[9px] text-violet-600 mt-0.5">
                         vs {compare.roas.toFixed(1)}x

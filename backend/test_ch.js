@@ -1,36 +1,28 @@
 import { queryClickHouse } from './src/config/clickhouse.js';
 
-async function run() {
+async function test() {
     try {
-        const query1 = `
-            SELECT keyword as name, sum(toInt32(overall)) as brand_kws
-            FROM rb_kw_olap
-            WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-29' 
-              AND lower(brand_name_th) = 'boat' 
-              AND flag = 1 
-              AND keyword IS NOT NULL AND keyword != ''
-            GROUP BY name
-            ORDER BY brand_kws DESC
-            LIMIT 10
-        `;
-        const query2 = `
-            SELECT keyword as name, sum(toInt32(overall)) as total_kws
-            FROM rb_kw_olap
-            WHERE toDate(DATE) BETWEEN '2026-03-01' AND '2026-03-29' 
-              AND keyword IS NOT NULL AND keyword != ''
-            GROUP BY name
-            ORDER BY total_kws DESC
-            LIMIT 10
-        `;
+        const dbsRes = await queryClickHouse('SHOW DATABASES');
+        const dbs = dbsRes.map(d => d.name).filter(d => !['system', 'INFORMATION_SCHEMA', 'information_schema'].includes(d));
+        
+        for (let db of dbs) {
+            try {
+                const q1 = await queryClickHouse(`SELECT DISTINCT channel, platform FROM ${db}.rca_sku_dim WHERE platform ILIKE '%Amazon%'`);
+                if (q1 && q1.length > 0) {
+                    console.log(`DB ${db} rca_sku_dim Amazon channels:`, q1);
+                }
+            } catch (e) {}
 
-        const res1 = await queryClickHouse(query1);
-        console.log("Numerator (boat) results:", res1);
-        const res2 = await queryClickHouse(query2);
-        console.log("Denominator (all) results:", res2.slice(0, 3));
-        process.exit(0);
-    } catch (err) {
-        console.error(err);
-        process.exit(1);
+            try {
+                const q2 = await queryClickHouse(`SELECT DISTINCT channel, Platform FROM ${db}.rb_pdp_olap WHERE Platform ILIKE '%Amazon%'`);
+                if (q2 && q2.length > 0) {
+                    console.log(`DB ${db} rb_pdp_olap Amazon channels:`, q2);
+                }
+            } catch (e) {}
+        }
+    } catch (e) {
+        console.error(e);
     }
+    process.exit(0);
 }
-run();
+test();
