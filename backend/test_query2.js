@@ -1,42 +1,55 @@
-import { createClient } from '@clickhouse/client';
-import dayjs from 'dayjs';
+import clickhouse, { queryClickHouse } from './src/config/clickhouse.js';
 
-(async () => {
-    const client = createClient({
-        url: 'http://13.200.55.131:8123',
-        username: 'readonly_user',
-        password: 'Readonly@123',
-        database: 'mars'
-    });
-
-    try {
-        const endDate = dayjs('2026-03-09');
-        const startDate = endDate.subtract(30, 'days');
-
-        console.log('--- TESTING SOS QUERIES ---');
-
-        // 1. Overall Deno
-        const denoResult = await client.query({
-            query: `SELECT COUNT(*) AS overall_deno FROM rb_kw_olap WHERE keyword_search_rank < 11 AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`,
-            format: 'JSONEachRow'
-        });
-        const denoRows = await denoResult.json();
-        const deno = denoRows[0].overall_deno;
-        console.log('Overall Deno:', deno);
-
-        // 2. Brand Neno
-        const nenoResult = await client.query({
-            query: `SELECT brand_name_th, COUNT(*) AS overall_neno FROM rb_kw_olap WHERE keyword_search_rank < 11 AND toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}' GROUP BY brand_name_th ORDER BY overall_neno DESC LIMIT 5`,
-            format: 'JSONEachRow'
-        });
-        const nenoRows = await nenoResult.json();
-        console.log('Top 5 Brands Neno:');
-        nenoRows.forEach(r => {
-            const sos = (r.overall_neno / deno * 100).toFixed(2);
-            console.log(`${r.brand_name_th}: ${r.overall_neno} (SOS: ${sos}%)`);
-        });
-
-    } catch (e) {
-        console.error(e);
-    }
-})();
+async function test() {
+  const query = `
+        WITH sku_sales_curr AS (
+            SELECT 
+                multiIf(LOWER(Location) IN ('gurgaon','gurugram'), 'Gurugram', LOWER(Location) IN ('bangalore','bengaluru'), 'Bengaluru', initCap(Location)) AS city, 
+                Platform AS platform, 
+                Category AS category, Product, Comp_flag,
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS sku_sales
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '2026-03-21' AND '2026-04-20' AND Product IS NOT NULL AND Product != ''
+            GROUP BY city, platform, category, Product, Comp_flag
+        ),
+        cat_sales_curr AS (
+            SELECT city, platform, category, SUM(sku_sales) AS cat_sales FROM sku_sales_curr GROUP BY city, platform, category
+        ),
+        sku_ms_curr AS (
+            SELECT s.city, s.platform, s.category, s.Product, s.Comp_flag,
+                   (s.sku_sales / nullIf(c.cat_sales, 0)) AS sku_ms
+            FROM sku_sales_curr s JOIN cat_sales_curr c ON s.city = c.city AND s.platform = c.platform AND s.category = c.category
+        ),
+        sku_sales_prev AS (
+            SELECT 
+                multiIf(LOWER(Location) IN ('gurgaon','gurugram'), 'Gurugram', LOWER(Location) IN ('bangalore','bengaluru'), 'Bengaluru', initCap(Location)) AS city, 
+                Platform AS platform, 
+                Category AS category, Product, Comp_flag,
+                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS sku_sales
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '2026-02-19' AND '2026-03-20' AND Product IS NOT NULL AND Product != ''
+            GROUP BY city, platform, category, Product, Comp_flag
+        ),
+        cat_sales_prev AS (
+            SELECT city, platform, category, SUM(sku_sales) AS cat_sales FROM sku_sales_prev GROUP BY city, platform, category
+        ),
+        sku_ms_prev AS (
+            SELECT s.city, s.platform, s.category, s.Product, s.Comp_flag,
+                   (s.sku_sales / nullIf(c.cat_sales, 0)) AS sku_ms
+            FROM sku_sales_prev s JOIN cat_sales_prev c ON s.city = c.city AND s.platform = c.platform AND s.category = c.category
+        ),
+        sku_ms_gap AS (
+            SELECT c.city, c.platform, c.category, c.Product, c.Comp_flag,
+                   ifNull(c.sku_ms, 0) - ifNull(p.sku_ms, 0) AS ms_gap
+            FROM sku_ms_curr c
+            LEFT JOIN sku_ms_prev p ON c.city = p.city AND c.platform = p.platform AND c.category = p.category AND c.Product = p.Product AND c.Comp_flag = p.Comp_flag
+        )
+        SELECT Comp_flag, count(*), MIN(ms_gap), MAX(ms_gap) FROM sku_ms_gap GROUP BY Comp_flag;
+  `;
+  try {
+      const res = await queryClickHouse(query);
+      console.log(res);
+  } catch (e) { console.error(e); }
+  process.exit(0);
+}
+test();
