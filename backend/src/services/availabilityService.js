@@ -466,6 +466,7 @@ const getAbsoluteOsaOverview = async (filters) => {
                     SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sumDenoOsa,
                     SUM(ifNull(toFloat64OrZero(toString(buy_box_neno_osa)), 0)) as sumBuyBoxNeno,
                     SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sumSales,
+                    COUNT(DISTINCT Web_Pid) as skuCount,
                     avg(${deliveryDaysSQL}) as avgDeliveryDays
                 FROM rb_pdp_olap
                 WHERE ${where}
@@ -496,14 +497,7 @@ const getAbsoluteOsaOverview = async (filters) => {
             const fillRate = currSumDeno > 0 ? (currSumBuyBox / currSumDeno) * 100 : 0;
             const prevFillRate = prevSumDeno > 0 ? (prevSumBuyBox / prevSumDeno) * 100 : 0;
 
-            const skuCountQuery = `SELECT count(DISTINCT sku_name) as sku_count FROM rb_sku_platform WHERE is_competitor = 0`;
-            let skuCount = 0;
-            try {
-                const skuCountResult = await queryClickHouse(skuCountQuery);
-                skuCount = skuCountResult[0] ? parseFloat(skuCountResult[0].sku_count) : 0;
-            } catch (e) {
-                console.error('[getAbsoluteOsaOverview] Error fetching SKU Count:', e.message);
-            }
+            const skuCount = curr.skuCount ? parseFloat(curr.skuCount) : 0;
 
             const psl = stockAvailability > 0 ? currSumSales * ((100 / stockAvailability) - 1) : 0;
             const prevPslValue = prevStockAvailability > 0 ? prevSumSales * ((100 / prevStockAvailability) - 1) : 0;
@@ -766,9 +760,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                             delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
                             NULL,
                             CASE
-                                WHEN dateDiff('day', today(), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today()))))) < 0 THEN 0
-                                WHEN dateDiff('day', today(), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today()))))) > 30 THEN NULL
-                                ELSE dateDiff('day', today(), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(today())))))
+                                WHEN dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))) < 0 THEN 0
+                                WHEN dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))) > 30 THEN NULL
+                                ELSE dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))
                             END
                         )
                     `;
@@ -2063,6 +2057,31 @@ const getAvailabilityKpiTrends = async (filters) => {
                 endDate: currentEndDate.format('YYYY-MM-DD')
             });
 
+            // Check if delivery_date and buy_box_neno_osa columns exist before using them
+            let deliveryDaysSQL = 'NULL';
+            let buyBoxSQL = '0';
+            try {
+                const pdpCols = await getTableColumns('rb_pdp_olap');
+                if (columnExists(pdpCols, 'delivery_date')) {
+                    deliveryDaysSQL = `
+                        IF(
+                            delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
+                            NULL,
+                            CASE
+                                WHEN dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) < 0 THEN 0
+                                WHEN dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) > 30 THEN NULL
+                                ELSE dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))
+                            END
+                        )
+                    `;
+                }
+                if (columnExists(pdpCols, 'buy_box_neno_osa')) {
+                    buyBoxSQL = 'SUM(toFloat64OrZero(toString(buy_box_neno_osa)))';
+                }
+            } catch (colCheckErr) {
+                console.warn('[getAvailabilityKpiTrends] Could not check columns, using defaults:', colCheckErr.message);
+            }
+
             console.log(`[getAvailabilityKpiTrends] Querying for period ${currentStartDate.format('YYYY-MM-DD')} to ${currentEndDate.format('YYYY-MM-DD')}`);
 
             const query = `
@@ -2070,6 +2089,8 @@ const getAvailabilityKpiTrends = async (filters) => {
                     DATE as ref_date,
                     SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
                     SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                    ${buyBoxSQL} as total_buybox_neno,
+                    AVG(${deliveryDaysSQL}) as avg_delivery_days,
                     SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sum_sales,
                     SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
                     SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
@@ -2087,10 +2108,13 @@ const getAvailabilityKpiTrends = async (filters) => {
             const timeSeries = results.map(row => {
                 const neno = parseFloat(row.total_neno) || 0;
                 const deno = parseFloat(row.total_deno) || 0;
+                const buyboxNeno = parseFloat(row.total_buybox_neno) || 0;
                 const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
 
                 const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                const fillrate = deno > 0 ? (buyboxNeno / deno) * 100 : 0;
                 const listing = parseFloat(row.avg_listing_percent) || 0;
+                const delivery = row.avg_delivery_days !== null ? parseFloat(row.avg_delivery_days) : 0;
 
                 const totalSales = parseFloat(row.sum_sales) || 0;
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
@@ -2098,8 +2122,10 @@ const getAvailabilityKpiTrends = async (filters) => {
                 return {
                     date: dayjs(row.ref_date).format("DD MMM'YY"),
                     Osa: parseFloat(osa.toFixed(1)),
+                    Fillrate: parseFloat(fillrate.toFixed(1)),
                     Listing: parseFloat(listing.toFixed(1)),
                     Assortment: dailyUniquePids,
+                    Delivery: parseFloat(delivery.toFixed(1)),
                     Psl: parseFloat(psl.toFixed(1))
                 };
             });
@@ -2107,8 +2133,10 @@ const getAvailabilityKpiTrends = async (filters) => {
             return {
                 metrics: [
                     { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
+                    { id: 'Fillrate', label: 'Buy Box %', color: '#F59E0B', default: true },
                     { id: 'Listing', label: 'Listing %', color: '#0EA5E9', default: true },
                     { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false },
+                    { id: 'Delivery', label: 'Delivery Time', color: '#EC4899', default: false },
                     { id: 'Psl', label: 'PSL (₹)', color: '#8B5CF6', default: false }
                 ],
                 timeSeries,
