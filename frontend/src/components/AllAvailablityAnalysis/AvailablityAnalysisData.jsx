@@ -1267,10 +1267,11 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
   const [availability, setAvailability] = useState("absolute");
   const [localLoading, setLocalLoading] = useState(false);
 
-  const isBoatUser = useMemo(() => {
+  const isSignalLabHiddenUser = useMemo(() => {
     try {
       const u = JSON.parse(sessionStorage.getItem('user'));
-      return u?.dbName?.toLowerCase() === 'boat';
+      const db = u?.dbName?.toLowerCase();
+      return db === 'boat' || db === 'mars' || db === 'mars_petcare' || db === 'mar_petcare';
     } catch {
       return false;
     }
@@ -1349,19 +1350,19 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     const deliveryCardData = apiData?.overview ? {
       value: apiData.overview.deliveryTime !== undefined ? apiData.overview.deliveryTime : "Coming soon",
       delta: 0,
-      trend: []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Delivery || 0) || []
     } : null;
 
     const skuCountData = apiData?.overview ? {
       value: formatNumber(apiData.overview.skuCount || 0),
       delta: 0,
-      trend: []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Assortment || 0) || []
     } : null;
 
     const pslCardData = apiData?.overview ? {
       value: `₹${formatNumber(apiData.overview.psl || 0)}`,
       delta: Number(apiData.overview.psl || 0) - Number(apiData.overview.prevPsl || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || []
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Psl || 0) || []
     } : null;
 
     // Fallback mock logic for single KPI if API missing
@@ -1446,7 +1447,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         )}
 
         {/* Signal Lab Availability Segment */}
-        {!isBoatUser && (
+        {!isSignalLabHiddenUser && (
           <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
             <SignalLabVisibility type="availability" loading={isLoading} />
           </div>
