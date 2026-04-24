@@ -69,10 +69,10 @@ const processKeywordType = (val) => {
  */
 function buildChannelCondition(channel, columnName = 'platform_name') {
     if (!channel || channel === 'All') return "1=1";
-    
+
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
     const channels = Array.isArray(channel) ? channel : (typeof channel === 'string' && channel.includes(',') ? channel.split(',') : [channel]);
-    
+
     if (channels.length === 0 || channels.every(c => c.toLowerCase() === 'all')) return "1=1";
 
     const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(String(c).toLowerCase()));
@@ -82,7 +82,7 @@ function buildChannelCondition(channel, columnName = 'platform_name') {
     // Distinct lists for platforms
     const ecomPlatforms = ['Amazon', 'Flipkart'];
     const quickPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Swiggy'];
-    
+
     let conditions = [];
 
     if (isQuickComm) {
@@ -1286,7 +1286,7 @@ class VisibilityService {
                 // CRITICAL: We MUST allow 'Nation' for Flipkart and Amazon because they often ONLY have nation-wide data
                 const EXCLUDED_LOCATIONS = "'Nation', 'National', 'All India', 'Total', 'India', 'nation', 'national', 'all india'";
                 const isNationOnlyPlatform = ['Flipkart', 'Amazon'].includes(platform);
-                
+
                 const locationFilter = location === 'All'
                     ? (isNationOnlyPlatform ? '' : `AND location_name NOT IN (${EXCLUDED_LOCATIONS})`)
                     : `AND ${locationCondition}`;
@@ -1505,6 +1505,12 @@ class VisibilityService {
                 } else {
                     const limitClause = 'LIMIT 50';
 
+                    const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
+                    const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
+                    const searchVolumeSelect = hasSearchVolPct
+                        ? `ROUND(SUM(toFloat64OrZero(toString(search_volume_percentage))), 2)`
+                        : `0`;
+
                     const metricsQuery = `
                         SELECT 
                             keyword,
@@ -1516,6 +1522,7 @@ class VisibilityService {
                             sum(toInt32(organic)) as total_organic,
                             sum(toInt32(spons)) as total_spons,
                             sumIf(toInt32(overall), ${brandSOSCondition}) as brand_filter_overall,
+                            ${searchVolumeSelect} as search_volume,
                             ROUND(AVG(POSITION), 1) as avg_overall_pos,
                             ROUND(avgIf(POSITION, toInt32(organic) = 1 AND flag = 1), 1) as avg_org_pos,
                             ROUND(avgIf(POSITION, toInt32(spons) = 1 AND flag = 1), 1) as avg_ad_pos
@@ -1620,6 +1627,7 @@ class VisibilityService {
                             paidSos: currPaidSos,
                             paidDelta: Number((currPaidSos - prev.paidSos).toFixed(1)),
                             paidPos: Number(Number(km.avg_ad_pos || 0).toFixed(1)),
+                            searchVolume: Number(km.search_volume || 0),
                         };
                     });
                 }
@@ -2883,7 +2891,7 @@ class VisibilityService {
                     const b = row.brand;
                     const p = row.platform;
                     if (!b || b.trim().toLowerCase() === 'other' || !p) continue;
-                    
+
                     const key = `${b}||${p}`;
                     if (!brandMap[key]) brandMap[key] = { brand: b, platform: p };
                     brandMap[key][row.period] = {
@@ -3529,10 +3537,10 @@ class VisibilityService {
 
                 const startDate = filters.startDate || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
                 const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
-                
+
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];
-                
+
                 // Build channel condition directly (channel column has 'Ecommerce'/'QuickComm' values)
                 if (filters.channel && filters.channel !== 'All') {
                     const ch = filters.channel.toLowerCase();
@@ -3613,7 +3621,7 @@ class VisibilityService {
                     const rawPrevBSR = Number(row.prev_bsr);
                     const currentBSR = (rawBSR > 0) ? rawBSR : null;
                     const prevBSR = (rawPrevBSR > 0) ? rawPrevBSR : null;
-                    
+
                     const currentDiscount = Number(row.current_discount) || 0;
                     const prevDiscount = Number(row.prev_discount) || 0;
 
@@ -3676,7 +3684,7 @@ class VisibilityService {
                     const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name');
                     const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
                     const kwLocationCond = buildCHCondition(filters.location, 'location_name');
-                    
+
                     const kwFilterClauseList = [kwPlatformCond, kwChannelCond, kwCategoryCond, kwLocationCond].filter(c => c && c !== '1=1');
                     const kwFilterClause = kwFilterClauseList.length > 0 ? kwFilterClauseList.join(' AND ') : '1=1';
 
@@ -3705,7 +3713,7 @@ class VisibilityService {
 
                     console.log('[BSR] Executing BSR SOV Query...');
                     const sovResults = await queryClickHouse(sovQuery);
-                    
+
                     let globalCNum = 0, globalCDen = 0, globalPNum = 0, globalPDen = 0;
 
                     sovResults.forEach(r => {
@@ -3844,7 +3852,7 @@ class VisibilityService {
                 let sosTrendData = [];
                 if (ownSkuNames.length > 0) {
                     const skuTokens = ownSkuNames.map(s => `'${s}'`).join(',');
-                    
+
                     // Build kw_olap specific filter 
                     const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name');
                     const kwPlatformCond = buildCHCondition(filters.platform, 'platform_name');

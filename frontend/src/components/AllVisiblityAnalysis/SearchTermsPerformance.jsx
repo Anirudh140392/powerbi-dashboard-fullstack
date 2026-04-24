@@ -436,7 +436,8 @@ export default function SearchTermsPerformance() {
                       </div>
                       {(() => {
                         const summaryVolPercent = items.reduce((sum, item) => sum + (item.volShare || 0), 0);
-                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0 || (summaryData.totalSearchVolume || 0) > 0) ? (
+                        const summarySearchVolume = items.reduce((sum, item) => sum + (item.searchVolume || 0), 0);
+                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0 || (summaryData.totalSearchVolume || 0) > 0 || summarySearchVolume > 0) ? (
                           <div style={{ display: "flex", gap: 6, paddingLeft: 30, marginTop: 4 }}>
                             {summaryData.totalKeywords > 0 && (
                               <span style={{
@@ -446,7 +447,15 @@ export default function SearchTermsPerformance() {
                                 {summaryData.totalKeywords.toLocaleString()} Keywords
                               </span>
                             )}
-                            {summaryVolPercent > 0 && (
+                            {summarySearchVolume > 0 ? (
+                              <span style={{
+                                background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
+                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
+                                border: "1px solid #ffedd5"
+                              }}>
+                                {summarySearchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })} Search Vol.
+                              </span>
+                            ) : summaryVolPercent > 0 ? (
                               <span style={{
                                 background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
                                 borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
@@ -454,7 +463,7 @@ export default function SearchTermsPerformance() {
                               }}>
                                 {summaryVolPercent.toFixed(2)}% Total Vol. Share
                               </span>
-                            )}
+                            ) : null}
                           </div>
                         ) : null;
                       })()}
@@ -570,9 +579,15 @@ export default function SearchTermsPerformance() {
                         </div>
                       )}
                       <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>{row.name}</span>
-                      {row.volShare > 0 && activeView === "keyword" && (
-                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>{row.volShare}% VOL.</span>
-                      )}
+                      {row.searchVolume > 0 && activeView === "keyword" ? (
+                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
+                          Search Vol. {row.searchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </span>
+                      ) : (row.volShare > 0 && activeView === "keyword" ? (
+                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
+                          {row.volShare}% VOL.
+                        </span>
+                      ) : null)}
                     </div>
 
                     {/* My SKUs / All SKUs buttons — only in keyword mode */}
