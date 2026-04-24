@@ -46,3 +46,13 @@ export const fetchAvailableReportTypes = async () => {
         return [];
     }
 };
+
+export const fetchReportBuilderOptions = async () => {
+    try {
+        const response = await axiosInstance.get("/reports/builder-options");
+        return response.data;
+    } catch (error) {
+        console.error("fetchReportBuilderOptions error:", error);
+        return {};
+    }
+};
