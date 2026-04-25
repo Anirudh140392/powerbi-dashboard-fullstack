@@ -218,7 +218,7 @@ export default function OnShelfAvailability() {
   return (
     <>
       <CommonContainer
-        title="On-Shelf Availability"
+        title="Market Coverage"
         filters={filters}
         onFiltersChange={handleFiltersChange}
       >

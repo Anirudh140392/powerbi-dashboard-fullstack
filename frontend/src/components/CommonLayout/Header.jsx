@@ -3394,7 +3394,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
             >
 
               {/* ============ WATCH TOWER / MARKET SHARE / PRICING ANALYSIS / INVENTORY ANALYSIS: SINGLE FILTER BUTTON ============ */}
-              {(title === "Business Overview" || title === "Insights" || title === "Market Share" || title === "On-Shelf Availability" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
+              {(title === "Business Overview" || title === "Insights" || title === "Market Share" || title === "Market Coverage" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
                 <>
                   <Box sx={{ display: "flex", alignItems: "flex-end" }}>
                     <Button
@@ -3407,7 +3407,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                         else if (title === "Performance Marketing") setPerformanceFilterModalOpen(true);
                         else if (title === "Content Analysis") setContentFilterModalOpen(true);
                         else if (title === "Inventory Analysis") setInventoryFilterModalOpen(true);
-                        else if (title === "On-Shelf Availability") setOsaFilterModalOpen(true);
+                        else if (title === "Market Coverage") setOsaFilterModalOpen(true);
                       }}
                       variant="contained"
                       startIcon={<SlidersHorizontal size={14} strokeWidth={2.5} />}
@@ -3448,7 +3448,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                         } else if (title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
-                        } else if (title !== "Market Share" && title !== "On-Shelf Availability") {
+                        } else if (title !== "Market Share" && title !== "Market Coverage") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.length === brands.length)) count++;
                         }
                         return count > 0 ? (
@@ -3514,8 +3514,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     />
                   )}
 
-                  {/* ON-SHELF AVAILABILITY FILTER MODAL */}
-                  {title === "On-Shelf Availability" && (
+                  {/* MARKET COVERAGE FILTER MODAL */}
+                  {title === "Market Coverage" && (
                     <MarketShareFilterModal
                       open={osaFilterModalOpen}
                       onClose={() => setOsaFilterModalOpen(false)}
