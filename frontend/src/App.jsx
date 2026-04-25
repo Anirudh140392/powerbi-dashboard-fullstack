@@ -14,6 +14,7 @@ import ContentScoreDashboards from "./pages/ContentScoreDashboard/ContentScoreDa
 import PricingAnalysis from "./pages/AllPricingAnalysis/PricingAnalysis";
 import MarketShares from "./pages/AllMarketShares/MarketShares";
 import AvailablityAnalysis from "./pages/AllAvailablityAnalysis/AvailablityAnalysis";
+import OnShelfAvailability from "./pages/OnShelfAvailability/OnShelfAvailability";
 import VisibilityAnalysis from "./pages/AllVisibilityAnalysis/VisibilityAnalysis";
 import PiyConcept from "./pages/PiyConcept/PiyConcept";
 
@@ -92,6 +93,12 @@ function AppContent() {
             <Route path="/availability-analysis" element={
               <ProtectedRoute>
                 <AvailablityAnalysis />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/on-shelf-availability" element={
+              <ProtectedRoute>
+                <OnShelfAvailability />
               </ProtectedRoute>
             } />
 
