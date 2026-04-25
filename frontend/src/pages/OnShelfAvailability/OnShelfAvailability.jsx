@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect, useRef } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import StandaloneOsaDetailView from "../../components/OnShelfAvailability/StandaloneOsaDetailView";
 import StandaloneKpiMatrix from "../../components/OnShelfAvailability/StandaloneKpiMatrix";
+import StandaloneOsaOverview from "../../components/OnShelfAvailability/StandaloneOsaOverview";
 import { FilterContext } from "../../utils/FilterContext";
 import { OsaDetailViewSkeleton } from "../../components/AllAvailablityAnalysis/AvailabilitySkeletons";
 import dayjs from "dayjs";
@@ -221,6 +222,9 @@ export default function OnShelfAvailability() {
         onFiltersChange={handleFiltersChange}
       >
         <div className="max-w-7xl mx-auto space-y-5">
+          {/* Top Overview Setment */}
+          <StandaloneOsaOverview filters={filters} loading={isLoading} />
+
           {isLoading ? (
             <OsaDetailViewSkeleton />
           ) : (
