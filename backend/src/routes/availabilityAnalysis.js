@@ -2,6 +2,7 @@ import {
     AvailabilityControlTower,
     getAvailabilityOverview,
     getPlatformKpiMatrix,
+    getStandaloneKpiMatrix,
     getOsaPercentageDetail,
     getDOI,
     getMetroCityStockAvailability,
@@ -102,6 +103,7 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/availability-analysis/absolute-osa/platform-kpi-matrix', getPlatformKpiMatrix);
+    app.get('/api/availability-analysis/standalone-kpi-matrix', getStandaloneKpiMatrix);
 
     /**
      * @swagger

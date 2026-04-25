@@ -177,7 +177,7 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
   return (
     <div className="w-full mb-5">
       <SnapshotOverview
-        title="On-Shelf Availability Overview"
+        title="Market Coverage Analysis"
         icon={LayoutGrid}
         chip="Absolute Basis"
         loading={isLoading}

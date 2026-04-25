@@ -231,7 +231,7 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
             {/* Header */}
             <div className="px-6 py-6 flex items-center justify-between">
                 <div>
-                    <h2 className="text-xl font-bold text-slate-900">KPI Matrix</h2>
+                    <h2 className="text-xl font-bold text-slate-900">Market Visibility & Share</h2>
                     <p className="text-[13px] text-slate-500 mt-0.5">Hover on any value to see trend sparkline.</p>
                 </div>
                 <div className="flex items-center gap-3">

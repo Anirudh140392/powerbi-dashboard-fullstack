@@ -1223,6 +1223,407 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
+const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
+    console.log('[getStandaloneOsaPlatformKpiMatrix] Request received with filters:', filters);
+
+    const cacheKey = generateCacheKey('standalone_platform_kpi_matrix', filters);
+
+    return getCachedOrCompute(cacheKey, async () => {
+        try {
+            const { viewMode = 'Platform', startDate, endDate } = filters;
+            console.log(`\n[DEBUG STANDALONE MATRIX] viewMode: "${viewMode}"`);
+
+            // Date calculations
+            const currentEndDate = endDate ? dayjs(endDate) : dayjs();
+            const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
+            const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
+            const prevEndDate = currentStartDate.subtract(1, 'day');
+            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+
+            const startStr = currentStartDate.format('YYYY-MM-DD');
+            const endStr = currentEndDate.format('YYYY-MM-DD');
+            const startPrevStr = prevStartDate.format('YYYY-MM-DD');
+            const endPrevStr = prevEndDate.format('YYYY-MM-DD');
+
+            const vMode = (viewMode || 'Platform').toLowerCase();
+            const groupColumn = vMode === 'platform' ? 'Platform' : (vMode === 'format' || vMode === 'category') ? 'Category' : 'Location';
+            const msGroupColumn = vMode === 'platform' ? 'platform' : (vMode === 'format' || vMode === 'category') ? 'category' : 'location';
+
+            const baseFilterParams = { ...filters };
+            delete baseFilterParams.startDate;
+            delete baseFilterParams.endDate;
+            delete baseFilterParams.dates;
+            delete baseFilterParams.months;
+
+            const baseWhereClause = await buildAvailabilityWhereClause(baseFilterParams);
+            const baseFilter = baseWhereClause !== '1=1' ? ` AND ${baseWhereClause}` : '';
+
+            // MS Filters Logic
+            const buildMsFilters = () => {
+                const ms = { ...baseFilterParams };
+                if (vMode === 'platform') delete ms.platform;
+                if (vMode === 'format' || vMode === 'category') { delete ms.category; delete ms.formats; }
+                if (vMode === 'city' || vMode === 'location') { delete ms.location; delete ms.cities; }
+                
+                let msConds = [];
+                if (ms.platform && ms.platform.length > 0 && !ms.platform.includes('All')) {
+                    msConds.push(`platform IN (${ms.platform.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                }
+                if (ms.formats && ms.formats.length > 0 && !ms.formats.includes('All')) {
+                    const mappedCats = ms.formats.map(c => {
+                        if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                        if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                        return c;
+                    });
+                    msConds.push(`category IN (${mappedCats.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                }
+                if (ms.cities && ms.cities.length > 0 && !ms.cities.includes('All') && !ms.cities.includes('All India')) {
+                    msConds.push(`location IN (${ms.cities.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                }
+                if (ms.brand && ms.brand.length > 0 && !ms.brand.includes('All')) {
+                    msConds.push(`brand IN (${ms.brand.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                }
+                return msConds.length > 0 ? ' AND ' + msConds.join(' AND ') : '';
+            };
+
+            const msFiltersCond = buildMsFilters();
+
+            // Get our brands
+            const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+            const brandResult = await queryClickHouse(brandQuery);
+            const ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
+            const marsCond = ourBrands.length > 0 
+                ? `lower(group_brand) IN (${ourBrands.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`
+                : "1=0";
+
+            /* Get Distinct Columns */
+            let additionalCategoryFilter = '';
+            if (groupColumn === 'Category') {
+                const dbName = getCurrentDbName();
+                const colMap = getColumnMapping(dbName);
+                const rcaCatCol = colMap.rca_sku_dim.category;
+                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim WHERE status = 1 AND ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
+                const validCategories = validCatResult.map(r => r.category).filter(Boolean);
+                if (validCategories.length > 0) {
+                    additionalCategoryFilter = ` AND ${groupColumn} IN (${validCategories.map(c => `'${escapeStr(c)}'`).join(',')})`;
+                }
+            }
+
+            const distinctQuery = `
+                SELECT DISTINCT ${groupColumn} as value
+                FROM rb_pdp_olap
+                WHERE ${groupColumn} IS NOT NULL AND ${groupColumn} != ''
+                ${baseFilter}
+                ${additionalCategoryFilter}
+                ORDER BY value
+                LIMIT 50
+            `;
+
+            const columnValues = (await queryClickHouse(distinctQuery))
+                .map(r => r.value)
+                .filter(v => v && v.trim());
+
+            if (columnValues.length === 0) {
+                return { viewMode, columns: ['KPI'], rows: [], applicableDrillItems: [], filters, timestamp: new Date().toISOString() };
+            }
+            
+            const groupValuesFilter = `${groupColumn} IN (${columnValues.map(v => `'${escapeStr(v)}'`).join(',')})`;
+            
+            // Map MS grouping values (resolving naming mismatch between OLAPs)
+            let mappedColumnValues = [...columnValues];
+            if (groupColumn === 'Category') {
+               mappedColumnValues = columnValues.map(c => {
+                   if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
+                   if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
+                   return c;
+               });
+            }
+            const msGroupValuesFilter = `${msGroupColumn} IN (${mappedColumnValues.map(v => `'${escapeStr(v)}'`).join(',')})`;
+
+            // 1. Current & Prev OSA
+            const osaQuery = `
+                SELECT 
+                    ${groupColumn} as col_value,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${startStr}' AND '${endStr}' AND ${groupValuesFilter} ${baseFilter}
+                GROUP BY col_value
+            `;
+            const prevOsaQuery = `
+                SELECT 
+                    ${groupColumn} as col_value,
+                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
+                    SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
+                FROM rb_pdp_olap
+                WHERE DATE BETWEEN '${startPrevStr}' AND '${endPrevStr}' AND ${groupValuesFilter} ${baseFilter}
+                GROUP BY col_value
+            `;
+
+            // 2. Current & Prev MS (Our Brands Sales + Category Size)
+            const msQuery = `
+                SELECT 
+                    ${msGroupColumn} as col_value_raw,
+                    SUM(if(${marsCond}, toFloat64OrZero(toString(sales)), 0)) as curr_mw_sales,
+                    SUM(toFloat64OrZero(toString(sales))) as curr_cat_sales
+                FROM rb_ms_olap
+                WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}' AND ${msGroupValuesFilter} ${msFiltersCond}
+                GROUP BY col_value_raw
+            `;
+            const prevMsQuery = `
+                SELECT 
+                    ${msGroupColumn} as col_value_raw,
+                    SUM(if(${marsCond}, toFloat64OrZero(toString(sales)), 0)) as prev_mw_sales,
+                    SUM(toFloat64OrZero(toString(sales))) as prev_cat_sales
+                FROM rb_ms_olap
+                WHERE toDate(created_on) BETWEEN '${startPrevStr}' AND '${endPrevStr}' AND ${msGroupValuesFilter} ${msFiltersCond}
+                GROUP BY col_value_raw
+            `;
+
+            const [osaRes, prevOsaRes, msRes, prevMsRes] = await Promise.all([
+                queryClickHouse(osaQuery), queryClickHouse(prevOsaQuery),
+                queryClickHouse(msQuery), queryClickHouse(prevMsQuery)
+            ]);
+
+            const mapByCol = (arr) => arr.reduce((acc, curr) => ({ ...acc, [curr.col_value]: curr }), {});
+            const osaMap = mapByCol(osaRes);
+            const prevOsaMap = mapByCol(prevOsaRes);
+
+            // Re-map MS raw values back to standard PDP OLAP names
+            const mapMsByCol = (arr) => arr.reduce((acc, curr) => {
+               let standardVal = curr.col_value_raw;
+               if (groupColumn === 'Category') {
+                   if (standardVal === 'Chocolates (Non Gifting)') standardVal = 'Chocolates';
+                   else if (standardVal === 'Chocolates (Gifting)') standardVal = 'Chocolate Gift Pack';
+               }
+               acc[standardVal] = curr;
+               return acc;
+            }, {});
+            const msMap = mapMsByCol(msRes);
+            const prevMsMap = mapMsByCol(prevMsRes);
+
+            const kpiRows = {
+                osa: { kpi: 'OSA', trend: {}, breakdown: {} },
+                marketShare: { kpi: 'Market Share%', trend: {}, breakdown: {} },
+                applicableDrillItems: []
+            };
+
+            for (const colValue of columnValues) {
+                // OSA KPI
+                const currNeno = parseFloat(osaMap[colValue]?.sum_neno || 0);
+                const currDeno = parseFloat(osaMap[colValue]?.sum_deno || 0);
+                const prevNeno = parseFloat(prevOsaMap[colValue]?.sum_neno || 0);
+                const prevDeno = parseFloat(prevOsaMap[colValue]?.sum_deno || 0);
+                
+                const hasOsaData = osaMap[colValue] !== undefined && currDeno > 0;
+                const currOsa = hasOsaData ? (currNeno / currDeno) * 100 : null;
+                const hasPrevOsaData = prevOsaMap[colValue] !== undefined && prevDeno > 0;
+                const prevOsa = hasPrevOsaData ? (prevNeno / prevDeno) * 100 : null;
+
+                kpiRows.osa[colValue] = currOsa !== null ? Math.round(currOsa) : null;
+                kpiRows.osa.trend[colValue] = (currOsa !== null && prevOsa !== null) ? Math.round(currOsa - prevOsa) : null;
+
+                // Market Share KPI
+                const currMwSales = parseFloat(msMap[colValue]?.curr_mw_sales || 0);
+                const currCatSales = parseFloat(msMap[colValue]?.curr_cat_sales || 0);
+                const prevMwSales = parseFloat(prevMsMap[colValue]?.prev_mw_sales || 0);
+                const prevCatSales = parseFloat(prevMsMap[colValue]?.prev_cat_sales || 0);
+                
+                const hasMsData = msMap[colValue] !== undefined && currCatSales > 0;
+                const currMs = hasMsData ? (currMwSales / currCatSales) * 100 : null;
+                const hasPrevMsData = prevMsMap[colValue] !== undefined && prevCatSales > 0;
+                const prevMs = hasPrevMsData ? (prevMwSales / prevCatSales) * 100 : null;
+
+                kpiRows.marketShare[colValue] = currMs !== null ? parseFloat(currMs.toFixed(2)) : null;
+                kpiRows.marketShare.trend[colValue] = (currMs !== null && prevMs !== null) ? parseFloat((currMs - prevMs).toFixed(2)) : null;
+            }
+
+            // --- BREAKDOWN LOGIC ---
+            const { drillDimension = 'region', includeBreakdown = false } = filters;
+            
+            if (includeBreakdown && drillDimension === 'region') {
+                const regionBreakdownQuery = `
+                    WITH location_mapping AS (
+                        SELECT lower(location) as l_key, any(region) as mapped_region
+                        FROM rb_location_darkstore
+                        WHERE region IS NOT NULL AND region != ''
+                        GROUP BY l_key
+                    )
+                    SELECT 
+                        t1.${groupColumn} as col_value,
+                        l.mapped_region as drill_item,
+                        SUM(if(t1.DATE BETWEEN '${startStr}' AND '${endStr}', ifNull(toFloat64OrZero(toString(t1.neno_osa)), 0), 0)) as sum_neno,
+                        SUM(if(t1.DATE BETWEEN '${startStr}' AND '${endStr}', ifNull(toFloat64OrZero(toString(t1.deno_osa)), 0), 0)) as sum_deno
+                    FROM rb_pdp_olap t1
+                    LEFT JOIN location_mapping l ON lower(t1.Location) = l.l_key
+                    WHERE t1.DATE BETWEEN '${startPrevStr}' AND '${endStr}' 
+                      AND t1.${groupValuesFilter} ${baseFilter}
+                    GROUP BY col_value, drill_item
+                    HAVING drill_item IS NOT NULL AND drill_item != ''
+                `;
+
+                const breakdownRes = await queryClickHouse(regionBreakdownQuery);
+                const drillItemsSet = new Set();
+
+                for (const row of breakdownRes) {
+                    const { col_value, drill_item } = row;
+                    drillItemsSet.add(drill_item);
+                    if (!kpiRows.osa.breakdown[col_value]) kpiRows.osa.breakdown[col_value] = {};
+
+                    const neno = parseFloat(row.sum_neno || 0);
+                    const deno = parseFloat(row.sum_deno || 0);
+                    kpiRows.osa.breakdown[col_value][drill_item] = deno > 0 ? Math.round((neno / deno) * 100) : 0;
+                }
+                kpiRows.applicableDrillItems = Array.from(drillItemsSet).sort();
+                
+                // MS Region Breakdown
+                const msRegionBreakdownQuery = `
+                    WITH location_mapping AS (
+                        SELECT lower(location) as l_key, any(region) as mapped_region
+                        FROM rb_location_darkstore
+                        WHERE region IS NOT NULL AND region != ''
+                        GROUP BY l_key
+                    )
+                    SELECT 
+                        t1.${msGroupColumn} as col_value_raw,
+                        l.mapped_region as drill_item,
+                        SUM(if(${marsCond}, toFloat64OrZero(toString(t1.sales)), 0)) as mw_sales,
+                        SUM(toFloat64OrZero(toString(t1.sales))) as cat_sales
+                    FROM rb_ms_olap t1
+                    LEFT JOIN location_mapping l ON lower(t1.location) = l.l_key
+                    WHERE toDate(t1.created_on) BETWEEN '${startStr}' AND '${endStr}' 
+                      AND t1.${msGroupValuesFilter} ${msFiltersCond}
+                    GROUP BY col_value_raw, drill_item
+                    HAVING drill_item IS NOT NULL AND drill_item != ''
+                `;
+                
+                const msBreakdownRes = await queryClickHouse(msRegionBreakdownQuery);
+                for (const row of msBreakdownRes) {
+                    let standardVal = row.col_value_raw;
+                    if (groupColumn === 'Category') {
+                        if (standardVal === 'Chocolates (Non Gifting)') standardVal = 'Chocolates';
+                        else if (standardVal === 'Chocolates (Gifting)') standardVal = 'Chocolate Gift Pack';
+                    }
+                    const { drill_item } = row;
+                    if (!kpiRows.marketShare.breakdown[standardVal]) kpiRows.marketShare.breakdown[standardVal] = {};
+                    const mw = parseFloat(row.mw_sales || 0);
+                    const cat = parseFloat(row.cat_sales || 0);
+                    kpiRows.marketShare.breakdown[standardVal][drill_item] = cat > 0 ? parseFloat(((mw / cat) * 100).toFixed(2)) : 0;
+                }
+            } else if (includeBreakdown && drillDimension === 'period') {
+                const periodBreakdownQuery = `
+                    SELECT 
+                        ${groupColumn} as col_value,
+                        toStartOfWeek(DATE, 1) as drill_item,
+                        SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) as sum_neno,
+                        SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)) as sum_deno
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${startStr}' AND '${endStr}' AND ${groupValuesFilter} ${baseFilter}
+                    GROUP BY col_value, drill_item
+                `;
+                const breakdownRes = await queryClickHouse(periodBreakdownQuery);
+                
+                const formatPeriodLocal = (res) => {
+                     return res.map(row => {
+                         const dateObj = dayjs(row.drill_item);
+                         const weekStart = dateObj.format('DD MMM');
+                         const weekEnd = dateObj.add(6, 'day').format('DD MMM');
+                         return { ...row, drill_item: `${weekStart} - ${weekEnd}` };
+                     });
+                };
+                const formattedRes = formatPeriodLocal(breakdownRes); 
+                
+                const drillItemsSet = new Set();
+                for (const row of formattedRes) {
+                    const { col_value, drill_item } = row;
+                    drillItemsSet.add(drill_item);
+                    if (!kpiRows.osa.breakdown[col_value]) kpiRows.osa.breakdown[col_value] = {};
+                    const neno = parseFloat(row.sum_neno || 0);
+                    const deno = parseFloat(row.sum_deno || 0);
+                    kpiRows.osa.breakdown[col_value][drill_item] = deno > 0 ? Math.round((neno / deno) * 100) : 0;
+                }
+                
+                const msPeriodBreakdownQuery = `
+                    SELECT 
+                        ${msGroupColumn} as col_value_raw,
+                        toStartOfWeek(toDate(created_on), 1) as drill_item,
+                        SUM(if(${marsCond}, toFloat64OrZero(toString(sales)), 0)) as mw_sales,
+                        SUM(toFloat64OrZero(toString(sales))) as cat_sales
+                    FROM rb_ms_olap
+                    WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}' AND ${msGroupValuesFilter} ${msFiltersCond}
+                    GROUP BY col_value_raw, drill_item
+                `;
+                const msBreakdownRes = await queryClickHouse(msPeriodBreakdownQuery);
+                const formattedMsRes = formatPeriodLocal(msBreakdownRes);
+                for (const row of formattedMsRes) {
+                    let standardVal = row.col_value_raw;
+                    if (groupColumn === 'Category') {
+                        if (standardVal === 'Chocolates (Non Gifting)') standardVal = 'Chocolates';
+                        else if (standardVal === 'Chocolates (Gifting)') standardVal = 'Chocolate Gift Pack';
+                    }
+                    const { drill_item } = row;
+                    drillItemsSet.add(drill_item);
+                    if (!kpiRows.marketShare.breakdown[standardVal]) kpiRows.marketShare.breakdown[standardVal] = {};
+                    const mw = parseFloat(row.mw_sales || 0);
+                    const cat = parseFloat(row.cat_sales || 0);
+                    kpiRows.marketShare.breakdown[standardVal][drill_item] = cat > 0 ? parseFloat(((mw / cat) * 100).toFixed(2)) : 0;
+                }
+                kpiRows.applicableDrillItems = Array.from(drillItemsSet).sort();
+            } else if (includeBreakdown && drillDimension === 'competitors') {
+                const topBrandsQuery = `
+                    SELECT lower(Brand) as drill_item, SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) as sales_vol
+                    FROM rb_pdp_olap
+                    WHERE DATE BETWEEN '${startStr}' AND '${endStr}' ${baseFilter}
+                      AND Brand IS NOT NULL AND Brand != ''
+                    GROUP BY drill_item
+                    ORDER BY sales_vol DESC
+                    LIMIT 4
+                `;
+                const dbBrands = (await queryClickHouse(topBrandsQuery)).map(r => r.drill_item);
+                const drillItemsSet = new Set(dbBrands);
+                
+                if (drillItemsSet.size > 0) {
+                    const compBreakdownQuery = `
+                        SELECT 
+                            ${groupColumn} as col_value,
+                            lower(Brand) as drill_item,
+                            SUM(if(DATE BETWEEN '${startStr}' AND '${endStr}', ifNull(toFloat64OrZero(toString(neno_osa)), 0), 0)) as sum_neno,
+                            SUM(if(DATE BETWEEN '${startStr}' AND '${endStr}', ifNull(toFloat64OrZero(toString(deno_osa)), 0), 0)) as sum_deno
+                        FROM rb_pdp_olap
+                        WHERE DATE BETWEEN '${startPrevStr}' AND '${endStr}' 
+                          AND lower(Brand) IN (${Array.from(drillItemsSet).map(v => `'${escapeStr(v)}'`).join(',')})
+                          AND ${groupValuesFilter} ${baseFilter}
+                        GROUP BY col_value, drill_item
+                    `;
+                    const breakdownRes = await queryClickHouse(compBreakdownQuery);
+                    
+                    for (const row of breakdownRes) {
+                        const { col_value, drill_item } = row;
+                        if (!kpiRows.osa.breakdown[col_value]) kpiRows.osa.breakdown[col_value] = {};
+                        const neno = parseFloat(row.sum_neno || 0);
+                        const deno = parseFloat(row.sum_deno || 0);
+                        const formattedBrandName = drill_item.split(' ').map(w => w.charAt(0).toUpperCase() + w.substring(1)).join(' ');
+                        kpiRows.osa.breakdown[col_value][formattedBrandName] = deno > 0 ? Math.round((neno / deno) * 100) : 0;
+                    }
+                    kpiRows.applicableDrillItems = Array.from(drillItemsSet).map(name => name.split(' ').map(w => w.charAt(0).toUpperCase() + w.substring(1)).join(' ')).sort();
+                }
+            }
+
+            return {
+                viewMode,
+                columns: ['KPI', ...columnValues],
+                rows: [kpiRows.osa, kpiRows.marketShare],
+                applicableDrillItems: kpiRows.applicableDrillItems || [],
+                filters,
+                timestamp: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('[getStandaloneOsaPlatformKpiMatrix] Error:', error);
+            throw error;
+        }
+    }, CACHE_TTL.SHORT);
+};
+
 const getAbsoluteOsaPercentageDetail = async (filters) => {
     console.log('[getAbsoluteOsaPercentageDetail] Request received with filters:', filters);
 
@@ -2689,6 +3090,7 @@ export default {
     getAssortment,
     getAbsoluteOsaOverview,
     getAbsoluteOsaPlatformKpiMatrix,
+    getStandaloneOsaPlatformKpiMatrix,
     getAbsoluteOsaPercentageDetail,
     getDOI,
     isMetroCity,

@@ -162,6 +162,53 @@ export const getPlatformKpiMatrix = async (req, res) => {
 };
 
 /**
+ * Get Standalone KPI Matrix for Absolute OSA page (OSA + Market Share)
+ */
+export const getStandaloneKpiMatrix = async (req, res) => {
+    try {
+        const filters = {
+            viewMode: req.query.viewMode || 'Platform',  // Platform, Format, or City
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            category: parseFilter(req.query.category),
+            format: parseFilter(req.query.format),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes),
+            drillDimension: req.query.drillDimension || 'region',
+            includeBreakdown: req.query.includeBreakdown === 'true',
+            channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
+        };
+        console.log('\n========== STANDALONE KPI MATRIX API (OSA + Market Share) ==========');
+        console.log('[DEBUG] viewMode from query:', req.query.viewMode);
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+
+        const data = await availabilityService.getStandaloneOsaPlatformKpiMatrix(filters);
+
+        console.log('[RESPONSE] viewMode:', data.viewMode);
+        console.log('[RESPONSE] Columns:', JSON.stringify(data.columns));
+        console.log('====================================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Standalone KPI Matrix:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
  * Get OSA Percentage Detail View for Absolute OSA page
  */
 export const getOsaPercentageDetail = async (req, res) => {

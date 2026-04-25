@@ -1,6 +1,7 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import StandaloneOsaDetailView from "../../components/OnShelfAvailability/StandaloneOsaDetailView";
+import StandaloneOsaKpiMatrix from "../../components/OnShelfAvailability/StandaloneOsaKpiMatrix";
 import StandaloneKpiMatrix from "../../components/OnShelfAvailability/StandaloneKpiMatrix";
 import StandaloneOsaOverview from "../../components/OnShelfAvailability/StandaloneOsaOverview";
 import { FilterContext } from "../../utils/FilterContext";
@@ -222,9 +223,16 @@ export default function OnShelfAvailability() {
         onFiltersChange={handleFiltersChange}
       >
         <div className="max-w-7xl mx-auto space-y-5">
-          {/* Top Overview Setment */}
+          {/* Segment 1: Market Coverage Analysis */}
           <StandaloneOsaOverview filters={filters} loading={isLoading} />
 
+          {/* Segment 2: Platform KPI Matrix */}
+          <StandaloneOsaKpiMatrix filters={filters} loading={isLoading} />
+
+          {/* Segment 3: Market Visibility & Share (formerly KPI Matrix) */}
+          <StandaloneKpiMatrix loading={isLoading} />
+
+          {/* Segment 4: OSA % Detail View */}
           {isLoading ? (
             <OsaDetailViewSkeleton />
           ) : (
@@ -233,9 +241,6 @@ export default function OnShelfAvailability() {
               loading={isLoading}
             />
           )}
-
-          {/* KPI Matrix Segment (from Market Share) */}
-          <StandaloneKpiMatrix loading={isLoading} />
         </div>
       </CommonContainer>
     </>
