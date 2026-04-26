@@ -6,6 +6,7 @@ import mamaearthLogo from "../../assets/mamaearth.jpeg";
 import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
 import boatLogo from "../../assets/Boat.png";
 import zydusLogo from "../../assets/zyduslogo.png";
+import demoLogo from "../../assets/Demo.png";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -100,6 +101,7 @@ const Sidebar = ({
     if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
     if (user?.dbName === 'boat') return boatLogo;
     if (user?.dbName === 'zydus') return zydusLogo;
+    if (user?.dbName === 'demo') return demoLogo;
     return marsLogo;
   }, [user?.dbName]);
 
@@ -108,6 +110,7 @@ const Sidebar = ({
     if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
     if (user?.dbName === 'boat') return 'Boat Logo';
     if (user?.dbName === 'zydus') return 'Zydus Logo';
+    if (user?.dbName === 'demo') return 'Demo Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -122,6 +125,7 @@ const Sidebar = ({
       { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showBeta: true },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Market Coverage", path: "/on-shelf-availability", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare'] },
       //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },

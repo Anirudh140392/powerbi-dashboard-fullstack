@@ -2,7 +2,6 @@ import React, { useState, useContext, useMemo } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import { Inbox } from "lucide-react";
 import { GainersDrainersSkeleton } from './VisibilitySkeletons';
-import BSRModal from './BSRModal';
 
 /* ─── Fonts ───────────────── */
 const FontLoader = () => (
@@ -205,9 +204,7 @@ function SOSTable({ data, type, isGain, title, shouldShowDrilldown }) {
 
 /* ─── Main ───────────────── */
 export default function KeywordVisibilityDashboard({ apiData, loading }) {
-  const { platform: globalPlatform, selectedChannel } = useContext(FilterContext);
-  
-  const [isBSRModalOpen, setIsBSRModalOpen] = useState(false);
+  const { platform: globalPlatform } = useContext(FilterContext);
 
   const shouldShowDrilldown = useMemo(() => {
     if (!globalPlatform || globalPlatform === "All") return true;
@@ -250,58 +247,28 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}>Share of Search — Gainers & Drainers</h2>
       <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Side-by-side comparison of SOS growth and decline</p>
 
-      {/* Toggle & BSR Button */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {["overall", "organic", "paid"].map(t => (
-            <button
-              key={t}
-              onClick={() => setType(t)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 20,
-                fontSize: 13,
-                fontWeight: 600,
-                transition: "all 0.2s",
-                border: "1px solid " + (type === t ? "#0f172a" : "#e2e8f0"),
-                background: type === t ? "#0f172a" : "#fff",
-                color: type === t ? "#fff" : "#475569",
-                cursor: "pointer"
-              }}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        {/* BSR Button - Only for Ecommerce */}
-        {selectedChannel === "Ecommerce" && (
+      {/* Toggle */}
+      <div style={{ marginBottom: 20, display: "flex", gap: 8 }}>
+        {["overall", "organic", "paid"].map(t => (
           <button
-            onClick={() => setIsBSRModalOpen(true)}
+            key={t}
+            onClick={() => setType(t)}
             style={{
-              padding: "8px 18px",
+              padding: "8px 16px",
               borderRadius: 20,
               fontSize: 13,
-              fontWeight: 700,
-              background: "linear-gradient(135deg, #003366 0%, #004080 100%)",
-              color: "#fff",
-              border: "none",
-              cursor: "pointer",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              transition: "transform 0.2s, box-shadow 0.2s"
+              fontWeight: 600,
+              transition: "all 0.2s",
+              border: "1px solid " + (type === t ? "#0f172a" : "#e2e8f0"),
+              background: type === t ? "#0f172a" : "#fff",
+              color: type === t ? "#fff" : "#475569",
+              cursor: "pointer"
             }}
-            onMouseOver={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 12px rgba(0,0,0,0.15)"; }}
-            onMouseOut={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)"; }}
           >
-            📊 BSR
+            {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
-        )}
+        ))}
       </div>
-
-      <BSRModal open={isBSRModalOpen} onClose={() => setIsBSRModalOpen(false)} />
 
       {/* Tables */}
       <div style={{ display: "flex", gap: 16, flexDirection: "row" }}>

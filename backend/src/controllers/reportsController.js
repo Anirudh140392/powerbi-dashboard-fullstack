@@ -31,7 +31,7 @@ export const getReportFilterOptions = async (req, res) => {
         if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
         else if (pdpCols.has('category')) catCol = pdpCols.get('category');
         else if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category'); // For specific casing fallback if mapped
-        
+
         const data = await getCachedOrCompute(cacheKey, async () => {
             const buildWhere = (excludeField) => {
                 const conditions = [];
@@ -100,6 +100,76 @@ export const getReportFilterOptions = async (req, res) => {
 };
 
 /**
+ * Get builder-specific options for the Report Builder wizard.
+ * Returns all dynamic select/toggle options needed by the wizard steps.
+ */
+export const getReportBuilderOptions = async (req, res) => {
+    try {
+        const cacheKey = generateCacheKey('report_builder_options_v1', {});
+        const pdpCols = await getTableColumns('rb_pdp_olap');
+
+        // Resolve the category column dynamically
+        let catCol = 'Product_type';
+        if (pdpCols.has('sub_category')) catCol = pdpCols.get('sub_category');
+        else if (pdpCols.has('category')) catCol = pdpCols.get('category');
+
+        const col = (name) => resolveColumn(pdpCols, name, '0');
+        const hasRegion = pdpCols.has('region');
+        const hasSubCategory = pdpCols.has('sub_category') || pdpCols.has('subcategory');
+        const subCatCol = pdpCols.has('sub_category') ? pdpCols.get('sub_category')
+            : pdpCols.has('subcategory') ? pdpCols.get('subcategory')
+                : null;
+
+        const data = await getCachedOrCompute(cacheKey, async () => {
+            const queries = {
+                platforms: `SELECT DISTINCT Platform FROM rb_pdp_olap WHERE Platform != '' AND Platform IS NOT NULL ORDER BY Platform`,
+                categories: `SELECT DISTINCT ${catCol} as val FROM rb_pdp_olap WHERE ${catCol} != '' AND ${catCol} IS NOT NULL ORDER BY val`,
+                brandsOwn: `SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '' AND Brand IS NOT NULL AND toString(Comp_flag) = '0' ORDER BY Brand`,
+                brandsAll: `SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '' AND Brand IS NOT NULL ORDER BY Brand`,
+                skuOwn: `SELECT DISTINCT Product FROM rb_pdp_olap WHERE Product != '' AND Product IS NOT NULL AND toString(Comp_flag) = '0' ORDER BY Product`,
+                skuAll: `SELECT DISTINCT Product FROM rb_pdp_olap WHERE Product != '' AND Product IS NOT NULL ORDER BY Product`,
+                cities: `SELECT DISTINCT Location FROM rb_pdp_olap WHERE Location != '' AND Location IS NOT NULL ORDER BY Location`,
+            };
+
+            if (hasSubCategory && subCatCol) {
+                queries.subCategories = `SELECT DISTINCT ${subCatCol} as val FROM rb_pdp_olap WHERE ${subCatCol} != '' AND ${subCatCol} IS NOT NULL ORDER BY val`;
+            }
+            if (hasRegion) {
+                queries.regions = `SELECT DISTINCT ${pdpCols.get('region')} as val FROM rb_pdp_olap WHERE ${pdpCols.get('region')} != '' AND ${pdpCols.get('region')} IS NOT NULL ORDER BY val`;
+            }
+
+            const keys = Object.keys(queries);
+            const results = await Promise.all(keys.map(k => queryClickHouse(queries[k])));
+
+            const out = {};
+            keys.forEach((k, i) => {
+                const rows = results[i] || [];
+                if (k === 'platforms') out.platforms = rows.map(r => r.Platform).filter(Boolean);
+                else if (k === 'categories') out.categories = rows.map(r => r.val).filter(Boolean);
+                else if (k === 'subCategories') out.subCategories = rows.map(r => r.val).filter(Boolean);
+                else if (k === 'brandsOwn') out.brandsOwn = rows.map(r => r.Brand).filter(Boolean);
+                else if (k === 'brandsAll') out.brandsAll = rows.map(r => r.Brand).filter(Boolean);
+                else if (k === 'skuOwn') out.skuOwn = rows.map(r => r.Product).filter(Boolean);
+                else if (k === 'skuAll') out.skuAll = rows.map(r => r.Product).filter(Boolean);
+                else if (k === 'cities') out.cities = rows.map(r => r.Location).filter(Boolean);
+                else if (k === 'regions') out.regions = rows.map(r => r.val).filter(Boolean);
+            });
+
+            // Provide defaults so frontend never gets undefined
+            if (!out.subCategories) out.subCategories = [];
+            if (!out.regions) out.regions = [];
+
+            return out;
+        }, CACHE_TTL.METRICS);
+
+        res.json(data);
+    } catch (error) {
+        console.error('[getReportBuilderOptions] Error:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
  * Download Report as Excel
  */
 export const downloadReport = async (req, res) => {
@@ -152,11 +222,24 @@ export const downloadReport = async (req, res) => {
         // 2. Build Query based on reportType
         let query = '';
         const conditions = [];
-        if (platform && platform !== 'All') conditions.push(`lower(Platform) = lower('${platform.replace(/'/g, "''")}')`);
-        if (brand && brand !== 'All' && !brand.startsWith('All ')) conditions.push(`lower(Brand) = lower('${brand.replace(/'/g, "''")}')`);
-        if (city && city !== 'All' && !city.startsWith('All ')) conditions.push(`lower(Location) = lower('${city.replace(/'/g, "''")}')`);
-        if (format && format !== 'All' && !format.startsWith('All ')) conditions.push(`lower(${catCol}) = lower('${format.replace(/'/g, "''")}')`);
+
+        // Handle Platform multiple selection safely with IN clause
+        if (platform && platform !== 'All' && platform.trim() !== '') {
+            const platforms = platform.split(',').map(p => `'${p.trim().replace(/'/g, "''")}'`).join(', ');
+            conditions.push(`Platform IN (${platforms})`);
+        }
+
+        if (brand && brand !== 'All' && !brand.startsWith('All ')) conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
+        if (city && city !== 'All' && !city.startsWith('All ')) conditions.push(`Location = '${city.replace(/'/g, "''")}'`);
+        if (format && format !== 'All' && !format.startsWith('All ')) conditions.push(`${catCol} = '${format.replace(/'/g, "''")}'`);
         conditions.push(`toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'`);
+
+        // Handle Granularity constraints
+        const granularitySku = req.query.granularitySku || '';
+        if (granularitySku.includes('(Own)') && !granularitySku.includes('Comp')) {
+            // Filter to proprietary explicitly
+            conditions.push(`toString(Comp_flag) = '0'`);
+        }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -318,6 +401,141 @@ export const downloadReport = async (req, res) => {
                 WHERE t.DATE BETWEEN '${startDate}' AND '${endDate}'
                 ORDER BY t.DATE DESC
             `;
+        } else if (reportType === "Master Dump") {
+            const hasKwOlap = await checkTableExists('rb_kw_olap');
+
+            // 1. Time Granularity handling
+            let timeAgg = `toDate(t.DATE)`;
+            let cteTimeAgg = `toDate(DATE)`;
+            const granTime = req.query.granularityTime || "Daily";
+            if (granTime === "Weekly") { timeAgg = `toStartOfWeek(toDate(t.DATE))`; cteTimeAgg = `toStartOfWeek(toDate(DATE))`; }
+            if (granTime === "Monthly") { timeAgg = `toStartOfMonth(toDate(t.DATE))`; cteTimeAgg = `toStartOfMonth(toDate(DATE))`; }
+
+            // 2. Geography / Location Granularity handling
+            let reqDimensions = req.query.dimensions ? req.query.dimensions.split(',') : ['Platform', 'Brand', 'City', 'Category', 'Product'];
+            if (req.query.granularityGeo === "Pan India") {
+                reqDimensions = reqDimensions.filter(d => d !== 'City');
+            }
+
+            const granSku = req.query.granularitySku || '';
+
+            let hasPlatform = reqDimensions.includes('Platform');
+            let hasBrand = reqDimensions.includes('Brand');
+            let hasCity = reqDimensions.includes('City');
+            let hasFormat = reqDimensions.includes('Category') || reqDimensions.includes('Format');
+            let hasProduct = reqDimensions.includes('Product');
+
+            // Force override dimensions based on explicit SKU constraints
+            if (granSku.includes('SKU')) {
+                hasProduct = true;
+                hasBrand = true;
+            } else if (granSku.includes('Brand')) {
+                hasBrand = true;
+            } else if (granSku.includes('Category')) {
+                hasFormat = true;
+            }
+
+            const dimSelects = [];
+            const dimGroups = [];
+            if (hasPlatform) { dimSelects.push(`t.Platform as Platform`); dimGroups.push(`Platform`); }
+            if (hasBrand) { dimSelects.push(`t.Brand as Brand`); dimGroups.push(`Brand`); }
+            if (hasCity) { dimSelects.push(`t.Location as City`); dimGroups.push(`City`); }
+            if (hasFormat) { dimSelects.push(`t.${catCol} as Format`); dimGroups.push(`Format`); }
+            if (hasProduct) { dimSelects.push(`t.Product as Product`); dimGroups.push(`Product`); }
+
+            const dimGroupStr = dimGroups.length > 0 ? ', ' + dimGroups.join(', ') : '';
+
+            // Handle CTE mappings tightly aligned to base query
+            let sosGroupCols = ['DATE'];
+            let sosSelectCols = [`${cteTimeAgg} as DATE`];
+            let sosJoinOn = [`${timeAgg} = s.DATE`];
+
+            let totGroupCols = ['DATE'];
+            let totSelectCols = [`${cteTimeAgg} as DATE`];
+            let totJoinOn = [`${timeAgg} = tot.DATE`];
+
+            if (hasPlatform) {
+                sosGroupCols.push('Platform'); sosSelectCols.push('platform_name as Platform'); sosJoinOn.push('t.Platform = s.Platform');
+                totGroupCols.push('Platform'); totSelectCols.push('platform_name as Platform'); totJoinOn.push('t.Platform = tot.Platform');
+            }
+            if (hasBrand) {
+                sosGroupCols.push('Brand'); sosSelectCols.push('brand as Brand'); sosJoinOn.push('t.Brand = s.Brand');
+            }
+            if (hasFormat) {
+                sosGroupCols.push('Category'); sosSelectCols.push('keyword_category as Category'); sosJoinOn.push(`t.${catCol} = s.Category`);
+                totGroupCols.push('Category'); totSelectCols.push('keyword_category as Category'); totJoinOn.push(`t.${catCol} = tot.Category`);
+            }
+
+            const sosCte = hasKwOlap ? `
+                WITH sos_stats AS (
+                    SELECT 
+                        ${sosSelectCols.join(', ')},
+                        count() as brand_kw_count
+                    FROM rb_kw_olap
+                    GROUP BY ${sosGroupCols.join(', ')}
+                ),
+                total_kw_stats AS (
+                    SELECT 
+                        ${totSelectCols.join(', ')},
+                        count() as total_kw_count
+                    FROM rb_kw_olap
+                    GROUP BY ${totGroupCols.join(', ')}
+                )` : '';
+
+            const sosJoin = hasKwOlap ? `
+                LEFT JOIN sos_stats s ON ${sosJoinOn.join(' AND ')}
+                LEFT JOIN total_kw_stats tot ON ${totJoinOn.join(' AND ')}` : '';
+
+            const sosCol = hasKwOlap ? `round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,` : '';
+
+            query = `
+                ${sosCte}
+                SELECT 
+                    ${timeAgg} as DATE${dimSelects.length > 0 ? ', ' + dimSelects.join(', ') : ''},
+                    -- Sales / Basics
+                    SUM(toFloat64(${col('Sales')})) as Offtake,
+                    SUM(assumeNotNull(${col('Qty_Sold')})) as Units_Sold,
+                    SUM(assumeNotNull(${col('Qty_Sold')})) as Orders,
+                    round(SUM(toFloat64(${col('Sales')})) / nullIf(SUM(assumeNotNull(${col('Qty_Sold')})), 0), 2) as ASP,
+
+                    -- Availability
+                    round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as Stock_Availability,
+                    round(avg(toFloat64(${col('DIH')})), 2) as DOI,
+                    round(avg(ifNull(toFloat64OrZero(toString(${col('listing_percent')})), 0)), 2) as Listing_Percentage,
+
+                    -- PM
+                    SUM(toFloat64(${col('Ad_Impressions')})) as Impressions,
+                    SUM(toFloat64(${col('Ad_Clicks')})) as Clicks,
+                    SUM(toFloat64(${col('Ad_Spend')})) as Spend,
+                    SUM(toFloat64(${col('Ad_Sales')})) as Inorganic_Sales,
+                    round(SUM(toFloat64(${col('Ad_Sales')})) / nullIf(SUM(toFloat64(${col('Ad_Spend')})), 0), 2) as ROAS,
+                    round((SUM(toFloat64(${col('Ad_Quantity_sold')})) / nullIf(SUM(toFloat64(${col('Ad_Clicks')})), 0)) * 100, 2) as Conversion_Rate,
+                    round((SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Ad_Impressions')})), 0)) * 1000, 2) as CPM,
+                    round(SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Ad_Clicks')})), 0), 2) as CPC,
+
+                    -- Inventory
+                    SUM(toFloat64(${col('Inventory')})) as Current_Inventory,
+                    SUM(toFloat64(${col('MSL')})) as Target_Inventory,
+
+                    -- Pricing
+                    round(avg(toFloat64(${col('Selling_Price')})), 2) as ECP,
+                    round(avg(toFloat64(${col('MRP')})), 2) as MRP,
+                    round((1 - (SUM(toFloat64(t.${col('Sales')})) / nullIf(SUM(toFloat64(t.${col('MRP')}) * assumeNotNull(t.${col('Qty_Sold')})), 0))) * 100, 2) as Discount_Percentage,
+                    
+                    ${sosCol}
+                    
+                    round((SUM(toFloat64(${col('Ad_Spend')})) / nullIf(SUM(toFloat64(${col('Sales')})), 0)) * 100, 2) as BMI_Sales_Ratio,
+                    round(avg(toFloat64(${col('Discount')})), 2) as Promo_Percentage,
+
+                    -- Additional Availability KPIs
+                    round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
+                    round(100 - (SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage
+                FROM rb_pdp_olap t
+                ${sosJoin}
+                ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? 't.' + catCol : 't.' + match)}
+                GROUP BY DATE${dimGroupStr}
+                ORDER BY DATE DESC
+            `;
         } else if (reportType === "Pricing Analysis") {
             query = `
                 WITH category_stats AS (
@@ -472,14 +690,80 @@ export const downloadReport = async (req, res) => {
             return res.status(404).json({ error: 'No data found for the selected filters' });
         }
 
-        // 4. Generate Excel using xlsx
-        const worksheet = XLSX.utils.json_to_sheet(rawData);
+        // 4. Filter columns by requested tags if Master Dump is used
+        let finalData = rawData;
+        if (reportType === "Master Dump" && req.query.metrics) {
+            const requestedTags = req.query.metrics.split(',');
+
+            // Map tag names to exact backend column aliases
+            const TAG_MAP = {
+                // Sales / Basics
+                "Offtake": "Offtake",
+                "Units Sold": "Units_Sold",
+                "Orders": "Orders",
+                "ASP": "ASP",
+
+                // Availability
+                "Stock Availability": "Stock_Availability",
+                "OSA %": "OSA_Percentage",
+                "Stock Out %": "Stock_Out_Percentage",
+                "DOI": "DOI",
+                "Listing %": "Listing_Percentage",
+
+                // Performance Marketing
+                "Impressions": "Impressions",
+                "Clicks": "Clicks",
+                "Spend": "Spend",
+                "Inorganic Sales": "Inorganic_Sales",
+                "ROAS": "ROAS",
+                "Conversion Rate": "Conversion_Rate",
+                "CPM": "CPM",
+                "CPC": "CPC",
+                "BMI Sales Ratio": "BMI_Sales_Ratio",
+
+                // Inventory
+                "Current Inventory": "Current_Inventory",
+                "Target Inventory": "Target_Inventory",
+
+                // Pricing
+                "ECP": "ECP",
+                "MRP": "MRP",
+                "Discount %": "Discount_Percentage",
+
+                // Visibility / SOS
+                "SOS %": "SOS_Percentage",
+
+                // Promo
+                "Promo %": "Promo_Percentage"
+            };
+
+            // Map requested tags to their clean UI names inside Excel!
+            finalData = rawData.map(row => {
+                const newRow = { DATE: row.DATE };
+                if (row.Platform !== undefined) newRow.Platform = row.Platform;
+                if (row.Brand !== undefined) newRow.Brand = row.Brand;
+                if (row.City !== undefined) newRow.City = row.City;
+                if (row.Format !== undefined) newRow.Format = row.Format;
+                if (row.Product !== undefined) newRow.Product = row.Product;
+
+                requestedTags.forEach(tag => {
+                    const alias = TAG_MAP[tag];
+                    if (alias && row[alias] !== undefined) {
+                        newRow[tag] = row[alias];  // Use the human-readable tag as Excel header
+                    }
+                });
+                return newRow;
+            });
+        }
+
+        // 5. Generate Excel using xlsx
+        const worksheet = XLSX.utils.json_to_sheet(finalData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Report Data");
 
         // Set column widths
         const maxWidths = {};
-        rawData.forEach(row => {
+        finalData.forEach(row => {
             Object.keys(row).forEach(key => {
                 const val = String(row[key] || '');
                 maxWidths[key] = Math.max(maxWidths[key] || key.length, val.length);

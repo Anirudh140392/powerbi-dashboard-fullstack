@@ -212,11 +212,11 @@ async function getPmSource() {
             impressions: wrap(r('impressions')),
             orders: wrap(r('Ad_Quantity_sold')),
             platform: r('Platform'),
-            brand: r('brand'),
-            category: r('category'),
-            location: r('location_name'),
-            product: r('product'),
-            skuCode: r('sku_code'),
+            brand: columnExists(cols, 'brand') ? r('brand') : "'Unknown'",
+            category: columnExists(cols, 'category') ? r('category') : "'Unknown'",
+            location: columnExists(cols, 'location_name') ? r('location_name') : (columnExists(cols, 'location') ? r('location') : "'Unknown'"),
+            product: columnExists(cols, 'product') ? r('product') : "'Unknown'",
+            skuCode: columnExists(cols, 'sku_code') ? r('sku_code') : "'Unknown'",
             date: r('DATE'),
             channel: columnExists(cols, 'channel') ? r('channel') : null
         }
@@ -2020,7 +2020,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     if (platArr && platArr.length > 0) {
                         pmConditions.push(`${pmSrc.f.platform} IN (${platArr.map(p => `'${escapeStrLocal(p)}'`).join(', ')})`);
                     } else {
-                        const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform);
+                        const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
                         if (platformCond) pmConditions.push(platformCond);
                     }
 
@@ -2111,7 +2111,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                         pmConditions.push(`${pmSrc.f.platform} IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
                     } else {
                         // Handle All platform based on channel
-                        const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform);
+                        const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
                         if (platformCond) {
                             pmConditions.push(platformCond);
                         }
@@ -3839,7 +3839,7 @@ const computeSummaryMetrics = async (filters, options = {}) => {
         const buildPmCondsRange = (s, e) => {
             const conds = [`${pmSrc.f.date} BETWEEN '${s.format('YYYY-MM-DD')}' AND '${e.format('YYYY-MM-DD')}'`];
             if (brand && brand !== 'All') conds.push(`${pmSrc.f.brand} LIKE '%${escapeStrMain(brand)}%'`);
-            const pCond = buildPlatformChannelCond(brandsOverviewPlatform, channel, pmSrc.f.platform);
+            const pCond = buildPlatformChannelCond(brandsOverviewPlatform, channel, pmSrc.f.platform, false, pmSrc.f.channel);
             if (pCond) conds.push(pCond);
             if (brandsOverviewCategoryArr && brandsOverviewCategoryArr.length > 0) {
                 conds.push(`${pmSrc.f.category} IN (${brandsOverviewCategoryArr.map(c => `'${escapeStrMain(c)}'`).join(', ')})`);
@@ -6840,6 +6840,22 @@ const getBrandsOverview = async (filters) => {
     const currBrandCatSize = parseFloat(currCatSizeTotal[0]?.cat_size || 0);
     const prevBrandCatSize = parseFloat(prevCatSizeTotal[0]?.cat_size || 0);
 
+    // Fetch brand images from rb_brands table (ClickHouse)
+    let brandImageMap = new Map();
+    try {
+        const brandImages = await queryClickHouse(
+            `SELECT brand_name, brand_description FROM rb_brands WHERE status = 1`
+        );
+        brandImages.forEach(b => {
+            if (b.brand_name && b.brand_description) {
+                brandImageMap.set(b.brand_name.toLowerCase(), b.brand_description);
+            }
+        });
+        console.log(`[getBrandsOverview] Fetched ${brandImageMap.size} brand images from rb_brands`);
+    } catch (err) {
+        console.warn('[getBrandsOverview] Could not fetch brand images from rb_brands:', err.message);
+    }
+
     const buildMap = (data, keyField, valField) => new Map(data.map(r => [r[keyField] != null ? String(r[keyField]).toLowerCase() : '', r[valField]]));
     const currBrandMap = new Map(currBrandData.map(d => [d.Brand != null ? String(d.Brand).toLowerCase() : '', d]));
     const prevBrandMap = new Map(prevBrandData.map(d => [d.Brand != null ? String(d.Brand).toLowerCase() : '', d]));
@@ -6966,6 +6982,7 @@ const getBrandsOverview = async (filters) => {
             key: brandKey.replace(/\s+/g, '_'),
             label: brandName,
             type: "Brand",
+            logo: brandImageMap.get(brandKey) || null,
             columns: generateKpiColumns({
                 offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, promoMyBrand, promoCompete, categorySize: hasMsCheck ? currBrandCatSize : null, adSov, organicSov, buyBoxPct, deliveryTime,
                 prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? prevBrandCatSize : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
@@ -7151,7 +7168,7 @@ const getKpiTrends = async (filters) => {
         if (platArr && platArr.length > 0) {
             conds.push(`${pmSrc.f.platform} IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
         } else {
-            const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform);
+            const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
             if (platformCond) conds.push(platformCond);
         }
 
@@ -8756,7 +8773,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         if (pmPlatArr && pmPlatArr.length > 0) {
             globalPmConds.push(`${pmSrc.f.platform} IN(${pmPlatArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
         } else {
-            const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform);
+            const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
             if (platformCond) globalPmConds.push(platformCond);
         }
         const pmCheckResult = await queryClickHouse(`SELECT count(*) as count FROM ${pmSrc.table} WHERE ${globalPmConds.join(' AND ')}`);
@@ -8832,7 +8849,7 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             if (pmPlatArr && pmPlatArr.length > 0) {
                 pmConds.push(`${pmSrc.f.platform} IN(${pmPlatArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
             } else {
-                const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform);
+                const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
                 if (platformCond) pmConds.push(platformCond);
             }
 
@@ -11013,7 +11030,7 @@ const getCityOverview = async (filters) => {
 
     const buildPmCityConds = (sDate, eDate) => {
         const conds = [`${pmSrc.f.date} BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
-        const pCond = buildPlatformChannelCond(cityPlatform, channel, pmSrc.f.platform);
+        const pCond = buildPlatformChannelCond(cityPlatform, channel, pmSrc.f.platform, false, pmSrc.f.channel);
         if (pCond) conds.push(pCond);
         if (brandArr && brandArr.length > 0) {
             conds.push(`lower(${pmSrc.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b).toLowerCase()}'`).join(', ')})`);
@@ -11238,7 +11255,7 @@ const getPerformanceBreakdownData = async (filters) => {
 
         // ── Build consolidated platform/channel condition ──
         const rawPlatform = filters.platform || filters.platform_uuid;
-        const pCond = buildPlatformChannelCond(rawPlatform, filters.channel, pmSrc.f.platform);
+        const pCond = buildPlatformChannelCond(rawPlatform, filters.channel, pmSrc.f.platform, false, pmSrc.f.channel);
         const platformCond = pCond ? `AND ${pCond} ` : '';
 
         // ── Build additional filter clauses (brand, category, location) ──

@@ -18,7 +18,8 @@ import {
     getSearchTermsPerformance,
     getSearchTermsLocationDrilldown,
     getSearchTermsBrandBreakdown,
-    getVisibilityBSRData
+    getVisibilityBSRData,
+    getVisibilityBSRTrends
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
 
@@ -316,5 +317,8 @@ export default (app) => {
 
     // BSR Data for Ecommerce
     app.get('/api/visibility-analysis/bsr-data', getVisibilityBSRData);
+
+    // BSR Trends (daily KPI trends per category)
+    app.get('/api/visibility-analysis/bsr-trends', getVisibilityBSRTrends);
 };
 

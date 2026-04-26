@@ -69,10 +69,10 @@ const processKeywordType = (val) => {
  */
 function buildChannelCondition(channel, columnName = 'platform_name') {
     if (!channel || channel === 'All') return "1=1";
-    
+
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
     const channels = Array.isArray(channel) ? channel : (typeof channel === 'string' && channel.includes(',') ? channel.split(',') : [channel]);
-    
+
     if (channels.length === 0 || channels.every(c => c.toLowerCase() === 'all')) return "1=1";
 
     const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(String(c).toLowerCase()));
@@ -82,7 +82,7 @@ function buildChannelCondition(channel, columnName = 'platform_name') {
     // Distinct lists for platforms
     const ecomPlatforms = ['Amazon', 'Flipkart'];
     const quickPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Swiggy'];
-    
+
     let conditions = [];
 
     if (isQuickComm) {
@@ -1286,7 +1286,7 @@ class VisibilityService {
                 // CRITICAL: We MUST allow 'Nation' for Flipkart and Amazon because they often ONLY have nation-wide data
                 const EXCLUDED_LOCATIONS = "'Nation', 'National', 'All India', 'Total', 'India', 'nation', 'national', 'all india'";
                 const isNationOnlyPlatform = ['Flipkart', 'Amazon'].includes(platform);
-                
+
                 const locationFilter = location === 'All'
                     ? (isNationOnlyPlatform ? '' : `AND location_name NOT IN (${EXCLUDED_LOCATIONS})`)
                     : `AND ${locationCondition}`;
@@ -1505,6 +1505,12 @@ class VisibilityService {
                 } else {
                     const limitClause = 'LIMIT 50';
 
+                    const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
+                    const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
+                    const searchVolumeSelect = hasSearchVolPct
+                        ? `ROUND(SUM(toFloat64OrZero(toString(search_volume_percentage))), 2)`
+                        : `0`;
+
                     const metricsQuery = `
                         SELECT 
                             keyword,
@@ -1516,6 +1522,7 @@ class VisibilityService {
                             sum(toInt32(organic)) as total_organic,
                             sum(toInt32(spons)) as total_spons,
                             sumIf(toInt32(overall), ${brandSOSCondition}) as brand_filter_overall,
+                            ${searchVolumeSelect} as search_volume,
                             ROUND(AVG(POSITION), 1) as avg_overall_pos,
                             ROUND(avgIf(POSITION, toInt32(organic) = 1 AND flag = 1), 1) as avg_org_pos,
                             ROUND(avgIf(POSITION, toInt32(spons) = 1 AND flag = 1), 1) as avg_ad_pos
@@ -1620,6 +1627,7 @@ class VisibilityService {
                             paidSos: currPaidSos,
                             paidDelta: Number((currPaidSos - prev.paidSos).toFixed(1)),
                             paidPos: Number(Number(km.avg_ad_pos || 0).toFixed(1)),
+                            searchVolume: Number(km.search_volume || 0),
                         };
                     });
                 }
@@ -2130,10 +2138,10 @@ class VisibilityService {
                 const query = `
                 SELECT 
                     ${dateAggregation} as crawl_date,
-                    ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                    ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
-                    ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
-                    ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS display_sos
+                    ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
+                    ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
+                    ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
+                    ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS display_sos
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -2883,7 +2891,7 @@ class VisibilityService {
                     const b = row.brand;
                     const p = row.platform;
                     if (!b || b.trim().toLowerCase() === 'other' || !p) continue;
-                    
+
                     const key = `${b}||${p}`;
                     if (!brandMap[key]) brandMap[key] = { brand: b, platform: p };
                     brandMap[key][row.period] = {
@@ -3172,10 +3180,23 @@ class VisibilityService {
 
                 const dimColumn = viewMode === 'keyword' ? 'keyword' : 'keyword_search_product';
 
-                // Query 2: Get metrics by dimension
-                // Now calculates SOS based on viewMode:
-                // Keyword -> Share of Keyword (88/110 pattern)
-                // SKU -> Share of Platform (Latest request)
+                // Calculate total landscape volume for relative share (ignoring local segment filters)
+                const landscapeVolQuery = `
+                    SELECT sum(toInt32(overall)) as total_vol
+                    FROM rb_kw_olap
+                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                      AND ${platformCondition}
+                      AND ${channelCondition}
+                      AND ${locationCondition}
+                      AND ${categoryCondition}
+                      AND ${brandCondition}
+                      AND ${globalKeywordTypeCondition}
+                      ${ownBrandsCondition}
+                      AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
+                `;
+                const landscapeRes = await queryClickHouse(landscapeVolQuery);
+                const totalLandscapeVol = Number(landscapeRes[0]?.total_vol) || 0;
+
                 const mainQuery = `
                     SELECT 
                         ${dimColumn} as name,
@@ -3193,7 +3214,7 @@ class VisibilityService {
                         ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos,
 
                         count(*) as impressions,
-                        ROUND(sum(toInt32(overall)) * 100.0 / nullIf(SUM(sum(toInt32(overall))) OVER(), 0), 2) as max_vol_share,
+                        ROUND(sum(toInt32(overall)) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
                         arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS ad_position,
                         arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS organic_position
                     FROM rb_kw_olap
@@ -3229,9 +3250,35 @@ class VisibilityService {
                         volShare: Number(row.max_vol_share) || 0,
                         impressions: Number(row.impressions),
                         adPosition: Number(row.ad_position) || null,
-                        organicPosition: Number(row.organic_position) || null
+                        organicPosition: Number(row.organic_position) || null,
+                        imageUrl: null
                     };
                 });
+
+                // Fetch SKU images from rb_sku_platform when in SKU view mode
+                if (viewMode !== 'keyword') {
+                    const skuNames = Object.keys(itemsMap).filter(Boolean);
+                    if (skuNames.length > 0) {
+                        try {
+                            const imgQuery = `
+                                SELECT sku_name, any(image_url) as img
+                                FROM rb_sku_platform
+                                WHERE sku_name IN (${skuNames.map(n => `'${escapeCH(n)}'`).join(',')})
+                                GROUP BY sku_name
+                            `;
+                            const imgData = await queryClickHouse(imgQuery);
+                            imgData.forEach(row => {
+                                if (row.sku_name && itemsMap[row.sku_name]) {
+                                    const imgUrl = row.img ? String(row.img).split(',')[0].trim() : null;
+                                    itemsMap[row.sku_name].imageUrl = imgUrl || null;
+                                }
+                            });
+                            console.log(`[VisibilityService] Fetched ${imgData.length} SKU images from rb_sku_platform`);
+                        } catch (imgError) {
+                            console.error('[VisibilityService] Failed to fetch SKU images from rb_sku_platform:', imgError);
+                        }
+                    }
+                }
 
                 const items = Object.values(itemsMap).sort((a, b) => b.overallSOS - a.overallSOS);
 
@@ -3244,7 +3291,8 @@ class VisibilityService {
                             SELECT
                                 arrayElement(topK(1)(brand), 1) as leading_brand,
                                 count(DISTINCT keyword) as total_keywords,
-                                count(*) as total_search_volume,
+                                count(*) as total_impressions,
+                                sum(toInt32(overall)) as total_search_volume,
                                 sumIf(toInt32(overall), flag = 1) as num_overall,
                                 sum(toInt32(overall)) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
@@ -3489,10 +3537,10 @@ class VisibilityService {
 
                 const startDate = filters.startDate || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
                 const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
-                
+
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];
-                
+
                 // Build channel condition directly (channel column has 'Ecommerce'/'QuickComm' values)
                 if (filters.channel && filters.channel !== 'All') {
                     const ch = filters.channel.toLowerCase();
@@ -3527,6 +3575,8 @@ class VisibilityService {
                         current_period AS (
                             SELECT 
                                 ${skuCol} as sku,
+                                any(${catCol}) as category,
+                                any(${pltCol}) as platform,
                                 AVG(toInt64OrZero(${bsrCol})) as avg_bsr,
                                 AVG(${discountCol}) as avg_discount
                             FROM rb_pdp_olap
@@ -3551,6 +3601,8 @@ class VisibilityService {
                         )
                     SELECT 
                         c.sku as sku,
+                        c.category as category,
+                        c.platform as platform,
                         ROUND(c.avg_bsr) as current_bsr,
                         ROUND(p.avg_bsr) as prev_bsr,
                         ROUND(c.avg_discount, 1) as current_discount,
@@ -3564,17 +3616,19 @@ class VisibilityService {
                 const results = await queryClickHouse(query);
                 console.log('[BSR] Query returned', results.length, 'rows');
 
-                return results.map(row => {
+                const skusResult = results.map(row => {
                     const rawBSR = Number(row.current_bsr);
                     const rawPrevBSR = Number(row.prev_bsr);
                     const currentBSR = (rawBSR > 0) ? rawBSR : null;
                     const prevBSR = (rawPrevBSR > 0) ? rawPrevBSR : null;
-                    
+
                     const currentDiscount = Number(row.current_discount) || 0;
                     const prevDiscount = Number(row.prev_discount) || 0;
 
                     return {
                         sku: row.sku,
+                        category: row.category,
+                        platform: row.platform,
                         currentBSR,
                         prevBSR,
                         bsrDelta: (currentBSR !== null && prevBSR !== null) ? (currentBSR - prevBSR) : null,
@@ -3583,10 +3637,291 @@ class VisibilityService {
                         discountDelta: (currentDiscount - prevDiscount)
                     };
                 });
+
+                // ==========================================
+                // Fetch SKU images from rb_sku_platform
+                // ==========================================
+                const skuNamesForImg = skusResult.map(r => r.sku).filter(Boolean);
+                if (skuNamesForImg.length > 0) {
+                    try {
+                        const imgQuery = `
+                            SELECT sku_name, any(image_url) as img
+                            FROM rb_sku_platform
+                            WHERE sku_name IN (${skuNamesForImg.map(n => `'${escapeCH(n)}'`).join(',')})
+                            GROUP BY sku_name
+                        `;
+                        const imgData = await queryClickHouse(imgQuery);
+                        const imgMap = {};
+                        imgData.forEach(row => {
+                            if (row.sku_name) {
+                                imgMap[row.sku_name] = row.img ? String(row.img).split(',')[0].trim() : null;
+                            }
+                        });
+                        skusResult.forEach(item => {
+                            item.imageUrl = imgMap[item.sku] || null;
+                        });
+                        console.log(`[BSR] Fetched ${imgData.length} SKU images from rb_sku_platform`);
+                    } catch (imgError) {
+                        console.error('[BSR] Failed to fetch SKU images:', imgError);
+                    }
+                }
+
+                // ==========================================
+                // Calculate BSR SOV from rb_kw_olap using the valid SKUs
+                // ==========================================
+                let globalSov = 0, prevGlobalSov = 0;
+                let categorySovs = {};
+
+                const currentSkus = skusResult.filter(r => r.currentBSR !== null).map(r => escapeCH(r.sku));
+                const prevSkus = skusResult.filter(r => r.prevBSR !== null).map(r => escapeCH(r.sku));
+
+                if (currentSkus.length > 0 || prevSkus.length > 0) {
+                    const currTokens = currentSkus.length ? currentSkus.map(s => `'${s}'`).join(',') : "''";
+                    const prevTokens = prevSkus.length ? prevSkus.map(s => `'${s}'`).join(',') : "''";
+
+                    // Build kw_olap specific filter
+                    const kwPlatformCond = buildCHCondition(filters.platform, 'platform_name');
+                    const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name');
+                    const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
+                    const kwLocationCond = buildCHCondition(filters.location, 'location_name');
+
+                    const kwFilterClauseList = [kwPlatformCond, kwChannelCond, kwCategoryCond, kwLocationCond].filter(c => c && c !== '1=1');
+                    const kwFilterClause = kwFilterClauseList.length > 0 ? kwFilterClauseList.join(' AND ') : '1=1';
+
+                    const sovQuery = `
+                        SELECT 
+                            'current' as period,
+                            multiIf(keyword_category = '', 'Uncategorized', keyword_category) as category,
+                            SUM(toInt32(overall)) as total_overall,
+                            SUM(IF(keyword_search_product IN (${currTokens}), toInt32(overall), 0)) as bsr_overall
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${startDate}' AND '${endDate}' 
+                          AND ${kwFilterClause}
+                        GROUP BY category
+                        UNION ALL
+                        SELECT 
+                            'previous' as period,
+                            multiIf(keyword_category = '', 'Uncategorized', keyword_category) as category,
+                            SUM(toInt32(overall)) as total_overall,
+                            SUM(IF(keyword_search_product IN (${prevTokens}), toInt32(overall), 0)) as bsr_overall
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN (toDate('${startDate}') - (toDate('${endDate}') - toDate('${startDate}') + 1)) 
+                              AND (toDate('${startDate}') - 1)
+                          AND ${kwFilterClause}
+                        GROUP BY category
+                    `;
+
+                    console.log('[BSR] Executing BSR SOV Query...');
+                    const sovResults = await queryClickHouse(sovQuery);
+
+                    let globalCNum = 0, globalCDen = 0, globalPNum = 0, globalPDen = 0;
+
+                    sovResults.forEach(r => {
+                        const period = r.period;
+                        const cat = r.category || 'Uncategorized';
+                        const num = Number(r.bsr_overall) || 0;
+                        const den = Number(r.total_overall) || 0;
+
+                        if (!categorySovs[cat]) categorySovs[cat] = { current: 0, prev: 0, delta: 0 };
+
+                        if (period === 'current') {
+                            globalCNum += num;
+                            globalCDen += den;
+                            categorySovs[cat].current = den > 0 ? (num * 100 / den) : 0;
+                        } else {
+                            globalPNum += num;
+                            globalPDen += den;
+                            categorySovs[cat].prev = den > 0 ? (num * 100 / den) : 0;
+                        }
+                    });
+
+                    Object.values(categorySovs).forEach(c => c.delta = c.current - c.prev);
+
+                    globalSov = globalCDen > 0 ? (globalCNum * 100 / globalCDen) : 0;
+                    prevGlobalSov = globalPDen > 0 ? (globalPNum * 100 / globalPDen) : 0;
+                }
+
+                return {
+                    skus: skusResult,
+                    bsrSov: {
+                        global: {
+                            current: globalSov,
+                            prev: prevGlobalSov,
+                            delta: globalSov - prevGlobalSov
+                        },
+                        categories: categorySovs
+                    }
+                };
             } catch (error) {
                 console.error('[BSR] ❌ ERROR in getBSRData:', error.message);
                 console.error('[BSR] ❌ Full error:', error);
                 return [];
+            }
+        }, CACHE_TTL.METRICS);
+    }
+
+    /**
+     * BSR Trends — daily KPI trends grouped by category
+     * KPIs: Products in BSR, Avg Position, BSR SOS %, Top 10 BSR Products
+     */
+    async getBSRTrends(filters = {}) {
+        console.log('[VisibilityService] getBSRTrends called with filters:', JSON.stringify(filters));
+        const cacheKey = generateCacheKey('visibility_bsr_trends_v2', filters);
+
+        return await getCachedOrCompute(cacheKey, async () => {
+            try {
+                const pdpCols = await getTableColumns('rb_pdp_olap');
+                const r = (exp, fallback = null) => resolveColumn(pdpCols, exp, fallback);
+
+                const skuCol = r('Product', 'Product');
+                const bsrCol = r('best_seller_rank', 'best_seller_rank');
+                const channelCol = r('channel', 'channel');
+                const flagCol = r('Comp_flag', 'Comp_flag');
+                const dateCol = r('DATE', 'DATE');
+                const pltCol = r('Platform', 'Platform');
+                const brdCol = r('Brand', 'Brand');
+                const locCol = r('Location', 'Location');
+                const catCol = r('Category', 'Category');
+
+                const startDate = filters.startDate || dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+                const endDate = filters.endDate || dayjs().format('YYYY-MM-DD');
+
+                // Build filters for rb_pdp_olap
+                let filterConditions = ['1=1'];
+                if (filters.channel && filters.channel !== 'All') {
+                    const ch = filters.channel.toLowerCase();
+                    if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
+                        filterConditions.push(`${channelCol} = 'Ecommerce'`);
+                    } else if (ch.includes('quick')) {
+                        filterConditions.push(`${channelCol} = 'QuickComm'`);
+                    }
+                }
+                if (filters.platform && filters.platform !== 'All') {
+                    filterConditions.push(`lower(${pltCol}) = lower('${escapeCH(filters.platform)}')`);
+                }
+                if (filters.brand && filters.brand !== 'All') {
+                    filterConditions.push(`lower(${brdCol}) = lower('${escapeCH(filters.brand)}')`);
+                }
+                if (filters.location && filters.location !== 'All') {
+                    filterConditions.push(`lower(${locCol}) = lower('${escapeCH(filters.location)}')`);
+                }
+                if (filters.category && filters.category !== 'All') {
+                    filterConditions.push(`lower(${catCol}) = lower('${escapeCH(filters.category)}')`);
+                }
+                if (filters.sku && filters.sku !== 'All') {
+                    filterConditions.push(`lower(${skuCol}) = lower('${escapeCH(filters.sku)}')`);
+                }
+                const filterClause = filterConditions.join(' AND ');
+
+                // Query 1: Daily BSR metrics grouped by DATE only
+                const bsrTrendQuery = `
+                    SELECT
+                        toDate(${dateCol}) as day,
+                        'Aggregate' as category,
+                        COUNT(DISTINCT ${skuCol}) as products_in_bsr,
+                        ROUND(AVG(toInt64OrZero(${bsrCol})), 1) as avg_position,
+                        COUNT(DISTINCT IF(toInt64OrZero(${bsrCol}) <= 10, ${skuCol}, NULL)) as top_10_count
+                    FROM rb_pdp_olap
+                    WHERE ${dateCol} BETWEEN '${startDate}' AND '${endDate}'
+                      AND ${filterClause}
+                      AND ${flagCol} = 0
+                      AND ${skuCol} IS NOT NULL AND ${skuCol} != ''
+                      AND toInt64OrZero(${bsrCol}) > 0
+                    GROUP BY day
+                    ORDER BY day ASC
+                `;
+
+                console.log('[BSR Trends] Executing daily trends query...');
+                const bsrResults = await queryClickHouse(bsrTrendQuery);
+                console.log('[BSR Trends] Got', bsrResults.length, 'rows');
+
+                // Query 2: Daily BSR SOS % — from rb_kw_olap
+                // Get own SKUs from rb_pdp_olap for the period
+                const ownSkusQuery = `
+                    SELECT DISTINCT ${skuCol} as sku, ${catCol} as category
+                    FROM rb_pdp_olap
+                    WHERE ${dateCol} BETWEEN '${startDate}' AND '${endDate}'
+                      AND ${filterClause}
+                      AND ${flagCol} = 0
+                      AND ${skuCol} IS NOT NULL AND ${skuCol} != ''
+                      AND toInt64OrZero(${bsrCol}) > 0
+                `;
+                const ownSkus = await queryClickHouse(ownSkusQuery);
+                const ownSkuNames = ownSkus.map(r => escapeCH(r.sku));
+
+                let sosTrendData = [];
+                if (ownSkuNames.length > 0) {
+                    const skuTokens = ownSkuNames.map(s => `'${s}'`).join(',');
+
+                    // Build kw_olap specific filter 
+                    const kwChannelCond = buildChannelCondition(filters.channel, 'platform_name');
+                    const kwPlatformCond = buildCHCondition(filters.platform, 'platform_name');
+                    const kwCategoryCond = buildCHCondition(filters.category, 'keyword_category', { isCategory: true });
+                    const kwLocationCond = buildCHCondition(filters.location, 'location_name');
+                    const kwFilterList = [kwChannelCond, kwPlatformCond, kwCategoryCond, kwLocationCond].filter(c => c && c !== '1=1');
+                    const kwFilterClause = kwFilterList.length > 0 ? kwFilterList.join(' AND ') : '1=1';
+
+                    const sosTrendQuery = `
+                        SELECT
+                            toDate(DATE) as day,
+                            'Aggregate' as category,
+                            SUM(toInt32(overall)) as total_overall,
+                            SUM(IF(keyword_search_product IN (${skuTokens}), toInt32(overall), 0)) as bsr_overall
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${startDate}' AND '${endDate}'
+                          AND ${kwFilterClause}
+                        GROUP BY day
+                        ORDER BY day ASC
+                    `;
+
+                    console.log('[BSR Trends] Executing SOS trend query...');
+                    sosTrendData = await queryClickHouse(sosTrendQuery);
+                    console.log('[BSR Trends] SOS got', sosTrendData.length, 'rows');
+                }
+
+                // Build SOS lookup: { day_category: sosPercent }
+                const sosLookup = {};
+                sosTrendData.forEach(r => {
+                    const key = `${r.day}_${r.category}`;
+                    const total = Number(r.total_overall) || 0;
+                    const bsr = Number(r.bsr_overall) || 0;
+                    sosLookup[key] = total > 0 ? parseFloat(((bsr * 100) / total).toFixed(2)) : 0;
+                });
+
+                // Build result structure: { days: [...], categories: { [cat]: { color, timeSeries: [] } } }
+                const COLORS = ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
+                const daysSet = new Set();
+                const categoriesMap = {};
+
+                bsrResults.forEach(row => {
+                    const day = String(row.day).substring(0, 10);
+                    const cat = row.category || 'Uncategorized';
+                    daysSet.add(day);
+
+                    if (!categoriesMap[cat]) {
+                        const idx = Object.keys(categoriesMap).length;
+                        categoriesMap[cat] = {
+                            color: COLORS[idx % COLORS.length],
+                            timeSeries: []
+                        };
+                    }
+
+                    const sosKey = `${day}_${cat}`;
+                    categoriesMap[cat].timeSeries.push({
+                        date: day,
+                        products_in_bsr: Number(row.products_in_bsr) || 0,
+                        avg_position: Number(row.avg_position) || 0,
+                        bsr_sos_pct: sosLookup[sosKey] || 0,
+                        top_10_count: Number(row.top_10_count) || 0
+                    });
+                });
+
+                const days = Array.from(daysSet).sort();
+
+                return { days, categories: categoriesMap };
+            } catch (error) {
+                console.error('[BSR Trends] ❌ ERROR:', error.message);
+                return { days: [], categories: {} };
             }
         }, CACHE_TTL.METRICS);
     }

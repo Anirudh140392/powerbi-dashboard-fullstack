@@ -81,6 +81,9 @@ export const FilterProvider = ({ children }) => {
     // Visibility-specific segment toggle (My SKUs vs All SKUs)
     const [visibilityOwnBrandsOnly, setVisibilityOwnBrandsOnly] = useState(true);
 
+    // SOS / BSR toggle mode
+    const [visibilityMode, setVisibilityMode] = useState('sos');
+
     // Track current hash to detect page changes
     const [currentHash, setCurrentHash] = useState(window.location.hash);
 
@@ -124,6 +127,7 @@ export const FilterProvider = ({ children }) => {
             setSelectedProductCategory("All");
             setPlatformsFetched(false);
             setVisibilityOwnBrandsOnly(true);
+            setVisibilityMode('sos');
         }
     }, [isAuthenticated]);
 
@@ -607,7 +611,9 @@ export const FilterProvider = ({ children }) => {
             pincodes,
             setPincodes,
             selectedPincode,
-            setSelectedPincode
+            setSelectedPincode,
+            visibilityMode,
+            setVisibilityMode
         }}>
             {children}
         </FilterContext.Provider>
