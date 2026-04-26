@@ -70,8 +70,8 @@ const RolesPermissions = () => {
     // These are the tab labels that match the Sidebar menu items
     const tabsList = [
         "Business Overview", "India Overview", "Insights", "Availability Analysis",
-        "Visibility Analysis", "Market Share", "Sales Data", "Pricing Analysis",
-        "Performance Marketing", "Portfolio Analysis", "Content Analysis",
+        "Market Coverage", "Visibility Analysis", "Market Share", "Sales Data", 
+        "Pricing Analysis", "Performance Marketing", "Portfolio Analysis", "Content Analysis",
         "Inventory Analysis", "Play it Yourself", "Category RCA",
         "Scheduled Reports", "Ad Auto", "Rating", "Supply", "Content"
     ];
@@ -476,7 +476,8 @@ const RolesPermissions = () => {
                                                     <div className="px-14 py-4 space-y-2">
                                                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                                             {tabsList.map((tab) => {
-                                                                const allUsersHaveTab = usersData.length > 0 && usersData.every(u => u.tabs[tab]);
+                                                                const filteredByDb = usersData.filter(u => u.dbName.toLowerCase() === selectedAllDb.toLowerCase());
+                                                                const allUsersHaveTab = filteredByDb.length > 0 && filteredByDb.every(u => u.tabs[tab]);
                                                                 return (
                                                                     <div
                                                                         key={tab}
@@ -494,15 +495,17 @@ const RolesPermissions = () => {
                                                                                     checked={allUsersHaveTab}
                                                                                     onChange={async () => {
                                                                                         const newVal = !allUsersHaveTab;
-                                                                                        // Optimistic update for all users
-                                                                                        setUsersData(prev => prev.map(u => ({
-                                                                                            ...u,
-                                                                                            tabs: { ...u.tabs, [tab]: newVal }
-                                                                                        })));
+                                                                                        // Optimistic update for filtered users
+                                                                                        setUsersData(prev => prev.map(u => {
+                                                                                            if (u.dbName.toLowerCase() === selectedAllDb.toLowerCase()) {
+                                                                                                return { ...u, tabs: { ...u.tabs, [tab]: newVal } };
+                                                                                            }
+                                                                                            return u;
+                                                                                        }));
                                                                                         // Persist for each user
                                                                                         try {
                                                                                             const token = sessionStorage.getItem("token");
-                                                                                            await Promise.all(usersData.map(u => {
+                                                                                            await Promise.all(filteredByDb.map(u => {
                                                                                                 const updatedTabs = { ...u.tabs, [tab]: newVal };
                                                                                                 return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
                                                                                                     email: u.email,
@@ -510,7 +513,7 @@ const RolesPermissions = () => {
                                                                                                 }, { headers: { Authorization: `Bearer ${token}` } });
                                                                                             }));
                                                                                         } catch (err) {
-                                                                                            console.error('[RolesPermissions] Failed to toggle all tab permissions:', err);
+                                                                                            console.error('[RolesPermissions] Failed to toggle all tab permissions for selected database:', err);
                                                                                             fetchPermissionsUsers();
                                                                                         }
                                                                                     }}

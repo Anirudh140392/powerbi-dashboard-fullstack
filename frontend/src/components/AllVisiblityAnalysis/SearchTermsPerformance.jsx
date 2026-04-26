@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useContext, useMemo } from "re
 import { FilterContext } from "../../utils/FilterContext";
 import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown } from "../../api/visibilityService";
 import { motion, AnimatePresence } from "framer-motion";
+import { Download } from "lucide-react";
 
 const sosColor = (val) => {
   if (val === 0) return "#94a3b8";
@@ -266,6 +267,38 @@ export default function SearchTermsPerformance() {
     return !isEcomOnly;
   }, [globalPlatform]);
 
+  const downloadCSV = () => {
+    if (!items || items.length === 0) return;
+    
+    const isKeyword = activeView === "keyword";
+    const headers = isKeyword 
+      ? ["Keyword", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"]
+      : ["SKU", "Overall SOS", "Organic SOS", "Paid SOS"];
+      
+    const rows = items.map(item => {
+      const row = [
+        `"${(item.name || "").replace(/"/g, '""')}"`,
+        ...(isKeyword ? [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`] : []),
+        `"${(item.overallSOS || 0).toFixed(2)}%"`,
+        `"${(item.organicSOS || 0).toFixed(2)}%"`,
+        `"${(item.paidSOS || 0).toFixed(2)}%"`
+      ];
+      return row;
+    });
+
+    const csvContent = headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Top_Search_Terms_${activeView}_${activeFilter}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const totalPages = Math.max(1, Math.ceil(items.length / rowsPerPage));
   const paginatedItems = items.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const GRID = activeView === "keyword"
@@ -312,6 +345,22 @@ export default function SearchTermsPerformance() {
               }}>{f}</button>
             ))
           )}
+          <button 
+            onClick={downloadCSV}
+            title="Download CSV"
+            style={{
+              padding: "6px 12px", borderRadius: 10, cursor: "pointer",
+              fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+              border: "1.5px solid #cbd5e1", background: "#fff", color: "#475569",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              marginLeft: 8
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = "#f8fafc"; e.currentTarget.style.borderColor = "#94a3b8"; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.borderColor = "#cbd5e1"; }}
+          >
+            <Download size={16} />
+            <span>Export</span>
+          </button>
         </div>
       </div>
 
@@ -387,7 +436,8 @@ export default function SearchTermsPerformance() {
                       </div>
                       {(() => {
                         const summaryVolPercent = items.reduce((sum, item) => sum + (item.volShare || 0), 0);
-                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0) ? (
+                        const summarySearchVolume = items.reduce((sum, item) => sum + (item.searchVolume || 0), 0);
+                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0 || (summaryData.totalSearchVolume || 0) > 0 || summarySearchVolume > 0) ? (
                           <div style={{ display: "flex", gap: 6, paddingLeft: 30, marginTop: 4 }}>
                             {summaryData.totalKeywords > 0 && (
                               <span style={{
@@ -397,14 +447,23 @@ export default function SearchTermsPerformance() {
                                 {summaryData.totalKeywords.toLocaleString()} Keywords
                               </span>
                             )}
-                            {summaryVolPercent > 0 && (
+                            {summarySearchVolume > 0 ? (
                               <span style={{
-                                background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700,
+                                background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
                                 borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
+                                border: "1px solid #ffedd5"
                               }}>
-                                {summaryVolPercent.toFixed(2)}% VOL.
+                                {summarySearchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })} Search Vol.
                               </span>
-                            )}
+                            ) : summaryVolPercent > 0 ? (
+                              <span style={{
+                                background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
+                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
+                                border: "1px solid #ffedd5"
+                              }}>
+                                {summaryVolPercent.toFixed(2)}% Total Vol. Share
+                              </span>
+                            ) : null}
                           </div>
                         ) : null;
                       })()}
@@ -499,10 +558,36 @@ export default function SearchTermsPerformance() {
                       ) : (
                         <div style={{ width: 22, height: 22, flexShrink: 0 }} />
                       )}
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>{row.name}</span>
-                      {row.volShare > 0 && activeView === "keyword" && (
-                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>{row.volShare}% VOL.</span>
+                      {/* SKU Image Thumbnail — only in SKU view */}
+                      {activeView === "sku" && (
+                        row.imageUrl ? (
+                          <img
+                            src={row.imageUrl}
+                            alt={row.name}
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }}
+                            style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e8f0", background: "#f8fafc" }}
+                          />
+                        ) : null
                       )}
+                      {activeView === "sku" && !row.imageUrl && (
+                        <div style={{ width: 36, height: 36, borderRadius: 8, background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                            <line x1="12" y1="22.08" x2="12" y2="12" />
+                          </svg>
+                        </div>
+                      )}
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>{row.name}</span>
+                      {row.searchVolume > 0 && activeView === "keyword" ? (
+                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
+                          Search Vol. {row.searchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </span>
+                      ) : (row.volShare > 0 && activeView === "keyword" ? (
+                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
+                          {row.volShare}% VOL.
+                        </span>
+                      ) : null)}
                     </div>
 
                     {/* My SKUs / All SKUs buttons — only in keyword mode */}

@@ -335,9 +335,11 @@ function formatPercent(value) { if (value === null || value === undefined || isN
 export function AggregatedViewTable() {
     const { darkMode } = useTheme();
     const { filters } = useFilters();
-    const { channels } = useContext(FilterContext);
+    const { channels, selectedChannel } = useContext(FilterContext);
     const [groupBy, setGroupBy] = useState("category");
-    const [localChannel, setLocalChannel] = useState("All");
+
+
+
     const [showDropdown, setShowDropdown] = useState(false);
     const [data, setData] = useState([]);
     const [totals, setTotals] = useState(null);
@@ -383,10 +385,10 @@ export function AggregatedViewTable() {
                 params.set("platform_uuid", filters.platform.join(","));
             }
             
-            // Ensure we handle "Overall" correctly by explicitly managing the channel param.
-            // If localChannel is "All", we delete any global channel filter to show total values.
-            if (localChannel && localChannel !== "All") {
-                params.set("channel", localChannel);
+            // Ensure we follow the global channel filter from FilterContext
+            if (selectedChannel && selectedChannel !== "All") {
+                const ch = Array.isArray(selectedChannel) ? selectedChannel.join(",") : selectedChannel;
+                params.set("channel", ch);
             } else {
                 params.delete("channel");
             }
@@ -453,7 +455,7 @@ export function AggregatedViewTable() {
                 setLoading(false);
             }
         }
-    }, [groupBy, filters, selectedPeriods, localChannel]);
+    }, [groupBy, filters, selectedPeriods, selectedChannel]);
     // DO NOT ADD fetchOptions or objects to dependencies that change on render
 
     useEffect(() => {
@@ -481,21 +483,7 @@ export function AggregatedViewTable() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                        {/* Channel Dropdown */}
-                        <div className="relative flex items-center">
-                            <select
-                                value={localChannel || 'All'}
-                                onChange={(e) => setLocalChannel(e.target.value)}
-                                className={`appearance-none border py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all ${darkMode ? "bg-slate-700/50 border-slate-600 text-blue-400 hover:bg-slate-700" : "bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100/50"}`}
-                                style={{ fontFamily: 'Roboto, sans-serif' }}
-                            >
-                                <option value="All">All Channels</option>
-                                {channels?.filter(c => c !== 'All').map(c => (
-                                    <option key={c} value={c}>{c}</option>
-                                ))}
-                            </select>
-                            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
-                        </div>
+
 
                         <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => setIsPeriodPanelOpen(!isPeriodPanelOpen)} />
                         {untagged && untagged.percent > 0 && (<div className={`px-3 py-1.5 rounded-full text-xs font-medium ${darkMode ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-700"}`}>{untagged.percent.toFixed(1)}% untagged</div>)}

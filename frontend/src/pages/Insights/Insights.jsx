@@ -21,6 +21,7 @@ import {
     MapPin,
 } from "lucide-react";
 
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     Dialog,
@@ -156,7 +157,7 @@ const createEmptySignal = (type, brandName = "Brand") => {
             base.evidence = [{ city: "-", platform: "-", skuOrBrand: "-", kwOsa: 0, adSov: 0, spendInr: 0, estLostSalesInr: 0 }];
             break;
         case "Price Parity Radar":
-            base.kpis = [{ label: "Max GAP %", value: "0%" }, { label: "Avg PPU", value: "₹0" }];
+            base.kpis = [];
             base.evidence = [{ city: "-", category: "-", ourPpu: 0, compPpu: 0, impactedSku: "-", compSku: "-", gapPct: 0, psl: 0 }];
             break;
         case "Share Headroom Hotspots":
@@ -784,6 +785,8 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
         if (t === "Price Parity Radar") return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
+            { key: "impactedSku", label: "Impacted SKU", isText: true },
+            { key: "compSku", label: "Comp SKU", isText: true },
             { key: "gapPct", label: "GAP % (Change)", fmt: (v, r) => `${safePct(v)} (${r.gapPctChange > 0 ? '+' : ''}${safePct(r.gapPctChange)})` },
             { key: "ourPpu", label: `${insight.brandName || "Our"} PPU`, fmt: (v, r) => v != null ? `₹${Number(v).toFixed(1)} (${r.ourPpuChange > 0 ? '+' : ''}${Number(r.ourPpuChange).toFixed(1)})` : "-" },
             { key: "compPpu", label: "Comp PPU", fmt: (v, r) => v != null ? `₹${Number(v).toFixed(1)} (${r.compPpuChange > 0 ? '+' : ''}${Number(r.compPpuChange).toFixed(1)})` : "-" },
@@ -852,70 +855,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
 
     const columns = getColumns();
 
-    const getPreviewItems = () => {
-        if (isEmpty) return [];
-        const firstRow = evidence[0] || {};
-        
-        switch (insight.type) {
-            case "Share Headroom Hotspots": {
-                const offCol = columns.find(c => c.key === "offtake");
-                const msCol = columns.find(c => c.key === "marketShare");
-                return [
-                    { label: offCol?.label || "Offtake", value: offCol?.fmt ? offCol.fmt(firstRow.offtake, firstRow) : firstRow.offtake },
-                    { label: msCol?.label || "Mkt Share", value: msCol?.fmt ? msCol.fmt(firstRow.marketShare, firstRow) : firstRow.marketShare }
-                ];
-            }
-            case "Competitor OSA Weak Spots": {
-                const colOther = columns.find(c => c.key === "otherBrandOsa");
-                const colOur = columns.find(c => c.key === "kwOsa");
-                return [
-                    { label: colOther?.label || "Comp OSA", value: colOther?.fmt ? colOther.fmt(firstRow.otherBrandOsa, firstRow) : firstRow.otherBrandOsa },
-                    { label: colOur?.label || `${insight.brandName || "Brand"} OSA`, value: colOur?.fmt ? colOur.fmt(firstRow.kwOsa, firstRow) : firstRow.kwOsa }
-                ];
-            }
-            case "Price Parity Radar": {
-                const colOur = columns.find(c => c.key === "ourPpu");
-                const colComp = columns.find(c => c.key === "compPpu");
-                return [
-                    { label: colOur?.label || `${insight.brandName || "Our"} PPU`, value: colOur?.fmt ? colOur.fmt(firstRow.ourPpu, firstRow) : firstRow.ourPpu },
-                    { label: colComp?.label || "Comp PPU", value: colComp?.fmt ? colComp.fmt(firstRow.compPpu, firstRow) : firstRow.compPpu }
-                ];
-            }
-            case "Surplus Stock": {
-                return [
-                    { label: "Top SKU", value: firstRow.skuName || "-" },
-                    { label: "Excess DOI", value: `${(firstRow.excessDOI || 0).toFixed(0)} days` }
-                ];
-            }
-            case "Prioritise PO": {
-                return [
-                    { label: "Top SKU", value: firstRow.skuName || "-" },
-                    { label: "PO Status", value: firstRow.poStatus || "-" }
-                ];
-            }
-            case "Transfer Issue": {
-                return [
-                    { label: "SKU", value: firstRow.skuName || "-" },
-                    { label: "Backed DOI", value: `${(firstRow.backedDOI || 0).toFixed(1)} days` }
-                ];
-            }
-            case "New Market Entry": {
-                return [
-                    { label: "Competitor", value: firstRow.competitorName || "-" },
-                    { label: "PFU", value: `₹${firstRow.pfu || "-"}` }
-                ];
-            }
-            default: {
-                const primaryCol = columns[2] || { label: "Value", key: "value" };
-                return displayRows.slice(0, 2).map((row) => ({
-                    label: primaryCol.label,
-                    value: primaryCol.fmt ? primaryCol.fmt(row[primaryCol.key], row) : (row[primaryCol.key] ?? "-")
-                }));
-            }
-        }
-    };
 
-    const previewItems = getPreviewItems();
 
     const getCellStyle = (col, val) => {
         const base = { fontSize: "11px", color: "#374151", maxWidth: "100px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
@@ -956,12 +896,12 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                             ? "0 12px 20px -5px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)"
                             : "0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)",
                     transition: "all 0.2s ease",
-                    transform: hovered ? "translateY(-10px) translateX(5px)" : "translateY(0px)",
+                    transform: hovered ? "translateY(-6px)" : "translateY(0px)",
                 }}
             >
                 {/* Top Badge Row */}
                 <div style={{ 
-                    padding: "12px 14px 6px", 
+                    padding: "10px 14px 4px", 
                     display: "flex", 
                     alignItems: "center", 
                     justifyContent: "space-between" 
@@ -980,18 +920,18 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 </div>
 
                 {/* Title Section */}
-                <div style={{ padding: "4px 14px 12px" }}>
+                <div style={{ padding: "2px 14px 8px" }}>
                     <div style={{ 
                         fontSize: "9px", fontWeight: 700, 
                         color: "#94748b", textTransform: "uppercase", 
-                        letterSpacing: "0.06em", marginBottom: "3.5px"
+                        letterSpacing: "0.06em", marginBottom: "3px"
                     }}>
                         {family}
                     </div>
                     <div style={{ 
-                        fontSize: "13.5px", fontWeight: 800, 
+                        fontSize: "13px", fontWeight: 800, 
                         color: "#1e293b", lineHeight: 1.3,
-                        minHeight: "36px" 
+                        minHeight: "18px" 
                     }}>
                         {insight.type}
                     </div>
@@ -1000,17 +940,17 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 <Divider sx={{ mx: 1.5, borderColor: "#f1f5f9" }} />
 
                 {/* Metric Hero Section */}
-                <div style={{ padding: "14px 14px 12px" }}>
+                <div style={{ padding: "10px 14px 10px" }}>
                     <div style={{ 
                         fontSize: "8.5px", fontWeight: 700, 
                         color: "#94a3b8", textTransform: "uppercase", 
-                        letterSpacing: "0.05em", marginBottom: "10px" 
+                        letterSpacing: "0.05em", marginBottom: "8px" 
                     }}>
                         {metricLabel}
                     </div>
                     <div style={{
                         display: "inline-flex",
-                        padding: "7px 15px",
+                        padding: "5px 13px",
                         borderRadius: "8px",
                         background: isEmpty 
                             ? "#f1f5f9" 
@@ -1018,7 +958,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                         border: `1px solid ${isEmpty ? "#e2e8f0" : (isNegative ? "#fee2e2" : "#dcfce7")}`,
                     }}>
                         <span style={{
-                            fontSize: "18px", fontWeight: 900,
+                            fontSize: "16px", fontWeight: 900,
                             color: isEmpty ? "#94a3b8" : (isNegative ? "#dc2626" : "#16a34a"),
                             letterSpacing: "-0.01em"
                         }}>
@@ -1027,34 +967,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                     </div>
                 </div>
 
-                <Divider sx={{ mx: 1.5, borderColor: "#f1f5f9" }} />
 
-                {/* Evidence Rows (Preview) */}
-                <div style={{ padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: "9px" }}>
-                    {isEmpty ? (
-                        <div style={{
-                            textAlign: "center", padding: "12px 0",
-                            color: "#cbd5e1", fontSize: "11px", fontWeight: 500
-                        }}>
-                            No active hotspots detected
-                        </div>
-                    ) : (
-                        previewItems.map((item, i) => (
-                            <div key={i} style={{ 
-                                display: "flex", 
-                                alignItems: "center", 
-                                justifyContent: "space-between",
-                            }}>
-                                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>
-                                    {item.label}
-                                </span>
-                                <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#1e293b" }}>
-                                    {item.value}
-                                </span>
-                            </div>
-                        ))
-                    )}
-                </div>
 
                 <div style={{
                     padding: "8px 14px",
@@ -1331,6 +1244,102 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
 };
 
 
+// ─── SKU IMAGE CELL ──────────────────────────────────────────────────────────
+
+const SkuImageCell = ({ name, imageUrl, subtext, onImageClick, className = "" }) => {
+    const [imgError, setImgError] = useState(false);
+    const initial = (name && name !== '-') ? name.charAt(0).toUpperCase() : '?';
+    const hasImage = imageUrl && !imgError;
+
+    return (
+        <TableCell className={`px-3 py-3 ${className}`}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                <div
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (hasImage && onImageClick) onImageClick({ url: imageUrl, name });
+                    }}
+                    style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '8px',
+                        flexShrink: 0,
+                        overflow: 'hidden',
+                        border: '1px solid #e2e8f0',
+                        background: hasImage ? '#fff' : 'linear-gradient(135deg, #f1f5f9, #e2e8f0)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: hasImage ? 'pointer' : 'default',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    }}
+                    onMouseEnter={(e) => {
+                        if (hasImage) {
+                            e.currentTarget.style.borderColor = '#93c5fd';
+                            e.currentTarget.style.boxShadow = '0 2px 8px rgba(59,130,246,0.15)';
+                            e.currentTarget.style.transform = 'scale(1.05)';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#e2e8f0';
+                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
+                        e.currentTarget.style.transform = 'scale(1)';
+                    }}
+                >
+                    {hasImage ? (
+                        <img
+                            src={imageUrl}
+                            alt={name}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={() => setImgError(true)}
+                        />
+                    ) : (
+                        <span style={{
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: '#94a3b8',
+                            fontFamily: "'Inter', sans-serif",
+                        }}>
+                            {initial}
+                        </span>
+                    )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1 }}>
+                    <span style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#1e293b',
+                        lineHeight: 1.3,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        maxWidth: '180px',
+                    }}>
+                        {name || '-'}
+                    </span>
+                    {subtext && (
+                        <span style={{
+                            fontSize: '9px',
+                            fontWeight: 500,
+                            color: '#94a3b8',
+                            marginTop: '2px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '160px',
+                        }}>
+                            {subtext}
+                        </span>
+                    )}
+                </div>
+            </div>
+        </TableCell>
+    );
+};
+
 // ─── EVIDENCE TABLE ───────────────────────────────────────────────────────────
 
 const getEvidenceView = (type) => {
@@ -1347,27 +1356,37 @@ const getEvidenceView = (type) => {
     return "osa";
 };
 
-const EvidenceTable = ({ insight, activePlatform }) => {
+const EvidenceTable = ({ insight }) => {
     const view = getEvidenceView(insight.type);
     const [search, setSearch] = useState("");
     const [activePopupIdx, setActivePopupIdx] = useState(null);
-    const [categoryFilter, setCategoryFilter] = useState("All");
+    const [previewImage, setPreviewImage] = useState(null);
+    const [activePlatform, setActivePlatform] = useState("All platforms");
+    const [categoryFilter, setCategoryFilter] = useState("All categories");
 
     const categories = useMemo(() => {
         const cats = new Set();
         (insight.evidence || []).forEach(e => {
             if (e.category && e.category !== "-") cats.add(e.category);
         });
-        return ["All", ...Array.from(cats)];
+        return ["All categories", ...Array.from(cats)];
+    }, [insight.evidence]);
+
+    const platforms = useMemo(() => {
+        const plats = new Set();
+        (insight.evidence || []).forEach(e => {
+            if (e.platform && e.platform !== "-") plats.add(e.platform);
+        });
+        return ["All platforms", ...Array.from(plats)];
     }, [insight.evidence]);
 
     const filtered = useMemo(() => {
         let data = insight.evidence || [];
-        if (activePlatform && activePlatform !== "-" && activePlatform !== "All platforms") {
+        if (activePlatform !== "All platforms") {
             data = data.filter((e) => !e.platform || e.platform === activePlatform || e.platform === "-");
         }
 
-        if (view === "share" && categoryFilter !== "All") {
+        if (categoryFilter !== "All categories") {
             data = data.filter(e => e.category === categoryFilter);
         }
 
@@ -1383,7 +1402,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
         if (!search.trim()) return data;
         const q = search.toLowerCase();
         return data.filter((row) => Object.values(row).some((v) => String(v).toLowerCase().includes(q)));
-    }, [insight.evidence, search, activePlatform, insight.type, categoryFilter, view]);
+    }, [insight.evidence, search, activePlatform, categoryFilter, insight.type, view]);
 
     return (
         <div style={{
@@ -1400,31 +1419,30 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                     Evidence Data
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {view === "share" && categories.length > 1 && (
-                        <select
-                            value={categoryFilter}
-                            onChange={(e) => setCategoryFilter(e.target.value)}
-                            style={{
-                                padding: "6px 28px 6px 12px",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                color: categoryFilter !== "All" ? "#ffffff" : "#475569",
-                                background: categoryFilter !== "All" ? "#0f172a" : "#ffffff",
-                                border: categoryFilter !== "All" ? "1px solid #0f172a" : "1px solid #e2e8f0",
-                                borderRadius: "8px",
-                                outline: "none",
-                                cursor: "pointer",
-                                transition: "all 0.2s ease",
-                                appearance: "none",
-                                backgroundPosition: "right 8px center",
-                                backgroundRepeat: "no-repeat",
-                                backgroundSize: "10px",
-                                backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${categoryFilter !== "All" ? "%23ffffff" : "%23475569"}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`
-                            }}
-                        >
-                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    )}
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <button
+                                style={{
+                                    display: "flex", alignItems: "center", gap: "6px",
+                                    padding: "5px 12px", background: "#fff", border: "1px solid #bfdbfe",
+                                    borderRadius: "6px", fontSize: "11px", fontWeight: 600, color: "#1e3a5f",
+                                    cursor: "pointer"
+                                }}
+                            >
+                                <Filter size={12} color="#1e3a5f" />
+                                Filters {(activePlatform !== "All platforms" || categoryFilter !== "All categories") && "*"}
+                            </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" sideOffset={8} className="w-[240px] p-4 bg-white rounded-xl shadow-xl border border-slate-200">
+                            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                <div style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px", marginBottom: "4px" }}>
+                                    Table Filters
+                                </div>
+                                <CustomHeaderDropdown label="PLATFORM" options={platforms} value={activePlatform} onChange={(v) => setActivePlatform(v === "All" ? "All platforms" : v)} multiSelect={false} width="100%" />
+                                <CustomHeaderDropdown label="CATEGORY" options={categories} value={categoryFilter} onChange={(v) => setCategoryFilter(v === "All" ? "All categories" : v)} multiSelect={false} width="100%" />
+                            </div>
+                        </PopoverContent>
+                    </Popover>
                     <div style={{ position: "relative" }}>
                         <Search size={11} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
                         <input
@@ -1476,7 +1494,6 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Impacted SKU</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor SKU</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">GAP %</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
                             </>)}
                             {view === "adStock" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Product</TableHead>
@@ -1572,7 +1589,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                     <CategoryCell category={d.category || insight.category || "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.skuOrBrand ?? "-"}</TableCell>
+                                                    <SkuImageCell name={d.skuOrBrand ?? "-"} imageUrl={d.imageUrl} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-right px-3 py-3">
                                                         <div className="flex flex-col items-end">
                                                             <span className="text-[11px] font-medium text-red-600">{safePct(d.otherBrandOsa)}</span>
@@ -1614,8 +1631,8 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                             </span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-3"><span className="text-[11px] text-slate-800 truncate max-w-[120px] block">{d.myTopSku || "-"}</span></TableCell>
-                                                    <TableCell className="px-3 py-3"><span className="text-[11px] text-slate-800 truncate max-w-[120px] block">{d.competitorSku || "-"}</span></TableCell>
+                                                    <SkuImageCell name={d.myTopSku || "-"} imageUrl={d.myTopSkuImageUrl} onImageClick={setPreviewImage} />
+                                                    <SkuImageCell name={d.competitorSku || "-"} imageUrl={d.competitorSkuImageUrl} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.possibleCause || "-"}</TableCell>
                                                 </>
                                             )}
@@ -1626,33 +1643,14 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{typeof d.ourPpu === 'number' ? d.ourPpu.toFixed(1) : d.ourPpu}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{typeof d.compPpu === 'number' ? d.compPpu.toFixed(1) : d.compPpu}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">
-                                                        <span className="truncate max-w-[160px] block">{d.impactedSku || '-'}</span>
-                                                    </TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">
-                                                        <span className="truncate max-w-[160px] block">{d.compSku || '-'}</span>
-                                                    </TableCell>
+                                                    <SkuImageCell name={d.impactedSku || '-'} imageUrl={d.impactedSkuImageUrl} onImageClick={setPreviewImage} />
+                                                    <SkuImageCell name={d.compSku || '-'} imageUrl={d.compSkuImageUrl} onImageClick={setPreviewImage} />
                                                     <TableCell className={`text-right text-[11px] font-medium px-3 py-3 ${d.gapPct > 0 ? 'text-red-600' : d.gapPct < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>{safePct(d.gapPct)}</TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-amber-600 px-3 py-3">{safeINR(d.psl)}</TableCell>
                                                 </>
                                             )}
                                             {view === "adStock" && (
                                                 <>
-                                                    <TableCell className="px-3 py-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <img 
-                                                                src={d.image_url || `https://picsum.photos/seed/${String(d.skuOrBrand).length}/40/40`} 
-                                                                alt={d.skuOrBrand} 
-                                                                className="w-10 h-10 rounded-md border border-slate-200 object-cover" 
-                                                            />
-                                                            <div className="flex flex-col">
-                                                                <span className="text-[11px] font-semibold text-slate-800">{d.skuOrBrand}</span>
-                                                                <div className="flex gap-2 text-[9px] text-slate-500 mt-1">
-                                                                    {d.sharePct != null && <span className="bg-slate-100 px-1 py-0.5 rounded">{safePct(d.sharePct)}</span>}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </TableCell>
+                                                    <SkuImageCell name={d.skuOrBrand} imageUrl={d.imageUrl} onImageClick={(img) => setPreviewImage({ ...img, platform: d.platform, city: d.city })} />
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.platform}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.city}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
@@ -1686,7 +1684,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform ?? "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.depotOrDb}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city}</TableCell>
-                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.skuOrBrand}</TableCell>
+                                                    <SkuImageCell name={d.skuOrBrand} imageUrl={d.imageUrl} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-right text-[11px] text-slate-500 px-3 py-3">{d.plannedQty}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{d.dispatchedQty}</TableCell>
                                                     <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safePct(d.fillRate)}</TableCell>
@@ -1718,12 +1716,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                             )}
                                             {view === "surplus" && (
                                                 <>
-                                                    <TableCell className="px-3 py-3">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[11px] font-semibold text-slate-800">{d.skuName}</span>
-                                                            <span className="text-[9px] text-slate-500 mt-0.5">{d.brandName || '-'}</span>
-                                                        </div>
-                                                    </TableCell>
+                                                    <SkuImageCell name={d.skuName} imageUrl={d.imageUrl} subtext={d.brandName || '-'} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
@@ -1752,12 +1745,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                             )}
                                             {view === "prioritisePO" && (
                                                 <>
-                                                    <TableCell className="px-3 py-3">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[11px] font-semibold text-slate-800">{d.skuName}</span>
-                                                            <span className="text-[9px] text-slate-500 mt-0.5">{d.brandName || '-'}</span>
-                                                        </div>
-                                                    </TableCell>
+                                                    <SkuImageCell name={d.skuName} imageUrl={d.imageUrl} subtext={d.brandName || '-'} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
                                                     <TableCell className="text-right text-[11px] px-3 py-3">
@@ -1788,12 +1776,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                             )}
                                             {view === "transferIssue" && (
                                                 <>
-                                                    <TableCell className="px-3 py-3">
-                                                        <div className="flex flex-col">
-                                                            <span className="text-[11px] font-semibold text-slate-800">{d.skuName}</span>
-                                                            <span className="text-[9px] text-slate-500 mt-0.5">{d.brandName || '-'}</span>
-                                                        </div>
-                                                    </TableCell>
+                                                    <SkuImageCell name={d.skuName} imageUrl={d.imageUrl} subtext={d.brandName || '-'} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.platform || "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">
@@ -1818,9 +1801,7 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                                             )}
                                             {view === "newMarket" && (
                                                 <>
-                                                    <TableCell className="px-3 py-3">
-                                                        <span className="text-[11px] font-semibold text-slate-800">{d.skuName}</span>
-                                                    </TableCell>
+                                                    <SkuImageCell name={d.skuName} imageUrl={d.imageUrl} onImageClick={setPreviewImage} />
                                                     <TableCell className="text-[11px] text-slate-500 px-3 py-3">{d.category || "-"}</TableCell>
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3 font-medium">{d.competitorName || "-"}</TableCell>
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{Number(d.pfu || 0).toLocaleString('en-IN')}</TableCell>
@@ -1836,6 +1817,151 @@ const EvidenceTable = ({ insight, activePlatform }) => {
                     </TableBody>
                 </Table>
             </ScrollArea>
+
+            {/* ─── Image Preview Lightbox ─── */}
+            <AnimatePresence>
+                {previewImage && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        onClick={() => setPreviewImage(null)}
+                        style={{
+                            position: "fixed",
+                            inset: 0,
+                            zIndex: 9999,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "rgba(0, 0, 0, 0.6)",
+                            backdropFilter: "blur(12px)",
+                            WebkitBackdropFilter: "blur(12px)",
+                            cursor: "zoom-out",
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0, y: 30 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.85, opacity: 0, y: 20 }}
+                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                background: "#ffffff",
+                                borderRadius: "20px",
+                                padding: "0",
+                                boxShadow: "0 40px 80px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.15)",
+                                maxWidth: "480px",
+                                width: "90vw",
+                                overflow: "hidden",
+                                cursor: "default",
+                            }}
+                        >
+                            {/* Image Container */}
+                            <div style={{
+                                position: "relative",
+                                background: "linear-gradient(145deg, #f8fafc, #f1f5f9)",
+                                padding: "32px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minHeight: "320px",
+                            }}>
+                                <img
+                                    src={previewImage.url}
+                                    alt={previewImage.name}
+                                    style={{
+                                        maxWidth: "100%",
+                                        maxHeight: "320px",
+                                        objectFit: "contain",
+                                        borderRadius: "12px",
+                                        filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.1))",
+                                    }}
+                                    onError={(e) => { e.target.src = `https://placehold.co/300x300/f1f5f9/94a3b8?text=Image+Not+Found`; }}
+                                />
+                                {/* Close button */}
+                                <button
+                                    onClick={() => setPreviewImage(null)}
+                                    style={{
+                                        position: "absolute",
+                                        top: "12px",
+                                        right: "12px",
+                                        width: "32px",
+                                        height: "32px",
+                                        borderRadius: "50%",
+                                        background: "rgba(255,255,255,0.9)",
+                                        backdropFilter: "blur(8px)",
+                                        border: "1px solid rgba(226,232,240,0.8)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        cursor: "pointer",
+                                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                                        transition: "all 0.2s ease",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = "rgba(239,68,68,0.1)";
+                                        e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)";
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = "rgba(255,255,255,0.9)";
+                                        e.currentTarget.style.borderColor = "rgba(226,232,240,0.8)";
+                                    }}
+                                >
+                                    <X size={14} color="#64748b" />
+                                </button>
+                            </div>
+                            {/* Product Info Footer */}
+                            <div style={{
+                                padding: "16px 24px 20px",
+                                borderTop: "1px solid #f1f5f9",
+                            }}>
+                                <h3 style={{
+                                    fontSize: "14px",
+                                    fontWeight: 700,
+                                    color: "#0f172a",
+                                    margin: "0 0 8px 0",
+                                    lineHeight: 1.4,
+                                    letterSpacing: "-0.01em",
+                                }}>
+                                    {previewImage.name}
+                                </h3>
+                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                    {previewImage.platform && (
+                                        <span style={{
+                                            fontSize: "10px",
+                                            fontWeight: 600,
+                                            color: "#3b82f6",
+                                            background: "#eff6ff",
+                                            border: "1px solid #dbeafe",
+                                            padding: "3px 10px",
+                                            borderRadius: "20px",
+                                            textTransform: "uppercase",
+                                            letterSpacing: "0.04em",
+                                        }}>
+                                            {previewImage.platform}
+                                        </span>
+                                    )}
+                                    {previewImage.city && (
+                                        <span style={{
+                                            fontSize: "10px",
+                                            fontWeight: 600,
+                                            color: "#64748b",
+                                            background: "#f8fafc",
+                                            border: "1px solid #e2e8f0",
+                                            padding: "3px 10px",
+                                            borderRadius: "20px",
+                                            letterSpacing: "0.04em",
+                                        }}>
+                                            {previewImage.city}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
@@ -1965,22 +2091,15 @@ const getKpiStyle = (label, value) => {
     return "text-slate-900";
 };
 
-const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel, hubPlatform = "All platforms" }) => {
-    const [activePlatform, setActivePlatform] = useState(hubPlatform !== "All platforms" ? hubPlatform : "All platforms");
-
-    useEffect(() => {
-        if (insight) setActivePlatform(hubPlatform !== "All platforms" ? hubPlatform : "All platforms");
-    }, [insight, hubPlatform]);
-
+const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel }) => {
     if (!insight) return null;
 
-    const platforms = (insight.platforms || []).filter((p) => p !== "-");
     const isEmpty = insight.id.startsWith("empty_");
     const meta = SIGNAL_META[insight.type] || {};
 
     return (
         <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-            <DialogContent className="max-w-[1060px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-xl bg-white border-2 border-slate-200 outline-none [&>button]:hidden flex">
+            <DialogContent className="max-w-[1400px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-xl bg-white border-2 border-slate-200 outline-none [&>button]:hidden flex">
                 <div className="flex-1 flex flex-col max-h-[85vh]">
 
                     {/* Modal Header */}
@@ -2050,18 +2169,6 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                         <DynamicInsightsBar insight={insight} />
                     </div>
 
-                    {/* Platform Tabs */}
-                    {platforms.length > 1 && (
-                        <div style={{
-                            padding: "0 20px", borderBottom: "1px solid #e2e8f0",
-                            display: "flex", alignItems: "center", gap: "4px",
-                            flexShrink: 0, background: "#f8fafc",
-                        }}>
-                            <PlatformButton platform="All Platforms" active={activePlatform === "All platforms"} onClick={() => setActivePlatform("All platforms")} />
-                            {platforms.map((p) => <PlatformButton key={p} platform={p} active={activePlatform === p} onClick={() => setActivePlatform(p)} />)}
-                        </div>
-                    )}
-
                     {/* Body */}
                     <div style={{ flex: 1, overflowY: "auto", padding: "20px", background: "#fafcff" }}>
                         {isEmpty ? (
@@ -2074,7 +2181,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                 <p style={{ fontSize: "12px", margin: 0 }}>No detailed evidence available.</p>
                             </div>
                         ) : (
-                            <EvidenceTable insight={insight} activePlatform={activePlatform} />
+                            <EvidenceTable insight={insight} />
                         )}
                     </div>
                 </div>
@@ -2154,22 +2261,21 @@ const SignalCardSkeleton = () => (
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
 const InsightsSignalHub = () => {
-    const { refreshFilters, maxDate } = useContext(FilterContext);
+    const { 
+        refreshFilters, 
+        maxDate,
+        platform,
+        selectedCategory,
+        selectedBrand,
+        timeStart,
+        timeEnd,
+        compareStart,
+        compareEnd
+    } = useContext(FilterContext);
 
-    const [filters, setFilters] = useState({ platform: "All platforms", city: "All cities", category: "All categories", signal: "All signals" });
     const [fetchedInsights, setFetchedInsights] = useState([]);
     const [fetchedFilterOptions, setFetchedFilterOptions] = useState({ categories: [], productLines: [], geographies: [] });
     const [loading, setLoading] = useState(false);
-
-    const [typeFilter, setTypeFilter] = useState("All signals");
-    const [cityFilter, setCityFilter] = useState("All cities");
-    const [categoryFilter, setCategoryFilter] = useState("All categories");
-    const [platformFilter, setPlatformFilter] = useState("All platforms");
-
-    const [startDate, setStartDate] = useState(dayjs().subtract(30, "day"));
-    const [endDate, setEndDate] = useState(dayjs());
-    const [compareStartDate, setCompareStartDate] = useState(null);
-    const [compareEndDate, setCompareEndDate] = useState(null);
 
     const [selectedId, setSelectedId] = useState(null);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -2188,15 +2294,21 @@ const InsightsSignalHub = () => {
         const loadInsights = async () => {
             setLoading(true);
             try {
+                const formatArray = (val, defaultVal) => {
+                    if (!val || val === "All") return defaultVal;
+                    return Array.isArray(val) ? val.join(",") : val;
+                };
+
                 const apiPayload = {
-                    ...filters,
-                    localCity: cityFilter,
-                    localCategory: categoryFilter,
-                    localPlatform: platformFilter,
-                    startDate: startDate.format("YYYY-MM-DD"),
-                    endDate: endDate.format("YYYY-MM-DD"),
-                    ...(compareStartDate ? { compareStartDate: compareStartDate.format("YYYY-MM-DD") } : {}),
-                    ...(compareEndDate ? { compareEndDate: compareEndDate.format("YYYY-MM-DD") } : {}),
+                    platform: formatArray(platform, "All platforms"),
+                    category: formatArray(selectedCategory, "All categories"),
+                    brand: formatArray(selectedBrand, "All brands"),
+                    city: "All cities",
+                    type: "All signals",
+                    startDate: timeStart?.format("YYYY-MM-DD") || dayjs().subtract(30, 'day').format("YYYY-MM-DD"),
+                    endDate: timeEnd?.format("YYYY-MM-DD") || dayjs().format("YYYY-MM-DD"),
+                    ...(compareStart ? { compareStartDate: compareStart.format("YYYY-MM-DD") } : {}),
+                    ...(compareEnd ? { compareEndDate: compareEnd.format("YYYY-MM-DD") } : {}),
                 };
                 const data = await fetchInsights(apiPayload);
                 const apiResponseList = data?.success && Array.isArray(data?.data) ? data.data : [];
@@ -2214,35 +2326,12 @@ const InsightsSignalHub = () => {
             }
         };
         loadInsights();
-    }, [filters, cityFilter, categoryFilter, platformFilter, startDate, endDate, compareStartDate, compareEndDate]);
+    }, [platform, selectedCategory, selectedBrand, timeStart, timeEnd, compareStart, compareEnd]);
 
 
     const allInsights = useMemo(() => fetchedInsights, [fetchedInsights]);
 
-    const slicerOptions = useMemo(() => {
-        const types = Array.from(new Set(allInsights.map((i) => i.type).filter(Boolean))).sort();
-        const plats = Array.from(new Set(allInsights.flatMap((i) => i.platforms || []))).filter((p) => p && p !== "-").sort();
-        return {
-            types: ["All signals", ...types],
-            cities: ["All cities", ...(fetchedFilterOptions.geographies.length > 0
-                ? fetchedFilterOptions.geographies.filter((g) => g && g !== "-")
-                : Array.from(new Set(allInsights.map((i) => i.city).filter(Boolean))).filter((c) => c !== "-").sort())],
-            categories: ["All categories", ...(fetchedFilterOptions.categories.length > 0
-                ? fetchedFilterOptions.categories.filter((c) => c && c !== "-")
-                : Array.from(new Set(allInsights.map((i) => i.category).filter(Boolean))).filter((c) => c !== "-").sort())],
-            platforms: ["All platforms", ...plats],
-        };
-    }, [allInsights, fetchedFilterOptions]);
-
-    const filteredInsights = useMemo(() => {
-        return allInsights.filter((i) => {
-            const okType = typeFilter === "All signals" || i.type === typeFilter;
-            const okCity = cityFilter === "All cities" || i.city === cityFilter;
-            const okCat = categoryFilter === "All categories" || i.category === categoryFilter;
-            const okPlat = platformFilter === "All platforms" || (i.platforms || []).includes(platformFilter);
-            return okType && okCity && okCat && okPlat;
-        });
-    }, [allInsights, typeFilter, cityFilter, categoryFilter, platformFilter]);
+    const filteredInsights = allInsights;
 
     const selected = useMemo(() => allInsights.find((x) => x.id === selectedId) ?? null, [allInsights, selectedId]);
     const totalImpact = filteredInsights.reduce((s, i) => s + (i.impactInr || 0), 0);
@@ -2260,7 +2349,7 @@ const InsightsSignalHub = () => {
     };
 
     return (
-        <CommonContainer title={null} filters={filters} onFiltersChange={setFilters} hideFilters>
+        <CommonContainer title="Insights">
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
                 @keyframes blink {
@@ -2332,16 +2421,46 @@ const InsightsSignalHub = () => {
                     background-size: 200% 100%;
                     animation: shimmer 2s infinite linear;
                 }
+                /* ── Responsive Signal Grid ── */
+                .insights-signal-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 12px;
+                }
+                @media (max-width: 1400px) {
+                    .insights-signal-grid { grid-template-columns: repeat(3, 1fr); }
+                }
+                @media (max-width: 1100px) {
+                    .insights-signal-grid { grid-template-columns: repeat(2, 1fr); }
+                }
+                @media (max-width: 700px) {
+                    .insights-signal-grid { grid-template-columns: 1fr; }
+                }
+                /* ── Responsive Filter Grid ── */
+                .insights-filter-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 10px;
+                    align-items: start;
+                    flex: 1;
+                    min-width: 0;
+                }
+                @media (max-width: 1100px) {
+                    .insights-filter-grid { grid-template-columns: repeat(2, 1fr); }
+                }
+                @media (max-width: 700px) {
+                    .insights-filter-grid { grid-template-columns: 1fr; }
+                }
             `}</style>
 
             <div className="insights-page" style={{
                 background: "#ffffff",
-                height: "calc(100vh - 100px)",
+                height: "100%",
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
             }}>
-                <div style={{ maxWidth: "1440px", width: "100%", margin: "0 auto", padding: "6px 24px 12px 24px", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <div style={{ width: "100%", margin: "0 auto", padding: "6px 24px 12px 24px", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
 
                     {/* ── Page Header ────────────────────────────────────── */}
                     <div style={{
@@ -2410,67 +2529,17 @@ const InsightsSignalHub = () => {
                         )}
                     </div>
 
-                    {/* ── Filter Bar ─────────────────────────────────────── */}
-                    <div style={{
-                        background: "#fff",
-                        border: "1px solid #e5e9f0",
-                        borderRadius: "10px",
-                        padding: "8px 16px",
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "12px",
-                        alignItems: "flex-end",
-                        marginBottom: "16px",
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-                        flexShrink: 0,
-                    }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "5px", color: "#9ca3af", alignSelf: "center", marginRight: "4px" }}>
-                            <Filter size={12} />
-                            <span style={{ fontSize: "10.5px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>Filters</span>
-                        </div>
-                        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "10px", alignItems: "start" }}>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                                <CustomHeaderDropdown label="SIGNAL" options={slicerOptions.types} value={typeFilter} onChange={(v) => setTypeFilter(v === "All" ? "All signals" : v)} multiSelect={false} />
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                                <CustomHeaderDropdown label="GEOGRAPHY" options={slicerOptions.cities} value={cityFilter} onChange={(v) => setCityFilter(v === "All" ? "All cities" : v)} multiSelect={false} />
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                                <CustomHeaderDropdown label="CATEGORY" options={slicerOptions.categories} value={categoryFilter} onChange={(v) => setCategoryFilter(v === "All" ? "All categories" : v)} multiSelect={false} />
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                                <CustomHeaderDropdown label="CHANNEL" options={slicerOptions.platforms} value={platformFilter} onChange={(v) => setPlatformFilter(v === "All" ? "All platforms" : v)} multiSelect={false} />
-                            </div>
-                        </div>
-                        <div style={{ flexShrink: 0 }}>
-                            <Typography sx={{ fontSize: "0.6rem", fontWeight: 700, mb: 0.5, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.08em" }}>TIME PERIOD</Typography>
-                            <DateRangeComparePicker
-                                timeStart={startDate} timeEnd={endDate}
-                                compareStart={compareStartDate} compareEnd={compareEndDate}
-                                maxDate={maxDate || dayjs()}
-                                onApply={(s, e, cs, ce, compareOn) => { 
-                                    setStartDate(s); 
-                                    setEndDate(e); 
-                                    if (compareOn && cs && ce) {
-                                        setCompareStartDate(cs);
-                                        setCompareEndDate(ce);
-                                    } else {
-                                        setCompareStartDate(null);
-                                        setCompareEndDate(null);
-                                    }
-                                }}
-                            />
-                        </div>
-                    </div>
+
 
                     {/* ── Signal Grid ─────────────────────────────────────── */}
                     {loading ? (
-                        <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(4, 1fr)",
-                            gap: "12px",
+                        <div className="insights-signal-grid" style={{
                             flex: 1,
                             minHeight: 0,
+                            overflowY: "auto",
+                            overflowX: "hidden",
+                            alignContent: "start",
+                            paddingBottom: "12px",
                         }}>
                             {[...Array(11)].map((_, i) => (
                                 <motion.div
@@ -2497,12 +2566,13 @@ const InsightsSignalHub = () => {
                             <p style={{ fontSize: "12px", color: "#9ca3af" }}>Adjust filters to broaden scope.</p>
                         </div>
                     ) : (
-                        <div style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(4, 1fr)",
-                            gap: "12px",
+                        <div className="insights-signal-grid" style={{
                             flex: 1,
                             minHeight: 0,
+                            overflowY: "auto",
+                            overflowX: "hidden",
+                            alignContent: "start",
+                            paddingBottom: "12px",
                         }}>
                             {filteredInsights.map((ins, idx) => (
                                 <motion.div
