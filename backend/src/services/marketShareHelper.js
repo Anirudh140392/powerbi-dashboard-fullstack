@@ -1442,7 +1442,7 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
                 total_sales as ml_sales
             FROM (
                 SELECT
-                    d,
+                    ${dateGroupPart} as d,
                     group_brand as brand,
                     SUM(toFloat64OrZero(toString(sales))) as total_sales
                 FROM rb_ms_olap

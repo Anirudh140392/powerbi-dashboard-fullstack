@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import dayjs from "dayjs";
-import { ScheduledReport } from "@/components/Reports/ScheduledReport";
+import ReportBuilder from "@/components/Reports/ReportBuilder";
 import { saveAs } from 'file-saver';
-import { fetchReportFilterOptions, downloadReport, fetchAvailableReportTypes } from "../../api/reportsService";
+import { fetchReportFilterOptions, downloadReport, fetchAvailableReportTypes, fetchReportBuilderOptions } from "../../api/reportsService";
 import { FilterContext } from "../../utils/FilterContext";
 import { useContext } from "react";
 
@@ -67,6 +67,16 @@ export default function ScheduledReports() {
             }
         };
         loadReportTypes();
+    }, []);
+
+    // Builder options (dynamic platforms, granularity lists, etc.)
+    const [builderOptions, setBuilderOptions] = useState({});
+    useEffect(() => {
+        const loadBuilderOptions = async () => {
+            const opts = await fetchReportBuilderOptions();
+            setBuilderOptions(opts);
+        };
+        loadBuilderOptions();
     }, []);
 
     // Fetch filter options from backend whenever filters change
@@ -196,10 +206,14 @@ export default function ScheduledReports() {
             "Inventory Analysis",
         ];
 
-    const handleDownload = async () => {
+    const handleDownload = async (overrideFilters = {}) => {
         setIsDownloading(true);
         try {
-            const { platform, brand, location, timePeriod, reportType, category } = selectedFilters;
+            const currentFilters = { ...selectedFilters, ...overrideFilters };
+            const { 
+                platform, brand, location, timePeriod, reportType, category, metrics, dimensions,
+                granularitySku, granularityGeo, granularityTime, overrideDates
+            } = currentFilters;
 
             // Build params for backend API
             const params = {
@@ -209,10 +223,18 @@ export default function ScheduledReports() {
                 format: (category && category !== 'All Categories') ? category : undefined,
                 timePeriod: timePeriod,
                 reportType: reportType,
+                metrics: metrics, // Send selected tags to backend
+                dimensions: dimensions, // Send active filter dimensions
+                granularityTime: granularityTime,
+                granularitySku: granularitySku,
+                granularityGeo: granularityGeo,
             };
 
-            // Handle custom date range
-            if (timePeriod === "Custom Range") {
+            // Handle custom date range (either from override dynamically or state)
+            if (overrideDates) {
+                params.startDate = overrideDates.start;
+                params.endDate = overrideDates.end;
+            } else if (timePeriod === "Custom Range") {
                 params.startDate = dayjs(customDateRange.startDate).format('YYYY-MM-DD');
                 params.endDate = dayjs(customDateRange.endDate).format('YYYY-MM-DD');
             }
@@ -256,12 +278,13 @@ export default function ScheduledReports() {
             filters={filters}
             onFiltersChange={setFilters}
         >
-            <ScheduledReport
+            <ReportBuilder
                 selectedFilters={selectedFilters}
                 handleFilterChange={handleFilterChange}
                 handleDownload={handleDownload}
                 isDownloading={isDownloading}
                 showSuccess={showSuccess}
+                setShowSuccess={setShowSuccess}
                 platformOptions={platformOptions}
                 getBrandOptions={getBrandOptions}
                 getCategoryOptions={getCategoryOptions}
@@ -276,6 +299,7 @@ export default function ScheduledReports() {
                 onScheduleDelete={onScheduleDelete}
                 scheduleSuccess={scheduleSuccess}
                 setScheduleSuccess={setScheduleSuccess}
+                builderOptions={builderOptions}
             />
         </CommonContainer>
     );

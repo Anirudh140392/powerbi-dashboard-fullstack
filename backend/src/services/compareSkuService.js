@@ -439,82 +439,110 @@ export const getCompareSkuMetrics = async (filters = {}) => {
         const prevMktSize = parseFloat(prevMarketSize?.[0]?.market_size || 0);
 
         // ─── SOS Calculation from rb_kw_olap ───────────────────────────
-        // Extract unique brands from currMetrics to query SOS
-        const brandSet = new Set();
-        const skuBrandMap = new Map(); // SKU -> Brand
-        currMetrics.forEach(d => {
-            const brand = d.Brand || '';
-            if (brand) {
-                brandSet.add(brand);
-                skuBrandMap.set(d.Product, brand);
-            }
-        });
-
-        let currSosMap = new Map(); // brand -> { overall, ad, organic }
+        // ─── SOS Calculation from rb_kw_olap ───────────────────────────
+        
+        let currSosMap = new Map(); // sku -> { overall, ad, organic }
         let prevSosMap = new Map();
 
-        if (brandSet.size > 0) {
-            const brandList = Array.from(brandSet).map(b => `'${escapeStr(b)}'`).join(', ');
-
-            // Build platform condition for SOS (use per-SKU platforms if available)
-            let sosPlatformCond = '';
-            if (skuPlatformArr && skuPlatformArr.length > 0) {
-                const uniquePlatforms = [...new Set(skuPlatformArr.filter(p => p && p.trim()))];
-                if (uniquePlatforms.length > 0) {
-                    sosPlatformCond = `AND platform_name IN (${uniquePlatforms.map(p => `'${escapeStr(p.trim())}'`).join(', ')})`;
-                }
-            } else if (platArr && platArr.length > 0) {
-                sosPlatformCond = `AND platform_name IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`;
+        // Build SOS platform condition
+        let sosPlatformCond = '';
+        if (skuPlatformArr && skuPlatformArr.length > 0) {
+            const uniquePlatforms = [...new Set(skuPlatformArr.filter(p => p && p.trim()))];
+            if (uniquePlatforms.length > 0) {
+                sosPlatformCond = `AND platform_name IN (${uniquePlatforms.map(p => `'${escapeStr(p.trim())}'`).join(', ')})`;
             }
+        } else if (platArr && platArr.length > 0) {
+            sosPlatformCond = `AND platform_name IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`;
+        }
+        
+        let sosLocationCond = '';
+        if (locArrMet && locArrMet.length > 0) {
+            sosLocationCond = `AND location_name IN (${locArrMet.map(l => `'${escapeStr(l)}'`).join(', ')})`;
+        }
+        let sosCategoryCond = '';
+        if (catArr && catArr.length > 0) {
+            sosCategoryCond = `AND keyword_category IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`;
+        }
 
-            try {
-                const [currSosRows, prevSosRows] = await Promise.all([
-                    queryClickHouse(`
+        try {
+            const [currSosRows, prevSosRows] = await Promise.all([
+                queryClickHouse(`
+                    WITH MySkuStats AS (
                         SELECT 
-                            keyword as brand_keyword,
-                            ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                            ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS ad_sos,
-                            ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
+                            keyword_search_product as sku_name,
+                            sum(toInt32(overall)) as num_overall,
+                            SUM(sum(toInt32(overall))) OVER() as den_overall,
+                            sum(toInt32(organic)) as num_organic,
+                            SUM(sum(toInt32(organic))) OVER() as den_organic,
+                            sum(toInt32(spons)) as num_spons,
+                            SUM(sum(toInt32(spons))) OVER() as den_spons
                         FROM rb_kw_olap
                         WHERE DATE BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'
-                          AND LOWER(keyword) IN (${Array.from(brandSet).map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})
+                          AND toInt32(flag) = 1
+                          AND keyword_search_product IS NOT NULL 
+                          AND keyword_search_product != ''
                           ${sosPlatformCond}
-                        GROUP BY keyword
-                    `),
-                    queryClickHouse(`
+                          ${sosLocationCond}
+                          ${sosCategoryCond}
+                        GROUP BY keyword_search_product
+                    )
+                    SELECT 
+                        sku_name,
+                        ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+                        ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS ad_sos,
+                        ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos
+                    FROM MySkuStats
+                    WHERE sku_name IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})
+                `),
+                queryClickHouse(`
+                    WITH MySkuStats AS (
                         SELECT 
-                            keyword as brand_keyword,
-                            ROUND(sumIf(toInt32(overall), flag = 1) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
-                            ROUND(sumIf(toInt32(spons), flag = 1) * 100.0 / nullIf(sum(toInt32(spons)), 0), 2) AS ad_sos,
-                            ROUND(sumIf(toInt32(organic), flag = 1) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos
+                            keyword_search_product as sku_name,
+                            sum(toInt32(overall)) as num_overall,
+                            SUM(sum(toInt32(overall))) OVER() as den_overall,
+                            sum(toInt32(organic)) as num_organic,
+                            SUM(sum(toInt32(organic))) OVER() as den_organic,
+                            sum(toInt32(spons)) as num_spons,
+                            SUM(sum(toInt32(spons))) OVER() as den_spons
                         FROM rb_kw_olap
                         WHERE DATE BETWEEN '${prevStartDate.format('YYYY-MM-DD')}' AND '${prevEndDate.format('YYYY-MM-DD')}'
-                          AND LOWER(keyword) IN (${Array.from(brandSet).map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})
+                          AND toInt32(flag) = 1
+                          AND keyword_search_product IS NOT NULL 
+                          AND keyword_search_product != ''
                           ${sosPlatformCond}
-                        GROUP BY keyword
-                    `)
-                ]);
+                          ${sosLocationCond}
+                          ${sosCategoryCond}
+                        GROUP BY keyword_search_product
+                    )
+                    SELECT 
+                        sku_name,
+                        ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+                        ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS ad_sos,
+                        ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos
+                    FROM MySkuStats
+                    WHERE sku_name IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})
+                `)
+            ]);
 
-                currSosRows.forEach(r => {
-                    currSosMap.set(String(r.brand_keyword).toLowerCase(), {
-                        overall: parseFloat(r.overall_sos) || 0,
-                        ad: parseFloat(r.ad_sos) || 0,
-                        organic: parseFloat(r.organic_sos) || 0
-                    });
+            currSosRows.forEach(r => {
+                currSosMap.set(String(r.sku_name), {
+                    overall: parseFloat(r.overall_sos) || 0,
+                    ad: parseFloat(r.ad_sos) || 0,
+                    organic: parseFloat(r.organic_sos) || 0
                 });
-                prevSosRows.forEach(r => {
-                    prevSosMap.set(String(r.brand_keyword).toLowerCase(), {
-                        overall: parseFloat(r.overall_sos) || 0,
-                        ad: parseFloat(r.ad_sos) || 0,
-                        organic: parseFloat(r.organic_sos) || 0
-                    });
+            });
+            prevSosRows.forEach(r => {
+                prevSosMap.set(String(r.sku_name), {
+                    overall: parseFloat(r.overall_sos) || 0,
+                    ad: parseFloat(r.ad_sos) || 0,
+                    organic: parseFloat(r.organic_sos) || 0
                 });
+            });
 
-                console.log(`[compareSkuService] SOS data fetched for ${currSosMap.size} brands (curr), ${prevSosMap.size} brands (prev)`);
-            } catch (sosErr) {
-                console.error('[compareSkuService] SOS calculation error:', sosErr);
-                // Fall through with empty maps — SOS will show 0.0
-            }
+            console.log(`[compareSkuService] SOS data fetched for ${currSosMap.size} skus (curr), ${prevSosMap.size} skus (prev)`);
+        } catch (sosErr) {
+            console.error('[compareSkuService] SOS calculation error:', sosErr);
+            // Fall through with empty maps — SOS will show 0.0
         }
 
         // Build per-SKU metrics
@@ -618,21 +646,18 @@ export const getCompareSkuMetrics = async (filters = {}) => {
                     est_cat_share: getMetricObj(estCatShare, prevEstCatShare, 'ratio', false),
                     ds_listing: getMetricObj(availability, prevAvailability, 'percent', false),
                     overall_sov: (() => {
-                        const brand = skuBrandMap.get(skuName) || '';
-                        const currSos = currSosMap.get(brand.toLowerCase()) || { overall: 0 };
-                        const prevSos = prevSosMap.get(brand.toLowerCase()) || { overall: 0 };
+                        const currSos = currSosMap.get(String(skuName)) || { overall: 0 };
+                        const prevSos = prevSosMap.get(String(skuName)) || { overall: 0 };
                         return getMetricObj(currSos.overall, prevSos.overall, 'percent', false);
                     })(),
                     ad_sov: (() => {
-                        const brand = skuBrandMap.get(skuName) || '';
-                        const currSos = currSosMap.get(brand.toLowerCase()) || { ad: 0 };
-                        const prevSos = prevSosMap.get(brand.toLowerCase()) || { ad: 0 };
+                        const currSos = currSosMap.get(String(skuName)) || { ad: 0 };
+                        const prevSos = prevSosMap.get(String(skuName)) || { ad: 0 };
                         return getMetricObj(currSos.ad, prevSos.ad, 'percent', false);
                     })(),
                     organic_sos: (() => {
-                        const brand = skuBrandMap.get(skuName) || '';
-                        const currSos = currSosMap.get(brand.toLowerCase()) || { organic: 0 };
-                        const prevSos = prevSosMap.get(brand.toLowerCase()) || { organic: 0 };
+                        const currSos = currSosMap.get(String(skuName)) || { organic: 0 };
+                        const prevSos = prevSosMap.get(String(skuName)) || { organic: 0 };
                         return getMetricObj(currSos.organic, prevSos.organic, 'percent', false);
                     })(),
                     wt_discount: getMetricObj(wtDiscount, prevWtDiscount, 'percent', false),
@@ -697,6 +722,29 @@ export const getCompareSkuTrend = async (filters = {}) => {
         const skuPlatformArr = normalizeFilterArray(filters.skuPlatforms);
         const hasPerSkuPlatform = skuPlatformArr && skuPlatformArr.length === skuArr.length && skuPlatformArr.some(p => p && p.trim());
 
+        // ─── SOS Metrics: query rb_kw_olap instead of rb_pdp_olap ───────
+        const sosMetricIds = ['overall_sov', 'shareOfVolume', 'ad_sov', 'organic_sos'];
+        const isSosMetric = sosMetricIds.includes(metricId);
+
+        if (isSosMetric) {
+            return await _getCompareSkuTrendSos(src, {
+                metricId, skuArr, skuPlatformArr, hasPerSkuPlatform,
+                dStart, dEnd, platforms, categories, brands, locations
+            });
+        }
+
+        // ─── Market Share / Cat Share: query rb_ms_olap + rb_pdp_olap ───
+        const msMetricIds = ['market_share', 'marketShare', 'est_cat_share', 'categorySize'];
+        const isMsMetric = msMetricIds.includes(metricId);
+
+        if (isMsMetric) {
+            return await _getCompareSkuTrendMarketShare(src, {
+                metricId, skuArr, skuPlatformArr, hasPerSkuPlatform,
+                dStart, dEnd, platforms, categories, brands, locations
+            });
+        }
+
+        // ─── Standard PDP OLAP metrics ──────────────────────────────────
         // Apply filters
         const conditions = [
             `toDate(${src.f.date}) >= '${dStart}'`,
@@ -867,6 +915,298 @@ export const getCompareSkuTrend = async (filters = {}) => {
         return { trendData: [], brands: [], summary: {} };
     }
 };
+
+// ─── SOS Trend Helper: queries rb_kw_olap for Overall/Ad/Organic SOS ────
+async function _getCompareSkuTrendSos(src, opts) {
+    const {
+        metricId, skuArr, skuPlatformArr, hasPerSkuPlatform,
+        dStart, dEnd, platforms, categories, brands, locations
+    } = opts;
+
+    try {
+        // Step 1: Build general SKU conditions (Needed for summary calculations below)
+        const skuConditions = [`toDate(${src.f.date}) >= '${dStart}'`, `toDate(${src.f.date}) <= '${dEnd}'`];
+        if (hasPerSkuPlatform) {
+            const skuConds = skuArr.map((skuName, idx) => {
+                const platform = skuPlatformArr[idx];
+                if (platform && platform.trim()) {
+                    return `(${src.f.product} = '${escapeStr(skuName)}' AND trimBoth(${src.f.platform}) = '${escapeStr(platform.trim())}')`;
+                }
+                return `${src.f.product} = '${escapeStr(skuName)}'`;
+            });
+            skuConditions.push(`(${skuConds.join(' OR ')})`);
+        } else {
+            skuConditions.push(`${src.f.product} IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})`);
+        }
+        if (platforms?.length) skuConditions.push(`trimBoth(${src.f.platform}) IN (${platforms.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        if (brands?.length) skuConditions.push(`trimBoth(${src.f.brand}) IN (${brands.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+        if (categories?.length) skuConditions.push(`trimBoth(${src.f.category}) IN (${categories.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        if (locations?.length) skuConditions.push(`trimBoth(${src.f.location}) IN (${locations.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+
+        // Step 2: Query rb_kw_olap for SKU-level SOS using CTE
+        let sosColumn;
+        switch (metricId) {
+            case 'overall_sov':
+            case 'shareOfVolume':
+                sosColumn = 'overall';
+                break;
+            case 'ad_sov':
+                sosColumn = 'spons';
+                break;
+            case 'organic_sos':
+                sosColumn = 'organic';
+                break;
+            default:
+                sosColumn = 'overall';
+        }
+
+        let sosPlatformCond = '';
+        if (skuPlatformArr && skuPlatformArr.length > 0) {
+            const uniquePlatforms = [...new Set(skuPlatformArr.filter(p => p && p.trim()))];
+            if (uniquePlatforms.length > 0) {
+                sosPlatformCond = `AND platform_name IN (${uniquePlatforms.map(p => `'${escapeStr(p.trim())}'`).join(', ')})`;
+            }
+        } else if (platforms && platforms.length > 0) {
+            sosPlatformCond = `AND platform_name IN (${platforms.map(p => `'${escapeStr(p)}'`).join(', ')})`;
+        }
+        
+        let locationCond = '';
+        if (locations?.length) locationCond = `AND location_name IN (${locations.map(l => `'${escapeStr(l)}'`).join(', ')})`;
+        let categoryCond = '';
+        if (categories?.length) categoryCond = `AND keyword_category IN (${categories.map(c => `'${escapeStr(c)}'`).join(', ')})`;
+
+        const sosSql = `
+            WITH MySkuStats AS (
+                SELECT 
+                    toDate(DATE) AS DateVal,
+                    keyword_search_product as name,
+                    sum(toInt32(overall)) as num_overall,
+                    SUM(sum(toInt32(overall))) OVER(PARTITION BY toDate(DATE)) as den_overall,
+                    sum(toInt32(organic)) as num_organic,
+                    SUM(sum(toInt32(organic))) OVER(PARTITION BY toDate(DATE)) as den_organic,
+                    sum(toInt32(spons)) as num_spons,
+                    SUM(sum(toInt32(spons))) OVER(PARTITION BY toDate(DATE)) as den_spons
+                FROM rb_kw_olap
+                WHERE DATE BETWEEN '${dStart}' AND '${dEnd}'
+                  AND toInt32(flag) = 1  
+                  AND keyword_search_product IS NOT NULL 
+                  AND keyword_search_product != ''
+                  ${sosPlatformCond}
+                  ${locationCond}
+                  ${categoryCond}
+                GROUP BY DateVal, keyword_search_product
+            )
+            SELECT 
+                DateVal,
+                name AS SkuName,
+                ROUND(num_${sosColumn} * 100.0 / nullIf(den_${sosColumn}, 0), 2) AS SosValue
+            FROM MySkuStats
+            WHERE name IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})
+            ORDER BY DateVal ASC
+        `;
+
+        const sosData = await queryClickHouse(sosSql);
+
+        // Step 3: Map SOS data back to SKU names
+        const dateMap = new Map();
+        const skuSet = new Set(skuArr);
+
+        sosData.forEach(row => {
+            const dateStr = dayjs(row.DateVal).format("DD MMM 'YY");
+            const skuName = row.SkuName;
+            const value = parseFloat(row.SosValue) || 0;
+
+            if (!dateMap.has(dateStr)) {
+                dateMap.set(dateStr, { date: dateStr, ts: dayjs(row.DateVal).valueOf() });
+            }
+            dateMap.get(dateStr)[skuName] = parseFloat(value.toFixed(2));
+        });
+
+        const trendData = Array.from(dateMap.values()).sort((a, b) => a.ts - b.ts).map(item => {
+            const { ts, ...rest } = item;
+            return rest;
+        });
+
+        // Compute summary from PDP OLAP (same as standard path)
+        const summaryConditions = [...skuConditions]; // reuse the same conditions
+        const summarySql = `
+            SELECT 
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.neno})), 0)) AS totalOsaNum,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.deno})), 0)) AS totalOsaDen,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0)) AS totalMrp,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.sellingPrice})), 0)) AS totalSp,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) AS totalBrandSales
+            FROM ${src.table}
+            WHERE ${summaryConditions.join(' AND ')}
+        `;
+        const [summaryRow] = await queryClickHouse(summarySql) || [{}];
+
+        const avgDsListing = summaryRow.totalOsaDen > 0
+            ? ((parseFloat(summaryRow.totalOsaNum) / parseFloat(summaryRow.totalOsaDen)) * 100).toFixed(1)
+            : '0.0';
+        const weightedDiscount = summaryRow.totalMrp > 0
+            ? (((parseFloat(summaryRow.totalMrp) - parseFloat(summaryRow.totalSp)) / parseFloat(summaryRow.totalMrp)) * 100).toFixed(1)
+            : '0.0';
+
+        let catShare = '0.0';
+        try {
+            const msSrc = await getMsSource();
+            let msConds = [`toDate(${msSrc.f.date}) >= '${dStart}'`, `toDate(${msSrc.f.date}) <= '${dEnd}'`];
+            if (categories?.length) msConds.push(`trimBoth(${msSrc.f.category}) IN (${categories.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+            const msSql = `SELECT SUM(ifNull(toFloat64OrZero(toString(${msSrc.f.sales})), 0)) as marketSize FROM ${msSrc.table} WHERE ${msConds.join(' AND ')}`;
+            const [msRow] = await queryClickHouse(msSql) || [{}];
+            const marketSize = parseFloat(msRow.marketSize) || 0;
+            if (marketSize > 0) {
+                catShare = ((parseFloat(summaryRow.totalBrandSales || 0) / marketSize) * 100).toFixed(1);
+            }
+        } catch (catErr) {
+            console.error('[_getCompareSkuTrendSos] Cat Share error:', catErr);
+        }
+
+        console.log(`[_getCompareSkuTrendSos] metricId=${metricId}, trendPoints=${trendData.length}`);
+        return {
+            trendData,
+            skus: Array.from(skuSet).slice(0, 15),
+            summary: { avgDsListing, weightedDiscount, catShare }
+        };
+    } catch (error) {
+        console.error('[_getCompareSkuTrendSos] Error:', error);
+        return { trendData: [], skus: [], summary: { avgDsListing: '0', weightedDiscount: '0', catShare: '0' } };
+    }
+}
+
+// ─── Market Share / Cat Share Trend Helper ──────────────────────────
+async function _getCompareSkuTrendMarketShare(src, opts) {
+    const {
+        metricId, skuArr, skuPlatformArr, hasPerSkuPlatform,
+        dStart, dEnd, platforms, categories, brands, locations
+    } = opts;
+
+    try {
+        // Step 1: Get daily sales per SKU from rb_pdp_olap
+        const conditions = [
+            `toDate(${src.f.date}) >= '${dStart}'`,
+            `toDate(${src.f.date}) <= '${dEnd}'`,
+        ];
+
+        if (hasPerSkuPlatform) {
+            const skuConds = skuArr.map((skuName, idx) => {
+                const platform = skuPlatformArr[idx];
+                if (platform && platform.trim()) {
+                    return `(${src.f.product} = '${escapeStr(skuName)}' AND trimBoth(${src.f.platform}) = '${escapeStr(platform.trim())}')`;
+                }
+                return `${src.f.product} = '${escapeStr(skuName)}'`;
+            });
+            conditions.push(`(${skuConds.join(' OR ')})`);
+        } else {
+            conditions.push(`${src.f.product} IN (${skuArr.map(s => `'${escapeStr(s)}'`).join(', ')})`);
+        }
+
+        if (platforms?.length) conditions.push(`trimBoth(${src.f.platform}) IN (${platforms.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        if (brands?.length) conditions.push(`trimBoth(${src.f.brand}) IN (${brands.map(b => `'${escapeStr(b)}'`).join(', ')})`);
+        if (categories?.length) conditions.push(`trimBoth(${src.f.category}) IN (${categories.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        if (locations?.length) conditions.push(`trimBoth(${src.f.location}) IN (${locations.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+
+        const skuSalesSql = `
+            SELECT
+                toDate(${src.f.date}) AS DateVal,
+                trimBoth(${src.f.product}) AS ProductName,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) AS SkuSales
+            FROM ${src.table}
+            WHERE ${conditions.join(' AND ')}
+            GROUP BY DateVal, ProductName
+            ORDER BY DateVal ASC
+        `;
+        const skuSalesData = await queryClickHouse(skuSalesSql);
+
+        // Step 2: Get daily total market size from rb_ms_olap
+        const msSrc = await getMsSource();
+        let msConds = [
+            `toDate(${msSrc.f.date}) >= '${dStart}'`,
+            `toDate(${msSrc.f.date}) <= '${dEnd}'`
+        ];
+        if (platforms?.length) msConds.push(`trimBoth(${msSrc.f.platform}) IN (${platforms.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+        if (categories?.length) msConds.push(`trimBoth(${msSrc.f.category}) IN (${categories.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+
+        const marketSizeSql = `
+            SELECT
+                toDate(${msSrc.f.date}) AS DateVal,
+                SUM(ifNull(toFloat64OrZero(toString(${msSrc.f.sales})), 0)) AS MarketSize
+            FROM ${msSrc.table}
+            WHERE ${msConds.join(' AND ')}
+            GROUP BY DateVal
+            ORDER BY DateVal ASC
+        `;
+        const marketSizeData = await queryClickHouse(marketSizeSql);
+        const marketSizeByDate = new Map();
+        marketSizeData.forEach(r => {
+            marketSizeByDate.set(dayjs(r.DateVal).format('YYYY-MM-DD'), parseFloat(r.MarketSize) || 0);
+        });
+
+        // Step 3: Compute share = SKU sales / market size * 100
+        const dateMap = new Map();
+        const skuSet = new Set();
+
+        skuSalesData.forEach(row => {
+            const dateStr = dayjs(row.DateVal).format("DD MMM 'YY");
+            const dateKey = dayjs(row.DateVal).format('YYYY-MM-DD');
+            const productName = row.ProductName || 'Unknown';
+            const skuSales = parseFloat(row.SkuSales) || 0;
+            const mktSize = marketSizeByDate.get(dateKey) || 0;
+
+            skuSet.add(productName);
+
+            if (!dateMap.has(dateStr)) {
+                dateMap.set(dateStr, { date: dateStr, ts: dayjs(row.DateVal).valueOf() });
+            }
+
+            const share = mktSize > 0 ? (skuSales / mktSize) * 100 : 0;
+            dateMap.get(dateStr)[productName] = parseFloat(share.toFixed(2));
+        });
+
+        skuArr.forEach(s => skuSet.add(s));
+
+        const trendData = Array.from(dateMap.values()).sort((a, b) => a.ts - b.ts).map(item => {
+            const { ts, ...rest } = item;
+            return rest;
+        });
+
+        // Summary
+        const summarySql = `
+            SELECT
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.neno})), 0)) AS totalOsaNum,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.deno})), 0)) AS totalOsaDen,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.mrpVal})), 0)) AS totalMrp,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.sellingPrice})), 0)) AS totalSp,
+                SUM(ifNull(toFloat64OrZero(toString(${src.f.sales})), 0)) AS totalBrandSales
+            FROM ${src.table}
+            WHERE ${conditions.join(' AND ')}
+        `;
+        const [summaryRow] = await queryClickHouse(summarySql) || [{}];
+
+        const avgDsListing = summaryRow.totalOsaDen > 0
+            ? ((parseFloat(summaryRow.totalOsaNum) / parseFloat(summaryRow.totalOsaDen)) * 100).toFixed(1)
+            : '0.0';
+        const weightedDiscount = summaryRow.totalMrp > 0
+            ? (((parseFloat(summaryRow.totalMrp) - parseFloat(summaryRow.totalSp)) / parseFloat(summaryRow.totalMrp)) * 100).toFixed(1)
+            : '0.0';
+
+        const totalMktSize = Array.from(marketSizeByDate.values()).reduce((a, b) => a + b, 0);
+        const catShare = totalMktSize > 0
+            ? ((parseFloat(summaryRow.totalBrandSales || 0) / totalMktSize) * 100).toFixed(1)
+            : '0.0';
+
+        console.log(`[_getCompareSkuTrendMarketShare] metricId=${metricId}, trendPoints=${trendData.length}`);
+        return {
+            trendData,
+            skus: Array.from(skuSet).slice(0, 15),
+            summary: { avgDsListing, weightedDiscount, catShare }
+        };
+    } catch (error) {
+        console.error('[_getCompareSkuTrendMarketShare] Error:', error);
+        return { trendData: [], skus: [], summary: { avgDsListing: '0', weightedDiscount: '0', catShare: '0' } };
+    }
+}
 
 export default {
     getCompareSkuDateRange,
