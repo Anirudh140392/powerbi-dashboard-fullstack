@@ -14,11 +14,12 @@ import {
     PieChart,
     Wallet,
     MousePointer2,
-    MapPin
+    MapPin,
+    Info
 } from 'lucide-react'
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
+import { AreaChart, Area, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 import { cn } from '../../lib/utils'
-import { Skeleton, Box, Card, Typography, IconButton } from '@mui/material'
+import { Skeleton, Box, Card, Typography, IconButton, Tooltip } from '@mui/material'
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
 import React, { useRef, useState, useEffect, useMemo } from 'react'
@@ -271,8 +272,31 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                     <div className="flex items-center gap-1.5">
                         <Icon size={16} color={themeColor} strokeWidth={2.5} />
                         <Typography sx={{ fontSize: "10px", fontWeight: 600, color: "text.secondary", tracking: '0.01em' }}>
-                            {kpi.title}
+                            {kpi.label || kpi.title}
                         </Typography>
+                        {kpi.id === 'inorganic' && kpi.organicSales && (
+                            <Tooltip
+                                title={
+                                    <Box sx={{ p: 0.5 }}>
+                                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, mb: 0.5 }}>
+                                            Organic Sales Calculation
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                                            Organic Sales = Total Sales (Comp_flag=0) - Ad Sales
+                                        </Typography>
+                                        <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                Value: {kpi.organicSales}
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                }
+                                arrow
+                                placement="top"
+                            >
+                                <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help ml-1" />
+                            </Tooltip>
+                        )}
                     </div>
                 </Box>
 
@@ -588,7 +612,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                                 <stop offset="95%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <Tooltip 
+                        <RechartsTooltip 
                             contentStyle={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', minWidth: 'auto', border: 'none', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
                             itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#6366f1" }}
                             labelStyle={{ display: 'none' }}
@@ -732,6 +756,7 @@ const SnapshotOverview = ({
                 icon: icon,
                 gradient: gradient,
                 subtitle: footer,
+                organicSales: baseItem?.organicSales || perfItem?.organicSales,
                 trendSeries: makeSeries(50 + idx * 5, 30, 0.1, seed)
             };
         };
