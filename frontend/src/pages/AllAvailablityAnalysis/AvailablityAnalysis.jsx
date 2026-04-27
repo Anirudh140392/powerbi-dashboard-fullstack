@@ -27,6 +27,8 @@ export default function AvailablityAnalysis() {
     compareStart,
     compareEnd,
     selectedChannel,
+    setSelectedChannel,
+    channels,
     refreshFilters
   } = useContext(FilterContext);
 
@@ -108,6 +110,20 @@ export default function AvailablityAnalysis() {
       compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
     }));
   }, [platform, selectedBrand, selectedLocation, selectedCategory, selectedProductCategory, timeStart, timeEnd, compareStart, compareEnd, selectedZone, selectedChannel]);
+
+  // Default to Quickcomm if available, otherwise Ecommerce, if current selection is 'All'
+  useEffect(() => {
+    if (channels && channels.length > 0 && selectedChannel === "All") {
+      const quickComm = channels.find(c => c.toLowerCase() === 'quickcomm');
+      const ecom = channels.find(c => c.toLowerCase() === 'ecommerce');
+      
+      if (quickComm) {
+        setSelectedChannel(quickComm);
+      } else if (ecom) {
+        setSelectedChannel(ecom);
+      }
+    }
+  }, [channels, selectedChannel, setSelectedChannel]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)

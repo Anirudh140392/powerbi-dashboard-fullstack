@@ -1024,7 +1024,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
                     {/* TEXT */}
                     <div className="text-left">
                       <div
-                        className="font-medium"
+                        className="font-medium capitalize"
                         style={{
                           fontFamily: "Roboto, sans-serif",
                           fontWeight: 700,
@@ -1089,10 +1089,10 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
                   <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
                     {compare ? "Focus format · VS mode" : "Focus format"}
                   </div>
-                  <div className="text-xl font-semibold">
+                  <div className="text-xl font-semibold capitalize">
                     {active.name}
                     {compare && (
-                      <span className="text-sm font-normal text-slate-500">
+                      <span className="text-sm font-normal text-slate-500 capitalize">
                         {" "}
                         vs {compare.name}
                       </span>
@@ -1314,7 +1314,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
                       />
 
                       <span
-                        className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                        className={`truncate capitalize ${isActive ? "font-semibold" : "font-normal"
                           }`}
                       >
                         {f.name}
