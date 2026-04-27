@@ -1,9 +1,10 @@
-import axios from 'axios';
+import { downloadReport } from './src/controllers/reportsController.js';
 
 async function test() {
-    try {
-        const queryParams = new URLSearchParams({
-            platform: 'Amazon,Blinkit,Instamart',
+    const req = {
+        user: { dbName: 'mars' },
+        query: {
+            platform: 'amazon,blinkit',
             timePeriod: 'Last 30 Days',
             reportType: 'Master Dump',
             metrics: 'Offtake,Units Sold,Orders,Stock Availability,Listing %,Inorganic Sales,ROAS,Conversion Rate,CPM,CPC,BMI Sales Ratio,Promo %,OSA %,Stock Out %,DOI,SOS %,PSL,Assortment,Metro City Stock Availability,Overall SOS %,Sponsored SOS %,Organic SOS %,Ad Position,Org Position,ECP,MRP,Discount %,RPI,Sales Value,Market Share %,Category Size',
@@ -13,15 +14,22 @@ async function test() {
             granularityGeo: 'Pan India',
             startDate: '2026-03-28',
             endDate: '2026-04-27'
-        });
-        
-        console.log("Calling API...");
-        // Call the endpoint on the running backend server.
-        // The backend uses JWT auth, but we don't have a token.
-        // Actually, we can just call it if we mock the request.
-        // It's easier to just construct the req and res objects and call `downloadReport`.
+        }
+    };
+    
+    const res = {
+        status: (code) => {
+            console.log("Status:", code);
+            return { send: () => console.log("Sent") };
+        },
+        setHeader: (key, val) => console.log("SetHeader:", key, val),
+        send: (buffer) => console.log("Sent buffer of size", buffer.length)
+    };
+
+    try {
+        await downloadReport(req, res);
     } catch (e) {
-        console.log(e);
+        console.error("Error in downloadReport:", e);
     }
 }
 test();

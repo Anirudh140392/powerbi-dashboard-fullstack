@@ -35,18 +35,18 @@ export const getReportFilterOptions = async (req, res) => {
         const data = await getCachedOrCompute(cacheKey, async () => {
             const buildWhere = (excludeField) => {
                 const conditions = [];
-                if (platform && platform !== 'All' && platform !== 'All Platforms' && excludeField !== 'Platform') {
-                    conditions.push(`lower(Platform) = lower('${platform.replace(/'/g, "''")}')`);
-                }
-                if (brand && brand !== 'All Brands' && excludeField !== 'Brand') {
-                    conditions.push(`lower(Brand) = lower('${brand.replace(/'/g, "''")}')`);
-                }
-                if (city && city !== 'All Locations' && excludeField !== 'Location') {
-                    conditions.push(`lower(Location) = lower('${city.replace(/'/g, "''")}')`);
-                }
-                if (format && format !== 'All Categories' && excludeField !== catCol) {
-                    conditions.push(`lower(${catCol}) = lower('${format.replace(/'/g, "''")}')`);
-                }
+
+                const addInClause = (column, value) => {
+                    if (!value || value === 'All' || value.startsWith('All ') || value === 'All Platforms' || value.trim() === '') return;
+                    const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+                    conditions.push(`lower(${column}) IN (${items})`);
+                };
+
+                if (excludeField !== 'Platform') addInClause('Platform', platform);
+                if (excludeField !== 'Brand') addInClause('Brand', brand);
+                if (excludeField !== 'Location') addInClause('Location', city);
+                if (excludeField !== catCol) addInClause(catCol, format);
+
                 return conditions.length > 0 ? ' AND ' + conditions.join(' AND ') : '';
             };
 
@@ -219,19 +219,27 @@ export const downloadReport = async (req, res) => {
             endDate = now.format('YYYY-MM-DD');
         }
 
-        // 2. Build Query based on reportType
+        const buildInClause = (column, value) => {
+            if (!value || value === 'All' || value.startsWith('All ') || value.trim() === '') return null;
+            const items = value.split(',').map(v => `'${v.trim().replace(/'/g, "''").toLowerCase()}'`).join(', ');
+            return `lower(${column}) IN (${items})`;
+        };
+
         let query = '';
         const conditions = [];
 
-        // Handle Platform multiple selection safely with IN clause
-        if (platform && platform !== 'All' && platform.trim() !== '') {
-            const platforms = platform.split(',').map(p => `'${p.trim().replace(/'/g, "''")}'`).join(', ');
-            conditions.push(`Platform IN (${platforms})`);
-        }
+        const platformCond = buildInClause('Platform', platform);
+        if (platformCond) conditions.push(platformCond);
 
-        if (brand && brand !== 'All' && !brand.startsWith('All ')) conditions.push(`Brand = '${brand.replace(/'/g, "''")}'`);
-        if (city && city !== 'All' && !city.startsWith('All ')) conditions.push(`Location = '${city.replace(/'/g, "''")}'`);
-        if (format && format !== 'All' && !format.startsWith('All ')) conditions.push(`${catCol} = '${format.replace(/'/g, "''")}'`);
+        const brandCond = buildInClause('Brand', brand);
+        if (brandCond) conditions.push(brandCond);
+
+        const cityCond = buildInClause('Location', city);
+        if (cityCond) conditions.push(cityCond);
+
+        const formatCond = buildInClause(catCol, format);
+        if (formatCond) conditions.push(formatCond);
+
         conditions.push(`toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'`);
 
         // Handle Granularity constraints
@@ -309,7 +317,7 @@ export const downloadReport = async (req, res) => {
                     FROM rb_kw_olap
                     WHERE toDate(DATE) BETWEEN '${startDate}' AND '${endDate}'
                     AND POSITION < 11
-                    ${platform && platform !== 'All' ? `AND lower(platform_name) = lower('${platform.replace(/'/g, "''")}')` : ''}
+                    ${buildInClause('platform_name', platform) ? `AND ${buildInClause('platform_name', platform)}` : ''}
                     GROUP BY JoinDate, Platform, Category
                 )
                 SELECT 
@@ -323,8 +331,8 @@ export const downloadReport = async (req, res) => {
                 LEFT JOIN category_stats c ON toDate(t.DATE) = c.JoinDate AND t.platform_name = c.Platform AND t.keyword_category = c.Category
                 WHERE toDate(t.DATE) BETWEEN '${startDate}' AND '${endDate}'
                 AND t.POSITION < 11
-                ${platform && platform !== 'All' ? `AND lower(t.platform_name) = lower('${platform.replace(/'/g, "''")}')` : ''}
-                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(t.brand) = lower('${brand.replace(/'/g, "''")}')` : ''}
+                ${buildInClause('t.platform_name', platform) ? `AND ${buildInClause('t.platform_name', platform)}` : ''}
+                ${buildInClause('t.brand', brand) ? `AND ${buildInClause('t.brand', brand)}` : ''}
                 GROUP BY DATE, Platform, Brand, t.keyword_category, t.keyword_type
                 ORDER BY DATE DESC
             `;
@@ -346,8 +354,8 @@ export const downloadReport = async (req, res) => {
                     ROUND(SUM(sales) / nullIf(SUM(SUM(sales)) OVER (PARTITION BY DATE, category, location), 0) * 100, 2) as Market_Share_Percentage
                 FROM ${msTable}
                 WHERE toDate(${msDateCol}) BETWEEN '${startDate}' AND '${endDate}'
-                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(${msBrandCol}) = lower('${brand.replace(/'/g, "''")}')` : ''}
-                ${city && city !== 'All' && !city.startsWith('All ') ? `AND lower(location) = lower('${city.replace(/'/g, "''")}')` : ''}
+                ${buildInClause(msBrandCol, brand) ? `AND ${buildInClause(msBrandCol, brand)}` : ''}
+                ${buildInClause('location', city) ? `AND ${buildInClause('location', city)}` : ''}
                 ${cityFilter}
                 GROUP BY DATE, ${msBrandCol}, category, location
                 ORDER BY DATE DESC
@@ -363,10 +371,10 @@ export const downloadReport = async (req, res) => {
                         SUM(assumeNotNull(Qty_Sold)) as daily_orders
                     FROM rb_pdp_olap
                     WHERE toDate(DATE) BETWEEN '${widerStartDate}' AND '${endDate}'
-                    ${platform && platform !== 'All' ? `AND lower(Platform) = lower('${platform.replace(/'/g, "''")}')` : ''}
-                    ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(Brand) = lower('${brand.replace(/'/g, "''")}')` : ''}
-                    ${city && city !== 'All' && !city.startsWith('All ') ? `AND lower(Location) = lower('${city.replace(/'/g, "''")}')` : ''}
-                    ${format && format !== 'All' && !format.startsWith('All ') ? `AND lower(${catCol}) = lower('${format.replace(/'/g, "''")}')` : ''}
+                    ${buildInClause('Platform', platform) ? `AND ${buildInClause('Platform', platform)}` : ''}
+                    ${buildInClause('Brand', brand) ? `AND ${buildInClause('Brand', brand)}` : ''}
+                    ${buildInClause('Location', city) ? `AND ${buildInClause('Location', city)}` : ''}
+                    ${buildInClause(catCol, format) ? `AND ${buildInClause(catCol, format)}` : ''}
                     GROUP BY DATE, Platform, Brand, City, Format, Product
                 ),
                 running_metrics AS (
@@ -402,7 +410,14 @@ export const downloadReport = async (req, res) => {
                 ORDER BY t.DATE DESC
             `;
         } else if (reportType === "Master Dump") {
-            const hasKwOlap = await checkTableExists('rb_kw_olap');
+            const [hasKwOlap, hasLocationDarkstore, hasBrandMs] = await Promise.all([
+                checkTableExists('rb_kw_olap'),
+                checkTableExists('rb_location_darkstore'),
+                checkTableExists('rb_brand_ms')
+            ]);
+            const msTable = hasBrandMs ? 'rb_brand_ms' : 'rb_ms_olap';
+            const msDateCol = hasBrandMs ? 'created_on' : 'created_on';
+            const msBrandCol = hasBrandMs ? 'brand' : 'group_brand';
 
             // 1. Time Granularity handling
             let timeAgg = `toDate(t.DATE)`;
@@ -470,26 +485,95 @@ export const downloadReport = async (req, res) => {
                 WITH sos_stats AS (
                     SELECT 
                         ${sosSelectCols.join(', ')},
-                        count() as brand_kw_count
+                        count() as brand_kw_count,
+                        countIf(toString(flag) = '1' AND POSITION < 11) as overall_sos_count,
+                        countIf(toInt32(spons) = 1 AND toString(flag) = '1' AND POSITION < 11) as spons_sos_count,
+                        countIf(toInt32(spons) != 1 AND toString(flag) = '1' AND POSITION < 11) as org_sos_count,
+                        avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) = 1 AND POSITION < 11) as ad_pos,
+                        avgIf(toInt64OrZero(toString(POSITION)), toInt32(spons) != 1 AND POSITION < 11) as org_pos
                     FROM rb_kw_olap
                     GROUP BY ${sosGroupCols.join(', ')}
                 ),
                 total_kw_stats AS (
                     SELECT 
                         ${totSelectCols.join(', ')},
-                        count() as total_kw_count
+                        count() as total_kw_count,
+                        countIf(POSITION < 11) as total_cat_keywords_top10
                     FROM rb_kw_olap
                     GROUP BY ${totGroupCols.join(', ')}
-                )` : '';
+                ),` : 'WITH ';
+
+            const pricingCte = `
+                pricing_stats AS (
+                    SELECT 
+                        ${cteTimeAgg} as DATE, Location, ${catCol} as Category,
+                        avg(toFloat64(Selling_Price)) as Cat_Avg_Price
+                    FROM rb_pdp_olap
+                    GROUP BY DATE, Location, Category
+                ),`;
+
+            const msCte = `
+                ms_stats AS (
+                    SELECT 
+                        toDate(${msDateCol}) as DATE, ${msBrandCol} as Brand, category as Category, location as Location,
+                        SUM(sales) as brand_sales
+                    FROM ${msTable}
+                    GROUP BY DATE, Brand, Category, Location
+                ),
+                cat_ms_stats AS (
+                    SELECT 
+                        toDate(${msDateCol}) as DATE, category as Category, location as Location,
+                        SUM(sales) as cat_sales
+                    FROM ${msTable}
+                    GROUP BY DATE, Category, Location
+                ),`;
+
+            const catSizeCte = `
+                cat_size_stats AS (
+                    SELECT 
+                        ${cteTimeAgg} as DATE, Platform, Location,
+                        SUM(toFloat64(Sales)) as Cat_Size
+                    FROM rb_pdp_olap
+                    GROUP BY DATE, Platform, Location
+                )`;
+
+            const metroJoin = hasLocationDarkstore ? `
+                LEFT JOIN (
+                    SELECT DISTINCT location, 1 as is_metro
+                    FROM rb_location_darkstore
+                    WHERE tier = 'Tier 1'
+                ) m ON t.Location = m.location` : '';
 
             const sosJoin = hasKwOlap ? `
                 LEFT JOIN sos_stats s ON ${sosJoinOn.join(' AND ')}
                 LEFT JOIN total_kw_stats tot ON ${totJoinOn.join(' AND ')}` : '';
 
-            const sosCol = hasKwOlap ? `round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,` : '';
+            const pricingJoin = `
+                LEFT JOIN pricing_stats p ON ${timeAgg} = p.DATE AND t.Location = p.Location AND t.${catCol} = p.Category`;
+
+            const msJoin = `
+                LEFT JOIN ms_stats ms ON ${timeAgg} = ms.DATE AND t.Brand = ms.Brand AND t.${catCol} = ms.Category AND t.Location = ms.Location
+                LEFT JOIN cat_ms_stats cms ON ${timeAgg} = cms.DATE AND t.${catCol} = cms.Category AND t.Location = cms.Location`;
+
+            const catSizeJoin = `
+                LEFT JOIN cat_size_stats cs ON ${timeAgg} = cs.DATE AND t.Platform = cs.Platform AND t.Location = cs.Location`;
+
+            const sosCol = hasKwOlap ? `
+                    round(any(s.brand_kw_count) / nullIf(any(tot.total_kw_count), 0) * 100, 2) as SOS_Percentage,
+                    round(any(s.overall_sos_count) * 100.0 / nullIf(any(tot.total_cat_keywords_top10), 0), 2) as Overall_SOS_Percentage,
+                    round(any(s.spons_sos_count) * 100.0 / nullIf(any(tot.total_cat_keywords_top10), 0), 2) as Sponsored_SOS_Percentage,
+                    round(any(s.org_sos_count) * 100.0 / nullIf(any(tot.total_cat_keywords_top10), 0), 2) as Organic_SOS_Percentage,
+                    round(any(s.ad_pos), 2) as Ad_POS,
+                    round(any(s.org_pos), 2) as Org_Pos,
+            ` : '';
+
+            const metroCol = hasLocationDarkstore ? `round(SUM(if(m.is_metro = 1, toFloat64(t.${col('neno_osa')}), 0)) / nullIf(SUM(if(m.is_metro = 1, toFloat64(t.${col('deno_osa')}), 0)), 0) * 100, 2) as Metro_City_Stock_Availability,` : `0 as Metro_City_Stock_Availability,`;
+
+            // If sosCte is empty, we must ensure the CTE starts properly with WITH
+            const fullCte = (hasKwOlap ? sosCte : 'WITH ') + pricingCte + msCte + catSizeCte;
 
             query = `
-                ${sosCte}
+                ${fullCte}
                 SELECT 
                     ${timeAgg} as DATE${dimSelects.length > 0 ? ', ' + dimSelects.join(', ') : ''},
                     -- Sales / Basics
@@ -529,9 +613,24 @@ export const downloadReport = async (req, res) => {
 
                     -- Additional Availability KPIs
                     round(SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100, 2) as OSA_Percentage,
-                    round(100 - (SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage
+                    round(100 - (SUM(toFloat64(${col('neno_osa')})) / nullIf(SUM(toFloat64(${col('deno_osa')})), 0) * 100), 2) as Stock_Out_Percentage,
+                    
+                    round(SUM(toFloat64(${col('Inventory')})) / nullIf(SUM(toFloat64(${col('MSL')})), 0) * 100, 2) as PSL,
+                    COUNT(DISTINCT t.${col('Web_Pid')}) as Assortment,
+                    ${metroCol}
+
+                    -- New Pricing, Sales, Category KPIs
+                    round(avg(toFloat64(t.Selling_Price)) / nullIf(any(p.Cat_Avg_Price), 0), 2) as RPI,
+                    any(ms.brand_sales) as Sales_Value,
+                    round(any(ms.brand_sales) / nullIf(any(cms.cat_sales), 0) * 100, 2) as Market_Share_Percentage,
+                    any(cs.Cat_Size) as Cat_Size
+                    
                 FROM rb_pdp_olap t
+                ${metroJoin}
                 ${sosJoin}
+                ${pricingJoin}
+                ${msJoin}
+                ${catSizeJoin}
                 ${whereClause.replace(/\b(Platform|Brand|Location|Category|DATE)\b/g, (match) => match === 'Category' ? 't.' + catCol : 't.' + match)}
                 GROUP BY DATE${dimGroupStr}
                 ORDER BY DATE DESC
@@ -591,7 +690,7 @@ export const downloadReport = async (req, res) => {
                     description_char_count as Word_Count
                 FROM tb_content_score_data
                 WHERE toDate(${col('extraction_timestamp')}) BETWEEN '${startDate}' AND '${endDate}'
-                ${brand && brand !== 'All' && !brand.startsWith('All ') ? `AND lower(${col('brand_name')}) = lower('${brand.replace(/'/g, "''")}')` : ''}
+                ${buildInClause(col('brand_name'), brand) ? `AND ${buildInClause(col('brand_name'), brand)}` : ''}
                 ORDER BY DATE DESC
                 LIMIT 5000
             `;
@@ -687,7 +786,8 @@ export const downloadReport = async (req, res) => {
         console.log(`[downloadReport] Fetched ${rawData?.length || 0} rows`);
 
         if (!rawData || rawData.length === 0) {
-            return res.status(404).json({ error: 'No data found for the selected filters' });
+            // Return 204 No Content so browser doesn't log a 404 network error in console
+            return res.status(204).send();
         }
 
         // 4. Filter columns by requested tags if Master Dump is used
@@ -709,6 +809,9 @@ export const downloadReport = async (req, res) => {
                 "Stock Out %": "Stock_Out_Percentage",
                 "DOI": "DOI",
                 "Listing %": "Listing_Percentage",
+                "PSL": "PSL",
+                "Assortment": "Assortment",
+                "Metro City Stock Availability": "Metro_City_Stock_Availability",
 
                 // Performance Marketing
                 "Impressions": "Impressions",
@@ -729,12 +832,23 @@ export const downloadReport = async (req, res) => {
                 "ECP": "ECP",
                 "MRP": "MRP",
                 "Discount %": "Discount_Percentage",
+                "RPI": "RPI",
 
                 // Visibility / SOS
                 "SOS %": "SOS_Percentage",
+                "Overall SOS %": "Overall_SOS_Percentage",
+                "Sponsored SOS %": "Sponsored_SOS_Percentage",
+                "Organic SOS %": "Organic_SOS_Percentage",
+                "Ad Position": "Ad_POS",
+                "Org Position": "Org_Pos",
 
                 // Promo
-                "Promo %": "Promo_Percentage"
+                "Promo %": "Promo_Percentage",
+
+                // Market Share & Category
+                "Sales Value": "Sales_Value",
+                "Market Share %": "Market_Share_Percentage",
+                "Category Size": "Cat_Size"
             };
 
             // Map requested tags to their clean UI names inside Excel!

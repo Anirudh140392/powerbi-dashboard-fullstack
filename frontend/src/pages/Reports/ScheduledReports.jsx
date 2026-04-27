@@ -32,13 +32,14 @@ export default function ScheduledReports() {
         reportType: "Business Overview",
     });
 
-    // Custom date range state
     const [customDateRange, setCustomDateRange] = useState({
         startDate: dayjs().subtract(30, 'day'),
         endDate: dayjs(),
     });
 
     const [showSuccess, setShowSuccess] = useState(false);
+    const [showError, setShowError] = useState(false);
+    const [errorMsg, setErrorMsg] = useState("");
     const [isDownloading, setIsDownloading] = useState(false);
 
     // Dynamic filter options from backend
@@ -249,8 +250,13 @@ export default function ScheduledReports() {
             setShowSuccess(true);
             setTimeout(() => setShowSuccess(false), 3000);
         } catch (err) {
-            console.error('[ScheduledReports] Download failed:', err);
-            alert('Failed to download report. Please try again.');
+            if (err.status === 204 || (err.response && err.response.status === 404)) {
+                setErrorMsg('No data found for the selected filters. Please adjust your criteria and try again.');
+            } else {
+                console.error('[ScheduledReports] Download failed:', err);
+                setErrorMsg('Failed to download report. Please try again.');
+            }
+            setShowError(true);
         } finally {
             setIsDownloading(false);
         }
@@ -285,6 +291,9 @@ export default function ScheduledReports() {
                 isDownloading={isDownloading}
                 showSuccess={showSuccess}
                 setShowSuccess={setShowSuccess}
+                showError={showError}
+                setShowError={setShowError}
+                errorMsg={errorMsg}
                 platformOptions={platformOptions}
                 getBrandOptions={getBrandOptions}
                 getCategoryOptions={getCategoryOptions}

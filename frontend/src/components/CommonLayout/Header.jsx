@@ -3292,7 +3292,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                               cursor: 'pointer',
                               boxShadow: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                               transition: 'all 0.2s',
-                              fontFamily: "'Inter', 'Roboto', sans-serif"
+                              fontFamily: "'Inter', 'Roboto', sans-serif",
+                              textTransform: 'capitalize'
                             }}
                           >
                             {c}
