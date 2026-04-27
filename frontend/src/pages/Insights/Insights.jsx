@@ -587,17 +587,9 @@ const AIInsightsPanel = ({ insight, onClose }) => {
     const segments = useMemo(() => buildAISegments(insight), [insight]);
 
     useEffect(() => {
-        setPhase("loading"); setVisibleCount(0);
-        const t = setTimeout(() => setPhase("reveal"), 1000);
-        return () => clearTimeout(t);
-    }, [insight]);
-
-    useEffect(() => {
-        if (phase !== "reveal") return;
-        if (visibleCount >= segments.length) return;
-        const t = setTimeout(() => setVisibleCount((c) => c + 1), 180);
-        return () => clearTimeout(t);
-    }, [phase, visibleCount, segments.length]);
+        setPhase("reveal"); 
+        setVisibleCount(segments.length);
+    }, [insight, segments.length]);
 
     return (
         <motion.div
@@ -680,7 +672,7 @@ const AIInsightsPanel = ({ insight, onClose }) => {
                                 key={idx}
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={idx < visibleCount ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}
-                                transition={{ type: "spring", stiffness: 400, damping: 40, delay: idx * 0.05 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 40 }}
                                 style={{
                                     background: "#fff",
                                     border: "1.5px solid rgba(226, 232, 240, 0.9)",
@@ -1006,17 +998,9 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
     const segments = useMemo(() => buildAISegments(rowInsight), [rowInsight]);
 
     useEffect(() => {
-        setPhase("loading"); setVisibleCount(0);
-        const t = setTimeout(() => setPhase("reveal"), 600);
-        return () => clearTimeout(t);
-    }, [rowInsight?.id]);
-
-    useEffect(() => {
-        if (phase !== "reveal") return;
-        if (visibleCount >= Math.min(segments.length, 2)) return;
-        const t = setTimeout(() => setVisibleCount((c) => c + 1), 220);
-        return () => clearTimeout(t);
-    }, [phase, visibleCount, segments.length]);
+        setPhase("reveal"); 
+        setVisibleCount(Math.min(segments.length, 2));
+    }, [rowInsight?.id, segments.length]);
 
     const miniSegs = segments.slice(0, 2);
 
@@ -1121,7 +1105,7 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                         <motion.div key={idx}
                             initial={{ opacity: 0, y: 5 }}
                             animate={idx < visibleCount ? { opacity: 1, y: 0 } : { opacity: 0, y: 5 }}
-                            transition={{ duration: 0.4, delay: idx * 0.15 }}
+                            transition={{ duration: 0.2 }}
                             style={{ 
                                 display: "flex", 
                                 gap: "12px", 
@@ -1226,7 +1210,7 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
                             Know More
                         </button>
                     </PopoverTrigger>
-                    <PopoverContent className="p-0 border-none bg-transparent shadow-none w-auto" side="bottom" align="start" sideOffset={8}>
+                    <PopoverContent style={{ zIndex: 150 }} className="p-0 border-none bg-transparent shadow-none w-auto" side="bottom" align="start" sideOffset={8}>
                         <AnimatePresence>
                             {isOpen && (
                                 <RowAIPopup 
@@ -1433,7 +1417,7 @@ const EvidenceTable = ({ insight }) => {
                                 Filters {(activePlatform !== "All platforms" || categoryFilter !== "All categories") && "*"}
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent align="end" sideOffset={8} className="w-[240px] p-4 bg-white rounded-xl shadow-xl border border-slate-200">
+                        <PopoverContent style={{ zIndex: 150 }} align="end" sideOffset={8} className="w-[240px] p-4 bg-white rounded-xl shadow-xl border border-slate-200">
                             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                                 <div style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px", marginBottom: "4px" }}>
                                     Table Filters
@@ -1458,7 +1442,7 @@ const EvidenceTable = ({ insight }) => {
                     </div>
                 </div>
             </div>
-            <ScrollArea className="h-[380px] w-full">
+            <ScrollArea className="flex-1 w-full" style={{ minHeight: 0 }}>
                 <Table>
                     <TableHeader style={{ background: "#f8fafc", position: "sticky", top: 0, zIndex: 10 }}>
                         <TableRow style={{ borderBottom: "1px solid #e2e8f0" }}>
@@ -1481,8 +1465,8 @@ const EvidenceTable = ({ insight }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Mkt Share</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Offtake</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Top SKU</TableHead>
-                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Comp SKU</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Top Impacted SKU</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Comp Top SKU</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Cause</TableHead>
                             </>)}
                             {view === "pricing" && (<>
@@ -2092,106 +2076,153 @@ const getKpiStyle = (label, value) => {
 };
 
 const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel }) => {
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === "Escape" && open) onClose();
+        };
+        document.addEventListener("keydown", handleKeyDown);
+        return () => document.removeEventListener("keydown", handleKeyDown);
+    }, [open, onClose]);
+
     if (!insight) return null;
 
     const isEmpty = insight.id.startsWith("empty_");
     const meta = SIGNAL_META[insight.type] || {};
 
     return (
-        <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-            <DialogContent className="max-w-[1400px] w-[95vw] p-0 gap-0 rounded-xl overflow-hidden shadow-xl bg-white border-2 border-slate-200 outline-none [&>button]:hidden flex">
-                <div className="flex-1 flex flex-col max-h-[85vh]">
-
-                    {/* Modal Header */}
-                    <div style={{
-                        background: "#fff",
-                        borderBottom: "1px solid #e5e9f0",
-                        padding: "16px 20px",
-                        display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-                        flexShrink: 0,
-                    }}>
-                        <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-                                <div style={{
-                                    width: 20, height: 20, borderRadius: "5px",
-                                    background: meta.color ? `${meta.color}22` : "#dbeafe",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                }}>
-                                    {meta.FamilyIcon && <meta.FamilyIcon size={11} color={meta.color || "#3b82f6"} />}
-                                </div>
-                                <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                                    Signal Detail
-                                </span>
-                                <ChevronRight size={11} color="#94a3b8" />
-                                <span style={{ fontSize: "10px", fontWeight: 600, color: meta.color || "#3b82f6", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                                    {insight.family}
-                                </span>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
-                                    {insight.type}
-                                </h2>
-                                <BetaBadge />
-                            </div>
-                        </div>
-                        <button onClick={onClose} style={{
-                            color: "#94a3b8", background: "none", border: "none",
-                            cursor: "pointer", padding: 4, marginTop: 4,
-                        }}>
-                            <X size={16} />
-                        </button>
-                    </div>
-
-                    {/* KPI Strip */}
-                    <div style={{
-                        borderBottom: "1px solid #e2e8f0",
-                        padding: "12px 20px",
-                        display: "flex", flexWrap: "wrap", alignItems: "center",
-                        gap: "12px",
-                        background: "#fff", flexShrink: 0,
-                    }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "20px", width: "100%" }}>
-                            <div>
-                                <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
-                                <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
-                            </div>
-                            <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
-                            <div style={{ display: "flex", gap: "20px" }}>
-                                {(insight.kpis || []).map((k, i) => (
-                                    <div key={i}>
-                                        <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>{k.label}</p>
-                                        <p style={{ fontSize: "14px", fontWeight: 700, margin: 0 }} className={getKpiStyle(k.label, k.value)}>{k.value}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        
-                        <DynamicInsightsBar insight={insight} />
-                    </div>
-
-                    {/* Body */}
-                    <div style={{ flex: 1, overflowY: "auto", padding: "20px", background: "#fafcff" }}>
-                        {isEmpty ? (
+        <AnimatePresence>
+            {open && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    style={{
+                        position: "absolute",
+                        inset: 0,
+                        zIndex: 100,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(0, 0, 0, 0.4)",
+                        backdropFilter: "blur(4px)",
+                        padding: "24px",
+                    }}
+                    onClick={onClose}
+                >
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        style={{
+                            position: "relative",
+                            width: "100%",
+                            maxWidth: "1400px",
+                            height: "100%",
+                            maxHeight: "85vh",
+                            background: "#fff",
+                            borderRadius: "16px",
+                            boxShadow: "0 20px 50px -12px rgba(0,0,0,0.25)",
+                            display: "flex",
+                            flexDirection: "row",
+                            overflow: "hidden",
+                            border: "2px solid #e2e8f0",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex-1 flex flex-col h-full" style={{ maxWidth: "100%" }}>
+                            {/* Modal Header */}
                             <div style={{
-                                textAlign: "center", padding: "64px 16px",
-                                border: "1px dashed #bfdbfe", borderRadius: "10px",
-                                color: "#94a3b8",
+                                background: "#fff",
+                                borderBottom: "1px solid #e5e9f0",
+                                padding: "16px 20px",
+                                display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+                                flexShrink: 0,
                             }}>
-                                <Activity size={20} style={{ margin: "0 auto 8px", color: "#cbd5e1" }} />
-                                <p style={{ fontSize: "12px", margin: 0 }}>No detailed evidence available.</p>
+                                <div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                                        <div style={{
+                                            width: 20, height: 20, borderRadius: "5px",
+                                            background: meta.color ? `${meta.color}22` : "#dbeafe",
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                        }}>
+                                            {meta.FamilyIcon && <meta.FamilyIcon size={11} color={meta.color || "#3b82f6"} />}
+                                        </div>
+                                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                                            Signal Detail
+                                        </span>
+                                        <ChevronRight size={11} color="#94a3b8" />
+                                        <span style={{ fontSize: "10px", fontWeight: 600, color: meta.color || "#3b82f6", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                            {insight.family}
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                        <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
+                                            {insight.type}
+                                        </h2>
+                                        <BetaBadge />
+                                    </div>
+                                </div>
+                                <button onClick={onClose} style={{
+                                    color: "#94a3b8", background: "none", border: "none",
+                                    cursor: "pointer", padding: 4, marginTop: 4,
+                                }}>
+                                    <X size={16} />
+                                </button>
                             </div>
-                        ) : (
-                            <EvidenceTable insight={insight} />
-                        )}
-                    </div>
-                </div>
 
-                {/* AI Panel Drawer */}
-                <AnimatePresence>
-                    {showAIPanel && <AIInsightsPanel insight={insight} onClose={onCloseAIPanel} />}
-                </AnimatePresence>
-            </DialogContent>
-        </Dialog>
+                            {/* KPI Strip */}
+                            <div style={{
+                                borderBottom: "1px solid #e2e8f0",
+                                padding: "12px 20px",
+                                display: "flex", flexWrap: "wrap", alignItems: "center",
+                                gap: "12px",
+                                background: "#fff", flexShrink: 0,
+                            }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "20px", width: "100%" }}>
+                                    <div>
+                                        <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
+                                        <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
+                                    </div>
+                                    <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
+                                    <div style={{ display: "flex", gap: "20px" }}>
+                                        {(insight.kpis || []).map((k, i) => (
+                                            <div key={i}>
+                                                <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>{k.label}</p>
+                                                <p style={{ fontSize: "14px", fontWeight: 700, margin: 0 }} className={getKpiStyle(k.label, k.value)}>{k.value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                
+                                <DynamicInsightsBar insight={insight} />
+                            </div>
+
+                            {/* Body */}
+                            <div style={{ flex: 1, overflowY: "auto", padding: "20px", background: "#fafcff" }}>
+                                {isEmpty ? (
+                                    <div style={{
+                                        textAlign: "center", padding: "64px 16px",
+                                        border: "1px dashed #bfdbfe", borderRadius: "10px",
+                                        color: "#94a3b8",
+                                    }}>
+                                        <Activity size={20} style={{ margin: "0 auto 8px", color: "#cbd5e1" }} />
+                                        <p style={{ fontSize: "12px", margin: 0 }}>No detailed evidence available.</p>
+                                    </div>
+                                ) : (
+                                    <EvidenceTable insight={insight} />
+                                )}
+                            </div>
+                        </div>
+
+                        {/* AI Panel Drawer */}
+                        <AnimatePresence>
+                            {showAIPanel && <AIInsightsPanel insight={insight} onClose={onCloseAIPanel} />}
+                        </AnimatePresence>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 };
 
@@ -2456,9 +2487,12 @@ const InsightsSignalHub = () => {
             <div className="insights-page" style={{
                 background: "#ffffff",
                 height: "100%",
+                flex: 1,
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
+                position: "relative",
+                borderRadius: "10px",
             }}>
                 <div style={{ width: "100%", margin: "0 auto", padding: "6px 24px 12px 24px", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
 
@@ -2546,7 +2580,7 @@ const InsightsSignalHub = () => {
                                     key={`skeleton-${i}`}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-                                    transition={{ delay: i * 0.05 }}
+                                    transition={{ duration: 0.2 }}
                                 >
                                     <SignalCardSkeleton />
                                 </motion.div>
@@ -2580,7 +2614,7 @@ const InsightsSignalHub = () => {
                                     style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}
                                     initial={{ opacity: 0, y: 16 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: idx * 0.05, duration: 0.35, ease: "easeOut" }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
                                 >
                                     <OverviewSignalCard
                                         insight={ins}
@@ -2593,16 +2627,17 @@ const InsightsSignalHub = () => {
                     )}
 
                 </div>
-            </div>
 
-            <DrillDownModal
-                insight={selected}
-                open={dialogOpen}
-                onClose={handleClose}
-                onAI={() => setShowAIPanel(true)}
-                showAIPanel={showAIPanel}
-                onCloseAIPanel={() => setShowAIPanel(false)}
-            />
+                {/* Modal is inside the relative parent to properly adapt to sidebar layout shifts */}
+                <DrillDownModal
+                    insight={selected}
+                    open={dialogOpen}
+                    onClose={handleClose}
+                    onAI={() => setShowAIPanel(true)}
+                    showAIPanel={showAIPanel}
+                    onCloseAIPanel={() => setShowAIPanel(false)}
+                />
+            </div>
         </CommonContainer>
     );
 };

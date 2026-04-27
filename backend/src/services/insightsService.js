@@ -1081,10 +1081,38 @@ export const getInsightsData = async (filters) => {
     `;
 
     // -------------------------------------------------------------------------
-    // QUERY 8 — COMPETITOR MARKET SHARE TREND (powers: AI Report for Headroom)
+    // QUERY 7.6 — SKU-LEVEL LOSS (powers: Share Headroom Hotspots Top SKU)
     // -------------------------------------------------------------------------
     // Normalize city names: Gurgaon/gurugram → Gurugram
-    const locNorm = `if(LOWER(location) IN ('gurgaon','gurugram'), 'Gurugram', initCap(location))`;
+    const locNorm = CITY_NORM_EXPR('location');
+
+    const skuLossQuery = `
+        SELECT
+            ${locNorm} AS city,
+            initCap(platform) AS platform,
+            category,
+            item_name AS skuName,
+            flag AS is_own_brand,
+            SUM(CASE WHEN created_on BETWEEN '${dateFrom}' AND '${dateTo}' THEN toFloat64OrZero(toString(sales)) ELSE 0 END) AS curr_sales,
+            SUM(CASE WHEN created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}' THEN toFloat64OrZero(toString(sales)) ELSE 0 END) AS prev_sales,
+            (curr_sales - prev_sales) AS sales_delta,
+            if(is_own_brand = 1, 0, 1) AS comp_flag,
+            NULL AS web_pid
+        FROM rb_ms_olap
+        WHERE (created_on BETWEEN '${dateFrom}' AND '${dateTo}' OR created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}')
+          AND group_brand IS NOT NULL AND group_brand != ''
+          AND item_name IS NOT NULL AND item_name != ''
+          AND ${buildCHCondition(filters.platform, 'platform')}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
+          AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
+        GROUP BY city, platform, category, skuName, is_own_brand
+        HAVING (is_own_brand = 1 AND sales_delta < 0) OR (is_own_brand = 0 AND sales_delta > 0)
+        ORDER BY city, platform, category, abs(sales_delta) DESC
+    `;
+
+    // -------------------------------------------------------------------------
+    // QUERY 8 — COMPETITOR MARKET SHARE TREND (powers: AI Report for Headroom)
+    // -------------------------------------------------------------------------
 
     const ownShareQuery = `
         WITH
@@ -1100,7 +1128,7 @@ export const getInsightsData = async (filters) => {
                   AND flag = 1
                   AND group_brand IS NOT NULL AND group_brand != ''
                   AND ${buildCHCondition(filters.platform, 'platform')}
-                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
                   AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
                 GROUP BY brand_name, category, location, platform, item_name
             ),
@@ -1116,7 +1144,7 @@ export const getInsightsData = async (filters) => {
                   AND flag = 1
                   AND group_brand IS NOT NULL AND group_brand != ''
                   AND ${buildCHCondition(filters.platform, 'platform')}
-                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
                   AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
                 GROUP BY brand_name, category, location, platform, item_name
             ),
@@ -1146,22 +1174,22 @@ export const getInsightsData = async (filters) => {
                 GROUP BY brand_name, category, location, platform
             ),
             total_curr AS (
-                SELECT category, initCap(location) AS location, initCap(platform) AS platform, SUM(toFloat64OrZero(toString(sales))) AS v
+                SELECT category, ${CITY_NORM_EXPR('location')} AS location, initCap(platform) AS platform, SUM(toFloat64OrZero(toString(sales))) AS v
                 FROM rb_ms_olap
                 WHERE created_on BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND group_brand IS NOT NULL AND group_brand != ''
                   AND ${buildCHCondition(filters.platform, 'platform')}
-                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
                   AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
                 GROUP BY category, location, platform
             ),
             total_prev AS (
-                SELECT category, initCap(location) AS location, initCap(platform) AS platform, SUM(toFloat64OrZero(toString(sales))) AS v
+                SELECT category, ${CITY_NORM_EXPR('location')} AS location, initCap(platform) AS platform, SUM(toFloat64OrZero(toString(sales))) AS v
                 FROM rb_ms_olap
                 WHERE created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}'
                   AND group_brand IS NOT NULL AND group_brand != ''
                   AND ${buildCHCondition(filters.platform, 'platform')}
-                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
                   AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
                 GROUP BY category, location, platform
             )
@@ -1200,7 +1228,7 @@ export const getInsightsData = async (filters) => {
                   AND flag = 0
                   AND group_brand IS NOT NULL AND group_brand != ''
                   AND ${buildCHCondition(filters.platform, 'platform')}
-                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
                   AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
                 GROUP BY brand_name, category, location, platform, item_name
             ),
@@ -1222,27 +1250,27 @@ export const getInsightsData = async (filters) => {
                   AND flag = 0
                   AND group_brand IS NOT NULL AND group_brand != ''
                   AND ${buildCHCondition(filters.platform, 'platform')}
-                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
                   AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
                 GROUP BY brand_name, category, location, platform
             ),
             total_curr AS (
-                SELECT category, initCap(location) AS location, initCap(platform) AS platform, SUM(toFloat64OrZero(toString(sales))) AS v
+                SELECT category, ${CITY_NORM_EXPR('location')} AS location, initCap(platform) AS platform, SUM(toFloat64OrZero(toString(sales))) AS v
                 FROM rb_ms_olap
                 WHERE created_on BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND group_brand IS NOT NULL AND group_brand != ''
                   AND ${buildCHCondition(filters.platform, 'platform')}
-                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
                   AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
                 GROUP BY category, location, platform
             ),
             total_prev AS (
-                SELECT category, initCap(location) AS location, initCap(platform) AS platform, SUM(toFloat64OrZero(toString(sales))) AS v
+                SELECT category, ${CITY_NORM_EXPR('location')} AS location, initCap(platform) AS platform, SUM(toFloat64OrZero(toString(sales))) AS v
                 FROM rb_ms_olap
                 WHERE created_on BETWEEN '${prevStartDate}' AND '${prevEndDate}'
                   AND group_brand IS NOT NULL AND group_brand != ''
                   AND ${buildCHCondition(filters.platform, 'platform')}
-                  AND ${buildCHCondition(filters.city, 'location')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
                   AND ${buildCHCondition(filters.category, 'category', { isCategory: true })}
                 GROUP BY category, location, platform
             )
@@ -1340,7 +1368,8 @@ export const getInsightsData = async (filters) => {
             surplusStockData,
             prioritisePOData,
             transferIssueData,
-            newMarketEntryData
+            newMarketEntryData,
+            skuLossData
         ] = await Promise.all([
             safeQuery(visibilityQuery, 'Visibility'),
             safeQuery(visibilityTotalsQuery, 'VisibilityTotals'),
@@ -1358,88 +1387,165 @@ export const getInsightsData = async (filters) => {
             safeQuery(surplusStockQuery, 'SurplusStock'),
             safeQuery(prioritisePOQuery, 'PrioritisePO'),
             safeQuery(transferIssueQuery, 'TransferIssue'),
-            safeQuery(newMarketEntryQuery, 'NewMarketEntry')
+            safeQuery(newMarketEntryQuery, 'NewMarketEntry'),
+            rbMsOlapExists ? safeQuery(skuLossQuery, 'SkuLoss') : Promise.resolve([])
         ]);
 
-        // ── Universal image URL resolution for ALL signals ──
-        // Step 1: Fetch by web_pid for RemoveAdLowOSA (already has web_pid)
-        const pidImageMap = {};
-        if (removeAdLowOSAData.length > 0) {
-            const webPids = removeAdLowOSAData.map(r => r.webPid).filter(Boolean);
-            if (webPids.length > 0) {
-                try {
-                    const uniquePids = [...new Set(webPids)];
-                    const imageRows = await queryClickHouse(
-                        `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${uniquePids.map(p => `'${escapeCH(String(p))}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`
-                    );
-                    for (const row of imageRows) {
-                        pidImageMap[String(row.web_pid)] = row.image_url;
+        // Build SKU loss maps from rb_pdp_olap for Share Headroom Hotspots
+        // Key: city||platform||category → { skuName, webPid }
+        // Built BEFORE image resolution so we can use web_pids directly
+        const ownSkuLossMap = {};  // Our brand (comp_flag = 0)
+        const compSkuLossMap = {}; // Competitor (comp_flag = 1)
+        for (const r of (skuLossData || [])) {
+            const cityKey = String(r.city || '').trim().toLowerCase();
+            const platKey = String(r.platform || '').trim().toLowerCase();
+            const catKey = String(r.category || '').trim().toLowerCase();
+            const gKey = `${cityKey}||${platKey}||${catKey}`;
+            const isComp = Number(r.comp_flag) === 1;
+            const targetMap = isComp ? compSkuLossMap : ownSkuLossMap;
+            // First row per key is the target SKU (own: most-losing via sales_delta ASC, comp: most-gaining via sales_delta DESC)
+            const delta = Number(r.sales_delta) || 0;
+            if (!targetMap[gKey]) {
+                targetMap[gKey] = { skuName: r.skuName, webPid: r.web_pid ? String(r.web_pid) : null, delta };
+            } else {
+                // For competitors, we want the SKU with the HIGHEST positive growth
+                if (isComp) {
+                    if (delta > (targetMap[gKey].delta || 0)) {
+                        targetMap[gKey] = { skuName: r.skuName, webPid: r.web_pid ? String(r.web_pid) : null, delta };
                     }
-                    for (const r of removeAdLowOSAData) {
-                        r.imageUrl = pidImageMap[String(r.webPid)] || null;
+                } 
+                // For our own brand, we want the SKU with the MOST negative impact (highest loss)
+                else {
+                    if (delta < (targetMap[gKey].delta || 0)) {
+                        targetMap[gKey] = { skuName: r.skuName, webPid: r.web_pid ? String(r.web_pid) : null, delta };
                     }
-                } catch (imgErr) {
-                    console.log('[Insights] Image URL fetch (web_pid) failed (non-critical):', imgErr.message);
                 }
             }
         }
 
-        // Step 2: Collect ALL product/SKU names from all signal datasets
+        // ── Parallelized image URL resolution for ALL signals ──
+        // Previously 4 sequential awaits; now restructured into 2 parallel rounds.
+        //
+        // Round 1 (parallel): Fetch images for already-known web_pids +
+        //                     resolve product names → web_pids simultaneously
+        // Round 2 (single):   Fetch images for any newly-discovered pids from Round 1
+        const pidImageMap = {};
         const productImageMap = {};
+        const shareHeadroomImageMap = {};  // key: city||platform||category + '_own'/'_comp' → image_url
+
         try {
+            // ── Collect ALL directly-known web_pids from signal data ──
+            const allKnownPids = new Set();
+
+            // From RemoveAdLowOSA (already carries web_pid per row)
+            for (const r of removeAdLowOSAData) {
+                if (r.webPid) allKnownPids.add(String(r.webPid));
+            }
+
+            // From Share Headroom SKU loss maps (own + competitor)
+            for (const v of Object.values(ownSkuLossMap)) { 
+                if (v.webPid) allKnownPids.add(v.webPid); 
+                else if (v.skuName && v.skuName !== '-') allProductNames.add(v.skuName);
+            }
+            for (const v of Object.values(compSkuLossMap)) { 
+                if (v.webPid) allKnownPids.add(v.webPid); 
+                else if (v.skuName && v.skuName !== '-') allProductNames.add(v.skuName);
+            }
+
+            // ── Collect ALL product/SKU names that need pid resolution ──
             const allProductNames = new Set();
-            // From signals that use Product / skuName
             for (const r of (surplusStockData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (prioritisePOData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (transferIssueData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (newMarketEntryData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (replData || [])) { if (r.skuOrBrand && r.skuOrBrand !== '-') allProductNames.add(r.skuOrBrand); }
-            // From pricing: impactedSku / compSku
             for (const r of (priceData || [])) {
                 if (r.impactedSku && r.impactedSku !== '-') allProductNames.add(r.impactedSku);
                 if (r.compSku && r.compSku !== '-') allProductNames.add(r.compSku);
             }
-            // From Share Headroom (via trend data topSku)
-            for (const r of (ownShareRows || [])) { if (r.topSku && r.topSku !== '-') allProductNames.add(r.topSku); }
-            for (const r of (compShareRows || [])) { if (r.topSku && r.topSku !== '-') allProductNames.add(r.topSku); }
 
-            if (allProductNames.size > 0) {
-                const namesList = [...allProductNames].slice(0, 200); // cap to avoid massive IN clause
-                const productPidQuery = `
-                    SELECT DISTINCT Product, argMax(Web_Pid, DATE) AS web_pid
-                    FROM rb_pdp_olap
-                    WHERE Product IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')})
-                      AND Web_Pid IS NOT NULL AND Web_Pid != ''
-                    GROUP BY Product
-                `;
-                const productPidRows = await queryClickHouse(productPidQuery);
-                const productPidMap = {};
-                const allNewPids = new Set();
-                for (const row of productPidRows) {
-                    productPidMap[row.Product] = String(row.web_pid);
-                    if (!pidImageMap[String(row.web_pid)]) {
-                        allNewPids.add(String(row.web_pid));
-                    }
-                }
+            // ── Round 1: Run THREE queries in parallel ──
+            const knownPidList = [...allKnownPids];
+            const namesList = [...allProductNames].slice(0, 200); // cap to avoid massive IN clause
 
-                // Fetch images for any new pids not already in pidImageMap
-                if (allNewPids.size > 0) {
-                    const newPidList = [...allNewPids];
-                    const imgRows = await queryClickHouse(
-                        `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${newPidList.map(p => `'${escapeCH(p)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`
-                    );
-                    for (const row of imgRows) {
-                        pidImageMap[String(row.web_pid)] = row.image_url;
-                    }
-                }
+            const [knownPidImageRows, productPidRows, directNameImageRows] = await Promise.all([
+                // Query A: Fetch images for all already-known web_pids (single batch)
+                knownPidList.length > 0
+                    ? safeQuery(
+                        `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${knownPidList.map(p => `'${escapeCH(String(p))}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`,
+                        'ImageByPid'
+                    )
+                    : Promise.resolve([]),
+                // Query B: Resolve product names → web_pids from PDP OLAP
+                namesList.length > 0
+                    ? safeQuery(
+                        `SELECT DISTINCT Product, argMax(Web_Pid, DATE) AS web_pid FROM rb_pdp_olap WHERE Product IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')}) AND Web_Pid IS NOT NULL AND Web_Pid != '' GROUP BY Product`,
+                        'ProductToPid'
+                    )
+                    : Promise.resolve([]),
+                // Query C: Fetch images directly by sku_name (Fallback path)
+                namesList.length > 0
+                    ? safeQuery(
+                        `SELECT sku_name, argMax(image_url, modified_on) AS image_url FROM rb_sku_platform WHERE sku_name IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != '' GROUP BY sku_name`,
+                        'ImageBySkuName'
+                    )
+                    : Promise.resolve([])
+            ]);
 
-                // Build product name → image URL map
-                for (const [product, pid] of Object.entries(productPidMap)) {
-                    productImageMap[product] = pidImageMap[pid] || null;
+            // Populate pidImageMap from Query A results
+            for (const row of knownPidImageRows) {
+                pidImageMap[String(row.web_pid)] = row.image_url;
+            }
+
+            // Populate skuNameImageMap from Query C results
+            const skuNameImageMap = {};
+            for (const row of directNameImageRows) {
+                skuNameImageMap[row.sku_name] = row.image_url;
+            }
+
+            // Process Query B results: build productPidMap and find new (unresolved) pids
+            const productPidMap = {};
+            const newPids = new Set();
+            for (const row of productPidRows) {
+                const pid = String(row.web_pid);
+                productPidMap[row.Product] = pid;
+                if (!pidImageMap[pid]) {
+                    newPids.add(pid);
                 }
             }
+
+            // ── Round 2: Fetch images for newly-discovered pids (single query, only if needed) ──
+            if (newPids.size > 0) {
+                const newPidList = [...newPids];
+                const newImgRows = await safeQuery(
+                    `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${newPidList.map(p => `'${escapeCH(p)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`,
+                    'ImageByNewPid'
+                );
+                for (const row of newImgRows) {
+                    pidImageMap[String(row.web_pid)] = row.image_url;
+                }
+            }
+
+            // ── Build final maps ──
+            // Product name → image URL (Priority: PID match → Name match → null)
+            for (const name of allProductNames) {
+                const pid = productPidMap[name];
+                let img = pid ? pidImageMap[pid] : null;
+                
+                // Fallback to name-based lookup if PID match yielded no image
+                if (!img) {
+                    img = skuNameImageMap[name] || null;
+                }
+                
+                productImageMap[name] = img;
+            }
+
+            // Assign images to RemoveAdLowOSA data rows
+            for (const r of removeAdLowOSAData) {
+                r.imageUrl = pidImageMap[String(r.webPid)] || null;
+            }
         } catch (imgErr) {
-            console.log('[Insights] Universal image resolve failed (non-critical):', imgErr.message);
+            console.log('[Insights] Parallelized image resolution failed (non-critical):', imgErr.message);
         }
 
         // Build Performance Lookup (Sales & OSA)
@@ -1594,6 +1700,7 @@ export const getInsightsData = async (filters) => {
             topThreat: Object.values(categoryThreatMap)[0] || null,
         };
 
+
         // ---------------------------------------------------------------------
         // SIGNAL 1 — Share Headroom Hotspots
         // ---------------------------------------------------------------------
@@ -1607,9 +1714,9 @@ export const getInsightsData = async (filters) => {
 
             // 1. Map over performance data to calculate PSL (Potential Sales Loss) and MoM gaps
             let lossRecords = (perfData || []).map(perf => {
-                const cityKey = String(perf.city || "").toLowerCase();
-                const platKey = String(perf.platform || "").toLowerCase();
-                const catKey = String(perf.category || "").toLowerCase();
+                const cityKey = String(perf.city || "").trim().toLowerCase();
+                const platKey = String(perf.platform || "").trim().toLowerCase();
+                const catKey = String(perf.category || "").trim().toLowerCase();
                 const gKey = `${cityKey}||${platKey}||${catKey}`;
 
                 // Use granular share, fallback to category-wide average, then try partial key
@@ -1658,10 +1765,10 @@ export const getInsightsData = async (filters) => {
                     offtakeMoM: offtakeMoM,
                     offtakeDelta: offtakeDelta,
                     appCategory: perf.category,
-                    myTopSku: catShare?.topSku || "-",
-                    myTopSkuImageUrl: productImageMap[catShare?.topSku] || null,
-                    competitorSku: threat?.topSku || "-",
-                    competitorSkuImageUrl: productImageMap[threat?.topSku] || null,
+                    myTopSku: ownSkuLossMap[gKey]?.skuName || "-",
+                    myTopSkuImageUrl: (ownSkuLossMap[gKey]?.webPid ? pidImageMap[ownSkuLossMap[gKey].webPid] : productImageMap[ownSkuLossMap[gKey]?.skuName]) || null,
+                    competitorSku: compSkuLossMap[gKey]?.skuName || "-",
+                    competitorSkuImageUrl: (compSkuLossMap[gKey]?.webPid ? pidImageMap[compSkuLossMap[gKey].webPid] : productImageMap[compSkuLossMap[gKey]?.skuName]) || null,
                     possibleCause: possibleCause,
                     topThreat: threat ? threat.brandName : 'N/A',
                     threatShare: threat ? threat.currSharePct : 0,
@@ -2350,7 +2457,7 @@ export const getCompetitorMarketShareTrend = async (filters = {}) => {
         ? buildCHCondition(filters.platform, 'platform')
         : '1=1';
     const locationCond = filters.city
-        ? buildCHCondition(filters.city, 'location')
+        ? buildCHCondition(filters.city, CITY_NORM_EXPR('location'))
         : '1=1';
     const categoryCond = filters.category
         ? buildCHCondition(filters.category, 'category', { isCategory: true })
@@ -2360,7 +2467,7 @@ export const getCompetitorMarketShareTrend = async (filters = {}) => {
         ? buildCHCondition(filters.platform, 'platform_name')
         : '1=1';
     const kw_locationCond = filters.city
-        ? buildCHCondition(filters.city, 'location_name')
+        ? buildCHCondition(filters.city, CITY_NORM_EXPR('location_name'))
         : '1=1';
     const kw_categoryCond = filters.category
         ? buildCHCondition(filters.category, 'keyword_category', { isCategory: true })
