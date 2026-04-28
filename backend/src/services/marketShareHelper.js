@@ -37,7 +37,7 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
@@ -115,7 +115,7 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
@@ -203,7 +203,7 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
@@ -286,7 +286,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
@@ -382,7 +382,7 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
@@ -499,7 +499,7 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
@@ -619,7 +619,7 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
 
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 
@@ -724,7 +724,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
         // Build shared filter conditions
         let platformCond = '';
         if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
-            const platformConds = platformArr.map(p => `platform LIKE '%${p.charAt(0).toUpperCase() + p.slice(1)}%'`).join(' OR ');
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
             platformCond = `AND (${platformConds})`;
         }
 

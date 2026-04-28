@@ -301,17 +301,16 @@ const MAX_DATE_TTL = 5 * 60 * 1000; // 5 minutes
  */
 const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', forceLower = false, channelColumn = null) => {
     const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
-    const formatStr = (s) => forceLower && s ? s.toLowerCase() : s;
 
     let conditions = [];
 
     if (platform && platform !== 'All') {
         const platforms = Array.isArray(platform) ? platform : (typeof platform === 'string' && platform.includes(',') ? platform.split(',') : [platform]);
         if (platforms.length === 1) {
-            conditions.push(`${columnName} = '${escapeStr(formatStr(platforms[0]))}'`);
+            conditions.push(`lower(${columnName}) = '${escapeStr(platforms[0].toLowerCase())}'`);
         } else if (platforms.length > 1) {
-            const list = platforms.map(p => `'${escapeStr(formatStr(p.trim()))}'`).join(', ');
-            conditions.push(`${columnName} IN (${list})`);
+            const list = platforms.map(p => `'${escapeStr(p.trim().toLowerCase())}'`).join(', ');
+            conditions.push(`lower(${columnName}) IN (${list})`);
         }
     }
 
@@ -319,24 +318,24 @@ const buildPlatformChannelCond = (platform, channel, columnName = 'Platform', fo
         const channels = Array.isArray(channel) ? channel : (typeof channel === 'string' && channel.includes(',') ? channel.split(',') : [channel]);
         if (channelColumn) {
             // Using the actual database channel column
-            const list = channels.map(c => `'${escapeStr(c.trim())}'`).join(', ');
-            conditions.push(`lower(${channelColumn}) IN (${list.toLowerCase()})`);
+            const list = channels.map(c => `'${escapeStr(c.trim().toLowerCase())}'`).join(', ');
+            conditions.push(`lower(${channelColumn}) IN (${list})`);
         } else {
             // Fallback for tables without a channel column (by filtering on platforms)
             const isEcom = channels.some(c => ['ecommerce', 'e-commerce', 'ecom'].includes(c.toLowerCase()));
             const isQuickComm = channels.some(c => c.toLowerCase().includes('quick'));
             const isModernTrade = channels.some(c => ['modern trades', 'moderntrade'].includes(c.toLowerCase()));
 
-            const ecomPlatforms = ['Amazon', 'Flipkart'];
-            const quickPlatforms = ['Blinkit', 'Zepto', 'Instamart', 'Swiggy Instamart', 'Swiggy'];
+            const ecomPlatforms = ['amazon', 'flipkart'];
+            const quickPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
 
             if (isQuickComm) {
-                conditions.push(`${columnName} IN (${quickPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`);
+                conditions.push(`lower(${columnName}) IN (${quickPlatforms.map(p => `'${p}'`).join(', ')})`);
             } else if (isEcom && !isModernTrade) {
-                conditions.push(`${columnName} IN (${ecomPlatforms.map(p => `'${formatStr(p)}'`).join(', ')})`);
+                conditions.push(`lower(${columnName}) IN (${ecomPlatforms.map(p => `'${p}'`).join(', ')})`);
             } else if (isModernTrade && !isEcom) {
                 const allEcomQuick = [...ecomPlatforms, ...quickPlatforms];
-                conditions.push(`${columnName} NOT IN (${allEcomQuick.map(p => `'${formatStr(p)}'`).join(', ')})`);
+                conditions.push(`lower(${columnName}) NOT IN (${allEcomQuick.map(p => `'${p}'`).join(', ')})`);
             }
         }
     }
@@ -5361,6 +5360,13 @@ const getPlatformOverview = async (filters) => {
     const currMsMap = new Map(currMs.map(r => [r.platform?.toLowerCase(), (r.avg_ms !== undefined && r.avg_ms !== null) ? parseFloat(r.avg_ms) : null]));
     const prevMsMap = new Map(prevMs.map(r => [r.platform?.toLowerCase(), (r.avg_ms !== undefined && r.avg_ms !== null) ? parseFloat(r.avg_ms) : null]));
 
+    // DEBUG: Log platform name matching for Market Share
+    console.log('[getPlatformOverview] DEBUG MS - Platform keys in currMsMap (from rb_ms_olap):', [...currMsMap.keys()]);
+    console.log('[getPlatformOverview] DEBUG MS - Platform keys in currMsDenomMap:', [...currMsDenomMap.keys()]);
+    console.log('[getPlatformOverview] DEBUG MS - Platform definitions (from rca_sku_dim):', platformDefinitions.map(p => p.label.toLowerCase()));
+    console.log('[getPlatformOverview] DEBUG MS - currMsNum raw:', currMsNum.map(r => ({ platform: r.platform, our_sales: r.our_sales })));
+    console.log('[getPlatformOverview] DEBUG MS - currMsDenom raw:', currMsDenom.map(r => ({ platform: r.platform, total_sales: r.total_sales })));
+
     // Helper to calculate SOS percentage
     const calcSos = (ourCount, totalCount) => totalCount > 0 ? (ourCount / totalCount) * 100 : null;
 
@@ -5708,7 +5714,9 @@ const getPlatformOverview = async (filters) => {
         const totalOrders = hasPm ? (metrics.curr.orders || 0) : null;
 
         // Hardcode Market Share values as requested by user
-        let marketShare = hasMsCheck ? await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr) : null;
+        let marketShare = await getMarketShare(startDate, endDate, p.label, rawCategory, null, locationArr);
+
+        console.log(`[getPlatformOverview] DEBUG MS - Platform: ${p.label}, key: ${key}, hasMsCheck: ${hasMsCheck}, marketShare: ${marketShare}, currMsMap.has(key): ${currMsMap.has(key)}, currMsDenomMap.has(key): ${currMsDenomMap.has(key)}`);
 
         const sos = hasSosCheck ? (metrics.curr.sos ?? null) : null;
         const adSov = hasSosCheck ? (metrics.curr.adSov ?? null) : null;
@@ -5740,7 +5748,7 @@ const getPlatformOverview = async (filters) => {
         const prevClicks = prevHasPm ? (metrics.prev.clicks || 0) : null;
         const prevOrders = prevHasPm ? (metrics.prev.orders || 0) : null;
 
-        let prevMarketShare = prevHasMsCheck ? await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr) : null;
+        let prevMarketShare = await getMarketShare(momStart, momEnd, p.label, rawCategory, null, locationArr);
 
         const prevSos = prevHasSosCheck ? (metrics.prev.sos ?? null) : null;
         const prevAdSov = prevHasSosCheck ? (metrics.prev.adSov ?? null) : null;
@@ -5767,8 +5775,8 @@ const getPlatformOverview = async (filters) => {
             return 0; // if not found, we want fallback to null later
         };
 
-        const currCatSizeAbsolute = hasMsCheck ? fuzzyGet(currCatSizeByPlatformMap, p.label) : null;
-        const prevCatSizeAbsolute = prevHasMsCheck ? fuzzyGet(prevCatSizeByPlatformMap, p.label) : null;
+        const currCatSizeAbsolute = fuzzyGet(currCatSizeByPlatformMap, p.label) || null;
+        const prevCatSizeAbsolute = fuzzyGet(prevCatSizeByPlatformMap, p.label) || null;
 
         platformOverview.push({
             key: p.key,
@@ -7127,13 +7135,13 @@ const getKpiTrends = async (filters) => {
         if (dimension && dimensionValue && dimensionValue !== 'All') {
             const dimKey = dimension.toLowerCase();
             const val = dimensionValue;
-            if (dimKey === 'platform') conds.push(`${src.f.platform} = '${escapeStr(val)}'`);
+            if (dimKey === 'platform') conds.push(`lower(${src.f.platform}) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'category' || dimKey === 'format') {
                 const catCol = src.f.category;
                 conds.push(`lower(trim(BOTH '\t\n ' FROM ${catCol})) = '${escapeStr(val.toLowerCase())}'`);
             }
-            else if (dimKey === 'brand') conds.push(`${src.f.brand} = '${escapeStr(val)}'`);
-            else if (dimKey === 'city' || dimKey === 'location') conds.push(`${src.f.location} = '${escapeStr(val)}'`);
+            else if (dimKey === 'brand') conds.push(`lower(${src.f.brand}) = '${escapeStr(val.toLowerCase())}'`);
+            else if (dimKey === 'city' || dimKey === 'location') conds.push(`lower(${src.f.location}) = '${escapeStr(val.toLowerCase())}'`);
         }
 
         if (catArr && catArr.length > 0) {
@@ -7142,14 +7150,14 @@ const getKpiTrends = async (filters) => {
         }
 
         if (brandArr && brandArr.length > 0) {
-            const brandConditions = brandArr.map(b => `${src.f.brand} LIKE '%${escapeStr(b)}%'`).join(' OR ');
+            const brandConditions = brandArr.map(b => `lower(${src.f.brand}) LIKE '%${escapeStr(b.toLowerCase())}%'`).join(' OR ');
             conds.push(`(${brandConditions})`);
         }
 
-        if (locArr && locArr.length > 0) conds.push(`${src.f.location} IN (${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        if (locArr && locArr.length > 0) conds.push(`lower(${src.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
         if (platArr && platArr.length > 0) {
-            conds.push(`${src.f.platform} IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            conds.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
         } else {
             const platformCond = buildPlatformChannelCond(null, channel, src.f.platform);
             if (platformCond) conds.push(platformCond);
@@ -7180,7 +7188,7 @@ const getKpiTrends = async (filters) => {
         if (dimension && dimensionValue && dimensionValue !== 'All') {
             const dimKey = dimension.toLowerCase();
             const val = dimensionValue;
-            if (dimKey === 'platform') conds.push(`${pmSrc.f.platform} = '${escapeStr(val)}'`);
+            if (dimKey === 'platform') conds.push(`lower(${pmSrc.f.platform}) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'category' || dimKey === 'format') conds.push(`lower(${pmSrc.f.category}) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'brand') conds.push(`lower(${pmSrc.f.brand}) = '${escapeStr(val.toLowerCase())}'`);
             else if (dimKey === 'city' || dimKey === 'location') conds.push(`lower(${pmSrc.f.location}) = '${escapeStr(val.toLowerCase())}'`);
@@ -7196,7 +7204,7 @@ const getKpiTrends = async (filters) => {
         if (locArr && locArr.length > 0) conds.push(`lower(${pmSrc.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
 
         if (platArr && platArr.length > 0) {
-            conds.push(`${pmSrc.f.platform} IN (${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+            conds.push(`lower(${pmSrc.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
         } else {
             const platformCond = buildPlatformChannelCond(null, channel, pmSrc.f.platform, false, pmSrc.f.channel);
             if (platformCond) conds.push(platformCond);
