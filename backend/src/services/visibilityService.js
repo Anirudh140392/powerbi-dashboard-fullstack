@@ -7,7 +7,7 @@ const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
 
 function buildCHCondition(value, column, options = {}) {
-    const { isBrand = false, isCategory = false } = options;
+    const { isBrand = false, isCategory = false, isKeywordType = false } = options;
 
     const isAll = (val) => {
         if (!val) return true;
@@ -40,27 +40,28 @@ function buildCHCondition(value, column, options = {}) {
 
     if (list.length === 0) return isBrand ? "flag = 1" : "1=1";
 
-    if (isCategory) {
+    if (isCategory || isKeywordType) {
         return `LOWER(${column}) IN (${list.map(v => `'${escapeCH(String(v).toLowerCase())}'`).join(', ')})`;
     }
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
 }
 
 /**
- * Shared helper to map keyword types (e.g., Competitor -> [Competitor, Competition])
+ * Shared helper to map keyword types (e.g., Competitor -> [competitor, competition])
+ * Returns lowercase values to be used with LOWER() in SQL for case-insensitive matching.
  */
 const processKeywordType = (val) => {
     if (!val || val === 'All' || val === 'all') return null;
     if (Array.isArray(val)) {
         return val.filter(t => t !== 'All' && t !== 'all').map(t => {
             const lower = String(t).toLowerCase();
-            if (lower === 'competitor' || lower === 'competition') return ['Competitor', 'Competition'];
-            return t;
+            if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
+            return lower;
         }).flat();
     }
     const lower = String(val).toLowerCase();
-    if (lower === 'competitor' || lower === 'competition') return ['Competitor', 'Competition'];
-    return val;
+    if (lower === 'competitor' || lower === 'competition') return ['competitor', 'competition'];
+    return lower;
 };
 
 /**
@@ -1329,12 +1330,14 @@ class VisibilityService {
                     if (!val || val === 'All' || val === 'all') return null;
                     if (Array.isArray(val)) {
                         return val.filter(t => t !== 'All' && t !== 'all').map(t => {
-                            if (t === 'Competitor' || t === 'Competition') return ['Competitor', 'Competition'];
-                            return t;
+                            const lower = String(t).toLowerCase();
+                            if (lower === 'competitor' || lower === 'competition') return ['Competitor', 'Competition'];
+                            return lower.charAt(0).toUpperCase() + lower.slice(1);
                         }).flat();
                     }
-                    if (val === 'Competitor' || val === 'Competition') return ['Competitor', 'Competition'];
-                    return val;
+                    const lower = String(val).toLowerCase();
+                    if (lower === 'competitor' || lower === 'competition') return ['Competitor', 'Competition'];
+                    return lower.charAt(0).toUpperCase() + lower.slice(1);
                 };
 
                 const widgetType = processType(filters.filter);

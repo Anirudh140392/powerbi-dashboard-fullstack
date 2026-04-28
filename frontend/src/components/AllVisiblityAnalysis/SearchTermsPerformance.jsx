@@ -168,7 +168,7 @@ export default function SearchTermsPerformance() {
     location: selectedLocation || "All",
     category: selectedCategory || "All",
     keyword: selectedKeyword || "All",
-    keywordTypeFilter: activeFilter,
+    keywordTypeFilter: activeFilter.toLowerCase(),
     keywordType: selectedKeywordType || "All",
     channel: selectedChannel || "All",
     ownBrandsOnly: activeView === "sku",
@@ -239,7 +239,7 @@ export default function SearchTermsPerformance() {
         location: selectedLocation || "All",
         category: selectedCategory || "All",
         startDate: timeStart, endDate: timeEnd,
-        keywordTypeFilter: activeFilter,
+        keywordTypeFilter: activeFilter.toLowerCase(),
         keywordType: selectedKeywordType || "All",
         channel: selectedChannel || "All",
         keyword: keywordName,
@@ -335,7 +335,7 @@ export default function SearchTermsPerformance() {
         </div>
         <div style={{ display: "flex", gap: 7 }}>
           {activeView === "keyword" && (
-            ["All", "Branded", "Competitor", "Generic"].map(f => (
+            ["All", "Branded", "Competition", "Generic"].map(f => (
               <button key={f} onClick={() => setActiveFilter(f)} style={{
                 padding: "6px 16px", borderRadius: 20, cursor: "pointer",
                 fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
