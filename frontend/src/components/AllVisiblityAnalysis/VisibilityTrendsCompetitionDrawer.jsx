@@ -768,6 +768,13 @@ export default function VisibilityTrendsCompetitionDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedColumn, open]); // Removed allTrendMeta.context.audience
 
+  // Sync selectedPlatform with drawerFilters.Platform for Competition tab
+  useEffect(() => {
+    if (drawerFilters.Platform !== 'All') {
+      setSelectedPlatform(drawerFilters.Platform);
+    }
+  }, [drawerFilters.Platform]);
+
   const platformRef = useRef(null);
 
   // close on outside click
@@ -898,7 +905,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           timeStep: timeStep,
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
-          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') ? drawerFilters.City.toLowerCase() : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           channel: selectedChannel || 'All'
@@ -955,7 +962,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           period: '1M',
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
-          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') ? drawerFilters.City.toLowerCase() : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           channel: selectedChannel || 'All'
@@ -1455,7 +1462,19 @@ export default function VisibilityTrendsCompetitionDrawer({
         )}
 
         {/* COMPETITION VIEW */}
-        {view === "Competition" && <VisibilityPlatformOverviewKpiShowcase selectedPlatform={selectedColumn || selectedPlatform || 'All'} period={range === "Custom" ? "1M" : range} timeStep={timeStep} />}
+        {view === "Competition" && (
+          <VisibilityPlatformOverviewKpiShowcase 
+            selectedPlatform={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (selectedColumn || selectedPlatform || 'All')} 
+            period={range === "Custom" ? "1M" : range} 
+            timeStep={timeStep}
+            externalCity={drawerFilters.City}
+            externalFilters={{
+              categories: drawerFilters.Format !== 'All' ? [drawerFilters.Format] : [],
+              brands: drawerFilters.Brand !== 'All' ? [drawerFilters.Brand] : [],
+              skus: drawerFilters.SKU !== 'All' ? [drawerFilters.SKU] : [],
+            }}
+          />
+        )}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (
