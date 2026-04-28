@@ -30,9 +30,16 @@ export const downloadReport = async (params = {}) => {
             responseType: 'blob',
             timeout: 10 * 60 * 1000, // 10 minutes – report queries can be slow for large date ranges
         });
+        if (response.status === 204) {
+            const err = new Error("No Content");
+            err.status = 204;
+            throw err;
+        }
         return response.data;
     } catch (error) {
-        console.error("downloadReport error:", error);
+        if (error.status !== 204) {
+            console.error("downloadReport error:", error);
+        }
         throw error;
     }
 };

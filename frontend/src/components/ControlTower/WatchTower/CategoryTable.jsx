@@ -539,7 +539,7 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                           </Tooltip>
                         )}
                         <Tooltip title={cat.name} arrow placement="top">
-                          <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif" noWrap sx={{ maxWidth: 300, display: 'block' }}>
+                          <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif" noWrap sx={{ maxWidth: 300, display: 'block', textTransform: 'capitalize' }}>
                             {cat.name}
                           </Typography>
                         </Tooltip>

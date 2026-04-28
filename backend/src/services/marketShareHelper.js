@@ -43,7 +43,7 @@ export const getMarketShare = async (start, end, platformFilter, categoryFilter,
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         // Brands to query (our brands)
@@ -121,7 +121,7 @@ export const getMarketShareByMonth = async (start, end, platformFilter, category
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let brandsToQuery = [];
@@ -209,7 +209,7 @@ export const getMarketShareByBrand = async (start, end, platformFilter, category
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let brandsToQuery = [];
@@ -292,7 +292,7 @@ export const getMarketShareTimeSeries = async (start, end, platformFilter, categ
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let brandsToQuery = [];
@@ -388,7 +388,7 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -505,7 +505,7 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -625,7 +625,7 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -730,7 +730,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -1008,7 +1008,7 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -1311,7 +1311,7 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All') && !locationArr.includes('All India')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -1553,7 +1553,7 @@ export const getMarketShareCompetition = async (period, startDate, endDate, plat
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All') && !locationArr.includes('All India')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
@@ -2028,7 +2028,7 @@ export const getMarketShareDrilldown = async (start, end, platformFilter, catego
 
         let locationCond = '';
         if (locationArr && locationArr.length > 0 && !locationArr.includes('All') && !locationArr.includes('All India')) {
-            locationCond = `AND location IN (${locationArr.map(l => `'${l.replace(/'/g, "''")}'`).join(', ')})`;
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
         }
 
         let categoryCond = '';
