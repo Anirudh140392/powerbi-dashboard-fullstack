@@ -166,7 +166,7 @@ function CskuMultiSelectDropdown({ label, icon: Icon, options, selected = [], on
                                                 <Check size={10} className="text-white" strokeWidth={3} />
                                             )}
                                         </div>
-                                        <span className="truncate">{opt.name}</span>
+                                        <span className="truncate capitalize">{opt.name}</span>
                                     </button>
                                 ))
                             )}
@@ -257,7 +257,16 @@ export default function CompareSkuFilterModal({ isOpen, onClose, filters, onAppl
     }
 
     const handleApply = () => {
-        onApply(localFilters)
+        // Normalize filter values to lowercase for backend consistency
+        const normalized = {
+            ...localFilters,
+            brands: localFilters.brands.map(v => typeof v === 'string' ? v.toLowerCase() : v),
+            categories: localFilters.categories.map(v => typeof v === 'string' ? v.toLowerCase() : v),
+            platforms: localFilters.platforms.map(v => typeof v === 'string' ? v.toLowerCase() : v),
+            locations: localFilters.locations.map(v => typeof v === 'string' ? v.toLowerCase() : v),
+            skus: localFilters.skus.map(v => typeof v === 'string' ? v.toLowerCase() : v),
+        };
+        onApply(normalized)
         onClose()
     }
 

@@ -1048,7 +1048,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
                 const params = {
                     brands: brandList.join(','),
-                    location: city !== 'All India' ? city.toLowerCase() : 'all',
+                    location: city !== 'All India' 
+                        ? (Array.isArray(city) ? city.join(',').toLowerCase() : String(city).toLowerCase()) 
+                        : 'all',
                     format: filters.categories.length > 0 ? filters.categories[0] : 'All',
                     dimension: 'brand',
                     period: period || '1M',
@@ -1090,7 +1092,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             try {
                 const params = {
                     platform: selectedPlatform || 'All',
-                    location: city !== 'All India' ? city.toLowerCase() : 'all',
+                    location: city !== 'All India' 
+                        ? (Array.isArray(city) ? city.join(',').toLowerCase() : String(city).toLowerCase()) 
+                        : 'all',
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
                     period: period || '1M',

@@ -112,12 +112,20 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         setLocalError(null);
 
         const params = new URLSearchParams({
-          platform: localMatrixFilters.platform || 'All',
-          brand: localMatrixFilters.brand || 'All',
-          location: (localMatrixFilters.location && localMatrixFilters.location !== 'All') ? localMatrixFilters.location.toLowerCase() : 'All',
+          platform: (localMatrixFilters.platform && localMatrixFilters.platform !== 'All') 
+            ? (Array.isArray(localMatrixFilters.platform) ? localMatrixFilters.platform.join(',').toLowerCase() : String(localMatrixFilters.platform).toLowerCase()) 
+            : 'All',
+          brand: (localMatrixFilters.brand && localMatrixFilters.brand !== 'All') 
+            ? (Array.isArray(localMatrixFilters.brand) ? localMatrixFilters.brand.join(',').toLowerCase() : String(localMatrixFilters.brand).toLowerCase()) 
+            : 'All',
+          location: (localMatrixFilters.location && localMatrixFilters.location !== 'All') 
+            ? (Array.isArray(localMatrixFilters.location) ? localMatrixFilters.location.join(',').toLowerCase() : String(localMatrixFilters.location).toLowerCase()) 
+            : 'All',
           keyword: localMatrixFilters.keyword || 'All',
           keywordType: localMatrixFilters.keywordType || 'All',
-          category: localMatrixFilters.category || 'All',
+          category: (localMatrixFilters.category && localMatrixFilters.category !== 'All') 
+            ? (Array.isArray(localMatrixFilters.category) ? localMatrixFilters.category.join(',').toLowerCase() : String(localMatrixFilters.category).toLowerCase()) 
+            : 'All',
           channel: localMatrixFilters.channel || 'All',
           startDate: localMatrixFilters.startDate,
           endDate: localMatrixFilters.endDate

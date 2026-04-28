@@ -752,13 +752,27 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
   // Apply filters: copy pending to applied, close modal
   const handleApplyFilters = React.useCallback(() => {
     console.log('🚀 [MatrixVariant] "Apply" button clicked. Triggering onFilterChange...');
-    setAppliedSectionValues({ ...pendingSectionValues });
+    
+    // Normalize all filter values to lowercase for backend consistency
+    const normalizedValues = {};
+    Object.keys(pendingSectionValues).forEach(key => {
+      const vals = pendingSectionValues[key];
+      if (Array.isArray(vals)) {
+        normalizedValues[key] = vals.map(v => typeof v === 'string' ? v.toLowerCase() : v);
+      } else if (typeof vals === 'string') {
+        normalizedValues[key] = vals.toLowerCase();
+      } else {
+        normalizedValues[key] = vals;
+      }
+    });
+
+    setAppliedSectionValues(normalizedValues);
     setShowFilterPanel(false);
     // Reset pagination when filters change
     setCurrentPage(1);
     setCurrentColPage(1);
     if (onFilterChange) {
-      onFilterChange({ ...pendingSectionValues });
+      onFilterChange(normalizedValues);
     }
   }, [pendingSectionValues, onFilterChange]);
 
