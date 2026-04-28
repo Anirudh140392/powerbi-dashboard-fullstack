@@ -398,6 +398,14 @@ export default function WatchTower() {
 
   const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${categoryChannel}`;
 
+  // Sync category channel with global channel filter
+  useEffect(() => {
+    if (selectedChannel) {
+      const channelVal = typeof selectedChannel === 'object' ? (selectedChannel.value || 'All') : selectedChannel;
+      setCategoryChannel(channelVal);
+    }
+  }, [selectedChannel]);
+
   // Sync loading state with filter changes to prevent one-frame flicker
   const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${selectedChannel}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);

@@ -315,17 +315,37 @@ function PeriodComparisonPanel({ selectedPeriods, onPeriodsChange, isOpen, onTog
 // Demo data
 function isDemoMode() { return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1"; }
 function getKwalityWallsSample(groupBy) {
-    const mkRow = (tag, imp, clk, spends, orders, sales, spendShare) => ({ tag, impressions: imp, clicks: clk, ctr: clk > 0 && imp > 0 ? (clk / imp) * 100 : 0, spend_percent_share: spendShare, spends, cpc: clk > 0 ? spends / clk : 0, orders, cvr: clk > 0 ? (orders / clk) * 100 : 0, sales });
+    const mkRow = (tag, imp, clk, spends, orders, sales, spendShare) => {
+        const atc = Math.round(clk * 0.12);
+        return {
+            tag, impressions: imp, clicks: clk, atc,
+            ctr: clk > 0 && imp > 0 ? (clk / imp) * 100 : 0,
+            spend_percent_share: spendShare, spends,
+            cpc: clk > 0 ? spends / clk : 0,
+            orders, cvr: clk > 0 ? (orders / clk) * 100 : 0,
+            sales,
+            aov: orders > 0 ? sales / orders : 0
+        };
+    };
     let data = [];
     if (groupBy === "category") { data = [mkRow("Ice Creams", 8923000, 108120, 3112000, 24110, 13645000, 50.8), mkRow("Frozen Desserts", 5214000, 61340, 1675000, 13280, 7423000, 27.4), mkRow("Kulfi", 4319000, 44860, 1335450, 10820, 5731000, 21.8)]; }
     else if (groupBy === "brand") { data = [mkRow("Kwality Wall's", 10432000, 132800, 3724000, 29240, 16456000, 60.8), mkRow("Cornetto", 4121000, 50320, 1319000, 10450, 6084000, 21.5), mkRow("Magnum", 2734000, 31200, 1070450, 8520, 4159000, 17.7)]; }
     else if (groupBy === "sku") { data = [mkRow("Cornetto Chocolate Cone 120 ml", 3821000, 46820, 1218000, 9640, 5542000, 19.9), mkRow("Magnum Classic 80 ml", 2434000, 27800, 972000, 7610, 3745000, 15.9), mkRow("Kwality Wall's Feast Chocolate Bar 65 ml", 2215000, 25140, 861000, 6840, 3129000, 14.1), mkRow("Kwality Wall's Paddle Pop 70 ml", 1762000, 19400, 612450, 5340, 2484000, 10.0), mkRow("Kwality Wall's Cassatta Slice 100 ml", 1629000, 17160, 545000, 4860, 2158000, 8.9)]; }
     else { data = [mkRow("Ice Creams", 8923000, 108120, 3112000, 24110, 13645000, 50.8), mkRow("Frozen Desserts", 5214000, 61340, 1675000, 13280, 7423000, 27.4), mkRow("Kulfi", 4319000, 44860, 1335450, 10820, 5731000, 21.8)]; }
-    const totals = data.reduce((acc, r) => { acc.impressions += r.impressions; acc.clicks += r.clicks; acc.spends += r.spends; acc.orders += r.orders; acc.sales += r.sales; return acc; }, { impressions: 0, clicks: 0, ctr: 0, spend_percent_share: 100, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0 });
+    const totals = data.reduce((acc, r) => { acc.impressions += r.impressions; acc.clicks += r.clicks; acc.atc += (r.atc || 0); acc.spends += r.spends; acc.orders += r.orders; acc.sales += r.sales; return acc; }, { impressions: 0, clicks: 0, atc: 0, ctr: 0, spend_percent_share: 100, spends: 0, cpc: 0, orders: 0, cvr: 0, sales: 0, aov: 0 });
     totals.ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
     totals.cpc = totals.clicks > 0 ? totals.spends / totals.clicks : 0;
     totals.cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
-    const scale = (rows, factor) => rows.map((r) => ({ tag: r.tag, impressions: Math.max(0, Math.round(r.impressions * factor)), clicks: Math.max(0, Math.round(r.clicks * factor)), spends: Math.max(0, Math.round(r.spends * factor)), sales: Math.max(0, Math.round(r.sales * factor)), orders: Math.max(0, Math.round(r.orders * factor)), ctr: r.ctr, cpc: r.cpc, cvr: r.cvr }));
+    totals.aov = totals.orders > 0 ? (totals.sales / totals.orders) : 0;
+    const scale = (rows, factor) => rows.map((r) => ({ 
+        ...r, 
+        impressions: Math.max(0, Math.round(r.impressions * factor)), 
+        clicks: Math.max(0, Math.round(r.clicks * factor)), 
+        atc: Math.max(0, Math.round((r.atc || 0) * factor)),
+        spends: Math.max(0, Math.round(r.spends * factor)), 
+        sales: Math.max(0, Math.round(r.sales * factor)), 
+        orders: Math.max(0, Math.round(r.orders * factor))
+    }));
     return { data, totals, untagged: { count: 0, percent: 0 }, period_comparison: { last_week: scale(data, 0.22), mtd: scale(data, 0.65), last_3_months: scale(data, 1.0) } };
 }
 
@@ -425,15 +445,17 @@ export function AggregatedViewTable() {
                 const calcTotals = result.data.reduce((acc, row) => {
                     acc.impressions += (parseFloat(row.impressions) || 0);
                     acc.clicks += (parseFloat(row.clicks) || 0);
+                    acc.atc += (parseFloat(row.atc) || 0);
                     acc.spends += (parseFloat(row.spends) || 0);
                     acc.orders += (parseFloat(row.orders) || 0);
                     acc.sales += (parseFloat(row.sales) || 0);
                     return acc;
-                }, { impressions: 0, clicks: 0, spends: 0, orders: 0, sales: 0 });
+                }, { impressions: 0, clicks: 0, atc: 0, spends: 0, orders: 0, sales: 0 });
 
                 calcTotals.ctr = calcTotals.impressions > 0 ? (calcTotals.clicks / calcTotals.impressions) * 100 : 0;
                 calcTotals.cpc = calcTotals.clicks > 0 ? (calcTotals.spends / calcTotals.clicks) : 0;
                 calcTotals.cvr = calcTotals.clicks > 0 ? (calcTotals.orders / calcTotals.clicks) * 100 : 0;
+                calcTotals.aov = calcTotals.orders > 0 ? (calcTotals.sales / calcTotals.orders) : 0;
 
                 setTotals(calcTotals);
                 setUntagged(result.untagged || null);
@@ -510,13 +532,13 @@ export function AggregatedViewTable() {
                         </div>
                         <button onClick={() => {
                             // CSV Download
-                            const headers = [currentDimension.label, "Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Ad Sales"];
+                            const headers = [currentDimension.label, "Impressions", "Clicks", "ATC", "CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales"];
                             const csvRows = [headers.join(",")];
                             data.forEach(row => {
                                 csvRows.push([
-                                    `"${row.tag || ''}"`, row.impressions, row.clicks, `${(row.ctr || 0).toFixed(2)}%`,
+                                    `"${row.tag || ''}"`, row.impressions, row.clicks, row.atc, `${(row.ctr || 0).toFixed(2)}%`,
                                     `${(row.spend_percent_share || 0).toFixed(1)}%`, row.spends, (row.cpc || 0).toFixed(2),
-                                    row.orders, `${(row.cvr || 0).toFixed(2)}%`, row.sales
+                                    row.orders, (row.aov || 0).toFixed(2), `${(row.cvr || 0).toFixed(2)}%`, row.sales
                                 ].join(","));
                             });
                             const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
@@ -531,11 +553,11 @@ export function AggregatedViewTable() {
             {/* Table */}
             <div className="w-full overflow-x-auto">
                 <table className="w-full table-fixed" style={{ minWidth: '900px' }}>
-                    <colgroup><col className="w-[22%]" /><col className="w-[10%]" /><col className="w-[9%]" /><col className="w-[8%]" /><col className="w-[8%]" /><col className="w-[11%]" /><col className="w-[9%]" /><col className="w-[9%]" /><col className="w-[8%]" /><col className="w-[6%]" /></colgroup>
+                    <colgroup><col className="w-[16%]" /><col className="w-[8%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[7%]" /><col className="w-[7%]" /><col className="w-[9%]" /><col className="w-[7%]" /><col className="w-[9%]" /></colgroup>
                     <thead>
                         <tr className={darkMode ? "bg-slate-800/50" : "bg-slate-50/50"}>
                             <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{currentDimension.label}</th>
-                            {["Impressions", "Clicks", "CTR", "% Spends", "Spends", "CPC", "Orders", "CVR", "Ad Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
+                            {["Impressions", "Clicks", "ATC", "CTR", "% Spends", "Spends", "CPC", "Orders", "AOV", "CVR", "Ad Sales"].map((h) => (<th key={h} className={thCls(darkMode)}>{h}</th>))}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
@@ -544,11 +566,13 @@ export function AggregatedViewTable() {
                                 <td className={`px-4 py-3 font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}><div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-violet-500" />Total</div></td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.impressions)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.clicks)}</td>
+                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.atc)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.ctr)}</td>
                                 <td className="px-2 py-3 text-right text-sm text-slate-400">—</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.spends)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.cpc)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.orders)}</td>
+                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.aov)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.cvr)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.sales)}</td>
                             </tr>
@@ -570,8 +594,8 @@ export function AggregatedViewTable() {
                                                 <span className="font-medium text-sm truncate" title={row.tag}>{row.tag}</span>
                                             </div>
                                         </td>
-                                        {[formatNumber(row.impressions), formatNumber(row.clicks), formatPercent(row.ctr), `${row.spend_percent_share.toFixed(1)}%`, formatCurrency(row.spends), formatCurrency(row.cpc), formatNumber(row.orders), formatPercent(row.cvr), formatCurrency(row.sales)].map((val, ci) => (
-                                            <td key={ci} className={`px-2 py-3 text-right text-sm ${ci === 3 ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700")}`}>{val}</td>
+                                        {[formatNumber(row.impressions), formatNumber(row.clicks), formatNumber(row.atc), formatPercent(row.ctr), `${row.spend_percent_share.toFixed(1)}%`, formatCurrency(row.spends), formatCurrency(row.cpc), formatNumber(row.orders), formatCurrency(row.aov), formatPercent(row.cvr), formatCurrency(row.sales)].map((val, ci) => (
+                                            <td key={ci} className={`px-2 py-3 text-right text-sm ${ci === 4 ? (darkMode ? "text-slate-400" : "text-slate-500") : (darkMode ? "text-slate-200" : "text-slate-700")}`}>{val}</td>
                                         ))}
                                     </motion.tr>
                                     <AnimatePresence>
@@ -585,7 +609,18 @@ export function AggregatedViewTable() {
                                                             {period.type === "preset" && (() => { const r = getPresetDateRange(period.key); return r ? (<div className="relative group"><Info className={`w-3 h-3 cursor-help ${darkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-600"}`} /><div className={`absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none ${darkMode ? "bg-slate-700 text-white" : "bg-slate-900 text-white"}`}>{formatDateRangeShort(r)}</div></div>) : null; })()}
                                                         </div>
                                                     </td>
-                                                    {[pd ? formatNumber(pd.impressions) : "—", pd ? formatNumber(pd.clicks) : "—", pd?.ctr ? formatPercent(pd.ctr) : "—", "—", pd ? formatCurrency(pd.spends) : "—", pd?.cpc ? formatCurrency(pd.cpc) : "—", pd ? formatNumber(pd.orders) : "—", pd?.cvr ? formatPercent(pd.cvr) : "—"].map((v, i) => (
+                                                    {[
+                                                        pd ? formatNumber(pd.impressions) : "—", 
+                                                        pd ? formatNumber(pd.clicks) : "—", 
+                                                        pd ? formatNumber(pd.atc) : "—", 
+                                                        pd?.ctr ? formatPercent(pd.ctr) : (pd?.impressions > 0 ? formatPercent((pd.clicks / pd.impressions) * 100) : "—"), 
+                                                        pd?.spend_percent_share !== undefined ? `${pd.spend_percent_share.toFixed(1)}%` : "—", 
+                                                        pd ? formatCurrency(pd.spends) : "—", 
+                                                        pd?.cpc ? formatCurrency(pd.cpc) : (pd?.clicks > 0 ? formatCurrency(pd.spends / pd.clicks) : "—"), 
+                                                        pd ? formatNumber(pd.orders) : "—", 
+                                                        pd?.aov ? formatCurrency(pd.aov) : (pd?.orders > 0 ? formatCurrency(pd.sales / pd.orders) : "—"), 
+                                                        pd?.cvr ? formatPercent(pd.cvr) : (pd?.clicks > 0 ? formatPercent((pd.orders / pd.clicks) * 100) : "—")
+                                                    ].map((v, i) => (
                                                         <td key={i} className={`px-2 py-2 text-right text-sm ${darkMode ? "text-slate-400" : "text-slate-600"}`}>{v}</td>
                                                     ))}
                                                     <td className={`px-2 py-2 text-right text-sm ${darkMode ? "text-emerald-400" : "text-emerald-600"}`}>{pd ? formatCurrency(pd.sales) : "—"}</td>
