@@ -629,6 +629,7 @@ export const getSearchTermsLocationDrilldown = async (req, res) => {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
+            channel: req.query.channel || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };

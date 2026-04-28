@@ -1278,7 +1278,9 @@ class VisibilityService {
                 const location = filters.location || 'All';
                 const brand = filters.brand || 'All';
 
-                const platformCondition = buildCHCondition(platform, 'platform_name');
+                let platformCondition = buildCHCondition(platform, 'platform_name');
+                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
+                platformCondition = `${platformCondition} AND ${channelCondition}`;
                 const locationCondition = buildCHCondition(location, 'location_name');
                 const brandCondition = filters.brand || 'All';
 
@@ -3413,6 +3415,15 @@ class VisibilityService {
                 const dimColumn = sku ? 'keyword_search_product' : 'keyword';
                 const dimValue = sku || keyword;
 
+                let platformCondition = buildCHCondition(platform, 'platform_name');
+                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
+                platformCondition = `${platformCondition} AND ${channelCondition}`;
+
+                let locationFilter = "AND location_name IS NOT NULL AND location_name != ''";
+                if (filters.channel === 'Ecommerce') {
+                    locationFilter += " AND lower(location_name) IN ('nation', 'national', 'all india', 'india', 'total')";
+                }
+
                 const query = `
                     SELECT 
                         location_name as city,
@@ -3429,9 +3440,9 @@ class VisibilityService {
                         ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                      AND ${buildCHCondition(platform, 'platform_name')}
+                      AND ${platformCondition}
                       AND ${buildCHCondition(dimValue, dimColumn)}
-                      AND location_name IS NOT NULL AND location_name != ''
+                      ${locationFilter}
                     GROUP BY location_name
                     ORDER BY overall_sos DESC
                 `;
