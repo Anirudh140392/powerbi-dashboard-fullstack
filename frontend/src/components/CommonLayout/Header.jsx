@@ -84,7 +84,7 @@ function WatchTowerFilterModal({
   // ─── CASCADE: when draftChannel changes → fetch available platforms ───
   React.useEffect(() => {
     if (!open) return;
-    const channelParam = draftChannel === "All" ? undefined : (Array.isArray(draftChannel) ? draftChannel.join(",") : draftChannel);
+    const channelParam = draftChannel === "All" ? undefined : (Array.isArray(draftChannel) ? draftChannel.join(",").toLowerCase() : draftChannel.toLowerCase());
 
     // Fetch platforms for this channel (only platforms support the channel param)
     axiosInstance.get("/watchtower/platforms", { params: { channel: channelParam } })
@@ -101,7 +101,7 @@ function WatchTowerFilterModal({
           });
 
           // Also trigger categories/brands refetch for these platforms
-          const platParam = res.data.join(",");
+          const platParam = res.data.join(",").toLowerCase();
           axiosInstance.get("/watchtower/categories", { params: { platform: platParam } })
             .then(catRes => {
               if (catRes.data && Array.isArray(catRes.data) && catRes.data.length > 0) {
@@ -143,7 +143,7 @@ function WatchTowerFilterModal({
     // Only run when a specific platform is selected (not "All")
     // When "All", the channel cascade already handles categories/brands
     if (draftPlatform === "All") return;
-    const platformParam = Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform;
+    const platformParam = (Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform).toLowerCase();
 
     axiosInstance.get("/watchtower/categories", { params: { platform: platformParam } })
       .then(res => {
@@ -232,10 +232,16 @@ function WatchTowerFilterModal({
 
   // ─── APPLY: commit all drafts to FilterContext (triggers API calls) ───
   const handleApply = () => {
-    setSelectedChannel(draftChannel);
-    setPlatform(draftPlatform);
-    setSelectedCategory(draftCategory);
-    setSelectedBrand(draftBrand);
+    const normalize = (val) => {
+      if (!val || val === "All") return val;
+      if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? v.toLowerCase() : v);
+      return typeof val === 'string' ? val.toLowerCase() : val;
+    };
+
+    setSelectedChannel(normalize(draftChannel));
+    setPlatform(normalize(draftPlatform));
+    setSelectedCategory(normalize(draftCategory));
+    setSelectedBrand(normalize(draftBrand));
     onClose();
   };
 
@@ -556,6 +562,7 @@ function WatchTowerFilterModal({
                         color: isChecked ? "#1e40af" : "#475569",
                         fontFamily: "'Inter', 'Roboto', sans-serif",
                         transition: "all 0.15s ease",
+                        textTransform: 'capitalize',
                       }}
                     >
                       {opt}

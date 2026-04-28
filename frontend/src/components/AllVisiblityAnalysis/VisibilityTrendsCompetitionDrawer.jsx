@@ -905,7 +905,9 @@ export default function VisibilityTrendsCompetitionDrawer({
           timeStep: timeStep,
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
-          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') ? drawerFilters.City.toLowerCase() : undefined,
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') 
+            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase()) 
+            : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           channel: selectedChannel || 'All'
@@ -962,7 +964,9 @@ export default function VisibilityTrendsCompetitionDrawer({
           period: '1M',
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
-          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') ? drawerFilters.City.toLowerCase() : undefined,
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') 
+            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase()) 
+            : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           channel: selectedChannel || 'All'

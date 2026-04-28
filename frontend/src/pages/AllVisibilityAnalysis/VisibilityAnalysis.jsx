@@ -268,12 +268,12 @@ export default function VisibilityAnalysis() {
     }
 
     const baseParams = {
-      platform: filters.platform || 'All',
-      brand: filters.brand || 'All',
-      location: (filters.location || 'all').toLowerCase(),
+      platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+      brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+      location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
-      category: filters.category || 'All',
+      category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
@@ -281,12 +281,12 @@ export default function VisibilityAnalysis() {
 
     const queryParams = new URLSearchParams(baseParams).toString();
     const matrixParams = new URLSearchParams({
-      platform: filters.platform || 'All',
-      brand: filters.brand || 'All',
-      location: (filters.location || 'all').toLowerCase(),
+      platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+      brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+      location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
-      category: filters.category || 'All',
+      category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
@@ -321,12 +321,12 @@ export default function VisibilityAnalysis() {
 
     // Create a stable key for main global filters only
     const mainFiltersKey = JSON.stringify({
-      platform: filters.platform,
-      brand: filters.brand,
-      location: (filters.location || 'all').toLowerCase(),
+      platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+      brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+      location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
       keyword: filters.keyword,
       keywordType: filters.keywordType,
-      category: filters.category,
+      category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel,
       startDate: filters.startDate,
       endDate: filters.endDate,
@@ -378,15 +378,15 @@ export default function VisibilityAnalysis() {
     const fetchData = async () => {
       try {
         const baseParams = {
-          platform: filters.platform || 'All',
-          brand: filters.brand || 'All',
-          location: (filters.location || 'all').toLowerCase(),
+          platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+          brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+          location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
           zone: filters.zone || 'All',
           metroFlag: filters.metroFlag || 'All',
           pincode: filters.pincode || 'All',
           keyword: filters.keyword || 'All',
           keywordType: filters.keywordType || 'All',
-          category: filters.category || 'All',
+          category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
           channel: filters.channel || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate

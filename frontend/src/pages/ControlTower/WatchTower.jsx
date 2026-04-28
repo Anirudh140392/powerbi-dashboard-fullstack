@@ -264,7 +264,7 @@ export default function WatchTower() {
         const trendSign = trendStr.trim().startsWith('-') ? -1 : 1;
         const finalTrend = trendValue * (trendMatch && trendMatch[1].startsWith('-') ? 1 : trendSign);
 
-        const currentChannel = (selectedChannel || '').toLowerCase();
+        const currentChannel = (Array.isArray(selectedChannel) ? selectedChannel.join(',') : (selectedChannel || '')).toLowerCase();
         let finalValue = metric.value || metric.label || '0';
         let finalDelta = finalTrend;
         let finalDeltaLabel = trendStr;

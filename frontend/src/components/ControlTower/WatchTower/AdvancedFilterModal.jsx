@@ -311,7 +311,14 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     }
 
     const handleApply = () => {
-        onApply(localFilters)
+        const lowerFilters = {
+            ...localFilters,
+            platforms: localFilters.platforms.map(p => typeof p === 'string' ? p.toLowerCase() : p),
+            brands: localFilters.brands.map(b => typeof b === 'string' ? b.toLowerCase() : b),
+            categories: localFilters.categories.map(c => typeof c === 'string' ? c.toLowerCase() : c),
+            skus: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
+        };
+        onApply(lowerFilters)
         onClose()
     }
 

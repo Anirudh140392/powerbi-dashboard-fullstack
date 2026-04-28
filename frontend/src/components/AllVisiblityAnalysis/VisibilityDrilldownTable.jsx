@@ -1274,7 +1274,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false,
                                                 keyword: newFilters.keyword || 'All',
                                                 brand: newFilters.brand || 'All',
                                                 platform: newFilters.platform || 'All',
-                                                location: newFilters.city ? newFilters.city.toLowerCase() : prev.location
+                                                location: newFilters.city ? (Array.isArray(newFilters.city) ? newFilters.city.join(',').toLowerCase() : newFilters.city.toLowerCase()) : prev.location
                                             }));
                                         }
 

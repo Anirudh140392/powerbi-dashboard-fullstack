@@ -161,20 +161,27 @@ export default function SearchTermsPerformance() {
   // Removed local skuPlatform state - now using global platform filter
   const currentSkuPlatform = globalPlatform || "All";
 
-  const filterParams = useMemo(() => ({
-    viewMode: activeView === "keyword" ? "keyword" : "sku",
-    platform: activeView === "sku" ? currentSkuPlatform : (globalPlatform || "All"),
-    brand: selectedBrand || "All",
-    location: (selectedLocation && selectedLocation !== "All") ? selectedLocation.toLowerCase() : "All",
-    category: selectedCategory || "All",
-    keyword: selectedKeyword || "All",
-    keywordTypeFilter: activeFilter.toLowerCase(),
-    keywordType: selectedKeywordType || "All",
-    channel: selectedChannel || "All",
-    ownBrandsOnly: activeView === "sku",
-    startDate: timeStart,
-    endDate: timeEnd,
-  }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd]);
+  const filterParams = useMemo(() => {
+    const normalize = (val) => {
+      if (!val || val === "All") return "All";
+      return Array.isArray(val) ? val.join(',').toLowerCase() : String(val).toLowerCase();
+    };
+
+    return {
+      viewMode: activeView === "keyword" ? "keyword" : "sku",
+      platform: normalize(activeView === "sku" ? currentSkuPlatform : globalPlatform),
+      brand: normalize(selectedBrand),
+      location: normalize(selectedLocation),
+      category: normalize(selectedCategory),
+      keyword: normalize(selectedKeyword),
+      keywordTypeFilter: activeFilter.toLowerCase(),
+      keywordType: normalize(selectedKeywordType),
+      channel: normalize(selectedChannel),
+      ownBrandsOnly: activeView === "sku",
+      startDate: timeStart,
+      endDate: timeEnd,
+    };
+  }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd]);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,7 +243,9 @@ export default function SearchTermsPerformance() {
         viewMode: "sku",
         platform: globalPlatform || "All",
         brand: isMySkus ? (selectedBrand || "All") : "All",
-        location: (selectedLocation && selectedLocation !== "All") ? selectedLocation.toLowerCase() : "All",
+        location: (selectedLocation && selectedLocation !== "All") 
+          ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
+          : "All",
         category: selectedCategory || "All",
         startDate: timeStart, endDate: timeEnd,
         keywordTypeFilter: activeFilter.toLowerCase(),
