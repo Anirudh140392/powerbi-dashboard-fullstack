@@ -302,21 +302,17 @@ export const getPermissionsUsers = async () => {
         // Use argMaxIf for db_status/tab_permissions to pick latest non-empty value
         const usersQuery = `
             SELECT 
+                user_id as id,
                 user_email as email,
-                argMax(user_name, last_login) as name,
-                argMax(user_role, last_login) as role,
-                argMax(toString(db_id), last_login) as db_id,
-                ifNull(
-                    argMaxIf(db_status, last_login, db_status != ''),
-                    'active'
-                ) as db_status,
-                ifNull(
-                    argMaxIf(tab_permissions, last_login, tab_permissions != ''),
-                    ''
-                ) as tab_permissions
+                user_name as name,
+                user_role as role,
+                toString(db_id) as db_id,
+                if(empty(db_status), 'active', db_status) as db_status,
+                tab_permissions,
+                ip,
+                last_login
             FROM tb_user
             WHERE status != 'deleted'
-            GROUP BY user_email
             ORDER BY name ASC
         `;
         const users = await queryAdminDB(usersQuery);
@@ -355,10 +351,13 @@ export const getPermissionsUsers = async () => {
             } catch (e) { /* ignore parse errors */ }
 
             return {
+                id: user.id.toString(),
                 email: user.email,
                 name: user.name,
                 role: user.role,
+                ip: user.ip,
                 dbName: finalDbName,
+                lastLogin: user.last_login ? new Date(user.last_login).toISOString().replace('T', ' ').split('.')[0] : 'Never',
                 dbStatus: (!user.db_status || user.db_status === '' || user.db_status === 'active') ? true : false,
                 tabPermissions
             };
@@ -370,39 +369,39 @@ export const getPermissionsUsers = async () => {
 };
 
 /**
- * Update db_status for a user (all rows by email)
+ * Update db_status for a user device (by user_id)
  */
-export const updateUserDbStatus = async (userEmail, dbStatus) => {
+export const updateUserDbStatus = async (userId, dbStatus) => {
     try {
         const statusValue = dbStatus ? 'active' : 'inactive';
         const query = `
             ALTER TABLE tb_user 
             UPDATE db_status = '${statusValue}' 
-            WHERE user_email = '${userEmail}'
+            WHERE user_id = ${userId}
         `;
         await queryAdminDB(query);
         return { success: true };
     } catch (error) {
-        console.error(`[AdminService] updateUserDbStatus failed for ${userEmail}:`, error.message);
+        console.error(`[AdminService] updateUserDbStatus failed for user_id ${userId}:`, error.message);
         throw error;
     }
 };
 
 /**
- * Update tab_permissions JSON for a user (all rows by email)
+ * Update tab_permissions JSON for a user device (by user_id)
  */
-export const updateUserTabPermissions = async (userEmail, tabPermissions) => {
+export const updateUserTabPermissions = async (userId, tabPermissions) => {
     try {
         const jsonStr = JSON.stringify(tabPermissions).replace(/'/g, "\\'");
         const query = `
             ALTER TABLE tb_user 
             UPDATE tab_permissions = '${jsonStr}' 
-            WHERE user_email = '${userEmail}'
+            WHERE user_id = ${userId}
         `;
         await queryAdminDB(query);
         return { success: true };
     } catch (error) {
-        console.error(`[AdminService] updateUserTabPermissions failed for ${userEmail}:`, error.message);
+        console.error(`[AdminService] updateUserTabPermissions failed for user_id ${userId}:`, error.message);
         throw error;
     }
 };
@@ -459,6 +458,33 @@ export const createUser = async ({ email, password, role, status, db_id }) => {
         return { success: true, id, user_id };
     } catch (error) {
         console.error('[AdminService] createUser failed:', error.message);
+        throw error;
+    }
+};
+
+/**
+ * Save a walkthrough notification to walkthrough_notifications table
+ * @param {Object} data - Walkthrough data { title, selectedClients, steps }
+ */
+export const saveWalkthroughNotification = async ({ title, selectedClients, steps }) => {
+    try {
+        // Collect ALL unique routes from every step so the walkthrough
+        // can be found no matter which step's page the user visits.
+        const allRoutes = [...new Set(steps.map(s => s.route).filter(Boolean))];
+        const page_route = allRoutes.join(',');
+
+        const notification_json = JSON.stringify(steps).replace(/'/g, "\\'");
+        
+        await insertAdminDB('walkthrough_notifications', [{
+            update_title: title,
+            target_clients: selectedClients,
+            page_route: page_route,
+            notification_json: notification_json
+        }]);
+
+        return { success: true };
+    } catch (error) {
+        console.error('[AdminService] saveWalkthroughNotification failed:', error.message);
         throw error;
     }
 };
