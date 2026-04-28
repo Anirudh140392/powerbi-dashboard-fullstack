@@ -1,5 +1,5 @@
 // src/routes/admin.js
-import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions, getDatabases, createUser } from '../controllers/adminController.js';
+import { getUsers, deleteUser, getLiveUsers, getPendingRequests, updateUserAccess, getPermissionsUsers, updateDbStatus, updateTabPermissions, getDatabases, createUser, createWalkthroughNotification } from '../controllers/adminController.js';
 
 export default (app) => {
     // Middleware to log Admin API calls
@@ -170,5 +170,16 @@ export default (app) => {
      *       201:
      *         description: Successful response
      */
-    app.post('/api/admin/users', createUser);
+    /**
+     * @swagger
+     * /api/admin/walkthrough-notifications:
+     *   post:
+     *     summary: Create a new walkthrough notification
+     *     security:
+     *       - bearerAuth: []
+     *     responses:
+     *       201:
+     *         description: Successful response
+     */
+    app.post('/api/admin/walkthrough-notifications', createWalkthroughNotification);
 };
