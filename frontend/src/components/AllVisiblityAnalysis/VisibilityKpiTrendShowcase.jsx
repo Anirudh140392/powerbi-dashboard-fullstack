@@ -842,7 +842,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
         const params = {
           brands: selectedItems.join(','),
           platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
-          location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
+          location: filters.cities?.length > 0 ? filters.cities.map(c => c.toLowerCase()).join(',') : undefined,
           format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M',
@@ -1100,7 +1100,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
         const params = {
           brands: selectedItems.join(','),
           platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
-          location: filters.cities?.length > 0 ? filters.cities.join(',') : undefined,
+          location: filters.cities?.length > 0 ? filters.cities.map(c => c.toLowerCase()).join(',') : undefined,
           format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M',
@@ -1577,7 +1577,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
         period: '1M',
         platform: filters.platforms.length > 0 ? filters.platforms.join(',') : undefined,
         format: filters.formats.length > 0 ? filters.formats.join(',') : undefined,
-        city: filters.cities.length > 0 ? filters.cities.join(',') : undefined,
+        city: filters.cities.length > 0 ? filters.cities.map(c => c.toLowerCase()).join(',') : undefined,
         productName: filters.productNames.length > 0 ? filters.productNames.join(',') : undefined,
         brand: filters.brands.length > 0 ? filters.brands.join(',') : undefined,
         channel: selectedChannel || 'All'

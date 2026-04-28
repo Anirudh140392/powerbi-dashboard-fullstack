@@ -270,7 +270,7 @@ export default function VisibilityAnalysis() {
     const baseParams = {
       platform: filters.platform || 'All',
       brand: filters.brand || 'All',
-      location: filters.location || 'All',
+      location: (filters.location || 'all').toLowerCase(),
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
@@ -283,7 +283,7 @@ export default function VisibilityAnalysis() {
     const matrixParams = new URLSearchParams({
       platform: filters.platform || 'All',
       brand: filters.brand || 'All',
-      location: filters.location || 'All',
+      location: (filters.location || 'all').toLowerCase(),
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
       category: filters.category || 'All',
@@ -323,7 +323,7 @@ export default function VisibilityAnalysis() {
     const mainFiltersKey = JSON.stringify({
       platform: filters.platform,
       brand: filters.brand,
-      location: filters.location || 'All',
+      location: (filters.location || 'all').toLowerCase(),
       keyword: filters.keyword,
       keywordType: filters.keywordType,
       category: filters.category,
@@ -380,7 +380,7 @@ export default function VisibilityAnalysis() {
         const baseParams = {
           platform: filters.platform || 'All',
           brand: filters.brand || 'All',
-          location: filters.location || 'All',
+          location: (filters.location || 'all').toLowerCase(),
           zone: filters.zone || 'All',
           metroFlag: filters.metroFlag || 'All',
           pincode: filters.pincode || 'All',

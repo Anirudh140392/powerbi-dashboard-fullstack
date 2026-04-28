@@ -991,17 +991,30 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep }) => {
+const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep, externalFilters, externalCity }) => {
     const { selectedChannel } = useContext(FilterContext);
     const [tab, setTab] = useState("brand");
-    const [city, setCity] = useState("All India");
+    const [city, setCity] = useState(externalCity || "All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-    const [filters, setFilters] = useState({
+    const [filters, setFilters] = useState(externalFilters || {
         categories: [],
         brands: [],
         skus: [],
     });
     const [viewMode, setViewMode] = useState("table");
+
+    // Sync external filters if provided
+    useEffect(() => {
+        if (externalFilters) {
+            setFilters(externalFilters);
+        }
+    }, [externalFilters]);
+
+    useEffect(() => {
+        if (externalCity) {
+            setCity(externalCity);
+        }
+    }, [externalCity]);
 
     const [filterOptions, setFilterOptions] = useState({
         locations: ['All India'],
@@ -1035,7 +1048,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
                 const params = {
                     brands: brandList.join(','),
-                    location: city !== 'All India' ? city : 'All',
+                    location: city !== 'All India' ? city.toLowerCase() : 'all',
                     format: filters.categories.length > 0 ? filters.categories[0] : 'All',
                     dimension: 'brand',
                     period: period || '1M',
@@ -1077,7 +1090,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             try {
                 const params = {
                     platform: selectedPlatform || 'All',
-                    location: city !== 'All India' ? city : 'All',
+                    location: city !== 'All India' ? city.toLowerCase() : 'all',
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
                     period: period || '1M',

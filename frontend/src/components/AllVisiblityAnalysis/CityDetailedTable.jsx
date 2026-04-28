@@ -67,7 +67,7 @@ export default function CityDetailedTable({ sku, onClose }) {
                     platform: platform !== 'All' ? (Array.isArray(platform) ? platform.join(',') : platform) : undefined,
                     brand: selectedBrand !== 'All' ? (Array.isArray(selectedBrand) ? selectedBrand.join(',') : selectedBrand) : undefined,
                     category: selectedCategory !== 'All' ? (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory) : undefined,
-                    location: selectedLocation !== 'All' ? (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation) : undefined,
+                    location: selectedLocation !== 'All' ? (Array.isArray(selectedLocation) ? selectedLocation.map(l => l.toLowerCase()).join(',') : selectedLocation.toLowerCase()) : undefined,
                     channel: selectedChannel !== 'All' ? selectedChannel : undefined,
                 };
 

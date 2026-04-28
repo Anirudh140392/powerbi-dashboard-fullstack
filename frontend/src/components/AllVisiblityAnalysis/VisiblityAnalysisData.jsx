@@ -114,7 +114,7 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         const params = new URLSearchParams({
           platform: localMatrixFilters.platform || 'All',
           brand: localMatrixFilters.brand || 'All',
-          location: localMatrixFilters.location || 'All',
+          location: (localMatrixFilters.location && localMatrixFilters.location !== 'All') ? localMatrixFilters.location.toLowerCase() : 'All',
           keyword: localMatrixFilters.keyword || 'All',
           keywordType: localMatrixFilters.keywordType || 'All',
           category: localMatrixFilters.category || 'All',
