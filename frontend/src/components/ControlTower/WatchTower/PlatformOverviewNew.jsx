@@ -217,9 +217,9 @@ const PlatformOverviewNew = ({
         }
 
         if (isEcom) {
-            baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpc');
+            baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
         } else if (isQuick) {
-            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime' && k.key !== 'cpm');
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime' && k.key !== 'cpc');
         } else {
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
         }
@@ -238,14 +238,14 @@ const PlatformOverviewNew = ({
         let base = ['offtakes', 'spend', 'availability', 'conversion', 'aov'];
         if (dimension === 'platform') {
             base.push('marketShare', 'categorySize');
-            if (isEcom) base.push('cpm');
-            else if (isQuick) base.push('cpc');
+            if (isEcom) base.push('cpc');
+            else if (isQuick) base.push('cpm');
             else base.push('cpc', 'cpm');
         } else {
             if (isEcom) {
-                base.push('buyBoxPct', 'deliveryTime', 'cpm');
+                base.push('buyBoxPct', 'deliveryTime', 'cpc');
             } else if (isQuick) {
-                base.push('marketShare', 'categorySize', 'cpc');
+                base.push('marketShare', 'categorySize', 'cpm');
             } else {
                 base.push('marketShare', 'categorySize', 'cpc', 'cpm');
             }
@@ -299,13 +299,13 @@ const PlatformOverviewNew = ({
                 if (!next.includes('spend')) next.push('spend');
                 if (!next.includes('conversion')) next.push('conversion');
                 if (isEcom) {
-                    next = next.filter(k => k !== 'cpc');
+                    next = next.filter(k => k !== 'cpm');
                     if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
-                    if (!next.includes('cpm')) next.push('cpm');
-                } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpm');
                     if (!next.includes('cpc')) next.push('cpc');
+                } else if (isQuick) {
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
+                    if (!next.includes('cpm')) next.push('cpm');
                 } else {
                     next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
@@ -321,11 +321,11 @@ const PlatformOverviewNew = ({
                 if (!next.includes('conversion')) next.push('conversion');
                 if (!next.includes('marketShare')) next.push('marketShare');
                 if (isEcom) {
-                    next = next.filter(k => k !== 'cpc');
-                    if (!next.includes('cpm')) next.push('cpm');
-                } else if (isQuick) {
                     next = next.filter(k => k !== 'cpm');
                     if (!next.includes('cpc')) next.push('cpc');
+                } else if (isQuick) {
+                    next = next.filter(k => k !== 'cpc');
+                    if (!next.includes('cpm')) next.push('cpm');
                 } else {
                     if (!next.includes('cpc')) next.push('cpc');
                     if (!next.includes('cpm')) next.push('cpm');
@@ -337,19 +337,19 @@ const PlatformOverviewNew = ({
             setGlanceKpis(prev => {
                 let next = [...prev];
                 if (isEcom) {
-                    next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpc');
+                    next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
                     if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
-                    if (!next.includes('cpm')) next.push('cpm');
+                    if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpm');
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
                     if (!next.includes('categorySize')) next.push('categorySize');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
                     if (!next.includes('marketShare')) next.push('marketShare');
-                    if (!next.includes('cpc')) next.push('cpc');
+                    if (!next.includes('cpm')) next.push('cpm');
                 } else {
                     next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
                     if (!next.includes('categorySize')) next.push('categorySize');
@@ -914,9 +914,9 @@ const PlatformOverviewNew = ({
                                                     const isEcomRow = platformName.includes('amazon') || platformName.includes('flipkart') || platformName.includes('myntra') || platformName.includes('nykaa') || platformName.includes('jiomart');
                                                     const isQuickRow = platformName.includes('blinkit') || platformName.includes('zepto') || platformName.includes('swiggy') || platformName.includes('instamart') || platformName.includes('bbnow');
                                                     
-                                                    if (isEcomRow && kpi.key === 'cpc') {
+                                                    if (isEcomRow && kpi.key === 'cpm') {
                                                         cell = null;
-                                                    } else if (isQuickRow && kpi.key === 'cpm') {
+                                                    } else if (isQuickRow && kpi.key === 'cpc') {
                                                         cell = null;
                                                     }
                                                 }
