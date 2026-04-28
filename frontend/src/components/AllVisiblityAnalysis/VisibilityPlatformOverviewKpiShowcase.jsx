@@ -340,6 +340,7 @@ const ComingSoonBadge = () => (
 );
 
 const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, city }) => {
+    const { selectedChannel } = useContext(FilterContext);
     const [activeTab, setActiveTab] = useState(
         mode === "brand" ? "category" : "sku"
     );
