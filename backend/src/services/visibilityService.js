@@ -3417,15 +3417,15 @@ class VisibilityService {
                     SELECT 
                         location_name as city,
                         sumIf(toInt32(overall), flag = 1) as num_overall,
-                        SUM(sum(toInt32(overall))) OVER() as den_overall,
+                        sum(toInt32(overall)) as den_overall,
                         ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
 
                         sumIf(toInt32(organic), flag = 1) as num_organic,
-                        SUM(sum(toInt32(organic))) OVER() as den_organic,
+                        sum(toInt32(organic)) as den_organic,
                         ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
 
                         sumIf(toInt32(spons), flag = 1) as num_spons,
-                        SUM(sum(toInt32(spons))) OVER() as den_spons,
+                        sum(toInt32(spons)) as den_spons,
                         ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
