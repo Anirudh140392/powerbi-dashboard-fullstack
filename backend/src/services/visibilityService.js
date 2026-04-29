@@ -1513,7 +1513,7 @@ class VisibilityService {
                     const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
                     const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
                     const searchVolumeSelect = hasSearchVolPct
-                        ? `ROUND(SUM(toFloat64OrZero(toString(search_volume_percentage))), 2)`
+                        ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
                         : `0`;
 
                     const metricsQuery = `
@@ -3185,6 +3185,12 @@ class VisibilityService {
 
                 const dimColumn = viewMode === 'keyword' ? 'keyword' : 'keyword_search_product';
 
+                const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
+                const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
+                const searchVolumeSelect = hasSearchVolPct
+                    ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
+                    : `0`;
+
                 // Calculate total landscape volume for relative share (ignoring local segment filters)
                 const landscapeVolQuery = `
                     SELECT sum(toInt32(overall)) as total_vol
@@ -3219,6 +3225,7 @@ class VisibilityService {
                         ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos,
 
                         count(*) as impressions,
+                        ${searchVolumeSelect} as search_volume,
                         ROUND(sum(toInt32(overall)) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
                         arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS ad_position,
                         arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS organic_position
@@ -3253,6 +3260,7 @@ class VisibilityService {
                         organicSOS: Number(row.organic_sos) || 0,
                         paidSOS: Number(row.paid_sos) || 0,
                         volShare: Number(row.max_vol_share) || 0,
+                        searchVolume: Number(row.search_volume) || 0,
                         impressions: Number(row.impressions),
                         adPosition: Number(row.ad_position) || null,
                         organicPosition: Number(row.organic_position) || null,
@@ -3297,7 +3305,7 @@ class VisibilityService {
                                 arrayElement(topK(1)(brand), 1) as leading_brand,
                                 count(DISTINCT keyword) as total_keywords,
                                 count(*) as total_impressions,
-                                sum(toInt32(overall)) as total_search_volume,
+                                ${hasSearchVolPct ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)` : `sum(toInt32(overall))`} as total_search_volume,
                                 sumIf(toInt32(overall), flag = 1) as num_overall,
                                 sum(toInt32(overall)) as den_overall,
                                 ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,

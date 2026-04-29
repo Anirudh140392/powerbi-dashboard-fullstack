@@ -104,9 +104,6 @@ const SkuModal = ({ skus, title, onClose, loading }) => (
               <tr key={i} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fafbfc" : "#fff" }}>
                 <td style={{ padding: "12px 12px" }}>
                   <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{sku.name}</div>
-                  {sku.volShare > 0 && (
-                    <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 600, borderRadius: 4, padding: "2px 6px", marginTop: 3, display: "inline-block" }}>{sku.volShare}% VOL.</span>
-                  )}
                 </td>
                 <td style={{ textAlign: "center", padding: "12px" }}>
                   <span style={{ fontSize: 15, fontWeight: 700, color: sku.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
@@ -456,23 +453,6 @@ export default function SearchTermsPerformance() {
                                 {summaryData.totalKeywords.toLocaleString()} Keywords
                               </span>
                             )}
-                            {summarySearchVolume > 0 ? (
-                              <span style={{
-                                background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
-                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
-                                border: "1px solid #ffedd5"
-                              }}>
-                                {summarySearchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })} Search Vol.
-                              </span>
-                            ) : summaryVolPercent > 0 ? (
-                              <span style={{
-                                background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
-                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
-                                border: "1px solid #ffedd5"
-                              }}>
-                                {summaryVolPercent.toFixed(2)}% Total Vol. Share
-                              </span>
-                            ) : null}
                           </div>
                         ) : null;
                       })()}
