@@ -84,7 +84,8 @@ const kpiLabels = {
     asp: 'ASP',
     categorySize: 'Category Size',
     discount: 'Promo',
-    deliveryTime: 'Delivery Time'
+    deliveryTime: 'Delivery Time',
+    aov: 'AOV'
 };
 
 // Map backend KPI title → frontend kpiKey
@@ -108,7 +109,8 @@ const BACKEND_TITLE_TO_KEY = {
     'Promo-My': 'discount',
     'Promo Compete': 'promoCompete',
     'Buy Box %': 'buyBoxPct',
-    'Delivery Time': 'deliveryTime'
+    'Delivery Time': 'deliveryTime',
+    'AOV': 'aov'
 }
 
 // Map backend API response entity → frontend entity format
@@ -185,6 +187,7 @@ const PlatformOverviewNew = ({
         { key: 'categorySize', label: 'Category Size' },
         { key: 'buyBoxPct', label: 'Buy Box %' },
         { key: 'deliveryTime', label: 'Delivery Time' },
+        { key: 'aov', label: 'AOV' },
     ]
     const [dimension, setDimension] = useState('platform')
     const [localChannel, setLocalChannel] = useState('All')
@@ -199,11 +202,11 @@ const PlatformOverviewNew = ({
 
     // On Brand, Month, Category, SKU pages, we allow local channel filtering 
     // BUT we must respect the top-level selectedChannel if it is NOT 'All'
-    const activeChannel = selectedChannel && selectedChannel !== 'All' 
-        ? (typeof selectedChannel === 'object' ? selectedChannel.value : selectedChannel) 
+    const activeChannel = selectedChannel && selectedChannel !== 'All'
+        ? (typeof selectedChannel === 'object' ? selectedChannel.value : selectedChannel)
         : (localChannel || 'All');
-    const activeChannelString = Array.isArray(activeChannel) 
-        ? activeChannel.map(c => c.value || c).join(',').toLowerCase() 
+    const activeChannelString = Array.isArray(activeChannel)
+        ? activeChannel.map(c => c.value || c).join(',').toLowerCase()
         : String(activeChannel?.value || activeChannel || 'All').toLowerCase();
 
     const isEcom = activeChannelString.includes('ecom')
@@ -401,8 +404,8 @@ const PlatformOverviewNew = ({
         const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
         const reqEndDate = advancedFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : '');
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
-        const reqChannel = Array.isArray(activeChannel) 
-            ? activeChannel.map(c => c.value || c).join(',') 
+        const reqChannel = Array.isArray(activeChannel)
+            ? activeChannel.map(c => c.value || c).join(',')
             : (activeChannel?.value || activeChannel || 'All');
 
         return JSON.stringify({
@@ -816,14 +819,14 @@ const PlatformOverviewNew = ({
                                     <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between">
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                         {dimension === 'sku' && (
-                                            <motion.button 
+                                            <motion.button
                                                 onClick={() => navigate('/compare-skus')}
                                                 className="px-3 py-1.5 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-600 to-blue-500 text-[10px] sm:text-[11px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.3)] hover:-translate-y-0.5 transition-all uppercase tracking-wider flex items-center gap-1.5 relative overflow-hidden group"
                                                 whileHover={{ scale: 1.05 }}
                                                 whileTap={{ scale: 0.95 }}
                                             >
                                                 <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-[-20deg]"></div>
-                                                <Scale size={13} className="text-blue-100" strokeWidth={2.5}/>
+                                                <Scale size={13} className="text-blue-100" strokeWidth={2.5} />
                                                 <span>Compare SKU</span>
                                             </motion.button>
                                         )}
@@ -908,12 +911,12 @@ const PlatformOverviewNew = ({
                                             {/* KPI Cards - Enhanced with gradient glow */}
                                             {selectedKpis.map(kpi => {
                                                 let cell = e.data[kpi.key]
-                                                
+
                                                 if (dimension === 'platform') {
                                                     const platformName = e.name.toLowerCase();
                                                     const isEcomRow = platformName.includes('amazon') || platformName.includes('flipkart') || platformName.includes('myntra') || platformName.includes('nykaa') || platformName.includes('jiomart');
                                                     const isQuickRow = platformName.includes('blinkit') || platformName.includes('zepto') || platformName.includes('swiggy') || platformName.includes('instamart') || platformName.includes('bbnow');
-                                                    
+
                                                     if (isEcomRow && kpi.key === 'cpm') {
                                                         cell = null;
                                                     } else if (isQuickRow && kpi.key === 'cpc') {
