@@ -1644,11 +1644,13 @@ export default function VisibilityTrendsCompetitionDrawer({
             selectedPlatform={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (selectedColumn || selectedPlatform || 'All')} 
             period={range === "Custom" ? "1M" : range} 
             timeStep={timeStep}
-            externalCity={drawerFilters.City}
+            externalCity={drawerFilters.City === 'All' ? 'All India' : drawerFilters.City}
             externalFilters={{
               categories: drawerFilters.Format !== 'All' ? [drawerFilters.Format] : [],
               brands: drawerFilters.Brand !== 'All' ? [drawerFilters.Brand] : [],
               skus: drawerFilters.SKU !== 'All' ? [drawerFilters.SKU] : [],
+              keywords: drawerFilters.Keyword !== 'All' ? [drawerFilters.Keyword] : [],
+              keywordType: drawerFilters.Keyword_Type !== 'All' ? [drawerFilters.Keyword_Type] : [],
             }}
           />
         )}
