@@ -201,3 +201,16 @@ export const fetchSearchTermsBrandBreakdown = async (filters = {}) => {
     const response = await axiosInstance.get(`/visibility-analysis/search-terms-brand-breakdown?${params.toString()}`);
     return response.data;
 };
+/**
+ * Fetch dynamic filter options for Visibility Analysis
+ */
+export const fetchVisibilityFilterOptions = async (params) => {
+    try {
+        const queryParams = new URLSearchParams(params).toString();
+        const response = await axiosInstance.get(`/visibility-analysis/filter-options?${queryParams}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching visibility filter options:", error);
+        throw error;
+    }
+};

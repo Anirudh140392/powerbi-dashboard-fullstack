@@ -3671,8 +3671,22 @@ class VisibilityService {
                 const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
                 platformCondition = `${platformCondition} AND ${channelCondition}`;
 
+                const isEcomPlatform = (plat) => {
+                    if (!plat || plat === 'All') return false;
+                    const plats = plat.split(',').map(p => p.trim().toLowerCase());
+                    return plats.some(p => ['amazon', 'flipkart'].includes(p));
+                };
+
+                const isQuickCommPlatform = (plat) => {
+                    if (!plat || plat === 'All') return false;
+                    const plats = plat.split(',').map(p => p.trim().toLowerCase());
+                    return plats.some(p => ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(p));
+                };
+
                 let locationFilter = "AND location_name IS NOT NULL AND location_name != ''";
-                if (filters.channel === 'Ecommerce') {
+                if (filters.channel === 'Quick Commerce' || isQuickCommPlatform(platform)) {
+                    locationFilter += " AND lower(location_name) NOT IN ('nation', 'national', 'all india', 'india', 'total')";
+                } else if (filters.channel === 'Ecommerce' || isEcomPlatform(platform)) {
                     locationFilter += " AND lower(location_name) IN ('nation', 'national', 'all india', 'india', 'total')";
                 }
 
