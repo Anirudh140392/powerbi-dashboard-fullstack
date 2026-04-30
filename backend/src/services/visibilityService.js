@@ -1788,9 +1788,9 @@ class VisibilityService {
      * @param {Object} params - { filterType, platform, format, city }
      * @returns {Object} { options: [...] }
      */
-    async getVisibilityFilterOptions({ filterType, platform, format, city, brand, ownBrandsOnly }) {
+    async getVisibilityFilterOptions({ filterType, platform, format, city, brand, keywordType, keyword, sku, ownBrandsOnly, channel }) {
         console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
-        const cacheKey = generateCacheKey('visibility_filters_v6', { filterType, platform, format, city, brand, ownBrandsOnly });
+        const cacheKey = generateCacheKey('visibility_filters_v8', { filterType, platform, format, city, brand, keywordType, keyword, sku, ownBrandsOnly, channel });
 
         return await getCachedOrCompute(cacheKey, async () => {
             try {
@@ -1808,10 +1808,21 @@ class VisibilityService {
 
                 // PLATFORMS: from rb_kw_olap.platform_name
                 if (filterType === 'platforms') {
+                    let platformWhere = "WHERE platform_name IS NOT NULL AND platform_name != ''";
+                    const channelCondition = buildChannelCondition(channel, 'platform_name');
+                    platformWhere += ` AND ${channelCondition}`;
+                    platformWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
+                    platformWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
+                    platformWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
+                    platformWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
+                    platformWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
+                    platformWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                    if (ownBrandsOnly) platformWhere += ` AND flag = 1`;
+
                     const results = await queryClickHouse(`
                     SELECT DISTINCT platform_name as platform
                     FROM rb_kw_olap
-                    WHERE platform_name IS NOT NULL AND platform_name != ''
+                    ${platformWhere}
                     ORDER BY platform_name
                 `);
                     const options = results.map(r => r.platform).filter(Boolean);
@@ -1865,14 +1876,16 @@ class VisibilityService {
                 }
 
                 // FORMATS (Category): from rb_kw_olap.keyword_category
-                if (filterType === 'formats') {
+                if (filterType === 'formats' || filterType === 'categories') {
                     let formatWhere = "WHERE keyword_category IS NOT NULL AND keyword_category != ''";
-                    if (platform && platform !== 'All') {
-                        formatWhere += ` AND platform_name = '${escapeCH(platform)}'`;
-                    }
-                    if (city && city !== 'All') {
-                        formatWhere += ` AND location_name = '${escapeCH(city)}'`;
-                    }
+                    const channelCondition = buildChannelCondition(channel, 'platform_name');
+                    formatWhere += ` AND ${channelCondition}`;
+                    formatWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
+                    formatWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
+                    formatWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
+                    formatWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
+                    formatWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                    formatWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT keyword_category as format
@@ -1887,18 +1900,15 @@ class VisibilityService {
                 // BRANDS: from rb_kw_olap.brand
                 if (filterType === 'brands') {
                     let brandWhere = "WHERE brand IS NOT NULL AND brand != ''";
-                    if (platform && platform !== 'All') {
-                        brandWhere += ` AND platform_name = '${escapeCH(platform)}'`;
-                    }
-                    if (city && city !== 'All') {
-                        brandWhere += ` AND location_name = '${escapeCH(city)}'`;
-                    }
-                    if (format && format !== 'All') {
-                        brandWhere += ` AND keyword_category = '${escapeCH(format)}'`;
-                    }
-                    if (ownBrandsOnly) {
-                        brandWhere += ` AND flag = 1`;
-                    }
+                    const channelCondition = buildChannelCondition(channel, 'platform_name');
+                    brandWhere += ` AND ${channelCondition}`;
+                    brandWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
+                    brandWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
+                    brandWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
+                    brandWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
+                    brandWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
+                    brandWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                    if (ownBrandsOnly) brandWhere += ` AND flag = 1`;
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT brand as brand
@@ -1914,21 +1924,15 @@ class VisibilityService {
                 // SKUs: from rb_kw_olap.keyword_search_product
                 if (filterType === 'skus') {
                     let skuWhere = "WHERE keyword_search_product IS NOT NULL AND keyword_search_product != ''";
-                    if (platform && platform !== 'All') {
-                        skuWhere += ` AND platform_name = '${escapeCH(platform)}'`;
-                    }
-                    if (city && city !== 'All') {
-                        skuWhere += ` AND location_name = '${escapeCH(city)}'`;
-                    }
-                    if (format && format !== 'All') {
-                        skuWhere += ` AND keyword_category = '${escapeCH(format)}'`;
-                    }
-                    if (brand && brand !== 'All') {
-                        skuWhere += ` AND brand = '${escapeCH(brand)}'`;
-                    }
-                    if (ownBrandsOnly) {
-                        skuWhere += ` AND flag = 1`;
-                    }
+                    const channelCondition = buildChannelCondition(channel, 'platform_name');
+                    skuWhere += ` AND ${channelCondition}`;
+                    skuWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
+                    skuWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
+                    skuWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
+                    skuWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
+                    skuWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
+                    skuWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
+                    if (ownBrandsOnly) skuWhere += ` AND flag = 1`;
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT keyword_search_product as sku
@@ -1943,12 +1947,14 @@ class VisibilityService {
                 // CITIES: from rb_kw_olap.location_name
                 if (filterType === 'cities') {
                     let cityWhere = "WHERE location_name IS NOT NULL AND location_name != ''";
-                    if (platform && platform !== 'All') {
-                        cityWhere += ` AND platform_name = '${escapeCH(platform)}'`;
-                    }
-                    if (format && format !== 'All') {
-                        cityWhere += ` AND keyword_category = '${escapeCH(format)}'`;
-                    }
+                    const channelCondition = buildChannelCondition(channel, 'platform_name');
+                    cityWhere += ` AND ${channelCondition}`;
+                    cityWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
+                    cityWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
+                    cityWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
+                    cityWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
+                    cityWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                    cityWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT location_name as city
@@ -1971,20 +1977,40 @@ class VisibilityService {
                     return { options: results.map(r => r.metroFlag).filter(Boolean) };
                 }
 
+                // KEYWORD TYPES: from rb_kw_olap.keyword_type
+                if (filterType === 'keywordTypes') {
+                    let typeWhere = "WHERE keyword_type IS NOT NULL AND keyword_type != ''";
+                    const channelCondition = buildChannelCondition(channel, 'platform_name');
+                    typeWhere += ` AND ${channelCondition}`;
+                    typeWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
+                    typeWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
+                    typeWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
+                    typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                    typeWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
+                    typeWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
+                    if (ownBrandsOnly) typeWhere += ` AND flag = 1`;
+
+                    const results = await queryClickHouse(`
+                        SELECT DISTINCT keyword_type
+                        FROM rb_kw_olap
+                        ${typeWhere}
+                        ORDER BY keyword_type
+                    `);
+                    const options = results.map(r => r.keyword_type).filter(Boolean);
+                    return { options };
+                }
+
                 if (filterType === 'productName' || filterType === 'keywords') {
                     let keywordWhere = "WHERE keyword IS NOT NULL AND keyword != ''";
-                    if (platform && platform !== 'All') {
-                        keywordWhere += ` AND platform_name = '${escapeCH(platform)}'`;
-                    }
-                    if (city && city !== 'All') {
-                        keywordWhere += ` AND location_name = '${escapeCH(city)}'`;
-                    }
-                    if (format && format !== 'All') {
-                        keywordWhere += ` AND keyword_category = '${escapeCH(format)}'`;
-                    }
-                    if (ownBrandsOnly) {
-                        keywordWhere += ` AND flag = 1`;
-                    }
+                    const channelCondition = buildChannelCondition(channel, 'platform_name');
+                    keywordWhere += ` AND ${channelCondition}`;
+                    keywordWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
+                    keywordWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
+                    keywordWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
+                    keywordWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
+                    keywordWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
+                    keywordWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+                    if (ownBrandsOnly) keywordWhere += ` AND flag = 1`;
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT keyword
@@ -1994,6 +2020,28 @@ class VisibilityService {
                         LIMIT 1000
                     `);
                     return { options: results.map(r => r.keyword).filter(Boolean) };
+                }
+
+                // KEYWORD TYPES: from rb_kw_olap.keyword_type
+                if (filterType === 'keywordTypes' || filterType === 'keywordType') {
+                    let typeWhere = "WHERE keyword_type IS NOT NULL AND keyword_type != ''";
+                    const channelCondition = buildChannelCondition(channel, 'platform_name');
+                    typeWhere += ` AND ${channelCondition}`;
+                    typeWhere += ` AND ${buildCHCondition(platform, 'platform_name')}`;
+                    typeWhere += ` AND ${buildCHCondition(format, 'keyword_category', { isCategory: true })}`;
+                    typeWhere += ` AND ${buildCHCondition(city, 'location_name')}`;
+                    typeWhere += ` AND ${buildCHCondition(brand, 'brand', { isBrand: true })}`;
+                    typeWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
+                    typeWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
+
+                    const results = await queryClickHouse(`
+                        SELECT DISTINCT keyword_type as type
+                        FROM rb_kw_olap
+                        ${typeWhere}
+                        ORDER BY type
+                    `);
+                    const options = results.map(r => r.type).filter(Boolean);
+                    return { options };
                 }
 
                 return { options: [] };
@@ -2140,13 +2188,14 @@ class VisibilityService {
                 }
 
                 // Aggregate by selected time step - ClickHouse
-                const query = `
+                const querySOS = `
                 SELECT 
                     ${dateAggregation} as crawl_date,
                     ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
                     ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS sponsored_sos,
                     ROUND(sumIf(toInt32(organic), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(organic)), 0), 2) AS organic_sos,
-                    ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS display_sos
+                    ROUND(sumIf(toInt32(spons), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS display_sos,
+                    ROUND(avgIf(POSITION, ${brandSOSCondition} AND POSITION > 0), 1) AS search_rank
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -2160,17 +2209,109 @@ class VisibilityService {
                 ORDER BY crawl_date ASC
             `;
 
-                const results = await queryClickHouse(query);
+                // Determine if we should query pdp and ms tables
+                const isNotAll = (val) => {
+                    if (!val) return false;
+                    if (Array.isArray(val)) {
+                        if (val.length === 0) return false;
+                        return !val.some(v => String(v).toLowerCase() === 'all');
+                    }
+                    return String(val).toLowerCase() !== 'all';
+                };
+                const hasKeywordFilter = isNotAll(filters.keyword) || isNotAll(filters.keywordType);
+
+                let queryOfftake = null;
+                let queryCatShare = null;
+
+                if (!hasKeywordFilter) {
+                    const pdpPlatformCondition = buildCHCondition(platform, 'Platform');
+                    const msPlatformCondition = buildCHCondition(platform, 'platform');
+                    
+                    const pdpLocationCondition = buildCHCondition(location, 'Location');
+                    const msLocationCondition = buildCHCondition(location, 'location');
+                    
+                    const pdpBrandCondition = buildCHCondition(brand, 'Brand');
+                    const msBrandCondition = buildCHCondition(brand, 'brand');
+
+                    const pdpSkuCondition = buildCHCondition(filters.sku, 'Product');
+                    const msSkuCondition = buildCHCondition(filters.sku, 'item_name');
+
+                    const pdpCategoryCondition = buildCHCondition(categoryValue, 'Category');
+                    const msCategoryCondition = buildCHCondition(categoryValue, 'category');
+
+                    queryOfftake = `
+                        SELECT 
+                            ${dateAggregation.replace(/DATE/g, 'toDate(DATE)')} as crawl_date,
+                            SUM(toFloat64OrZero(toString(Sales))) as total_sales
+                        FROM rb_pdp_olap
+                        WHERE toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${pdpPlatformCondition}
+                          AND ${pdpLocationCondition}
+                          AND ${pdpCategoryCondition}
+                          AND ${pdpBrandCondition}
+                          AND ${pdpSkuCondition}
+                        GROUP BY crawl_date
+                        ORDER BY crawl_date ASC
+                    `;
+
+                    // For Category Share, we need brand sales / total category sales
+                    queryCatShare = `
+                        SELECT 
+                            ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
+                            SUM(toFloat64OrZero(toString(sales))) as cat_total_sales,
+                            SUM(If(${msBrandCondition}, toFloat64OrZero(toString(sales)), 0)) as brand_total_sales
+                        FROM rb_ms_olap
+                        WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${msPlatformCondition}
+                          AND ${msLocationCondition}
+                          AND ${msCategoryCondition}
+                          AND ${msSkuCondition}
+                        GROUP BY crawl_date
+                        ORDER BY crawl_date ASC
+                    `;
+                }
+
+                // Execute queries in parallel
+                const queries = [queryClickHouse(querySOS)];
+                if (queryOfftake) queries.push(queryClickHouse(queryOfftake));
+                if (queryCatShare) queries.push(queryClickHouse(queryCatShare));
+
+                const [resultsSOS, resultsOfftake, resultsCatShare] = await Promise.all(queries);
+
+                // Map results for easy lookup
+                const offtakeMap = new Map();
+                if (resultsOfftake) {
+                    resultsOfftake.forEach(row => {
+                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                        offtakeMap.set(dateStr, parseFloat(row.total_sales || 0));
+                    });
+                }
+
+                const catShareMap = new Map();
+                if (resultsCatShare) {
+                    resultsCatShare.forEach(row => {
+                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                        const brandSales = parseFloat(row.brand_total_sales || 0);
+                        const totalSales = parseFloat(row.cat_total_sales || 0);
+                        const catShare = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
+                        catShareMap.set(dateStr, parseFloat(catShare.toFixed(2)));
+                    });
+                }
 
                 // Format dates based on time step
-                const timeSeries = results.map(row => {
+                const timeSeries = resultsSOS.map(row => {
                     const date = dayjs(row.crawl_date);
+                    const dateFormatted = date.format(dateFormat);
+                    
                     return {
-                        date: date.format(dateFormat),
+                        date: dateFormatted,
                         overall_sos: Number(row.overall_sos) || 0,
                         sponsored_sos: Number(row.sponsored_sos) || 0,
                         organic_sos: Number(row.organic_sos) || 0,
-                        display_sos: Number(row.display_sos) || 0
+                        display_sos: Number(row.display_sos) || 0,
+                        search_rank: row.search_rank !== null && !isNaN(row.search_rank) ? Number(row.search_rank) : null,
+                        offtake: offtakeMap.get(dateFormatted) || null,
+                        category_share: catShareMap.get(dateFormatted) || null
                     };
                 });
 
@@ -2500,7 +2641,16 @@ class VisibilityService {
                     allDays.push(dateStr);
                 });
 
-                // 2. Query brand-specific data for all selected brands at once
+                const isNotAll = (val) => {
+                    if (!val) return false;
+                    if (Array.isArray(val)) {
+                        if (val.length === 0) return false;
+                        return !val.some(v => String(v).toLowerCase() === 'all');
+                    }
+                    return String(val).toLowerCase() !== 'all';
+                };
+                const hasKeywordFilter = isNotAll(filters.keyword) || isNotAll(filters.keywordType) || dimension === 'keyword';
+
                 const brandDataQuery = `
                 SELECT 
                     ${dimColumn} as brand_name,
@@ -2520,7 +2670,71 @@ class VisibilityService {
                 ORDER BY crawl_date ASC
             `;
 
-                const brandResults = await queryClickHouse(brandDataQuery);
+                const queries = [queryClickHouse(brandDataQuery)];
+
+                let offtakeQuery = null;
+                let msBrandQuery = null;
+                let msCatTotalQuery = null;
+
+                if (!hasKeywordFilter) {
+                    let pdpDimCol = dimension === 'sku' ? 'Product' : 'Brand';
+                    let msDimCol = dimension === 'sku' ? 'item_name' : 'brand';
+                    
+                    const pdpPlatformCondition = buildCHCondition(filters.platform, 'Platform');
+                    const msPlatformCondition = buildCHCondition(filters.platform, 'platform');
+                    const pdpLocationCondition = buildCHCondition(filters.location, 'Location');
+                    const msLocationCondition = buildCHCondition(filters.location, 'location');
+                    const pdpCategoryCondition = buildCHCondition(filters.category || filters.format, 'Category');
+                    const msCategoryCondition = buildCHCondition(filters.category || filters.format, 'category');
+                    const pdpBrandsCondition = buildCHCondition(selectedBrands, pdpDimCol);
+                    const msBrandsCondition = buildCHCondition(selectedBrands, msDimCol);
+
+                    offtakeQuery = `
+                        SELECT 
+                            ${pdpDimCol} as brand_name,
+                            ${dateAggregation.replace(/DATE/g, 'toDate(DATE)')} as crawl_date,
+                            SUM(toFloat64OrZero(toString(Sales))) as total_sales
+                        FROM rb_pdp_olap
+                        WHERE toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${pdpPlatformCondition}
+                          AND ${pdpLocationCondition}
+                          AND ${pdpCategoryCondition}
+                          AND ${pdpBrandsCondition}
+                        GROUP BY brand_name, crawl_date
+                    `;
+                    
+                    msBrandQuery = `
+                        SELECT 
+                            ${msDimCol} as brand_name,
+                            ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
+                            SUM(toFloat64OrZero(toString(sales))) as brand_total_sales
+                        FROM rb_ms_olap
+                        WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${msPlatformCondition}
+                          AND ${msLocationCondition}
+                          AND ${msCategoryCondition}
+                          AND ${msBrandsCondition}
+                        GROUP BY brand_name, crawl_date
+                    `;
+                    
+                    msCatTotalQuery = `
+                        SELECT 
+                            ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
+                            SUM(toFloat64OrZero(toString(sales))) as cat_total_sales
+                        FROM rb_ms_olap
+                        WHERE toDate(created_on) BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${msPlatformCondition}
+                          AND ${msLocationCondition}
+                          AND ${msCategoryCondition}
+                        GROUP BY crawl_date
+                    `;
+
+                    queries.push(queryClickHouse(offtakeQuery));
+                    queries.push(queryClickHouse(msBrandQuery));
+                    queries.push(queryClickHouse(msCatTotalQuery));
+                }
+
+                const [brandResults, offtakeResults, msResults, msTotalResults] = await Promise.all(queries);
 
                 // Group results by brand
                 const brandDataMap = {};
@@ -2536,9 +2750,41 @@ class VisibilityService {
                     };
                 });
 
+                const offtakeMap = {};
+                if (offtakeResults) {
+                    offtakeResults.forEach(row => {
+                        if (!offtakeMap[row.brand_name]) offtakeMap[row.brand_name] = {};
+                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                        offtakeMap[row.brand_name][dateStr] = parseFloat(row.total_sales || 0);
+                    });
+                }
+
+                const catTotalMap = {};
+                if (msTotalResults) {
+                    msTotalResults.forEach(row => {
+                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                        catTotalMap[dateStr] = parseFloat(row.cat_total_sales || 0);
+                    });
+                }
+
+                const msMap = {};
+                if (msResults) {
+                    msResults.forEach(row => {
+                        if (!msMap[row.brand_name]) msMap[row.brand_name] = {};
+                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                        const brandSales = parseFloat(row.brand_total_sales || 0);
+                        const totalSales = catTotalMap[dateStr] || 0;
+                        const catShare = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
+                        msMap[row.brand_name][dateStr] = parseFloat(catShare.toFixed(2));
+                    });
+                }
+
                 const brandsResult = {};
                 selectedBrands.forEach((brandName, index) => {
                     const brandHistory = brandDataMap[brandName] || {};
+                    const offtakeHistory = offtakeMap[brandName] || {};
+                    const msHistory = msMap[brandName] || {};
+
                     const timeSeries = allDays.map(dateStr => {
                         const totalVol = volumeByDate[dateStr] || { overall: 1, spons: 1, organic: 1 };
                         const data = brandHistory[dateStr] || { brand_volume: 0, sponsored_volume: 0, organic_volume: 0, display_volume: 0 };
@@ -2547,7 +2793,9 @@ class VisibilityService {
                             overall_sos: Number(((data.brand_volume / totalVol.overall) * 100).toFixed(2)),
                             sponsored_sos: Number(((data.sponsored_volume / totalVol.spons) * 100).toFixed(2)),
                             organic_sos: Number(((data.organic_volume / totalVol.organic) * 100).toFixed(2)),
-                            display_sos: Number(((data.display_volume / totalVol.spons) * 100).toFixed(2))
+                            display_sos: Number(((data.display_volume / totalVol.spons) * 100).toFixed(2)),
+                            offtake: offtakeHistory[dateStr] || null,
+                            category_share: msHistory[dateStr] || null
                         };
                     });
 
@@ -3211,7 +3459,7 @@ class VisibilityService {
                 const mainQuery = `
                     SELECT 
                         ${dimColumn} as name,
-                        arrayElement(topK(1)(brand), 1) as brand_name,
+                        arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(brand)), 1) as brand_name,
                         ${viewMode === 'keyword' ? "sumIf(toInt32(overall), flag = 1)" : "sum(toInt32(overall))"} as num_overall,
                         ${viewMode === 'keyword' ? "sum(toInt32(overall))" : "SUM(sum(toInt32(overall))) OVER()"} as den_overall,
                         ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
@@ -3302,7 +3550,7 @@ class VisibilityService {
                         // Query 1: Aggregate SOS + leading brand + keyword count across all keywords
                         const summaryQuery = `
                             SELECT
-                                arrayElement(topK(1)(brand), 1) as leading_brand,
+                                arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(brand)), 1) as leading_brand,
                                 count(DISTINCT keyword) as total_keywords,
                                 count(*) as total_impressions,
                                 ${hasSearchVolPct ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)` : `sum(toInt32(overall))`} as total_search_volume,
