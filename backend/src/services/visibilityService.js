@@ -2999,43 +2999,36 @@ class VisibilityService {
             endDate = endDate || maxDate;
         }
 
-        // Denominator logic: Total impressions for the keyword in EACH city.
+        // Final refined logic: Denominator is the ENTIRE city volume (as per user snippet).
+        // Numerator is filtered by SKU, flag=1, and current platform/channel settings.
+        const platformFilter = platform && platform !== 'All' ? "AND lower(platform_name) = lower({plt:String})" : "";
+        const channelFilter = channel && channel !== 'All' ? `AND ${buildChannelCondition(channel, 'platform_name')}` : "";
+
         let query = `
-            WITH city_totals AS (
-                SELECT 
-                    location_name,
-                    sum(toInt32(overall)) as city_total_overall,
-                    sum(toInt32(spons)) as city_total_spons,
-                    sum(toInt32(organic)) as city_total_organic
-                FROM rb_kw_olap
-                WHERE lower(keyword) = lower({kw:String})
-                AND DATE BETWEEN {sd:String} AND {ed:String}
-                AND ${buildChannelCondition(channel, 'platform_name')}
-                GROUP BY location_name
-            )
             SELECT 
-                t.location_name AS city,
-                ROUND(sum(toInt32(t.overall)) * 100.0 / nullIf(ct.city_total_overall, 0), 2) AS overallSos,
-                ROUND(sum(toInt32(t.spons)) * 100.0 / nullIf(ct.city_total_spons, 0), 2) AS paidSos,
-                ROUND(sum(toInt32(t.organic)) * 100.0 / nullIf(ct.city_total_organic, 0), 2) AS organicSos,
-                ROUND(avgIf(t.POSITION, toInt32(t.overall) = 1), 1) AS overallRank,
-                ROUND(avgIf(t.POSITION, toInt32(t.spons) = 1), 1) AS paidRank,
-                ROUND(avgIf(t.POSITION, toInt32(t.organic) = 1), 1) AS organicRank
-            FROM rb_kw_olap t
-            LEFT JOIN city_totals ct ON t.location_name = ct.location_name
-            WHERE lower(t.keyword) = lower({kw:String})
-            AND lower(t.keyword_search_product) = lower({sku:String})
-            AND t.DATE BETWEEN {sd:String} AND {ed:String}
+                location_name AS city,
+                sumIf(toInt32(overall), lower(keyword_search_product) = lower({sku:String}) AND flag = 1 ${platformFilter} ${channelFilter}) AS num_overall,
+                sumIf(toInt32(organic), lower(keyword_search_product) = lower({sku:String}) AND flag = 1 ${platformFilter} ${channelFilter}) AS num_organic,
+                sumIf(toInt32(spons), lower(keyword_search_product) = lower({sku:String}) AND flag = 1 ${platformFilter} ${channelFilter}) AS num_spons,
+                sum(toInt32(overall)) AS den_overall,
+                sum(toInt32(organic)) AS den_organic,
+                sum(toInt32(spons)) AS den_spons,
+                ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overallSos,
+                ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organicSos,
+                ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paidSos,
+                ROUND(avgIf(POSITION, lower(keyword_search_product) = lower({sku:String}) AND toInt32(overall) = 1 ${platformFilter} ${channelFilter}), 1) AS overallRank,
+                ROUND(avgIf(POSITION, lower(keyword_search_product) = lower({sku:String}) AND toInt32(spons) = 1 ${platformFilter} ${channelFilter}), 1) AS paidRank,
+                ROUND(avgIf(POSITION, lower(keyword_search_product) = lower({sku:String}) AND toInt32(organic) = 1 ${platformFilter} ${channelFilter}), 1) AS organicRank
+            FROM rb_kw_olap
+            WHERE DATE BETWEEN {sd:String} AND {ed:String}
+            GROUP BY city 
+            HAVING num_overall > 0 
+            ORDER BY overallSos DESC 
+            LIMIT 50
         `;
 
-        const params = { kw: keyword, sku: sku, sd: startDate, ed: endDate };
-
-        if (platform && platform !== 'All') {
-            query += " AND lower(t.platform_name) = lower({plt:String})";
-            params.plt = platform;
-        }
-
-        query += " GROUP BY city, ct.city_total_overall, ct.city_total_spons, ct.city_total_organic ORDER BY overallSos DESC LIMIT 50";
+        const params = { sku: sku, sd: startDate, ed: endDate };
+        if (platform && platform !== 'All') params.plt = platform;
 
         try {
             const cities = await queryClickHouse(query, params);
@@ -3683,28 +3676,61 @@ class VisibilityService {
                     locationFilter += " AND lower(location_name) IN ('nation', 'national', 'all india', 'india', 'total')";
                 }
 
-                const query = `
-                    SELECT 
-                        location_name as city,
-                        sumIf(toInt32(overall), flag = 1) as num_overall,
-                        sum(toInt32(overall)) as den_overall,
-                        ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+                // For SKU mode: denominator = total city volume (all SKUs), numerator = this SKU with flag=1
+                // For keyword mode: denominator = total keyword volume in city, numerator = keyword with flag=1
+                const skuCondition = sku ? `lower(keyword_search_product) = lower('${escapeCH(sku)}')` : null;
+                const kwCondition = keyword ? `lower(keyword) = lower('${escapeCH(keyword)}')` : null;
 
-                        sumIf(toInt32(organic), flag = 1) as num_organic,
-                        sum(toInt32(organic)) as den_organic,
-                        ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+                let query;
+                if (sku) {
+                    // SKU mode: scan full table per city, use sumIf for numerator
+                    query = `
+                        SELECT 
+                            location_name as city,
+                            sumIf(toInt32(overall), ${skuCondition} AND flag = 1) as num_overall,
+                            sum(toInt32(overall)) as den_overall,
+                            ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
 
-                        sumIf(toInt32(spons), flag = 1) as num_spons,
-                        sum(toInt32(spons)) as den_spons,
-                        ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
-                    FROM rb_kw_olap
-                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                      AND ${platformCondition}
-                      AND ${buildCHCondition(dimValue, dimColumn)}
-                      ${locationFilter}
-                    GROUP BY location_name
-                    ORDER BY overall_sos DESC
-                `;
+                            sumIf(toInt32(organic), ${skuCondition} AND flag = 1) as num_organic,
+                            sum(toInt32(organic)) as den_organic,
+                            ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+
+                            sumIf(toInt32(spons), ${skuCondition} AND flag = 1) as num_spons,
+                            sum(toInt32(spons)) as den_spons,
+                            ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition}
+                          ${locationFilter}
+                        GROUP BY location_name
+                        HAVING num_overall > 0
+                        ORDER BY overall_sos DESC
+                    `;
+                } else {
+                    // Keyword mode: filter by keyword, numerator uses flag=1
+                    query = `
+                        SELECT 
+                            location_name as city,
+                            sumIf(toInt32(overall), flag = 1) as num_overall,
+                            sum(toInt32(overall)) as den_overall,
+                            ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
+
+                            sumIf(toInt32(organic), flag = 1) as num_organic,
+                            sum(toInt32(organic)) as den_organic,
+                            ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
+
+                            sumIf(toInt32(spons), flag = 1) as num_spons,
+                            sum(toInt32(spons)) as den_spons,
+                            ROUND(num_spons * 100.0 / nullIf(den_overall, 0), 2) AS paid_sos
+                        FROM rb_kw_olap
+                        WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition}
+                          AND ${buildCHCondition(dimValue, dimColumn)}
+                          ${locationFilter}
+                        GROUP BY location_name
+                        ORDER BY overall_sos DESC
+                    `;
+                }
 
                 const results = await queryClickHouse(query);
                 const locations = results.map(row => ({
