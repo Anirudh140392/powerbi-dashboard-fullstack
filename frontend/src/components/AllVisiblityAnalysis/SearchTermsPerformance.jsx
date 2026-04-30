@@ -67,7 +67,7 @@ const BrandSOSBreakdown = ({ brands, loading }) => {
 };
 
 /** Modal to display SKU details for a keyword */
-const SkuModal = ({ skus, title, onClose, loading }) => (
+const DrilldownModal = ({ items, title, onClose, loading, type = "sku" }) => (
   <div
     style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(2px)" }}
     onClick={onClose}
@@ -83,16 +83,16 @@ const SkuModal = ({ skus, title, onClose, loading }) => (
 
       {loading ? (
         <MiniSpinner />
-      ) : skus.length === 0 ? (
+      ) : items.length === 0 ? (
         <p style={{ color: "#94a3b8", fontSize: 14, textAlign: "center", padding: "32px 0", fontFamily: "'Inter', sans-serif" }}>
-          No SKUs available for this keyword
+          No {type === "sku" ? "SKUs" : "keywords"} available for this {type === "sku" ? "keyword" : "SKU"}
         </p>
       ) : (
-        <div style={{ maxHeight: 360, overflowY: "auto", flex: 1 }}>
+        <div style={{ maxHeight: 460, overflowY: "auto", flex: 1 }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
             <tr>
-              <th rowSpan={2} style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#fff" }}>SKU</th>
+              <th rowSpan={2} style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#fff" }}>{type === "sku" ? "SKU" : "Keyword"}</th>
               <th colSpan={2} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#fff" }}>Most Viewed Position</th>
             </tr>
             <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
@@ -101,19 +101,19 @@ const SkuModal = ({ skus, title, onClose, loading }) => (
             </tr>
           </thead>
           <tbody>
-            {skus.map((sku, i) => (
+            {items.map((item, i) => (
               <tr key={i} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fafbfc" : "#fff" }}>
                 <td style={{ padding: "12px 12px" }}>
-                  <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{sku.name}</div>
+                  <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{item.name}</div>
                 </td>
                 <td style={{ textAlign: "center", padding: "12px" }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: sku.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
-                    {sku.adPosition || "—"}
+                  <span style={{ fontSize: 15, fontWeight: 700, color: item.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                    {item.adPosition || "—"}
                   </span>
                 </td>
                 <td style={{ textAlign: "center", padding: "12px" }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: sku.organicPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
-                    {sku.organicPosition || "—"}
+                  <span style={{ fontSize: 15, fontWeight: 700, color: item.organicPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                    {item.organicPosition || "—"}
                   </span>
                 </td>
               </tr>
@@ -149,7 +149,7 @@ export default function SearchTermsPerformance() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [skuModal, setSkuModal] = useState(null);
+  const [drilldownModal, setDrilldownModal] = useState(null);
   const [hoveredKeyword, setHoveredKeyword] = useState(null);
   const [bbData, setBbData] = useState({});
   const [bbLoading, setBbLoading] = useState(false);
@@ -277,7 +277,7 @@ export default function SearchTermsPerformance() {
   const openSkuModal = useCallback(async (e, keywordName, isMySkus) => {
     e.stopPropagation();
     const title = isMySkus ? `My SKUs — "${keywordName}"` : `All SKUs — "${keywordName}"`;
-    setSkuModal({ title, skus: [], loading: true });
+    setDrilldownModal({ title, items: [], loading: true, type: "sku" });
     try {
       const data = await fetchSearchTermsPerformance({
         viewMode: "sku",
@@ -294,10 +294,37 @@ export default function SearchTermsPerformance() {
         keyword: keywordName,
         ownBrandsOnly: isMySkus,
       });
-      setSkuModal({ title, skus: data.items || [], loading: false });
+      setDrilldownModal({ title, items: data.items || [], loading: false, type: "sku" });
     } catch (err) {
       console.error("Error fetching SKU data for keyword:", err);
-      setSkuModal({ title, skus: [], loading: false });
+      setDrilldownModal({ title, items: [], loading: false, type: "sku" });
+    }
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd]);
+
+  const openKeywordModal = useCallback(async (e, skuName, isMyKeywords) => {
+    e.stopPropagation();
+    const title = isMyKeywords ? `My Keywords — "${skuName}"` : `All Keywords — "${skuName}"`;
+    setDrilldownModal({ title, items: [], loading: true, type: "keyword" });
+    try {
+      const data = await fetchSearchTermsPerformance({
+        viewMode: "keyword",
+        platform: globalPlatform || "All",
+        brand: isMyKeywords ? (selectedBrand || "All") : "All",
+        location: (selectedLocation && selectedLocation !== "All") 
+          ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
+          : "All",
+        category: selectedCategory || "All",
+        startDate: timeStart, endDate: timeEnd,
+        keywordTypeFilter: activeFilter.toLowerCase(),
+        keywordType: selectedKeywordType || "All",
+        channel: selectedChannel || "All",
+        sku: skuName,
+        ownBrandsOnly: isMyKeywords,
+      });
+      setDrilldownModal({ title, items: data.items || [], loading: false, type: "keyword" });
+    } catch (err) {
+      console.error("Error fetching Keyword data for SKU:", err);
+      setDrilldownModal({ title, items: [], loading: false, type: "keyword" });
     }
   }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd]);
 
@@ -697,6 +724,16 @@ export default function SearchTermsPerformance() {
                           style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All SKUs</button>
                       </div>
                     )}
+
+                    {/* My Keywords / All Keywords buttons — only in SKU mode */}
+                    {activeView === "sku" && (
+                      <div style={{ display: "flex", gap: 6, paddingLeft: 30 + (row.imageUrl || true ? 44 : 0) }}>
+                        <button className="sku-btn" onClick={(e) => openKeywordModal(e, row.name, true)}
+                          style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>My Keywords</button>
+                        <button className="sku-btn" onClick={(e) => openKeywordModal(e, row.name, false)}
+                          style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All Keywords</button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Leading Brand — keyword mode only */}
@@ -799,8 +836,16 @@ export default function SearchTermsPerformance() {
         )}
       </div>
 
-      {/* SKU Modal */}
-      {skuModal && <SkuModal skus={skuModal.skus} title={skuModal.title} loading={skuModal.loading} onClose={() => setSkuModal(null)} />}
+      {/* Drilldown Modal (SKU/Keyword) */}
+      {drilldownModal && (
+        <DrilldownModal 
+          items={drilldownModal.items} 
+          title={drilldownModal.title} 
+          loading={drilldownModal.loading} 
+          type={drilldownModal.type} 
+          onClose={() => setDrilldownModal(null)} 
+        />
+      )}
 
       {/* Local Filter Modal - Colorful Two-Pane Theme */}
       <AnimatePresence>

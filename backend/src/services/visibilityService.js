@@ -3407,7 +3407,8 @@ class VisibilityService {
                     startDate,
                     endDate,
                     category = 'All',
-                    channel = 'All'
+                    channel = 'All',
+                    sku = 'All'
                 } = filters;
 
                 const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
@@ -3422,6 +3423,7 @@ class VisibilityService {
                 const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
                 const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
                 const keywordCondition = buildCHCondition(keyword, 'keyword');
+                const skuCondition = buildCHCondition(sku, 'keyword_search_product');
                 const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
 
                 const dimColumn = viewMode === 'keyword' ? 'keyword' : 'keyword_search_product';
@@ -3443,6 +3445,7 @@ class VisibilityService {
                       AND ${categoryCondition}
                       AND ${brandCondition}
                       AND ${globalKeywordTypeCondition}
+                      AND ${skuCondition}
                       ${ownBrandsCondition}
                       AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                 `;
@@ -3480,6 +3483,7 @@ class VisibilityService {
                       AND ${globalKeywordTypeCondition}
                       AND ${localKeywordTypeCondition}
                       AND ${keywordCondition}
+                      AND ${skuCondition}
                       ${ownBrandsCondition}
                       AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                     GROUP BY ${dimColumn}
@@ -3567,6 +3571,7 @@ class VisibilityService {
                               AND ${globalKeywordTypeCondition}
                               AND ${localKeywordTypeCondition}
                               AND ${keywordCondition}
+                              AND ${skuCondition}
                               ${ownBrandsCondition}
                               AND keyword IS NOT NULL AND keyword != ''
                         `;
@@ -3595,6 +3600,7 @@ class VisibilityService {
                               AND ${globalKeywordTypeCondition}
                               AND ${localKeywordTypeCondition}
                               AND ${keywordCondition}
+                              AND ${skuCondition}
                               ${ownBrandsCondition}
                               AND keyword IS NOT NULL AND keyword != ''
                               AND location_name IS NOT NULL AND location_name != ''
