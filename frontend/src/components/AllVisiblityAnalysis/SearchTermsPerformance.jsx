@@ -728,8 +728,6 @@ export default function SearchTermsPerformance() {
                     {/* My Keywords / All Keywords buttons — only in SKU mode */}
                     {activeView === "sku" && (
                       <div style={{ display: "flex", gap: 6, paddingLeft: 30 + (row.imageUrl || true ? 44 : 0) }}>
-                        <button className="sku-btn" onClick={(e) => openKeywordModal(e, row.name, true)}
-                          style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>My Keywords</button>
                         <button className="sku-btn" onClick={(e) => openKeywordModal(e, row.name, false)}
                           style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All Keywords</button>
                       </div>
