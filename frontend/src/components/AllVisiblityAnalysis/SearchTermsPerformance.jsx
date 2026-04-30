@@ -430,7 +430,7 @@ export default function SearchTermsPerformance() {
                           fontSize: 14, fontWeight: 800, color: "#312e81", letterSpacing: "-0.01em",
                           fontFamily: "'Inter', sans-serif",
                         }}>
-                          {activeFilter === "All" ? "All Keywords" : `${activeFilter} Keywords`}
+                          {activeFilter === "All" ? "Overview" : `${activeFilter} Overview`}
                         </span>
                         <span style={{
                           background: "#4f46e5", color: "#fff", fontSize: 9, fontWeight: 700,

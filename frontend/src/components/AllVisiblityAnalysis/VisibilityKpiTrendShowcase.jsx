@@ -521,6 +521,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
     formats: [],      // from keyword_search_product (category)
     cities: [],       // from location_name
     productNames: [], // from keyword
+    keywordTypes: [], // from keyword_type
     brands: [],       // from brand_crawl where is_competitor_product=1
     loading: false,
     error: null
@@ -540,6 +541,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
           axiosInstance.get(`/visibility-analysis/filter-options?filterType=formats&channel=${selectedChannel || 'All'}`),
           axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities${value.formats.length ? `&format=${value.formats[0]}` : ''}&channel=${selectedChannel || 'All'}`),
           axiosInstance.get(`/visibility-analysis/filter-options?filterType=productName&channel=${selectedChannel || 'All'}`),
+          axiosInstance.get(`/visibility-analysis/filter-options?filterType=keywordType&channel=${selectedChannel || 'All'}`),
           axiosInstance.get(`/visibility-analysis/filter-options?filterType=brands&channel=${selectedChannel || 'All'}`)
         ]);
 
@@ -548,6 +550,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
           formats: (formatsRes.data?.options || []).filter(f => f && f !== 'All'),
           cities: (citiesRes.data?.options || []).filter(c => c && c !== 'All'),
           productNames: (productNamesRes.data?.options || []).filter(p => p && p !== 'All'),
+          keywordTypes: (keywordTypeRes.data?.options || []).filter(k => k && k !== 'All'),
           brands: (brandsRes.data?.options || []).filter(b => b && b !== 'All'),
           loading: false,
           error: null
@@ -557,6 +560,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
           formats: formatsRes.data?.options?.length || 0,
           cities: citiesRes.data?.options?.length || 0,
           productNames: productNamesRes.data?.options?.length || 0,
+          keywordTypes: keywordTypeRes.data?.options?.length || 0,
           brands: brandsRes.data?.options?.length || 0
         });
       } catch (error) {
@@ -573,13 +577,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
   }, [open, value.formats]); // Refetch when formats change (cascading for cities)
 
   // Filter tabs - mapped to rb_kw_olap columns (platform first for Platform KPI Matrix)
-  const tabOptions = ["platform", "format", "city", "productName", "brand"];
+  const tabOptions = ["platform", "format", "city", "keywordType", "productName", "brand"];
 
   const getListForTab = () => {
     if (activeTab === "platform") return filterOptions.platforms;
     if (activeTab === "format") return filterOptions.formats;
     if (activeTab === "city") return filterOptions.cities;
     if (activeTab === "brand") return filterOptions.brands;
+    if (activeTab === "keywordType") return filterOptions.keywordTypes;
     return filterOptions.productNames;
   };
 
@@ -599,7 +604,9 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
           ? "cities"
           : activeTab === "brand"
             ? "brands"
-            : "productNames";
+            : activeTab === "keywordType"
+              ? "keywordType"
+              : "productNames";
 
   // Handle toggle with cascading filter reset
   const handleToggle = (type, item) => {
@@ -670,6 +677,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
                     {t === "platform" && "Platform"}
                     {t === "format" && "Format"}
                     {t === "city" && "City"}
+                    {t === "keywordType" && "Keyword Type"}
                     {t === "productName" && "Product Name"}
                     {t === "brand" && "Brand"}
                   </TabsTrigger>
@@ -749,10 +757,10 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, onApply }) => {
 };
 
 
-const MetricChip = ({ label, color, active, onClick }) => {
+const MetricChip = ({ label, color, active, onClick, disabled }) => {
   return (
     <Box
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -760,14 +768,15 @@ const MetricChip = ({ label, color, active, onClick }) => {
         px: 1.5,
         py: 0.6,
         borderRadius: "999px",
-        cursor: "pointer",
-        border: `1px solid ${active ? color : "#E5E7EB"}`,
-        backgroundColor: active ? `${color}20` : "white",
-        color: active ? color : "#0f172a",
+        cursor: disabled ? "not-allowed" : "pointer",
+        border: `1px solid ${disabled ? "#E5E7EB" : (active ? color : "#E5E7EB")}`,
+        backgroundColor: disabled ? "#F3F4F6" : (active ? `${color}20` : "white"),
+        color: disabled ? "#9CA3AF" : (active ? color : "#0f172a"),
         fontSize: "12px",
         fontWeight: 600,
         userSelect: "none",
         transition: "all 0.15s ease",
+        opacity: disabled ? 0.6 : 1,
       }}
     >
       {/* CHECKBOX ICON */}
@@ -776,8 +785,8 @@ const MetricChip = ({ label, color, active, onClick }) => {
           width: 14,
           height: 14,
           borderRadius: 3,
-          border: `2px solid ${active ? color : "#CBD5E1"}`,
-          backgroundColor: active ? color : "transparent",
+          border: `2px solid ${disabled ? "#D1D5DB" : (active ? color : "#CBD5E1")}`,
+          backgroundColor: disabled ? "transparent" : (active ? color : "transparent"),
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -786,7 +795,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
           lineHeight: 1,
         }}
       >
-        {active && "✓"}
+        {active && !disabled && "✓"}
       </Box>
 
       {label}
@@ -798,14 +807,78 @@ const MetricChip = ({ label, color, active, onClick }) => {
 /*                                Trend View                                  */
 /* -------------------------------------------------------------------------- */
 
+const BASE_KPI_KEYS = [
+  {
+    key: "overall_sos",
+    label: "Overall SOS",
+    color: "#2563EB", // blue
+    unit: "%",
+  },
+  {
+    key: "sponsored_sos",
+    label: "Sponsored SOS",
+    color: "#DC2626", // red
+    unit: "%",
+  },
+  {
+    key: "organic_sos",
+    label: "Organic SOS",
+    color: "#16A34A", // green
+    unit: "%",
+  },
+];
+
+const OFFTAKE_KPI_KEYS = [
+  {
+    key: "offtake",
+    label: "Offtake",
+    color: "#8B5CF6", // purple
+    prefix: "₹",
+  },
+];
+
+const SEARCH_RANK_KPI_KEY = {
+  key: "search_rank",
+  label: "Search Rank",
+  color: "#F59E0B", // amber
+};
+
 const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competitionBrands = [] }) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState("overall_sos");
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState({ brands: {}, days: [] });
+  const [selectedChannel, setSelectedChannel] = useState("All");
+
+  const hasKeywordFilter = useMemo(() => {
+    const isNotAll = (val) => {
+      if (!val) return false;
+      if (Array.isArray(val)) {
+        if (val.length === 0) return false;
+        return !val.some(v => String(v).toLowerCase() === 'all');
+      }
+      return String(val).toLowerCase() !== 'all';
+    };
+    return mode === 'keyword' || isNotAll(filters?.productNames) || isNotAll(filters?.keywordType);
+  }, [mode, filters]);
+
+  const activeKpiKeys = useMemo(() => {
+    const keys = [...BASE_KPI_KEYS];
+    if (!hasKeywordFilter) {
+      keys.push(...OFFTAKE_KPI_KEYS);
+    }
+    keys.push({ ...SEARCH_RANK_KPI_KEY, disabled: !hasKeywordFilter });
+    return keys;
+  }, [hasKeywordFilter]);
+
+  useEffect(() => {
+    if (!hasKeywordFilter && activeMetric === "search_rank") {
+      setActiveMetric("overall_sos");
+    }
+  }, [hasKeywordFilter, activeMetric]);
 
   const metricMeta =
-    KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
+    activeKpiKeys.find((m) => m.key === activeMetric) || activeKpiKeys[0];
 
   const isBrandMode = mode === "brand";
 
@@ -844,6 +917,8 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
           platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
           location: filters.cities?.length > 0 ? filters.cities.map(c => c.toLowerCase()).join(',') : undefined,
           format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
+          productName: filters.productNames?.length > 0 ? filters.productNames.join(',') : undefined,
+          keywordType: filters.keywordType?.length > 0 ? filters.keywordType.join(',') : undefined,
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M',
           channel: selectedChannel || 'All'
@@ -868,7 +943,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
     };
 
     fetchTrendData();
-  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, selectedChannel]);
+  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, filters.productNames, filters.keywordType, selectedChannel]);
 
 
 
@@ -894,10 +969,11 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
   const brandEntries = Object.entries(trendData.brands || {});
 
   const formatValue = (v) => {
-    if (metricMeta.unit) return `${v}${metricMeta.unit}`;
-    if (metricMeta.prefix) return `${metricMeta.prefix}${v}`;
-    if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
-    return v;
+    const val = activeMetric === "search_rank" ? Math.round(Number(v)) : v;
+    if (metricMeta.unit) return `${val}${metricMeta.unit}`;
+    if (metricMeta.prefix) return `${metricMeta.prefix}${val}`;
+    if (metricMeta.suffix) return `${val}${metricMeta.suffix}`;
+    return val;
   };
 
   // Loading skeleton
@@ -962,12 +1038,13 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
         <div className="space-y-2">
           {/* KPI CHIP SELECTOR */}
           <Box display="flex" gap={1} flexWrap="wrap">
-            {KPI_KEYS.map((m) => (
+            {activeKpiKeys.map((m) => (
               <MetricChip
                 key={m.key}
                 label={m.label}
                 color={m.color}
-                active={activeMetric === m.key}
+                active={activeMetric === m.key && !m.disabled}
+                disabled={m.disabled}
                 onClick={() => setActiveMetric(m.key)}
               />
             ))}
@@ -1042,30 +1119,12 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
 /*                             KPI Compare View (4 tiles)                     */
 /* -------------------------------------------------------------------------- */
 
-const KPI_KEYS = [
-  {
-    key: "overall_sos",
-    label: "Overall SOS",
-    color: "#2563EB", // blue
-    unit: "%",
-  },
-  {
-    key: "sponsored_sos",
-    label: "Sponsored SOS",
-    color: "#DC2626", // red
-    unit: "%",
-  },
-  {
-    key: "organic_sos",
-    label: "Organic SOS",
-    color: "#16A34A", // green
-    unit: "%",
-  },
-];
-
 const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands = [] }) => {
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState({ brands: {}, days: [] });
+  const [selectedChannel, setSelectedChannel] = useState("All");
+
+  const activeKpiKeys = useMemo(() => getKpiKeys(mode, filters), [mode, filters]);
 
   // Determine which items to compare
   const selectedItems = useMemo(() => {
@@ -1102,6 +1161,8 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
           platform: filters.platforms?.length > 0 ? filters.platforms.join(',') : undefined,
           location: filters.cities?.length > 0 ? filters.cities.map(c => c.toLowerCase()).join(',') : undefined,
           format: filters.formats?.length > 0 ? filters.formats.join(',') : undefined,
+          productName: filters.productNames?.length > 0 ? filters.productNames.join(',') : undefined,
+          keywordType: filters.keywordType?.length > 0 ? filters.keywordType.join(',') : undefined,
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M',
           channel: selectedChannel || 'All'
@@ -1123,7 +1184,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
     };
 
     fetchTrendData();
-  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, selectedChannel]);
+  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, filters.productNames, filters.keywordType, selectedChannel]);
 
   // Build chart data for a specific KPI
   const chartDataFor = (kpiKey) => {
@@ -1232,7 +1293,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
       </CardHeader>
 
       <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
-        {KPI_KEYS.map((kpi) => (
+        {activeKpiKeys.map((kpi) => (
           <Card
             key={kpi.key}
             className="border-slate-200 bg-slate-50/80 shadow-none hover:bg-slate-50"
@@ -1248,8 +1309,24 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
                 >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="date" hide />
-                  <YAxis tickLine={false} fontSize={10} width={32} />
-                  <Tooltip formatter={(value) => `${value}%`} />
+                  <YAxis 
+                    tickLine={false} 
+                    fontSize={10} 
+                    width={40} 
+                    tickFormatter={(val) => {
+                      if (kpi.key === "offtake") {
+                        if (val >= 1000000) return `₹${(val / 1000000).toFixed(1)}M`;
+                        if (val >= 1000) return `₹${(val / 1000).toFixed(0)}K`;
+                        return `₹${val}`;
+                      }
+                      return `${val}%`;
+                    }}
+                  />
+                  <Tooltip 
+                    formatter={(value) => 
+                      kpi.key === "offtake" ? `₹${value}` : `${value}%`
+                    } 
+                  />
                   <Legend />
                   {brandEntries.map(([brandName, brandData]) => (
                     <Line
@@ -1556,6 +1633,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
     formats: [],      // from keyword_search_product (category)
     cities: [],       // from location_name
     productNames: [], // from keyword
+    keywordType: [],  // from keyword_type
     // Legacy filter keys (used by useMemo hooks)
     categories: [],
     brands: [],
@@ -1579,6 +1657,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
         format: filters.formats.length > 0 ? filters.formats.join(',') : undefined,
         city: filters.cities.length > 0 ? filters.cities.map(c => c.toLowerCase()).join(',') : undefined,
         productName: filters.productNames.length > 0 ? filters.productNames.join(',') : undefined,
+        keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : undefined,
         brand: filters.brands.length > 0 ? filters.brands.join(',') : undefined,
         channel: selectedChannel || 'All'
       };
@@ -1608,6 +1687,7 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
     filters.formats.length +
     filters.cities.length +
     filters.productNames.length +
+    filters.keywordType.length +
     filters.brands.length;
 
   // Dynamic filtered rows for table for the active tab + city

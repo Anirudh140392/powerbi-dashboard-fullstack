@@ -174,7 +174,11 @@ export const getVisibilityFilterOptions = async (req, res) => {
             city: req.query.city || 'All',
             metroFlag: req.query.metroFlag || 'All',
             brand: req.query.brand || 'All',
-            ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true'
+            keywordType: req.query.keywordType || 'All',
+            keyword: req.query.keyword || 'All',
+            sku: req.query.sku || 'All',
+            ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true',
+            channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
