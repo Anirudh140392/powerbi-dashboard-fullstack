@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useContext, useMemo } from "react";
 import { FilterContext } from "../../utils/FilterContext";
-import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown } from "../../api/visibilityService";
+import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown, fetchVisibilityFilterOptions } from "../../api/visibilityService";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download } from "lucide-react";
+import { Download, Search, X, Filter, ChevronRight } from "lucide-react";
+
 
 const sosColor = (val) => {
   if (val === 0) return "#94a3b8";
@@ -154,22 +155,32 @@ export default function SearchTermsPerformance() {
   const [bbLoading, setBbLoading] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Local Filter State
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("Platform");
+  const [optionSearch, setOptionSearch] = useState("");
+  const [localFilters, setLocalFilters] = useState({ platform: [], category: [], brand: [] });
+  const [tempLocalFilters, setTempLocalFilters] = useState({ platform: [], category: [], brand: [] });
+  const [filterOptions, setFilterOptions] = useState({ platforms: [], categories: [], brands: [] });
+  const [optionsLoading, setOptionsLoading] = useState({ platforms: false, categories: false, brands: false });
 
   // Removed local skuPlatform state - now using global platform filter
   const currentSkuPlatform = globalPlatform || "All";
 
-  const filterParams = useMemo(() => {
-    const normalize = (val) => {
-      if (!val || val === "All") return "All";
-      return Array.isArray(val) ? val.join(',').toLowerCase() : String(val).toLowerCase();
-    };
+  const normalize = (val) => {
+    if (!val || val === "All" || (Array.isArray(val) && val.length === 0)) return "All";
+    return Array.isArray(val) ? val.join(',') : String(val);
+  };
 
+  const filterParams = useMemo(() => {
     return {
       viewMode: activeView === "keyword" ? "keyword" : "sku",
-      platform: normalize(activeView === "sku" ? currentSkuPlatform : globalPlatform),
-      brand: normalize(selectedBrand),
+      platform: normalize(localFilters.platform.length > 0 ? localFilters.platform : (activeView === "sku" ? currentSkuPlatform : globalPlatform)),
+      brand: normalize(localFilters.brand.length > 0 ? localFilters.brand : selectedBrand),
       location: normalize(selectedLocation),
-      category: normalize(selectedCategory),
+      category: normalize(localFilters.category.length > 0 ? localFilters.category : selectedCategory),
       keyword: normalize(selectedKeyword),
       keywordTypeFilter: activeFilter.toLowerCase(),
       keywordType: normalize(selectedKeywordType),
@@ -178,7 +189,7 @@ export default function SearchTermsPerformance() {
       startDate: timeStart,
       endDate: timeEnd,
     };
-  }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd]);
+  }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd, localFilters]);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,17 +216,49 @@ export default function SearchTermsPerformance() {
     return () => { cancelled = true; };
   }, [filterParams]);
 
+  // Fetch filter options when modal opens or temp filters change
+  useEffect(() => {
+    if (!isFilterModalOpen) return;
+
+    let cancelled = false;
+
+    const loadOptions = async (type, key) => {
+      setOptionsLoading(prev => ({ ...prev, [key]: true }));
+      try {
+        const params = {
+          filterType: type,
+          platform: type === "platforms" ? "All" : normalize(tempLocalFilters.platform.length > 0 ? tempLocalFilters.platform : globalPlatform),
+          brand: type === "brands" ? "All" : normalize(tempLocalFilters.brand.length > 0 ? tempLocalFilters.brand : selectedBrand),
+          format: type === "categories" ? "All" : normalize(tempLocalFilters.category.length > 0 ? tempLocalFilters.category : selectedCategory),
+          channel: selectedChannel,
+          city: selectedLocation
+        };
+        const data = await fetchVisibilityFilterOptions(params);
+        if (!cancelled) {
+          setFilterOptions(prev => ({ ...prev, [key]: data.options || [] }));
+        }
+      } catch (err) {
+        console.error(`Error fetching ${type} options:`, err);
+        if (!cancelled) setFilterOptions(prev => ({ ...prev, [key]: [] }));
+      } finally {
+        if (!cancelled) setOptionsLoading(prev => ({ ...prev, [key]: false }));
+      }
+    };
+
+    loadOptions("platforms", "platforms");
+    loadOptions("categories", "categories");
+    loadOptions("brands", "brands");
+
+    return () => { cancelled = true; };
+  }, [isFilterModalOpen, tempLocalFilters.platform, tempLocalFilters.category, tempLocalFilters.brand, globalPlatform, selectedBrand, selectedCategory, selectedChannel, selectedLocation]);
+
   const toggleRow = useCallback(async (itemName) => {
     setExpandedRows(prev => ({ ...prev, [itemName]: !prev[itemName] }));
     if (!locationData[itemName] && !locationLoading[itemName]) {
       setLocationLoading(prev => ({ ...prev, [itemName]: true }));
       try {
         const params = { 
-          platform: globalPlatform || "All", 
-          brand: selectedBrand || "All", 
-          channel: selectedChannel || "All",
-          startDate: timeStart, 
-          endDate: timeEnd 
+          ...filterParams
         };
         if (activeView === "keyword") params.keyword = itemName;
         else params.sku = itemName;
@@ -305,8 +348,14 @@ export default function SearchTermsPerformance() {
     URL.revokeObjectURL(url);
   };
 
-  const totalPages = Math.max(1, Math.ceil(items.length / rowsPerPage));
-  const paginatedItems = items.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return items;
+    const q = searchQuery.trim().toLowerCase();
+    return items.filter(item => (item.name || "").toLowerCase().includes(q));
+  }, [items, searchQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
+  const paginatedItems = filteredItems.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const GRID = activeView === "keyword"
     ? "minmax(260px,1fr) 150px 130px 130px 130px"
     : "minmax(260px,1fr) 130px 130px 130px";
@@ -328,17 +377,75 @@ export default function SearchTermsPerformance() {
 
       {/* Controls Row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2 }}>
-          {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }].map(v => (
-            <button key={v.id} onClick={() => setActiveView(v.id)} style={{
-              padding: "7px 20px", borderRadius: 8, border: "none", cursor: "pointer",
-              fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
-              background: activeView === v.id ? "#0f172a" : "transparent",
-              color: activeView === v.id ? "#fff" : "#64748b",
-              boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
-            }}>{v.label}</button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2 }}>
+            {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }].map(v => (
+              <button key={v.id} onClick={() => { setActiveView(v.id); setSearchQuery(""); }} style={{
+                padding: "7px 20px", borderRadius: 8, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+                background: activeView === v.id ? "#0f172a" : "transparent",
+                color: activeView === v.id ? "#fff" : "#64748b",
+                boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
+              }}>{v.label}</button>
+            ))}
+          </div>
+
+          {/* Search Bar */}
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <Search size={15} style={{ position: "absolute", left: 10, color: "#94a3b8", pointerEvents: "none" }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+              placeholder={activeView === "keyword" ? "Search keywords..." : "Search SKUs..."}
+              style={{
+                padding: "7px 32px 7px 32px",
+                borderRadius: 10,
+                border: "1.5px solid #e2e8f0",
+                background: "#fff",
+                fontSize: 13,
+                fontFamily: "'Inter', sans-serif",
+                color: "#0f172a",
+                width: 220,
+                outline: "none",
+                transition: "border-color 0.18s, box-shadow 0.18s",
+              }}
+              onFocus={(e) => { e.target.style.borderColor = "#3b82f6"; e.target.style.boxShadow = "0 0 0 3px rgba(59,130,246,0.1)"; }}
+              onBlur={(e) => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(""); setPage(0); }}
+                style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", color: "#94a3b8" }}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Local Filter Button */}
+          <button
+            onClick={() => {
+              setTempLocalFilters(localFilters);
+              setIsFilterModalOpen(true);
+            }}
+            style={{
+              padding: "7px 14px", borderRadius: 10, border: "1.5px solid #bfdbfe", background: "#eff6ff", color: "#3b82f6",
+              fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6, transition: "all 0.18s",
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = "#dbeafe"; e.currentTarget.style.borderColor = "#93c5fd"; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.borderColor = "#bfdbfe"; }}
+          >
+            <Filter size={15} />
+            <span>Filter Segment</span>
+            {(localFilters.platform.length > 0 || localFilters.category.length > 0 || localFilters.brand.length > 0) && (
+               <div style={{ width: 8, height: 8, background: "#ef4444", borderRadius: "50%", marginLeft: 4 }} />
+            )}
+          </button>
         </div>
+
         <div style={{ display: "flex", gap: 7 }}>
           {activeView === "keyword" && (
             ["All", "Branded", "Competition", "Generic"].map(f => (
@@ -391,8 +498,10 @@ export default function SearchTermsPerformance() {
 
         {loading ? (
           <LoadingSpinner />
-        ) : items.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8", fontSize: 14, fontFamily: "'Inter', sans-serif" }}>No data available for the selected filters</div>
+        ) : filteredItems.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8", fontSize: 14, fontFamily: "'Inter', sans-serif" }}>
+            {searchQuery.trim() ? `No results matching "${searchQuery}"` : "No data available for the selected filters"}
+          </div>
         ) : (
           <>
             {/* ── Summary Aggregate Row ── */}
@@ -653,7 +762,7 @@ export default function SearchTermsPerformance() {
                         <div key={li} style={{ display: "grid", gridTemplateColumns: GRID, padding: "11px 24px", alignItems: "center", gap: 8, borderBottom: li < (locationData[row.name] || []).length - 1 ? "1px solid #e2e8f0" : "none", background: li % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 30 }}>
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3b82f6", display: "inline-block", flexShrink: 0 }} />
-                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{loc.city}</span>
+                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500, textTransform: "capitalize" }}>{loc.city}</span>
                           </div>
                           {activeView === "keyword" && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
@@ -670,7 +779,7 @@ export default function SearchTermsPerformance() {
         )}
 
         {/* Pagination */}
-        {!loading && items.length > 0 && (
+        {!loading && filteredItems.length > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 24px", borderTop: "1px solid #e2e8f0", background: "#fafafa" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button disabled={page === 0} onClick={() => setPage(p => Math.max(0, p - 1))}
@@ -692,6 +801,181 @@ export default function SearchTermsPerformance() {
 
       {/* SKU Modal */}
       {skuModal && <SkuModal skus={skuModal.skus} title={skuModal.title} loading={skuModal.loading} onClose={() => setSkuModal(null)} />}
+
+      {/* Local Filter Modal - Colorful Two-Pane Theme */}
+      <AnimatePresence>
+        {isFilterModalOpen && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.4)", backdropFilter: "blur(4px)" }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              style={{ background: "#f8fafc", borderRadius: 16, width: "100%", maxWidth: 650, height: 460, boxShadow: "0 24px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}
+            >
+              {/* Header */}
+              <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>Filters</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <button
+                    onClick={() => setTempLocalFilters({ platform: [], category: [], brand: [] })}
+                    style={{ border: "none", background: "none", cursor: "pointer", color: "#0066ff", fontWeight: 600, fontSize: 14, fontFamily: "'Inter', sans-serif" }}
+                  >
+                    Clear All
+                  </button>
+                  <button onClick={() => setIsFilterModalOpen(false)} style={{ border: "none", background: "#f1f5f9", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}>
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+                {/* Sidebar */}
+                <div style={{ width: 220, borderRight: "1px solid #e2e8f0", padding: "16px 0", background: "#f8fafc", overflowY: "auto" }}>
+                  {[
+                    { id: "Platform", label: "Platform" },
+                    { id: "Category", label: "Category" },
+                    { id: "Brand", label: "Brand" }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => { setActiveTab(tab.id); setOptionSearch(""); }}
+                      style={{
+                        width: "100%", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", border: "none",
+                        background: activeTab === tab.id ? "#eff6ff" : "transparent",
+                        color: activeTab === tab.id ? "#0066ff" : "#64748b",
+                        borderLeft: activeTab === tab.id ? "3px solid #0066ff" : "3px solid transparent",
+                        cursor: "pointer", fontSize: 14, fontWeight: activeTab === tab.id ? 600 : 500, fontFamily: "'Inter', sans-serif",
+                        transition: "all 0.1s"
+                      }}
+                    >
+                      <span>{tab.label}</span>
+                      {activeTab === tab.id && <ChevronRight size={16} color="#0066ff" />}
+                      {activeTab !== tab.id && <ChevronRight size={16} color="#cbd5e1" />}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Content Pane */}
+                <div style={{ flex: 1, padding: 24, overflowY: "auto", background: "#fff" }}>
+                  <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 24px", minHeight: 220, position: "relative" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>{activeTab}</h4>
+                      <button
+                        onClick={() => {
+                          const keyMap = { "Platform": "platform", "Category": "category", "Brand": "brand" };
+                          setTempLocalFilters(prev => ({ ...prev, [keyMap[activeTab]]: [] }));
+                        }}
+                        style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b", fontWeight: 600, fontSize: 13, fontFamily: "'Inter', sans-serif" }}
+                      >
+                        Reset
+                      </button>
+                    </div>
+
+                    {/* Checkbox List with Search */}
+                    {(() => {
+                      const keyMap = { "Platform": "platform", "Category": "category", "Brand": "brand" };
+                      const optionMap = { "Platform": filterOptions.platforms, "Category": filterOptions.categories, "Brand": filterOptions.brands };
+                      const loadingMap = { "Platform": optionsLoading.platforms, "Category": optionsLoading.categories, "Brand": optionsLoading.brands };
+                      
+                      const filterKey = keyMap[activeTab];
+                      const allOptions = optionMap[activeTab] || [];
+                      const isLoading = loadingMap[activeTab];
+                      const activeValues = tempLocalFilters[filterKey] || [];
+                      const filteredOptions = allOptions.filter(o => o.toLowerCase().includes(optionSearch.toLowerCase()));
+                      const isNoneSelected = activeValues.includes('__NONE__');
+                      const isAllSelected = activeValues.length === 0 || (!isNoneSelected && activeValues.length === allOptions.length);
+
+                      const toggleOption = (opt) => {
+                        setTempLocalFilters(prev => {
+                          let current = prev[filterKey] || [];
+                          const wasNone = current.includes('__NONE__');
+                          
+                          if (wasNone) {
+                            // If they previously deselected all, selecting one should select ONLY that one
+                            return { ...prev, [filterKey]: [opt] };
+                          }
+                          
+                          if (current.length === 0) {
+                            // If currently in "All" state, clicking one unchecks it
+                            return { ...prev, [filterKey]: allOptions.filter(x => x !== opt) };
+                          } else if (current.includes(opt)) {
+                            const next = current.filter(x => x !== opt);
+                            if (next.length === 0) return { ...prev, [filterKey]: ['__NONE__'] };
+                            return { ...prev, [filterKey]: next };
+                          } else {
+                            const next = [...current, opt];
+                            if (next.length === allOptions.length) return { ...prev, [filterKey]: [] };
+                            return { ...prev, [filterKey]: next };
+                          }
+                        });
+                      };
+
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", height: 260 }}>
+                          <div style={{ marginBottom: 16, position: "relative" }}>
+                            <Search size={16} color="#94a3b8" style={{ position: "absolute", left: 12, top: 10 }} />
+                            <input 
+                              type="text" 
+                              placeholder="Search" 
+                              value={optionSearch}
+                              onChange={e => setOptionSearch(e.target.value)}
+                              style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f8fafc", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif" }}
+                            />
+                          </div>
+                          
+                          <div style={{ flex: 1, overflowY: "auto", paddingRight: 8 }}>
+                            {isLoading ? (
+                              <div style={{ padding: 12, color: "#64748b", fontSize: 13, fontFamily: "'Inter', sans-serif" }}>Loading...</div>
+                            ) : (
+                              <>
+                                <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 4px", borderBottom: "1px solid #f1f5f9" }}>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                                    <input type="checkbox" checked={isAllSelected} onChange={() => setTempLocalFilters(prev => ({...prev, [filterKey]: isAllSelected ? ['__NONE__'] : []}))} style={{ accentColor: "#0066ff", width: 16, height: 16, cursor: "pointer" }} />
+                                    <span style={{ fontSize: 14, color: "#334155", fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>Select All</span>
+                                  </label>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                                    <input type="checkbox" checked={isNoneSelected} onChange={() => setTempLocalFilters(prev => ({...prev, [filterKey]: isNoneSelected ? [] : ['__NONE__']}))} style={{ accentColor: "#ef4444", width: 16, height: 16, cursor: "pointer" }} />
+                                    <span style={{ fontSize: 14, color: "#334155", fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>Deselect All</span>
+                                  </label>
+                                </div>
+                                {filteredOptions.map(opt => (
+                                  <label key={opt} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", cursor: "pointer" }}>
+                                    <input type="checkbox" checked={isAllSelected || (!isNoneSelected && activeValues.includes(opt))} onChange={() => toggleOption(opt)} style={{ accentColor: "#0066ff", width: 16, height: 16, cursor: "pointer" }} />
+                                    <span style={{ fontSize: 14, color: "#475569", fontFamily: "'Inter', sans-serif" }}>{opt}</span>
+                                  </label>
+                                ))}
+                                {filteredOptions.length === 0 && !isLoading && (
+                                  <div style={{ padding: "12px 4px", color: "#94a3b8", fontSize: 13, fontFamily: "'Inter', sans-serif" }}>No options found.</div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", background: "#fff" }}>
+                <button
+                  onClick={() => {
+                    setLocalFilters(tempLocalFilters);
+                    setPage(0);
+                    setIsFilterModalOpen(false);
+                  }}
+                  style={{ padding: "10px 32px", borderRadius: 8, border: "none", background: "#0066ff", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter', sans-serif", boxShadow: "0 4px 12px rgba(0,102,255,0.25)" }}
+                >
+                  Apply
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
