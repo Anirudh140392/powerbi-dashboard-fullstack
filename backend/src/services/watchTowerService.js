@@ -10795,7 +10795,7 @@ const getSkuOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buy_box_neno} * 1.0 ELSE 0 END) as total_buy_box_neno,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} * 1.0 ELSE 0 END) as total_buy_box_neno,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
                 AVG(if(${src.f.compFlagMapping} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp,
                 any(${src.isAgg ? 'sku_code' : 'Web_Pid'}) as web_pid
@@ -10820,7 +10820,7 @@ const getSkuOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buy_box_neno} * 1.0 ELSE 0 END) as total_buy_box_neno,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} * 1.0 ELSE 0 END) as total_buy_box_neno,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
                 AVG(if(${src.f.compFlagMapping} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp
             FROM ${src.table}
