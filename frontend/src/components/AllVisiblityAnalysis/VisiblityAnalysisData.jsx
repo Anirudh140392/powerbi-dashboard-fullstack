@@ -849,10 +849,10 @@ const VisiblityAnalysisData = ({
   const visibilityKpis = useMemo(() => {
     const icons = [PieChart, Target, TrendingUp, Monitor];
     const gradients = [
-      ['#6366f1', '#8b5cf6'],
-      ['#14b8a6', '#06b6d4'],
-      ['#f43f5e', '#ec4899'],
-      ['#8b5cf6', '#a855f7']
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb']
     ];
 
     // Use real API data only — no random generators
@@ -986,7 +986,7 @@ const VisiblityAnalysisData = ({
 
   return (
 
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className="w-full space-y-4">
 
       {/* HEADER */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
