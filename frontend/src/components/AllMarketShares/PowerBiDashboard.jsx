@@ -2112,7 +2112,7 @@ export const PowerBiDashboard = () => {
 
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-amber-50 via-white to-sky-50 text-slate-900 px-4 py-6">
-      <div className="max-w-7xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs uppercase tracking-[0.3em] text-sky-500">Q-Comm Deep Dive</div>

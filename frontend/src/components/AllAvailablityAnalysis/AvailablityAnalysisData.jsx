@@ -1374,7 +1374,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
   return (
 
-    <div className="max-w-7xl mx-auto space-y-5">
+    <div className="w-full space-y-5">
       <div className="space-y-4">
         {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
 
