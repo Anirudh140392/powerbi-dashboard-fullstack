@@ -10,7 +10,7 @@ import TrendsCompetitionDrawer from "@/components/AllAvailablityAnalysis/TrendsC
 
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight, X } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, LineChart as LineChartIcon, SlidersHorizontal, Check, ChevronDown, ChevronRight, X, Layers } from "lucide-react";
 // import {SimpleTableWithTabs} from "../components/CommonLayout/SimpleTableWithTabs";
 import SimpleTableWithTabs from "@/components/CommonLayout/SimpleTableWithTabs.jsx";
 import PaginationFooter from "@/components/CommonLayout/PaginationFooter";
@@ -174,27 +174,30 @@ function getTrendMeta(trend, kpi = "") {
 
   if (num > 0) {
     return {
-      pill: "border-transparent bg-transparent text-emerald-600",
-      icon: TrendingUp,
+      pill: "bg-emerald-50 text-emerald-600",
+      icon: null,
+      triangle: "▲",
       iconColor: "text-emerald-600",
-      display: isPsl ? `+${formatNumber(num, 1)}` : `+${num.toFixed(1)}`,
+      display: isPsl ? `${formatNumber(num, 1)}` : `${num.toFixed(1)}%`,
     };
   }
 
   if (num < 0) {
     return {
-      pill: "border-transparent bg-transparent text-rose-600",
-      icon: TrendingDown,
+      pill: "bg-rose-50 text-rose-600",
+      icon: null,
+      triangle: "▼",
       iconColor: "text-rose-600",
-      display: isPsl ? formatNumber(num, 1) : num.toFixed(1),
+      display: isPsl ? formatNumber(Math.abs(num), 1) : `${Math.abs(num).toFixed(1)}%`,
     };
   }
 
   return {
-    pill: "border-transparent bg-transparent text-slate-500",
-    icon: Minus,
+    pill: "bg-slate-50 text-slate-500",
+    icon: null,
+    triangle: "–",
     iconColor: "text-slate-500",
-    display: "0.0",
+    display: "0.0%",
   };
 }
 
@@ -940,14 +943,19 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
       {/* ------------------ HEADER (City Style) ------------------ */}
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base text-slate-900">
-              {title} KPI Matrix
-            </CardTitle>
-
-            <CardDescription className="text-xs text-slate-500">
-              Hover on any value to see trend sparkline.
-            </CardDescription>
+          <div className="flex items-center gap-3">
+            {/* Icon badge */}
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
+              <Layers className="h-5 w-5 text-indigo-500" strokeWidth={2} />
+            </div>
+            <div>
+              <CardTitle className="text-base text-slate-900">
+                {title} KPI Matrix
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                Analyze by dimensions
+              </CardDescription>
+            </div>
           </div>
 
           {/* City-style Heatmap Legend */}
@@ -1129,11 +1137,11 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                 </span>
 
                                 <span
-                                  className={`inline-flex items-center gap-[1px] rounded-full border 
-                                                px-0.5 py-0 text-[10px] ${trendMeta.pill} h-[13px] leading-none`}
+                                  className={`inline-flex items-center gap-0.5 rounded-md
+                                                px-1.5 py-0.5 text-[10px] font-semibold ${trendMeta.pill}`}
                                 >
-                                  {Icon && <Icon className="h-2 w-2" />}
-                                  <span className="font-medium text-[9px]">{trendMeta.display}</span>
+                                  <span className="text-[9px] leading-none">{trendMeta.triangle}</span>
+                                  <span className="text-[10px] leading-none">{trendMeta.display}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>
@@ -1144,14 +1152,14 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                                 <span className="font-semibold text-xs text-slate-900">
                                   {row.kpi} · {col}
                                 </span>
-                                {Icon && <Icon className="h-3.5 w-3.5 text-slate-400" />}
+                                {trendMeta.triangle && <span className={`text-sm ${trendMeta.iconColor}`}>{trendMeta.triangle}</span>}
                               </div>
 
                               <div className="p-4 space-y-3">
                                 <div className="flex items-baseline justify-between">
                                   <span className="text-2xl font-bold tracking-tight text-slate-900">{formatKpiValue(row.kpi, value)}</span>
-                                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${trendMeta.pill}`}>
-                                    {trendMeta.display}
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-md inline-flex items-center gap-1 ${trendMeta.pill}`}>
+                                    <span className="text-[10px]">{trendMeta.triangle}</span> {trendMeta.display}
                                   </span>
                                 </div>
 

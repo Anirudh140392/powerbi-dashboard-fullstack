@@ -1286,7 +1286,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     const doiCardData = apiData?.doi ? {
       value: Number(apiData.doi.doi || 0).toFixed(1),
       delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || [] // Use OSA trend as proxy if DOI trend missing
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Doi || p.DOI || 0) || []
     } : null;
 
     const metroCardData = apiData?.metroCity ? {
@@ -1335,17 +1335,17 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     let cards_config = [];
     if (isQuickCom) {
       cards_config = [
-        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
-        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#14b8a6', '#06b6d4'] },
-        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#8b5cf6', '#a855f7'] }
+        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
     } else {
       cards_config = [
-        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
-        { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#f59e0b', '#d97706'] },
-        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#14b8a6', '#06b6d4'] },
-        { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#ec4899', '#be185d'] },
-        { key: 'skucount', title: "SKU count", sub: "Total SKUs tracked", api: skuCountData, icon: MapPin, gradient: ['#8b5cf6', '#a855f7'] }
+        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'skucount', title: "SKU count", sub: "Total SKUs tracked", api: skuCountData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
     }
 

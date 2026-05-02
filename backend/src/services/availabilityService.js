@@ -2520,9 +2520,16 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const totalSales = parseFloat(row.sum_sales) || 0;
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
+                // DOI = (Current Inventory / Daily Run Rate) where DRR = Qty_Sold / 30
+                const totalInventory = parseFloat(row.total_inventory) || 0;
+                const totalQtySold = parseFloat(row.total_qty_sold) || 0;
+                const drr = totalQtySold / 30;
+                const doi = drr > 0 ? totalInventory / drr : 0;
+
                 return {
                     date: dayjs(row.ref_date).format("DD MMM'YY"),
                     Osa: parseFloat(osa.toFixed(1)),
+                    Doi: parseFloat(doi.toFixed(1)),
                     Fillrate: parseFloat(fillrate.toFixed(1)),
                     Listing: parseFloat(listing.toFixed(1)),
                     Assortment: dailyUniquePids,
@@ -2534,6 +2541,7 @@ const getAvailabilityKpiTrends = async (filters) => {
             return {
                 metrics: [
                     { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
+                    { id: 'Doi', label: 'DOI (Days)', color: '#14b8a6', default: true },
                     { id: 'Fillrate', label: 'Buy Box %', color: '#F59E0B', default: true },
                     { id: 'Listing', label: 'Listing %', color: '#0EA5E9', default: true },
                     { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false },

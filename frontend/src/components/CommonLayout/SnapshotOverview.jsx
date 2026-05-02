@@ -642,13 +642,13 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                     <AreaChart data={kpi.trendSeries?.map((v, i) => ({ i, v })) || []} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0.2} />
-                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0} />
+                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
+                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.01} />
                             </linearGradient>
                         </defs>
                         <RechartsTooltip 
                             contentStyle={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', minWidth: 'auto', border: 'none', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
-                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#6366f1" }}
+                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB" }}
                             labelStyle={{ display: 'none' }}
                             cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
                             formatter={(value) => {
@@ -665,7 +665,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                         <Area
                             type="monotone"
                             dataKey="v"
-                            stroke={kpi.gradient?.[0] || "#6366f1"}
+                            stroke={kpi.gradient?.[0] || "#2563EB"}
                             strokeWidth={2}
                             fill={`url(#grad-${kpi.id})`}
                             fillOpacity={1}
