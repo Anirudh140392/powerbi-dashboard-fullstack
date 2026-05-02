@@ -36,10 +36,10 @@ import {
 // ---------------------------------------------------------------------------
 
 const cellHeat = (value) => {
-  if (value >= 95) return "bg-emerald-100 text-emerald-900";
-  if (value >= 85) return "bg-emerald-50 text-emerald-800";
-  if (value >= 75) return "bg-amber-50 text-amber-800";
-  return "bg-rose-50 text-rose-800";
+  // Returns { arrow, arrowClass } — value text stays neutral, only arrow is colored
+  if (value >= 85) return { arrow: "↑", arrowClass: "text-emerald-500" };
+  if (value >= 75) return { arrow: "→", arrowClass: "text-amber-500" };
+  return { arrow: "↓", arrowClass: "text-rose-500" };
 };
 
 const average = (values) =>
@@ -349,11 +349,11 @@ const PowerHierarchyHeat = ({ olaMode = "absolute" }) => {
 
                 {FORMAT_MATRIX[olaMode].formatColumns.map((f) => {
                   const val = row.values[f] ?? 0;
+                  const heat = cellHeat(val);
                   return (
                     <td key={f} className="px-3 py-2 text-center">
-                      <span className={`px-2 py-1 rounded ${cellHeat(val)}`}>
-                        {val}%
-                      </span>
+                      <span className="text-sm font-semibold text-slate-800">{val}%</span>
+                      <span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span>
                     </td>
                   );
                 })}
@@ -486,17 +486,16 @@ const ProductLevelHeat = ({ olaMode = "absolute" }) => {
                       {row.format}
                     </td>
 
-                    {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => (
-                      <td key={f} className="px-3 py-2 text-center">
-                        <span
-                          className={`px-2 py-1 rounded ${cellHeat(
-                            formatAvg[f]
-                          )}`}
-                        >
-                          {formatAvg[f]}%
-                        </span>
-                      </td>
-                    ))}
+                    {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => {
+                      const heatVal = formatAvg[f];
+                      const heat = cellHeat(heatVal);
+                      return (
+                        <td key={f} className="px-3 py-2 text-center">
+                          <span className="text-sm font-semibold text-slate-800">{heatVal}%</span>
+                          <span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span>
+                        </td>
+                      );
+                    })}
                   </tr>
 
                   {/* ---------------- PRODUCT ROWS ---------------- */}
@@ -529,17 +528,16 @@ const ProductLevelHeat = ({ olaMode = "absolute" }) => {
                               </td>
                             )}
 
-                            {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => (
-                              <td key={f} className="px-3 py-2 text-center">
-                                <span
-                                  className={`px-2 py-1 rounded ${cellHeat(
-                                    p.values[f]
-                                  )}`}
-                                >
-                                  {p.values[f]}%
-                                </span>
-                              </td>
-                            ))}
+                            {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => {
+                              const pVal = p.values[f];
+                              const heat = cellHeat(pVal);
+                              return (
+                                <td key={f} className="px-3 py-2 text-center">
+                                  <span className="text-sm font-semibold text-slate-800">{pVal}%</span>
+                                  <span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span>
+                                </td>
+                              );
+                            })}
                           </tr>
 
                           {/* ---------------- SALES LOSS ROW ---------------- */}
@@ -672,11 +670,7 @@ const OLADrillTable = ({ olaMode = "absolute" }) => {
                     </td>
 
                     <td className="px-3 py-2 text-center">
-                      <span
-                        className={`px-2 py-1 rounded ${cellHeat(platformAvg)}`}
-                      >
-                        {platformAvg}%
-                      </span>
+                      {(() => { const heat = cellHeat(platformAvg); return (<><span className="text-sm font-semibold text-slate-800">{platformAvg}%</span><span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span></>); })()}
                     </td>
                   </tr>
 
@@ -716,13 +710,7 @@ const OLADrillTable = ({ olaMode = "absolute" }) => {
                             {showCityColumn && <td className="px-3 py-2"></td>}
 
                             <td className="px-3 py-2 text-center">
-                              <span
-                                className={`px-2 py-1 rounded ${cellHeat(
-                                  z.ola
-                                )}`}
-                              >
-                                {z.ola}%
-                              </span>
+                              {(() => { const heat = cellHeat(z.ola); return (<><span className="text-sm font-semibold text-slate-800">{z.ola}%</span><span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span></>); })()}
                             </td>
                           </tr>
 
@@ -748,13 +736,7 @@ const OLADrillTable = ({ olaMode = "absolute" }) => {
                                 )}
 
                                 <td className="px-3 py-2 text-center">
-                                  <span
-                                    className={`px-2 py-1 rounded ${cellHeat(
-                                      c.ola
-                                    )}`}
-                                  >
-                                    {c.ola}%
-                                  </span>
+                                  {(() => { const heat = cellHeat(c.ola); return (<><span className="text-sm font-semibold text-slate-800">{c.ola}%</span><span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span></>); })()}
                                 </td>
                               </tr>
                             ))}

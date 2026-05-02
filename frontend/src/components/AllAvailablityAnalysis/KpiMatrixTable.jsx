@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronRight, X, SlidersHorizontal, TrendingUp, LineChartIcon, RefreshCw, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronRight, X, SlidersHorizontal, TrendingUp, LineChartIcon, RefreshCw, AlertTriangle, LayoutGrid, Star } from "lucide-react";
 import { KpiFilterPanel } from "@/components/KpiFilterPanel";
 import { Badge } from "@/components/ui/badge";
 import TrendsCompetitionDrawer from "./TrendsCompetitionDrawer";
@@ -42,14 +42,14 @@ const DRILLDOWN_ENABLED_KPIS = new Set(["osa", "psl"]);
 // ========================================
 
 const ToggleTabs = ({ tabs, activeTab, onChange }) => (
-    <div className="inline-flex bg-slate-100 rounded-lg p-1">
+    <div className="inline-flex bg-slate-100/80 rounded-lg p-0.5 gap-0.5">
         {tabs.map((tab) => (
             <button
                 key={tab.key}
                 onClick={() => onChange(tab.key)}
                 className={cn(
-                    "px-4 py-2 text-sm font-medium rounded-md transition-all duration-200",
-                    activeTab === tab.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    "px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200",
+                    activeTab === tab.key ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 )}
             >
                 {tab.label}
@@ -431,55 +431,48 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     }
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100">
+            <div className="px-6 py-5 border-b border-slate-100">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <ToggleTabs
-                        tabs={reportTypes}
-                        activeTab={reportType}
-                        onChange={(t) => {
-                            setReportType(t);
-                            setExpandedRows([]);
-                        }}
-                    />
+                    <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-indigo-50 flex items-center justify-center">
+                            <LayoutGrid size={18} className="text-indigo-500" />
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                            <ToggleTabs
+                                tabs={reportTypes}
+                                activeTab={reportType}
+                                onChange={(t) => {
+                                    setReportType(t);
+                                    setExpandedRows([]);
+                                }}
+                            />
+                            <span className="text-xs text-slate-400 font-medium">
+                                ({entities.length} items)
+                            </span>
+                        </div>
+                    </div>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setShowFilterPanel(true)}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-50 rounded-lg hover:bg-slate-100 border border-slate-200/80 transition-colors"
                         >
                             <SlidersHorizontal size={14} />
                             Filters
                             {appliedCount > 0 && (
-                                <Badge className="ml-1 bg-emerald-100 text-emerald-700 border-emerald-200">
+                                <Badge className="ml-1 bg-indigo-100 text-indigo-700 border-indigo-200">
                                     {appliedCount}
                                 </Badge>
                             )}
                         </button>
                         <DrillDownDropdown value={drillDimension} onChange={setDrillDimension} reportType={reportType} />
-                    </div>
-                </div>
-
-                <div className="mt-3 flex items-start justify-between gap-3">
-                    <div>
-                        <h3 className="text-base font-semibold text-slate-900">
-                            {reportTypes.find((r) => r.key === reportType)?.label} KPI Matrix
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                            Use the left arrow to expand drill-down (available only for OSA)
-                        </p>
-                        {drillDimension === "competitors" && (
-                            <p className="text-xs text-slate-400 mt-1">Note: Competitor breakdown is enabled only for OSA</p>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
                         {expandedRows.length > 0 && (
                             <button
                                 onClick={closeAll}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 bg-slate-50 rounded-lg hover:bg-slate-100 border border-slate-200/80"
                             >
-                                <X size={12} /> Close All ({expandedRows.length})
+                                <X size={12} /> Collapse All
                             </button>
                         )}
                     </div>
@@ -546,29 +539,31 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
             )}
 
             {/* Table */}
-            <div className="p-4">
+            <div className="px-2 pb-4">
                 <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px]">
+                    <table className="w-full min-w-[760px]" style={{ borderCollapse: 'separate', borderSpacing: 0 }}>
                         <thead>
-                            <tr className="border-b border-slate-100">
+                            <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
                                 {/* Expand Icon Column */}
-                                <th className="py-3 px-2 w-12" />
+                                <th className="py-3 px-3 w-10" />
 
-                                <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase w-40">KPI</th>
+                                <th className="text-left py-3 px-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider w-40">
+                                    {reportTypes.find((r) => r.key === reportType)?.label}
+                                </th>
 
                                 {entities.map((e) => (
-                                    <th key={e} className="text-center py-3 px-2 min-w-[110px]">
-                                        <div className="flex items-center justify-center gap-1">
-                                            <span className="text-xs font-semibold text-slate-500 uppercase">{e}</span>
+                                    <th key={e} className="text-right py-3 px-4 min-w-[100px]">
+                                        <div className="flex items-center justify-end gap-1.5">
+                                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">{e}</span>
                                             <button
                                                 onClick={() => {
                                                     setSelectedCellForTrend({ entity: e, kpi: null });
                                                     setShowTrendsDrawer(true);
                                                 }}
-                                                className="p-0.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors trend-icon"
+                                                className="p-0.5 text-slate-300 hover:text-indigo-500 rounded transition-colors"
                                                 title={`View ${e} trends`}
                                             >
-                                                <LineChartIcon size={15} />
+                                                <LineChartIcon size={13} />
                                             </button>
                                         </div>
                                     </th>
@@ -577,9 +572,29 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                         </thead>
 
                         <tbody>
+                            {/* Total Row */}
+                            {apiData?.rows && (
+                                <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td className="py-3.5 px-3 align-middle">
+                                        <Star size={14} className="text-indigo-400" fill="currentColor" />
+                                    </td>
+                                    <td className="py-3.5 px-4 text-sm font-bold text-slate-800">Total</td>
+                                    {entities.map((entity) => {
+                                        // Sum all KPI values for this entity as a "total" row
+                                        const osaCell = getCellData(entity, 'OSA');
+                                        return (
+                                            <td key={entity} className="text-right py-3.5 px-4">
+                                                <span className="text-sm font-bold text-slate-800">
+                                                    {osaCell.value}%
+                                                </span>
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            )}
+
                             {kpis.filter(kpi => {
                                 if (!appliedFilters.kpi || appliedFilters.kpi.length === 0) return true;
-                                // Case-insensitive match between kpi.label and appliedFilters.kpi array
                                 return appliedFilters.kpi.some(selectedKpi =>
                                     selectedKpi.toLowerCase() === kpi.label.toLowerCase()
                                 );
@@ -591,39 +606,40 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                     <Fragment key={kpi.key}>
                                         {/* Data Row */}
                                         <tr
+                                            style={{ borderBottom: '1px solid #f1f5f9' }}
                                             className={cn(
-                                                "border-b border-slate-50 transition-colors",
-                                                isRowExpanded && drillEnabled && "bg-blue-50/30"
+                                                "transition-colors hover:bg-slate-50/50",
+                                                isRowExpanded && drillEnabled && "bg-indigo-50/30"
                                             )}
                                         >
-                                            {/* Expand Button Cell */}
-                                            <td className="py-2 px-2 align-middle">
+                                            {/* Expand Chevron */}
+                                            <td className="py-3 px-3 align-middle">
                                                 <button
                                                     type="button"
                                                     onClick={drillEnabled ? () => toggleRow(kpi.key) : undefined}
                                                     disabled={!drillEnabled}
                                                     aria-label={drillEnabled ? `Expand ${kpi.label} row` : `${kpi.label} drill-down not available`}
-                                                    title={drillEnabled ? "Expand row" : "Drill-down not available"}
                                                     className={cn(
-                                                        "h-8 w-8 inline-flex items-center justify-center rounded-md border transition-colors",
+                                                        "transition-transform",
                                                         drillEnabled
-                                                            ? "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100"
-                                                            : "bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed"
+                                                            ? "text-slate-400 hover:text-indigo-500 cursor-pointer"
+                                                            : "text-slate-200 cursor-not-allowed"
                                                     )}
+                                                    style={{ background: 'none', border: 'none', padding: 0 }}
                                                 >
                                                     <ChevronRight
                                                         size={16}
-                                                        className={cn("transition-transform", drillEnabled && isRowExpanded && "rotate-90")}
+                                                        className={cn("transition-transform duration-200", drillEnabled && isRowExpanded && "rotate-90")}
                                                     />
                                                 </button>
                                             </td>
 
                                             {/* KPI Label */}
-                                            <td className="py-3 px-4 text-sm font-medium text-slate-700 select-none">
+                                            <td className="py-3 px-4 text-sm font-semibold text-slate-700 select-none">
                                                 <div className="flex items-center gap-2">
                                                     <span>{kpi.label}</span>
                                                     {drillEnabled && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-[11px] border border-blue-100">
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-500 border border-indigo-100">
                                                             Drill
                                                         </span>
                                                     )}
@@ -633,30 +649,25 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                             {/* Values */}
                                             {entities.map((entity) => {
                                                 const cell = getCellData(entity, kpi.label);
-                                                const isPercentage = kpi.label !== 'Assortment';
-
                                                 return (
-                                                    <td key={entity} className="text-center py-3 px-2">
-                                                        <motion.div
-                                                            className={cn(
-                                                                "inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-transparent",
-                                                                // subtle hover for readability only (not clickable)
-                                                                "hover:bg-slate-50 hover:border-slate-200",
-                                                                loading && "opacity-50 pointer-events-none"
-                                                            )}
-                                                            whileHover={{ scale: 1.01 }}
-                                                        >
-                                                            <span className="text-sm font-semibold text-slate-800">{kpi.key === 'psl' ? `₹${formatNumber(cell.value)}` : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}</span>
+                                                    <td key={entity} className="text-right py-3 px-4">
+                                                        <div className={cn(
+                                                            "inline-flex items-center gap-1.5 justify-end",
+                                                            loading && "opacity-50"
+                                                        )}>
+                                                            <span className="text-sm font-semibold text-slate-700">
+                                                                {kpi.key === 'psl' ? `₹${formatNumber(cell.value)}` : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}
+                                                            </span>
                                                             <span
                                                                 className={cn(
-                                                                    "text-xs font-medium",
-                                                                    cell.delta >= 0 ? "text-emerald-600" : "text-rose-500"
+                                                                    "text-[11px] font-medium",
+                                                                    cell.delta >= 0 ? "text-emerald-500" : "text-rose-500"
                                                                 )}
                                                             >
                                                                 {cell.delta >= 0 ? "↑" : "↓"}
                                                                 {kpi.key === 'psl' ? formatNumber(Math.abs(cell.delta)) : Math.abs(cell.delta)}
                                                             </span>
-                                                        </motion.div>
+                                                        </div>
                                                     </td>
                                                 );
                                             })}
@@ -670,15 +681,15 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                     animate={{ opacity: 1, height: "auto" }}
                                                     exit={{ opacity: 0, height: 0 }}
                                                 >
-                                                    <td colSpan={entities.length + 2} className="bg-slate-50/80 p-4">
+                                                    <td colSpan={entities.length + 2} className="bg-slate-50/60 p-4">
                                                         <div className="flex items-center justify-between mb-3">
-                                                            <span className="text-sm font-semibold text-slate-700">
+                                                            <span className="text-sm font-semibold text-slate-600">
                                                                 {kpi.label} → {drillLabel} Breakdown
                                                             </span>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => toggleRow(kpi.key)}
-                                                                className="p-1 hover:bg-slate-200 rounded"
+                                                                className="p-1 hover:bg-slate-200 rounded text-slate-400"
                                                                 aria-label="Close drilldown"
                                                             >
                                                                 <X size={14} />
@@ -693,10 +704,9 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
                                                                 return (
                                                                     <div key={entity} className="bg-white rounded-lg p-3 border border-slate-100">
-                                                                        <div className="text-xs font-medium text-slate-700 mb-2">{entity}</div>
+                                                                        <div className="text-xs font-semibold text-slate-600 mb-2">{entity}</div>
                                                                         <div className="grid grid-cols-2 gap-2">
                                                                             {isBreakdownLoading2 ? (
-                                                                                // Skeleton loaders while drill-down data loads
                                                                                 [1, 2, 3, 4].map((i) => (
                                                                                     <div key={`skel-${i}`} className="flex items-center gap-1.5">
                                                                                         <div className="h-3 w-12 rounded bg-gradient-to-r from-slate-200 to-slate-100 animate-pulse" />

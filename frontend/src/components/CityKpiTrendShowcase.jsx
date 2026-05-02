@@ -164,11 +164,8 @@ function formatKpiValue(kpi, value) {
 }
 
 function getCellClasses(value) {
-  if (value >= 90) return "bg-green-100 text-green-900 border-green-200";
-  if (value >= 80) return "bg-green-50 text-green-800 border-green-100";
-  if (value >= 70) return "bg-yellow-100 text-yellow-900 border-yellow-200";
-  if (value >= 60) return "bg-orange-100 text-orange-900 border-orange-200";
-  return "bg-red-100 text-red-900 border-red-200";
+  // No colored backgrounds — clean neutral text for all values
+  return "bg-transparent text-slate-800";
 }
 
 function getTrendMeta(trend, kpi = "") {
@@ -177,26 +174,26 @@ function getTrendMeta(trend, kpi = "") {
 
   if (num > 0) {
     return {
-      pill: "border-green-200 bg-green-50 text-green-700",
+      pill: "border-transparent bg-transparent text-emerald-600",
       icon: TrendingUp,
-      iconColor: "text-green-700",
+      iconColor: "text-emerald-600",
       display: isPsl ? `+${formatNumber(num, 1)}` : `+${num.toFixed(1)}`,
     };
   }
 
   if (num < 0) {
     return {
-      pill: "border-red-200 bg-red-50 text-red-700",
+      pill: "border-transparent bg-transparent text-rose-600",
       icon: TrendingDown,
-      iconColor: "text-red-700",
+      iconColor: "text-rose-600",
       display: isPsl ? formatNumber(num, 1) : num.toFixed(1),
     };
   }
 
   return {
-    pill: "border-slate-200 bg-slate-50 text-slate-600",
+    pill: "border-transparent bg-transparent text-slate-500",
     icon: Minus,
-    iconColor: "text-slate-600",
+    iconColor: "text-slate-500",
     display: "0.0",
   };
 }
