@@ -224,6 +224,35 @@ export default function AvailablityAnalysis() {
     return params.toString();
   };
 
+  // Build query params WITHOUT platform filter — used by Platform KPI Matrix segment
+  // so it always shows data across ALL platforms regardless of sidebar selection
+  const buildQueryParamsWithoutPlatform = () => {
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      // Skip platform filter entirely
+      if (key === 'platform') return;
+      if (value !== undefined && value !== null && value !== 'All' && value !== '') {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            value.forEach(v => params.append(key, v));
+          }
+        } else {
+          params.append(key, value);
+        }
+      }
+    });
+
+    // Platform is always 'All' for this segment
+    params.append('platform', 'All');
+    if (!params.has('brand')) params.append('brand', 'All');
+    if (!params.has('location')) params.append('location', 'All');
+
+    params.append('ownBrandsOnly', 'true');
+
+    return params.toString();
+  };
+
   // Get auth headers for API calls (JWT token from localStorage)
   const getAuthHeaders = () => {
     const token = sessionStorage.getItem('token');
@@ -246,10 +275,11 @@ export default function AvailablityAnalysis() {
     }
   };
 
-  const fetchPlatformKpi = async (queryParams) => {
+  const fetchPlatformKpi = async () => {
     try {
       setApiErrors(prev => ({ ...prev, platformKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`, { headers: getAuthHeaders() });
+      const crossPlatformParams = buildQueryParamsWithoutPlatform();
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, platformKpi: data }));
@@ -261,10 +291,11 @@ export default function AvailablityAnalysis() {
     }
   };
 
-  const fetchFormatKpi = async (queryParams) => {
+  const fetchFormatKpi = async () => {
     try {
       setApiErrors(prev => ({ ...prev, formatKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`, { headers: getAuthHeaders() });
+      const crossPlatformParams = buildQueryParamsWithoutPlatform();
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, formatKpi: data }));
@@ -276,10 +307,11 @@ export default function AvailablityAnalysis() {
     }
   };
 
-  const fetchCityKpi = async (queryParams) => {
+  const fetchCityKpi = async () => {
     try {
       setApiErrors(prev => ({ ...prev, cityKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`, { headers: getAuthHeaders() });
+      const crossPlatformParams = buildQueryParamsWithoutPlatform();
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, cityKpi: data }));
@@ -367,9 +399,9 @@ export default function AvailablityAnalysis() {
 
     switch (segmentKey) {
       case 'overview': return fetchOverview(queryParams);
-      case 'platformKpi': return fetchPlatformKpi(queryParams);
-      case 'formatKpi': return fetchFormatKpi(queryParams);
-      case 'cityKpi': return fetchCityKpi(queryParams);
+      case 'platformKpi': return fetchPlatformKpi();
+      case 'formatKpi': return fetchFormatKpi();
+      case 'cityKpi': return fetchCityKpi();
       case 'doi': return fetchDoi(queryParams);
       case 'metroCity': return fetchMetroCity(queryParams);
       case 'osaDetail': return fetchOsaDetail(osaDetailParams);
@@ -428,9 +460,9 @@ export default function AvailablityAnalysis() {
         // Fetch all segments (errors are tracked per-segment)
         await Promise.allSettled([
           fetchOverview(queryParams),
-          fetchPlatformKpi(queryParams),
-          fetchFormatKpi(queryParams),
-          fetchCityKpi(queryParams),
+          fetchPlatformKpi(),
+          fetchFormatKpi(),
+          fetchCityKpi(),
           fetchDoi(queryParams),
           fetchMetroCity(queryParams),
           fetchOsaDetail(osaDetailParams),

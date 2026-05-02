@@ -117,7 +117,7 @@ const LatestOverivewCatCity = ({
             })),
         },
         sku: {
-            label: 'Sku',
+            label: 'SKU',
             icon: Package,
             entities: [], // Will be filled by API data
         },
@@ -139,11 +139,8 @@ const LatestOverivewCatCity = ({
     useEffect(() => {
         const fetchProducts = async () => {
             try {
-                const params = {};
-                if (globalPlatform && globalPlatform !== 'All') {
-                    params.platform = Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform;
-                }
-                const res = await axiosInstance.get('/watchtower/products', { params });
+                // Ignore global platform filter to show cross-platform data
+                const res = await axiosInstance.get('/watchtower/products');
                 if (res.data && Array.isArray(res.data)) {
                     setProductOptions(res.data.map(p => ({ id: p, name: p })));
                 }
@@ -154,7 +151,7 @@ const LatestOverivewCatCity = ({
         if (datesInitialized) {
             fetchProducts();
         }
-    }, [datesInitialized, globalPlatform]);
+    }, [datesInitialized]);
 
     const skuOptions = useMemo(() => 
         productOptions.length > 0 ? productOptions : (dimension === 'sku' ? apiData.map(e => ({ id: e.key, name: e.name })) : []), 
@@ -176,8 +173,8 @@ const LatestOverivewCatCity = ({
             try {
                 const params = new URLSearchParams();
                 
-                // Use advanced filters if sets, otherwise fall back to global context filters
-                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : globalPlatform); 
+                // Use advanced filters if sets, do not fall back to global context filter
+                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : null); 
                 if (pl) params.append('platform', pl);
                 
                 const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
@@ -217,12 +214,12 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [dimension, advancedFilters, selectedBrand, selectedCategory, globalPlatform, expandedSku]);
+    }, [dimension, advancedFilters, selectedBrand, selectedCategory, expandedSku]);
 
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
@@ -243,7 +240,7 @@ const LatestOverivewCatCity = ({
             const params = new URLSearchParams();
             
             // Re-use logic for filters but target 'city' dimension for specific SKU
-            const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : globalPlatform); 
+            const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : null); 
             if (pl) params.append('platform', pl);
             
             const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
@@ -416,7 +413,7 @@ const LatestOverivewCatCity = ({
         <>
             <div>
                 <SectionWrapper
-                    title="Category Overview"
+                    title={`${currentDimension.label} Overview`}
                     icon={currentDimension.icon}
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
                     headerRight={

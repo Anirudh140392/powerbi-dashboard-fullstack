@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPlatformChannels, getChannels, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductCategories } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductCategories } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 import { getCompareSkuDateRange, getCompareSkuFilters, getCompareSkuProducts, getCompareSkuMetrics, getCompareSkuTrend } from '../controllers/compareSkuController.js';
 
@@ -132,6 +132,7 @@ export default (app) => {
      *     tags: [WatchTower]
      */
     app.get('/api/watchtower/platforms', getPlatforms);
+    app.get('/api/watchtower/platform-metadata', getPlatformMetadata);
     app.get('/api/watchtower/platform-channels', getPlatformChannels);
     app.get('/api/watchtower/channels', getChannels);
 

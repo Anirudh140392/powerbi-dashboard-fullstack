@@ -87,6 +87,7 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
 import LatestOverivewCatCity from "./LatestOverivewCatCity";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide } from "lucide-react";
@@ -1292,7 +1293,7 @@ export default function PricingAnalysisData() {
         // Process results
         results.forEach((result, idx) => {
           if (result.status === 'rejected') {
-            if (axiosInstance.isCancel(result.reason)) return;
+            if (axios.isCancel(result.reason)) return;
             console.error(`Error fetching segment ${idx}:`, result.reason);
           }
 
@@ -1340,7 +1341,7 @@ export default function PricingAnalysisData() {
           }
         });
       } catch (error) {
-        if (!axiosInstance.isCancel(error)) {
+        if (!axios.isCancel(error)) {
           console.error("Critical error in Pricing parallel fetch:", error);
           lastFetchedFiltersRef.current = null;
         }
