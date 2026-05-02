@@ -27,9 +27,9 @@ export const getMapIntellectData = async (req, res) => {
  */
 export const getMapIntellectCategories = async (req, res) => {
     try {
-        const { metric, platform } = req.query;
-        console.log('[MapIntellect Controller] Fetching categories for:', { metric, platform });
-        const categories = await mapIntellectService.getMapIntellectCategories(metric, platform);
+        const { metric, platform, channel } = req.query;
+        console.log('[MapIntellect Controller] Fetching categories for:', { metric, platform, channel });
+        const categories = await mapIntellectService.getMapIntellectCategories(metric, platform, channel);
         res.json(categories);
     } catch (error) {
         console.error('[MapIntellect Controller] Error fetching categories:', error);

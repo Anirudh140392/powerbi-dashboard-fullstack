@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useContext } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { STATES, CITIES } from "./indiaData"; // Assuming we can use these coords
@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { IconButton } from "@mui/material";
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
+import { FilterContext } from "../../utils/FilterContext";
 
 // --- Constants & Types ---
 const INDIA_BOUNDS = [
@@ -35,11 +36,17 @@ const getPinSvg = (color, valueText) => `
 
 export default function GeoIntelligenceMap() {
     const { toggleHelp, openHelpWithMenu } = useHelp();
+    const {
+        platform: globalPlatform,
+        selectedChannel,
+        platforms: contextPlatforms,
+    } = useContext(FilterContext);
+
     const mapContainer = useRef(null);
     const map = useRef(null);
     const [filters, setFilters] = useState({ platform: 'Blinkit' });
     const [metric, setMetric] = useState("Wt. OSA %");
-    const [platform, setPlatform] = useState("Blinkit");
+    const [platform, setPlatform] = useState(globalPlatform || "Blinkit");
     const [timePeriod, setTimePeriod] = useState("MTD");
     const [markers, setMarkers] = useState([]);
     const [apiData, setApiData] = useState([]);
@@ -48,6 +55,13 @@ export default function GeoIntelligenceMap() {
     const [platforms, setPlatforms] = useState([]);
     const [category, setCategory] = useState("All");
     const [categories, setCategories] = useState([]);
+
+    // --- Sync platform from global FilterContext (sidebar channel/platform selection) ---
+    useEffect(() => {
+        if (globalPlatform && globalPlatform !== 'All' && globalPlatform !== platform) {
+            setPlatform(globalPlatform);
+        }
+    }, [globalPlatform]);
 
     // --- Fetch Platforms from DB ---
     useEffect(() => {
@@ -71,7 +85,7 @@ export default function GeoIntelligenceMap() {
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                const res = await axiosInstance.get('/map-intellect/categories', { params: { metric, platform } });
+                const res = await axiosInstance.get('/map-intellect/categories', { params: { metric, platform, channel: selectedChannel } });
                 setCategories(res.data || []);
                 setCategory("All"); // Reset category when metric or platform changes
             } catch (error) {
@@ -80,7 +94,7 @@ export default function GeoIntelligenceMap() {
             }
         };
         fetchCategories();
-    }, [metric, platform]);
+    }, [metric, platform, selectedChannel]);
 
     // Filter Handling
     const [importanceFilter, setImportanceFilter] = useState("All");
@@ -119,10 +133,22 @@ export default function GeoIntelligenceMap() {
                 if (category && category !== 'All') {
                     params += `&category=${encodeURIComponent(category)}`;
                 }
+                
+                if (selectedChannel && selectedChannel !== 'All') {
+                    params += `&channel=${encodeURIComponent(selectedChannel)}`;
+                }
 
                 const res = await axiosInstance.get('/map-intellect/data', { params: Object.fromEntries(new URLSearchParams(params)) });
                 if (res.data && res.data.cities) {
-                    setApiData(res.data.cities);
+                    let citiesData = res.data.cities;
+                    // If platform is Amazon, only keep Nation-level data as per user instructions
+                    if (platform.toLowerCase().includes('amazon')) {
+                        citiesData = citiesData.filter(city => {
+                            const name = (city.name || '').toLowerCase();
+                            return name === 'india' || name === 'nation' || name === 'national';
+                        });
+                    }
+                    setApiData(citiesData);
                 } else {
                     setApiData([]);
                 }
@@ -140,7 +166,7 @@ export default function GeoIntelligenceMap() {
             }
         };
         fetchData();
-    }, [platform, metric, timePeriod, category]); // Added category dependency
+    }, [platform, metric, timePeriod, category, selectedChannel]); // Added category and channel dependency
 
     // --- Intercept Nation-level Data ---
     const nationData = useMemo(() => {

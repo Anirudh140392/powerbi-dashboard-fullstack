@@ -113,7 +113,6 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
   const {
     selectedChannel,
     platform: globalPlatform,
-    platforms: channelPlatforms,
     selectedBrand,
     selectedLocation,
     timeStart,
@@ -197,39 +196,13 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
         });
       }
 
-      // Filter columns to only show platforms belonging to the selected channel
-      let filteredColumns = normalizedColumns;
-      let filteredRows = mappedRows;
-      if (channelPlatforms && channelPlatforms.length > 0) {
-        const allowedPlatformsLower = channelPlatforms.map(p => p.toLowerCase().replace(/\s+/g, '_'));
-        filteredColumns = normalizedColumns.filter((col, idx) => {
-          if (idx === 0) return true; // Always keep the 'kpi' column
-          return allowedPlatformsLower.includes(col.toLowerCase().replace(/\s+/g, '_'));
-        });
-        // Also strip disallowed platform keys from each row's data and trend
-        const allowedColSet = new Set(filteredColumns.slice(1)); // exclude 'kpi'
-        filteredRows = mappedRows.map(row => {
-          const newRow = { kpi: row.kpi };
-          const newTrend = {};
-          const newSeries = {};
-          for (const col of allowedColSet) {
-            if (col in row) newRow[col] = row[col];
-            if (row.trend && col in row.trend) newTrend[col] = row.trend[col];
-            if (row.series && col in row.series) newSeries[col] = row.series[col];
-          }
-          newRow.trend = newTrend;
-          newRow.series = newSeries;
-          // Preserve breakdown if present
-          if (row.breakdown) newRow.breakdown = row.breakdown;
-          return newRow;
-        });
-      }
-
+      // Platform KPI Matrix shows ALL platforms across the board — no column filtering
       platformData = {
-        columns: filteredColumns,
-        rows: filteredRows
+        columns: normalizedColumns,
+        rows: mappedRows
       };
       } // end of valid columns/rows guard
+
     }
     if (!platformData) {
       // Fallback to mock data
@@ -293,7 +266,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       { key: "format", label: "Category", data: formatData },
       { key: "city", label: "City", data: cityData },
     ];
-  }, [olaMode, selectedChannel, globalPlatform, channelPlatforms, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
+  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
 
   const active = tabs.find((t) => t.key === activeTab);
 

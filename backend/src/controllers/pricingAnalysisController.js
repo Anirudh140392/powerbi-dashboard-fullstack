@@ -439,3 +439,24 @@ export const getPricingCompetition = async (req, res) => {
         res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
     }
 };
+
+export const getPricingPlatforms = async (req, res) => {
+    try {
+        const { channel } = req.query;
+        const platforms = await pricingAnalysisService.getPricingPlatforms(channel);
+        res.json(platforms);
+    } catch (error) {
+        console.error('Error fetching pricing platforms:', error);
+        res.json([]);
+    }
+};
+
+export const getPricingChannels = async (req, res) => {
+    try {
+        const channels = await pricingAnalysisService.getPricingChannels();
+        res.json(channels);
+    } catch (error) {
+        console.error('Error fetching pricing channels:', error);
+        res.json([]);
+    }
+};

@@ -7,6 +7,7 @@ import RbKw from '../models/RbKw.js';
 import RbBrandMs from '../models/RbBrandMs.js';
 import ZeptoMarketShare from '../models/ZeptoMarketShare.js'; // Keeping for reference if needed, but primary is now RbBrandMs
 import RcaSkuDim from '../models/RcaSkuDim.js';
+import RbPlatform from '../models/RbPlatform.js';
 import { Op, Sequelize } from 'sequelize';
 import sequelize from '../config/db.js';
 import { queryClickHouse, getCurrentDbName, calculateConversion } from '../config/clickhouse.js';
@@ -4305,6 +4306,61 @@ const getPlatformChannels = async () => {
         return [];
     }
 };
+
+const getPlatformMetadata = async () => {
+    try {
+        // 1) Get distinct platforms from rca_sku_dim
+        const platformsFromDb = await queryClickHouse(
+            `SELECT DISTINCT platform FROM rca_sku_dim WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`
+        );
+        if (!platformsFromDb || platformsFromDb.length === 0) return [];
+
+        // 2) Get platform images from rb_platform
+        let platformVisualsMap = new Map();
+        try {
+            const tableExists = await queryClickHouse("EXISTS TABLE rb_platform");
+            if (tableExists && tableExists[0]?.result === 1) {
+                const visuals = await queryClickHouse(
+                    "SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE status = 1"
+                );
+                visuals.forEach(v => {
+                    if (v.pf_name && v.platform_description) {
+                        platformVisualsMap.set(v.pf_name.toLowerCase().trim(), v.platform_description);
+                    }
+                });
+            }
+        } catch (vErr) {
+            console.error('[getPlatformMetadata] Error fetching visuals from rb_platform:', vErr.message);
+        }
+
+        // Fallback logos for common platforms
+        const fallbackLogos = {
+            'zepto': 'https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png',
+            'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg',
+            'swiggy': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+            'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+            'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
+            'instamart': '/instamart.jpeg',
+            'swiggy instamart': '/instamart.jpeg',
+        };
+
+        // 3) Merge: for each platform in rca_sku_dim, attach the image
+        const result = platformsFromDb.map(row => {
+            const pfName = row.platform;
+            const key = pfName.toLowerCase().trim();
+            const dbImage = platformVisualsMap.get(key);
+            // Use DB image first (could be URL or relative path), then fallback
+            const image = dbImage || fallbackLogos[key] || null;
+            return { pf_name: pfName, platform_description: image };
+        });
+
+        return result;
+    } catch (error) {
+        console.error("Error fetching platform metadata:", error);
+        return [];
+    }
+};
+
 
 const getChannels = async () => {
     try {
@@ -11627,6 +11683,7 @@ export default {
     getTrendData,
     getPlatformChannels,
     getPlatforms,
+    getPlatformMetadata,
     getBrands,
     getKeywords,
     getLocations,

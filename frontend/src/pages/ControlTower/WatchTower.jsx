@@ -177,6 +177,7 @@ export default function WatchTower() {
   const [categoryOverview, setCategoryOverview] = useState([]);
   const [performanceLoading, setPerformanceLoading] = useState(true);
 
+  const filterContext = React.useContext(FilterContext);
   const {
     selectedBrand,
     selectedCategory,
@@ -184,10 +185,10 @@ export default function WatchTower() {
     timeEnd,
     compareStart,
     compareEnd,
-    platform,
+    platform: _sidebarPlatform,
     selectedKeyword,
     selectedLocation,
-    selectedChannel,
+    selectedChannel: _sidebarChannel,
     maxDate,
     datesInitialized,
     datesFetched,
@@ -196,7 +197,41 @@ export default function WatchTower() {
     channels,
     refreshFilters,
     refreshDates
-  } = React.useContext(FilterContext);
+  } = filterContext;
+
+  const overriddenContextRef = React.useRef(null);
+  const prevFilterContextRef = React.useRef(null);
+
+  const overriddenContext = React.useMemo(() => {
+    if (!prevFilterContextRef.current) {
+      const newCtx = { ...filterContext, selectedChannel: "All", platform: "All" };
+      prevFilterContextRef.current = filterContext;
+      overriddenContextRef.current = newCtx;
+      return newCtx;
+    }
+
+    let hasMeaningfulChange = false;
+    for (const key in filterContext) {
+      if (key === 'selectedChannel' || key === 'platform') continue;
+      if (filterContext[key] !== prevFilterContextRef.current[key]) {
+        hasMeaningfulChange = true;
+        break;
+      }
+    }
+
+    if (hasMeaningfulChange) {
+      const newCtx = { ...filterContext, selectedChannel: "All", platform: "All" };
+      prevFilterContextRef.current = filterContext;
+      overriddenContextRef.current = newCtx;
+      return newCtx;
+    }
+
+    return overriddenContextRef.current;
+  }, [filterContext]);
+
+  // Business Overview ignores sidebar channel/platform filters — always uses "All"
+  const selectedChannel = "All";
+  const platform = "All";
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -411,7 +446,7 @@ export default function WatchTower() {
     }));
   }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${categoryChannel}`;
+  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${categoryChannel}`;
 
   // Sync category channel with global channel filter
   useEffect(() => {
@@ -422,7 +457,7 @@ export default function WatchTower() {
   }, [selectedChannel]);
 
   // Sync loading state with filter changes to prevent one-frame flicker
-  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${selectedChannel}`;
+  const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}`;
   const [prevFilterKey, setPrevFilterKey] = useState(currentFilterKey);
 
   if (prevFilterKey !== currentFilterKey) {
@@ -439,12 +474,17 @@ export default function WatchTower() {
     setCategoryDataLoading(true);
   }
 
+  const lastFetchedOverviewKey = useRef(null);
+
   // Single debounced data-fetch effect — reads context directly, no intermediate state
   useEffect(() => {
     if (!datesFetched || !platformsFetched) {
       console.log("[WatchTower] Waiting for context to initialize dates/platforms...");
       return;
     }
+
+    if (lastFetchedOverviewKey.current === currentFilterKey && !loading) return;
+    lastFetchedOverviewKey.current = currentFilterKey;
 
     const currentFetchId = ++overviewFetchIdRef.current;
 
@@ -507,9 +547,14 @@ export default function WatchTower() {
     return () => clearTimeout(debounceTimer);
   }, [currentFilterKey, datesFetched, platformsFetched]);
 
+  const lastFetchedCategoryKey = useRef(null);
+
   // Separate Effect for Category Performance (Isolated Channel Filter)
   useEffect(() => {
     if (!datesFetched || !platformsFetched) return;
+
+    if (lastFetchedCategoryKey.current === categoryFilterKey) return;
+    lastFetchedCategoryKey.current = categoryFilterKey;
 
     const currentFetchId = ++categoryFetchIdRef.current; 
 
@@ -605,6 +650,7 @@ export default function WatchTower() {
         filters={filters}
         onFiltersChange={setFilters}
       >
+        <FilterContext.Provider value={overriddenContext}>
         {/* Top Cards */}
         {/* {loading ? (
           <Loader message="Fetching Watch Tower Insights..." />
@@ -810,6 +856,7 @@ export default function WatchTower() {
             <AggregatedViewTable />
           </PerformanceBreakdownProvider>
         </Box>
+        </FilterContext.Provider>
       </CommonContainer>
 
       {/* Trend Drawer */}

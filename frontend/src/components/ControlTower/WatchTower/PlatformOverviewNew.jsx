@@ -393,7 +393,6 @@ const PlatformOverviewNew = ({
         'zepto': '#8b5cf6', 'flipkart': '#2874f0', 'amazon': '#f59e0b',
     }
 
-    // Generate a stable key for current filter state to avoid redundant fetches
     const filterKey = useMemo(() => {
         const reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
             : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
@@ -403,6 +402,8 @@ const PlatformOverviewNew = ({
             : (selectedCategory === 'All' ? 'All' : (Array.isArray(selectedCategory) ? selectedCategory.join(',') : selectedCategory));
         const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
         const reqEndDate = advancedFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : '');
+        const reqCompareStart = compareStart ? compareStart.format('YYYY-MM-DD') : '';
+        const reqCompareEnd = compareEnd ? compareEnd.format('YYYY-MM-DD') : '';
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
         const reqChannel = Array.isArray(activeChannel)
             ? activeChannel.map(c => c.value || c).join(',')
@@ -416,6 +417,8 @@ const PlatformOverviewNew = ({
             reqLocation,
             reqStartDate,
             reqEndDate,
+            reqCompareStart,
+            reqCompareEnd,
             reqChannel,
             advancedFilters: {
                 skuName: advancedFilters.skuName,
@@ -423,7 +426,7 @@ const PlatformOverviewNew = ({
                 filterLogic: advancedFilters.filterLogic
             }
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, localChannel, advancedFilters]);
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, localChannel, advancedFilters]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -482,9 +485,16 @@ const PlatformOverviewNew = ({
         setCurrentPage(1);
     }
 
+    const lastFetchedKey = useRef(null);
+
     useEffect(() => {
         // Wait for essential context data
         if (!datesFetched || !platformsFetched) return;
+
+        // Skip fetching if the filter key hasn't actually changed,
+        // UNLESS we are currently stuck in a loading state (which means a previous fetch was interrupted).
+        if (lastFetchedKey.current === filterKey && !apiLoading) return;
+        lastFetchedKey.current = filterKey;
 
         const currentFetchId = ++fetchIdRef.current;
         // The synchronous state update above handles the initial setApiLoading(true)

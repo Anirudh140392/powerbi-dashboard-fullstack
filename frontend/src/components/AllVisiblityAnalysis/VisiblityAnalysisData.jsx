@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useContext, useCallback, useEffect, useRef } from 'react'
 import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -112,9 +113,7 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         setLocalError(null);
 
         const params = new URLSearchParams({
-          platform: (localMatrixFilters.platform && localMatrixFilters.platform !== 'All') 
-            ? (Array.isArray(localMatrixFilters.platform) ? localMatrixFilters.platform.join(',').toLowerCase() : String(localMatrixFilters.platform).toLowerCase()) 
-            : 'All',
+          platform: 'All',  // Platform KPI Matrix always shows data across ALL platforms
           brand: (localMatrixFilters.brand && localMatrixFilters.brand !== 'All') 
             ? (Array.isArray(localMatrixFilters.brand) ? localMatrixFilters.brand.join(',').toLowerCase() : String(localMatrixFilters.brand).toLowerCase()) 
             : 'All',
@@ -138,7 +137,7 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         
         setLocalMatrixData(res.data);
       } catch (err) {
-        if (axiosInstance.isCancel(err)) return;
+        if (axios.isCancel(err)) return;
         console.error('❌ [Matrix] Local fetch error:', err);
         setLocalError(err.message);
       } finally {
