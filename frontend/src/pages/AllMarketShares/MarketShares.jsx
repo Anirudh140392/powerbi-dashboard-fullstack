@@ -12,10 +12,7 @@ export default function MarketShares() {
     if (typeof refreshFilters === 'function') {
       refreshFilters();
     }
-    if (typeof refreshDates === 'function') {
-      refreshDates();
-    }
-  }, [refreshFilters, refreshDates]);
+  }, [refreshFilters]);
 
   const [filters, setFilters] = useState({
     platform: "Blinkit",

@@ -3305,22 +3305,33 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                             >
                               Share of Shelf
                             </Box>
-                            <Box
-                              onClick={() => setVisibilityMode('bsr')}
-                              sx={{
-                                px: 1.2, py: 0.2,
-                                fontSize: '0.6rem',
-                                fontWeight: visibilityMode === 'bsr' ? 700 : 500,
-                                color: visibilityMode === 'bsr' ? '#ffffff' : '#64748b',
-                                bgcolor: visibilityMode === 'bsr' ? '#6366f1' : 'transparent',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                fontFamily: "'Inter', 'Roboto', sans-serif"
-                              }}
-                            >
-                              BSR
-                            </Box>
+                            {(() => {
+                              const isAmazon = platform === 'Amazon' || platform === 'amazon' || (Array.isArray(platform) && platform.some(p => p?.toLowerCase() === 'amazon'));
+                              const isBsrDisabled = isAmazon;
+
+                              return (
+                                <Box
+                                  onClick={() => {
+                                    if (isBsrDisabled) return;
+                                    setVisibilityMode('bsr');
+                                  }}
+                                  sx={{
+                                    px: 1.2, py: 0.2,
+                                    fontSize: '0.6rem',
+                                    fontWeight: visibilityMode === 'bsr' ? 700 : 500,
+                                    color: visibilityMode === 'bsr' ? '#ffffff' : (isBsrDisabled ? '#94a3b8' : '#64748b'),
+                                    bgcolor: visibilityMode === 'bsr' ? '#6366f1' : 'transparent',
+                                    borderRadius: '6px',
+                                    cursor: isBsrDisabled ? 'not-allowed' : 'pointer',
+                                    opacity: isBsrDisabled ? 0.5 : 1,
+                                    transition: 'all 0.2s',
+                                    fontFamily: "'Inter', 'Roboto', sans-serif"
+                                  }}
+                                >
+                                  BSR
+                                </Box>
+                              );
+                            })()}
                           </Box>
 
                           <Tooltip title="BSR page contains only Amazon platform data" arrow placement="top">

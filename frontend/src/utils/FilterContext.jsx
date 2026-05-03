@@ -14,7 +14,7 @@ const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart"];
 const FALLBACK_CATEGORIES = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
 const FALLBACK_LOCATIONS = [];
 const FALLBACK_BRANDS = [];
-const FALLBACK_CHANNELS = ["Ecom", "ModernTrade"];
+const FALLBACK_CHANNELS = ["Ecom", "QuickComm"];
 
 export const FilterProvider = ({ children }) => {
     const { isLoggedIn } = useAuth();
@@ -167,7 +167,7 @@ export const FilterProvider = ({ children }) => {
 
     useEffect(() => {
         refreshDates();
-    }, [refreshDates, currentHash]);
+    }, [refreshDates]);
 
     // ====== FETCH CHANNELS FROM DB (on mount) ======
     useEffect(() => {
