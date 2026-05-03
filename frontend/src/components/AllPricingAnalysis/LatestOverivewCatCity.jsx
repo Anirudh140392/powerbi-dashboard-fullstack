@@ -1,6 +1,6 @@
 import { useState, useMemo, useContext, useEffect } from 'react'
 import axiosInstance from '../../api/axiosInstance'
-import { Skeleton } from '@mui/material'
+import { Skeleton, Tooltip, Typography } from '@mui/material'
 import { motion } from 'framer-motion'
 import { FilterContext } from '../../utils/FilterContext'
 import {
@@ -16,6 +16,7 @@ import {
     ChevronRight,
     ArrowLeft,
     ChevronDown,
+    Info
 } from 'lucide-react'
 import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
@@ -55,7 +56,7 @@ const LatestOverivewCatCity = ({
 }) => {
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount %' },
-        { key: 'pricePerUnit', label: 'Price/Unit 1g / 1 piece' },
+        { key: 'pricePerUnit', label: 'Price/Unit 1g / 1 piece', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
         { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
 
@@ -498,8 +499,17 @@ const LatestOverivewCatCity = ({
                                             cardSize.minW
                                         )}
                                     >
-                                        <div className="text-[12px] font-bold text-slate-500 uppercase tracking-[0.12em]">
-                                            {kpiLabels[kpi.key] || kpi.label}
+                                        <div className="flex items-center justify-center gap-1.5 text-[12px] font-bold text-slate-500 uppercase tracking-[0.12em]">
+                                            <span>{kpiLabels[kpi.key] || kpi.label}</span>
+                                            {kpi.infoTooltip && (
+                                                <Tooltip
+                                                    title={<Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>}
+                                                    arrow placement="top" enterDelay={200} leaveDelay={100}
+                                                    slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
+                                                >
+                                                    <span className="cursor-help inline-flex items-center"><Info size={14} color="#94a3b8" strokeWidth={2} /></span>
+                                                </Tooltip>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
