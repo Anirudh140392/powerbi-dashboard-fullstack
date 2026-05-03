@@ -646,7 +646,7 @@ const Sidebar = ({
                     lineHeight: 1.1,
                     display: selectedPlatform === 'All' ? 'none' : 'block'
                   }}>
-                    {selectedPlatform}
+                    {selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''}
                   </Typography>
                   <Typography sx={{ 
                     color: selectedPlatform === 'All' ? '#1e293b' : '#64748b', 
@@ -712,7 +712,10 @@ const Sidebar = ({
                   return (
                     <Box
                       key={pf.pf_name}
-                      onClick={() => onPlatformChange(pf.pf_name)}
+                      onClick={() => {
+                        onPlatformChange(pf.pf_name);
+                        setShowPlatformOptions(false);
+                      }}
                       sx={{
                         position: 'relative',
                         flexShrink: 0,
@@ -795,7 +798,7 @@ const Sidebar = ({
       {selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && isCollapsed && (
         <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center', borderBottom: "1px solid rgba(0, 0, 0, 0.04)" }}>
           {selectedPlatform && selectedPlatform !== 'All' && (
-             <Tooltip title={selectedPlatform} placement="right">
+             <Tooltip title={selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''} placement="right">
                <Box sx={{
                   width: 32,
                   height: 32,
