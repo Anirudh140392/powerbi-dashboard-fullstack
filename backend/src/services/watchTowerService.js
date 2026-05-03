@@ -7186,12 +7186,13 @@ const getKpiTrends = async (filters) => {
     }
 
     const isSkuSelected = (skuName && skuName !== 'All' && skuName !== '') || (skuCode && skuCode !== 'All' && skuCode !== '');
-    const isQuickcomm = String(channel || '').toLowerCase() === 'quickcomm';
-    const shouldHidePmMetrics = isSkuSelected && isQuickcomm;
+    // When SKU is selected, use rb_pdp_olap for PM KPIs (Spend, ROAS, Conversion, CPC, CPM)
+    // instead of rb_pm_olap, since PM table only has aggregate-level data
+    const usePdpForPmKpis = isSkuSelected;
 
     const validBrandNames = await getCachedValidBrandNames();
 
-    console.log(`[getKpiTrends] Date range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}`);
+    console.log(`[getKpiTrends] Date range: ${startDate.format('YYYY-MM-DD')} to ${endDate.format('YYYY-MM-DD')}, isSkuSelected: ${isSkuSelected}, usePdpForPmKpis: ${usePdpForPmKpis}`);
 
     // 2. Determine Grouping for ClickHouse
     let groupFormat;  // For formatDateTime
@@ -7504,16 +7505,27 @@ const getKpiTrends = async (filters) => {
     const hasDiscountData = kpiResults.some(r => parseFloat(r.avg_discount || 0) > 0);
     const hasPricingData = kpiResults.some(r => parseFloat(r.avg_selling_price || 0) > 0);
 
-    let hasPmAdSalesData = pmResults.some(r => parseFloat(r.pm_ad_sales || 0) > 0);
-    let hasPmSpendData = pmResults.some(r => parseFloat(r.pm_ad_spend || 0) > 0);
-    let hasPmOrdersData = pmResults.some(r => parseFloat(r.pm_ad_orders || 0) > 0);
-    let hasPmClicksData = pmResults.some(r => parseFloat(r.pm_ad_clicks || 0) > 0);
-    let hasPmImpressionsData = pmResults.some(r => parseFloat(r.pm_ad_impressions || 0) > 0);
+    // When SKU is selected, detect availability from PDP data; otherwise from PM data
+    let hasPmAdSalesData, hasPmSpendData, hasPmOrdersData, hasPmClicksData, hasPmImpressionsData;
+    if (usePdpForPmKpis) {
+        // Use PDP table (rb_pdp_olap) ad columns for availability detection
+        hasPmAdSalesData = kpiResults.some(r => parseFloat(r.total_Ad_sales || 0) > 0);
+        hasPmSpendData = kpiResults.some(r => parseFloat(r.total_ad_spend || 0) > 0);
+        hasPmOrdersData = kpiResults.some(r => parseFloat(r.total_ad_orders || 0) > 0);
+        hasPmClicksData = kpiResults.some(r => parseFloat(r.total_ad_clicks || 0) > 0);
+        hasPmImpressionsData = kpiResults.some(r => parseFloat(r.total_ad_impressions || 0) > 0);
+    } else {
+        hasPmAdSalesData = pmResults.some(r => parseFloat(r.pm_ad_sales || 0) > 0);
+        hasPmSpendData = pmResults.some(r => parseFloat(r.pm_ad_spend || 0) > 0);
+        hasPmOrdersData = pmResults.some(r => parseFloat(r.pm_ad_orders || 0) > 0);
+        hasPmClicksData = pmResults.some(r => parseFloat(r.pm_ad_clicks || 0) > 0);
+        hasPmImpressionsData = pmResults.some(r => parseFloat(r.pm_ad_impressions || 0) > 0);
+    }
 
     // [FEATURE OVERRIDE]: If platform belongs to 'Quickcomm', automatically resolve hasPm data availability flags to true
     // This allows the Trend charts to effectively process available graph lines rendering '0' values rather than nulling them entirely making them disappear off the face of the graph
-    // when 'All SKUs' are selected (which implies `shouldHidePmMetrics` is false, hence making buttons visible, and mapping logic applies).
-    if (channel && channel.toLowerCase() === 'quickcomm') {
+    // when 'All SKUs' are selected (which implies PM metrics buttons are visible, and mapping logic applies).
+    if (channel && channel.toLowerCase() === 'quickcomm' && !usePdpForPmKpis) {
         hasPmAdSalesData = true;
         hasPmSpendData = true;
         hasPmOrdersData = true;
@@ -7588,35 +7600,38 @@ const getKpiTrends = async (filters) => {
 
         // Get PM metrics for this period if available
         const pmData = pmDataMap.get(String(bucket.groupKey)) || { adSales: 0, spend: 0, orders: 0, clicks: 0, impressions: 0 };
-        const pmAdSales = pmData.adSales;
-        const pmAdSpend = pmData.spend;
-        const pmAdOrders = pmData.orders;
-        const pmAdClicks = pmData.clicks;
-        const pmAdImpressions = pmData.impressions;
 
-        // 2. Inorganic Sales (Ad Sales from PM) - Absolute value as requested
-        const inorganicSales = pmAdSales;
+        // When SKU is selected, use PDP data (rb_pdp_olap) for PM KPIs;
+        // otherwise use PM data (rb_pm_olap) for Platform/Category/Brand/Location level
+        const effectiveAdSales = usePdpForPmKpis ? adSales : pmData.adSales;
+        const effectiveAdSpend = usePdpForPmKpis ? adSpend : pmData.spend;
+        const effectiveAdOrders = usePdpForPmKpis ? adOrders : pmData.orders;
+        const effectiveAdClicks = usePdpForPmKpis ? adClicks : pmData.clicks;
+        const effectiveAdImpressions = usePdpForPmKpis ? adImpressions : pmData.impressions;
 
-        // 3. Conversion (Orders / Clicks * 100) - Using PM data
-        const conversion = calculateConversion(pmAdOrders, pmAdImpressions, pmAdClicks);
+        // 2. Inorganic Sales (Ad Sales) - Absolute value as requested
+        const inorganicSales = effectiveAdSales;
 
-        // 4. ROAS (Ad Sales / Ad Spend) - Using PM data
-        const roas = pmAdSpend > 0 ? pmAdSales / pmAdSpend : 0;
+        // 3. Conversion (Orders / Clicks * 100)
+        const conversion = calculateConversion(effectiveAdOrders, effectiveAdImpressions, effectiveAdClicks);
 
-        // 5. BMI/Sales Ratio (Ad Spend / Total Sales * 100) - Using PM data
-        const bmiSalesRatio = totalSales > 0 ? (pmAdSpend / totalSales) * 100 : 0;
+        // 4. ROAS (Ad Sales / Ad Spend)
+        const roas = effectiveAdSpend > 0 ? effectiveAdSales / effectiveAdSpend : 0;
+
+        // 5. BMI/Sales Ratio (Ad Spend / Total Sales * 100)
+        const bmiSalesRatio = totalSales > 0 ? (effectiveAdSpend / totalSales) * 100 : 0;
 
         // 6. Offtakes (Total Sales) - Return raw value for frontend formatting
         const offtakes = totalSales;
 
         // 7. Spend (Ad Spend) - Return raw value for frontend formatting
-        const spend = adSpend;
+        const spend = effectiveAdSpend;
 
-        // 8. CPM (Cost Per Thousand Impressions) - Using PM data
-        const cpm = pmAdImpressions > 0 ? (pmAdSpend / pmAdImpressions) * 1000 : 0;
+        // 8. CPM (Cost Per Thousand Impressions)
+        const cpm = effectiveAdImpressions > 0 ? (effectiveAdSpend / effectiveAdImpressions) * 1000 : 0;
 
-        // 9. CPC (Cost Per Click) - Using PM data
-        const cpc = pmAdClicks > 0 ? pmAdSpend / pmAdClicks : 0;
+        // 9. CPC (Cost Per Click)
+        const cpc = effectiveAdClicks > 0 ? effectiveAdSpend / effectiveAdClicks : 0;
 
         const marketShare = msTimeSeriesMap.get(String(bucket.groupKey)) || 0;
         const categoryShare = marketShare;
@@ -7629,19 +7644,19 @@ const getKpiTrends = async (filters) => {
             date: bucket.label,
             // Core 5 KPIs (Performance Matrix)
             ShareOfSearch: valIfData(hasSosFinalData, parseFloat(shareOfSearch.toFixed(2))),
-            InorganicSales: shouldHidePmMetrics ? null : valIfData(hasPmAdSalesData, parseFloat(inorganicSales.toFixed(2))),
-            Conversion: shouldHidePmMetrics ? null : valIfData(hasPmOrdersData && hasPmClicksData, parseFloat(conversion.toFixed(2))),
-            Roas: shouldHidePmMetrics ? null : valIfData(hasPmAdSalesData && hasPmSpendData, parseFloat(roas.toFixed(2))),
+            InorganicSales: valIfData(hasPmAdSalesData, parseFloat(inorganicSales.toFixed(2))),
+            Conversion: valIfData(hasPmOrdersData && hasPmClicksData, parseFloat(conversion.toFixed(2))),
+            Roas: valIfData(hasPmAdSalesData && hasPmSpendData, parseFloat(roas.toFixed(2))),
             BmiSalesRatio: valIfData(hasPmSpendData && hasOfftakesData, parseFloat(bmiSalesRatio.toFixed(2))),
             // Extended KPIs (Platform/Month/Category/Brand pages)
             Offtakes: valIfData(hasOfftakesData, parseFloat(offtakes.toFixed(0))),
-            Spend: shouldHidePmMetrics ? null : valIfData(hasPmSpendData, parseFloat(spend.toFixed(0))),
+            Spend: valIfData(hasPmSpendData, parseFloat(spend.toFixed(0))),
             Availability: valIfData(hasAvailabilityData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
             Osa: valIfData(hasAvailabilityData, availability !== null ? parseFloat(availability.toFixed(2)) : null),
             Listing: valIfData(hasAssortmentData, masterCount > 0 ? parseFloat(((assortment / masterCount) * 100).toFixed(2)) : (availability !== null ? parseFloat(availability.toFixed(2)) : null)),
             Assortment: valIfData(hasAssortmentData, assortment),
             CPM: valIfData(hasPmSpendData && hasPmImpressionsData, parseFloat(cpm.toFixed(2))),
-            CPC: shouldHidePmMetrics ? null : valIfData(hasPmSpendData && hasPmClicksData, parseFloat(cpc.toFixed(2))),
+            CPC: valIfData(hasPmSpendData && hasPmClicksData, parseFloat(cpc.toFixed(2))),
             // Pricing KPIs
             'Promo-My': valIfData(hasDiscountData, parseFloat(discount.toFixed(2))),
             PricePerUnit: valIfData(hasPricingData, parseFloat(pricePerUnit.toFixed(2))),
@@ -7654,8 +7669,8 @@ const getKpiTrends = async (filters) => {
             discount: valIfData(hasDiscountData, parseFloat(discount.toFixed(2))),      // MyTrendsDrawer
             Sos: valIfData(hasSosFinalData, parseFloat(shareOfSearch.toFixed(2))),      // MyTrendsDrawer
             SOS: valIfData(hasSosFinalData, parseFloat(shareOfSearch.toFixed(2))),      // TrendsCompetitionDrawer
-            ROAS: shouldHidePmMetrics ? null : valIfData(hasPmAdSalesData && hasPmSpendData, parseFloat(roas.toFixed(2))),
-            InorgSales: shouldHidePmMetrics ? null : valIfData(hasPmAdSalesData, parseFloat(inorganicSales.toFixed(2))),
+            ROAS: valIfData(hasPmAdSalesData && hasPmSpendData, parseFloat(roas.toFixed(2))),
+            InorgSales: valIfData(hasPmAdSalesData, parseFloat(inorganicSales.toFixed(2))),
             MarketShare: valIfData(hasMsData, parseFloat(marketShare.toFixed(2))),
             marketShare: valIfData(hasMsData, parseFloat(marketShare.toFixed(2))),
             CategoryShare: valIfData(hasMsData, parseFloat(categoryShare.toFixed(2))),

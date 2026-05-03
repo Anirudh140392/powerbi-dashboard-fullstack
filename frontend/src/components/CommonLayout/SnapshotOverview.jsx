@@ -228,6 +228,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 
     const hoverDeltaStr = `${scaledDelta >= 0 ? '+' : ''}${hoverDeltaPct}${suffix}`;
 
+    const isNA = !kpi.value || kpi.value === '-' || String(kpi.value).trim() === '0' || String(kpi.value).trim() === '0%' || String(kpi.value).trim() === '₹0M' || String(kpi.value).trim() === '₹0';
 
     const onCardEnter = (e) => {
         if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
@@ -280,13 +281,15 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 
                 <div className="flex items-end justify-between w-full mb-0.5">
                     <Typography sx={{ fontSize: "22px", fontWeight: 700, color: themeColor, lineHeight: 1, letterSpacing: "-0.01em" }}>
-                        {kpi.value}
+                        {isNA ? 'N/A' : kpi.value}
                     </Typography>
 
-                    <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
-                        <DeltaIcon size={10} strokeWidth={3} />
-                        <span className="text-[14px] font-bold">{deltaLabel}</span>
-                    </div>
+                    {!isNA && (
+                        <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
+                            <DeltaIcon size={10} strokeWidth={3} />
+                            <span className="text-[14px] font-bold">{deltaLabel}</span>
+                        </div>
+                    )}
                 </div>
 
                 <Typography sx={{ fontSize: "9px", color: "text.disabled", fontWeight: 500, mt: 0.5 }}>

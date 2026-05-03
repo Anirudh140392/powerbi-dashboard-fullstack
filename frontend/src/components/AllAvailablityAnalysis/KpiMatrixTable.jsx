@@ -656,17 +656,19 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                             loading && "opacity-50"
                                                         )}>
                                                             <span className="text-sm font-semibold text-slate-700">
-                                                                {kpi.key === 'psl' ? `₹${formatNumber(cell.value)}` : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}
+                                                                {!cell.value || cell.value === '-' ? 'N/A' : (kpi.key === 'psl' ? `₹${formatNumber(cell.value)}` : `${cell.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`)}
                                                             </span>
-                                                            <span
-                                                                className={cn(
-                                                                    "text-[11px] font-medium",
-                                                                    cell.delta >= 0 ? "text-emerald-500" : "text-rose-500"
-                                                                )}
-                                                            >
-                                                                {cell.delta >= 0 ? "↑" : "↓"}
-                                                                {kpi.key === 'psl' ? formatNumber(Math.abs(cell.delta)) : Math.abs(cell.delta)}
-                                                            </span>
+                                                            {!!cell.value && cell.value !== '-' && (
+                                                                <span
+                                                                    className={cn(
+                                                                        "text-[11px] font-medium",
+                                                                        cell.delta >= 0 ? "text-emerald-500" : "text-rose-500"
+                                                                    )}
+                                                                >
+                                                                    {cell.delta >= 0 ? "↑" : "↓"}
+                                                                    {kpi.key === 'psl' ? formatNumber(Math.abs(cell.delta)) : Math.abs(cell.delta)}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 );
@@ -721,7 +723,9 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                                                                                             <span className="text-slate-400" title={item}>
                                                                                                 {item.includes('Zone') ? item.split(' ')[0] : (item.length > 8 ? item.substring(0, 8) + '..' : item)}
                                                                                             </span>
-                                                                                            <span className="ml-1 font-medium text-slate-700">{kpi.key === 'psl' ? `₹${formatNumber(drillData.value)}` : `${drillData.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`}</span>
+                                                                                            <span className="ml-1 font-medium text-slate-700">
+                                                                                                {!drillData.value || drillData.value === '-' ? 'N/A' : (kpi.key === 'psl' ? `₹${formatNumber(drillData.value)}` : `${drillData.value}${['doi', 'assortment'].includes(kpi.key) ? '' : '%'}`)}
+                                                                                            </span>
                                                                                         </div>
                                                                                     );
                                                                                 })

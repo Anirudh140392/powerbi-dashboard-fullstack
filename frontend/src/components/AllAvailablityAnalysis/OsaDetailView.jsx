@@ -275,7 +275,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center font-semibold">{r.avgSelected}%</td>
+                                                        <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center font-semibold">{!r.avgSelected || r.avgSelected === '-' ? 'N/A' : `${r.avgSelected}%`}</td>
                                                         <td className="px-3 py-2 border-b border-slate-100">
                                                             <span className={"inline-flex items-center gap-2 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 " + st.chip}>
                                                                 <span className={"h-1.5 w-1.5 rounded-full " + st.dot} />{r.status}
@@ -285,7 +285,9 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                             const v = avgOf(r.values, col.indices);
                                                             return (
                                                                 <td key={ci} className="px-1.5 py-2 border-b border-slate-100 text-center" title={`${r.name} • ${col.label}: ${v}%`}>
-                                                                    <span className={"inline-flex min-w-[36px] justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold " + cellTone(v)}>{v}%</span>
+                                                                    <span className={"inline-flex min-w-[36px] justify-center rounded-md px-1 py-0.5 text-[10px] font-semibold " + (!v || v === '-' ? "bg-slate-50 text-slate-400" : cellTone(v))}>
+                                                                        {!v || v === '-' ? 'N/A' : `${v}%`}
+                                                                    </span>
                                                                 </td>
                                                             );
                                                         })}
@@ -302,7 +304,7 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                                                 const v = avgOf(city.values, col.indices);
                                                                 return (
                                                                     <td key={ci} className="px-1.5 py-1.5 border-b border-slate-100 text-center">
-                                                                        <span className="text-[10px] text-slate-500 font-medium">{v > 0 ? `${v}%` : '—'}</span>
+                                                                        <span className="text-[10px] text-slate-500 font-medium">{!v || v === '-' ? 'N/A' : `${v}%`}</span>
                                                                     </td>
                                                                 );
                                                             })}

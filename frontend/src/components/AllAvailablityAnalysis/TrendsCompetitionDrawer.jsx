@@ -735,11 +735,7 @@ export default function TrendsCompetitionDrawer({
     return platformChannelMap[plat] || '';
   }, [drawerFilters.Platform, platformChannelMap]);
 
-  // Whether to hide PM metrics (Spend, Conversion, ROAS, Inorganic Sales, CPC)
-  const isQuickcommSku = useMemo(() => {
-    const isSkuSelected = drawerFilters.SKU && drawerFilters.SKU !== 'All';
-    return isSkuSelected && derivedChannel.toLowerCase() === 'quickcomm';
-  }, [drawerFilters.SKU, derivedChannel]);
+  // PM metrics (Spend, Conversion, ROAS, CPC) are always visible.\n  // When SKU is selected, backend sources these from rb_pdp_olap instead of rb_pm_olap.
 
   const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : [
     "Blinkit",
@@ -2031,17 +2027,8 @@ export default function TrendsCompetitionDrawer({
     }
   }, [isEcom, activeMetrics]);
 
-  // Sync active metrics: remove PM metrics if Quickcomm + SKU selected
-  useEffect(() => {
-    if (isQuickcommSku) {
-      const pmIds = ['Spend', 'Conversion', 'Roas', 'ROAS', 'InorgSales', 'InorganicSales', 'CPC'];
-      setActiveMetrics(prev => {
-        const filtered = prev.filter(m => !pmIds.includes(m));
-        // If all were removed, default to first available non-PM metric
-        return filtered.length > 0 ? filtered : prev.filter(m => !pmIds.includes(m));
-      });
-    }
-  }, [isQuickcommSku]);
+  // Note: PM metrics (Spend, Conversion, ROAS, CPC) are now always visible.
+  // When SKU is selected, the backend sources these from rb_pdp_olap instead of rb_pm_olap.
 
 
   const platformRef = useRef(null);
@@ -2056,15 +2043,8 @@ export default function TrendsCompetitionDrawer({
 
   const trendMetaRaw = DASHBOARD_DATA.trends || { metrics: [], points: [] };
 
-  // Hide PM metrics from pills when Quickcomm + SKU selected
-  const PM_METRIC_IDS = ['Spend', 'Conversion', 'Roas', 'ROAS', 'InorgSales', 'InorganicSales', 'CPC'];
-  const trendMeta = useMemo(() => {
-    if (!isQuickcommSku) return trendMetaRaw;
-    return {
-      ...trendMetaRaw,
-      metrics: (trendMetaRaw.metrics || []).filter(m => !PM_METRIC_IDS.includes(m.id)),
-    };
-  }, [trendMetaRaw, isQuickcommSku]);
+  // PM metrics are always visible - backend routes SKU-level data from rb_pdp_olap
+  const trendMeta = trendMetaRaw;
 
   const compMeta = DASHBOARD_DATA.competition || {};
   const compareMeta = DASHBOARD_DATA.compareSkus || {};
