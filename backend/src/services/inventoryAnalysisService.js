@@ -79,7 +79,7 @@ const inventoryAnalysisService = {
 
                     if (filters.channel && filters.channel !== 'All') {
                         const channels = filters.channel.split(',').map(c => c.trim());
-                        where += ` AND Channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                        where += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
                     }
                     if (filters.platform && filters.platform !== 'All') {
                         const platforms = filters.platform.split(',').map(p => p.trim());
@@ -252,7 +252,7 @@ const inventoryAnalysisService = {
         const cacheKey = generateCacheKey('inventory_channels_v1', {});
         return await getCachedOrCompute(cacheKey, async () => {
             try {
-                const query = `SELECT DISTINCT Channel as channel FROM rb_pdp_olap WHERE Channel IS NOT NULL AND Channel != '' AND Comp_flag = 0 ORDER BY channel ASC`;
+                const query = `SELECT DISTINCT channel as channel FROM rb_pdp_olap WHERE channel IS NOT NULL AND channel != '' AND Comp_flag = 0 ORDER BY channel ASC`;
                 const results = await queryClickHouse(query);
                 return results.map(c => c.channel);
             } catch (error) {
@@ -272,7 +272,7 @@ const inventoryAnalysisService = {
                 let query = `SELECT DISTINCT Platform as platform FROM rb_pdp_olap WHERE Platform IS NOT NULL AND Platform != '' AND Comp_flag = 0`;
                 if (channel && channel !== 'All') {
                     const channels = channel.split(',').map(c => c.trim());
-                    query += ` AND Channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                    query += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
                 }
                 query += ` ORDER BY platform ASC`;
                 const results = await queryClickHouse(query);
@@ -294,7 +294,7 @@ const inventoryAnalysisService = {
                 let query = `SELECT DISTINCT Category as category FROM rb_pdp_olap WHERE Category IS NOT NULL AND Category != '' AND Comp_flag = 0`;
                 if (channel && channel !== 'All') {
                     const channels = channel.split(',').map(c => c.trim());
-                    query += ` AND Channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                    query += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
                 }
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => p.trim());
@@ -320,7 +320,7 @@ const inventoryAnalysisService = {
                 let query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE Brand IS NOT NULL AND Brand != '' AND Comp_flag = 0`;
                 if (channel && channel !== 'All') {
                     const channels = channel.split(',').map(c => c.trim());
-                    query += ` AND Channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                    query += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
                 }
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => p.trim());
@@ -350,7 +350,7 @@ const inventoryAnalysisService = {
                 let query = `SELECT DISTINCT Location as location FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' AND Comp_flag = 0`;
                 if (channel && channel !== 'All') {
                     const channels = channel.split(',').map(c => c.trim());
-                    query += ` AND Channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                    query += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
                 }
                 if (platform && platform !== 'All') {
                     const platforms = platform.split(',').map(p => p.trim());
@@ -391,7 +391,7 @@ const inventoryAnalysisService = {
                     where += ` AND Comp_flag = 0`;
                     if (filters.channel && filters.channel !== 'All') {
                         const channels = filters.channel.split(',').map(c => c.trim());
-                        where += ` AND Channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                        where += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
                     }
                     if (filters.platform && filters.platform !== 'All') {
                         const platforms = filters.platform.split(',').map(p => p.trim());
@@ -468,7 +468,7 @@ const inventoryAnalysisService = {
                     where += ` AND Comp_flag = 0`;
                     if (filters.channel && filters.channel !== 'All') {
                         const channels = filters.channel.split(',').map(c => c.trim());
-                        where += ` AND Channel IN (${channels.map(c => `'${c}'`).join(',')})`;
+                        where += ` AND channel IN (${channels.map(c => `'${c}'`).join(',')})`;
                     }
                     if (filters.platform && filters.platform !== 'All') {
                         const platforms = filters.platform.split(',').map(p => p.trim());

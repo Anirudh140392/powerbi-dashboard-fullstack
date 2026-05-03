@@ -1066,19 +1066,19 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
               {/* ---------------- HEADER ROW ---------------- */}
               <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 
+                <tr className="bg-slate-100">
+                  <th className="sticky left-0 z-20 bg-slate-100 py-3 pl-4 pr-4 
                                    text-left text-[11px] font-bold uppercase 
-                                   tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)] min-w-[140px]">
+                                   tracking-widest text-slate-500 border-b border-r border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)] min-w-[140px]">
                     {firstColLabel}
                   </th>
 
                   {visibleColumns.map((col) => (
                     <th
                       key={col}
-                      className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 
+                      className="border-b border-slate-200 bg-slate-100 py-3 px-3 
                                    text-center text-[11px] font-bold uppercase 
-                                   tracking-widest text-slate-900 min-w-[110px]"
+                                   tracking-widest text-slate-500 min-w-[110px]"
                     >
                       <div className="flex items-center justify-center gap-2">
                         <span>{col}</span>
@@ -1105,7 +1105,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
                     {/* Sticky KPI Column */}
                     <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
-                                     text-xs font-bold text-slate-900 border-b border-slate-100 
+                                     text-xs font-bold text-slate-900 border-b border-r border-slate-200 
                                      shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
                       {row.kpi.toUpperCase()}
                     </td>
@@ -1119,29 +1119,26 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                       const Icon = trendMeta.icon;
 
                       return (
-                        <td key={col} className="py-2 px-3 border-b border-r border-slate-50 last:border-r-0">
+                        <td key={col} className="py-2 px-3 border-b border-slate-100">
                           <Popover>
                             <PopoverTrigger asChild>
 
-                              {/* CITY-STYLE CELL BUTTON */}
+                              {/* CLEAN CELL BUTTON */}
                               <button
                                 className={`flex w-max mx-auto items-center justify-center gap-2 
-                                           rounded-md border border-transparent px-2 py-1.5 
-                                           text-xs font-semibold 
-                                           transition-all duration-200
-                                           hover:border-slate-200 hover:shadow-xs hover:scale-[1.02]
+                                           px-2 py-1.5 text-xs font-semibold cursor-pointer
+                                           transition-colors duration-200 hover:text-indigo-600
                                            ${cellClasses}`}
                               >
-                                <span className="font-mono tabular-nums tracking-tight">
+                                <span className="font-mono tabular-nums tracking-tight text-slate-800">
                                   {(showValue && value !== undefined && value !== null && checkValueCondition(value)) ? formatKpiValue(row.kpi, value) : "–"}
                                 </span>
 
                                 <span
-                                  className={`inline-flex items-center gap-0.5 rounded-md
-                                                px-1.5 py-0.5 text-[10px] font-semibold ${trendMeta.pill}`}
+                                  className={`inline-flex items-center gap-0.5 text-[10.5px] font-bold ${trendMeta.iconColor}`}
                                 >
-                                  <span className="text-[9px] leading-none">{trendMeta.triangle}</span>
-                                  <span className="text-[10px] leading-none">{trendMeta.display}</span>
+                                  <span className="text-[10px] leading-none">{trendMeta.triangle}</span>
+                                  <span className="text-[10.5px] leading-none tracking-tight">{trendMeta.display}</span>
                                 </span>
                               </button>
                             </PopoverTrigger>

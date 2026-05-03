@@ -81,23 +81,9 @@ export const getContentAnalysisStats = async (filters) => {
             }
         }
 
-        // Brand filter
-        if (brand && brand !== 'All') {
-            const brands = Array.isArray(brand) ? brand : brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
-            if (brandConditions.length > 0) {
-                query += ` AND (${brandConditions.join(' OR ')})`;
-            }
-        }
+        /* Brand filter removed as column does not exist */
 
-        // Location / Zone filter (City in rb_product_verify)
-        if (location && location !== 'All') {
-            const zones = Array.isArray(location) ? location : location.split(',');
-            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
-            if (zoneConditions.length > 0) {
-                query += ` AND (${zoneConditions.join(' OR ')})`;
-            }
-        }
+        /* Location filter removed as column does not exist */
 
         query += ` LIMIT 1000`;
 
@@ -200,23 +186,9 @@ export const getContentAnalysisOverviewStats = async (filters, isCompare = false
             }
         }
 
-        // Brand filter
-        if (brand && brand !== 'All') {
-            const brands = Array.isArray(brand) ? brand : brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
-            if (brandConditions.length > 0) {
-                query += ` AND (${brandConditions.join(' OR ')})`;
-            }
-        }
+        /* Brand filter removed as column does not exist */
 
-        // Location / Zone filter (City in rb_product_verify)
-        if (location && location !== 'All') {
-            const zones = Array.isArray(location) ? location : location.split(',');
-            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
-            if (zoneConditions.length > 0) {
-                query += ` AND (${zoneConditions.join(' OR ')})`;
-            }
-        }
+        /* Location filter removed as column does not exist */
 
         const result = await queryClickHouse(query);
         
@@ -300,23 +272,9 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
             }
         }
 
-        // Brand filter (PlatformBreakdown)
-        if (filters.brand && filters.brand !== 'All') {
-            const brands = Array.isArray(filters.brand) ? filters.brand : filters.brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
-            if (brandConditions.length > 0) {
-                query += ` AND (${brandConditions.join(' OR ')})`;
-            }
-        }
+        /* Brand filter removed as column does not exist */
 
-        // Location / Zone filter (PlatformBreakdown)
-        if (filters.location && filters.location !== 'All') {
-            const zones = Array.isArray(filters.location) ? filters.location : filters.location.split(',');
-            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
-            if (zoneConditions.length > 0) {
-                query += ` AND (${zoneConditions.join(' OR ')})`;
-            }
-        }
+        /* Location filter removed as column does not exist */
 
         query += ` GROUP BY Platform ORDER BY Platform`;
 
@@ -495,23 +453,9 @@ export const getContentAnalysisTrends = async (filters) => {
             }
         }
 
-        // Brand filter (Trends)
-        if (filters.brand && filters.brand !== 'All') {
-            const brands = Array.isArray(filters.brand) ? filters.brand : filters.brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
-            if (brandConditions.length > 0) {
-                query += ` AND (${brandConditions.join(' OR ')})`;
-            }
-        }
+        /* Brand filter removed as column does not exist */
 
-        // Location / Zone filter (Trends)
-        if (filters.location && filters.location !== 'All') {
-            const zones = Array.isArray(filters.location) ? filters.location : filters.location.split(',');
-            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
-            if (zoneConditions.length > 0) {
-                query += ` AND (${zoneConditions.join(' OR ')})`;
-            }
-        }
+        /* Location filter removed as column does not exist */
 
         query += ` GROUP BY date ORDER BY date`;
 
