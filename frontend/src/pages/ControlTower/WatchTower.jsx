@@ -239,10 +239,7 @@ export default function WatchTower() {
     if (typeof refreshFilters === 'function') {
       refreshFilters();
     }
-    if (typeof refreshDates === 'function') {
-      refreshDates();
-    }
-  }, [refreshFilters, refreshDates]);
+  }, [refreshFilters]);
 
   // --- DETERMINISTIC JITTER FOR FRONTEND-ONLY VARIATION ---
   const getJitter = (baseVal, kpiKey) => {
@@ -518,7 +515,7 @@ export default function WatchTower() {
           }
         })
         .catch(error => {
-          if (currentFetchId === fetchIdRef.current) {
+          if (currentFetchId === overviewFetchIdRef.current) {
             console.error("Error fetching Watch Tower Overview:", error);
             setFetchError(error.message || "Failed to load Overview data");
             setLoading(false);
