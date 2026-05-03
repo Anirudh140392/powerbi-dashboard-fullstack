@@ -2408,7 +2408,8 @@ export default function PricingAnalysisData() {
         gradient: gradients[0],
         trend: d.discount?.sparklineData || [],
         trendDir: (d.discount?.change || 0) >= 0 ? 'up' : 'down',
-        prevText: 'vs Previous Period'
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
       },
       {
         id: 'vis-1',
@@ -2421,7 +2422,8 @@ export default function PricingAnalysisData() {
         gradient: gradients[1],
         trend: d.weightedDiscount?.sparklineData || [],
         trendDir: (d.weightedDiscount?.change || 0) >= 0 ? 'up' : 'down',
-        prevText: 'vs Previous Period'
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
       },
       {
         id: 'vis-2',

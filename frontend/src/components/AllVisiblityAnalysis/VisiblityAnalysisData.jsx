@@ -832,12 +832,14 @@ const VisiblityAnalysisData = ({
   // Show toggle when Ecommerce + (Amazon explicitly selected OR only Amazon available)
   const showBSRToggle = isEcommerceChannel && (isAmazonSelected || isOnlyAmazonAvailable);
 
-  // Auto-select BSR when only Amazon is available under Ecommerce
+  // Removed automatic redirect to BSR; default is now SOS as requested.
+  /*
   useEffect(() => {
     if (isEcommerceChannel && isOnlyAmazonAvailable) {
       setVisibilityMode('bsr');
     }
   }, [isEcommerceChannel, isOnlyAmazonAvailable]);
+  */
 
   // Reset to SOS when leaving Ecommerce channel
   useEffect(() => {
@@ -854,6 +856,13 @@ const VisiblityAnalysisData = ({
       ['#2563Eb', '#2563Eb'],
       ['#2563Eb', '#2563Eb']
     ];
+
+    const KPI_INFO_TOOLTIPS = {
+      'Overall SOS': "Share of Search indicates the proportion of attention a product receives relative to others within the same category or type.",
+      'Sponsored SOS': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
+      'Ad SOS': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
+      'Ad SOs': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category."
+    };
 
     // Use real API data only — no random generators
     const overviewCards = apiData?.overview?.cards;
@@ -879,7 +888,8 @@ const VisiblityAnalysisData = ({
           extra: card.extra,
           extraChange: card.extraChange,
           extraChangeColor: card.extraChangeColor,
-          prevText: card.prevText
+          prevText: card.prevText,
+          infoTooltip: KPI_INFO_TOOLTIPS[card.title] || KPI_INFO_TOOLTIPS[card.title?.replace(' Weighted', '')] || undefined
         };
       });
     }

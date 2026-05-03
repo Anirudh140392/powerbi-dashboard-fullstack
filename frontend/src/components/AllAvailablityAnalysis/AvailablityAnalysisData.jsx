@@ -1333,17 +1333,24 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     };
 
     let cards_config = [];
+    
+    // Info tooltips for specific KPIs (shown as ℹ icon on hover)
+    const KPI_INFO_TOOLTIPS = {
+      'osa': "Weighted OSA represents the average product availability within a category, factoring in each SKU’s importance (weight) alongside its individual availability percentage.",
+      'doi': "Days of Inventory (DOI) refers to the estimated number of days the combined stock from both the backend warehouses and frontend darkstores can sustain, based on the average daily sales or consumption rate."
+    };
+
     if (isQuickCom) {
       cards_config = [
-        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'] },
-        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
+        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
         { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
     } else {
       cards_config = [
-        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
         { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
-        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
         { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
         { key: 'skucount', title: "SKU count", sub: "Total SKUs tracked", api: skuCountData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
@@ -1367,7 +1374,8 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         trend: data.trend || [],
         trendSeries: data.trend || [],
         prevText: prevText,
-        isNotMetro: data.isNotMetro
+        isNotMetro: data.isNotMetro,
+        infoTooltip: cfg.infoTooltip
       };
     });
   }, [availability, globalPlatform, apiData, trendSeriesMap, selectedChannel]);

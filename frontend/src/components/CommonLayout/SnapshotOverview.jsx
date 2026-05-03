@@ -275,7 +275,40 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                         <Typography sx={{ fontSize: "10px", fontWeight: 600, color: "text.secondary", tracking: '0.01em' }}>
                             {kpi.label || kpi.title}
                         </Typography>
-
+                        {kpi.infoTooltip && (
+                            <Tooltip
+                                title={
+                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                        {kpi.infoTooltip}
+                                    </Typography>
+                                }
+                                arrow
+                                placement="top"
+                                enterDelay={200}
+                                leaveDelay={100}
+                                slotProps={{
+                                    tooltip: {
+                                        sx: {
+                                            bgcolor: '#1e293b',
+                                            color: '#f8fafc',
+                                            borderRadius: '10px',
+                                            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                            maxWidth: 300,
+                                            px: 1.5,
+                                            py: 1,
+                                        }
+                                    },
+                                    arrow: { sx: { color: '#1e293b' } }
+                                }}
+                            >
+                                <span
+                                    className="flex items-center cursor-help"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <Info size={12} color="#94a3b8" strokeWidth={2} />
+                                </span>
+                            </Tooltip>
+                        )}
                     </div>
                 </Box>
 
@@ -426,6 +459,37 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
                         {kpi.title}
                     </Typography>
+                    {kpi.infoTooltip && (
+                        <Tooltip
+                            title={
+                                <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                    {kpi.infoTooltip}
+                                </Typography>
+                            }
+                            arrow
+                            placement="top"
+                            enterDelay={200}
+                            leaveDelay={100}
+                            slotProps={{
+                                tooltip: {
+                                    sx: {
+                                        bgcolor: '#1e293b',
+                                        color: '#f8fafc',
+                                        borderRadius: '10px',
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                        maxWidth: 300,
+                                        px: 1.5,
+                                        py: 1,
+                                    }
+                                },
+                                arrow: { sx: { color: '#1e293b' } }
+                            }}
+                        >
+                            <span className="flex items-center cursor-help ml-0.5" onClick={(e) => e.stopPropagation()}>
+                                <Info size={14} color="#94a3b8" strokeWidth={2} />
+                            </span>
+                        </Tooltip>
+                    )}
                     {kpi.id === 'offtake' && (kpi.organicSales || kpi.inorganicSales) && (
                         <Tooltip
                             title={
@@ -513,7 +577,18 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-slate-100/40 to-transparent rounded-full translate-y-6 -translate-x-6" />
 
                 <div className="px-5 pt-5 pb-3 flex-1 relative z-10">
-                    <h3 className="text-sm font-semibold text-slate-500 mb-3">{kpi.title}</h3>
+                    <div className="flex items-center gap-1.5 mb-3">
+                        <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                        {kpi.infoTooltip && (
+                            <Tooltip
+                                title={<Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>}
+                                arrow placement="top" enterDelay={200} leaveDelay={100}
+                                slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
+                            >
+                                <span className="flex items-center cursor-help"><Info size={14} color="#94a3b8" strokeWidth={2} /></span>
+                            </Tooltip>
+                        )}
+                    </div>
 
                     <div className="flex flex-col items-center justify-center py-4 gap-3">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center shadow-lg shadow-violet-200/50">
@@ -568,7 +643,18 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
     return (
         <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
             <div className="px-5 pt-5 pb-3 flex-1">
-                <h3 className="text-sm font-semibold text-slate-500 mb-1">{kpi.title}</h3>
+                <div className="flex items-center gap-1.5 mb-1">
+                    <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                    {kpi.infoTooltip && (
+                        <Tooltip
+                            title={<Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>}
+                            arrow placement="top" enterDelay={200} leaveDelay={100}
+                            slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
+                        >
+                            <span className="flex items-center cursor-help"><Info size={14} color="#94a3b8" strokeWidth={2} /></span>
+                        </Tooltip>
+                    )}
+                </div>
 
                 <div className="mb-4">
                     <div className="text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">

@@ -274,6 +274,11 @@ export default function WatchTower() {
     'Promo': { icon: Percent, gradient: ['#f59e0b', '#fbbf24'], id: 'promo' },
   };
 
+  // Info tooltips for specific KPIs (shown as ℹ icon on hover)
+  const KPI_INFO_TOOLTIPS = {
+    'Market Share': "This metric measures your brand's contribution to total sales within specific product categories or groups.",
+  };
+
   const COMPARISON_KPIS = useMemo(() => {
     const topMetrics = dashboardData?.topMetrics;
 
@@ -321,6 +326,7 @@ export default function WatchTower() {
           gradient: meta.gradient,
           trend: metric.chart || getLogicalKpiTrend(meta.id, context),
           subtitle: metric.subtitle || undefined,
+          infoTooltip: KPI_INFO_TOOLTIPS[normalizedTitle] || undefined,
         };
       });
     }
@@ -357,7 +363,8 @@ export default function WatchTower() {
         delta: getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta'),
         deltaLabel: `+${(getJitter(getLogicalKpiValue('marketdelta', context), 'marketdelta') / 8).toFixed(2)}%`,
         icon: PieChart, gradient: ['#8b5cf6', '#a855f7'],
-        trend: getLogicalKpiTrend('market', context)
+        trend: getLogicalKpiTrend('market', context),
+        infoTooltip: KPI_INFO_TOOLTIPS['Market Share'],
       },
       {
         id: 'promo', title: 'Promo',
