@@ -2468,6 +2468,7 @@ export default function PricingAnalysisData() {
         }
         kpis={pricingKpis}
         variant="detailed"
+        helpMenu="Pricing Analysis"
         loading={pricingKpiLoading}
       />
 

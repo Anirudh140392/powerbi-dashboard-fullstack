@@ -62,7 +62,7 @@ const HelpDrawer = ({ userDbName }) => {
       interpretation: "Higher offtake → strong sales performance.",
       pitfalls: "Price vs volume confusion; double counting across SKUs.",
       example: "Brand sales = ₹5 Cr in last 30 days.",
-      logic: "Sum(Sales Value)",
+      logic: "Sum(Sales Value). Note: Organic Sales = Offtake - Inorganic Sales.",
     },
     {
       kpi: "Availability",
@@ -216,6 +216,15 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "High CTR but low conversion.",
       example: "5,000 clicks / 1,00,000 impressions = 5%.",
       logic: "(Clicks ÷ Impressions) × 100",
+    },
+    {
+      kpi: "Cost per Click (CPC)",
+      definition: "The average cost paid for each click on an advertisement.",
+      usage: "Monitor advertising cost efficiency.",
+      interpretation: "Lower CPC → more traffic for same spend.",
+      pitfalls: "Low CPC doesn't always mean high quality traffic.",
+      example: "₹500 for 100 clicks → CPC = ₹5.",
+      logic: "Total Spend ÷ Total Clicks",
     },
   ];
 
@@ -389,6 +398,26 @@ const HelpDrawer = ({ userDbName }) => {
       logic: "(Sponsored Brand Appearances ÷ N) × 100",
     },
   ];
+  const pricingAnalysisGlossary = [
+    {
+      kpi: "Weighted Discount %",
+      definition: "Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.",
+      usage: "Evaluate average promotional intensity while prioritizing high-volume products.",
+      interpretation: "Higher weighted discount indicates aggressive pricing on top-selling items.",
+      pitfalls: "Can mask low discounts on low-volume items.",
+      example: "SKU A (50% sales) at 10% off + SKU B (50% sales) at 20% off → Weighted Discount = 15%.",
+      logic: "Σ(Discount % × Sales) ÷ Σ(Sales)",
+    },
+    {
+      kpi: "Wt. PPU (Price per Unit)",
+      definition: "Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.",
+      usage: "Monitor price positioning across the category.",
+      interpretation: "Provides a realistic view of what customers are actually paying on average.",
+      pitfalls: "Ignoring pack size differences (e.g., 1g vs 1kg).",
+      example: "Average price paid per unit across all brands in the category.",
+      logic: "Σ(Price per Unit × Sales Volume) ÷ Σ(Total Sales Volume)",
+    },
+  ];
 
   const visibilityAnalysisGlossary = [
     {
@@ -484,6 +513,15 @@ const HelpDrawer = ({ userDbName }) => {
       example: "₹1.5 Cr via ads.",
       logic: "Sum(Ad Sales Value)",
     },
+    {
+      kpi: "CPC (Cost per Click)",
+      definition: "The average cost paid for each click on an advertisement.",
+      usage: "Monitor advertising cost efficiency.",
+      interpretation: "Lower CPC → more traffic for same spend.",
+      pitfalls: "Low CPC doesn't always mean high quality traffic.",
+      example: "₹500 for 100 clicks → CPC = ₹5.",
+      logic: "Total Spend ÷ Total Clicks",
+    },
   ];
 
   const GlossarySection = ({ title, text, icon, bgColor, borderColor, textColor }) => {
@@ -542,6 +580,8 @@ const HelpDrawer = ({ userDbName }) => {
         return marketShareGlossary;
       case "Visibility Analysis":
         return visibilityAnalysisGlossary;
+      case "Pricing Analysis":
+        return pricingAnalysisGlossary;
       case "Performance Marketing":
         return performanceMarketingGlossary;
       default:
