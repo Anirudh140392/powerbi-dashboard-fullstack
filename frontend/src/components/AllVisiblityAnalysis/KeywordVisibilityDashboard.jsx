@@ -1,12 +1,12 @@
 import React, { useState, useContext, useMemo } from "react";
 import { FilterContext } from "../../utils/FilterContext";
-import { Inbox } from "lucide-react";
+import { Inbox, ArrowUpDown } from "lucide-react";
 import { GainersDrainersSkeleton } from './VisibilitySkeletons';
 
 /* ─── Fonts ───────────────── */
 const FontLoader = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&family=Mulish:wght@400;500;600;700;800&display=swap');
   `}</style>
 );
 
@@ -283,8 +283,15 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
     return (
       <div style={{ padding: 24, background: "#f8fafc", borderRadius: 20, border: "1px solid #e2e8f0", marginTop: 24, fontFamily: "'DM Sans', sans-serif" }}>
         <FontLoader />
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}>Share of Search — Gainers & Drainers</h2>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Side-by-side comparison of SOS growth and decline</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <ArrowUpDown size={20} color="#2563eb" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', fontFamily: "'Mulish', system-ui, sans-serif", margin: 0 }}>Share of Search — Gainers & Drainers</h2>
+            <p style={{ fontSize: 13, color: '#64748b', fontFamily: "'Mulish', system-ui, sans-serif", margin: '2px 0 0 0' }}>Side-by-side comparison of SOS growth and decline</p>
+          </div>
+        </div>
         <NoDataAvailable title="No gainers & drainers data available" />
       </div>
     );
@@ -294,8 +301,15 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
     <div style={{ padding: 24, background: "#f8fafc", borderRadius: 20, border: "1px solid #e2e8f0", marginTop: 24, fontFamily: "'DM Sans', sans-serif" }}>
       <FontLoader />
 
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}>Share of Search — Gainers & Drainers</h2>
-      <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Side-by-side comparison of SOS growth and decline</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <ArrowUpDown size={20} color="#2563eb" />
+        </div>
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', fontFamily: "'Mulish', system-ui, sans-serif", margin: 0 }}>Share of Search — Gainers & Drainers</h2>
+          <p style={{ fontSize: 13, color: '#64748b', fontFamily: "'Mulish', system-ui, sans-serif", margin: '2px 0 0 0' }}>Side-by-side comparison of SOS growth and decline</p>
+        </div>
+      </div>
 
       {/* Toggle */}
       <div style={{ marginBottom: 20, display: "flex", gap: 8 }}>
