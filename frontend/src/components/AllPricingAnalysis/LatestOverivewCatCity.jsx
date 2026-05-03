@@ -1,7 +1,8 @@
 import { useState, useMemo, useContext, useEffect } from 'react'
 import axiosInstance from '../../api/axiosInstance'
-import { Skeleton, Tooltip, Typography } from '@mui/material'
+import { Skeleton, Tooltip, Typography, Box } from '@mui/material'
 import { motion } from 'framer-motion'
+import { useHelp } from "../../utils/HelpContext";
 import { FilterContext } from '../../utils/FilterContext'
 import {
     TrendingUp,
@@ -54,6 +55,7 @@ const LatestOverivewCatCity = ({
     kpis: propKpis = [],
     loading = false,
 }) => {
+    const { openHelpWithMenu } = useHelp();
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount %' },
         { key: 'pricePerUnit', label: 'Price/Unit 1g / 1 piece', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
@@ -503,7 +505,29 @@ const LatestOverivewCatCity = ({
                                             <span>{kpiLabels[kpi.key] || kpi.label}</span>
                                             {kpi.infoTooltip && (
                                                 <Tooltip
-                                                    title={<Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>}
+                                                    title={
+                                                        <Box>
+                                                            <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>
+                                                            <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        color: '#60a5fa',
+                                                                        cursor: 'pointer',
+                                                                        fontWeight: 600,
+                                                                        fontSize: '11px',
+                                                                        '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                                                    }}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openHelpWithMenu('Pricing Analysis');
+                                                                    }}
+                                                                >
+                                                                    Learn more →
+                                                                </Typography>
+                                                            </Box>
+                                                        </Box>
+                                                    }
                                                     arrow placement="top" enterDelay={200} leaveDelay={100}
                                                     slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
                                                 >

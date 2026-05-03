@@ -146,7 +146,8 @@ function HoverPopover({ open, anchorRect, children, onMouseEnter, onMouseLeave }
  * ActionableMetricCard: Premium styled card for the bottom row (Performance Metrics).
  * NOW WITH HOVER TRENDS!
  */
-const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
+const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1", helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     // Hover State Logic (Copied from ComparisonCard)
     const [open, setOpen] = useState(false);
     const [period, setPeriod] = useState(14);
@@ -278,9 +279,29 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                         {kpi.infoTooltip && (
                             <Tooltip
                                 title={
-                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
-                                        {kpi.infoTooltip}
-                                    </Typography>
+                                    <Box>
+                                        <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                            {kpi.infoTooltip}
+                                        </Typography>
+                                        <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: '#60a5fa',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 600,
+                                                    fontSize: '11px',
+                                                    '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                                }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                                }}
+                                            >
+                                                Learn more →
+                                            </Typography>
+                                        </Box>
+                                    </Box>
                                 }
                                 arrow
                                 placement="top"
@@ -336,7 +357,8 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 /**
  * ComparisonCard: Squarish design as per user image.
  */
-const ComparisonCard = ({ kpi, loading = false }) => {
+const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     const [open, setOpen] = useState(false);
     const [period, setPeriod] = useState(14);
     const [anchorRect, setAnchorRect] = useState(null);
@@ -462,9 +484,29 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     {kpi.infoTooltip && (
                         <Tooltip
                             title={
-                                <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
-                                    {kpi.infoTooltip}
-                                </Typography>
+                                <Box>
+                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                        {kpi.infoTooltip}
+                                    </Typography>
+                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: '#60a5fa',
+                                                cursor: 'pointer',
+                                                fontWeight: 600,
+                                                fontSize: '11px',
+                                                '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                            }}
+                                        >
+                                            Learn more →
+                                        </Typography>
+                                    </Box>
+                                </Box>
                             }
                             arrow
                             placement="top"
@@ -536,6 +578,11 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                                             {kpi.inorganicPct != null ? `${kpi.inorganicPct.toFixed(1)}% of total` : ''}
                                         </Typography>
                                     </Box>
+                                    <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+                                        <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.8, fontSize: '10px', color: '#94a3b8' }}>
+                                            * Organic Sales = Offtake - Inorganic Sales
+                                        </Typography>
+                                    </Box>
                                 </Box>
                             }
                             arrow
@@ -553,7 +600,8 @@ const ComparisonCard = ({ kpi, loading = false }) => {
 /**
  * DetailedSparklineCard: Clean, detailed card for Visibility/Availability pages.
  */
-const DetailedSparklineCard = ({ kpi, loading = false }) => {
+const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     if (loading) {
         return (
             <Card sx={{ p: 3, height: "100%", borderRadius: "1rem", boxShadow: "sm", border: "1px solid", borderColor: "slate.200" }}>
@@ -647,7 +695,29 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                     <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
                     {kpi.infoTooltip && (
                         <Tooltip
-                            title={<Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>}
+                            title={
+                                <Box>
+                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>
+                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: '#60a5fa',
+                                                cursor: 'pointer',
+                                                fontWeight: 600,
+                                                fontSize: '11px',
+                                                '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                            }}
+                                        >
+                                            Learn more →
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            }
                             arrow placement="top" enterDelay={200} leaveDelay={100}
                             slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
                         >
@@ -1033,7 +1103,7 @@ const SnapshotOverview = ({
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     >
-                                        <ComparisonCard kpi={kpi} loading={kpi.loading} />
+                                        <ComparisonCard kpi={kpi} loading={kpi.loading} helpMenu={helpMenu} />
                                     </motion.div>
                                 ))
                             )}
@@ -1059,7 +1129,7 @@ const SnapshotOverview = ({
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
                                             >
-                                                <ActionableMetricCard kpi={kpi} />
+                                                <ActionableMetricCard kpi={kpi} helpMenu={helpMenu} />
                                             </motion.div>
                                         ))
                                     )}
@@ -1149,7 +1219,7 @@ const SnapshotOverview = ({
                                     transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     className="h-full"
                                 >
-                                    <DetailedSparklineCard kpi={kpi} />
+                                    <DetailedSparklineCard kpi={kpi} helpMenu={helpMenu} />
                                 </motion.div>
                             ))
                         )}
