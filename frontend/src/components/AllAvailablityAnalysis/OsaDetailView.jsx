@@ -171,8 +171,8 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                         {/* Header */}
                         <div className="mb-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50">
-                                    <Layers className="h-5 w-5 text-indigo-500" strokeWidth={2} />
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
+                                    <Layers className="h-5 w-5 text-slate-500" strokeWidth={2} />
                                 </div>
                                 <div>
                                     <div className="text-base font-semibold text-slate-900">OSA % Detail View</div>
@@ -198,27 +198,27 @@ export default function OsaDetailTableLight({ apiData, loading }) {
                                     <thead className="sticky top-0 z-10">
                                         {/* Row 1: Month group headers */}
                                         <tr>
-                                            <th className="sticky left-0 z-20 bg-indigo-50/70 py-2.5 pl-4 pr-4 border-b border-indigo-100" style={{ minWidth: 280 }} rowSpan={2}>
-                                                <div className="text-[11px] font-bold uppercase tracking-widest text-indigo-800">Product / SKU</div>
+                                            <th className="sticky left-0 z-20 bg-slate-100 py-2.5 pl-4 pr-4 border-b border-slate-200" style={{ minWidth: 280 }} rowSpan={2}>
+                                                <div className="text-[11px] font-bold uppercase tracking-widest text-slate-800">Product / SKU</div>
                                             </th>
-                                            <th className="bg-indigo-50/70 py-2.5 px-3 border-b border-indigo-100 text-center" rowSpan={2}>
-                                                <div className="text-[11px] font-bold uppercase tracking-widest text-indigo-800">OSA</div>
+                                            <th className="bg-slate-100 py-2.5 px-3 border-b border-slate-200 text-center" rowSpan={2}>
+                                                <div className="text-[11px] font-bold uppercase tracking-widest text-slate-800">OSA</div>
                                             </th>
-                                            <th className="bg-indigo-50/70 py-2.5 px-3 border-b border-indigo-100 text-center" rowSpan={2}>
-                                                <div className="text-[11px] font-bold uppercase tracking-widest text-indigo-800">STATUS</div>
+                                            <th className="bg-slate-100 py-2.5 px-3 border-b border-slate-200 text-center" rowSpan={2}>
+                                                <div className="text-[11px] font-bold uppercase tracking-widest text-slate-800">STATUS</div>
                                             </th>
                                             {monthGroups.map(mg => (
                                                 <th key={mg.key}
                                                     colSpan={monthColSpans[mg.key]}
-                                                    className="bg-indigo-50/70 py-2.5 px-3 text-center border-b border-indigo-100 border-l border-indigo-200/60 cursor-pointer select-none hover:bg-indigo-100/60 transition-colors"
+                                                    className="bg-slate-100 py-2.5 px-3 text-center border-b border-slate-200 border-l border-slate-200 cursor-pointer select-none hover:bg-slate-200/60 transition-colors"
                                                     onClick={() => toggleMonth(mg.key)}
                                                 >
                                                     <div className="flex items-center justify-center gap-1.5">
-                                                        <Clock className="h-3 w-3 text-indigo-400" />
-                                                        <span className="text-[11px] font-bold text-indigo-700 tracking-wide">{mg.label}</span>
+                                                        <Clock className="h-3 w-3 text-slate-400" />
+                                                        <span className="text-[11px] font-bold text-slate-700 tracking-wide">{mg.label}</span>
                                                         {expandedMonths.has(mg.key)
-                                                            ? <ChevronDown className="h-3 w-3 text-indigo-400" />
-                                                            : <ChevronRight className="h-3 w-3 text-indigo-400" />
+                                                            ? <ChevronDown className="h-3 w-3 text-slate-400" />
+                                                            : <ChevronRight className="h-3 w-3 text-slate-400" />
                                                         }
                                                     </div>
                                                 </th>

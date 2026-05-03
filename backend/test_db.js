@@ -1,13 +1,22 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { createClient } from '@clickhouse/client';
+import dotenv from 'dotenv';
+dotenv.config();
+
+const clickhouse = createClient({
+    url: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
+    username: process.env.CLICKHOUSE_USER || 'default',
+    password: process.env.CLICKHOUSE_PASSWORD || '',
+    database: process.env.CLICKHOUSE_DB || 'mars'
+});
+
 async function run() {
     try {
-        const res = await queryClickHouse("DESCRIBE TABLE rb_kw_olap");
-        console.log("COLUMNS:");
-        res.forEach(r => console.log(r.name || r.Name));
-        process.exit(0);
-    } catch(e) {
-        console.error(e);
-        process.exit(1);
+        const rs = await clickhouse.query({ query: "DESCRIBE TABLE rb_product_verify", format: 'JSON' });
+        const data = await rs.json();
+        console.log("Columns:", data.data.map(d => d.name).join(", "));
+    } catch (e) {
+        console.error(e.message);
     }
+    process.exit(0);
 }
 run();

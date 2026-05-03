@@ -186,27 +186,27 @@ export default function OsaDetailTableLight({ apiData, loading }) {
               <thead className="sticky top-0 z-10 bg-white">
                 <tr>
                   <th
-                    className="sticky left-0 z-20 bg-white text-left px-4 py-3 text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200"
+                    className="sticky left-0 z-20 bg-slate-100 text-left px-4 py-3 text-xs font-semibold tracking-wider text-slate-500 border-b border-slate-200"
                     style={{ minWidth: 280 }}
                   >
                     PRODUCT / SKU
                   </th>
 
                   <th
-                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 cursor-pointer select-none"
+                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-100 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 cursor-pointer select-none"
                     onClick={() => headerSort("avgSelected")}
                   >
                     AVG <SortIcon dir={sortKey === "avgSelected" || sortKey === "avg31" ? sortDir : undefined} />
                   </th>
 
-                  <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
+                  <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-100 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
                     STATUS
                   </th>
 
                   {dayCols.map((d) => (
                     <th
                       key={d}
-                      className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
+                      className="border-b border-r border-slate-100 last:border-r-0 bg-slate-100 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
                       onClick={() => headerSort(`day_${d}`)}
                     >
                       DAY {d}
