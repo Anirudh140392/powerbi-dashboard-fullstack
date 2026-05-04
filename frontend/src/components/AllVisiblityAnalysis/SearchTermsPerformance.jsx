@@ -328,20 +328,7 @@ export default function SearchTermsPerformance() {
     }
   }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd]);
 
-  const shouldShowDrilldown = useMemo(() => {
-    if (!globalPlatform || globalPlatform === "All") return true;
-    const plats = typeof globalPlatform === "string" 
-      ? globalPlatform.split(",").map(p => p.trim().toLowerCase()) 
-      : (Array.isArray(globalPlatform) ? globalPlatform.map(p => typeof p === 'string' ? p.toLowerCase() : String(p).toLowerCase()) : []);
-      
-    if (plats.length === 0) return true;
-    
-    const isEcomOnly = plats.every(p => 
-      p.includes("ecom") || p.includes("e-com") || p.includes("ecommerce") || p === "amazon" || p === "flipkart" || p === "myntra" || p === "nykaa"
-    );
-    
-    return !isEcomOnly;
-  }, [globalPlatform]);
+  const shouldShowDrilldown = true;
 
   const downloadCSV = () => {
     if (!items || items.length === 0) return;

@@ -355,22 +355,13 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                                         return (
                                             <td key={kpi.id} className="px-6 py-4 border-l border-slate-50/30">
                                                 <SparklineCell data={data} kpiId={kpi.id}>
-                                                    <div className={cn(
-                                                        "inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl border transition-all duration-300 cursor-default",
-                                                        getStatusStyles(data.status)
-                                                    )}>
-                                                        <span className="text-[11px] font-extrabold tracking-tight">
+                                                    <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition-all duration-300 cursor-default">
+                                                        <span className="text-[11px] font-extrabold tracking-tight text-slate-800">
                                                             {formatValue(data.val, kpi.id)}
                                                         </span>
-                                                        <div className="flex items-center gap-1 opacity-80">
-                                                            {data.delta >= 0 ?
-                                                                <TrendingUp size={10} className="text-emerald-500" /> :
-                                                                <TrendingDown size={10} className="text-rose-500" />
-                                                            }
-                                                            <span className="text-[9px] font-bold">
-                                                                {data.delta >= 0 ? '+' : ''}{data.delta}
-                                                            </span>
-                                                        </div>
+                                                        <span className={cn("text-[10px] font-bold", data.delta >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                                                            {data.delta >= 0 ? '▲' : '▼'} {data.delta >= 0 ? '+' : ''}{data.delta}
+                                                        </span>
                                                     </div>
                                                 </SparklineCell>
                                             </td>
