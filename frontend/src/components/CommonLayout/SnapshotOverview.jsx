@@ -625,7 +625,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-slate-100/40 to-transparent rounded-full translate-y-6 -translate-x-6" />
 
                 <div className="px-5 pt-5 pb-3 flex-1 relative z-10">
-                    <div className="flex items-center gap-1.5 mb-3">
+                    <div className="flex items-center justify-between gap-1.5 mb-3">
                         <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
                         {kpi.infoTooltip && (
                             <Tooltip
@@ -691,7 +691,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
     return (
         <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
             <div className="px-5 pt-5 pb-3 flex-1">
-                <div className="flex items-center gap-1.5 mb-1">
+                <div className="flex items-center justify-between gap-1.5 mb-1">
                     <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
                     {kpi.infoTooltip && (
                         <Tooltip
