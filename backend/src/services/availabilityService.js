@@ -2945,6 +2945,153 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
     }, CACHE_TTL.SHORT);
 };
 
+const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
+    console.log('[getAvailabilityCompetitionSkuTrends] Request with filters:', filters);
+
+    const cacheKey = generateCacheKey('availability_competition_sku_trends', filters);
+
+    return getCachedOrCompute(cacheKey, async () => {
+        try {
+            let { skus = 'All', location = 'All', category = 'All', period = '1M', startDate: fStart, endDate: fEnd } = filters;
+            if (location === 'All India') location = 'All';
+
+            let skuList = [];
+            if (skus && skus !== 'All') {
+                if (Array.isArray(skus)) {
+                    skuList = skus;
+                } else {
+                    skuList = skus.split(',').map(s => s.trim());
+                }
+            }
+
+            // If no specific SKUs selected, auto-fetch top 5 SKUs by volume
+            if (skuList.length === 0) {
+                let startDate, endDate;
+                if (fStart && fEnd) {
+                    startDate = dayjs(fStart);
+                    endDate = dayjs(fEnd);
+                } else {
+                    const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                    const days = periodDays[period] || 30;
+                    endDate = await getLatestDate();
+                    startDate = endDate.subtract(days, 'days');
+                }
+
+                const autoWhereClause = await buildAvailabilityWhereClause({ ...filters, skus: undefined, sku: undefined, startDate, endDate });
+                const topSkusQuery = `
+                    SELECT Product, SUM(toFloat64OrZero(toString(deno_osa))) as total_deno
+                    FROM rb_pdp_olap
+                    WHERE ${autoWhereClause}
+                      AND Product IS NOT NULL AND Product != ''
+                    GROUP BY Product
+                    ORDER BY total_deno DESC
+                    LIMIT 5
+                `;
+                const topSkusResult = await queryClickHouse(topSkusQuery);
+                skuList = topSkusResult.map(r => r.Product).filter(Boolean);
+                console.log('[getAvailabilityCompetitionSkuTrends] Auto-fetched top SKUs:', skuList);
+
+                if (skuList.length === 0) {
+                    return { metrics: [], timeSeries: {}, skus: [], dates: [] };
+                }
+            }
+
+            let startDate, endDate;
+            if (fStart && fEnd) {
+                startDate = dayjs(fStart);
+                endDate = dayjs(fEnd);
+            } else {
+                const periodDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                const days = periodDays[period] || 30;
+                endDate = await getLatestDate();
+                startDate = endDate.subtract(days, 'days');
+            }
+
+            const whereClause = await buildAvailabilityWhereClause({ ...filters, startDate, endDate });
+
+            const query = `
+                SELECT 
+                    Product,
+                    DATE as ref_date,
+                    SUM(toFloat64OrZero(toString(neno_osa))) as total_neno,
+                    SUM(toFloat64OrZero(toString(deno_osa))) as total_deno,
+                    SUM(toFloat64OrZero(toString(Inventory))) as total_inventory,
+                    SUM(toFloat64OrZero(toString(Qty_Sold))) as total_qty_sold,
+                    SUM(toFloat64OrZero(toString(Sales))) as total_sales,
+                    COUNT(DISTINCT Web_Pid) as assortment_count,
+                    AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
+                FROM rb_pdp_olap
+                WHERE ${whereClause}
+                  AND Product IN (${skuList.map(s => `'${s.replace(/'/g, "\\'")}'`).join(',')})
+                GROUP BY Product, DATE
+                ORDER BY DATE ASC
+            `;
+
+            const results = await queryClickHouse(query);
+
+            // Get all unique dates in the results
+            const uniqueDates = Array.from(new Set(results.map(r => dayjs(r.ref_date).format("DD MMM'YY")))).sort((a, b) => {
+                const dateA = dayjs(a, "DD MMM'YY");
+                const dateB = dayjs(b, "DD MMM'YY");
+                return dateA.diff(dateB);
+            });
+
+            // Prepare response keyed by SKU name
+            const response = {
+                dates: uniqueDates,
+                osa: {},
+                doi: {},
+                listing: {},
+                assortment: {},
+                fillrate: {},
+                psl: {}
+            };
+
+            // Initialize SKU arrays for each metric
+            skuList.forEach(skuName => {
+                response.osa[skuName] = new Array(uniqueDates.length).fill(0);
+                response.doi[skuName] = new Array(uniqueDates.length).fill(0);
+                response.listing[skuName] = new Array(uniqueDates.length).fill(0);
+                response.assortment[skuName] = new Array(uniqueDates.length).fill(0);
+                response.fillrate[skuName] = new Array(uniqueDates.length).fill(0);
+                response.psl[skuName] = new Array(uniqueDates.length).fill(0);
+            });
+
+            // Map results into the prefilled response arrays
+            results.forEach(row => {
+                const skuName = row.Product;
+                const dateStr = dayjs(row.ref_date).format("DD MMM'YY");
+                const dateIndex = uniqueDates.indexOf(dateStr);
+
+                if (dateIndex !== -1 && response.osa[skuName]) {
+                    const neno = parseFloat(row.total_neno) || 0;
+                    const deno = parseFloat(row.total_deno) || 0;
+                    const dailyUniquePids = parseInt(row.assortment_count, 10) || 0;
+                    const totalQtySold = parseFloat(row.total_qty_sold) || 0;
+                    const totalInv = parseFloat(row.total_inventory) || 0;
+
+                    const osa = deno > 0 ? (neno / deno) * 100 : 0;
+                    const listing = parseFloat(row.avg_listing_percent) || 0;
+                    const doi = totalQtySold > 0 ? (totalInv / totalQtySold) * 30 : 0;
+                    const totalSales = parseFloat(row.total_sales) || 0;
+                    const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
+
+                    response.osa[skuName][dateIndex] = parseFloat(osa.toFixed(1));
+                    response.listing[skuName][dateIndex] = parseFloat(listing.toFixed(1));
+                    response.assortment[skuName][dateIndex] = dailyUniquePids;
+                    response.doi[skuName][dateIndex] = parseFloat(doi.toFixed(1));
+                    response.psl[skuName][dateIndex] = parseFloat(psl.toFixed(2));
+                }
+            });
+
+            return response;
+        } catch (error) {
+            console.error('[getAvailabilityCompetitionSkuTrends] Error:', error);
+            return { metrics: [], timeSeries: {}, skus: [] };
+        }
+    }, CACHE_TTL.SHORT);
+};
+
 // ==========================================
 // Brand → SKU → City Day-Level ECP
 // ==========================================
@@ -3151,5 +3298,6 @@ export default {
     getAvailabilityCompetitionData,
     getAvailabilityCompetitionFilterOptions,
     getAvailabilityCompetitionBrandTrends,
+    getAvailabilityCompetitionSkuTrends,
     getBrandSkuCityDayLevel
 };

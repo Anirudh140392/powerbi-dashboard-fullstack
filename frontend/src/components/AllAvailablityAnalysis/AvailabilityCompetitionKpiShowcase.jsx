@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useContext, createContext, useEffect } from "react";
+import React, { useMemo, useState, useContext, createContext, useEffect, useCallback } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
 // import PaginationFooter from "../CommonLayout/PaginationFooter"; // Removed pagination
@@ -355,7 +355,35 @@ const MetricChip = ({ label, color, active, onClick }) => {
     );
 };
 
-const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrendData, isEcom }) => {
+const TrendView = ({ mode, filters, city, platform, channel, period, globalFilters, brandRows, skuRows, onBackToTable, isEcom }) => {
+    const isBrandMode = mode === "brand";
+
+    const allPossibleIds = useMemo(() => {
+        if (isBrandMode) {
+            const rows = brandRows || [];
+            return rows.map((r) => r.id || r.name);
+        }
+        const rows = skuRows || [];
+        return rows.map((r) => r.id || r.name);
+    }, [isBrandMode, brandRows, skuRows]);
+
+    const [visibleIds, setVisibleIds] = useState([]);
+    const [overflowOpen, setOverflowOpen] = useState(false);
+
+    useEffect(() => {
+        // Initialize visibleIds. If filters exist, use them. Otherwise top 5.
+        const currentFilters = isBrandMode ? filters.brands : filters.skus;
+        if (currentFilters && currentFilters.length > 0) {
+            setVisibleIds(currentFilters.slice(0, 10));
+        } else {
+            setVisibleIds(allPossibleIds.slice(0, 5));
+        }
+    }, [allPossibleIds, isBrandMode, filters]);
+
+    const [apiTrendData, setApiTrendData] = useState(null);
+    const [trendLoading, setTrendLoading] = useState(false);
+    const [trendError, setTrendError] = useState(null);
+
     const [activeMetric, setActiveMetric] = useState("Osa");
 
     useEffect(() => {
@@ -364,44 +392,80 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
         }
     }, [isEcom, activeMetric]);
 
+    const metricMeta = KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
 
-    const metricMeta =
-        KPI_KEYS.find((m) => m.key === activeMetric) || KPI_KEYS[0];
+    const fetchTrendData = useCallback(async () => {
+        if (visibleIds.length === 0) {
+            setApiTrendData(null);
+            return;
+        }
+        setTrendLoading(true);
+        setTrendError(null);
+        try {
+            const params = {
+                platform: platform || 'All',
+                channel: channel || 'All',
+                location: city === 'All India' ? 'All' : city,
+                category: filters.categories.length > 0 ? filters.categories.join('|') + '|' : 'All',
+                period: period || '1M',
+                startDate: globalFilters?.startDate,
+                endDate: globalFilters?.endDate
+            };
 
-    const isBrandMode = mode === "brand";
+            let endpoint = '';
+            if (isBrandMode) {
+                params.brands = visibleIds.join('|') + '|';
+                endpoint = '/availability-analysis/competition-brand-trends';
+            } else {
+                params.skus = visibleIds.join('|') + '|';
+                endpoint = '/availability-analysis/competition-sku-trends';
+            }
+
+            const response = await axiosInstance.post(endpoint, params);
+            setApiTrendData(response.data);
+        } catch (err) {
+            console.error("Error fetching trend data", err);
+            setTrendError(err.message || "Failed to load trend data");
+        } finally {
+            setTrendLoading(false);
+        }
+    }, [visibleIds, city, platform, channel, isBrandMode, filters.categories, period, globalFilters?.startDate, globalFilters?.endDate]);
+
+    useEffect(() => {
+        fetchTrendData();
+    }, [fetchTrendData]);
 
     const chartData = useMemo(() => {
         if (!apiTrendData) return [];
-
-        // apiTrendData is expected to be { dates: [], [metric]: { [brand/sku]: [] } }
         const dates = apiTrendData.dates || [];
         const metricData = apiTrendData[activeMetric.toLowerCase()] || {};
 
         return dates.map((date, idx) => {
             const row = { date };
-            Object.keys(metricData).forEach(id => {
-                row[id] = metricData[id][idx] || null;
+            visibleIds.forEach(id => {
+                row[id] = metricData[id] ? metricData[id][idx] : null;
             });
             return row;
         });
-    }, [apiTrendData, activeMetric]);
-
-    const selectedIds = useMemo(() => {
-        if (!apiTrendData || !apiTrendData[activeMetric.toLowerCase()]) return [];
-        return Object.keys(apiTrendData[activeMetric.toLowerCase()]);
-    }, [apiTrendData, activeMetric]);
+    }, [apiTrendData, activeMetric, visibleIds]);
 
     const formatValue = (v) => {
-        if (metricMeta.unit) return `${v}${metricMeta.unit}`;
-        if (metricMeta.prefix) return `${metricMeta.prefix}${v}`;
-        if (metricMeta.suffix) return `${v}${metricMeta.suffix}`;
-        return v;
+        if (v === null || v === undefined) return 'N/A';
+        if (metricMeta.unit) return `${Number(v).toFixed(1)}${metricMeta.unit}`;
+        if (metricMeta.prefix) return `${metricMeta.prefix}${Number(v).toFixed(1)}`;
+        if (metricMeta.suffix) return `${Number(v).toFixed(1)}${metricMeta.suffix}`;
+        return Number(v).toFixed(1);
+    };
+
+    const truncateName = (name, length = 25) => {
+        if (!name) return '';
+        return name.length > length ? name.substring(0, length) + '...' : name;
     };
 
     return (
         <Card className="mt-4">
-            <CardHeader className="flex items-start justify-between border-b pb-3">
-                <div className="space-y-2">
+            <CardHeader className="flex flex-col gap-4 border-b pb-4">
+                <div className="flex items-center justify-between w-full">
                     <Box display="flex" gap={1} flexWrap="wrap">
                         {KPI_KEYS
                             .filter(m => !(isEcom && m.key === 'Listing'))
@@ -414,50 +478,185 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, apiTrend
                                     onClick={() => setActiveMetric(m.key)}
                                 />
                             ))}
-
                     </Box>
-
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <span>Trend for selected platform/category</span>
-                        <Separator orientation="vertical" className="mx-1 h-4" />
-                        <span>{city}</span>
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="sm" onClick={onBackToTable}>
+                            Back to list
+                        </Button>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" onClick={onBackToTable}>
-                        Back to list
-                    </Button>
+                <div className="flex flex-col gap-2">
+                    <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                        Select {isBrandMode ? 'Brands' : 'SKUs'} to Plot ({city})
+                    </div>
+                    <Box display="flex" gap={1} flexWrap="wrap">
+                        {(() => {
+                            const maxInline = 5;
+                            const inlineIds = allPossibleIds.slice(0, maxInline);
+                            const overflowIds = allPossibleIds.slice(maxInline);
+
+                            return (
+                                <>
+                                    {inlineIds.map((id, idx) => {
+                                        const name = truncateName(id, 35);
+                                        const active = visibleIds.includes(id);
+                                        const color = CHART_COLORS[idx % CHART_COLORS.length];
+                                        return (
+                                            <Box
+                                                key={id}
+                                                onClick={() => setVisibleIds(prev => {
+                                                    if (prev.includes(id)) return prev.filter(x => x !== id);
+                                                    if (prev.length >= 10) return prev; // Max 10 limit
+                                                    return [...prev, id];
+                                                })}
+                                                sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 1,
+                                                    px: 1.5,
+                                                    py: 0.5,
+                                                    borderRadius: "6px",
+                                                    cursor: "pointer",
+                                                    fontSize: "12px",
+                                                    fontWeight: 500,
+                                                    border: "1px solid",
+                                                    borderColor: active ? color : "#E2E8F0",
+                                                    backgroundColor: active ? `${color}10` : "transparent",
+                                                    color: active ? color : "#64748B",
+                                                    transition: "all 0.2s",
+                                                    maxWidth: "200px"
+                                                }}
+                                            >
+                                                <div style={{ minWidth: 8, height: 8, borderRadius: "50%", backgroundColor: color }} />
+                                                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={id}>{name}</span>
+                                                {active && <span style={{ fontSize: "10px" }}>✓</span>}
+                                            </Box>
+                                        )
+                                    })}
+
+                                    {overflowIds.length > 0 && (
+                                        <>
+                                            <Box
+                                                onClick={() => setOverflowOpen(true)}
+                                                sx={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: 1,
+                                                    px: 2,
+                                                    py: 0.5,
+                                                    borderRadius: "6px",
+                                                    cursor: "pointer",
+                                                    fontSize: "12px",
+                                                    fontWeight: 600,
+                                                    border: "1px dashed #E2E8F0",
+                                                    backgroundColor: "#F8FAFC",
+                                                    color: "#475569",
+                                                }}
+                                            >
+                                                +{overflowIds.length} more
+                                            </Box>
+
+                                            <Dialog open={overflowOpen} onOpenChange={(v) => !v && setOverflowOpen(false)}>
+                                                <DialogContent className="max-w-md p-4 bg-white z-[60]">
+                                                    <DialogHeader className="mb-2">
+                                                        <DialogTitle>Select more {isBrandMode ? 'Brands' : 'SKUs'}</DialogTitle>
+                                                    </DialogHeader>
+                                                    <div style={{ maxHeight: 320, overflow: 'auto' }}>
+                                                        {overflowIds.map((id, idx) => {
+                                                            const name = id;
+                                                            const active = visibleIds.includes(id);
+                                                            const color = CHART_COLORS[(idx + maxInline) % CHART_COLORS.length];
+                                                            return (
+                                                                <div
+                                                                    key={id}
+                                                                    onClick={() => {
+                                                                        setVisibleIds(prev => {
+                                                                            if (prev.includes(id)) return prev.filter(x => x !== id);
+                                                                            if (prev.length >= 10) return prev; // Max 10 limit
+                                                                            return [...prev, id];
+                                                                        });
+                                                                    }}
+                                                                    className="p-2 rounded-md mb-2 cursor-pointer"
+                                                                    style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid #E6EEF8', background: active ? `${color}10` : 'white' }}
+                                                                >
+                                                                    <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+                                                                    <div style={{ flex: 1, fontSize: '13px' }}>{name}</div>
+                                                                    {active && <div style={{ fontSize: 12 }}>✓</div>}
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+
+                                                    <DialogFooter className="mt-4">
+                                                        <Button variant="outline" onClick={() => setOverflowOpen(false)}>Close</Button>
+                                                    </DialogFooter>
+                                                </DialogContent>
+                                            </Dialog>
+                                        </>
+                                    )}
+                                </>
+                            )
+                        })()}
+                    </Box>
                 </div>
             </CardHeader>
 
             <CardContent className="pt-4">
-                <div className="h-[280px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
-                            <YAxis
-                                tickLine={false}
-                                fontSize={11}
-                                tickFormatter={formatValue}
-                            />
-                            <Tooltip formatter={formatValue} />
-                            <Legend />
-
-                            {selectedIds.map((id, idx) => (
-                                <Line
-                                    key={id}
-                                    type="monotone"
-                                    dataKey={id}
-                                    name={id}
-                                    dot={false}
-                                    stroke={CHART_COLORS[idx % CHART_COLORS.length]}
-                                    strokeWidth={2}
+                <div className="h-[350px] w-full">
+                    {trendLoading ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                            <div className="animate-pulse flex items-end gap-4 px-8 pb-8 w-full h-[300px]">
+                                <div className="w-1/6 bg-slate-200/50 h-[40%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[70%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[50%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[80%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[60%] rounded-t-sm" />
+                                <div className="w-1/6 bg-slate-200/50 h-[90%] rounded-t-sm" />
+                            </div>
+                        </div>
+                    ) : trendError ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-500">
+                            <p>{trendError}</p>
+                            <Button variant="outline" size="sm" className="mt-2" onClick={fetchTrendData}>Retry</Button>
+                        </div>
+                    ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{ bottom: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
+                                <YAxis
+                                    tickLine={false}
+                                    fontSize={11}
+                                    tickFormatter={formatValue}
                                 />
-                            ))}
-                        </LineChart>
-                    </ResponsiveContainer>
+                                <Tooltip 
+                                    formatter={(value, name) => [formatValue(value), truncateName(name, 40)]}
+                                />
+                                <Legend 
+                                    formatter={(value) => truncateName(value, 20)}
+                                    wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                                />
+
+                                {visibleIds.map((id, idx) => {
+                                    const colorIndex = allPossibleIds.indexOf(id);
+                                    const color = CHART_COLORS[(colorIndex === -1 ? idx : colorIndex) % CHART_COLORS.length];
+                                    return (
+                                        <Line
+                                            key={id}
+                                            type="monotone"
+                                            dataKey={id}
+                                            name={id}
+                                            dot={{ r: 3, strokeWidth: 1 }}
+                                            activeDot={{ r: 5 }}
+                                            stroke={color}
+                                            strokeWidth={2}
+                                        />
+                                    );
+                                })}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    )}
                 </div>
             </CardContent>
         </Card>
@@ -783,7 +982,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                         </Tabs>
                     </div>
 
-                    <div className="flex-1 px-6 py-4">
+                    <div className="flex-1 min-w-0 px-6 py-4">
                         <div className="flex items-center justify-between gap-4">
                             <Input
                                 placeholder="Search"
@@ -816,13 +1015,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
                                 {!filterOptions.loading && !filterOptions.error && list.map((item) => (
                                     <label
                                         key={item}
-                                        className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
+                                        className="flex w-full cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100"
                                     >
                                         <Checkbox
+                                            className="flex-shrink-0"
                                             checked={value[currentKey].includes(item)}
                                             onCheckedChange={() => handleToggle(currentKey, item)}
                                         />
-                                        <span className="truncate">{item}</span>
+                                        <span className="flex-1 truncate" title={item}>{item}</span>
                                     </label>
                                 ))}
                             </div>
@@ -892,9 +1092,9 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                     platform: platform || 'All',
                     channel: selectedChannel || 'All',
                     location: city === 'All India' ? 'All' : city,
-                    category: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
-                    brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
-                    sku: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
+                    category: filters.categories.length > 0 ? filters.categories.join('|') + '|' : 'All',
+                    brand: filters.brands.length > 0 ? filters.brands.join('|') + '|' : 'All',
+                    sku: filters.skus.length > 0 ? filters.skus.join('|') + '|' : 'All',
                     period: period || '1M',
                     startDate: globalFilters?.startDate,
                     endDate: globalFilters?.endDate
@@ -903,18 +1103,6 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                 const response = await axiosInstance.get('/availability-analysis/competition', { params });
                 if (response.data) {
                     setCompetitionData(response.data);
-
-                    // Fetch trend data using actual brand names from competition results
-                    if (viewMode === 'trend') {
-                        const brandNames = (response.data.brands || []).map(b => b.brand).filter(Boolean);
-                        const trendBrands = brandNames.length > 0 ? brandNames.slice(0, 5).join(',') : 'All';
-                        const trendResponse = await axiosInstance.get('/availability-analysis/competition-brand-trends', {
-                            params: { ...params, brands: trendBrands }
-                        });
-                        if (trendResponse.data) {
-                            setTrendData(trendResponse.data);
-                        }
-                    }
                 }
             } catch (error) {
                 console.error('[AvailabilityCompetitionKpiShowcase] Error:', error);
@@ -923,7 +1111,7 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
             }
         };
         fetchData();
-    }, [city, filters, platform, viewMode, globalFilters?.startDate, globalFilters?.endDate, period]);
+    }, [city, filters, platform, viewMode, tab, globalFilters?.startDate, globalFilters?.endDate, period]);
 
     const selectionCount =
         filters.categories.length + filters.brands.length + filters.skus.length;
@@ -1037,8 +1225,13 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             mode="brand"
                             filters={filters}
                             city={city}
+                            platform={platform}
+                            channel={selectedChannel}
+                            period={period}
+                            globalFilters={globalFilters}
+                            brandRows={brandRows}
+                            skuRows={skuRows}
                             onBackToTable={() => setViewMode("table")}
-                            apiTrendData={trendData}
                             isEcom={isEcom}
                         />
                     )}
@@ -1052,8 +1245,13 @@ export const AvailabilityCompetitionKpiShowcase = ({ platform, globalFilters, pe
                             mode="sku"
                             filters={filters}
                             city={city}
+                            platform={platform}
+                            channel={selectedChannel}
+                            period={period}
+                            globalFilters={globalFilters}
+                            brandRows={brandRows}
+                            skuRows={skuRows}
                             onBackToTable={() => setViewMode("table")}
-                            apiTrendData={trendData}
                             isEcom={isEcom}
                         />
                     )}

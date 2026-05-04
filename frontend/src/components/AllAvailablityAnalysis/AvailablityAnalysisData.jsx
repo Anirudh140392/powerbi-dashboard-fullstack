@@ -1203,7 +1203,7 @@ const getAvailabilityKpis = (type, context = {}) => {
     return {
       id: `avail-${type}-${idx}`,
       title: card.title,
-      value: card.title.includes('DOI') ? val.toFixed(1) : `${val}%`,
+      value: card.title.includes('DOI') ? val.toFixed(0) : `${val}%`,
       subtitle: card.sub,
       delta: parseFloat(delta),
       deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
@@ -1284,7 +1284,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     } : null;
 
     const doiCardData = apiData?.doi ? {
-      value: Number(apiData.doi.doi || 0).toFixed(1),
+      value: Number(apiData.doi.doi || 0).toFixed(0),
       delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
       trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Doi || p.DOI || 0) || []
     } : null;
@@ -1326,7 +1326,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       const isUp = getLogicalKpiValue(kpi + 'dir', platformContext) > 50;
       const delta = (getLogicalKpiValue(kpi + 'delta', platformContext) / 20).toFixed(1);
       return {
-        value: kpi === 'doi' || kpi === 'skucount' ? val.toFixed(1) : (kpi === 'delivery' ? 'Coming soon' : `${val.toFixed(2)}%`),
+        value: kpi === 'doi' || kpi === 'skucount' ? val.toFixed(0) : (kpi === 'delivery' ? 'Coming soon' : `${val.toFixed(2)}%`),
         delta: parseFloat(delta) * (isUp ? 1 : -1),
         trend: getLogicalKpiTrend(kpi, platformContext)
       };
@@ -1359,7 +1359,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     return cards_config.map((cfg, idx) => {
       const data = cfg.api || getMock(cfg.key);
       const delta = Number(data.delta || 0);
-      const deltaText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${cfg.key === 'psl' ? '₹' + formatNumber(Math.abs(delta)) : Math.abs(delta).toFixed(1)}${cfg.key === 'doi' ? ' days' : (cfg.key === 'psl' ? '' : '%')}`);
+      const deltaText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${cfg.key === 'psl' ? '₹' + formatNumber(Math.abs(delta)) : Math.abs(delta).toFixed(cfg.key === 'doi' ? 0 : 1)}${cfg.key === 'doi' ? ' days' : (cfg.key === 'psl' ? '' : '%')}`);
       const prevText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : "vs Previous Period");
 
       return {

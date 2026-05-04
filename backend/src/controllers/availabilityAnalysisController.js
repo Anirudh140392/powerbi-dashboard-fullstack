@@ -11,8 +11,13 @@ import dayjs from 'dayjs';
 const parseFilter = (val) => {
     if (!val || val === 'All' || val === 'all' || val === 'undefined') return 'All';
     if (Array.isArray(val)) return val.length > 0 ? val : 'All';
-    if (typeof val === 'string' && val.includes(',')) {
-        return val.split(',').map(v => v.trim()).filter(v => v !== '');
+    if (typeof val === 'string') {
+        if (val.includes('|')) {
+            return val.split('|').map(v => v.trim()).filter(v => v !== '');
+        }
+        if (val.includes(',')) {
+            return val.split(',').map(v => v.trim()).filter(v => v !== '');
+        }
     }
     return val;
 };
@@ -518,7 +523,7 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
  */
 export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, location, category, period, startDate, endDate } = req.query;
+        const { brands, location, category, period, startDate, endDate, channel } = { ...req.query, ...req.body };
         console.log('\n========== AVAILABILITY COMPETITION BRAND TRENDS API ==========');
         console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate);
 
@@ -527,7 +532,7 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
             location: parseFilter(location || 'All'),
             category: parseFilter(category || 'All'),
             period: period || '1M',
-            channel: req.query.channel,
+            channel: channel,
             startDate,
             endDate
         });
@@ -539,6 +544,36 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
     } catch (error) {
         console.error('[ERROR] Availability Competition Brand Trends:', error);
         res.status(500).json({ metrics: [], timeSeries: {}, brands: [] });
+    }
+};
+
+/**
+ * Get Availability Competition SKU Trends
+ * Returns time-series data for comparing multiple SKUs
+ */
+export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
+    try {
+        const { skus, location, category, period, startDate, endDate, channel } = { ...req.query, ...req.body };
+        console.log('\n========== AVAILABILITY COMPETITION SKU TRENDS API ==========');
+        console.log('[REQUEST] skus:', skus, 'location:', location, 'category:', category, 'period:', period);
+
+        const data = await availabilityService.getAvailabilityCompetitionSkuTrends({
+            skus: parseFilter(skus || 'All'),
+            location: parseFilter(location || 'All'),
+            category: parseFilter(category || 'All'),
+            period: period || '1M',
+            channel: channel,
+            startDate,
+            endDate
+        });
+
+        console.log('[RESPONSE]:', Object.keys(data.osa || {}).length, 'SKUs with trends');
+        console.log('=============================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Availability Competition SKU Trends:', error);
+        res.status(500).json({ metrics: [], timeSeries: {}, skus: [] });
     }
 };
 

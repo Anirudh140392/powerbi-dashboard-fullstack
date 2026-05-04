@@ -12,6 +12,7 @@ import {
     getAvailabilityCompetition,
     getAvailabilityCompetitionFilterOptions,
     getAvailabilityCompetitionBrandTrends,
+    getAvailabilityCompetitionSkuTrends,
     getSignalLabData,
     getCityDetailsForProduct,
     getBrandSkuCityDayLevel
@@ -319,6 +320,10 @@ export default (app) => {
      *     description: Returns time-series data for comparing multiple brands
      */
     app.get('/api/availability-analysis/competition-brand-trends', getAvailabilityCompetitionBrandTrends);
+    app.post('/api/availability-analysis/competition-brand-trends', getAvailabilityCompetitionBrandTrends);
+    
+    app.get('/api/availability-analysis/competition-sku-trends', getAvailabilityCompetitionSkuTrends);
+    app.post('/api/availability-analysis/competition-sku-trends', getAvailabilityCompetitionSkuTrends);
 
     /**
      * @swagger
