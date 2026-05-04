@@ -47,7 +47,11 @@ const buildCHCondition = (value, column, options = {}) => {
 
     if (list.length === 0) return isBrand ? ownFlag : "1=1";
 
-    if (isCategory) {
+    const isCityColumn = column.toLowerCase().includes('location') || column.toLowerCase().includes('city');
+    const isCategoryColumn = column.toLowerCase().includes('category');
+    const isPlatformColumn = column.toLowerCase().includes('platform');
+
+    if (isCategory || isCategoryColumn || isCityColumn || isPlatformColumn) {
         return `LOWER(${column}) IN (${list.map(v => `'${escapeCH(String(v).toLowerCase())}'`).join(', ')})`;
     }
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
@@ -135,12 +139,9 @@ export const getInsightsData = async (filters) => {
     `;
 
     // -------------------------------------------------------------------------
-    // QUERY 2 — PRICING (powers: Price Parity Radar)
-    // PPU = Selling_Price / Weight * 10  for both our brand and competitor
-    // GAP % = (our PPU - comp PPU) / comp PPU * 100
-    // Weight column contains strings like "30 g", "200 g" — strip non-numeric chars
     // -------------------------------------------------------------------------
-    const weightExpr = "toFloat64OrZero(replaceRegexpAll(toString(Weight), '[^0-9.]', ''))";
+    // QUERY 2 — PRICING (powers: Price Parity Radar)
+    // -------------------------------------------------------------------------
         const buildPricingQuery = (rbMsOlapExists) => `
         WITH ${rbMsOlapExists ? `
         ms_curr AS (
@@ -214,7 +215,7 @@ export const getInsightsData = async (filters) => {
         comp_gainer AS (
             SELECT 
                 ${CITY_NORM_EXPR('Location')} AS city, Platform AS platform, ${catField} AS category,
-                argMax(Product, toFloat64OrZero(toString(Selling_Price))) AS comp_sku
+                argMax(Product, ifNull(toFloat64OrZero(toString(PPU)), 0)) AS comp_sku
             FROM rb_pdp_olap
             WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND Comp_flag IN (1, '1')
               AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
@@ -299,11 +300,11 @@ export const getInsightsData = async (filters) => {
             (o.our_ppu - ifNull(op.our_ppu, o.our_ppu)) AS ourPpuChange,
             (c.comp_ppu - ifNull(cp.comp_ppu, c.comp_ppu)) AS compPpuChange
         FROM our_brand o 
-        JOIN comp_brand c ON o.city = c.city AND o.platform = c.platform AND o.category = c.category
-        JOIN our_impacted oi ON o.city = oi.city AND o.platform = oi.platform AND o.category = oi.category
-        LEFT JOIN comp_gainer cg ON o.city = cg.city AND o.platform = cg.platform AND o.category = cg.category
-        LEFT JOIN our_brand_prev op ON o.city = op.city AND o.platform = op.platform AND o.category = op.category
-        LEFT JOIN comp_brand_prev cp ON o.city = cp.city AND o.platform = cp.platform AND o.category = cp.category
+        JOIN comp_brand c ON o.city = c.city AND LOWER(o.platform) = LOWER(c.platform) AND LOWER(o.category) = LOWER(c.category)
+        JOIN our_impacted oi ON o.city = oi.city AND LOWER(o.platform) = LOWER(oi.platform) AND LOWER(o.category) = LOWER(oi.category)
+        LEFT JOIN comp_gainer cg ON o.city = cg.city AND LOWER(o.platform) = LOWER(cg.platform) AND LOWER(o.category) = LOWER(cg.category)
+        LEFT JOIN our_brand_prev op ON o.city = op.city AND LOWER(o.platform) = LOWER(op.platform) AND LOWER(o.category) = LOWER(op.category)
+        LEFT JOIN comp_brand_prev cp ON o.city = cp.city AND LOWER(o.platform) = LOWER(cp.platform) AND LOWER(o.category) = LOWER(cp.category)
         WHERE c.comp_ppu > 0 AND o.our_ppu > c.comp_ppu
         ORDER BY gapPct DESC
     `;
@@ -1338,6 +1339,159 @@ export const getInsightsData = async (filters) => {
         LEFT JOIN prev_kw pk ON ck.brand = pk.brand AND ck.keyword_category = pk.keyword_category
     `;
 
+    // -------------------------------------------------------------------------
+    // QUERY DS1 — DARK STORE COVERAGE GAPS
+    // Identifies cities/platforms with weak dark store listing coverage
+    // -------------------------------------------------------------------------
+    const darkStoreCoverageQuery = `
+        WITH
+            ds_stores AS (
+                SELECT
+                    initCap(location) AS city,
+                    initCap(platform) AS platform,
+                    COUNT(DISTINCT concat(toString(pincode), merchant_name)) AS total_stores
+                FROM rb_location_darkstore
+                WHERE pf_id IN (4, 6, 7)
+                  AND status IN ('1', '2')
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
+                GROUP BY city, platform
+            ),
+            ds_listed AS (
+                SELECT
+                    ${CITY_NORM_EXPR('Location')} AS city,
+                    initCap(Platform) AS platform,
+                    ${catField} AS category,
+                    COUNT(DISTINCT LOWER(Web_Pid)) AS listed_skus,
+                    SUM(neno_osa) AS neno_sum,
+                    SUM(deno_osa) AS deno_sum,
+                    SUM(toFloat64OrZero(toString(Sales))) AS total_sales
+                FROM rb_pdp_olap
+                WHERE toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND Comp_flag = 0
+                  AND ${buildCHCondition(filters.platform, 'Platform')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'))}
+                  AND ${buildCHCondition(filters.category, catField, { isCategory: true })}
+                GROUP BY city, platform, category
+            ),
+            ds_total_skus AS (
+                SELECT
+                    initCap(Platform) AS platform,
+                    ${catField} AS category,
+                    COUNT(DISTINCT LOWER(Web_Pid)) AS total_platform_skus
+                FROM rb_pdp_olap
+                WHERE toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND Comp_flag = 0
+                  AND ${buildCHCondition(filters.platform, 'Platform')}
+                  AND ${buildCHCondition(filters.category, catField, { isCategory: true })}
+                GROUP BY platform, category
+            )
+        SELECT
+            s.city,
+            s.platform,
+            l.category,
+            s.total_stores AS storeCount,
+            ifNull(l.listed_skus, 0) AS listedSkus,
+            ifNull(t.total_platform_skus, 0) AS totalPlatformSkus,
+            ROUND(ifNull(l.listed_skus, 0) * 100.0 / nullIf(t.total_platform_skus, 0), 1) AS listingPct,
+            ROUND(ifNull(l.neno_sum, 0) * 100.0 / nullIf(l.deno_sum, 0), 1) AS osa,
+            ifNull(l.total_sales, 0) AS sales
+        FROM ds_stores s
+        LEFT JOIN ds_listed l ON s.city = l.city AND s.platform = l.platform
+        LEFT JOIN ds_total_skus t ON l.platform = t.platform AND l.category = t.category
+        WHERE s.total_stores > 0
+        ORDER BY listingPct ASC, sales DESC
+        LIMIT 50
+    `;
+
+    // -------------------------------------------------------------------------
+    // QUERY DS2 — NEW DARK STORE EXPANSION
+    // Identifies dark stores that appeared recently (within selected date range)
+    // -------------------------------------------------------------------------
+    const newDarkStoreQuery = `
+        WITH
+            new_stores AS (
+                SELECT
+                    initCap(location) AS city,
+                    initCap(platform) AS platform,
+                    region,
+                    tier,
+                    COUNT(DISTINCT concat(toString(pincode), merchant_name)) AS newStoreCount,
+                    MIN(store_first_seen) AS earliestSeen
+                FROM rb_location_darkstore
+                WHERE pf_id IN (4, 6, 7)
+                  AND status IN ('1', '2')
+                  AND toDate(store_first_seen) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND ${buildCHCondition(filters.platform, 'platform')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('location'))}
+                GROUP BY city, platform, region, tier
+            ),
+            city_listing AS (
+                SELECT
+                    ${CITY_NORM_EXPR('Location')} AS city,
+                    initCap(Platform) AS platform,
+                    ${catField} AS category,
+                    COUNT(DISTINCT LOWER(Web_Pid)) AS listed_skus,
+                    SUM(neno_osa) AS neno_sum,
+                    SUM(deno_osa) AS deno_sum,
+                    SUM(toFloat64OrZero(toString(Sales))) AS total_sales
+                FROM rb_pdp_olap
+                WHERE toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND Comp_flag = 0
+                  AND ${buildCHCondition(filters.platform, 'Platform')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'))}
+                  AND ${buildCHCondition(filters.category, catField, { isCategory: true })}
+                GROUP BY city, platform, category
+            ),
+            total_skus AS (
+                SELECT
+                    initCap(Platform) AS platform,
+                    ${catField} AS category,
+                    COUNT(DISTINCT LOWER(Web_Pid)) AS total_platform_skus
+                FROM rb_pdp_olap
+                WHERE toDate(DATE) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND Comp_flag = 0
+                  AND ${buildCHCondition(filters.platform, 'Platform')}
+                  AND ${buildCHCondition(filters.category, catField, { isCategory: true })}
+                GROUP BY platform, category
+            ),
+            comp_presence AS (
+                SELECT
+                    ${CITY_NORM_EXPR('Location')} AS city,
+                    initCap(Platform) AS platform,
+                    arrayStringConcat(
+                        groupUniqArray(Brand),
+                        ', '
+                    ) AS competitors
+                FROM rb_pdp_olap
+                WHERE toDate(Date) BETWEEN '${dateFrom}' AND '${dateTo}'
+                  AND Comp_flag = 1
+                  AND ${buildCHCondition(filters.platform, 'Platform')}
+                  AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'))}
+                GROUP BY city, platform
+            )
+        SELECT
+            ns.city,
+            ns.platform,
+            ns.region,
+            ns.tier,
+            cl.category,
+            ns.newStoreCount,
+            ns.earliestSeen,
+            ifNull(cl.listed_skus, 0) AS listedSkus,
+            ifNull(ts.total_platform_skus, 0) AS totalPlatformSkus,
+            ROUND(ifNull(cl.listed_skus, 0) * 100.0 / nullIf(ts.total_platform_skus, 0), 1) AS listingPct,
+            ROUND(ifNull(cl.neno_sum, 0) * 100.0 / nullIf(cl.deno_sum, 0), 1) AS osa,
+            ifNull(cl.total_sales, 0) AS sales,
+            ifNull(cp.competitors, '-') AS competitors
+        FROM new_stores ns
+        LEFT JOIN city_listing cl ON ns.city = cl.city AND ns.platform = cl.platform
+        LEFT JOIN total_skus ts ON cl.platform = ts.platform AND cl.category = ts.category
+        LEFT JOIN comp_presence cp ON ns.city = cp.city AND ns.platform = cp.platform
+        ORDER BY ns.newStoreCount DESC, listingPct ASC
+        LIMIT 50
+    `;
+
     const safeQuery = async (query, label) => {
         try {
             return await queryClickHouse(query);
@@ -1369,7 +1523,9 @@ export const getInsightsData = async (filters) => {
             prioritisePOData,
             transferIssueData,
             newMarketEntryData,
-            skuLossData
+            skuLossData,
+            darkStoreCoverageData,
+            newDarkStoreData
         ] = await Promise.all([
             safeQuery(visibilityQuery, 'Visibility'),
             safeQuery(visibilityTotalsQuery, 'VisibilityTotals'),
@@ -1388,7 +1544,9 @@ export const getInsightsData = async (filters) => {
             safeQuery(prioritisePOQuery, 'PrioritisePO'),
             safeQuery(transferIssueQuery, 'TransferIssue'),
             safeQuery(newMarketEntryQuery, 'NewMarketEntry'),
-            rbMsOlapExists ? safeQuery(skuLossQuery, 'SkuLoss') : Promise.resolve([])
+            rbMsOlapExists ? safeQuery(skuLossQuery, 'SkuLoss') : Promise.resolve([]),
+            safeQuery(darkStoreCoverageQuery, 'DarkStoreCoverage'),
+            safeQuery(newDarkStoreQuery, 'NewDarkStore')
         ]);
 
         // Build SKU loss maps from rb_pdp_olap for Share Headroom Hotspots
@@ -1424,36 +1582,33 @@ export const getInsightsData = async (filters) => {
         }
 
         // ── Parallelized image URL resolution for ALL signals ──
-        // Previously 4 sequential awaits; now restructured into 2 parallel rounds.
-        //
-        // Round 1 (parallel): Fetch images for already-known web_pids +
-        //                     resolve product names → web_pids simultaneously
-        // Round 2 (single):   Fetch images for any newly-discovered pids from Round 1
+        // Optimized: Only mapping images from rb_sku_platform to improve performance.
         const pidImageMap = {};
         const productImageMap = {};
-        const shareHeadroomImageMap = {};  // key: city||platform||category + '_own'/'_comp' → image_url
 
         try {
-            // ── Collect ALL directly-known web_pids from signal data ──
             const allKnownPids = new Set();
+            const allProductNames = new Set();
 
-            // From RemoveAdLowOSA (already carries web_pid per row)
-            for (const r of removeAdLowOSAData) {
+            // ── Collect ALL directly-known web_pids and product names from signal data ──
+            
+            // From RemoveAdLowOSA
+            for (const r of (removeAdLowOSAData || [])) {
                 if (r.webPid) allKnownPids.add(String(r.webPid));
+                if (r.skuOrBrand && r.skuOrBrand !== '-') allProductNames.add(r.skuOrBrand);
             }
 
-            // From Share Headroom SKU loss maps (own + competitor)
+            // From Share Headroom SKU loss maps
             for (const v of Object.values(ownSkuLossMap)) { 
-                if (v.webPid) allKnownPids.add(v.webPid); 
-                else if (v.skuName && v.skuName !== '-') allProductNames.add(v.skuName);
+                if (v.webPid) allKnownPids.add(String(v.webPid)); 
+                if (v.skuName && v.skuName !== '-') allProductNames.add(v.skuName);
             }
             for (const v of Object.values(compSkuLossMap)) { 
-                if (v.webPid) allKnownPids.add(v.webPid); 
-                else if (v.skuName && v.skuName !== '-') allProductNames.add(v.skuName);
+                if (v.webPid) allKnownPids.add(String(v.webPid)); 
+                if (v.skuName && v.skuName !== '-') allProductNames.add(v.skuName);
             }
 
-            // ── Collect ALL product/SKU names that need pid resolution ──
-            const allProductNames = new Set();
+            // From other signals
             for (const r of (surplusStockData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (prioritisePOData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
             for (const r of (transferIssueData || [])) { if (r.skuName && r.skuName !== '-') allProductNames.add(r.skuName); }
@@ -1464,88 +1619,46 @@ export const getInsightsData = async (filters) => {
                 if (r.compSku && r.compSku !== '-') allProductNames.add(r.compSku);
             }
 
-            // ── Round 1: Run THREE queries in parallel ──
             const knownPidList = [...allKnownPids];
-            const namesList = [...allProductNames].slice(0, 200); // cap to avoid massive IN clause
+            const namesList = [...allProductNames].slice(0, 500); // Increased cap for direct metadata lookup
 
-            const [knownPidImageRows, productPidRows, directNameImageRows] = await Promise.all([
-                // Query A: Fetch images for all already-known web_pids (single batch)
+            const [pidImageRows, nameImageRows] = await Promise.all([
+                // Query A: Fetch images by web_pid from rb_sku_platform
                 knownPidList.length > 0
                     ? safeQuery(
                         `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${knownPidList.map(p => `'${escapeCH(String(p))}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`,
                         'ImageByPid'
                     )
                     : Promise.resolve([]),
-                // Query B: Resolve product names → web_pids from PDP OLAP
-                namesList.length > 0
-                    ? safeQuery(
-                        `SELECT DISTINCT Product, argMax(Web_Pid, DATE) AS web_pid FROM rb_pdp_olap WHERE Product IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')}) AND Web_Pid IS NOT NULL AND Web_Pid != '' GROUP BY Product`,
-                        'ProductToPid'
-                    )
-                    : Promise.resolve([]),
-                // Query C: Fetch images directly by sku_name (Fallback path)
+                // Query B: Fetch images directly by sku_name from rb_sku_platform
                 namesList.length > 0
                     ? safeQuery(
                         `SELECT sku_name, argMax(image_url, modified_on) AS image_url FROM rb_sku_platform WHERE sku_name IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != '' GROUP BY sku_name`,
-                        'ImageBySkuName'
+                        'ImageByName'
                     )
                     : Promise.resolve([])
             ]);
 
-            // Populate pidImageMap from Query A results
-            for (const row of knownPidImageRows) {
+            // Populate maps
+            for (const row of pidImageRows) {
                 pidImageMap[String(row.web_pid)] = row.image_url;
             }
-
-            // Populate skuNameImageMap from Query C results
-            const skuNameImageMap = {};
-            for (const row of directNameImageRows) {
-                skuNameImageMap[row.sku_name] = row.image_url;
+            const nameToImgMap = {};
+            for (const row of nameImageRows) {
+                nameToImgMap[row.sku_name] = row.image_url;
             }
 
-            // Process Query B results: build productPidMap and find new (unresolved) pids
-            const productPidMap = {};
-            const newPids = new Set();
-            for (const row of productPidRows) {
-                const pid = String(row.web_pid);
-                productPidMap[row.Product] = pid;
-                if (!pidImageMap[pid]) {
-                    newPids.add(pid);
-                }
-            }
-
-            // ── Round 2: Fetch images for newly-discovered pids (single query, only if needed) ──
-            if (newPids.size > 0) {
-                const newPidList = [...newPids];
-                const newImgRows = await safeQuery(
-                    `SELECT web_pid, image_url FROM rb_sku_platform WHERE web_pid IN (${newPidList.map(p => `'${escapeCH(p)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != ''`,
-                    'ImageByNewPid'
-                );
-                for (const row of newImgRows) {
-                    pidImageMap[String(row.web_pid)] = row.image_url;
-                }
-            }
-
-            // ── Build final maps ──
-            // Product name → image URL (Priority: PID match → Name match → null)
+            // Populate productImageMap (Priority: PID resolution if possible, else Name resolution)
             for (const name of allProductNames) {
-                const pid = productPidMap[name];
-                let img = pid ? pidImageMap[pid] : null;
-                
-                // Fallback to name-based lookup if PID match yielded no image
-                if (!img) {
-                    img = skuNameImageMap[name] || null;
-                }
-                
-                productImageMap[name] = img;
+                productImageMap[name] = nameToImgMap[name] || null;
             }
 
-            // Assign images to RemoveAdLowOSA data rows
-            for (const r of removeAdLowOSAData) {
+            // Final assignments for rows with explicit webPids
+            for (const r of (removeAdLowOSAData || [])) {
                 r.imageUrl = pidImageMap[String(r.webPid)] || null;
             }
         } catch (imgErr) {
-            console.log('[Insights] Parallelized image resolution failed (non-critical):', imgErr.message);
+            console.log('[Insights] Image resolution failed (non-critical):', imgErr.message);
         }
 
         // Build Performance Lookup (Sales & OSA)
@@ -1835,6 +1948,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: totalImpact,
                 impactLabel: "Headroom",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [],
                 whatWeSee: [],
                 evidence,
@@ -1847,7 +1961,9 @@ export const getInsightsData = async (filters) => {
         // ---------------------------------------------------------------------
         if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Price Parity Radar') {
             // Filter to only allowed cities
+            console.log(`[Insights] Price Parity raw rows: ${(priceData || []).length}, cities:`, (priceData || []).map(p => p.city));
             const cityFilteredPriceData = (priceData || []).filter(p => isAllowedCity(p.city));
+            console.log(`[Insights] Price Parity after city filter: ${cityFilteredPriceData.length}`);
             const hasData = cityFilteredPriceData.length > 0;
             const topRow = hasData ? cityFilteredPriceData[0] : { gapPct: 0, ourPpu: 0, compPpu: 0 };
 
@@ -1895,6 +2011,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: totalImpact,
                 impactLabel: "Headroom",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [],
                 whatWeSee: hasData ? [
                     `${brandLabel} PPU differs from competitor PPU across ${cityFilteredPriceData.length} city-category combinations.`,
@@ -1937,6 +2054,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: impact,
                 impactLabel: "Loss",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [
                     { label: "Avg Fill rate", value: `${avgFillRate.toFixed(1)}%` },
                     { label: "Affected SKUs", value: hasData ? `${replData.length}` : "0" },
@@ -1994,6 +2112,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: impact,
                 impactLabel: "Ad Waste",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [
                     { label: "Waste keywords", value: hasData ? adData.length.toString() : "0" },
                     { label: "Avg ROAS", value: avgRoas },
@@ -2055,6 +2174,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: Math.round(totalPsl),
                 impactLabel: "Headroom",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [
                     { label: "Other brand OSA", value: `${avgOtherOsa.toFixed(1)}%` },
                     { label: `${brandLabel} OSA`, value: `${avgKwOsa.toFixed(1)}%` },
@@ -2113,6 +2233,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: Math.round(totalLost),
                 impactLabel: "Est. Lost Sales",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [
                     { label: `${brandLabel} OSA (avg)`, value: `${avgOsa.toFixed(1)}%` },
                     { label: "Ad SOV", value: `${avgSov.toFixed(1)}%` },
@@ -2220,6 +2341,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: Math.round(totalExcessValue),
                 impactLabel: "Excess Inventory",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [
                     { label: "Avg DOI", value: `${avgDOI.toFixed(0)} days` },
                     { label: "Affected SKUs", value: hasData ? `${filteredData.length}` : "0" },
@@ -2278,6 +2400,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: Math.round(totalPSL),
                 impactLabel: "Projected Sales Loss",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [
                     { label: "PSL", value: `₹${Math.round(totalPSL).toLocaleString('en-IN')}` },
                     { label: "Avg OSA", value: `${avgOsa.toFixed(1)}%` },
@@ -2335,6 +2458,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: Math.round(totalPSL),
                 impactLabel: "Projected Sales Loss",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [
                     { label: "PSL", value: `₹${Math.round(totalPSL).toLocaleString('en-IN')}` },
                     { label: "Avg Backed DOI", value: `${avgBackedDOI.toFixed(1)} days` },
@@ -2393,6 +2517,7 @@ export const getInsightsData = async (filters) => {
                 impactInr: Math.round(totalSales),
                 impactLabel: "Competitor Revenue",
                 brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
                 kpis: [
                     { label: "New SKUs", value: hasData ? `${filteredData.length}` : "0" },
                     { label: "Competitors", value: `${uniqueCompetitors}` },
@@ -2414,6 +2539,145 @@ export const getInsightsData = async (filters) => {
                     daysSeen: Number(r.daysSeen) || 0,
                     totalSales: Number(r.totalSales) || 0,
                 })) : [{ skuName: '-', city: '-', platform: '-', category: '-', competitorName: '-', pfu: 0, firstSeenDate: '-', daysSeen: 0 }],
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // SIGNAL 12 — Dark Store Coverage Gaps
+        // ---------------------------------------------------------------------
+        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'Dark Store Coverage Gaps') {
+            const filteredData = (darkStoreCoverageData || []).filter(r => isAllowedCity(r.city));
+            const hasData = filteredData.length > 0;
+            const avgListingPct = hasData ? filteredData.reduce((s, r) => s + Number(r.listingPct || 0), 0) / filteredData.length : 0;
+            const totalStores = hasData ? filteredData.reduce((s, r) => s + Number(r.storeCount || 0), 0) : 0;
+            const avgOsa = hasData ? filteredData.reduce((s, r) => s + Number(r.osa || 0), 0) / filteredData.length : 0;
+            const totalSalesImpact = hasData ? filteredData.reduce((s, r) => {
+                // PSL estimate: if listing is low, missing SKUs would have brought proportional sales
+                const listPct = Number(r.listingPct || 0);
+                const sales = Number(r.sales || 0);
+                if (listPct > 0 && listPct < 100) {
+                    return s + (sales / (listPct / 100) - sales);
+                }
+                return s;
+            }, 0) : 0;
+            const uniqueCities = hasData ? new Set(filteredData.map(r => r.city)).size : 0;
+
+            let title12 = "No dark store coverage gaps detected";
+            if (hasData) {
+                if (avgListingPct < 50) {
+                    title12 = `Critical listing gap: Only ${avgListingPct.toFixed(1)}% SKUs listed across ${totalStores} dark stores in ${uniqueCities} cities`;
+                } else if (avgListingPct < 80) {
+                    title12 = `Listing coverage at ${avgListingPct.toFixed(1)}% — ${totalStores} dark stores across ${uniqueCities} cities need SKU expansion`;
+                } else {
+                    title12 = `${uniqueCities} cities with ${totalStores} dark stores have listing coverage gaps to address`;
+                }
+            }
+
+            insights.push({
+                id: "dyn_ds_coverage_1",
+                type: "Dark Store Coverage Gaps",
+                title: title12,
+                family: "Dark Store",
+                platforms: hasData ? [...new Set(filteredData.map(r => r.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: Math.round(totalSalesImpact),
+                impactLabel: "Potential Sales Loss",
+                brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
+                kpis: [
+                    { label: "Avg Listing %", value: `${avgListingPct.toFixed(1)}%` },
+                    { label: "Dark Stores", value: `${totalStores}` },
+                    { label: "Avg OSA", value: `${avgOsa.toFixed(1)}%` },
+                ],
+                whatWeSee: hasData ? [
+                    `Listing coverage averages ${avgListingPct.toFixed(1)}% across ${totalStores} dark stores, leaving significant untapped shelf space.`,
+                    `Expanding SKU listings in underserved cities could unlock ₹${Math.round(totalSalesImpact).toLocaleString('en-IN')} in additional revenue.`,
+                ] : ["-", "-"],
+                evidence: hasData ? filteredData.map(r => ({
+                    category: r.category || '-',
+                    city: r.city || '-',
+                    platform: r.platform || '-',
+                    storeCount: Number(r.storeCount) || 0,
+                    listedSkus: Number(r.listedSkus) || 0,
+                    totalPlatformSkus: Number(r.totalPlatformSkus) || 0,
+                    listingPct: Number(r.listingPct) || 0,
+                    osa: Number(r.osa) || 0,
+                    sales: Number(r.sales) || 0,
+                    psl: (() => {
+                        const lp = Number(r.listingPct || 0);
+                        const s = Number(r.sales || 0);
+                        return lp > 0 && lp < 100 ? Math.round(s / (lp / 100) - s) : 0;
+                    })(),
+                })) : [{ category: '-', city: '-', platform: '-', storeCount: 0, listedSkus: 0, totalPlatformSkus: 0, listingPct: 0, osa: 0, sales: 0, psl: 0 }],
+            });
+        }
+
+        // ---------------------------------------------------------------------
+        // SIGNAL 13 — New Dark Store Expansion
+        // ---------------------------------------------------------------------
+        if (!filters.signal || filters.signal === 'All signals' || filters.signal === 'New Dark Store Expansion') {
+            const filteredData = (newDarkStoreData || []).filter(r => isAllowedCity(r.city));
+            const hasData = filteredData.length > 0;
+            const totalNewStores = hasData ? filteredData.reduce((s, r) => s + Number(r.newStoreCount || 0), 0) : 0;
+            const avgListingPct = hasData ? filteredData.reduce((s, r) => s + Number(r.listingPct || 0), 0) / filteredData.length : 0;
+            const uniqueCities = hasData ? new Set(filteredData.map(r => r.city)).size : 0;
+            const totalSalesImpact = hasData ? filteredData.reduce((s, r) => {
+                const listPct = Number(r.listingPct || 0);
+                const sales = Number(r.sales || 0);
+                if (listPct > 0 && listPct < 100) {
+                    return s + (sales / (listPct / 100) - sales);
+                }
+                return s;
+            }, 0) : 0;
+
+            let title13 = "No new dark stores detected";
+            if (hasData) {
+                if (totalNewStores > 10) {
+                    title13 = `${totalNewStores} new dark stores across ${uniqueCities} cities — listing coverage at ${avgListingPct.toFixed(1)}%, revenue loss risk ₹${Math.round(totalSalesImpact).toLocaleString('en-IN')}`;
+                } else {
+                    title13 = `${totalNewStores} new dark store(s) appeared in ${uniqueCities} cities with ${avgListingPct.toFixed(1)}% listing coverage`;
+                }
+            }
+
+            insights.push({
+                id: "dyn_ds_new_1",
+                type: "New Dark Store Expansion",
+                title: title13,
+                family: "Dark Store",
+                platforms: hasData ? [...new Set(filteredData.map(r => r.platform))] : ["-"],
+                city: filters.city !== "All cities" ? filters.city : "Multi-city",
+                category: filters.category !== "All categories" ? filters.category : "Overall",
+                impactInr: Math.round(totalSalesImpact),
+                impactLabel: "Potential Sales Loss",
+                brandName: brandLabel,
+                dateRange: { from: dateFrom, to: dateTo },
+                kpis: [
+                    { label: "New Stores", value: `${totalNewStores}` },
+                    { label: "Cities", value: `${uniqueCities}` },
+                    { label: "Avg Listing %", value: `${avgListingPct.toFixed(1)}%` },
+                ],
+                whatWeSee: hasData ? [
+                    `${totalNewStores} new dark stores appeared across ${uniqueCities} cities with average listing coverage of ${avgListingPct.toFixed(1)}%.`,
+                    `Missing SKU listings in new stores represent ₹${Math.round(totalSalesImpact).toLocaleString('en-IN')} potential revenue leakage.`,
+                ] : ["-", "-"],
+                evidence: hasData ? filteredData.map(r => ({
+                    category: r.category || '-',
+                    city: r.city || '-',
+                    platform: r.platform || '-',
+                    region: r.region || '-',
+                    tier: r.tier || '-',
+                    newStoreCount: Number(r.newStoreCount) || 0,
+                    listingPct: Number(r.listingPct) || 0,
+                    sobNewDs: Number(r.osa) || 0,
+                    sales: Number(r.sales) || 0,
+                    competitors: r.competitors || '-',
+                    psl: (() => {
+                        const lp = Number(r.listingPct || 0);
+                        const s = Number(r.sales || 0);
+                        return lp > 0 && lp < 100 ? Math.round(s / (lp / 100) - s) : 0;
+                    })(),
+                })) : [{ category: '-', city: '-', platform: '-', region: '-', tier: '-', newStoreCount: 0, listingPct: 0, sobNewDs: 0, sales: 0, competitors: '-', psl: 0 }],
             });
         }
 

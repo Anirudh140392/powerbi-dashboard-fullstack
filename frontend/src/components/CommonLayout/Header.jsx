@@ -42,6 +42,7 @@ const FILTER_TABS = [
   { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
+  { key: "location", label: "City", icon: MapPin },
 ];
 
 function WatchTowerFilterModal({
@@ -50,6 +51,7 @@ function WatchTowerFilterModal({
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
+  locations = [], selectedLocation, setSelectedLocation,
 }) {
   const [activeTab, setActiveTab] = React.useState("channel");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -59,11 +61,13 @@ function WatchTowerFilterModal({
   const [draftPlatform, setDraftPlatform] = React.useState(platform);
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
+  const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
 
   // ─── Local option lists (cascaded from draft selections) ───
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
   const [localBrands, setLocalBrands] = React.useState(brands);
+  const [localLocations, setLocalLocations] = React.useState(locations);
 
   // Sync drafts + local options from context every time the modal opens
   React.useEffect(() => {
@@ -72,9 +76,11 @@ function WatchTowerFilterModal({
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
+      setDraftLocation(selectedLocation);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
+      setLocalLocations(locations);
       setActiveTab("channel");
       setSearchTerm("");
     }
@@ -186,6 +192,7 @@ function WatchTowerFilterModal({
     platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
+    location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -236,6 +243,7 @@ function WatchTowerFilterModal({
     setPlatform(draftPlatform);
     setSelectedCategory(draftCategory);
     setSelectedBrand(draftBrand);
+    if (setSelectedLocation) setSelectedLocation(draftLocation);
     onClose();
   };
 
@@ -250,6 +258,7 @@ function WatchTowerFilterModal({
     setDraftPlatform("All");
     setDraftCategory("All");
     setDraftBrand("All");
+    setDraftLocation("All");
   };
 
   // total active filter count across all tabs
@@ -3494,6 +3503,9 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      locations={title === "Insights" ? ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'] : locations}
+                      selectedLocation={selectedLocation}
+                      setSelectedLocation={setSelectedLocation}
                     />
                   )}
 

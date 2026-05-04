@@ -19,6 +19,7 @@ import {
     Package,
     ArrowRightLeft,
     MapPin,
+    Store,
 } from "lucide-react";
 
 
@@ -43,6 +44,7 @@ import {
 import CommonContainer from "@/components/CommonLayout/CommonContainer";
 import { FilterContext } from "@/utils/FilterContext";
 import { fetchInsights, fetchInsightsFilters } from "@/api/insightsService";
+import AIInsightsPanelLive from "@/components/insights/AIInsightsPanelLive";
 import CustomHeaderDropdown from "@/components/CommonLayout/CustomHeaderDropdown";
 import DateRangeComparePicker from "@/components/CommonLayout/DateRangeComparePicker";
 import dayjs from "dayjs";
@@ -125,6 +127,18 @@ const SIGNAL_META = {
         FamilyIcon: MapPin, metricKey: "impactInr",
         metricLabel: "Competitor Revenue", trend: "negative",
     },
+    "Dark Store Coverage Gaps": {
+        family: "Dark Store",
+        color: "#7c3aed", accent: "#ede9fe",
+        FamilyIcon: Store, metricKey: "impactInr",
+        metricLabel: "Potential Sales Loss", trend: "negative",
+    },
+    "New Dark Store Expansion": {
+        family: "Dark Store",
+        color: "#6d28d9", accent: "#f5f3ff",
+        FamilyIcon: Store, metricKey: "impactInr",
+        metricLabel: "Potential Sales Loss", trend: "negative",
+    },
 };
 
 const REQUIRED_SIGNAL_TYPES = Object.keys(SIGNAL_META);
@@ -187,6 +201,14 @@ const createEmptySignal = (type, brandName = "Brand") => {
         case "New Market Entry":
             base.kpis = [{ label: "New SKUs", value: "0" }, { label: "Competitors", value: "0" }, { label: "Cities", value: "0" }];
             base.evidence = [{ skuName: "-", city: "-", platform: "-", category: "-", competitorName: "-", pfu: 0, firstSeenDate: "-" }];
+            break;
+        case "Dark Store Coverage Gaps":
+            base.kpis = [{ label: "Avg Listing %", value: "0%" }, { label: "Dark Stores", value: "0" }, { label: "Avg OSA", value: "0%" }];
+            base.evidence = [{ category: "-", city: "-", platform: "-", storeCount: 0, listedSkus: 0, totalPlatformSkus: 0, listingPct: 0, osa: 0, sales: 0, psl: 0 }];
+            break;
+        case "New Dark Store Expansion":
+            base.kpis = [{ label: "New Stores", value: "0" }, { label: "Cities", value: "0" }, { label: "Avg Listing %", value: "0%" }];
+            base.evidence = [{ category: "-", city: "-", platform: "-", region: "-", tier: "-", newStoreCount: 0, listingPct: 0, sobNewDs: 0, sales: 0, competitors: "-", psl: 0 }];
             break;
         default: break;
     }
@@ -579,8 +601,9 @@ const SignalStatusBadge = ({ isEmpty }) => (
 );
 
 
-// ─── AI INSIGHTS PANEL ───────────────────────────────────────────────────────
-
+// ─── AI INSIGHTS PANEL (static version — replaced by AIInsightsPanelLive import) ──
+// Kept here only as reference; no longer called anywhere.
+// eslint-disable-next-line no-unused-vars
 const AIInsightsPanel = ({ insight, onClose }) => {
     const [phase, setPhase] = useState("loading");
     const [visibleCount, setVisibleCount] = useState(0);
@@ -838,6 +861,23 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
             { key: "firstSeenDate", label: "First Seen Date", isText: true },
             { key: "city", label: "City" },
         ];
+        if (t === "Dark Store Coverage Gaps") return [
+            { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
+            { key: "city", label: "City" },
+            { key: "storeCount", label: "# Stores" },
+            { key: "listingPct", label: "Listing %", fmt: safePct },
+            { key: "osa", label: "OSA %", fmt: safePct },
+            { key: "psl", label: "PSL", fmt: safeINR },
+        ];
+        if (t === "New Dark Store Expansion") return [
+            { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
+            { key: "city", label: "City" },
+            { key: "newStoreCount", label: "# New DS" },
+            { key: "listingPct", label: "Listing %", fmt: safePct },
+            { key: "sobNewDs", label: "SOB New DS %", fmt: safePct },
+            { key: "competitors", label: "Competitors", isText: true },
+            { key: "psl", label: "PSL", fmt: safeINR },
+        ];
         return [
             { key: "category", label: "Category", fmt: (v, r) => v || insight.category || "-" },
             { key: "city", label: "City" },
@@ -988,21 +1028,43 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
 
 const RowAIPopup = ({ insight, rowData, onClose }) => {
     const [phase, setPhase] = useState("loading");
-    const [visibleCount, setVisibleCount] = useState(0);
+    const [segments, setSegments] = useState([]);
 
     const rowInsight = useMemo(() => ({
         ...insight,
         evidence: [rowData]
     }), [insight, rowData]);
 
-    const segments = useMemo(() => buildAISegments(rowInsight), [rowInsight]);
-
     useEffect(() => {
-        setPhase("reveal"); 
-        setVisibleCount(Math.min(segments.length, 2));
-    }, [rowInsight?.id, segments.length]);
+        let cancelled = false;
+        setPhase("loading");
+        setSegments([]);
 
-    const miniSegs = segments.slice(0, 2);
+        callClaudeForInsights(rowInsight, [rowData])
+            .then(parsed => {
+                if (cancelled) return;
+                // Only show first 2 segments in the compact popup
+                setSegments(
+                    parsed.slice(0, 2).map((seg, i) => ({
+                        label: seg.label || `Insight ${i + 1}`,
+                        text: seg.text || "",
+                        priority: SEGMENT_PRIORITY[i] || "neutral",
+                    }))
+                );
+                setPhase("reveal");
+            })
+            .catch(() => {
+                if (cancelled) return;
+                const fallback = buildAISegments(rowInsight).slice(0, 2).map((seg, i) => ({
+                    ...seg,
+                    priority: SEGMENT_PRIORITY[i] || "neutral",
+                }));
+                setSegments(fallback);
+                setPhase("reveal");
+            });
+
+        return () => { cancelled = true; };
+    }, [rowInsight]); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <motion.div
@@ -1095,17 +1157,17 @@ const RowAIPopup = ({ insight, rowData, onClose }) => {
                         padding: "20px 0",
                         gap: "10px"
                     }}>
-                        <Loader2 size={18} style={{ animation: "spin 2s linear infinite", color: "#6366f1" }} />
+                        <Loader2 size={18} style={{ animation: "spin 1.2s linear infinite", color: "#6366f1" }} />
                         <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 500, letterSpacing: "0.02em" }}>
-                            Running diagnostic analysis...
+                            Analysing this row…
                         </span>
                     </div>
                 ) : (
-                    miniSegs.map((seg, idx) => (
+                    segments.map((seg, idx) => (
                         <motion.div key={idx}
                             initial={{ opacity: 0, y: 5 }}
-                            animate={idx < visibleCount ? { opacity: 1, y: 0 } : { opacity: 0, y: 5 }}
-                            transition={{ duration: 0.2 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.2, delay: idx * 0.06 }}
                             style={{ 
                                 display: "flex", 
                                 gap: "12px", 
@@ -1337,6 +1399,8 @@ const getEvidenceView = (type) => {
     if (type === "Prioritise PO") return "prioritisePO";
     if (type === "Transfer Issue") return "transferIssue";
     if (type === "New Market Entry") return "newMarket";
+    if (type === "Dark Store Coverage Gaps") return "dsCoverage";
+    if (type === "New Dark Store Expansion") return "dsNew";
     return "osa";
 };
 
@@ -1390,13 +1454,14 @@ const EvidenceTable = ({ insight }) => {
 
     return (
         <div style={{
-            display: "flex", flexDirection: "column", height: "100%",
-            background: "#fff", border: "2px solid #e2e8f0", borderRadius: "8px", overflow: "hidden",
+            display: "flex", flexDirection: "column", flex: 1, width: "100%",
+            background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", 
+            overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
             outline: "none",
         }}>
             <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "10px 12px", borderBottom: "1px solid #e2e8f0",
+                padding: "12px 18px", borderBottom: "1px solid #e2e8f0",
                 background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
             }}>
                 <span style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a5f", letterSpacing: "0.02em" }}>
@@ -1443,9 +1508,27 @@ const EvidenceTable = ({ insight }) => {
                 </div>
             </div>
             <ScrollArea className="flex-1 w-full" style={{ minHeight: 0 }}>
-                <Table>
-                    <TableHeader style={{ background: "#f8fafc", position: "sticky", top: 0, zIndex: 10 }}>
-                        <TableRow style={{ borderBottom: "1px solid #e2e8f0" }}>
+                <style>{`
+                    .insight-grid th:not(:last-child),
+                    .insight-grid td:not(:last-child) {
+                        border-right: 1px solid #e2e8f0;
+                    }
+                    .insight-grid tbody tr:nth-child(even) {
+                        background-color: #f8fafc;
+                    }
+                    .insight-grid thead th {
+                        background: #f1f5f9;
+                        font-weight: 600;
+                        letter-spacing: 0.03em;
+                        position: sticky;
+                        top: 0;
+                        z-index: 20;
+                        box-shadow: 0 1px 0 #e2e8f0;
+                    }
+                `}</style>
+                <table className="insight-grid w-full text-sm" style={{ borderCollapse: "collapse" }}>
+                    <thead style={{ position: "sticky", top: 0, zIndex: 20 }}>
+                        <TableRow style={{ borderBottom: "2px solid #cbd5e1" }}>
                             {view === "osa" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Platform</TableHead>
@@ -1554,8 +1637,25 @@ const EvidenceTable = ({ insight }) => {
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">First Seen Date</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
                             </>)}
+                            {view === "dsCoverage" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3"># Stores</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Listing %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">OSA %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
+                            </>)}
+                            {view === "dsNew" && (<>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Category</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">City</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3"># New DS</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Listing %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">SOB New DS (%)</TableHead>
+                                <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitors</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
+                            </>)}
                         </TableRow>
-                    </TableHeader>
+                    </thead>
                     <TableBody>
                         {filtered.length === 0 ? (
                             <TableRow>
@@ -1567,7 +1667,7 @@ const EvidenceTable = ({ insight }) => {
                             filtered.map((d, idx) => {
                                 return (
                                     <React.Fragment key={idx}>
-                                        <TableRow style={{ borderBottom: "1px solid #f1f5f9" }} className="hover:bg-blue-50/30 transition-colors">
+                                        <TableRow style={{ borderBottom: "1px solid #e2e8f0" }} className="hover:bg-blue-50/30 transition-colors">
                                             {view === "osa" && (
                                                 <>
                                                     <CategoryCell category={d.category || insight.category || "-"} rowIdx={idx} activePopupIdx={activePopupIdx} setActivePopupIdx={setActivePopupIdx} insight={insight} rowData={d} totalCount={filtered.length} />
@@ -1793,13 +1893,42 @@ const EvidenceTable = ({ insight }) => {
                                                     <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
                                                 </>
                                             )}
+                                            {view === "dsCoverage" && (
+                                                <>
+                                                    <TableCell className="text-[11px] text-slate-800 font-semibold px-3 py-3">{d.category || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">{Number(d.storeCount || 0)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] px-3 py-3">
+                                                        <span className={`font-medium ${Number(d.listingPct || 0) < 50 ? 'text-red-600' : Number(d.listingPct || 0) < 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                                            {safePct(d.listingPct)}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.osa)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safeINR(d.psl)}</TableCell>
+                                                </>
+                                            )}
+                                            {view === "dsNew" && (
+                                                <>
+                                                    <TableCell className="text-[11px] text-slate-800 font-semibold px-3 py-3">{d.category || "-"}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-800 px-3 py-3">{d.city || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-semibold text-violet-700 px-3 py-3">{Number(d.newStoreCount || 0)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] px-3 py-3">
+                                                        <span className={`font-medium ${Number(d.listingPct || 0) < 50 ? 'text-red-600' : Number(d.listingPct || 0) < 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                                            {safePct(d.listingPct)}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-blue-600 px-3 py-3">{safePct(d.sobNewDs)}</TableCell>
+                                                    <TableCell className="text-[11px] text-slate-600 px-3 py-3 max-w-[200px] truncate">{d.competitors || "-"}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safeINR(d.psl)}</TableCell>
+                                                </>
+                                            )}
                                         </TableRow>
                                     </React.Fragment>
                                 );
                             })
                         )}
                     </TableBody>
-                </Table>
+                </table>
             </ScrollArea>
 
             {/* ─── Image Preview Lightbox ─── */}
@@ -1973,90 +2102,232 @@ const PlatformButton = ({ platform, active, onClick }) => (
 
 // ─── DRILL DOWN MODAL ─────────────────────────────────────────────────────────
 
+// ─── SHARED CLAUDE API HELPER ────────────────────────────────────────────────
+// Builds the prompt and calls Claude, returning 4 segment objects.
+// Used by both DynamicInsightsBar and RowAIPopup.
+const callClaudeForInsights = async (insight, evidenceOverride) => {
+    const clientName = insight.brandName || "Brand";
+    const moduleType = insight.type;
+    const impactStr  = formatINRCompact(insight.impactInr || 0);
+
+    const SAFE_KEYS = [
+        "city", "category", "platform",
+        "brandOsa", "brandOsaDelta", "marketShare", "marketShareMoM",
+        "offtake", "offtakeMoM", "possibleCause", "myTopSku", "competitorSku",
+        "ourPpu", "compPpu", "gapPct", "gapPctChange", "impactedSku", "compSku",
+        "skuOrBrand", "otherBrandOsa", "otherBrandOsaChangePct", "kwOsa",
+        "ourBrandMkShare", "otherBrandMkShare",
+        "adSov", "adSovChangePct", "spendInr", "spend", "acos", "acosChangePct",
+        "keyword", "campaign", "budgetCapped", "estLostSalesInr",
+        "skuName", "fillRate", "poCreated", "poNo", "depotOrDb",
+        "plannedQty", "dispatchedQty",
+        "excessDOI", "excessInventoryValue", "currentDiscount", "openPOQty",
+        "osa", "projectedSalesLoss", "poStatus", "poRaisedDate",
+        "cpd", "backedDOI",
+        "competitorName", "pfu", "firstSeenDate",
+        "storeCount", "listedSkus", "totalPlatformSkus", "listingPct",
+        "newStoreCount", "sobNewDs", "competitors", "region", "tier",
+    ];
+
+    const rawEvidence = evidenceOverride || insight.evidence || [];
+    const cleanEvidence = rawEvidence.slice(0, 10).map(row => {
+        const cleaned = {};
+        for (const k of SAFE_KEYS) {
+            if (row[k] !== undefined && row[k] !== null && row[k] !== "-") cleaned[k] = row[k];
+        }
+        return cleaned;
+    }).filter(r => Object.keys(r).length > 0);
+
+    const isEmptySignal =
+        insight.id?.startsWith("empty_") ||
+        cleanEvidence.length === 0 ||
+        (cleanEvidence.length === 1 &&
+            Object.values(cleanEvidence[0]).every(v => v === 0 || v === "-" || v === "0%"));
+
+    const systemPrompt = `You are a Senior Retail Data Scientist generating executive-level AI insights for a retail intelligence dashboard called Trailytics.
+RULES:
+1. Respond ONLY with a valid JSON array of exactly 4 objects. No prose, no markdown fences, no explanation.
+2. Each object must have exactly two keys: "label" (string, ≤3 words) and "text" (string).
+3. Use **double-asterisks** to bold key numbers, brand names, SKUs, and cities.
+4. Every bullet must follow: Observation → Financial Impact → Action. Keep each under 20 words.
+5. The Action label must have the most actionable recommendation, not just an observation.
+6. If data is empty or null, return 4 strategic "monitoring" insights — no fabricated numbers.
+7. Do NOT use introductory phrases like "The data shows" or "Based on the table".`;
+
+    const userPrompt = isEmptySignal
+        ? `Client: **${clientName}**\nModule: ${moduleType}\nData Status: EMPTY\n\nGenerate 4 strategic monitoring bullets for an empty ${moduleType} signal.`
+        : `Client: **${clientName}**\nModule: ${moduleType}\nTotal Impact: ${impactStr}\nRows: ${cleanEvidence.length}\n\nDataset:\n${JSON.stringify(cleanEvidence, null, 2)}\n\nGenerate 4 precise insight bullets.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 1000,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+        }),
+    });
+
+    if (!response.ok) throw new Error(`API ${response.status}`);
+    const data = await response.json();
+    const rawText = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
+    const cleaned = rawText.replace(/```json|```/gi, "").trim();
+    return JSON.parse(cleaned);
+};
+
+// Priority positional map
+const SEGMENT_PRIORITY = ["high", "focus", "good", "neutral"];
+
 const DynamicInsightsBar = ({ insight }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [segments, setSegments] = useState(null); // null = not loaded yet
+    const [isLoading, setIsLoading] = useState(false);
 
-    const getInsightsText = () => {
-        if (insight?.type === "Remove Ad Low OSA") {
-            if (!insight?.evidence?.length || insight.evidence[0].skuOrBrand === "-") {
-                return [{ label: "Alert", text: "No low OSA ad data available." }];
-            }
-            const offenders = [...insight.evidence].sort((a, b) => {
-                const mismatchA = (a.adSov || 0) - (a.kwOsa || 0);
-                const mismatchB = (b.adSov || 0) - (b.kwOsa || 0);
-                return mismatchB - mismatchA; 
-            });
-            const top1 = offenders[0];
-            const top2 = offenders[1];
-            
-            const arr = [];
-            arr.push({ label: "Observation", text: `Spending high Ad SOV (${(top1.adSov || 0).toFixed(1)}%) for "${top1.skuOrBrand}" in ${top1.city} while availability is only ${(top1.kwOsa || 0).toFixed(1)}%.` });
-            
-            if (top2 && ((top2.adSov || 0) - (top2.kwOsa || 0) > 0)) {
-                 arr.push({ label: "Similarly", text: `"${top2.skuOrBrand}" in ${top2.city} has ${(top2.adSov || 0).toFixed(1)}% Ad SOV despite ${(top2.kwOsa || 0).toFixed(1)}% OSA.` });
-            }
-            arr.push({ label: "Action", text: `For ${insight.brandName || "Brand"}: Pause active campaigns for low OSA products and dynamically redirect ad spends towards well-stocked SKUs.` });
-            return arr;
+    const handleGenerate = async () => {
+        if (isLoading) return;
+        // If already generated, just toggle visibility
+        if (segments !== null) {
+            setIsOpen((prev) => !prev);
+            return;
         }
-        
-        // For all other signals, use the central generator
-        return buildAISegments(insight);
+        setIsOpen(true);
+        setIsLoading(true);
+        try {
+            const parsed = await callClaudeForInsights(insight);
+            setSegments(
+                parsed.slice(0, 4).map((seg, i) => ({
+                    label: seg.label || `Insight ${i + 1}`,
+                    text: seg.text || "",
+                    priority: SEGMENT_PRIORITY[i] || "neutral",
+                }))
+            );
+        } catch (err) {
+            console.warn("[DynamicInsightsBar] Falling back to static:", err.message);
+            setSegments(buildAISegments(insight).map((seg, i) => ({
+                ...seg,
+                priority: SEGMENT_PRIORITY[i] || "neutral",
+            })));
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const segments = getInsightsText();
-
     return (
-        <div style={{ width: "100%", display: "flex", flexDirection: "column" }}>
-            <div 
-                onClick={() => setIsOpen(!isOpen)}
-                style={{ 
-                    width: "100%", 
-                    background: "linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%)", /* Matches exact filter button gradient */
-                    color: "white",
-                    padding: "10px 16px", 
-                    borderRadius: isOpen ? "8px 8px 0 0" : "8px",
-                    display: "flex", 
-                    justifyContent: "space-between", 
-                    alignItems: "center",
-                    cursor: "pointer",
-                    transition: "all 0.3s ease",
-                    boxShadow: "0 2px 8px rgba(37,99,235,0.2)"
-                }}
-            >
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <Sparkles size={14} color="#fff" />
-                    <span style={{ fontSize: "13px", fontWeight: "600", letterSpacing: "0.02em" }}>AI Insights</span>
+        <div style={{
+            width: "100%",
+            border: "1.5px solid #3b82f6",
+            borderRadius: "10px",
+            background: "#ffffff",
+            overflow: "hidden",
+        }}>
+            {/* Header */}
+            <div style={{ padding: "14px 18px 0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                    <span style={{
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color: "#0f172a",
+                        letterSpacing: "-0.01em",
+                    }}>AI Insights</span>
+                    <div
+                        title="AI-powered insights for your data"
+                        style={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            border: "1.5px solid #94a3b8",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "help",
+                            flexShrink: 0,
+                        }}
+                    >
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#94a3b8", lineHeight: 1 }}>i</span>
+                    </div>
+                    <BetaBadge size="xs" />
                 </div>
-                <motion.div 
-                    animate={{ y: isOpen ? 0 : [0, 3, 0] }} 
-                    transition={{ repeat: isOpen ? 0 : Infinity, duration: 1.5, ease: "easeInOut" }}
+                <p style={{
+                    fontSize: "12px",
+                    color: "#64748b",
+                    margin: "0 0 12px 0",
+                    lineHeight: 1.5,
+                    letterSpacing: "0.01em",
+                }}>
+                    AI-powered insights for your data
+                </p>
+                {/* Generate / Toggle button */}
+                <button
+                    onClick={handleGenerate}
+                    disabled={isLoading}
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "8px 16px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: "#ffffff",
+                        background: "linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #3b82f6 100%)",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: isLoading ? "wait" : "pointer",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
+                        marginBottom: "14px",
+                        opacity: isLoading ? 0.8 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                        if (!isLoading) {
+                            e.currentTarget.style.boxShadow = "0 4px 14px rgba(99, 102, 241, 0.45)";
+                            e.currentTarget.style.transform = "translateY(-1px)";
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.boxShadow = "0 2px 8px rgba(99, 102, 241, 0.3)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                    }}
                 >
-                    <ChevronDown size={18} style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.3s ease" }} />
-                </motion.div>
+                    {isLoading ? (
+                        <Loader2 size={13} style={{ animation: "spin 1.2s linear infinite" }} />
+                    ) : (
+                        <Sparkles size={13} />
+                    )}
+                    {isLoading ? "Generating…" : segments !== null ? (isOpen ? "Hide summary" : "Show summary") : "Generate summary"}
+                </button>
             </div>
 
+            {/* Expandable insights panel */}
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div 
+                    <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: "easeInOut" }}
                         style={{ overflow: "hidden" }}
                     >
-                        <div style={{ 
-                            background: "#eff6ff", /* Light blue background for content */
-                            padding: "16px 20px",
-                            borderRadius: "0 0 8px 8px",
-                            border: "1px solid #bfdbfe",
-                            borderTop: "none",
+                        <div style={{
+                            padding: "0 18px 16px",
+                            borderTop: "1px solid #e2e8f0",
+                            marginTop: "0",
+                            paddingTop: "14px",
                         }}>
-                           <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#334155", display: "flex", flexDirection: "column", gap: "10px", listStyleType: "disc" }}>
-                               {segments.map((segment, idx) => (
-                                   <li key={idx} style={{ lineHeight: "1.5", fontWeight: segment.label === "Action" ? 600 : 400 }}>
-                                       <strong>{segment.label}:</strong> {renderBoldText(segment.text)}
-                                   </li>
-                               ))}
-                           </ul>
+                            {isLoading || segments === null ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0" }}>
+                                    <Loader2 size={16} style={{ animation: "spin 1.2s linear infinite", color: "#6366f1" }} />
+                                    <span style={{ fontSize: "12px", color: "#475569", fontWeight: 500 }}>Generating summary…</span>
+                                </div>
+                            ) : (
+                                <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "#334155", display: "flex", flexDirection: "column", gap: "10px", listStyleType: "disc" }}>
+                                    {segments.map((segment, idx) => (
+                                        <li key={idx} style={{ lineHeight: "1.5", fontWeight: segment.label === "Action" ? 600 : 400 }}>
+                                            <strong>{segment.label}:</strong> {renderBoldText(segment.text)}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                     </motion.div>
                 )}
@@ -2097,36 +2368,31 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     style={{
-                        position: "absolute",
+                        position: "fixed",
                         inset: 0,
-                        zIndex: 100,
+                        zIndex: 1000,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         background: "rgba(0, 0, 0, 0.4)",
                         backdropFilter: "blur(4px)",
-                        padding: "24px",
                     }}
                     onClick={onClose}
                 >
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        initial={{ x: "100%", opacity: 0.5 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        exit={{ x: "100%", opacity: 0.5 }}
+                        transition={{ type: "spring", damping: 35, stiffness: 300 }}
                         style={{
                             position: "relative",
-                            width: "100%",
-                            maxWidth: "1400px",
-                            height: "100%",
-                            maxHeight: "85vh",
+                            width: "100vw",
+                            height: "100vh",
                             background: "#fff",
-                            borderRadius: "16px",
-                            boxShadow: "0 20px 50px -12px rgba(0,0,0,0.25)",
                             display: "flex",
                             flexDirection: "row",
                             overflow: "hidden",
-                            border: "2px solid #e2e8f0",
+                            zIndex: 101,
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -2135,48 +2401,74 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                             <div style={{
                                 background: "#fff",
                                 borderBottom: "1px solid #e5e9f0",
-                                padding: "16px 20px",
-                                display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+                                padding: "20px 32px",
+                                display: "flex", alignItems: "center", justifyContent: "space-between",
                                 flexShrink: 0,
                             }}>
-                                <div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-                                        <div style={{
-                                            width: 20, height: 20, borderRadius: "5px",
-                                            background: meta.color ? `${meta.color}22` : "#dbeafe",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                        }}>
-                                            {meta.FamilyIcon && <meta.FamilyIcon size={11} color={meta.color || "#3b82f6"} />}
+                                <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+                                    <button 
+                                        onClick={onClose} 
+                                        style={{
+                                            color: "#94a3b8", 
+                                            background: "#f8fafc", 
+                                            border: "1px solid #e2e8f0",
+                                            cursor: "pointer", 
+                                            padding: "8px", 
+                                            borderRadius: "12px",
+                                            display: "flex", 
+                                            alignItems: "center", 
+                                            justifyContent: "center",
+                                            transition: "all 0.2s ease",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.background = "#f1f5f9";
+                                            e.currentTarget.style.color = "#0f172a";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.background = "#f8fafc";
+                                            e.currentTarget.style.color = "#94a3b8";
+                                        }}
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                    
+                                    <div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                                            <div style={{
+                                                width: 20, height: 20, borderRadius: "5px",
+                                                background: meta.color ? `${meta.color}22` : "#dbeafe",
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                            }}>
+                                                {meta.FamilyIcon && <meta.FamilyIcon size={11} color={meta.color || "#3b82f6"} />}
+                                            </div>
+                                            <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                                                Signal Detail
+                                            </span>
+                                            <ChevronRight size={11} color="#94a3b8" />
+                                            <span style={{ fontSize: "10px", fontWeight: 600, color: meta.color || "#3b82f6", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                                {insight.family}
+                                            </span>
                                         </div>
-                                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                                            Signal Detail
-                                        </span>
-                                        <ChevronRight size={11} color="#94a3b8" />
-                                        <span style={{ fontSize: "10px", fontWeight: 600, color: meta.color || "#3b82f6", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                                            {insight.family}
-                                        </span>
-                                    </div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                        <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
-                                            {insight.type}
-                                        </h2>
-                                        <BetaBadge />
+                                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                            <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
+                                                {insight.type}
+                                            </h2>
+                                            <BetaBadge />
+                                        </div>
                                     </div>
                                 </div>
-                                <button onClick={onClose} style={{
-                                    color: "#94a3b8", background: "none", border: "none",
-                                    cursor: "pointer", padding: 4, marginTop: 4,
-                                }}>
-                                    <X size={16} />
-                                </button>
+                                
+                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                                    {/* Additional header actions could go here */}
+                                </div>
                             </div>
 
                             {/* KPI Strip */}
                             <div style={{
                                 borderBottom: "1px solid #e2e8f0",
-                                padding: "12px 20px",
+                                padding: "16px 32px",
                                 display: "flex", flexWrap: "wrap", alignItems: "center",
-                                gap: "12px",
+                                gap: "24px",
                                 background: "#fff", flexShrink: 0,
                             }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: "20px", width: "100%" }}>
@@ -2199,7 +2491,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                             </div>
 
                             {/* Body */}
-                            <div style={{ flex: 1, overflowY: "auto", padding: "20px", background: "#fafcff" }}>
+                            <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "0 32px 32px 32px", background: "#fafcff", overflow: "hidden" }}>
                                 {isEmpty ? (
                                     <div style={{
                                         textAlign: "center", padding: "64px 16px",
@@ -2217,7 +2509,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
 
                         {/* AI Panel Drawer */}
                         <AnimatePresence>
-                            {showAIPanel && <AIInsightsPanel insight={insight} onClose={onCloseAIPanel} />}
+                            {showAIPanel && <AIInsightsPanelLive insight={insight} onClose={onCloseAIPanel} />}
                         </AnimatePresence>
                     </motion.div>
                 </motion.div>
@@ -2298,6 +2590,7 @@ const InsightsSignalHub = () => {
         platform,
         selectedCategory,
         selectedBrand,
+        selectedLocation,
         timeStart,
         timeEnd,
         compareStart,
@@ -2334,7 +2627,7 @@ const InsightsSignalHub = () => {
                     platform: formatArray(platform, "All platforms"),
                     category: formatArray(selectedCategory, "All categories"),
                     brand: formatArray(selectedBrand, "All brands"),
-                    city: "All cities",
+                    city: formatArray(selectedLocation, "All cities"),
                     type: "All signals",
                     startDate: timeStart?.format("YYYY-MM-DD") || dayjs().subtract(30, 'day').format("YYYY-MM-DD"),
                     endDate: timeEnd?.format("YYYY-MM-DD") || dayjs().format("YYYY-MM-DD"),
@@ -2357,7 +2650,7 @@ const InsightsSignalHub = () => {
             }
         };
         loadInsights();
-    }, [platform, selectedCategory, selectedBrand, timeStart, timeEnd, compareStart, compareEnd]);
+    }, [platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
 
 
     const allInsights = useMemo(() => fetchedInsights, [fetchedInsights]);
@@ -2575,7 +2868,7 @@ const InsightsSignalHub = () => {
                             alignContent: "start",
                             paddingBottom: "12px",
                         }}>
-                            {[...Array(11)].map((_, i) => (
+                            {[...Array(13)].map((_, i) => (
                                 <motion.div
                                     key={`skeleton-${i}`}
                                     initial={{ opacity: 0 }}
