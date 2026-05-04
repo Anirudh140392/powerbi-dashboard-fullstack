@@ -12,6 +12,7 @@ export default function CommonContainer({
   filters,
   onFiltersChange,
   hideFilters = false,
+  disablePadding = false,
   children,
 }) {
   const { platforms } = React.useContext(FilterContext);
@@ -25,6 +26,7 @@ export default function CommonContainer({
       filters={filters}
       onFiltersChange={onFiltersChange}
       hideFilters={hideFilters}
+      disablePadding={disablePadding}
       platforms={platforms}
       mobileMenuOpen={mobileMenuOpen}
       setMobileMenuOpen={setMobileMenuOpen}
@@ -42,6 +44,7 @@ function CommonLayoutContent({
   filters,
   onFiltersChange,
   hideFilters,
+  disablePadding,
   platforms,
   mobileMenuOpen,
   setMobileMenuOpen,
@@ -122,8 +125,8 @@ function CommonLayoutContent({
             maxWidth={false}
             disableGutters
             sx={{
-              py: 2,
-              px: { xs: 2, sm: 3 },
+              py: disablePadding ? 0 : 2,
+              px: disablePadding ? 0 : { xs: 2, sm: 3 },
               width: "100%",
               boxSizing: "border-box",
               minHeight: "100%", // Ensures it stretches to fill the flex Box height

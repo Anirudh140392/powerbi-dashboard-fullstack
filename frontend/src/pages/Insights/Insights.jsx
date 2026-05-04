@@ -914,8 +914,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                     height: "100%",
                     display: "flex",
                     flexDirection: "column",
-                    borderRadius: "10px",
-                    border: "none",
+                    borderRadius: "0px",
                     cursor: "pointer",
                     overflow: "hidden",
                     position: "relative",
@@ -923,12 +922,13 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                     outline: "none",
                     WebkitTapHighlightColor: "transparent",
                     boxShadow: isSelected 
-                        ? `0 10px 25px -5px ${isEmpty ? "rgba(148,163,184,0.15)" : color + "26"}, 0 8px 10px -6px ${isEmpty ? "rgba(148,163,184,0.1)" : color + "1a"}`
+                        ? `0 10px 25px -5px rgba(0,0,0,0.1)`
                         : hovered
-                            ? "0 12px 20px -5px rgba(0,0,0,0.08), 0 4px 6px -2px rgba(0,0,0,0.04)"
-                            : "0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)",
+                            ? "0 12px 20px -5px rgba(0,0,0,0.08)"
+                            : "none",
+                    border: "1px solid #f1f5f9",
                     transition: "all 0.2s ease",
-                    transform: hovered ? "translateY(-6px)" : "translateY(0px)",
+                    transform: hovered ? "translateY(-4px)" : "translateY(0px)",
                 }}
             >
                 {/* Top Badge Row */}
@@ -1241,7 +1241,11 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
                 <Popover open={isOpen} onOpenChange={(o) => setActivePopupIdx(o ? rowIdx : null)}>
                     <PopoverTrigger asChild>
                         <button
-                            onClick={(e) => { e.stopPropagation(); }}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setActivePopupIdx(isOpen ? null : rowIdx);
+                            }}
                             style={{
                                 fontSize: "9px", fontWeight: 700, 
                                 color: "#4f46e5",
@@ -1272,17 +1276,15 @@ const CategoryCell = ({ category, rowIdx, activePopupIdx, setActivePopupIdx, ins
                             Know More
                         </button>
                     </PopoverTrigger>
-                    <PopoverContent style={{ zIndex: 150 }} className="p-0 border-none bg-transparent shadow-none w-auto" side="bottom" align="start" sideOffset={8}>
-                        <AnimatePresence>
-                            {isOpen && (
-                                <RowAIPopup 
-                                    insight={insight} 
-                                    rowData={rowData} 
-                                    onClose={() => setActivePopupIdx(null)} 
-                                />
-                            )}
-                        </AnimatePresence>
-                    </PopoverContent>
+                    {isOpen && (
+                        <PopoverContent style={{ zIndex: 2000 }} className="p-0 border-none bg-transparent shadow-none w-auto" side="bottom" align="start" sideOffset={8}>
+                            <RowAIPopup 
+                                insight={insight} 
+                                rowData={rowData} 
+                                onClose={() => setActivePopupIdx(null)} 
+                            />
+                        </PopoverContent>
+                    )}
                 </Popover>
             </div>
         </TableCell>
@@ -1459,15 +1461,15 @@ const EvidenceTable = ({ insight }) => {
             overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
             outline: "none",
         }}>
-            <div style={{
+            <div className="evidence-header" style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "12px 18px", borderBottom: "1px solid #e2e8f0",
+                borderBottom: "1px solid #e2e8f0",
                 background: "linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%)",
             }}>
                 <span style={{ fontSize: "11px", fontWeight: 700, color: "#1e3a5f", letterSpacing: "0.02em" }}>
                     Evidence Data
                 </span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div className="evidence-actions-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <Popover>
                         <PopoverTrigger asChild>
                             <button
@@ -1482,7 +1484,7 @@ const EvidenceTable = ({ insight }) => {
                                 Filters {(activePlatform !== "All platforms" || categoryFilter !== "All categories") && "*"}
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent style={{ zIndex: 150 }} align="end" sideOffset={8} className="w-[240px] p-4 bg-white rounded-xl shadow-xl border border-slate-200">
+                        <PopoverContent style={{ zIndex: 2000 }} align="end" sideOffset={8} className="w-[240px] p-4 bg-white rounded-xl shadow-xl border border-slate-200">
                             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                                 <div style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px", marginBottom: "4px" }}>
                                     Table Filters
@@ -1492,7 +1494,7 @@ const EvidenceTable = ({ insight }) => {
                             </div>
                         </PopoverContent>
                     </Popover>
-                    <div style={{ position: "relative" }}>
+                    <div className="evidence-search-container" style={{ position: "relative" }}>
                         <Search size={11} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
                         <input
                             value={search}
@@ -2368,14 +2370,13 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     style={{
-                        position: "fixed",
+                        position: "absolute",
                         inset: 0,
                         zIndex: 1000,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        background: "rgba(0, 0, 0, 0.4)",
-                        backdropFilter: "blur(4px)",
+                        background: "#fff",
                     }}
                     onClick={onClose}
                 >
@@ -2386,8 +2387,8 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                         transition={{ type: "spring", damping: 35, stiffness: 300 }}
                         style={{
                             position: "relative",
-                            width: "100vw",
-                            height: "100vh",
+                            width: "100%",
+                            height: "100%",
                             background: "#fff",
                             display: "flex",
                             flexDirection: "row",
@@ -2398,14 +2399,13 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                     >
                         <div className="flex-1 flex flex-col h-full" style={{ maxWidth: "100%" }}>
                             {/* Modal Header */}
-                            <div style={{
+                            <div className="modal-header-container" style={{
                                 background: "#fff",
                                 borderBottom: "1px solid #e5e9f0",
-                                padding: "20px 32px",
                                 display: "flex", alignItems: "center", justifyContent: "space-between",
                                 flexShrink: 0,
                             }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+                                <div className="modal-header-title-row" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
                                     <button 
                                         onClick={onClose} 
                                         style={{
@@ -2450,7 +2450,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                             </span>
                                         </div>
                                         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                            <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
+                                            <h2 className="modal-header-title-text" style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
                                                 {insight.type}
                                             </h2>
                                             <BetaBadge />
@@ -2464,19 +2464,18 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                             </div>
 
                             {/* KPI Strip */}
-                            <div style={{
+                            <div className="modal-kpi-strip" style={{
                                 borderBottom: "1px solid #e2e8f0",
-                                padding: "16px 32px",
                                 display: "flex", flexWrap: "wrap", alignItems: "center",
                                 gap: "24px",
                                 background: "#fff", flexShrink: 0,
                             }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "20px", width: "100%" }}>
+                                <div className="modal-kpi-main-row" style={{ display: "flex", alignItems: "center", gap: "20px", width: "100%" }}>
                                     <div>
                                         <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
                                         <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
                                     </div>
-                                    <div style={{ width: 1, height: 32, background: "#e2e8f0" }} />
+                                    <div className="modal-kpi-divider" style={{ width: 1, height: 32, background: "#e2e8f0" }} />
                                     <div style={{ display: "flex", gap: "20px" }}>
                                         {(insight.kpis || []).map((k, i) => (
                                             <div key={i}>
@@ -2491,7 +2490,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                             </div>
 
                             {/* Body */}
-                            <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "0 32px 32px 32px", background: "#fafcff", overflow: "hidden" }}>
+                            <div className="modal-body-container" style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fafcff", overflow: "hidden" }}>
                                 {isEmpty ? (
                                     <div style={{
                                         textAlign: "center", padding: "64px 16px",
@@ -2527,11 +2526,11 @@ const SignalCardSkeleton = () => (
         minHeight: "280px",
         display: "flex",
         flexDirection: "column",
-        borderRadius: "12px",
+        borderRadius: "0px",
         background: "#ffffff",
         overflow: "hidden",
         position: "relative",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.02), 0 1px 2px rgba(0,0,0,0.04)",
+        boxShadow: "none",
         border: "1px solid #f1f5f9",
     }}>
         {/* Top Badge Row */}
@@ -2673,7 +2672,7 @@ const InsightsSignalHub = () => {
     };
 
     return (
-        <CommonContainer title="Insights">
+        <CommonContainer title="Insights" disablePadding={true}>
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
                 @keyframes blink {
@@ -2775,6 +2774,56 @@ const InsightsSignalHub = () => {
                 @media (max-width: 700px) {
                     .insights-filter-grid { grid-template-columns: 1fr; }
                 }
+
+                /* ── Responsive DrillDownModal ── */
+                .modal-header-container {
+                    padding: 20px 32px;
+                }
+                .modal-kpi-strip {
+                    padding: 16px 32px;
+                }
+                .modal-body-container {
+                    padding: 24px 32px 32px 32px;
+                }
+                @media (max-width: 900px) {
+                    .modal-header-container { padding: 16px 20px; }
+                    .modal-kpi-strip { padding: 12px 20px; }
+                    .modal-body-container { padding: 0 16px 16px 16px; }
+                }
+                @media (max-width: 768px) {
+                    .modal-header-container { flex-direction: column; align-items: flex-start !important; gap: 16px; }
+                    .modal-header-title-row { gap: 12px !important; }
+                    .modal-header-title-text { font-size: 18px !important; }
+                    .modal-kpi-strip { gap: 16px !important; }
+                    .modal-kpi-main-row { flex-direction: column; align-items: flex-start !important; gap: 16px !important; }
+                    .modal-kpi-divider { display: none; }
+                }
+
+                /* ── Responsive Evidence Table ── */
+                .evidence-header {
+                    padding: 12px 18px;
+                }
+                @media (max-width: 640px) {
+                    .evidence-header { flex-direction: column; align-items: flex-start !important; gap: 12px; }
+                    .evidence-actions-row { width: 100%; justify-content: space-between; }
+                    .evidence-search-container { width: 100% !important; }
+                }
+
+                /* ── AI Panel Responsiveness ── */
+                .ai-insights-panel {
+                    width: 320px;
+                }
+                @media (max-width: 480px) {
+                    .ai-insights-panel { width: 100% !important; }
+                }
+
+                /* ── Main Container Padding ── */
+                .insights-main-container {
+                    padding: 0 24px 24px 24px;
+                }
+                @media (max-width: 640px) {
+                    .insights-main-container { padding: 6px 12px 12px 12px; }
+                }
             `}</style>
 
             <div className="insights-page" style={{
@@ -2785,31 +2834,29 @@ const InsightsSignalHub = () => {
                 flexDirection: "column",
                 overflow: "hidden",
                 position: "relative",
-                borderRadius: "10px",
             }}>
-                <div style={{ width: "100%", margin: "0 auto", padding: "6px 24px 12px 24px", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+                <div className="insights-main-container" style={{ width: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
 
                     {/* ── Page Header ────────────────────────────────────── */}
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
                         flexWrap: "wrap", gap: "16px",
-                        marginBottom: "12px",
-                        background: "#fff",
-                        border: "1px solid #e5e9f0",
-                        borderRadius: "10px",
-                        padding: "10px 16px",
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+                        marginBottom: "32px",
+                        background: "transparent",
+                        border: "none",
+                        borderRadius: "0",
+                        padding: "20px 0 10px 0",
+                        boxShadow: "none",
                         flexShrink: 0,
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                             <div style={{
-                                width: 38, height: 38, borderRadius: "10px",
-                                background: "linear-gradient(135deg, #2563eb 0%, #6366f1 100%)",
+                                width: 36, height: 36, borderRadius: "8px",
+                                background: "#0f172a",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                boxShadow: "0 3px 10px rgba(37,99,235,0.25)",
                                 flexShrink: 0,
                             }}>
-                                <Signal size={18} color="#fff" />
+                                <Sparkles size={20} color="#fff" strokeWidth={2} />
                             </div>
                             <div>
                                 <h1 style={{
@@ -2829,26 +2876,26 @@ const InsightsSignalHub = () => {
 
                         {/* Stats pills */}
                         {!loading && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                                 <div style={{
-                                    background: "#f8fafc", border: "1px solid #e5e9f0",
-                                    borderRadius: "8px", padding: "8px 14px", textAlign: "right",
+                                    background: "transparent", border: "none",
+                                    borderRadius: "0", padding: "4px 0", textAlign: "right",
                                 }}>
                                     <div style={{ fontSize: "9px", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" }}>
                                         Total Opportunity
                                     </div>
-                                    <div style={{ fontSize: "16px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                                    <div style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }}>
                                         {formatINRCompact(totalImpact)}
                                     </div>
                                 </div>
                                 <div style={{
-                                    background: "#f0fdf4", border: "1px solid #bbf7d0",
-                                    borderRadius: "8px", padding: "8px 14px", textAlign: "right",
+                                    background: "transparent", border: "none",
+                                    borderRadius: "0", padding: "4px 0", textAlign: "right",
                                 }}>
                                     <div style={{ fontSize: "9px", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "2px" }}>
                                         Active Signals
                                     </div>
-                                    <div style={{ fontSize: "16px", fontWeight: 800, color: "#16a34a", letterSpacing: "-0.02em" }}>
+                                    <div style={{ fontSize: "18px", fontWeight: 800, color: "#16a34a", letterSpacing: "-0.02em" }}>
                                         {activeSignals}
                                     </div>
                                 </div>
