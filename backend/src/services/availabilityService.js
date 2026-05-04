@@ -1627,12 +1627,11 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
 const getAbsoluteOsaPercentageDetail = async (filters) => {
     console.log('[getAbsoluteOsaPercentageDetail] Request received with filters:', filters);
 
-    // Apply default dates if not provided to ensure performance and "not applied" behavior
+    // Use database's actual latest date for the 365-day window
+    // to ensure data is found even if the database is older than the system clock.
     const effectiveFilters = { ...filters };
-    if (!effectiveFilters.startDate && !effectiveFilters.endDate && !effectiveFilters.dates && !effectiveFilters.months) {
-        effectiveFilters.endDate = dayjs().format('YYYY-MM-DD');
-        effectiveFilters.startDate = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-    }
+    const hasDates = Array.isArray(effectiveFilters.dates) && effectiveFilters.dates.length > 0;
+    const hasMonths = Array.isArray(effectiveFilters.months) && effectiveFilters.months.length > 0;
 
     const cacheKey = generateCacheKey('osa_percentage_detail_with_cities', effectiveFilters);
 
@@ -1666,7 +1665,9 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 ORDER BY Product, Web_Pid, Brand, Location, DATE
             `;
 
+            console.log('[DEBUG OSA] Executing Query:', query);
             const results = await queryClickHouse(query);
+            console.log('[DEBUG OSA] Query returned rows:', results?.length);
 
             const skuMap = {};
 
@@ -1675,26 +1676,36 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
             let rangeEnd = effectiveFilters.endDate;
 
             if (!rangeStart || !rangeEnd) {
-                if (effectiveFilters.months && effectiveFilters.months.length > 0) {
+                if (hasMonths) {
                     const sortedMonths = [...effectiveFilters.months].sort();
                     rangeStart = dayjs(sortedMonths[0]).startOf('month').format('YYYY-MM-DD');
                     rangeEnd = dayjs(sortedMonths[sortedMonths.length - 1]).endOf('month').format('YYYY-MM-DD');
                 } else if (results.length > 0) {
                     const allDatesArr = results.map(r => dayjs(r.DATE).format('YYYY-MM-DD')).sort();
-                    rangeStart = allDatesArr[0];
-                    rangeEnd = allDatesArr[allDatesArr.length - 1];
+                    const maxAvailableDate = dayjs(allDatesArr[allDatesArr.length - 1]);
+                    const twelveMonthsAgo = maxAvailableDate.subtract(12, 'months');
+                    
+                    const earliestDataDate = dayjs(allDatesArr[0]);
+                    // Limit to maximum 12 months from the latest available date
+                    rangeStart = earliestDataDate.isBefore(twelveMonthsAgo) ? twelveMonthsAgo.format('YYYY-MM-DD') : earliestDataDate.format('YYYY-MM-DD');
+                    rangeEnd = maxAvailableDate.format('YYYY-MM-DD');
                 } else {
                     rangeEnd = dayjs().format('YYYY-MM-DD');
                     rangeStart = dayjs().subtract(30, 'day').format('YYYY-MM-DD');
                 }
             }
 
-            // Generate full date list
+            // Extract the set of months actually present in the data
+            const monthsPresent = new Set(results.map(r => dayjs(r.DATE).format('YYYY-MM')));
+
+            // Generate full date list, strictly filtering out months that have no data
             const sortedDates = [];
             let current = dayjs(rangeStart);
             const end = dayjs(rangeEnd);
-            while (current.isBefore(end) || current.isSame(end)) {
-                sortedDates.push(current.format('YYYY-MM-DD'));
+            while (current.isBefore(end) || current.isSame(end, 'day')) {
+                if (monthsPresent.has(current.format('YYYY-MM'))) {
+                    sortedDates.push(current.format('YYYY-MM-DD'));
+                }
                 current = current.add(1, 'day');
             }
 
@@ -1798,8 +1809,9 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                     };
                 }).sort((a, b) => a.name.localeCompare(b.name));
 
-                // Filter out products where both neno and deno over the selected period are 0
-                if (totalNeno === 0 && totalDeno === 0) {
+                // Filter out products where there is no valid tracking denominator
+                // This ensures we don't show SKUs that have no OSA data or only 0/0 values
+                if (totalDeno === 0) {
                     return null;
                 }
 
@@ -1819,7 +1831,36 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                 };
             }).filter(Boolean).sort((a, b) => b.avgSelected - a.avgSelected || a.name.localeCompare(b.name));
 
-            return formattedData;
+            const escapeStr = (str) => String(str).replace(/'/g, "''");
+            
+            // Fetch SKU images from rb_sku_platform
+            if (formattedData.length > 0) {
+                try {
+                    const skuListStr = formattedData.map(item => `'${escapeStr(item.sku)}'`).join(',');
+                    const imgQuery = `
+                        SELECT lower(web_pid) as w_pid, any(image_url) as img_url 
+                        FROM rb_sku_platform 
+                        WHERE lower(web_pid) IN (${skuListStr}) 
+                        AND image_url IS NOT NULL 
+                        AND image_url != '' 
+                        GROUP BY w_pid
+                    `;
+                    const imgData = await queryClickHouse(imgQuery);
+                    
+                    const imgMap = {};
+                    imgData.forEach(r => {
+                        imgMap[r.w_pid] = r.img_url;
+                    });
+                    
+                    formattedData.forEach(item => {
+                        item.imageUrl = imgMap[item.sku] || null;
+                    });
+                } catch (imgError) {
+                    console.error('[getAbsoluteOsaPercentageDetail] Failed to fetch SKU images:', imgError);
+                }
+            }
+
+            return { dates: sortedDates, rows: formattedData };
         } catch (error) {
             console.error('[getAbsoluteOsaPercentageDetail] Error:', error);
             throw error;
@@ -2520,9 +2561,16 @@ const getAvailabilityKpiTrends = async (filters) => {
                 const totalSales = parseFloat(row.sum_sales) || 0;
                 const psl = osa > 0 ? (totalSales / (osa / 100)) - totalSales : 0;
 
+                // DOI = (Current Inventory / Daily Run Rate) where DRR = Qty_Sold / 30
+                const totalInventory = parseFloat(row.total_inventory) || 0;
+                const totalQtySold = parseFloat(row.total_qty_sold) || 0;
+                const drr = totalQtySold / 30;
+                const doi = drr > 0 ? totalInventory / drr : 0;
+
                 return {
                     date: dayjs(row.ref_date).format("DD MMM'YY"),
                     Osa: parseFloat(osa.toFixed(1)),
+                    Doi: parseFloat(doi.toFixed(1)),
                     Fillrate: parseFloat(fillrate.toFixed(1)),
                     Listing: parseFloat(listing.toFixed(1)),
                     Assortment: dailyUniquePids,
@@ -2534,6 +2582,7 @@ const getAvailabilityKpiTrends = async (filters) => {
             return {
                 metrics: [
                     { id: 'Osa', label: 'OSA', color: '#F97316', default: true },
+                    { id: 'Doi', label: 'DOI (Days)', color: '#14b8a6', default: true },
                     { id: 'Fillrate', label: 'Buy Box %', color: '#F59E0B', default: true },
                     { id: 'Listing', label: 'Listing %', color: '#0EA5E9', default: true },
                     { id: 'Assortment', label: 'Assortment', color: '#22C55E', default: false },

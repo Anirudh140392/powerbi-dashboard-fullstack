@@ -1,4 +1,4 @@
-import { getPricingKpis, getPricingInsights, getEcpComparison, getEcpByBrand, getDiscountByCategory, getDiscountByBrand, getEcpWeekdayWeekend, getBrandPriceOverview, getBrandDiscountTrend, getEcpByCity, getDimensionOverview, getDimensionTrends, getPricingCompetition, getPricingCompetitionTrends } from '../controllers/pricingAnalysisController.js';
+import { getPricingKpis, getPricingInsights, getEcpComparison, getEcpByBrand, getDiscountByCategory, getDiscountByBrand, getEcpWeekdayWeekend, getBrandPriceOverview, getBrandDiscountTrend, getEcpByCity, getDimensionOverview, getDimensionTrends, getPricingCompetition, getPricingCompetitionTrends, getPricingPlatforms, getPricingChannels } from '../controllers/pricingAnalysisController.js';
 import { getOneViewPriceGrid } from '../controllers/oneViewPriceGridController.js';
 
 export default (app) => {
@@ -417,4 +417,7 @@ export default (app) => {
      *     description: Returns Discount, PricePerUnit, RPI, ASP over time for given targets
      */
     app.get('/api/pricing-analysis/competition-trends', getPricingCompetitionTrends);
+
+    app.get('/api/pricing-analysis/platforms', getPricingPlatforms);
+    app.get('/api/pricing-analysis/channels', getPricingChannels);
 };

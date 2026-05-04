@@ -146,7 +146,8 @@ function HoverPopover({ open, anchorRect, children, onMouseEnter, onMouseLeave }
  * ActionableMetricCard: Premium styled card for the bottom row (Performance Metrics).
  * NOW WITH HOVER TRENDS!
  */
-const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
+const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1", helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     // Hover State Logic (Copied from ComparisonCard)
     const [open, setOpen] = useState(false);
     const [period, setPeriod] = useState(14);
@@ -228,6 +229,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 
     const hoverDeltaStr = `${scaledDelta >= 0 ? '+' : ''}${hoverDeltaPct}${suffix}`;
 
+    const isNA = !kpi.value || kpi.value === '-' || String(kpi.value).trim() === '0' || String(kpi.value).trim() === '0%' || String(kpi.value).trim() === '₹0M' || String(kpi.value).trim() === '₹0';
 
     const onCardEnter = (e) => {
         if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
@@ -274,19 +276,74 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                         <Typography sx={{ fontSize: "10px", fontWeight: 600, color: "text.secondary", tracking: '0.01em' }}>
                             {kpi.label || kpi.title}
                         </Typography>
-
+                        {kpi.infoTooltip && (
+                            <Tooltip
+                                title={
+                                    <Box>
+                                        <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                            {kpi.infoTooltip}
+                                        </Typography>
+                                        <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: '#60a5fa',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 600,
+                                                    fontSize: '11px',
+                                                    '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                                }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                                }}
+                                            >
+                                                Learn more →
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                }
+                                arrow
+                                placement="top"
+                                enterDelay={200}
+                                leaveDelay={100}
+                                slotProps={{
+                                    tooltip: {
+                                        sx: {
+                                            bgcolor: '#1e293b',
+                                            color: '#f8fafc',
+                                            borderRadius: '10px',
+                                            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                            maxWidth: 300,
+                                            px: 1.5,
+                                            py: 1,
+                                        }
+                                    },
+                                    arrow: { sx: { color: '#1e293b' } }
+                                }}
+                            >
+                                <span
+                                    className="flex items-center cursor-help"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <Info size={12} color="#94a3b8" strokeWidth={2} />
+                                </span>
+                            </Tooltip>
+                        )}
                     </div>
                 </Box>
 
                 <div className="flex items-end justify-between w-full mb-0.5">
                     <Typography sx={{ fontSize: "22px", fontWeight: 700, color: themeColor, lineHeight: 1, letterSpacing: "-0.01em" }}>
-                        {kpi.value}
+                        {isNA ? 'N/A' : kpi.value}
                     </Typography>
 
-                    <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
-                        <DeltaIcon size={10} strokeWidth={3} />
-                        <span className="text-[14px] font-bold">{deltaLabel}</span>
-                    </div>
+                    {!isNA && (
+                        <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
+                            <DeltaIcon size={10} strokeWidth={3} />
+                            <span className="text-[14px] font-bold">{deltaLabel}</span>
+                        </div>
+                    )}
                 </div>
 
                 <Typography sx={{ fontSize: "9px", color: "text.disabled", fontWeight: 500, mt: 0.5 }}>
@@ -300,7 +357,8 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 /**
  * ComparisonCard: Squarish design as per user image.
  */
-const ComparisonCard = ({ kpi, loading = false }) => {
+const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     const [open, setOpen] = useState(false);
     const [period, setPeriod] = useState(14);
     const [anchorRect, setAnchorRect] = useState(null);
@@ -423,6 +481,57 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
                         {kpi.title}
                     </Typography>
+                    {kpi.infoTooltip && (
+                        <Tooltip
+                            title={
+                                <Box>
+                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                        {kpi.infoTooltip}
+                                    </Typography>
+                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: '#60a5fa',
+                                                cursor: 'pointer',
+                                                fontWeight: 600,
+                                                fontSize: '11px',
+                                                '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                            }}
+                                        >
+                                            Learn more →
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            }
+                            arrow
+                            placement="top"
+                            enterDelay={200}
+                            leaveDelay={100}
+                            slotProps={{
+                                tooltip: {
+                                    sx: {
+                                        bgcolor: '#1e293b',
+                                        color: '#f8fafc',
+                                        borderRadius: '10px',
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                        maxWidth: 300,
+                                        px: 1.5,
+                                        py: 1,
+                                    }
+                                },
+                                arrow: { sx: { color: '#1e293b' } }
+                            }}
+                        >
+                            <span className="flex items-center cursor-help ml-0.5" onClick={(e) => e.stopPropagation()}>
+                                <Info size={14} color="#94a3b8" strokeWidth={2} />
+                            </span>
+                        </Tooltip>
+                    )}
                     {kpi.id === 'offtake' && (kpi.organicSales || kpi.inorganicSales) && (
                         <Tooltip
                             title={
@@ -469,6 +578,11 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                                             {kpi.inorganicPct != null ? `${kpi.inorganicPct.toFixed(1)}% of total` : ''}
                                         </Typography>
                                     </Box>
+                                    <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
+                                        <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.8, fontSize: '10px', color: '#94a3b8' }}>
+                                            * Organic Sales = Offtake - Inorganic Sales
+                                        </Typography>
+                                    </Box>
                                 </Box>
                             }
                             arrow
@@ -486,7 +600,8 @@ const ComparisonCard = ({ kpi, loading = false }) => {
 /**
  * DetailedSparklineCard: Clean, detailed card for Visibility/Availability pages.
  */
-const DetailedSparklineCard = ({ kpi, loading = false }) => {
+const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     if (loading) {
         return (
             <Card sx={{ p: 3, height: "100%", borderRadius: "1rem", boxShadow: "sm", border: "1px solid", borderColor: "slate.200" }}>
@@ -510,7 +625,18 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-slate-100/40 to-transparent rounded-full translate-y-6 -translate-x-6" />
 
                 <div className="px-5 pt-5 pb-3 flex-1 relative z-10">
-                    <h3 className="text-sm font-semibold text-slate-500 mb-3">{kpi.title}</h3>
+                    <div className="flex items-center gap-1.5 mb-3">
+                        <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                        {kpi.infoTooltip && (
+                            <Tooltip
+                                title={<Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>}
+                                arrow placement="top" enterDelay={200} leaveDelay={100}
+                                slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
+                            >
+                                <span className="flex items-center cursor-help"><Info size={14} color="#94a3b8" strokeWidth={2} /></span>
+                            </Tooltip>
+                        )}
+                    </div>
 
                     <div className="flex flex-col items-center justify-center py-4 gap-3">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center shadow-lg shadow-violet-200/50">
@@ -565,7 +691,40 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
     return (
         <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
             <div className="px-5 pt-5 pb-3 flex-1">
-                <h3 className="text-sm font-semibold text-slate-500 mb-1">{kpi.title}</h3>
+                <div className="flex items-center gap-1.5 mb-1">
+                    <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                    {kpi.infoTooltip && (
+                        <Tooltip
+                            title={
+                                <Box>
+                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>
+                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: '#60a5fa',
+                                                cursor: 'pointer',
+                                                fontWeight: 600,
+                                                fontSize: '11px',
+                                                '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                            }}
+                                        >
+                                            Learn more →
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            }
+                            arrow placement="top" enterDelay={200} leaveDelay={100}
+                            slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
+                        >
+                            <span className="flex items-center cursor-help"><Info size={14} color="#94a3b8" strokeWidth={2} /></span>
+                        </Tooltip>
+                    )}
+                </div>
 
                 <div className="mb-4">
                     <div className="text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
@@ -642,13 +801,13 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                     <AreaChart data={kpi.trendSeries?.map((v, i) => ({ i, v })) || []} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0.2} />
-                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0} />
+                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
+                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.01} />
                             </linearGradient>
                         </defs>
                         <RechartsTooltip 
                             contentStyle={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', minWidth: 'auto', border: 'none', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
-                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#6366f1" }}
+                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB" }}
                             labelStyle={{ display: 'none' }}
                             cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
                             formatter={(value) => {
@@ -665,7 +824,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                         <Area
                             type="monotone"
                             dataKey="v"
-                            stroke={kpi.gradient?.[0] || "#6366f1"}
+                            stroke={kpi.gradient?.[0] || "#2563EB"}
                             strokeWidth={2}
                             fill={`url(#grad-${kpi.id})`}
                             fillOpacity={1}
@@ -944,7 +1103,7 @@ const SnapshotOverview = ({
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     >
-                                        <ComparisonCard kpi={kpi} loading={kpi.loading} />
+                                        <ComparisonCard kpi={kpi} loading={kpi.loading} helpMenu={helpMenu} />
                                     </motion.div>
                                 ))
                             )}
@@ -970,7 +1129,7 @@ const SnapshotOverview = ({
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
                                             >
-                                                <ActionableMetricCard kpi={kpi} />
+                                                <ActionableMetricCard kpi={kpi} helpMenu={helpMenu} />
                                             </motion.div>
                                         ))
                                     )}
@@ -1060,7 +1219,7 @@ const SnapshotOverview = ({
                                     transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     className="h-full"
                                 >
-                                    <DetailedSparklineCard kpi={kpi} />
+                                    <DetailedSparklineCard kpi={kpi} helpMenu={helpMenu} />
                                 </motion.div>
                             ))
                         )}

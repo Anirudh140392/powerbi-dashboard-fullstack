@@ -3,6 +3,7 @@ import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import VisiblityAnalysisData from "../../components/AllVisiblityAnalysis/VisiblityAnalysisData";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
 import dayjs from "dayjs";
 
 export default function VisibilityAnalysis() {
@@ -195,7 +196,7 @@ export default function VisibilityAnalysis() {
       setApiData(prev => ({ ...prev, overview: data }));
       return true;
     } catch (err) {
-      if (axiosInstance.isCancel(err)) return false;
+      if (axios.isCancel(err)) return false;
       console.error('❌ [Visibility] Overview fetch error:', err);
       setApiErrors(prev => ({ ...prev, overview: err.message }));
       return false;
@@ -204,16 +205,32 @@ export default function VisibilityAnalysis() {
     }
   };
 
-  const fetchVisibilityMatrix = async (matrixParams, signal) => {
+  const fetchVisibilityMatrix = async (signal) => {
     try {
       setLoading(prev => ({ ...prev, matrix: true }));
       setApiErrors(prev => ({ ...prev, matrix: null }));
-      const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${matrixParams}`, { signal });
+      // Platform KPI Matrix always shows data across ALL platforms
+      const matrixBaseParams = {
+        platform: 'All',
+        brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+        location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
+        zone: filters.zone || 'All',
+        metroFlag: filters.metroFlag || 'All',
+        pincode: filters.pincode || 'All',
+        keyword: filters.keyword || 'All',
+        keywordType: filters.keywordType || 'All',
+        category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
+        channel: filters.channel || 'All',
+        startDate: filters.startDate,
+        endDate: filters.endDate
+      };
+      const crossPlatformParams = new URLSearchParams(matrixBaseParams).toString();
+      const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${crossPlatformParams}`, { signal });
       const data = res.data;
       setApiData(prev => ({ ...prev, matrix: data }));
       return true;
     } catch (err) {
-      if (axiosInstance.isCancel(err)) return false;
+      if (axios.isCancel(err)) return false;
       console.error('❌ [Visibility] Platform KPI Matrix fetch error:', err);
       setApiErrors(prev => ({ ...prev, matrix: err.message }));
       return false;
@@ -231,7 +248,7 @@ export default function VisibilityAnalysis() {
       setApiData(prev => ({ ...prev, keywords: data }));
       return true;
     } catch (err) {
-      if (axiosInstance.isCancel(err)) return false;
+      if (axios.isCancel(err)) return false;
       console.error('❌ [Visibility] Keywords at Glance fetch error:', err);
       setApiErrors(prev => ({ ...prev, keywords: err.message }));
       return false;
@@ -251,7 +268,7 @@ export default function VisibilityAnalysis() {
       setApiData(prev => ({ ...prev, gainersAndDrainers: data }));
       return true;
     } catch (err) {
-      if (axiosInstance.isCancel(err)) return false;
+      if (axios.isCancel(err)) return false;
       console.error('❌ [Visibility] Gainers & Drainers fetch error:', err);
       setApiErrors(prev => ({ ...prev, gainersAndDrainers: err.message }));
       return false;
@@ -295,7 +312,7 @@ export default function VisibilityAnalysis() {
 
     switch (segmentKey) {
       case 'overview': return fetchVisibilityOverview(queryParams);
-      case 'matrix': return fetchVisibilityMatrix(matrixParams);
+      case 'matrix': return fetchVisibilityMatrix();
       case 'keywords': return fetchVisibilityKeywords(queryParams);
       case 'gainersAndDrainers': return fetchVisibilityGainersAndDrainers(queryParams);
       default: return false;
@@ -403,7 +420,7 @@ export default function VisibilityAnalysis() {
         if (isMainFilterChange) {
           fetchPromises.push(
             fetchVisibilityOverview(queryParams, abortController.signal),
-            fetchVisibilityMatrix(matrixParams, abortController.signal),
+            fetchVisibilityMatrix(abortController.signal),
             fetchVisibilityKeywords(queryParams, abortController.signal),
             fetchVisibilityGainersAndDrainers(queryParams, abortController.signal)
           );
@@ -411,7 +428,7 @@ export default function VisibilityAnalysis() {
 
         await Promise.allSettled(fetchPromises);
       } catch (error) {
-        if (axiosInstance.isCancel(error)) {
+        if (axios.isCancel(error)) {
           console.log('Fetch operation cancelled by AbortController');
         } else {
           console.error("[Visibility] Error setting up data fetch:", error);

@@ -104,6 +104,16 @@ export const getPlatformChannels = async (req, res) => {
     }
 };
 
+export const getPlatformMetadata = async (req, res) => {
+    try {
+        const metadata = await watchTowerService.getPlatformMetadata();
+        res.json(metadata);
+    } catch (error) {
+        console.error('Error fetching platform metadata:', error);
+        res.json([]);
+    }
+};
+
 export const getChannels = async (req, res) => {
     try {
         const channels = await watchTowerService.getChannels();

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Mulish:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 /* @plugin "tw-animate-css"; */
 
@@ -6,7 +6,12 @@
 
 body {
   margin: 0;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Mulish', system-ui, sans-serif;
+}
+
+/* Global font override — forces Mulish everywhere, overriding inline styles */
+*:not(svg):not(svg *):not(.material-icons):not([class*="icon"]) {
+  font-family: 'Mulish', system-ui, sans-serif !important;
 }
 
 html,

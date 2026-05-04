@@ -524,13 +524,13 @@ const BrandTable = ({ rows, loading, isEcom }) => {
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
                                         <span className="font-semibold text-slate-700">
-                                            {(row.osa || 0).toFixed(1)}%
+                                            {!row.osa || row.osa === '-' ? 'N/A' : `${(row.osa || 0).toFixed(1)}%`}
                                         </span>
                                     </td>
                                     {!isEcom && (
                                         <td className="px-3 py-2 text-center text-[12px]">
                                             <span className="font-semibold text-slate-700">
-                                                {(row.listing || 0).toFixed(1)}%
+                                                {!row.listing || row.listing === '-' ? 'N/A' : `${(row.listing || 0).toFixed(1)}%`}
                                             </span>
                                         </td>
                                     )}
@@ -600,13 +600,13 @@ const SkuTable = ({ rows, loading, isEcom }) => {
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
                                         <span className="font-semibold text-slate-700">
-                                            {(row.osa || 0).toFixed(1)}%
+                                            {!row.osa || row.osa === '-' ? 'N/A' : `${(row.osa || 0).toFixed(1)}%`}
                                         </span>
                                     </td>
                                     {!isEcom && (
                                         <td className="px-3 py-2 text-center text-[12px]">
                                             <span className="font-semibold text-slate-700">
-                                                {(row.listing || 0).toFixed(1)}%
+                                                {!row.listing || row.listing === '-' ? 'N/A' : `${(row.listing || 0).toFixed(1)}%`}
                                             </span>
                                         </td>
                                     )}

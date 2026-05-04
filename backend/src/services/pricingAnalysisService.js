@@ -1475,6 +1475,40 @@ const getPricingCompetition = async (filters) => {
     }
 };
 
+// New endpoints for filters
+const getPricingPlatforms = async (channel) => {
+    try {
+        const src = await getPricingSource();
+        const conds = [];
+        if (channel && channel !== 'All') {
+            const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
+            const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${channel.toLowerCase().replace(/'/g, "''")}%`);
+            conds.push(`lower(${src.f.channel || 'channel'}) LIKE '${searchPattern}'`);
+        }
+        conds.push(`${src.f.platform} IS NOT NULL AND ${src.f.platform} != ''`);
+
+        const query = `SELECT DISTINCT ${src.f.platform} AS platform FROM ${src.table} WHERE ${conds.join(' AND ')} ORDER BY platform`;
+        const results = await queryClickHouse(query);
+        return results.map(p => p.platform).filter(Boolean).sort();
+    } catch (error) {
+        console.error("Error fetching pricing platforms:", error);
+        return [];
+    }
+};
+
+const getPricingChannels = async () => {
+    try {
+        const src = await getPricingSource();
+        const channelCol = src.f.channel || 'channel';
+        const query = `SELECT DISTINCT ${channelCol} AS channel FROM ${src.table} WHERE ${channelCol} IS NOT NULL AND ${channelCol} != '' ORDER BY channel`;
+        const results = await queryClickHouse(query);
+        return results.map(r => r.channel).filter(Boolean).sort();
+    } catch (error) {
+        console.error("Error fetching pricing channels:", error);
+        return [];
+    }
+};
+
 export {
     getEcpComparison,
     getPricingKpis,
@@ -1482,5 +1516,7 @@ export {
     getDimensionOverview,
     getDimensionTrends,
     getPricingCompetition,
-    getPricingCompetitionTrends
+    getPricingCompetitionTrends,
+    getPricingPlatforms,
+    getPricingChannels
 };

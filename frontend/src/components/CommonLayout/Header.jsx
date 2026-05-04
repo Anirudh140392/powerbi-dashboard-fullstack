@@ -46,14 +46,14 @@ const FILTER_TABS = [
 ];
 
 function WatchTowerFilterModal({
-  open, onClose,
+  open, onClose, hideChannelPlatform = false,
   channels, selectedChannel, setSelectedChannel,
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const [activeTab, setActiveTab] = React.useState(hideChannelPlatform ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   // ─── Draft (local) state — never touches FilterContext until Apply ───
@@ -69,6 +69,10 @@ function WatchTowerFilterModal({
   const [localBrands, setLocalBrands] = React.useState(brands);
   const [localLocations, setLocalLocations] = React.useState(locations);
 
+  const availableTabs = hideChannelPlatform 
+    ? FILTER_TABS.filter(t => t.key !== "channel" && t.key !== "platform")
+    : FILTER_TABS;
+
   // Sync drafts + local options from context every time the modal opens
   React.useEffect(() => {
     if (open) {
@@ -81,7 +85,7 @@ function WatchTowerFilterModal({
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
-      setActiveTab("channel");
+      setActiveTab(hideChannelPlatform ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -223,7 +227,7 @@ function WatchTowerFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   // count selected for a given filter key (draft-based)
   const countFor = (key) => {
@@ -245,8 +249,10 @@ function WatchTowerFilterModal({
       return typeof val === 'string' ? val.toLowerCase() : val;
     };
 
-    setSelectedChannel(normalize(draftChannel));
-    setPlatform(normalize(draftPlatform));
+    if (!hideChannelPlatform) {
+      setSelectedChannel(normalize(draftChannel));
+      setPlatform(normalize(draftPlatform));
+    }
     setSelectedCategory(normalize(draftCategory));
     setSelectedBrand(normalize(draftBrand));
     if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
@@ -260,15 +266,17 @@ function WatchTowerFilterModal({
 
   // ─── RESET ALL: set all drafts to "All" (not yet committed) ───
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannelPlatform) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
   // total active filter count across all tabs
-  const totalActiveCount = FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog
@@ -350,7 +358,7 @@ function WatchTowerFilterModal({
 
           {/* Tabs */}
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -653,7 +661,6 @@ function WatchTowerFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const MS_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
 ];
 
@@ -1135,7 +1142,6 @@ function MarketShareFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const AVAIL_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -1737,7 +1743,6 @@ function AvailabilityFilterModal({
    VISIBILITY ANALYSIS FILTER MODAL — Channel, Platform, Category, Keyword Type, Keyword
    ═══════════════════════════════════════════════════════════════════ */
 const VIS_FILTER_TABS = [
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -2087,7 +2092,6 @@ function VisibilityFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const PRICING_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -2349,7 +2353,6 @@ function PricingFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const PERFORMANCE_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -2609,7 +2612,6 @@ function PerformanceFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const CONTENT_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -2866,7 +2868,6 @@ function ContentFilterModal({
 
 const INVENTORY_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -3299,31 +3300,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                   </Typography>
                   {title === "Availability Analysis" || title === "Visibility Analysis" ? (
                     <>
-                      <Box sx={{ display: 'flex', mt: 0.5, bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
-                        {channels?.filter(c => c !== 'All').map((c) => (
-                          <Box
-                            key={c}
-                            onClick={() => setSelectedChannel(c)}
-                            sx={{
-                              px: 1.5, py: 0.3,
-                              fontSize: '0.65rem',
-                              fontWeight: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? 700 : 500,
-                              color: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '#2563eb' : '#64748b',
-                              bgcolor: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '#ffffff' : 'transparent',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              boxShadow: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                              transition: 'all 0.2s',
-                              fontFamily: "'Inter', 'Roboto', sans-serif",
-                              textTransform: 'capitalize'
-                            }}
-                          >
-                            {c}
-                          </Box>
-                        ))}
-                      </Box>
-
-                      {/* SOS / BSR Toggle below Channel Switch */}
+                      {/* Channel Switch Removed as per user request */}                      {/* SOS / BSR Toggle below Channel Switch */}
                       {title === "Visibility Analysis" && (['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase())) && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                           <Box sx={{ display: 'flex', bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
@@ -3343,22 +3320,33 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                             >
                               Share of Shelf
                             </Box>
-                            <Box
-                              onClick={() => setVisibilityMode('bsr')}
-                              sx={{
-                                px: 1.2, py: 0.2,
-                                fontSize: '0.6rem',
-                                fontWeight: visibilityMode === 'bsr' ? 700 : 500,
-                                color: visibilityMode === 'bsr' ? '#ffffff' : '#64748b',
-                                bgcolor: visibilityMode === 'bsr' ? '#6366f1' : 'transparent',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                fontFamily: "'Inter', 'Roboto', sans-serif"
-                              }}
-                            >
-                              BSR
-                            </Box>
+                            {(() => {
+                              const isAmazon = platform === 'Amazon' || platform === 'amazon' || (Array.isArray(platform) && platform.some(p => p?.toLowerCase() === 'amazon'));
+                              const isBsrDisabled = isAmazon;
+
+                              return (
+                                <Box
+                                  onClick={() => {
+                                    if (isBsrDisabled) return;
+                                    setVisibilityMode('bsr');
+                                  }}
+                                  sx={{
+                                    px: 1.2, py: 0.2,
+                                    fontSize: '0.6rem',
+                                    fontWeight: visibilityMode === 'bsr' ? 700 : 500,
+                                    color: visibilityMode === 'bsr' ? '#ffffff' : (isBsrDisabled ? '#94a3b8' : '#64748b'),
+                                    bgcolor: visibilityMode === 'bsr' ? '#6366f1' : 'transparent',
+                                    borderRadius: '6px',
+                                    cursor: isBsrDisabled ? 'not-allowed' : 'pointer',
+                                    opacity: isBsrDisabled ? 0.5 : 1,
+                                    transition: 'all 0.2s',
+                                    fontFamily: "'Inter', 'Roboto', sans-serif"
+                                  }}
+                                >
+                                  BSR
+                                </Box>
+                              );
+                            })()}
                           </Box>
 
                           <Tooltip title="BSR page contains only Amazon platform data" arrow placement="top">
@@ -3460,8 +3448,10 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       Filters
                       {(() => {
                         let count = 0;
-                        if (selectedChannel !== "All" && !(Array.isArray(selectedChannel) && selectedChannel.length === channels.length)) count++;
-                        if (platform !== "All" && !(Array.isArray(platform) && platform.length === platforms.length)) count++;
+                        if (title !== "Business Overview") {
+                          if (selectedChannel !== "All" && !(Array.isArray(selectedChannel) && selectedChannel.length === channels.length)) count++;
+                          if (platform !== "All" && !(Array.isArray(platform) && platform.length === platforms.length)) count++;
+                        }
                         if (selectedCategory !== "All" && !(Array.isArray(selectedCategory) && selectedCategory.length === categories.length)) count++;
                         if (title === "Availability Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
@@ -3507,6 +3497,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     <WatchTowerFilterModal
                       open={filterModalOpen}
                       onClose={() => setFilterModalOpen(false)}
+                      hideChannelPlatform={title === "Business Overview"}
                       channels={channels}
                       selectedChannel={selectedChannel}
                       setSelectedChannel={setSelectedChannel}
@@ -3714,15 +3705,6 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     multiSelect={true}
                   />
 
-                  {/* PLATFORM SELECTION */}
-                  <CustomHeaderDropdown
-                    label="PLATFORM"
-                    options={platforms}
-                    value={platform}
-                    onChange={(newValue) => setPlatform(newValue)}
-                    width={{ xs: "calc(50% - 6px)", sm: 115 }}
-                    multiSelect={true}
-                  />
 
                   {/* CATEGORY SELECTION */}
                   <CustomHeaderDropdown

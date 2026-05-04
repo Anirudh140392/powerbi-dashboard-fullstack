@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useContext, useMemo } from "re
 import { FilterContext } from "../../utils/FilterContext";
 import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown, fetchVisibilityFilterOptions } from "../../api/visibilityService";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download, Search, X, Filter, ChevronRight } from "lucide-react";
+import { Download, Search, X, Filter, ChevronRight, TrendingUp } from "lucide-react";
 
 
 const sosColor = (val) => {
@@ -397,9 +397,14 @@ export default function SearchTermsPerformance() {
       `}</style>
 
       {/* Page title */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.03em" }}>Top Search Terms</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748b" }}>Share of search performance by keyword</p>
+      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <TrendingUp size={20} color="#7c3aed" />
+        </div>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', fontFamily: "'Mulish', system-ui, sans-serif" }}>Top Search Terms</h1>
+          <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b', fontFamily: "'Mulish', system-ui, sans-serif" }}>Share of search performance by keyword</p>
+        </div>
       </div>
 
       {/* Controls Row */}

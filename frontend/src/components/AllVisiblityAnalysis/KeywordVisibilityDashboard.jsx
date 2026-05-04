@@ -1,12 +1,12 @@
 import React, { useState, useContext, useMemo } from "react";
 import { FilterContext } from "../../utils/FilterContext";
-import { Inbox } from "lucide-react";
+import { Inbox, ArrowUpDown } from "lucide-react";
 import { GainersDrainersSkeleton } from './VisibilitySkeletons';
 
 /* ─── Fonts ───────────────── */
 const FontLoader = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&family=Mulish:wght@400;500;600;700;800&display=swap');
   `}</style>
 );
 
@@ -216,16 +216,16 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
 
   const shouldShowDrilldown = useMemo(() => {
     if (!globalPlatform || globalPlatform === "All") return true;
-    const plats = typeof globalPlatform === "string" 
-      ? globalPlatform.split(",").map(p => p.trim().toLowerCase()) 
+    const plats = typeof globalPlatform === "string"
+      ? globalPlatform.split(",").map(p => p.trim().toLowerCase())
       : (Array.isArray(globalPlatform) ? globalPlatform.map(p => typeof p === 'string' ? p.toLowerCase() : String(p).toLowerCase()) : []);
-      
+
     if (plats.length === 0) return true;
-    
-    const isEcomOnly = plats.every(p => 
+
+    const isEcomOnly = plats.every(p =>
       p.includes("ecom") || p.includes("e-com") || p.includes("ecommerce") || p === "amazon" || p === "flipkart" || p === "myntra" || p === "nykaa"
     );
-    
+
     return !isEcomOnly;
   }, [globalPlatform]);
 
@@ -233,9 +233,9 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
 
   const processedData = useMemo(() => {
     if (!apiData) return { gain: [], drain: [] };
-    
+
     const allBrandsMap = new Map();
-    
+
     // Combine keywords from both backend lists for each brand
     const processList = (list) => {
       (list || []).forEach(b => {
@@ -254,22 +254,22 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
         }
       });
     };
-    
+
     processList(apiData.gain);
     processList(apiData.drain);
-    
+
     const allBrands = Array.from(allBrandsMap.values());
-    
+
     const getBrandDelta = (b) => {
       if (type === "organic") return b.dOrganic;
       if (type === "paid") return b.dPaid;
       return b.dOverall;
     };
-    
+
     // Divide based on brand's actual SOS delta for the selected type
     const gain = allBrands.filter(b => getBrandDelta(b) > 0).sort((a, b) => getBrandDelta(b) - getBrandDelta(a)).slice(0, 5);
     const drain = allBrands.filter(b => getBrandDelta(b) < 0).sort((a, b) => getBrandDelta(a) - getBrandDelta(b)).slice(0, 5);
-    
+
     return { gain, drain };
   }, [apiData, type]);
 
@@ -283,8 +283,15 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
     return (
       <div style={{ padding: 24, background: "#f8fafc", borderRadius: 20, border: "1px solid #e2e8f0", marginTop: 24, fontFamily: "'DM Sans', sans-serif" }}>
         <FontLoader />
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}>Share of Search — Gainers & Drainers</h2>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Side-by-side comparison of SOS growth and decline</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <ArrowUpDown size={20} color="#6366f1" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', fontFamily: "'Mulish', system-ui, sans-serif", margin: 0 }}>Gainers & Drainers</h2>
+            <p style={{ fontSize: 13, color: '#64748b', fontFamily: "'Mulish', system-ui, sans-serif", margin: '2px 0 0 0' }}>Side-by-side comparison of SOS growth and decline</p>
+          </div>
+        </div>
         <NoDataAvailable title="No gainers & drainers data available" />
       </div>
     );
@@ -294,8 +301,15 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
     <div style={{ padding: 24, background: "#f8fafc", borderRadius: 20, border: "1px solid #e2e8f0", marginTop: 24, fontFamily: "'DM Sans', sans-serif" }}>
       <FontLoader />
 
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}>Share of Search — Gainers & Drainers</h2>
-      <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Side-by-side comparison of SOS growth and decline</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <ArrowUpDown size={20} color="#6366f1" />
+        </div>
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', fontFamily: "'Mulish', system-ui, sans-serif", margin: 0 }}>Gainers & Drainers</h2>
+          <p style={{ fontSize: 13, color: '#64748b', fontFamily: "'Mulish', system-ui, sans-serif", margin: '2px 0 0 0' }}>Side-by-side comparison of SOS growth and decline</p>
+        </div>
+      </div>
 
       {/* Toggle */}
       <div style={{ marginBottom: 20, display: "flex", gap: 8 }}>

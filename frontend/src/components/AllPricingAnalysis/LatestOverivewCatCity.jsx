@@ -1,7 +1,8 @@
 import { useState, useMemo, useContext, useEffect } from 'react'
 import axiosInstance from '../../api/axiosInstance'
-import { Skeleton } from '@mui/material'
+import { Skeleton, Tooltip, Typography, Box } from '@mui/material'
 import { motion } from 'framer-motion'
+import { useHelp } from "../../utils/HelpContext";
 import { FilterContext } from '../../utils/FilterContext'
 import {
     TrendingUp,
@@ -16,6 +17,7 @@ import {
     ChevronRight,
     ArrowLeft,
     ChevronDown,
+    Info
 } from 'lucide-react'
 import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availablityDataCenter.jsx'
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
@@ -53,9 +55,10 @@ const LatestOverivewCatCity = ({
     kpis: propKpis = [],
     loading = false,
 }) => {
+    const { openHelpWithMenu } = useHelp();
     const kpis = useMemo(() => propKpis.length > 0 ? propKpis : [
         { key: 'discount', label: 'Discount %' },
-        { key: 'pricePerUnit', label: 'Price/Unit 1g / 1 piece' },
+        { key: 'pricePerUnit', label: 'Price/Unit 1g / 1 piece', infoTooltip: 'Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.' },
         { key: 'asp', label: 'Average Selling Price' },
     ], [propKpis]);
 
@@ -117,7 +120,7 @@ const LatestOverivewCatCity = ({
             })),
         },
         sku: {
-            label: 'Sku',
+            label: 'SKU',
             icon: Package,
             entities: [], // Will be filled by API data
         },
@@ -139,11 +142,8 @@ const LatestOverivewCatCity = ({
     useEffect(() => {
         const fetchProducts = async () => {
             try {
-                const params = {};
-                if (globalPlatform && globalPlatform !== 'All') {
-                    params.platform = Array.isArray(globalPlatform) ? globalPlatform[0] : globalPlatform;
-                }
-                const res = await axiosInstance.get('/watchtower/products', { params });
+                // Ignore global platform filter to show cross-platform data
+                const res = await axiosInstance.get('/watchtower/products');
                 if (res.data && Array.isArray(res.data)) {
                     setProductOptions(res.data.map(p => ({ id: p, name: p })));
                 }
@@ -154,7 +154,7 @@ const LatestOverivewCatCity = ({
         if (datesInitialized) {
             fetchProducts();
         }
-    }, [datesInitialized, globalPlatform]);
+    }, [datesInitialized]);
 
     const skuOptions = useMemo(() => 
         productOptions.length > 0 ? productOptions : (dimension === 'sku' ? apiData.map(e => ({ id: e.key, name: e.name })) : []), 
@@ -176,8 +176,8 @@ const LatestOverivewCatCity = ({
             try {
                 const params = new URLSearchParams();
                 
-                // Use advanced filters if sets, otherwise fall back to global context filters
-                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : globalPlatform); 
+                // Use advanced filters if sets, do not fall back to global context filter
+                const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : null); 
                 if (pl) params.append('platform', pl);
                 
                 const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
@@ -217,12 +217,12 @@ const LatestOverivewCatCity = ({
         };
         fetchData();
         return () => { isMounted = false; };
-    }, [dimension, selectedChannel, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
+    }, [dimension, selectedChannel, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, datesInitialized, advancedFilters.brands, advancedFilters.platforms, advancedFilters.categories, advancedFilters.dateFrom, advancedFilters.dateTo]);
 
     // Reset pagination when dimension or filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [dimension, advancedFilters, selectedBrand, selectedCategory, globalPlatform, expandedSku]);
+    }, [dimension, advancedFilters, selectedBrand, selectedCategory, expandedSku]);
 
     const handleApplyFilters = (filters) => {
         setAdvancedFilters(filters)
@@ -243,7 +243,7 @@ const LatestOverivewCatCity = ({
             const params = new URLSearchParams();
             
             // Re-use logic for filters but target 'city' dimension for specific SKU
-            const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : globalPlatform); 
+            const pl = toParam(advancedFilters.platforms?.length > 0 ? advancedFilters.platforms : null); 
             if (pl) params.append('platform', pl);
             
             const br = toParam(advancedFilters.brands?.length > 0 ? advancedFilters.brands : selectedBrand); 
@@ -416,7 +416,7 @@ const LatestOverivewCatCity = ({
         <>
             <div>
                 <SectionWrapper
-                    title="Category Overview"
+                    title={`${currentDimension.label} Overview`}
                     icon={currentDimension.icon}
                     chip={`${entities.length} ${currentDimension.label} × ${kpiCount} KPIs`}
                     headerRight={
@@ -501,8 +501,39 @@ const LatestOverivewCatCity = ({
                                             cardSize.minW
                                         )}
                                     >
-                                        <div className="text-[12px] font-bold text-slate-500 uppercase tracking-[0.12em]">
-                                            {kpiLabels[kpi.key] || kpi.label}
+                                        <div className="flex items-center justify-center gap-1.5 text-[12px] font-bold text-slate-500 uppercase tracking-[0.12em]">
+                                            <span>{kpiLabels[kpi.key] || kpi.label}</span>
+                                            {kpi.infoTooltip && (
+                                                <Tooltip
+                                                    title={
+                                                        <Box>
+                                                            <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>
+                                                            <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        color: '#60a5fa',
+                                                                        cursor: 'pointer',
+                                                                        fontWeight: 600,
+                                                                        fontSize: '11px',
+                                                                        '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                                                    }}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openHelpWithMenu('Pricing Analysis');
+                                                                    }}
+                                                                >
+                                                                    Learn more →
+                                                                </Typography>
+                                                            </Box>
+                                                        </Box>
+                                                    }
+                                                    arrow placement="top" enterDelay={200} leaveDelay={100}
+                                                    slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
+                                                >
+                                                    <span className="cursor-help inline-flex items-center"><Info size={14} color="#94a3b8" strokeWidth={2} /></span>
+                                                </Tooltip>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

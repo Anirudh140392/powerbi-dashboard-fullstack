@@ -87,6 +87,7 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
 import LatestOverivewCatCity from "./LatestOverivewCatCity";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide } from "lucide-react";
@@ -1292,7 +1293,7 @@ export default function PricingAnalysisData() {
         // Process results
         results.forEach((result, idx) => {
           if (result.status === 'rejected') {
-            if (axiosInstance.isCancel(result.reason)) return;
+            if (axios.isCancel(result.reason)) return;
             console.error(`Error fetching segment ${idx}:`, result.reason);
           }
 
@@ -1340,7 +1341,7 @@ export default function PricingAnalysisData() {
           }
         });
       } catch (error) {
-        if (!axiosInstance.isCancel(error)) {
+        if (!axios.isCancel(error)) {
           console.error("Critical error in Pricing parallel fetch:", error);
           lastFetchedFiltersRef.current = null;
         }
@@ -2407,7 +2408,8 @@ export default function PricingAnalysisData() {
         gradient: gradients[0],
         trend: d.discount?.sparklineData || [],
         trendDir: (d.discount?.change || 0) >= 0 ? 'up' : 'down',
-        prevText: 'vs Previous Period'
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
       },
       {
         id: 'vis-1',
@@ -2420,7 +2422,8 @@ export default function PricingAnalysisData() {
         gradient: gradients[1],
         trend: d.weightedDiscount?.sparklineData || [],
         trendDir: (d.weightedDiscount?.change || 0) >= 0 ? 'up' : 'down',
-        prevText: 'vs Previous Period'
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
       },
       {
         id: 'vis-2',
@@ -2465,6 +2468,7 @@ export default function PricingAnalysisData() {
         }
         kpis={pricingKpis}
         variant="detailed"
+        helpMenu="Pricing Analysis"
         loading={pricingKpiLoading}
       />
 
