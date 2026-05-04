@@ -728,9 +728,15 @@ function MarketShareFilterModal({
   };
 
   const handleApply = () => {
-    setSelectedChannel(draftChannel);
-    setPlatform(draftPlatform);
-    setSelectedCategory(draftCategory);
+    const normalize = (val) => {
+      if (!val || val === "All") return val;
+      if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? v.toLowerCase() : v);
+      return typeof val === 'string' ? val.toLowerCase() : val;
+    };
+
+    setSelectedChannel(normalize(draftChannel));
+    setPlatform(normalize(draftPlatform));
+    setSelectedCategory(normalize(draftCategory));
     onClose();
   };
 
