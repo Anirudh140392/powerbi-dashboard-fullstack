@@ -208,10 +208,10 @@ const getMapIntellectData = async (filters) => {
         if (!src) return '1=0';
         const conds = [`toDate(${src.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         if (platform && platform !== 'All') {
-            conds.push(`${src.f.platform} LIKE '%${escapeStr(platform)}%'`);
+            conds.push(`lower(${src.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'`);
         }
         if (category && category !== 'All') {
-            conds.push(`${src.f.category} = '${escapeStr(category)}'`);
+            conds.push(`lower(${src.f.category}) = '${escapeStr(category.toLowerCase())}'`);
         }
         return conds.join(' AND ');
     };
@@ -262,7 +262,7 @@ const getMapIntellectData = async (filters) => {
             if (currentDb === 'mamaearth') {
                 allowedMsCities = allowedMsCities.filter(c => c !== "Ahmedabad");
             }
-            const cityConditions = allowedMsCities.map(c => `${msSrc.f.location} LIKE '%${escapeStr(c)}%'`).join(' OR ');
+            const cityConditions = allowedMsCities.map(c => `lower(${msSrc.f.location}) LIKE '%${escapeStr(c.toLowerCase())}%'`).join(' OR ');
 
             let brandsCondition = 'FALSE';
             if (ourBrands.length > 0) {
@@ -287,8 +287,8 @@ const getMapIntellectData = async (filters) => {
                 WHERE toDate(${msSrc.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
                   AND (${cityConditions})
                   AND ${msSrc.f.location} IS NOT NULL AND ${msSrc.f.location} != ''
-                  ${platform && platform !== 'All' ? `AND ${msSrc.f.platform} LIKE '%${escapeStr(platform)}%'` : ''}
-                  ${category && category !== 'All' ? `AND ${msSrc.f.category} = '${escapeStr(category)}'` : ''}
+                  ${platform && platform !== 'All' ? `AND lower(${msSrc.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'` : ''}
+                  ${category && category !== 'All' ? `AND lower(${msSrc.f.category}) = '${escapeStr(category.toLowerCase())}'` : ''}
                 GROUP BY location
             `;
 
@@ -325,6 +325,10 @@ const getMapIntellectData = async (filters) => {
             let cityName = (data.location || '').trim();
             if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
             if (cityName === 'Gurgaon') cityName = 'Gurugram';
+            
+            if (cityName) {
+                cityName = cityName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            }
 
             const cityKey = cityName.toLowerCase();
             if (!cityName || cityKey === 'unknown' || cityKey === 'other') return null;
@@ -348,6 +352,10 @@ const getMapIntellectData = async (filters) => {
             let cityName = (data.Location || '').trim();
             if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
             if (cityName === 'Gurgaon') cityName = 'Gurugram';
+
+            if (cityName) {
+                cityName = cityName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            }
 
             const cityKey = cityName.toLowerCase();
             if (!cityName || cityKey === 'unknown' || cityKey === 'other') return null;
@@ -403,7 +411,7 @@ const getMapIntellectCategories = async (metric, platform) => {
     let query = `SELECT DISTINCT ${src.f.category} as category FROM ${src.table} WHERE ${src.f.category} IS NOT NULL AND ${src.f.category} != ''`;
 
     if (platform && platform !== 'All') {
-        query += ` AND ${src.f.platform} LIKE '%${escapeStr(platform)}%'`;
+        query += ` AND lower(${src.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'`;
     }
 
     query += ` ORDER BY category`;

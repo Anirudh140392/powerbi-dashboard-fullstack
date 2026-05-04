@@ -539,7 +539,7 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                           </Tooltip>
                         )}
                         <Tooltip title={cat.name} arrow placement="top">
-                          <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif" noWrap sx={{ maxWidth: 300, display: 'block' }}>
+                          <Typography fontWeight={700} fontSize="0.95rem" fontFamily="Roboto, sans-serif" noWrap sx={{ maxWidth: 300, display: 'block', textTransform: 'capitalize' }}>
                             {cat.name}
                           </Typography>
                         </Tooltip>
@@ -548,13 +548,23 @@ export default function CategoryTable({ categories, activeTab = "", filters = {}
                     {platforms.map((p) => {
                       if (!selectedMetric) return null;
 
-                      // Convert metric key to lowercase to match backend response format
-                      const metricKeyLower = selectedMetric.key.toLowerCase();
-
                       // Safely access nested properties with fallbacks
                       const platformData = cat[p] || {};
-                      const main = platformData[metricKeyLower] || "-";
-                      const change = platformData[metricKeyLower + "_change"] || "-";
+                      let main = platformData[metricKeyLower] || "-";
+                      let change = platformData[metricKeyLower + "_change"] || "-";
+
+                      // Apply platform-specific KPI visibility logic
+                      const pLower = p.toLowerCase();
+                      const isEcom = pLower.includes('amazon') || pLower.includes('flipkart') || pLower.includes('myntra') || pLower.includes('nykaa') || pLower.includes('jiomart');
+                      const isQuick = pLower.includes('blinkit') || pLower.includes('zepto') || pLower.includes('swiggy') || pLower.includes('instamart') || pLower.includes('bbnow');
+
+                      if (metricKeyLower === 'cpm' && isEcom) {
+                        main = "N/A";
+                        change = "-";
+                      } else if (metricKeyLower === 'cpc' && isQuick) {
+                        main = "N/A";
+                        change = "-";
+                      }
 
                       return (
                         <TableCell key={p + i} align="center">

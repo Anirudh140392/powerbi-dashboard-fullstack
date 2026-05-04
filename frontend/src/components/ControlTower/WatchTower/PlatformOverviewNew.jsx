@@ -84,7 +84,8 @@ const kpiLabels = {
     asp: 'ASP',
     categorySize: 'Category Size',
     discount: 'Promo',
-    deliveryTime: 'Delivery Time'
+    deliveryTime: 'Delivery Time',
+    aov: 'AOV'
 };
 
 // Map backend KPI title → frontend kpiKey
@@ -108,7 +109,8 @@ const BACKEND_TITLE_TO_KEY = {
     'Promo-My': 'discount',
     'Promo Compete': 'promoCompete',
     'Buy Box %': 'buyBoxPct',
-    'Delivery Time': 'deliveryTime'
+    'Delivery Time': 'deliveryTime',
+    'AOV': 'aov'
 }
 
 // Map backend API response entity → frontend entity format
@@ -185,6 +187,7 @@ const PlatformOverviewNew = ({
         { key: 'categorySize', label: 'Category Size' },
         { key: 'buyBoxPct', label: 'Buy Box %' },
         { key: 'deliveryTime', label: 'Delivery Time' },
+        { key: 'aov', label: 'AOV' },
     ]
     const [dimension, setDimension] = useState('platform')
     const [localChannel, setLocalChannel] = useState('All')
@@ -199,11 +202,11 @@ const PlatformOverviewNew = ({
 
     // On Brand, Month, Category, SKU pages, we allow local channel filtering 
     // BUT we must respect the top-level selectedChannel if it is NOT 'All'
-    const activeChannel = selectedChannel && selectedChannel !== 'All' 
-        ? (typeof selectedChannel === 'object' ? selectedChannel.value : selectedChannel) 
+    const activeChannel = selectedChannel && selectedChannel !== 'All'
+        ? (typeof selectedChannel === 'object' ? selectedChannel.value : selectedChannel)
         : (localChannel || 'All');
-    const activeChannelString = Array.isArray(activeChannel) 
-        ? activeChannel.map(c => c.value || c).join(',').toLowerCase() 
+    const activeChannelString = Array.isArray(activeChannel)
+        ? activeChannel.map(c => c.value || c).join(',').toLowerCase()
         : String(activeChannel?.value || activeChannel || 'All').toLowerCase();
 
     const isEcom = activeChannelString.includes('ecom')
@@ -217,9 +220,9 @@ const PlatformOverviewNew = ({
         }
 
         if (isEcom) {
-            baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpc');
+            baseKpis = baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare' && k.key !== 'cpm');
         } else if (isQuick) {
-            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime' && k.key !== 'cpm');
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime' && k.key !== 'cpc');
         } else {
             baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
         }
@@ -238,14 +241,14 @@ const PlatformOverviewNew = ({
         let base = ['offtakes', 'spend', 'availability', 'conversion', 'aov'];
         if (dimension === 'platform') {
             base.push('marketShare', 'categorySize');
-            if (isEcom) base.push('cpm');
-            else if (isQuick) base.push('cpc');
+            if (isEcom) base.push('cpc');
+            else if (isQuick) base.push('cpm');
             else base.push('cpc', 'cpm');
         } else {
             if (isEcom) {
-                base.push('buyBoxPct', 'deliveryTime', 'cpm');
+                base.push('buyBoxPct', 'deliveryTime', 'cpc');
             } else if (isQuick) {
-                base.push('marketShare', 'categorySize', 'cpc');
+                base.push('marketShare', 'categorySize', 'cpm');
             } else {
                 base.push('marketShare', 'categorySize', 'cpc', 'cpm');
             }
@@ -299,13 +302,13 @@ const PlatformOverviewNew = ({
                 if (!next.includes('spend')) next.push('spend');
                 if (!next.includes('conversion')) next.push('conversion');
                 if (isEcom) {
-                    next = next.filter(k => k !== 'cpc');
+                    next = next.filter(k => k !== 'cpm');
                     if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
-                    if (!next.includes('cpm')) next.push('cpm');
-                } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpm');
                     if (!next.includes('cpc')) next.push('cpc');
+                } else if (isQuick) {
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
+                    if (!next.includes('cpm')) next.push('cpm');
                 } else {
                     next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
                     if (!next.includes('cpc')) next.push('cpc');
@@ -321,11 +324,11 @@ const PlatformOverviewNew = ({
                 if (!next.includes('conversion')) next.push('conversion');
                 if (!next.includes('marketShare')) next.push('marketShare');
                 if (isEcom) {
-                    next = next.filter(k => k !== 'cpc');
-                    if (!next.includes('cpm')) next.push('cpm');
-                } else if (isQuick) {
                     next = next.filter(k => k !== 'cpm');
                     if (!next.includes('cpc')) next.push('cpc');
+                } else if (isQuick) {
+                    next = next.filter(k => k !== 'cpc');
+                    if (!next.includes('cpm')) next.push('cpm');
                 } else {
                     if (!next.includes('cpc')) next.push('cpc');
                     if (!next.includes('cpm')) next.push('cpm');
@@ -337,19 +340,19 @@ const PlatformOverviewNew = ({
             setGlanceKpis(prev => {
                 let next = [...prev];
                 if (isEcom) {
-                    next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpc');
+                    next = next.filter(k => k !== 'categorySize' && k !== 'marketShare' && k !== 'cpm');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
                     if (!next.includes('buyBoxPct')) next.push('buyBoxPct');
                     if (!next.includes('deliveryTime')) next.push('deliveryTime');
-                    if (!next.includes('cpm')) next.push('cpm');
+                    if (!next.includes('cpc')) next.push('cpc');
                 } else if (isQuick) {
-                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpm');
+                    next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime' && k !== 'cpc');
                     if (!next.includes('categorySize')) next.push('categorySize');
                     if (!next.includes('spend')) next.push('spend');
                     if (!next.includes('conversion')) next.push('conversion');
                     if (!next.includes('marketShare')) next.push('marketShare');
-                    if (!next.includes('cpc')) next.push('cpc');
+                    if (!next.includes('cpm')) next.push('cpm');
                 } else {
                     next = next.filter(k => k !== 'buyBoxPct' && k !== 'deliveryTime');
                     if (!next.includes('categorySize')) next.push('categorySize');
@@ -401,8 +404,8 @@ const PlatformOverviewNew = ({
         const reqStartDate = advancedFilters.dateFrom || (timeStart ? timeStart.format('YYYY-MM-DD') : '');
         const reqEndDate = advancedFilters.dateTo || (timeEnd ? timeEnd.format('YYYY-MM-DD') : '');
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
-        const reqChannel = Array.isArray(activeChannel) 
-            ? activeChannel.map(c => c.value || c).join(',') 
+        const reqChannel = Array.isArray(activeChannel)
+            ? activeChannel.map(c => c.value || c).join(',')
             : (activeChannel?.value || activeChannel || 'All');
 
         return JSON.stringify({
@@ -816,14 +819,14 @@ const PlatformOverviewNew = ({
                                     <div className="w-36 sm:w-56 flex-shrink-0 sticky left-0 bg-white z-20 pr-2 sm:pr-4 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.05)] border-r border-slate-50 flex items-center justify-between">
                                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">Entity</span>
                                         {dimension === 'sku' && (
-                                            <motion.button 
+                                            <motion.button
                                                 onClick={() => navigate('/compare-skus')}
                                                 className="px-3 py-1.5 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-600 to-blue-500 text-[10px] sm:text-[11px] font-bold text-white shadow-[0_4px_12px_rgba(37,99,235,0.2)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.3)] hover:-translate-y-0.5 transition-all uppercase tracking-wider flex items-center gap-1.5 relative overflow-hidden group"
                                                 whileHover={{ scale: 1.05 }}
                                                 whileTap={{ scale: 0.95 }}
                                             >
                                                 <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-[-20deg]"></div>
-                                                <Scale size={13} className="text-blue-100" strokeWidth={2.5}/>
+                                                <Scale size={13} className="text-blue-100" strokeWidth={2.5} />
                                                 <span>Compare SKU</span>
                                             </motion.button>
                                         )}
@@ -864,7 +867,7 @@ const PlatformOverviewNew = ({
                                                 <div className="flex flex-col flex-1 overflow-hidden justify-center">
                                                     <span
                                                         className="text-[11px] sm:text-[13px] font-bold text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
-                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined }}
+                                                        style={{ fontFamily: 'Roboto, sans-serif', maxWidth: dimension === 'sku' ? '100px' : undefined, textTransform: 'capitalize' }}
                                                         title={e.name}
                                                     >
                                                         {dimension === 'sku' ? truncateToWords(e.name, 5) : e.name}
@@ -908,15 +911,15 @@ const PlatformOverviewNew = ({
                                             {/* KPI Cards - Enhanced with gradient glow */}
                                             {selectedKpis.map(kpi => {
                                                 let cell = e.data[kpi.key]
-                                                
+
                                                 if (dimension === 'platform') {
                                                     const platformName = e.name.toLowerCase();
                                                     const isEcomRow = platformName.includes('amazon') || platformName.includes('flipkart') || platformName.includes('myntra') || platformName.includes('nykaa') || platformName.includes('jiomart');
                                                     const isQuickRow = platformName.includes('blinkit') || platformName.includes('zepto') || platformName.includes('swiggy') || platformName.includes('instamart') || platformName.includes('bbnow');
-                                                    
-                                                    if (isEcomRow && kpi.key === 'cpc') {
+
+                                                    if (isEcomRow && kpi.key === 'cpm') {
                                                         cell = null;
-                                                    } else if (isQuickRow && kpi.key === 'cpm') {
+                                                    } else if (isQuickRow && kpi.key === 'cpc') {
                                                         cell = null;
                                                     }
                                                 }

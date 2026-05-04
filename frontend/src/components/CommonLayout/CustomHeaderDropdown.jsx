@@ -151,7 +151,8 @@ const CustomHeaderDropdown = ({
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 maxWidth: "100px",
-                                fontFamily: 'Roboto, sans-serif'
+                                fontFamily: 'Roboto, sans-serif',
+                                textTransform: 'capitalize'
                             }}
                         >
                             {displayValue}
@@ -274,7 +275,7 @@ const CustomHeaderDropdown = ({
                                             sx={{ p: 0.5 }}
                                         />
                                     )}
-                                    <Typography sx={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                                    <Typography sx={{ fontSize: "0.85rem", fontWeight: 600, textTransform: 'capitalize' }}>
                                         {option}
                                     </Typography>
                                 </Box>

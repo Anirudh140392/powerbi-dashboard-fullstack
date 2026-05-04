@@ -274,11 +274,11 @@ const SelectContent = ({ className, children }) => {
     return (
         <div
             className={cn(
-                "absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg",
+                "absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg overflow-hidden",
                 className
             )}
         >
-            <div className="max-h-60 overflow-auto py-1">{children}</div>
+            <div className="max-h-60 overflow-y-auto py-1">{children}</div>
         </div>
     );
 };
@@ -340,15 +340,24 @@ const ComingSoonBadge = () => (
 );
 
 const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, city }) => {
+    const { selectedChannel } = useContext(FilterContext);
     const [activeTab, setActiveTab] = useState(
         mode === "brand" ? "category" : "sku"
     );
     const [search, setSearch] = useState("");
+    const [localValue, setLocalValue] = useState(value);
+
+    // Sync local state when dialog opens
+    useEffect(() => {
+        if (open) setLocalValue(value);
+    }, [open, value]);
 
     const [filterOptions, setFilterOptions] = useState({
         categories: [],
         brands: [],
         skus: [],
+        keywordTypes: [],
+        keywords: [],
         loading: false,
         error: null
     });
@@ -360,16 +369,35 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
             setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
             try {
-                // Use watchtower competition-filter-options for ALL tabs
-                // This fetches from rb_pdp_olap so filter values match the competition table data
                 const params = new URLSearchParams();
                 if (selectedChannel && selectedChannel !== 'All') params.append('channel', selectedChannel);
-                const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
-                if (response.data) {
+                if (selectedPlatform && selectedPlatform !== 'All') params.append('platform', selectedPlatform);
+
+                // Fetch basic competition filters (Category, Brand, SKU) from watchtower (rb_pdp_olap)
+                const watchtowerPromise = axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
+                
+                // Fetch Keyword Types and Keywords from rb_kw_olap table
+                const keywordTypePromise = axiosInstance.get(`/visibility-analysis/keyword-types?platform=${selectedPlatform || 'All'}`);
+                
+                const kwParams = new URLSearchParams();
+                kwParams.append('platform', selectedPlatform || 'All');
+                if (localValue.categories.length) kwParams.append('category', localValue.categories.join(','));
+                if (localValue.brands.length) kwParams.append('brand', localValue.brands.join(','));
+                const keywordPromise = axiosInstance.get(`/visibility-analysis/keywords?${kwParams.toString()}`);
+
+                const [watchtowerRes, keywordTypeRes, keywordRes] = await Promise.all([
+                    watchtowerPromise,
+                    keywordTypePromise,
+                    keywordPromise
+                ]);
+
+                if (watchtowerRes.data) {
                     setFilterOptions({
-                        categories: (response.data.categories || []).filter(o => o && o !== 'All'),
-                        brands: (response.data.brands || []).filter(o => o && o !== 'All'),
-                        skus: (response.data.skuNames || response.data.skus || []).filter(o => o && o !== 'All'),
+                        categories: (watchtowerRes.data.categories || []).filter(o => o && o !== 'All'),
+                        brands: (watchtowerRes.data.brands || []).filter(o => o && o !== 'All'),
+                        skus: (watchtowerRes.data.skuNames || watchtowerRes.data.skus || []).filter(o => o && o !== 'All'),
+                        keywordTypes: (keywordTypeRes.data || []).filter(o => o && o !== 'All'),
+                        keywords: (keywordRes.data || []).filter(o => o && o !== 'All'),
                         loading: false,
                         error: null
                     });
@@ -385,12 +413,15 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
         };
 
         fetchFilterOptions();
-    }, [open, activeTab, value.categories, value.brands]);
+    }, [open, activeTab, localValue.categories, localValue.brands, selectedPlatform, selectedChannel]);
 
     const getListForTab = () => {
         if (activeTab === "category") return filterOptions.categories;
         if (activeTab === "brand") return filterOptions.brands;
-        return filterOptions.skus;
+        if (activeTab === "sku") return filterOptions.skus;
+        if (activeTab === "keywordType") return filterOptions.keywordTypes;
+        if (activeTab === "keyword") return filterOptions.keywords;
+        return [];
     };
 
     const list = useMemo(() => {
@@ -400,40 +431,40 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
         );
     }, [activeTab, search, filterOptions]);
 
-    const currentKey = activeTab === "category" ? "categories" : (activeTab === "brand" ? "brands" : "skus");
+    const currentKey = activeTab === "category" ? "categories" : (activeTab === "brand" ? "brands" : (activeTab === "sku" ? "skus" : (activeTab === "keywordType" ? "keywordType" : "keywords")));
 
     const handleToggle = (type, item) => {
-        const current = new Set(value[type]);
+        const current = new Set(localValue[type]);
         if (current.has(item)) current.delete(item);
         else current.add(item);
 
-        const next = { ...value, [type]: Array.from(current) };
+        const next = { ...localValue, [type]: Array.from(current) };
         if (type === 'categories') {
             next.brands = [];
             next.skus = [];
         } else if (type === 'brands') {
             next.skus = [];
         }
-        onChange(next);
+        setLocalValue(next);
     };
 
     const handleSelectAll = (type, items) => {
         const allSelected =
-            items.length > 0 && items.every((i) => value[type].includes(i));
-        const next = { ...value, [type]: allSelected ? [] : items.slice() };
+            items.length > 0 && items.every((i) => localValue[type].includes(i));
+        const next = { ...localValue, [type]: allSelected ? [] : items.slice() };
         if (type === 'categories') {
             next.brands = [];
             next.skus = [];
         } else if (type === 'brands') {
             next.skus = [];
         }
-        onChange(next);
+        setLocalValue(next);
     };
 
     const allItemsForCurrentTab = getListForTab();
     const allSelectedForCurrentTab =
         allItemsForCurrentTab.length > 0 &&
-        allItemsForCurrentTab.every((i) => value[currentKey].includes(i));
+        allItemsForCurrentTab.every((i) => localValue[currentKey].includes(i));
 
     return (
         <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -471,6 +502,18 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
                                     className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
                                 >
                                     SKU
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="keywordType"
+                                    className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
+                                >
+                                    Keyword Type
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="keyword"
+                                    className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
+                                >
+                                    Keyword
                                 </TabsTrigger>
                             </TabsList>
                         </Tabs>
@@ -512,7 +555,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
                                         className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100 overflow-hidden min-w-0 w-full"
                                     >
                                         <Checkbox
-                                            checked={value[currentKey].includes(item)}
+                                            checked={localValue[currentKey].includes(item)}
                                             onCheckedChange={() => handleToggle(currentKey, item)}
                                         />
                                         <span className="truncate flex-1 min-w-0 text-slate-700" title={item}>{item}</span>
@@ -532,7 +575,10 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
                     <Button variant="outline" onClick={onClose}>
                         Cancel
                     </Button>
-                    <Button onClick={onClose}>Apply</Button>
+                    <Button onClick={() => {
+                        onChange(localValue);
+                        onClose();
+                    }}>Apply</Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
@@ -990,17 +1036,38 @@ const SkuTable = ({ rows, loading }) => {
 /*                             Main Component                                 */
 /* -------------------------------------------------------------------------- */
 
-const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep }) => {
+const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep, externalFilters, externalCity }) => {
     const { selectedChannel } = useContext(FilterContext);
     const [tab, setTab] = useState("brand");
-    const [city, setCity] = useState("All India");
+    const [city, setCity] = useState(externalCity || "All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-    const [filters, setFilters] = useState({
+    const [filters, setFilters] = useState(externalFilters || {
         categories: [],
         brands: [],
         skus: [],
+        keywords: [],
+        keywordType: [],
     });
     const [viewMode, setViewMode] = useState("table");
+
+    // Sync external filters if provided
+    useEffect(() => {
+        if (externalFilters) {
+            setFilters(prev => {
+                // Only update if values actually changed to avoid unnecessary re-renders
+                if (JSON.stringify(prev) !== JSON.stringify(externalFilters)) {
+                    return externalFilters;
+                }
+                return prev;
+            });
+        }
+    }, [JSON.stringify(externalFilters)]);
+
+    useEffect(() => {
+        if (externalCity) {
+            setCity(externalCity);
+        }
+    }, [externalCity]);
 
     const [filterOptions, setFilterOptions] = useState({
         locations: ['All India'],
@@ -1034,12 +1101,16 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
 
                 const params = {
                     brands: brandList.join(','),
-                    location: city !== 'All India' ? city : 'All',
+                    location: city !== 'All India' 
+                        ? (Array.isArray(city) ? city.join(',').toLowerCase() : String(city).toLowerCase()) 
+                        : 'all',
                     format: filters.categories.length > 0 ? filters.categories[0] : 'All',
                     dimension: 'brand',
                     period: period || '1M',
                     timeStep: timeStep,
-                    channel: selectedChannel || 'All'
+                    channel: selectedChannel || 'All',
+                    keyword: filters.keywords.length > 0 ? filters.keywords.join(',') : 'All',
+                    keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : 'All'
                 };
 
                 const res = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
@@ -1054,12 +1125,12 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchBrandTrends();
-    }, [viewMode, city, filters.brands, filters.categories, period, timeStep, apiBrandData, selectedChannel]);
+    }, [viewMode, city, filters.brands, filters.categories, filters.keywords, filters.keywordType, period, timeStep, apiBrandData, selectedChannel]);
 
     useEffect(() => {
         const fetchFilterOptions = async () => {
             try {
-                const res = await axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities&channel=${selectedChannel || 'All'}`);
+                const res = await axiosInstance.get(`/visibility-analysis/filter-options?filterType=cities&channel=${selectedChannel || 'All'}&platform=${selectedPlatform || 'All'}`);
                 if (res.data) {
                     setFilterOptions(prev => ({ ...prev, locations: ['All India', ...(res.data.options || [])] }));
                 }
@@ -1068,7 +1139,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchFilterOptions();
-    }, [selectedChannel]);
+    }, [selectedChannel, selectedPlatform]);
 
     useEffect(() => {
         const fetchCompetitionData = async () => {
@@ -1076,11 +1147,15 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             try {
                 const params = {
                     platform: selectedPlatform || 'All',
-                    location: city !== 'All India' ? city : 'All',
+                    location: city !== 'All India' 
+                        ? (Array.isArray(city) ? city.join(',').toLowerCase() : String(city).toLowerCase()) 
+                        : 'all',
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
                     period: period || '1M',
-                    channel: selectedChannel || 'All'
+                    channel: selectedChannel || 'All',
+                    keyword: filters.keywords.length > 0 ? filters.keywords.join(',') : 'All',
+                    keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : 'All'
                 };
 
                 const res = await axiosInstance.get('/visibility-analysis/competition', { params });
@@ -1121,9 +1196,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchCompetitionData();
-    }, [city, filters.brands, filters.categories, selectedPlatform, period, selectedChannel]);
+    }, [city, filters.brands, filters.categories, filters.keywords, filters.keywordType, selectedPlatform, period, selectedChannel]);
 
-    const selectionCount = filters.categories.length + filters.brands.length + filters.skus.length;
+    const selectionCount = filters.categories.length + filters.brands.length + filters.skus.length + filters.keywords.length + filters.keywordType.length;
 
     const brandRows = useMemo(() => {
         let rows = apiBrandData;
@@ -1152,7 +1227,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 <div className="flex flex-wrap items-center gap-2">
                     <Select value={city} onValueChange={setCity}>
                         <SelectTrigger className="h-9 w-40 bg-white"><SelectValue placeholder="Select city" /></SelectTrigger>
-                        <SelectContent className="max-h-60 overflow-y-auto">
+                        <SelectContent>
                             {filterOptions.locations.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                         </SelectContent>
                     </Select>

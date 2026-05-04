@@ -1391,11 +1391,11 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
     setTrendError(null);
     try {
       const params = {
-        platform: platform || "All",
-        location: city === "All India" ? "All" : city,
-        brands: isBrandMode ? visibleIds.join(",") : "All",
-        skus: isBrandMode ? "All" : visibleIds.join(","),
-        category: filters.categories.length > 0 ? filters.categories.join(",") : "All",
+        platform: (platform || "All").toLowerCase(),
+        location: city === "All India" ? "All" : (city || "All").toLowerCase(),
+        brands: isBrandMode ? visibleIds.map(id => id.toLowerCase()).join(",") : "All",
+        skus: isBrandMode ? "All" : visibleIds.map(id => id.toLowerCase()).join(","),
+        category: filters.categories.length > 0 ? filters.categories.map(c => c.toLowerCase()).join(",") : "All",
         period: period || "1M",
         timeStep: timeStep || "Weekly",
       };

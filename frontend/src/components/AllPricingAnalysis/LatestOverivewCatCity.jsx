@@ -577,7 +577,7 @@ const LatestOverivewCatCity = ({
 
                                                 <div className="flex flex-col flex-1 truncate">
                                                     <span
-                                                        className="text-[13px] font-bold text-slate-700 truncate"
+                                                        className="text-[13px] font-bold text-slate-700 truncate capitalize"
                                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                                         title={e.name}
                                                     >
@@ -668,7 +668,7 @@ const LatestOverivewCatCity = ({
                                                         animate={{ opacity: 1, y: 0 }}
                                                     >
                                                         <div className="w-56 flex-shrink-0 flex items-center pr-4">
-                                                            <span className="text-[13px] font-medium text-slate-500 italic pl-6">{city.name}</span>
+                                                            <span className="text-[13px] font-medium text-slate-500 italic pl-6 capitalize">{city.name}</span>
                                                         </div>
 
                                                         {selectedKpis.map(kpi => {
