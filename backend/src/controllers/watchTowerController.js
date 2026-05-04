@@ -372,7 +372,8 @@ export const getCompetition = async (req, res) => {
  */
 export const getCompetitionFilterOptions = async (req, res) => {
     try {
-        const { platform, location, category, brand, context } = req.query;
+        const filters = { ...req.query, ...req.body };
+        const { platform, location, category, brand, context } = filters;
         const resolvedLocation = location && location !== 'All India' ? location : 'All';
         console.log('[getCompetitionFilterOptions] API call with:', { platform, location: resolvedLocation, category, brand, context });
         const data = await watchTowerService.getCompetitionFilterOptions({
@@ -392,13 +393,16 @@ export const getCompetitionFilterOptions = async (req, res) => {
 
 /**
  * Get multi-brand KPI trends for Competition page
- * GET /api/watchtower/competition-brand-trends
+ * GET/POST /api/watchtower/competition-brand-trends
+ * POST body supports `skus` as an array (for SKU names containing commas)
  */
 export const getCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, skus, category, period, location, platform, timeStep } = req.query;
+        // Merge query params and body to support both GET and POST
+        const params = { ...req.query, ...req.body };
+        const { brands, skus, category, period, location, platform, timeStep } = params;
         const resolvedLocation = location && location !== 'All India' ? location : 'All';
-        console.log('[getCompetitionBrandTrends] Request:', { brands, skus, location: resolvedLocation, platform, category, period, timeStep });
+        console.log('[getCompetitionBrandTrends] Request:', { brands, skus: Array.isArray(skus) ? `[array:${skus.length}]` : skus, location: resolvedLocation, platform, category, period, timeStep });
         const data = await watchTowerService.getCompetitionBrandTrends({
             brands,
             skus,
