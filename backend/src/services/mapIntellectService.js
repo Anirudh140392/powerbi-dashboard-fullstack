@@ -117,7 +117,8 @@ async function getGeoSource() {
             location: r('Location'),
             date: r('DATE'),
             platform: r('Platform'),
-            category: r('Category', r('Product_type'))
+            category: r('Category', r('Product_type')),
+            compFlag: r('Comp_flag')
         }
     };
 }
@@ -214,6 +215,9 @@ const getMapIntellectData = async (filters) => {
         }
         if (category && category !== 'All') {
             conds.push(`lower(${src.f.category}) = '${escapeStr(category.toLowerCase())}'`);
+        }
+        if (src.f.compFlag) {
+            conds.push(`${src.f.compFlag} = 0`);
         }
         return conds.join(' AND ');
     };
