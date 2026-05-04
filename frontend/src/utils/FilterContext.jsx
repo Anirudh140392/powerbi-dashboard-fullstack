@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useState, useEffect, useCallback, useRef } from "react";
 import axiosInstance from "../api/axiosInstance";
 import dayjs from "dayjs";
 import { useAuth } from "./AuthContext";
@@ -195,9 +195,14 @@ export const FilterProvider = ({ children }) => {
         fetchChannels();
     }, [isAuthenticated]);
 
+    const prevChannelRef = useRef(selectedChannel);
+
     // ====== FETCH PLATFORMS FROM DB (based on channel) ======
     const fetchPlatformsFromDb = useCallback(async () => {
         if (!isAuthenticated) return;
+
+        const channelChanged = prevChannelRef.current !== selectedChannel;
+        prevChannelRef.current = selectedChannel;
 
         setPlatformsFetched(false);
         try {
@@ -222,6 +227,7 @@ export const FilterProvider = ({ children }) => {
 
                     // Validate current platform selection
                     setPlatform(prev => {
+                        if (channelChanged && newPlatforms.length > 0) return newPlatforms[0];
                         const currentList = Array.isArray(prev) ? prev : [prev];
                         const valid = currentList.filter(p => newPlatforms.includes(p));
                         if (valid.length === 0) return newPlatforms[0];
@@ -253,6 +259,7 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms(res.data);
                     // Keep "All" or current selection if it's still valid
                     setPlatform(prevPlatform => {
+                        if (channelChanged) return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));
                         if (validPlatforms.length === 0) return res.data[0];
@@ -271,6 +278,7 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms(res.data);
                     // Keep "All" or current selection if it's still valid
                     setPlatform(prevPlatform => {
+                        if (channelChanged) return res.data[0];
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));
                         if (validPlatforms.length === 0) return res.data[0];
