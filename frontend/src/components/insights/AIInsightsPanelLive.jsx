@@ -301,9 +301,10 @@ const AIInsightsPanelLive = ({ insight, onClose }) => {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 100 }}
             transition={{ type: "spring", stiffness: 350, damping: 35 }}
+            className="ai-insights-panel"
             style={{
                 position: "absolute", top: 0, right: 0,
-                height: "100%", width: "320px",
+                height: "100%",
                 background: "rgba(255, 255, 255, 0.99)",
                 backdropFilter: "blur(25px)",
                 borderLeft: "1px solid rgba(226, 232, 240, 0.8)",
