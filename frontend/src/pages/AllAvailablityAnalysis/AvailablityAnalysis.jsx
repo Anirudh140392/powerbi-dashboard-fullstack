@@ -224,6 +224,54 @@ export default function AvailablityAnalysis() {
     return params.toString();
   };
 
+  // Build query params for OSA Detail View — strips date/month filters
+  // so it always shows ALL months available in the DB
+  const buildOsaDetailParams = () => {
+    const params = new URLSearchParams();
+    const dateKeys = new Set(['startDate', 'endDate', 'months', 'dates', 'compareStartDate', 'compareEndDate']);
+    Object.entries(filters).forEach(([key, value]) => {
+      if (dateKeys.has(key)) return; // Skip date filters
+      if (value !== undefined && value !== null && value !== 'All' && value !== '') {
+        if (Array.isArray(value)) { if (value.length > 0) value.forEach(v => params.append(key, v)); }
+        else params.append(key, value);
+      }
+    });
+    if (!params.has('platform')) params.append('platform', 'All');
+    if (!params.has('brand')) params.append('brand', 'All');
+    if (!params.has('location')) params.append('location', 'All');
+    params.append('ownBrandsOnly', 'true');
+    return params.toString();
+  };
+
+  // Build query params WITHOUT platform filter — used by Platform KPI Matrix segment
+  // so it always shows data across ALL platforms regardless of sidebar selection
+  const buildQueryParamsWithoutPlatform = () => {
+    const params = new URLSearchParams();
+
+    Object.entries(filters).forEach(([key, value]) => {
+      // Skip platform filter entirely
+      if (key === 'platform') return;
+      if (value !== undefined && value !== null && value !== 'All' && value !== '') {
+        if (Array.isArray(value)) {
+          if (value.length > 0) {
+            value.forEach(v => params.append(key, v));
+          }
+        } else {
+          params.append(key, value);
+        }
+      }
+    });
+
+    // Platform is always 'All' for this segment
+    params.append('platform', 'All');
+    if (!params.has('brand')) params.append('brand', 'All');
+    if (!params.has('location')) params.append('location', 'All');
+
+    params.append('ownBrandsOnly', 'true');
+
+    return params.toString();
+  };
+
   // Get auth headers for API calls (JWT token from localStorage)
   const getAuthHeaders = () => {
     const token = sessionStorage.getItem('token');
@@ -246,10 +294,11 @@ export default function AvailablityAnalysis() {
     }
   };
 
-  const fetchPlatformKpi = async (queryParams) => {
+  const fetchPlatformKpi = async () => {
     try {
       setApiErrors(prev => ({ ...prev, platformKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${queryParams}`, { headers: getAuthHeaders() });
+      const crossPlatformParams = buildQueryParamsWithoutPlatform();
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Platform&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, platformKpi: data }));
@@ -261,10 +310,11 @@ export default function AvailablityAnalysis() {
     }
   };
 
-  const fetchFormatKpi = async (queryParams) => {
+  const fetchFormatKpi = async () => {
     try {
       setApiErrors(prev => ({ ...prev, formatKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${queryParams}`, { headers: getAuthHeaders() });
+      const crossPlatformParams = buildQueryParamsWithoutPlatform();
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=Format&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, formatKpi: data }));
@@ -276,10 +326,11 @@ export default function AvailablityAnalysis() {
     }
   };
 
-  const fetchCityKpi = async (queryParams) => {
+  const fetchCityKpi = async () => {
     try {
       setApiErrors(prev => ({ ...prev, cityKpi: null }));
-      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${queryParams}`, { headers: getAuthHeaders() });
+      const crossPlatformParams = buildQueryParamsWithoutPlatform();
+      const res = await fetch(`/api/availability-analysis/absolute-osa/platform-kpi-matrix?viewMode=City&${crossPlatformParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setApiData(prev => ({ ...prev, cityKpi: data }));
@@ -327,11 +378,19 @@ export default function AvailablityAnalysis() {
       const res = await fetch(`/api/availability-analysis/absolute-osa/osa-percentage-detail?${osaDetailParams}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      console.log('[OsaDetail] API response received. Type:', typeof data, 'IsArray:', Array.isArray(data), 'Length:', Array.isArray(data) ? data.length : (data?.length || 'N/A'));
-      // Handle both direct array and wrapped responses
-      const osaRows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : data?.rows || data);
-      console.log('[OsaDetail] Parsed rows count:', Array.isArray(osaRows) ? osaRows.length : 'not-array');
-      setApiData(prev => ({ ...prev, osaDetail: osaRows }));
+      console.log('[OsaDetail] API response received. Type:', typeof data, 'IsArray:', Array.isArray(data));
+      // Handle new { dates, rows } response shape AND legacy direct array
+      let osaRows, osaDates;
+      if (data?.dates && data?.rows) {
+        osaDates = data.dates;
+        osaRows = data.rows;
+      } else {
+        // Legacy fallback
+        osaRows = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : data?.rows || data);
+        osaDates = null;
+      }
+      console.log('[OsaDetail] Parsed rows count:', Array.isArray(osaRows) ? osaRows.length : 'not-array', 'dates:', osaDates?.length || 0);
+      setApiData(prev => ({ ...prev, osaDetail: osaRows, osaDates: osaDates }));
       return true;
     } catch (err) {
       console.error('[OsaDetail] API error:', err);
@@ -363,13 +422,13 @@ export default function AvailablityAnalysis() {
     }
 
     const queryParams = buildQueryParams();
-    const osaDetailParams = buildQueryParams();
+    const osaDetailParams = buildOsaDetailParams();
 
     switch (segmentKey) {
       case 'overview': return fetchOverview(queryParams);
-      case 'platformKpi': return fetchPlatformKpi(queryParams);
-      case 'formatKpi': return fetchFormatKpi(queryParams);
-      case 'cityKpi': return fetchCityKpi(queryParams);
+      case 'platformKpi': return fetchPlatformKpi();
+      case 'formatKpi': return fetchFormatKpi();
+      case 'cityKpi': return fetchCityKpi();
       case 'doi': return fetchDoi(queryParams);
       case 'metroCity': return fetchMetroCity(queryParams);
       case 'osaDetail': return fetchOsaDetail(osaDetailParams);
@@ -422,15 +481,15 @@ export default function AvailablityAnalysis() {
 
         console.log('📡 Fetching availability data. Global filters:', filters.platform, filters.brand, filters.location);
 
-        // OSA Detail now uses global filters (Channel, Platform, Category, Location)
-        const osaDetailParams = buildQueryParams();
+        // OSA Detail: no date filters — show ALL months in DB
+        const osaDetailParams = buildOsaDetailParams();
 
         // Fetch all segments (errors are tracked per-segment)
         await Promise.allSettled([
           fetchOverview(queryParams),
-          fetchPlatformKpi(queryParams),
-          fetchFormatKpi(queryParams),
-          fetchCityKpi(queryParams),
+          fetchPlatformKpi(),
+          fetchFormatKpi(),
+          fetchCityKpi(),
           fetchDoi(queryParams),
           fetchMetroCity(queryParams),
           fetchOsaDetail(osaDetailParams),

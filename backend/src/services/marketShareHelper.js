@@ -1853,13 +1853,21 @@ export const getMarketShareCompetitionFilterOptions = async (platformFilter, loc
  * Get Top-level Market Share Filter Options (Platform, Category, Channel)
  * Sourced directly from rb_ms_olap as per user request.
  */
-export const getMarketShareTopFilterOptions = async () => {
+export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
     try {
+        let platformCond = '';
+        let categoryCond = '';
+
+        if (channelFilter && channelFilter !== 'All') {
+            platformCond = `AND platform IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${channelFilter.replace(/'/g, "''")}')`;
+            categoryCond = `AND category IN (SELECT DISTINCT category FROM rca_sku_dim WHERE channel = '${channelFilter.replace(/'/g, "''")}')`;
+        }
+
         // 1. Platforms from rb_ms_olap
-        const platformQuery = `SELECT DISTINCT platform FROM rb_ms_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
+        const platformQuery = `SELECT DISTINCT platform FROM rb_ms_olap WHERE platform IS NOT NULL AND platform != '' ${platformCond} ORDER BY platform`;
         
         // 2. Categories from rb_ms_olap
-        const categoryQuery = `SELECT DISTINCT category FROM rb_ms_olap WHERE category IS NOT NULL AND category != '' ORDER BY category`;
+        const categoryQuery = `SELECT DISTINCT category FROM rb_ms_olap WHERE category IS NOT NULL AND category != '' ${categoryCond} ORDER BY category`;
         
         // 3. Locations from rb_ms_olap
         const locationQuery = `SELECT DISTINCT location FROM rb_ms_olap WHERE location IS NOT NULL AND location != '' ORDER BY location`;
@@ -1888,9 +1896,10 @@ export const getMarketShareTopFilterOptions = async () => {
         };
     } catch (error) {
         console.error('[MarketShareTopFilterOptions] Error:', error.message);
-        return { platforms: [], categories: [], channels: [] };
+        return { platforms: [], categories: [], channels: [], locations: [] };
     }
 };
+
 
 /**
  * Get Market Share Competition Trends (Time Series)

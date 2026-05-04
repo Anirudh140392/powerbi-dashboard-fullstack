@@ -15,7 +15,7 @@ export default function CommonContainer({
   disablePadding = false,
   children,
 }) {
-  const { platforms } = React.useContext(FilterContext);
+  const { channels, selectedChannel, setSelectedChannel, platforms, platformMetadata, setPlatform, platform } = React.useContext(FilterContext);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
@@ -27,7 +27,13 @@ export default function CommonContainer({
       onFiltersChange={onFiltersChange}
       hideFilters={hideFilters}
       disablePadding={disablePadding}
+      channels={channels}
+      selectedChannel={selectedChannel}
+      setSelectedChannel={setSelectedChannel}
       platforms={platforms}
+      platformMetadata={platformMetadata}
+      setPlatform={setPlatform}
+      currentPlatform={platform}
       mobileMenuOpen={mobileMenuOpen}
       setMobileMenuOpen={setMobileMenuOpen}
       isCollapsed={isCollapsed}
@@ -45,7 +51,13 @@ function CommonLayoutContent({
   onFiltersChange,
   hideFilters,
   disablePadding,
+  channels,
+  selectedChannel,
+  setSelectedChannel,
   platforms,
+  platformMetadata,
+  setPlatform,
+  currentPlatform,
   mobileMenuOpen,
   setMobileMenuOpen,
   isCollapsed,
@@ -70,11 +82,16 @@ function CommonLayoutContent({
       }}
     >
       <Sidebar
+        channels={channels}
+        selectedChannel={selectedChannel}
+        onChannelChange={setSelectedChannel}
         platforms={platforms}
-        selectedPlatform={filters?.platform}
-        onPlatformChange={(p) =>
-          onFiltersChange?.((prev) => ({ ...prev, platform: p }))
-        }
+        platformMetadata={platformMetadata}
+        selectedPlatform={filters?.platform || currentPlatform}
+        onPlatformChange={(p) => {
+          setPlatform?.(p);
+          onFiltersChange?.((prev) => ({ ...prev, platform: p }));
+        }}
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
         isCollapsed={isCollapsed}

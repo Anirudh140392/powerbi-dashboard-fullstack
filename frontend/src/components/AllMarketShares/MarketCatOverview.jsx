@@ -39,7 +39,6 @@ const kpiDefs = [
     { key: 'mwMarketShare', label: 'Mars Market Share%' },
     { key: 'mwSales', label: 'Mars Estimated Sales (Cr)' },
     { key: 'mlMarketShare', label: 'ML Market Share%' },
-    { key: 'mlSales', label: 'ML Sales' },
 ];
 
 /* kpiLabels are built dynamically inside the component using dbDisplayName */
@@ -48,7 +47,6 @@ const baseKpiLabels = {
     mwMarketShare: 'Mars Market Share%',
     mwSales: 'Mars Estimated Sales (Cr)',
     mlMarketShare: 'ML Market Share%',
-    mlSales: 'ML Sales',
 };
 
 /* --- Platform entities (COLUMN headers — horizontal, top) --- */
@@ -104,7 +102,7 @@ const MarketCatOverview = ({
     } = useContext(FilterContext);
 
     const [glanceKpis, setGlanceKpis] = useState([
-        'categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare', 'mlSales'
+        'categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare'
     ])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
@@ -113,7 +111,7 @@ const MarketCatOverview = ({
         cities: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare', 'mlSales'],
+        kpis: ['categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare'],
         filterLogic: 'OR',
     })
 

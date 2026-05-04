@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useContext, useCallback, useEffect, useRef } from 'react'
 import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -112,9 +113,7 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         setLocalError(null);
 
         const params = new URLSearchParams({
-          platform: (localMatrixFilters.platform && localMatrixFilters.platform !== 'All') 
-            ? (Array.isArray(localMatrixFilters.platform) ? localMatrixFilters.platform.join(',').toLowerCase() : String(localMatrixFilters.platform).toLowerCase()) 
-            : 'All',
+          platform: 'All',  // Platform KPI Matrix always shows data across ALL platforms
           brand: (localMatrixFilters.brand && localMatrixFilters.brand !== 'All') 
             ? (Array.isArray(localMatrixFilters.brand) ? localMatrixFilters.brand.join(',').toLowerCase() : String(localMatrixFilters.brand).toLowerCase()) 
             : 'All',
@@ -138,7 +137,7 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         
         setLocalMatrixData(res.data);
       } catch (err) {
-        if (axiosInstance.isCancel(err)) return;
+        if (axios.isCancel(err)) return;
         console.error('❌ [Matrix] Local fetch error:', err);
         setLocalError(err.message);
       } finally {
@@ -833,12 +832,14 @@ const VisiblityAnalysisData = ({
   // Show toggle when Ecommerce + (Amazon explicitly selected OR only Amazon available)
   const showBSRToggle = isEcommerceChannel && (isAmazonSelected || isOnlyAmazonAvailable);
 
-  // Auto-select BSR when only Amazon is available under Ecommerce
+  // Removed automatic redirect to BSR; default is now SOS as requested.
+  /*
   useEffect(() => {
     if (isEcommerceChannel && isOnlyAmazonAvailable) {
       setVisibilityMode('bsr');
     }
   }, [isEcommerceChannel, isOnlyAmazonAvailable]);
+  */
 
   // Reset to SOS when leaving Ecommerce channel
   useEffect(() => {
@@ -850,11 +851,18 @@ const VisiblityAnalysisData = ({
   const visibilityKpis = useMemo(() => {
     const icons = [PieChart, Target, TrendingUp, Monitor];
     const gradients = [
-      ['#6366f1', '#8b5cf6'],
-      ['#14b8a6', '#06b6d4'],
-      ['#f43f5e', '#ec4899'],
-      ['#8b5cf6', '#a855f7']
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb']
     ];
+
+    const KPI_INFO_TOOLTIPS = {
+      'Overall SOS': "Share of Search indicates the proportion of attention a product receives relative to others within the same category or type.",
+      'Sponsored SOS': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
+      'Ad SOS': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
+      'Ad SOs': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category."
+    };
 
     // Use real API data only — no random generators
     const overviewCards = apiData?.overview?.cards;
@@ -880,7 +888,8 @@ const VisiblityAnalysisData = ({
           extra: card.extra,
           extraChange: card.extraChange,
           extraChangeColor: card.extraChangeColor,
-          prevText: card.prevText
+          prevText: card.prevText,
+          infoTooltip: KPI_INFO_TOOLTIPS[card.title] || KPI_INFO_TOOLTIPS[card.title?.replace(' Weighted', '')] || undefined
         };
       });
     }
@@ -987,7 +996,7 @@ const VisiblityAnalysisData = ({
 
   return (
 
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className="w-full space-y-4">
 
       {/* HEADER */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">

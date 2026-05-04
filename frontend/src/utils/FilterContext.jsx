@@ -14,7 +14,7 @@ const FALLBACK_PLATFORMS = ["Blinkit", "Zepto", "Instamart"];
 const FALLBACK_CATEGORIES = ["Chocolates (Gifting)", "Chocolates (Non Gifting)", "GMFC"];
 const FALLBACK_LOCATIONS = [];
 const FALLBACK_BRANDS = [];
-const FALLBACK_CHANNELS = ["Ecom", "ModernTrade"];
+const FALLBACK_CHANNELS = ["Ecom", "QuickComm"];
 
 export const FilterProvider = ({ children }) => {
     const { isLoggedIn } = useAuth();
@@ -23,11 +23,12 @@ export const FilterProvider = ({ children }) => {
 
     // Channel state (fetched dynamically from rca_sku_dim)
     const [channels, setChannels] = useState(FALLBACK_CHANNELS);
-    const [selectedChannel, setSelectedChannel] = useState("All");
+    const [selectedChannel, setSelectedChannel] = useState(FALLBACK_CHANNELS[0] || "All");
 
     // Platform state
     const [platforms, setPlatforms] = useState(FALLBACK_PLATFORMS);
-    const [platform, setPlatform] = useState("All");
+    const [platformMetadata, setPlatformMetadata] = useState([]);
+    const [platform, setPlatform] = useState("");
 
     // Brand state
     const [brands, setBrands] = useState(FALLBACK_BRANDS);
@@ -103,9 +104,9 @@ export const FilterProvider = ({ children }) => {
         if (!isAuthenticated) {
             console.log("[FilterContext] Resetting state due to logout");
             setChannels(FALLBACK_CHANNELS);
-            setSelectedChannel("All");
+            setSelectedChannel(FALLBACK_CHANNELS[0] || "All");
             setPlatforms(FALLBACK_PLATFORMS);
-            setPlatform("All");
+            setPlatform(FALLBACK_PLATFORMS[0]);
             setBrands(FALLBACK_BRANDS);
             setSelectedBrand("All");
             setLocations(FALLBACK_LOCATIONS);
@@ -166,7 +167,7 @@ export const FilterProvider = ({ children }) => {
 
     useEffect(() => {
         refreshDates();
-    }, [refreshDates, currentHash]);
+    }, [refreshDates]);
 
     // ====== FETCH CHANNELS FROM DB (on mount) ======
     useEffect(() => {
@@ -177,11 +178,11 @@ export const FilterProvider = ({ children }) => {
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     console.log("[FilterContext] Fetched channels from DB:", res.data);
                     setChannels(res.data);
-                    // Keep current selection if still valid, otherwise select first
+                    // Keep current selection if still valid, otherwise select first non-All
                     setSelectedChannel(prev => {
-                        if (prev === 'All') return 'All'; // Always keep "All" as valid
-                        if (res.data.includes(prev)) return prev;
-                        return 'All'; // Default to All instead of first channel
+                        const validChannels = res.data.filter(c => c !== 'All');
+                        if (validChannels.includes(prev)) return prev;
+                        return validChannels.length > 0 ? validChannels[0] : 'All';
                     });
                 } else {
                     setChannels(FALLBACK_CHANNELS);
@@ -204,8 +205,10 @@ export const FilterProvider = ({ children }) => {
             const isMarketShare = window.location.hash.includes('/market-share');
 
             if (isMarketShare) {
-                console.log("[FilterContext] Fetching Market Share top filters from rb_ms_olap...");
-                const res = await axiosInstance.get("/market-share/top-filter-options");
+                console.log("[FilterContext] Fetching Market Share top filters from rb_ms_olap for channel:", selectedChannel);
+                const res = await axiosInstance.get("/market-share/top-filter-options", {
+                    params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
+                });
                 if (res.data) {
                     const newPlatforms = res.data.platforms || [];
                     const newCategories = res.data.categories || [];
@@ -219,11 +222,10 @@ export const FilterProvider = ({ children }) => {
 
                     // Validate current platform selection
                     setPlatform(prev => {
-                        if (prev === "All") return "All";
                         const currentList = Array.isArray(prev) ? prev : [prev];
                         const valid = currentList.filter(p => newPlatforms.includes(p));
-                        if (valid.length === 0) return "All";
-                        return valid.length === 1 ? valid[0] : valid;
+                        if (valid.length === 0) return newPlatforms[0];
+                        return valid.length === 1 ? valid[0] : valid[0]; // Single select first valid
                     });
 
                     // Validate current category selection
@@ -251,16 +253,14 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms(res.data);
                     // Keep "All" or current selection if it's still valid
                     setPlatform(prevPlatform => {
-                        if (prevPlatform === "All") return "All";
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));
-                        if (validPlatforms.length === 0) return "All";
-                        if (validPlatforms.length === res.data.length) return "All";
-                        return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
+                        if (validPlatforms.length === 0) return res.data[0];
+                        return validPlatforms[0];
                     });
                 } else {
                     setPlatforms(FALLBACK_PLATFORMS);
-                    setPlatform("All");
+                    setPlatform(FALLBACK_PLATFORMS[0]);
                 }
             } else {
                 const res = await axiosInstance.get("/watchtower/platforms", {
@@ -271,16 +271,14 @@ export const FilterProvider = ({ children }) => {
                     setPlatforms(res.data);
                     // Keep "All" or current selection if it's still valid
                     setPlatform(prevPlatform => {
-                        if (prevPlatform === "All") return "All";
                         const currentList = Array.isArray(prevPlatform) ? prevPlatform : [prevPlatform];
                         const validPlatforms = currentList.filter(p => res.data.includes(p));
-                        if (validPlatforms.length === 0) return "All";
-                        if (validPlatforms.length === res.data.length) return "All";
-                        return validPlatforms.length === 1 ? validPlatforms[0] : validPlatforms;
+                        if (validPlatforms.length === 0) return res.data[0];
+                        return validPlatforms[0];
                     });
                 } else {
                     setPlatforms(FALLBACK_PLATFORMS);
-                    setPlatform("All");
+                    setPlatform(FALLBACK_PLATFORMS[0]);
                 }
             }
         } catch (err) {
@@ -294,6 +292,23 @@ export const FilterProvider = ({ children }) => {
     useEffect(() => {
         fetchPlatformsFromDb();
     }, [fetchPlatformsFromDb, currentHash]);
+
+    // ====== FETCH PLATFORM METADATA (IMAGES) FROM DB ======
+    useEffect(() => {
+        const fetchPlatformMetadata = async () => {
+            if (!isAuthenticated) return;
+            try {
+                const res = await axiosInstance.get("/watchtower/platform-metadata");
+                if (res.data && Array.isArray(res.data)) {
+                    console.log("[FilterContext] Fetched platform metadata:", res.data);
+                    setPlatformMetadata(res.data);
+                }
+            } catch (err) {
+                console.warn("[FilterContext] Failed to fetch platform metadata:", err.message);
+            }
+        };
+        fetchPlatformMetadata();
+    }, [isAuthenticated]);
 
     // refreshFilters — can be called by child components to re-fetch filter options
     const refreshFilters = useCallback(() => {
@@ -569,6 +584,7 @@ export const FilterProvider = ({ children }) => {
             setSelectedLocation,
             platforms,
             setPlatforms,
+            platformMetadata,
             platform,
             setPlatform,
             timeStart,

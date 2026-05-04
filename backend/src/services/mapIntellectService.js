@@ -176,7 +176,7 @@ const formatLac = (val) => {
 const getMapIntellectData = async (filters) => {
     console.log(`[MapIntellect][${getCurrentDbName()}] Computing dynamic data:`, JSON.stringify(filters));
 
-    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category } = filters;
+    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category, channel } = filters;
     const platform = filters.platform || 'All';
 
     // Date range
@@ -209,6 +209,8 @@ const getMapIntellectData = async (filters) => {
         const conds = [`toDate(${src.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         if (platform && platform !== 'All') {
             conds.push(`lower(${src.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'`);
+        } else if (channel && channel !== 'All') {
+            conds.push(`${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`);
         }
         if (category && category !== 'All') {
             conds.push(`lower(${src.f.category}) = '${escapeStr(category.toLowerCase())}'`);
@@ -257,7 +259,7 @@ const getMapIntellectData = async (filters) => {
             let allowedMsCities = [
                 "Delhi", "Ahmedabad", "Bengaluru", "Bangalore", "Chandigarh", "Chennai",
                 "Faridabad", "Gurugram", "Gurgaon", "Hyderabad", "Kolkata", "Lucknow",
-                "Mumbai", "Pune"
+                "Mumbai", "Pune", "India", "Nation", "National"
             ];
             if (currentDb === 'mamaearth') {
                 allowedMsCities = allowedMsCities.filter(c => c !== "Ahmedabad");
@@ -287,7 +289,7 @@ const getMapIntellectData = async (filters) => {
                 WHERE toDate(${msSrc.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
                   AND (${cityConditions})
                   AND ${msSrc.f.location} IS NOT NULL AND ${msSrc.f.location} != ''
-                  ${platform && platform !== 'All' ? `AND lower(${msSrc.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'` : ''}
+                  ${platform && platform !== 'All' ? `AND lower(${msSrc.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'` : (channel && channel !== 'All' ? `AND ${msSrc.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')` : '')}
                   ${category && category !== 'All' ? `AND lower(${msSrc.f.category}) = '${escapeStr(category.toLowerCase())}'` : ''}
                 GROUP BY location
             `;
@@ -402,7 +404,7 @@ const getMapIntellectData = async (filters) => {
 /**
  * Fetch distinct categories based on metric and platform
  */
-const getMapIntellectCategories = async (metric, platform) => {
+const getMapIntellectCategories = async (metric, platform, channel) => {
     const isMarketShare = metric === 'Market Share';
     const src = isMarketShare ? await getMsGeoSource() : await getGeoSource();
 
@@ -412,6 +414,8 @@ const getMapIntellectCategories = async (metric, platform) => {
 
     if (platform && platform !== 'All') {
         query += ` AND lower(${src.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'`;
+    } else if (channel && channel !== 'All') {
+        query += ` AND ${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`;
     }
 
     query += ` ORDER BY category`;

@@ -149,8 +149,9 @@ export const MarketShareCompetitionFilterOptions = async (req, res) => {
 
 export const MarketShareTopFilterOptions = async (req, res) => {
     try {
-        console.log("Market Share Top Filter Options request received");
-        const result = await getMarketShareTopFilterOptions();
+        const { channel } = req.query;
+        console.log("Market Share Top Filter Options request received, channel:", channel);
+        const result = await getMarketShareTopFilterOptions(channel);
 
         res.json({
             message: "Top filter options fetched successfully",
@@ -161,6 +162,7 @@ export const MarketShareTopFilterOptions = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
+
 
 export const MarketShareCompetitionTrends = async (req, res) => {
     req.query.location = 'All';

@@ -189,7 +189,7 @@ export const OsaDetailViewSkeleton = () => {
  */
 export const AvailabilityPageSkeleton = () => {
     return (
-        <div className="max-w-7xl mx-auto space-y-5">
+        <div className="w-full space-y-5">
             <div className="space-y-4">
                 <AvailabilityOverviewSkeleton />
                 <PlatformKpiMatrixSkeleton />

@@ -263,14 +263,14 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                         <tr>
                                             {/* Sticky first column header */}
                                             <th
-                                                className="sticky left-0 z-20 bg-slate-50 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]"
+                                                className="sticky left-0 z-20 bg-slate-100 py-3 pl-4 pr-4 text-left text-[11px] font-bold uppercase tracking-widest text-slate-900 border-b border-slate-200 shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]"
                                                 style={{ minWidth: 280 }}
                                             >
                                                 <div className="flex items-center h-full text-emerald-800">PRODUCT / PLATFORM</div>
                                             </th>
 
                                             <th
-                                                className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 cursor-pointer select-none"
+                                                className="border-b border-r border-slate-100 last:border-r-0 bg-slate-100 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 cursor-pointer select-none"
                                                 onClick={() => headerSort("avgSelected")}
                                             >
                                                 <div className="flex items-center justify-center gap-1 h-full">
@@ -278,14 +278,14 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                 </div>
                                             </th>
 
-                                            <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
+                                            <th className="border-b border-r border-slate-100 last:border-r-0 bg-slate-100 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900">
                                                 <div className="flex items-center justify-center h-full">STATUS</div>
                                             </th>
 
                                             {dayCols.map((d) => (
                                                 <th
                                                     key={d}
-                                                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-50 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
+                                                    className="border-b border-r border-slate-100 last:border-r-0 bg-slate-100 py-3 px-3 text-center text-[11px] font-bold uppercase tracking-widest text-slate-900 whitespace-nowrap cursor-pointer select-none"
                                                     onClick={() => headerSort(`day_${d}`)}
                                                 >
                                                     <div className="flex items-center justify-center gap-1 h-full">

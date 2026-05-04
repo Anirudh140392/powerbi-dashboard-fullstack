@@ -18,7 +18,6 @@ const SECTION_LABELS = [
   { id: "skus", label: "SKUs" },
   { id: "weekendFlag", label: "Weekend Flag" },
   { id: "cities", label: "Cities" },
-  { id: "platforms", label: "Platforms" },
   { id: "kpiRules", label: "KPI rules" },
 ];
 

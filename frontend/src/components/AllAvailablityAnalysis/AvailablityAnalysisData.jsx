@@ -36,10 +36,10 @@ import {
 // ---------------------------------------------------------------------------
 
 const cellHeat = (value) => {
-  if (value >= 95) return "bg-emerald-100 text-emerald-900";
-  if (value >= 85) return "bg-emerald-50 text-emerald-800";
-  if (value >= 75) return "bg-amber-50 text-amber-800";
-  return "bg-rose-50 text-rose-800";
+  // Returns { arrow, arrowClass } — value text stays neutral, only arrow is colored
+  if (value >= 85) return { arrow: "↑", arrowClass: "text-emerald-500" };
+  if (value >= 75) return { arrow: "→", arrowClass: "text-amber-500" };
+  return { arrow: "↓", arrowClass: "text-rose-500" };
 };
 
 const average = (values) =>
@@ -113,7 +113,6 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
   const {
     selectedChannel,
     platform: globalPlatform,
-    platforms: channelPlatforms,
     selectedBrand,
     selectedLocation,
     timeStart,
@@ -197,39 +196,13 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
         });
       }
 
-      // Filter columns to only show platforms belonging to the selected channel
-      let filteredColumns = normalizedColumns;
-      let filteredRows = mappedRows;
-      if (channelPlatforms && channelPlatforms.length > 0) {
-        const allowedPlatformsLower = channelPlatforms.map(p => p.toLowerCase().replace(/\s+/g, '_'));
-        filteredColumns = normalizedColumns.filter((col, idx) => {
-          if (idx === 0) return true; // Always keep the 'kpi' column
-          return allowedPlatformsLower.includes(col.toLowerCase().replace(/\s+/g, '_'));
-        });
-        // Also strip disallowed platform keys from each row's data and trend
-        const allowedColSet = new Set(filteredColumns.slice(1)); // exclude 'kpi'
-        filteredRows = mappedRows.map(row => {
-          const newRow = { kpi: row.kpi };
-          const newTrend = {};
-          const newSeries = {};
-          for (const col of allowedColSet) {
-            if (col in row) newRow[col] = row[col];
-            if (row.trend && col in row.trend) newTrend[col] = row.trend[col];
-            if (row.series && col in row.series) newSeries[col] = row.series[col];
-          }
-          newRow.trend = newTrend;
-          newRow.series = newSeries;
-          // Preserve breakdown if present
-          if (row.breakdown) newRow.breakdown = row.breakdown;
-          return newRow;
-        });
-      }
-
+      // Platform KPI Matrix shows ALL platforms across the board — no column filtering
       platformData = {
-        columns: filteredColumns,
-        rows: filteredRows
+        columns: normalizedColumns,
+        rows: mappedRows
       };
       } // end of valid columns/rows guard
+
     }
     if (!platformData) {
       // Fallback to mock data
@@ -293,7 +266,7 @@ const TabbedHeatmapTable = ({ olaMode = "absolute", loading = false, apiData, on
       { key: "format", label: "Category", data: formatData },
       { key: "city", label: "City", data: cityData },
     ];
-  }, [olaMode, selectedChannel, globalPlatform, channelPlatforms, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
+  }, [olaMode, selectedChannel, globalPlatform, selectedBrand, selectedLocation, timeStart, timeEnd, apiData]);
 
   const active = tabs.find((t) => t.key === activeTab);
 
@@ -376,11 +349,11 @@ const PowerHierarchyHeat = ({ olaMode = "absolute" }) => {
 
                 {FORMAT_MATRIX[olaMode].formatColumns.map((f) => {
                   const val = row.values[f] ?? 0;
+                  const heat = cellHeat(val);
                   return (
                     <td key={f} className="px-3 py-2 text-center">
-                      <span className={`px-2 py-1 rounded ${cellHeat(val)}`}>
-                        {val}%
-                      </span>
+                      <span className="text-sm font-semibold text-slate-800">{val}%</span>
+                      <span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span>
                     </td>
                   );
                 })}
@@ -513,17 +486,16 @@ const ProductLevelHeat = ({ olaMode = "absolute" }) => {
                       {row.format}
                     </td>
 
-                    {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => (
-                      <td key={f} className="px-3 py-2 text-center">
-                        <span
-                          className={`px-2 py-1 rounded ${cellHeat(
-                            formatAvg[f]
-                          )}`}
-                        >
-                          {formatAvg[f]}%
-                        </span>
-                      </td>
-                    ))}
+                    {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => {
+                      const heatVal = formatAvg[f];
+                      const heat = cellHeat(heatVal);
+                      return (
+                        <td key={f} className="px-3 py-2 text-center">
+                          <span className="text-sm font-semibold text-slate-800">{heatVal}%</span>
+                          <span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span>
+                        </td>
+                      );
+                    })}
                   </tr>
 
                   {/* ---------------- PRODUCT ROWS ---------------- */}
@@ -556,17 +528,16 @@ const ProductLevelHeat = ({ olaMode = "absolute" }) => {
                               </td>
                             )}
 
-                            {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => (
-                              <td key={f} className="px-3 py-2 text-center">
-                                <span
-                                  className={`px-2 py-1 rounded ${cellHeat(
-                                    p.values[f]
-                                  )}`}
-                                >
-                                  {p.values[f]}%
-                                </span>
-                              </td>
-                            ))}
+                            {PRODUCT_MATRIX[olaMode].formatColumns.map((f) => {
+                              const pVal = p.values[f];
+                              const heat = cellHeat(pVal);
+                              return (
+                                <td key={f} className="px-3 py-2 text-center">
+                                  <span className="text-sm font-semibold text-slate-800">{pVal}%</span>
+                                  <span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span>
+                                </td>
+                              );
+                            })}
                           </tr>
 
                           {/* ---------------- SALES LOSS ROW ---------------- */}
@@ -699,11 +670,7 @@ const OLADrillTable = ({ olaMode = "absolute" }) => {
                     </td>
 
                     <td className="px-3 py-2 text-center">
-                      <span
-                        className={`px-2 py-1 rounded ${cellHeat(platformAvg)}`}
-                      >
-                        {platformAvg}%
-                      </span>
+                      {(() => { const heat = cellHeat(platformAvg); return (<><span className="text-sm font-semibold text-slate-800">{platformAvg}%</span><span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span></>); })()}
                     </td>
                   </tr>
 
@@ -743,13 +710,7 @@ const OLADrillTable = ({ olaMode = "absolute" }) => {
                             {showCityColumn && <td className="px-3 py-2"></td>}
 
                             <td className="px-3 py-2 text-center">
-                              <span
-                                className={`px-2 py-1 rounded ${cellHeat(
-                                  z.ola
-                                )}`}
-                              >
-                                {z.ola}%
-                              </span>
+                              {(() => { const heat = cellHeat(z.ola); return (<><span className="text-sm font-semibold text-slate-800">{z.ola}%</span><span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span></>); })()}
                             </td>
                           </tr>
 
@@ -775,13 +736,7 @@ const OLADrillTable = ({ olaMode = "absolute" }) => {
                                 )}
 
                                 <td className="px-3 py-2 text-center">
-                                  <span
-                                    className={`px-2 py-1 rounded ${cellHeat(
-                                      c.ola
-                                    )}`}
-                                  >
-                                    {c.ola}%
-                                  </span>
+                                  {(() => { const heat = cellHeat(c.ola); return (<><span className="text-sm font-semibold text-slate-800">{c.ola}%</span><span className={`ml-1 text-xs font-medium ${heat.arrowClass}`}>{heat.arrow}</span></>); })()}
                                 </td>
                               </tr>
                             ))}
@@ -1331,7 +1286,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     const doiCardData = apiData?.doi ? {
       value: Number(apiData.doi.doi || 0).toFixed(1),
       delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
-      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Osa || 0) || [] // Use OSA trend as proxy if DOI trend missing
+      trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Doi || p.DOI || 0) || []
     } : null;
 
     const metroCardData = apiData?.metroCity ? {
@@ -1378,19 +1333,26 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     };
 
     let cards_config = [];
+    
+    // Info tooltips for specific KPIs (shown as ℹ icon on hover)
+    const KPI_INFO_TOOLTIPS = {
+      'osa': "Weighted OSA represents the average product availability within a category, factoring in each SKU’s importance (weight) alongside its individual availability percentage.",
+      'doi': "Days of Inventory (DOI) refers to the estimated number of days the combined stock from both the backend warehouses and frontend darkstores can sustain, based on the average daily sales or consumption rate."
+    };
+
     if (isQuickCom) {
       cards_config = [
-        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
-        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#14b8a6', '#06b6d4'] },
-        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#8b5cf6', '#a855f7'] }
+        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
+        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
+        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
     } else {
       cards_config = [
-        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
-        { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#f59e0b', '#d97706'] },
-        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#14b8a6', '#06b6d4'] },
-        { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#ec4899', '#be185d'] },
-        { key: 'skucount', title: "SKU count", sub: "Total SKUs tracked", api: skuCountData, icon: MapPin, gradient: ['#8b5cf6', '#a855f7'] }
+        { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
+        { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
+        { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
+        { key: 'skucount', title: "SKU count", sub: "Total SKUs tracked", api: skuCountData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
     }
 
@@ -1412,14 +1374,15 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         trend: data.trend || [],
         trendSeries: data.trend || [],
         prevText: prevText,
-        isNotMetro: data.isNotMetro
+        isNotMetro: data.isNotMetro,
+        infoTooltip: cfg.infoTooltip
       };
     });
   }, [availability, globalPlatform, apiData, trendSeriesMap, selectedChannel]);
 
   return (
 
-    <div className="max-w-7xl mx-auto space-y-5">
+    <div className="w-full space-y-5">
       <div className="space-y-4">
         {/* <OlaLightThemeDashboard setOlaMode={setOlaMode} olaMode={olaMode} /> */}
 
