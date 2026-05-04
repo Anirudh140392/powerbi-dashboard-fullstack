@@ -8520,19 +8520,10 @@ const getCompetitionFilterOptions = async (filters = {}) => {
         // Helper to escape strings for ClickHouse
         const escapeStr = (str) => str ? str.replace(/'/g, "''") : '';
 
-        const platArr = platform && platform !== 'All' ? platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All') : [];
-        const locArr = location && location !== 'All' && location !== 'All India' ? location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India') : [];
-        const catArr = category && category !== 'All' ? category.split(',').map(c => c.trim()).filter(c => c && c !== 'All') : [];
-        const brandArr = brand && brand !== 'All' ? brand.split(',').map(b => b.trim()).filter(b => b && b !== 'All') : [];
-        const bndArr = brandArr; // Alias for compatibility with existing code below
-
-        // Build base condition for rca_sku_dim
-        const buildBaseConds = () => {
-            const conds = [`toString(status) = '1'`];
-            if (platArr.length > 0) conds.push(`lower(Platform) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
-            if (locArr.length > 0) conds.push(`lower(location) IN(${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
-            return conds;
-        };
+        const platArr = normalizeFilterArray(platform);
+        const locArr = normalizeFilterArray(location).filter(l => l !== 'All India');
+        const catArr = normalizeFilterArray(category);
+        const brandArr = normalizeFilterArray(brand);
 
         const src = await getWatchtowerSource();
         // Run all queries in parallel using ClickHouse
@@ -8543,10 +8534,10 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             // Fetch distinct product categories filtered by platform/location
             (() => {
                 const conds = [];
-                if (platArr && platArr.length > 0) {
+                if (platArr.length > 0) {
                     conds.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
                 }
-                if (locArr && locArr.length > 0) {
+                if (locArr.length > 0) {
                     conds.push(`lower(${src.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
                 }
                 const catCol = src.f.category;
@@ -8557,10 +8548,10 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             // Fetch distinct brands filtered by platform/location + category
             (() => {
                 const conds = [];
-                if (platArr && platArr.length > 0) {
+                if (platArr.length > 0) {
                     conds.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
                 }
-                if (locArr && locArr.length > 0) {
+                if (locArr.length > 0) {
                     conds.push(`lower(${src.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
                 }
                 conds.push(`${src.f.brand} IS NOT NULL`, `${src.f.brand} != ''`);
@@ -8569,7 +8560,7 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 } else {
                     conds.push(`toString(${src.f.compFlag}) IN ('0', '1')`);
                 }
-                if (catArr && catArr.length > 0) {
+                if (catArr.length > 0) {
                     const catCol = src.f.category;
                     conds.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
@@ -8579,20 +8570,18 @@ const getCompetitionFilterOptions = async (filters = {}) => {
             // Fetch distinct SKUs from dynamic source filtered by platform/location + category + brand
             (() => {
                 const conds = [];
-                if (platform && platform !== 'All') {
-                    const platArr = platform.split(',').map(p => p.trim()).filter(p => p && p !== 'All');
-                    if (platArr.length > 0) conds.push(`${src.f.platform} IN(${platArr.map(p => `'${escapeStr(p)}'`).join(',')})`);
+                if (platArr.length > 0) {
+                    conds.push(`lower(${src.f.platform}) IN (${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(',')})`);
                 }
-                if (location && location !== 'All' && location !== 'All India') {
-                    const locArr = location.split(',').map(l => l.trim()).filter(l => l && l !== 'All' && l !== 'All India');
-                    if (locArr.length > 0) conds.push(`${src.f.location} IN(${locArr.map(l => `'${escapeStr(l)}'`).join(',')})`);
+                if (locArr.length > 0) {
+                    conds.push(`lower(${src.f.location}) IN (${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(',')})`);
                 }
                 if (catArr.length > 0) {
                     const catCol = src.f.category;
-                    conds.push(`${catCol} IN(${catArr.map(c => `'${escapeStr(c)}'`).join(',')})`);
+                    conds.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
                 }
-                if (bndArr.length > 0) {
-                    conds.push(`${src.f.brand} IN(${bndArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
+                if (brandArr.length > 0) {
+                    conds.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
                 }
                 if (context === 'performance') {
                     conds.push(`toString(${src.f.compFlag}) = '0'`);

@@ -1076,17 +1076,13 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, platform, location
       setFilterOptions(prev => ({ ...prev, loading: true, error: null }));
 
       try {
-        const params = new URLSearchParams();
-        if (platform) params.append('platform', platform);
-        if (location) params.append('location', location === 'All India' ? 'All' : location);
-        if (value.categories.length > 0) {
-          params.append('category', value.categories.join(','));
-        }
-        if (value.brands.length > 0) {
-          params.append('brand', value.brands.join(','));
-        }
-
-        const response = await axiosInstance.get(`/watchtower/competition-filter-options?${params.toString()}`);
+        // Use POST to handle complex names (like brands with commas) correctly
+        const response = await axiosInstance.post('/watchtower/competition-filter-options', {
+          platform: platform || 'All',
+          location: location === 'All India' ? 'All' : location,
+          category: value.categories,
+          brand: value.brands
+        });
 
         if (response.data) {
           setFilterOptions({
@@ -1390,17 +1386,35 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
     setTrendLoading(true);
     setTrendError(null);
     try {
-      const params = {
+      // Use POST for SKU mode to avoid comma-in-name issues (SKU names contain commas)
+      // Brand names are safe to comma-join in query params
+      const baseParams = {
         platform: (platform || "All").toLowerCase(),
         location: city === "All India" ? "All" : (city || "All").toLowerCase(),
-        brands: isBrandMode ? visibleIds.map(id => id.toLowerCase()).join(",") : "All",
-        skus: isBrandMode ? "All" : visibleIds.map(id => id.toLowerCase()).join(","),
         category: filters.categories.length > 0 ? filters.categories.map(c => c.toLowerCase()).join(",") : "All",
         period: period || "1M",
         timeStep: timeStep || "Weekly",
       };
 
-      const response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
+      let response;
+      if (isBrandMode) {
+        // Brand mode: GET with comma-joined brand names (safe, no commas in brand names)
+        const params = {
+          ...baseParams,
+          brands: visibleIds.join(","),
+          skus: "All",
+        };
+        response = await axiosInstance.get("/watchtower/competition-brand-trends", { params });
+      } else {
+        // SKU mode: POST with array in body (SKU names contain commas, can't comma-join)
+        const body = {
+          ...baseParams,
+          brands: "All",
+          skus: visibleIds, // Send as array, not comma-joined
+        };
+        response = await axiosInstance.post("/watchtower/competition-brand-trends", body);
+      }
+
       setApiTrendData(response.data);
       if (response.data?.kpiAvailability) {
         setKpiAvailability(response.data.kpiAvailability);
@@ -1648,7 +1662,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
                             <div key={index} className="flex items-center justify-between gap-4 mb-1">
                               <div className="flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-[3px]" style={{ backgroundColor: entry.color }}></span>
-                                <span className="text-slate-600 font-medium whitespace-nowrap text-[12px]">{entry.name}</span>
+                                <span className="text-slate-600 font-medium text-[12px] truncate max-w-[200px] inline-block" title={entry.name}>{entry.name.length > 40 ? entry.name.slice(0, 40) + '…' : entry.name}</span>
                               </div>
                               <span className="font-bold text-slate-900 text-[13px]">{formatValue(entry.value)}</span>
                             </div>
@@ -1910,7 +1924,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
                         key={id}
                         type="monotone"
                         dataKey={id}
-                        name={id}
+                        name={id.length > 40 ? id.slice(0, 40) + '…' : id}
                         dot={false}
                         strokeWidth={2}
                         stroke={CHART_COLORS[idx % CHART_COLORS.length]}

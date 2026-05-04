@@ -159,7 +159,9 @@ export default (app) => {
     // Competition data endpoints
     app.get('/api/watchtower/competition', getCompetition);
     app.get('/api/watchtower/competition-filter-options', getCompetitionFilterOptions);
+    app.post('/api/watchtower/competition-filter-options', getCompetitionFilterOptions);
     app.get('/api/watchtower/competition-brand-trends', getCompetitionBrandTrends);
+    app.post('/api/watchtower/competition-brand-trends', getCompetitionBrandTrends);
     app.get('/api/watchtower/dark-store-count', getDarkStoreCount);
     app.get('/api/watchtower/top-actions', getTopActions);
     app.get('/api/watchtower/osa-deep-dive', getOsaDeepDive);
