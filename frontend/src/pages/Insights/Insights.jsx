@@ -1484,9 +1484,9 @@ const EvidenceTable = ({ insight }) => {
                                 Filters {(activePlatform !== "All platforms" || categoryFilter !== "All categories") && "*"}
                             </button>
                         </PopoverTrigger>
-                        <PopoverContent style={{ zIndex: 2000 }} align="end" sideOffset={8} className="w-[240px] p-4 bg-white rounded-xl shadow-xl border border-slate-200">
-                            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                                <div style={{ fontSize: "12px", fontWeight: 700, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px", marginBottom: "4px" }}>
+                        <PopoverContent style={{ zIndex: 1001 }} align="end" sideOffset={8} className="w-[280px] p-5 bg-white rounded-xl shadow-xl border border-slate-200">
+                            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                                <div style={{ fontSize: "13px", fontWeight: 700, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: "10px", marginBottom: "4px" }}>
                                     Table Filters
                                 </div>
                                 <CustomHeaderDropdown label="PLATFORM" options={platforms} value={activePlatform} onChange={(v) => setActivePlatform(v === "All" ? "All platforms" : v)} multiSelect={false} width="100%" />
@@ -1976,21 +1976,20 @@ const EvidenceTable = ({ insight }) => {
                             <div style={{
                                 position: "relative",
                                 background: "linear-gradient(145deg, #f8fafc, #f1f5f9)",
-                                padding: "32px",
+                                padding: "0",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                minHeight: "320px",
+                                minHeight: "450px",
                             }}>
                                 <img
                                     src={previewImage.url}
                                     alt={previewImage.name}
                                     style={{
-                                        maxWidth: "100%",
-                                        maxHeight: "320px",
+                                        width: "100%",
+                                        maxHeight: "520px",
                                         objectFit: "contain",
-                                        borderRadius: "12px",
-                                        filter: "drop-shadow(0 8px 24px rgba(0,0,0,0.1))",
+                                        filter: "drop-shadow(0 12px 32px rgba(0,0,0,0.12))",
                                     }}
                                     onError={(e) => { e.target.src = `https://placehold.co/300x300/f1f5f9/94a3b8?text=Image+Not+Found`; }}
                                 />
@@ -1999,31 +1998,34 @@ const EvidenceTable = ({ insight }) => {
                                     onClick={() => setPreviewImage(null)}
                                     style={{
                                         position: "absolute",
-                                        top: "12px",
-                                        right: "12px",
-                                        width: "32px",
-                                        height: "32px",
+                                        top: "16px",
+                                        right: "16px",
+                                        width: "36px",
+                                        height: "36px",
                                         borderRadius: "50%",
-                                        background: "rgba(255,255,255,0.9)",
+                                        background: "rgba(255,255,255,0.95)",
                                         backdropFilter: "blur(8px)",
                                         border: "1px solid rgba(226,232,240,0.8)",
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "center",
                                         cursor: "pointer",
-                                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                                        zIndex: 10,
                                         transition: "all 0.2s ease",
                                     }}
                                     onMouseEnter={(e) => {
-                                        e.currentTarget.style.background = "rgba(239,68,68,0.1)";
-                                        e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)";
+                                        e.currentTarget.style.background = "#fff";
+                                        e.currentTarget.style.transform = "scale(1.1)";
+                                        e.currentTarget.style.borderColor = "#ef4444";
                                     }}
                                     onMouseLeave={(e) => {
-                                        e.currentTarget.style.background = "rgba(255,255,255,0.9)";
+                                        e.currentTarget.style.background = "rgba(255,255,255,0.95)";
+                                        e.currentTarget.style.transform = "scale(1)";
                                         e.currentTarget.style.borderColor = "rgba(226,232,240,0.8)";
                                     }}
                                 >
-                                    <X size={14} color="#64748b" />
+                                    <X size={18} color="#475569" />
                                 </button>
                             </div>
                             {/* Product Info Footer */}
@@ -2224,10 +2226,10 @@ const DynamicInsightsBar = ({ insight }) => {
             overflow: "hidden",
         }}>
             {/* Header */}
-            <div style={{ padding: "14px 18px 0" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+            <div style={{ padding: "10px 18px 0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
                     <span style={{
-                        fontSize: "13px",
+                        fontSize: "11px",
                         fontWeight: 700,
                         color: "#0f172a",
                         letterSpacing: "-0.01em",
@@ -2251,10 +2253,10 @@ const DynamicInsightsBar = ({ insight }) => {
                     <BetaBadge size="xs" />
                 </div>
                 <p style={{
-                    fontSize: "12px",
+                    fontSize: "11px",
                     color: "#64748b",
-                    margin: "0 0 12px 0",
-                    lineHeight: 1.5,
+                    margin: "0 0 8px 0",
+                    lineHeight: 1.4,
                     letterSpacing: "0.01em",
                 }}>
                     AI-powered insights for your data
@@ -2267,8 +2269,8 @@ const DynamicInsightsBar = ({ insight }) => {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "6px",
-                        padding: "8px 16px",
-                        fontSize: "12px",
+                        padding: "6px 14px",
+                        fontSize: "11px",
                         fontWeight: 600,
                         color: "#ffffff",
                         background: "linear-gradient(135deg, #7c3aed 0%, #6366f1 50%, #3b82f6 100%)",
@@ -2277,7 +2279,7 @@ const DynamicInsightsBar = ({ insight }) => {
                         cursor: isLoading ? "wait" : "pointer",
                         transition: "all 0.2s ease",
                         boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
-                        marginBottom: "14px",
+                        marginBottom: "10px",
                         opacity: isLoading ? 0.8 : 1,
                     }}
                     onMouseEnter={(e) => {
@@ -2338,14 +2340,23 @@ const DynamicInsightsBar = ({ insight }) => {
     );
 };
 
-const getKpiStyle = (label, value) => {
+const getKpiBadgeStyle = (label, value) => {
     const l = String(label).toLowerCase();
     const v = String(value).toLowerCase();
-    if (v.startsWith('-') || /gap|miss|lost|waste|drop|out of stock/.test(l)) return "text-red-600";
-    if (/org|organic|growth|headroom|fill rate|best/.test(l)) return "text-emerald-600";
-    if (/ad\b|spend|budget|ppu|price|cost|acos/.test(l)) return "text-amber-600";
-    if (/overall|share|sos|sov|osa|index/.test(l)) return "text-blue-600";
-    return "text-slate-900";
+    
+    if (v.startsWith('-') || /gap|miss|lost|waste|drop|out of stock/.test(l)) {
+        return { bg: "#fff1f2", border: "#fecaca", text: "#dc2626" }; // Red
+    }
+    if (/org|organic|growth|headroom|fill rate|best|offtake/.test(l)) {
+        return { bg: "#f0fdf4", border: "#dcfce7", text: "#16a34a" }; // Green
+    }
+    if (/ad\b|spend|budget|ppu|price|cost|acos|sov/.test(l)) {
+        return { bg: "#fffbeb", border: "#fef3c7", text: "#d97706" }; // Amber
+    }
+    if (/overall|share|sos|osa|index/.test(l)) {
+        return { bg: "#eff6ff", border: "#dbeafe", text: "#2563eb" }; // Blue
+    }
+    return { bg: "#f8fafc", border: "#e2e8f0", text: "#475569" }; // Neutral
 };
 
 const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel }) => {
@@ -2404,6 +2415,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                 borderBottom: "1px solid #e5e9f0",
                                 display: "flex", alignItems: "center", justifyContent: "space-between",
                                 flexShrink: 0,
+                                padding: "10px 24px",
                             }}>
                                 <div className="modal-header-title-row" style={{ display: "flex", alignItems: "center", gap: "24px" }}>
                                     <button 
@@ -2433,59 +2445,72 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                     </button>
                                     
                                     <div>
-                                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
                                             <div style={{
-                                                width: 20, height: 20, borderRadius: "5px",
+                                                width: 18, height: 18, borderRadius: "5px",
                                                 background: meta.color ? `${meta.color}22` : "#dbeafe",
                                                 display: "flex", alignItems: "center", justifyContent: "center",
                                             }}>
-                                                {meta.FamilyIcon && <meta.FamilyIcon size={11} color={meta.color || "#3b82f6"} />}
+                                                {meta.FamilyIcon && <meta.FamilyIcon size={10} color={meta.color || "#3b82f6"} />}
                                             </div>
-                                            <span style={{ fontSize: "10px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                                            <span style={{ fontSize: "9px", fontWeight: 600, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.1em" }}>
                                                 Signal Detail
                                             </span>
-                                            <ChevronRight size={11} color="#94a3b8" />
-                                            <span style={{ fontSize: "10px", fontWeight: 600, color: meta.color || "#3b82f6", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                            <ChevronRight size={10} color="#94a3b8" />
+                                            <span style={{ fontSize: "9px", fontWeight: 600, color: meta.color || "#3b82f6", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                                                 {insight.family}
                                             </span>
                                         </div>
                                         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                            <h2 className="modal-header-title-text" style={{ fontSize: "22px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
+                                            <h2 className="modal-header-title-text" style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
                                                 {insight.type}
                                             </h2>
-                                            <BetaBadge />
+                                            <BetaBadge size="xs" />
                                         </div>
                                     </div>
                                 </div>
                                 
-                                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                                    {/* Additional header actions could go here */}
+                                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                                    {(insight.kpis || []).map((k, i) => {
+                                        const theme = getKpiBadgeStyle(k.label, k.value);
+                                        return (
+                                            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: "60px" }}>
+                                                <p style={{ fontSize: "8px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, margin: 0 }}>{k.label}</p>
+                                                <div style={{
+                                                    background: theme.bg,
+                                                    border: `1px solid ${theme.border}`,
+                                                    padding: "3px 10px",
+                                                    borderRadius: "6px",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    width: "100%"
+                                                }}>
+                                                    <p style={{ fontSize: "12px", fontWeight: 800, color: theme.text, margin: 0 }}>{k.value}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: "70px" }}>
+                                        <p style={{ fontSize: "8px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, margin: 0 }}>Impact</p>
+                                        <div style={{
+                                            background: "#fff1f2",
+                                            border: "1px solid #fecaca",
+                                            padding: "3px 10px",
+                                            borderRadius: "6px",
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            width: "100%"
+                                        }}>
+                                            <p style={{ fontSize: "13px", fontWeight: 900, color: "#dc2626", margin: 0 }}>{formatINRCompact(insight.impactInr || 0)}</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* KPI Strip */}
-                            <div className="modal-kpi-strip" style={{
-                                borderBottom: "1px solid #e2e8f0",
-                                display: "flex", flexWrap: "wrap", alignItems: "center",
-                                gap: "24px",
-                                background: "#fff", flexShrink: 0,
-                            }}>
-                                <div className="modal-kpi-main-row" style={{ display: "flex", alignItems: "center", gap: "20px", width: "100%" }}>
-                                    <div>
-                                        <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>Impact</p>
-                                        <p style={{ fontSize: "16px", fontWeight: 800, color: "#d59090ff", margin: 0, letterSpacing: "-0.02em" }}>{formatINRCompact(insight.impactInr || 0)}</p>
-                                    </div>
-                                    <div className="modal-kpi-divider" style={{ width: 1, height: 32, background: "#e2e8f0" }} />
-                                    <div style={{ display: "flex", gap: "20px" }}>
-                                        {(insight.kpis || []).map((k, i) => (
-                                            <div key={i}>
-                                                <p style={{ fontSize: "10px", color: "#94a3b8", marginBottom: "2px", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600 }}>{k.label}</p>
-                                                <p style={{ fontSize: "14px", fontWeight: 700, margin: 0 }} className={getKpiStyle(k.label, k.value)}>{k.value}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                
+                            {/* AI Insights Bar */}
+                            <div style={{ padding: "8px 24px 12px", background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
                                 <DynamicInsightsBar insight={insight} />
                             </div>
 
