@@ -81,7 +81,11 @@ function CommonLayoutContent({
       <Sidebar
         channels={channels}
         selectedChannel={selectedChannel}
-        onChannelChange={setSelectedChannel}
+        onChannelChange={(ch) => {
+          setSelectedChannel(ch);
+          // Clear local filters.platform so the new context platform value flows through
+          onFiltersChange?.((prev) => ({ ...prev, platform: undefined }));
+        }}
         platforms={platforms}
         platformMetadata={platformMetadata}
         selectedPlatform={filters?.platform || currentPlatform}

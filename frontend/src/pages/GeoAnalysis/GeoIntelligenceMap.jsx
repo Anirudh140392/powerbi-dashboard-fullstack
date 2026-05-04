@@ -58,10 +58,23 @@ export default function GeoIntelligenceMap() {
 
     // --- Sync platform from global FilterContext (sidebar channel/platform selection) ---
     useEffect(() => {
-        if (globalPlatform && globalPlatform !== 'All' && globalPlatform !== platform) {
-            setPlatform(globalPlatform);
+        if (globalPlatform && globalPlatform !== 'All') {
+            const newPlatform = globalPlatform;
+            if (newPlatform !== platform) {
+                setPlatform(newPlatform);
+            }
+            // If platform is Amazon, ensure metric is not Market Share
+            if (newPlatform.toLowerCase().includes('amazon') && metric === 'Market Share') {
+                setMetric('OSA %');
+            }
         }
-    }, [globalPlatform]);
+    }, [globalPlatform, metric]);
+
+    useEffect(() => {
+        if (platform.toLowerCase().includes('amazon') && metric === 'Market Share') {
+            setMetric('OSA %');
+        }
+    }, [platform, metric]);
 
     // --- Fetch Platforms from DB ---
     useEffect(() => {
@@ -424,7 +437,9 @@ export default function GeoIntelligenceMap() {
                     }}>
                         {/* Metrics Selector */}
                         <div style={{ display: "flex", gap: "4px", background: "#f8fafc", padding: "3px", borderRadius: "10px", border: "1px solid #e2e8f0", flexShrink: 0 }}>
-                            {["OSA %", "Market Share", "Sales", "Orders"].map(m => (
+                            {["OSA %", "Market Share", "Sales", "Orders"]
+                                .filter(m => !(m === 'Market Share' && platform.toLowerCase().includes('amazon')))
+                                .map(m => (
                                 <button
                                     key={m}
                                     onClick={() => setMetric(m)}
