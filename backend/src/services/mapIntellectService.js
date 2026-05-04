@@ -259,7 +259,7 @@ const getMapIntellectData = async (filters) => {
             let allowedMsCities = [
                 "Delhi", "Ahmedabad", "Bengaluru", "Bangalore", "Chandigarh", "Chennai",
                 "Faridabad", "Gurugram", "Gurgaon", "Hyderabad", "Kolkata", "Lucknow",
-                "Mumbai", "Pune"
+                "Mumbai", "Pune", "India", "Nation", "National"
             ];
             if (currentDb === 'mamaearth') {
                 allowedMsCities = allowedMsCities.filter(c => c !== "Ahmedabad");
