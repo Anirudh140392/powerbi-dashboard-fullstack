@@ -42,6 +42,7 @@ const FILTER_TABS = [
   { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
+  { key: "location", label: "City", icon: MapPin },
 ];
 
 function WatchTowerFilterModal({
@@ -50,6 +51,7 @@ function WatchTowerFilterModal({
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
+  locations = [], selectedLocation, setSelectedLocation,
 }) {
   const [activeTab, setActiveTab] = React.useState(hideChannelPlatform ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -59,13 +61,15 @@ function WatchTowerFilterModal({
   const [draftPlatform, setDraftPlatform] = React.useState(platform);
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
+  const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
 
   // ─── Local option lists (cascaded from draft selections) ───
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
   const [localBrands, setLocalBrands] = React.useState(brands);
+  const [localLocations, setLocalLocations] = React.useState(locations);
 
-  const availableTabs = hideChannelPlatform 
+  const availableTabs = hideChannelPlatform
     ? FILTER_TABS.filter(t => t.key !== "channel" && t.key !== "platform")
     : FILTER_TABS;
 
@@ -76,10 +80,12 @@ function WatchTowerFilterModal({
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
+      setDraftLocation(selectedLocation);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
-      setActiveTab(hideChannelPlatform ? "category" : "channel");
+      setLocalLocations(locations);
+      setActiveTab("channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -190,6 +196,7 @@ function WatchTowerFilterModal({
     platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
+    location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -248,6 +255,7 @@ function WatchTowerFilterModal({
     }
     setSelectedCategory(normalize(draftCategory));
     setSelectedBrand(normalize(draftBrand));
+    if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
     onClose();
   };
 
@@ -264,6 +272,7 @@ function WatchTowerFilterModal({
     }
     setDraftCategory("All");
     setDraftBrand("All");
+    setDraftLocation("All");
   };
 
   // total active filter count across all tabs
@@ -726,9 +735,15 @@ function MarketShareFilterModal({
   };
 
   const handleApply = () => {
-    setSelectedChannel(draftChannel);
-    setPlatform(draftPlatform);
-    setSelectedCategory(draftCategory);
+    const normalize = (val) => {
+      if (!val || val === "All") return val;
+      if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? v.toLowerCase() : v);
+      return typeof val === 'string' ? val.toLowerCase() : val;
+    };
+
+    setSelectedChannel(normalize(draftChannel));
+    setPlatform(normalize(draftPlatform));
+    setSelectedCategory(normalize(draftCategory));
     onClose();
   };
 
@@ -3495,6 +3510,9 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      locations={title === "Insights" ? ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'] : locations}
+                      selectedLocation={selectedLocation}
+                      setSelectedLocation={setSelectedLocation}
                     />
                   )}
 
