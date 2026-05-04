@@ -174,7 +174,11 @@ export const getVisibilityFilterOptions = async (req, res) => {
             city: req.query.city || 'All',
             metroFlag: req.query.metroFlag || 'All',
             brand: req.query.brand || 'All',
-            ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true'
+            keywordType: req.query.keywordType || 'All',
+            keyword: req.query.keyword || 'All',
+            sku: req.query.sku || 'All',
+            ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true',
+            channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
@@ -629,6 +633,7 @@ export const getSearchTermsLocationDrilldown = async (req, res) => {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
+            channel: req.query.channel || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };

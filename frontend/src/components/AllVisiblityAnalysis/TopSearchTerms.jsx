@@ -194,7 +194,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
             const data = await fetchVisibilityBrandDrilldown({
                 keyword,
                 platform,
-                location,
+                location: (location && location !== 'All') ? location.toLowerCase() : 'All',
                 startDate: timeStart,
                 endDate: timeEnd
             });
@@ -247,7 +247,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                 const params = {
                     keyword,
                     platform,
-                    location: 'All',
+                    location: (location && location !== 'All') ? location.toLowerCase() : 'All',
                     ownBrandsOnly: visibilityOwnBrandsOnly
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
@@ -281,7 +281,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                     keyword,
                     sku: skuName,
                     platform,
-                    location: 'All',
+                    location: (location && location !== 'All') ? location.toLowerCase() : 'All',
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
                 if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');

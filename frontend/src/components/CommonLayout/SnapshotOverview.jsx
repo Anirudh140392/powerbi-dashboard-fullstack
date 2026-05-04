@@ -274,29 +274,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                         <Typography sx={{ fontSize: "10px", fontWeight: 600, color: "text.secondary", tracking: '0.01em' }}>
                             {kpi.label || kpi.title}
                         </Typography>
-                        {kpi.id === 'inorganic' && kpi.organicSales && (
-                            <Tooltip
-                                title={
-                                    <Box sx={{ p: 0.5 }}>
-                                        <Typography variant="caption" sx={{ display: 'block', fontWeight: 600, mb: 0.5 }}>
-                                            Organic Sales Calculation
-                                        </Typography>
-                                        <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                                            Organic Sales = Total Sales (Comp_flag=0) - Ad Sales
-                                        </Typography>
-                                        <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                                Value: {kpi.organicSales}
-                                            </Typography>
-                                        </Box>
-                                    </Box>
-                                }
-                                arrow
-                                placement="top"
-                            >
-                                <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help ml-1" />
-                            </Tooltip>
-                        )}
+
                     </div>
                 </Box>
 
@@ -441,9 +419,65 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     {kpi.value}
                 </Typography>
 
-                <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
-                    {kpi.title}
-                </Typography>
+                <div className="flex items-center gap-1">
+                    <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
+                        {kpi.title}
+                    </Typography>
+                    {kpi.id === 'offtake' && (kpi.organicSales || kpi.inorganicSales) && (
+                        <Tooltip
+                            title={
+                                <Box sx={{ p: 0.5, minWidth: 200 }}>
+                                    <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 1, fontSize: '12px' }}>
+                                        Offtake Sales Breakdown
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#22c55e' }} />
+                                                <Typography variant="caption" sx={{ fontWeight: 500 }}>Organic Sales</Typography>
+                                            </Box>
+                                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                                {kpi.organicSales || 'N/A'}
+                                            </Typography>
+                                        </Box>
+                                        {kpi.organicPct != null && (
+                                            <Box sx={{ width: '100%', height: 4, bgcolor: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                                                <Box sx={{ width: `${kpi.organicPct}%`, height: '100%', bgcolor: '#22c55e', borderRadius: 2 }} />
+                                            </Box>
+                                        )}
+                                        <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '10px', textAlign: 'right' }}>
+                                            {kpi.organicPct != null ? `${kpi.organicPct.toFixed(1)}% of total` : ''}
+                                        </Typography>
+
+                                        <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.15)', pt: 1 }} />
+
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#f59e0b' }} />
+                                                <Typography variant="caption" sx={{ fontWeight: 500 }}>Inorganic Sales</Typography>
+                                            </Box>
+                                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                                {kpi.inorganicSales || 'N/A'}
+                                            </Typography>
+                                        </Box>
+                                        {kpi.inorganicPct != null && (
+                                            <Box sx={{ width: '100%', height: 4, bgcolor: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                                                <Box sx={{ width: `${kpi.inorganicPct}%`, height: '100%', bgcolor: '#f59e0b', borderRadius: 2 }} />
+                                            </Box>
+                                        )}
+                                        <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '10px', textAlign: 'right' }}>
+                                            {kpi.inorganicPct != null ? `${kpi.inorganicPct.toFixed(1)}% of total` : ''}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            }
+                            arrow
+                            placement="top"
+                        >
+                            <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help" />
+                        </Tooltip>
+                    )}
+                </div>
             </Card>
         </>
     )
@@ -686,10 +720,41 @@ const SnapshotOverview = ({
             kpis.find(k => normalize(k.title) === 'share_of_search' || k.id === 'sos');
         const isSosWait = performanceLoading && !sosItem;
 
-        let topRowItems = baseTop.map((kpi, idx) => ({
-            ...kpi,
-            trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
-        }));
+        // Extract organic/inorganic sales data from performanceData to attach to Offtake KPI
+        const inorganicPerfItem = performanceData.find(p => p.id === 'inorganic') || {};
+        const organicSalesVal = inorganicPerfItem.organicSales || null;
+        const inorganicSalesVal = inorganicPerfItem.value || null;
+
+        // Parse numeric values for percentage calculation
+        const parseVal = (v) => {
+            if (!v || v === 'N/A') return 0;
+            const str = String(v).replace(/[₹,\s]/g, '');
+            const match = str.match(/([\d.]+)/);
+            if (!match) return 0;
+            let num = parseFloat(match[1]);
+            if (str.toLowerCase().includes('cr')) num *= 10000000;
+            else if (str.toLowerCase().includes('lac') || str.toLowerCase().includes('lak')) num *= 100000;
+            else if (str.toLowerCase().includes('k')) num *= 1000;
+            return num;
+        };
+        const organicNum = parseVal(organicSalesVal);
+        const inorganicNum = parseVal(inorganicSalesVal);
+        const totalSplit = organicNum + inorganicNum;
+
+        let topRowItems = baseTop.map((kpi, idx) => {
+            const enriched = {
+                ...kpi,
+                trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
+            };
+            // Attach organic/inorganic data to Offtake KPI
+            if (normalize(kpi.title) === 'offtake' || normalize(kpi.title) === 'offtakes' || kpi.id === 'offtake') {
+                enriched.organicSales = organicSalesVal;
+                enriched.inorganicSales = inorganicSalesVal;
+                enriched.organicPct = totalSplit > 0 ? (organicNum / totalSplit) * 100 : null;
+                enriched.inorganicPct = totalSplit > 0 ? (inorganicNum / totalSplit) * 100 : null;
+            }
+            return enriched;
+        });
 
         if (sosItem || isSosWait) {
             const sosKpi = sosItem ? {

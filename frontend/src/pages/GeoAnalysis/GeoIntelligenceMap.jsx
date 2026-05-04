@@ -438,7 +438,8 @@ export default function GeoIntelligenceMap() {
                                         fontWeight: "700",
                                         color: "#0f172a",
                                         cursor: "pointer",
-                                        minWidth: "100px"
+                                        minWidth: "100px",
+                                        textTransform: "capitalize"
                                     }}
                                 >
                                     {platforms.map(p => (
@@ -470,7 +471,8 @@ export default function GeoIntelligenceMap() {
                                         fontWeight: "700",
                                         color: "#0f172a",
                                         cursor: "pointer",
-                                        minWidth: "80px"
+                                        minWidth: "80px",
+                                        textTransform: "capitalize"
                                     }}
                                 >
                                     <option value="All">All Categories</option>

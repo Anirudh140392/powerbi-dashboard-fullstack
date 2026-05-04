@@ -180,6 +180,9 @@ export default function ReportBuilder({
   isDownloading,
   showSuccess,
   setShowSuccess,
+  showError,
+  setShowError,
+  errorMsg,
   platformOptions,
   getBrandOptions,
   getCategoryOptions,
@@ -532,7 +535,7 @@ export default function ReportBuilder({
                       { label: "Time", opts: TIME_OPTS, val: time, set: setTime, color: "#F59E0B" },
                     ].map(g => (
                       <Grid item xs={12} sm={4} key={g.label}>
-                        <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#94A3B8", mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+                        <Typography component="div" sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#94A3B8", mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
                           {g.label}
                           <Box sx={{ flex: 1, height: "1px", background: "#E2E8F0" }} />
                         </Typography>
@@ -622,7 +625,7 @@ export default function ReportBuilder({
                           <Chip
                             key={tag}
                             label={
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                                 {tag}
                                 {!isAvailable && (
                                   <Box component="span" sx={{ ml: 0.3, px: 0.6, py: 0.1, borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E', fontSize: '9px', fontWeight: 700, letterSpacing: '0.05em' }}>
@@ -672,7 +675,7 @@ export default function ReportBuilder({
 
             {/* ── SUMMARY SIDEBAR ── */}
             <Paper elevation={0} sx={{ width: 220, flexShrink: 0, border: "1px solid #E2E8F0", borderRadius: "16px", p: 2.5, background: "white", alignSelf: "flex-start", position: "sticky", top: 100 }}>
-              <Typography sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#94A3B8", mb: 2, display: "flex", alignItems: "center", gap: 0.8 }}>
+              <Typography component="div" sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", color: "#94A3B8", mb: 2, display: "flex", alignItems: "center", gap: 0.8 }}>
                 <Box sx={{ width: 4, height: 4, borderRadius: "50%", background: "#4F46E5" }} />
                 Summary
               </Typography>
@@ -717,8 +720,8 @@ export default function ReportBuilder({
                 <Typography sx={{ fontSize: 10, color: "#94A3B8", mb: 0.8, fontFamily: "'JetBrains Mono', monospace" }}>// metrics</Typography>
                 {visibleMetrics.map(m => (
                   <Box key={m.key} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.6 }}>
-                    <Typography sx={{ fontSize: 11.5, color: metricOn[m.key] ? m.color : "#CBD5E1", display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <Box sx={{ display: "flex", fontSize: 14 }}>{m.icon}</Box> {m.label}
+                    <Typography component="div" sx={{ fontSize: 11.5, color: metricOn[m.key] ? m.color : "#CBD5E1", display: "flex", alignItems: "center", gap: 0.5 }}>
+                      <Box component="span" sx={{ display: "flex", fontSize: 14 }}>{m.icon}</Box> {m.label}
                     </Typography>
                     <Typography sx={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace", color: "#94A3B8" }}>
                       {m.tags.filter(t => tagOn[t] && availableKpis.has(t)).length}/{m.tags.filter(t => availableKpis.has(t)).length}
@@ -749,6 +752,7 @@ export default function ReportBuilder({
         {/* ── TOASTS ── */}
         <SuccessToast open={showSuccess} onClose={() => setShowSuccess(false)} message="Report downloaded successfully!" />
         <SuccessToast open={scheduleSuccess} onClose={() => setScheduleSuccess(false)} message="Schedule created successfully!" color="info" />
+        <SuccessToast open={showError} onClose={() => setShowError(false)} message={errorMsg || "An error occurred"} color="error" />
 
         {/* ── SCHEDULE MODAL ── */}
         <Dialog open={scheduleModalOpen} onClose={() => setScheduleModalOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: "16px", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" } }}>

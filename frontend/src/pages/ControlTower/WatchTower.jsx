@@ -264,12 +264,27 @@ export default function WatchTower() {
         const trendSign = trendStr.trim().startsWith('-') ? -1 : 1;
         const finalTrend = trendValue * (trendMatch && trendMatch[1].startsWith('-') ? 1 : trendSign);
 
+        const currentChannel = (Array.isArray(selectedChannel) ? selectedChannel.join(',') : (selectedChannel || '')).toLowerCase();
+        let finalValue = metric.value || metric.label || '0';
+        let finalDelta = finalTrend;
+        let finalDeltaLabel = trendStr;
+
+        if (normalizedTitle.toLowerCase() === 'cpm' && currentChannel === 'ecommerce') {
+          finalValue = 'N/A';
+          finalDelta = 0;
+          finalDeltaLabel = 'N/A';
+        } else if (normalizedTitle.toLowerCase() === 'cpc' && currentChannel === 'quickcomm') {
+          finalValue = 'N/A';
+          finalDelta = 0;
+          finalDeltaLabel = 'N/A';
+        }
+
         return {
           id: meta.id,
           title: normalizedTitle,
-          value: metric.value || metric.label || '0',
-          delta: finalTrend,
-          deltaLabel: trendStr,
+          value: finalValue,
+          delta: finalDelta,
+          deltaLabel: finalDeltaLabel,
           icon: meta.icon,
           gradient: meta.gradient,
           trend: metric.chart || getLogicalKpiTrend(meta.id, context),
@@ -920,16 +935,16 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
     {
       key: "cpm",
       label: "CPM",
-      activeValue: active.cpm,
-      compareValue: compare?.cpm ?? null,
+      activeValue: (categoryChannel || '').toLowerCase() === 'ecommerce' ? null : active.cpm,
+      compareValue: (categoryChannel || '').toLowerCase() === 'ecommerce' ? null : (compare?.cpm ?? null),
       max: 800000,
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "cpc",
       label: "CPC",
-      activeValue: active.cpc,
-      compareValue: compare?.cpc ?? null,
+      activeValue: (categoryChannel || '').toLowerCase() === 'quickcomm' ? null : active.cpc,
+      compareValue: (categoryChannel || '').toLowerCase() === 'quickcomm' ? null : (compare?.cpc ?? null),
       max: 5000000,
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
@@ -1032,7 +1047,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
                     {/* TEXT */}
                     <div className="text-left">
                       <div
-                        className="font-medium"
+                        className="font-medium capitalize"
                         style={{
                           fontFamily: "Roboto, sans-serif",
                           fontWeight: 700,
@@ -1097,10 +1112,10 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
                   <div className="text-sm uppercase tracking-[0.2em] text-slate-500 font-semibold">
                     {compare ? "Focus format · VS mode" : "Focus format"}
                   </div>
-                  <div className="text-xl font-semibold">
+                  <div className="text-xl font-semibold capitalize">
                     {active.name}
                     {compare && (
-                      <span className="text-sm font-normal text-slate-500">
+                      <span className="text-sm font-normal text-slate-500 capitalize">
                         {" "}
                         vs {compare.name}
                       </span>
@@ -1225,7 +1240,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
                             >
                               {Number.isFinite(k.activeValue)
                                 ? k.format(k.activeValue)
-                                : "NaN"}
+                                : "N/A"}
                             </button>
                           </div>
                         </div>
@@ -1322,7 +1337,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
                       />
 
                       <span
-                        className={`truncate ${isActive ? "font-semibold" : "font-normal"
+                        className={`truncate capitalize ${isActive ? "font-semibold" : "font-normal"
                           }`}
                       >
                         {f.name}
