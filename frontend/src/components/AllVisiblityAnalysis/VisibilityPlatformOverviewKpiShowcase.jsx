@@ -29,6 +29,15 @@ function cn(...classes) {
     return classes.filter(Boolean).join(" ");
 }
 
+const formatKpiValue = (value, unit = "%") => {
+    if (value === null || value === undefined || value === 0 || value === "0") {
+        return "N/A";
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) return "N/A";
+    return `${num.toFixed(1)}${unit}`;
+};
+
 const BRAND_COLORS = [
     "#2563EB", // Blue
     "#DC2626", // Red
@@ -1168,9 +1177,9 @@ const BrandTable = ({ rows, loading }) => {
                             )) : paginatedRows.map((row, idx) => (
                                 <tr key={row.id} className={cn("hover:bg-slate-50", idx % 2 === 1 && "bg-slate-50/60")}>
                                     <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">{row.name}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900 font-medium">{(row.overall_sos || 0).toFixed(1)}%</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{(row.sponsored_sos || 0).toFixed(1)}%</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{(row.organic_sos || 0).toFixed(1)}%</td>
+                                    <td className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row.overall_sos)}</td>
+                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.sponsored_sos)}</td>
+                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.organic_sos)}</td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (
@@ -1222,9 +1231,9 @@ const SkuTable = ({ rows, loading }) => {
                                 <tr key={row.id} className={cn("hover:bg-slate-50", idx % 2 === 1 && "bg-slate-50/60")}>
                                     <td className="px-3 py-2 font-medium text-slate-900 border-r border-slate-100">{row.name}</td>
                                     <td className="px-3 py-2 text-slate-900 border-r border-slate-100">{row.brandName}</td>
-                                    <td className="px-3 py-2 text-right text-slate-900 font-medium">{(row.overall_sos || 0).toFixed(1)}%</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{(row.sponsored_sos || 0).toFixed(1)}%</td>
-                                    <td className="px-3 py-2 text-right text-slate-900">{(row.organic_sos || 0).toFixed(1)}%</td>
+                                    <td className="px-3 py-2 text-right text-slate-900 font-medium">{formatKpiValue(row.overall_sos)}</td>
+                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.sponsored_sos)}</td>
+                                    <td className="px-3 py-2 text-right text-slate-900">{formatKpiValue(row.organic_sos)}</td>
                                 </tr>
                             ))}
                             {!loading && rows.length === 0 && (

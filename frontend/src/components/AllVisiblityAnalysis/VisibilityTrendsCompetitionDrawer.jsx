@@ -1151,21 +1151,23 @@ export default function VisibilityTrendsCompetitionDrawer({
           let tooltipHtml = `<div style="font-weight:bold;margin-bottom:4px;">${params[0].name}</div>`;
           params.forEach((param) => {
             let val = param.value;
-            if (val === null || val === undefined) return;
+            let displayVal = 'N/A';
             
-            if (param.seriesName === "Offtake") {
-              val = '₹' + Number(val).toLocaleString('en-IN');
-            } else if (param.seriesName === "Category Share") {
-              val = Number(val).toFixed(2) + '%';
-            } else if (param.seriesName === "Search Rank") {
-              val = Math.round(Number(val));
-            } else {
-              val = Number(val).toFixed(2) + '%';
+            if (val !== null && val !== undefined && val !== 0 && val !== "0") {
+              if (param.seriesName === "Offtake") {
+                displayVal = '₹' + Number(val).toLocaleString('en-IN');
+              } else if (param.seriesName === "Category Share") {
+                displayVal = Number(val).toFixed(2) + '%';
+              } else if (param.seriesName === "Search Rank") {
+                displayVal = Math.round(Number(val));
+              } else {
+                displayVal = Number(val).toFixed(2) + '%';
+              }
             }
 
             tooltipHtml += `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
               <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${param.color};margin-right:4px;"></span>${param.seriesName}</span>
-              <span style="font-weight:600">${val}</span>
+              <span style="font-weight:600">${displayVal}</span>
             </div>`;
           });
           return tooltipHtml;

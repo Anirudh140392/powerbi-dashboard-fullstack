@@ -399,7 +399,12 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
           params.forEach(p => {
             const m = metrics.find(metric => metric.label === p.seriesName);
             const val = p.value;
-            const displayVal = m.prefix ? `${m.prefix}${val}${m.unit}` : `${val}${m.unit}`;
+            let displayVal;
+            if (val === null || val === undefined) {
+              displayVal = 'N/A';
+            } else {
+              displayVal = m.prefix ? `${m.prefix}${val}${m.unit}` : `${val}${m.unit}`;
+            }
             res += `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
               <div style="width: 10px; height: 10px; border-radius: 50%; background-color: ${p.color};"></div>
               <div style="flex: 1;">${p.seriesName}</div>

@@ -28,6 +28,15 @@ function cn(...classes) {
     return classes.filter(Boolean).join(" ");
 }
 
+const formatKpiValue = (value, unit = "%") => {
+    if (value === null || value === undefined || value === 0 || value === "0") {
+        return "N/A";
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) return "N/A";
+    return `${num.toFixed(1)}${unit}`;
+};
+
 /* -------------------------------------------------------------------------- */
 /*                           Small UI components (local)                      */
 /* -------------------------------------------------------------------------- */
@@ -728,13 +737,13 @@ const BrandTable = ({ rows, loading, isEcom }) => {
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
                                         <span className="font-semibold text-slate-700">
-                                            {!row.osa || row.osa === '-' ? 'N/A' : `${(row.osa || 0).toFixed(1)}%`}
+                                            {formatKpiValue(row.osa)}
                                         </span>
                                     </td>
                                     {!isEcom && (
                                         <td className="px-3 py-2 text-center text-[12px]">
                                             <span className="font-semibold text-slate-700">
-                                                {!row.listing || row.listing === '-' ? 'N/A' : `${(row.listing || 0).toFixed(1)}%`}
+                                                {formatKpiValue(row.listing)}
                                             </span>
                                         </td>
                                     )}
@@ -804,13 +813,13 @@ const SkuTable = ({ rows, loading, isEcom }) => {
                                     </td>
                                     <td className="px-3 py-2 text-center text-[12px]">
                                         <span className="font-semibold text-slate-700">
-                                            {!row.osa || row.osa === '-' ? 'N/A' : `${(row.osa || 0).toFixed(1)}%`}
+                                            {formatKpiValue(row.osa)}
                                         </span>
                                     </td>
                                     {!isEcom && (
                                         <td className="px-3 py-2 text-center text-[12px]">
                                             <span className="font-semibold text-slate-700">
-                                                {!row.listing || row.listing === '-' ? 'N/A' : `${(row.listing || 0).toFixed(1)}%`}
+                                                {formatKpiValue(row.listing)}
                                             </span>
                                         </td>
                                     )}

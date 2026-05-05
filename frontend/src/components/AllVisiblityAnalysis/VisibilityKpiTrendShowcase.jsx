@@ -28,6 +28,15 @@ function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
+const formatKpiValue = (value, unit = "%") => {
+  if (value === null || value === undefined || value === 0 || value === "0") {
+      return "N/A";
+  }
+  const num = parseFloat(value);
+  if (isNaN(num)) return "N/A";
+  return `${num.toFixed(1)}${unit}`;
+};
+
 /* -------------------------------------------------------------------------- */
 /*                           Small UI components (local)                      */
 /* -------------------------------------------------------------------------- */
@@ -1391,16 +1400,13 @@ const BrandTable = ({ rows }) => {
                   </td>
 
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.overall_sos.toFixed(1)}%
+                    {formatKpiValue(row.overall_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.sponsored_sos.toFixed(1)}%
+                    {formatKpiValue(row.sponsored_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.organic_sos.toFixed(1)}%
-                  </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {row.organic_sos.toFixed(1)}%
+                    {formatKpiValue(row.organic_sos)}
                   </td>
                 </tr>
               ))}
@@ -1466,13 +1472,13 @@ const SkuTable = ({ rows }) => {
                   </td>
 
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.overall_sos.toFixed(1)}%
+                    {formatKpiValue(row.overall_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.sponsored_sos.toFixed(1)}%
+                    {formatKpiValue(row.sponsored_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.organic_sos.toFixed(1)}%
+                    {formatKpiValue(row.organic_sos)}
                   </td>
                 </tr>
               ))}
@@ -1550,13 +1556,13 @@ const KeywordTable = ({ rows }) => {
                   </td>
 
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.overall_sos.toFixed(1)}%
+                    {formatKpiValue(row.overall_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.sponsored_sos.toFixed(1)}%
+                    {formatKpiValue(row.sponsored_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.organic_sos.toFixed(1)}%
+                    {formatKpiValue(row.organic_sos)}
                   </td>
                 </tr>
               ))}
