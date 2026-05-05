@@ -216,7 +216,7 @@ const PlatformOverviewNew = ({
     const filteredKpis = useMemo(() => {
         let baseKpis = kpis;
         if (dimension === 'platform') {
-            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct');
+            baseKpis = baseKpis.filter(k => k.key !== 'buyBoxPct' && k.key !== 'deliveryTime');
         }
 
         if (isEcom) {
