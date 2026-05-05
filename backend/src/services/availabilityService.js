@@ -448,9 +448,9 @@ const getAbsoluteOsaOverview = async (filters) => {
                             delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
                             NULL,
                             CASE
-                                WHEN dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) < 0 THEN 0
-                                WHEN dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) > 30 THEN NULL
-                                ELSE dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))
+                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) < 0 THEN 0
+                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) > 30 THEN NULL
+                                ELSE dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))))
                             END
                         )
                     `;
@@ -760,9 +760,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                             delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
                             NULL,
                             CASE
-                                WHEN dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))) < 0 THEN 0
-                                WHEN dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))) > 30 THEN NULL
-                                ELSE dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))
+                                WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))) < 0 THEN 0
+                                WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))) > 30 THEN NULL
+                                ELSE dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))))
                             END
                         )
                     `;
@@ -1011,9 +1011,9 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
                                 delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
                                 NULL,
                                 CASE
-                                    WHEN dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))) < 0 THEN 0
-                                    WHEN dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))) > 30 THEN NULL
-                                    ELSE dateDiff('day', t1.DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))
+                                    WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))) < 0 THEN 0
+                                    WHEN dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE)))))) > 30 THEN NULL
+                                    ELSE dateDiff('day', t1.DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(t1.DATE))))))
                                 END
                             ), NULL)) as avg_delivery_days
 
@@ -2510,9 +2510,9 @@ const getAvailabilityKpiTrends = async (filters) => {
                             delivery_date IS NULL OR delivery_date = '' OR delivery_date = '0',
                             NULL,
                             CASE
-                                WHEN dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) < 0 THEN 0
-                                WHEN dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) > 30 THEN NULL
-                                ELSE dateDiff('day', DATE, parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))
+                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) < 0 THEN 0
+                                WHEN dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) > 30 THEN NULL
+                                ELSE dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))))
                             END
                         )
                     `;
