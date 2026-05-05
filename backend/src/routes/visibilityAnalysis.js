@@ -157,7 +157,7 @@ export default (app) => {
      *         required: true
      *         schema:
      *           type: string
-     *           enum: [platforms, months, formats, cities, pincodes, metroFlags, kpis]
+     *           enum: [platforms, months, formats, cities, pincodes, metroFlags, kpis, channels]
      *         description: Type of filter options to fetch
      *       - in: query
      *         name: platform

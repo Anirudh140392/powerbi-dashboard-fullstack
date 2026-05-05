@@ -220,30 +220,31 @@ export const FilterProvider = ({ children }) => {
     }, [refreshDates, currentPath]);
 
     // ====== FETCH CHANNELS FROM DB (on mount) ======
-    useEffect(() => {
-        const fetchChannels = async () => {
-            if (!isAuthenticated) return;
-            try {
-                const res = await axiosInstance.get("/watchtower/channels");
-                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                    console.log("[FilterContext] Fetched channels from DB:", res.data);
-                    setChannels(res.data);
-                    // Keep current selection if still valid, otherwise select first non-All
-                    setSelectedChannel(prev => {
-                        const validChannels = res.data.filter(c => c !== 'All');
-                        if (validChannels.includes(prev)) return prev;
-                        return validChannels.length > 0 ? validChannels[0] : 'All';
-                    });
-                } else {
-                    setChannels(FALLBACK_CHANNELS);
-                }
-            } catch (err) {
-                console.warn("[FilterContext] Failed to fetch channels, using fallback:", err.message);
+    const fetchChannels = useCallback(async () => {
+        if (!isAuthenticated) return;
+        try {
+            const res = await axiosInstance.get("/watchtower/channels");
+            if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                console.log("[FilterContext] Fetched channels from DB:", res.data);
+                setChannels(res.data);
+                // Keep current selection if still valid, otherwise select first non-All
+                setSelectedChannel(prev => {
+                    const validChannels = res.data.filter(c => c !== 'All');
+                    if (validChannels.includes(prev)) return prev;
+                    return validChannels.length > 0 ? validChannels[0] : 'All';
+                });
+            } else {
                 setChannels(FALLBACK_CHANNELS);
             }
-        };
-        fetchChannels();
+        } catch (err) {
+            console.warn("[FilterContext] Failed to fetch channels, using fallback:", err.message);
+            setChannels(FALLBACK_CHANNELS);
+        }
     }, [isAuthenticated]);
+
+    useEffect(() => {
+        fetchChannels();
+    }, [fetchChannels]);
 
     const prevChannelRef = useRef(selectedChannel);
 
@@ -302,6 +303,44 @@ export const FilterProvider = ({ children }) => {
                         return valid.length === 1 ? valid[0] : valid;
                     });
                 }
+            } else if (window.location.hash.includes('/visibility-analysis')) {
+                console.log("[FilterContext] Fetching Visibility Analysis dynamic filters for channel:", selectedChannel);
+                
+                // Fetch platforms specifically for Visibility Analysis
+                const platRes = await axiosInstance.get("/visibility-analysis/filter-options", {
+                    params: { 
+                        filterType: 'platforms', 
+                        channel: selectedChannel === "All" ? undefined : selectedChannel 
+                    }
+                });
+
+                if (platRes.data && platRes.data.options) {
+                    const newPlatforms = platRes.data.options;
+                    if (newPlatforms.length > 0) {
+                        setPlatforms(newPlatforms);
+                        // Validate current platform selection
+                        setPlatform(prev => {
+                            if (channelChanged) return newPlatforms[0];
+                            const currentList = Array.isArray(prev) ? prev : [prev];
+                            const valid = currentList.filter(p => newPlatforms.includes(p));
+                            if (valid.length === 0) return newPlatforms[0];
+                            return valid[0];
+                        });
+                    }
+                }
+
+                // IMPORTANT: Fetch channels specifically for Visibility Analysis to ensure they refresh 
+                // when switching from other restricted pages (like Market Share)
+                const chanRes = await axiosInstance.get("/visibility-analysis/filter-options", {
+                    params: { filterType: 'channels' }
+                });
+                if (chanRes.data && chanRes.data.options) {
+                    const newChannels = chanRes.data.options;
+                    if (newChannels.length > 0) {
+                        console.log("[FilterContext] Refreshed channels for Visibility Analysis:", newChannels);
+                        setChannels(newChannels);
+                    }
+                }
             } else if (window.location.hash.includes('/content-analysis')) {
                 const res = await axiosInstance.get("/content-analysis/platforms");
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -320,6 +359,9 @@ export const FilterProvider = ({ children }) => {
                     setPlatform(FALLBACK_PLATFORMS[0]);
                 }
             } else {
+                // Refresh channels for other pages to clear any restricted lists (like from Market Share)
+                fetchChannels();
+                
                 const res = await axiosInstance.get("/watchtower/platforms", {
                     params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
                 });
@@ -345,7 +387,7 @@ export const FilterProvider = ({ children }) => {
         } finally {
             setPlatformsFetched(true);
         }
-    }, [isAuthenticated, selectedChannel]);
+    }, [isAuthenticated, selectedChannel, fetchChannels]);
 
     useEffect(() => {
         fetchPlatformsFromDb();
