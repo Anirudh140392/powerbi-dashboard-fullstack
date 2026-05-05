@@ -595,6 +595,16 @@ const PlatformOverviewNew = ({
             })
         }
 
+        // Sort by market share descending if dimension is brand
+        if (dimension === 'brand') {
+            result.sort((a, b) => {
+                const parsePct = (s) => parseFloat(String(s || '0').replace(/[^\d.]/g, '')) || 0;
+                const valA = parsePct(a.data?.marketShare?.value);
+                const valB = parsePct(b.data?.marketShare?.value);
+                return valB - valA;
+            });
+        }
+
         return result
     }, [apiData, dimension, globalPlatform])
 
