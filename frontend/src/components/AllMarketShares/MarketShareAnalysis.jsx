@@ -27,6 +27,18 @@ import SubCategoryMarket from "./SubCategoryMarket";
 
 const marketShareKpis = [
   {
+    id: "ms-mars-wrigley",
+    title: "Boat Estimated Sales (Cr)",
+    value: "₹ 6.90 Cr",
+    subtitle: "Our brand estimated sales performance",
+    delta: 38.1,
+    deltaLabel: "▲ 38.1% (₹4.88 Cr)",
+    icon: PieChart,
+    gradient: ["#f43f5e", "#ec4899"],
+    extraChangeColor: "green",
+    prevText: "vs Comparison Period",
+  },
+  {
     id: "ms-market-share",
     title: "Market Share (%)",
     value: "0%",
@@ -49,32 +61,7 @@ const marketShareKpis = [
     gradient: ["#6366f1", "#8b5cf6"],
     extraChangeColor: "green",
     prevText: "vs Comparison Period",
-  },
-  {
-    id: "ms-leader-sales",
-    title: "Market Leader Sales (Cr)",
-    value: "₹ 77.46 Cr",
-    subtitle: "Sales of the market leading brand",
-    brand: "Amul",
-    delta: 91.1,
-    deltaLabel: "▲ 91.1% (₹40.53 Cr)",
-    icon: TrendingUp,
-    gradient: ["#14b8a6", "#06b6d4"],
-    extraChangeColor: "green",
-    prevText: "vs Comparison Period",
-  },
-  {
-    id: "ms-mars-wrigley",
-    title: "Our Estimated Sales (Cr)",
-    value: "₹ 6.90 Cr",
-    subtitle: "Our brand estimated sales performance",
-    delta: 38.1,
-    deltaLabel: "▲ 38.1% (₹4.88 Cr)",
-    icon: PieChart,
-    gradient: ["#f43f5e", "#ec4899"],
-    extraChangeColor: "green",
-    prevText: "vs Comparison Period",
-  },
+  }
 ];
 
 const stats = [
@@ -442,34 +429,6 @@ export default function MarketShareAnalysis() {
                 deltaLabel: `${arrow} ${Math.abs(catData.delta)}% (${prevValueCr})`,
                 extraChangeColor: catData.delta >= 0 ? "green" : "red",
                 trend: catData.trend,
-              };
-            }
-
-            // Market Leader Sales KPI
-            if (k.id === "ms-leader-sales" && response.data.marketLeader) {
-              const leader = response.data.marketLeader;
-              const val = leader.sales;
-              const formattedValue = val > 10000000
-                ? `₹ ${(val / 10000000).toFixed(2)} Cr`
-                : val > 100000
-                  ? `₹ ${(val / 100000).toFixed(2)} L`
-                  : `₹ ${val.toFixed(2)}`;
-
-              const prevValueCr = leader.prevSales > 10000000
-                ? `₹${(leader.prevSales / 10000000).toFixed(2)} Cr`
-                : leader.prevSales > 100000
-                  ? `₹${(leader.prevSales / 100000).toFixed(2)} L`
-                  : `₹${leader.prevSales.toFixed(2)}`;
-
-              const arrow = leader.delta >= 0 ? '▲' : '▼';
-              return {
-                ...k,
-                value: formattedValue,
-                brand: leader.brand,
-                delta: leader.delta,
-                deltaLabel: `${arrow} ${Math.abs(leader.delta)}% (${prevValueCr})`,
-                extraChangeColor: leader.delta >= 0 ? "green" : "red",
-                trend: leader.trend,
               };
             }
 
