@@ -1267,6 +1267,10 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     ? selectedChannel.toLowerCase().includes('quick') 
     : (Array.isArray(selectedChannel) && selectedChannel.some(c => c.toLowerCase().includes('quick')));
 
+  const isEcom = typeof selectedChannel === 'string'
+    ? selectedChannel.toLowerCase().includes('ecom')
+    : (Array.isArray(selectedChannel) && selectedChannel.some(c => c.toLowerCase().includes('ecom')));
+
   const availabilityKpis = useMemo(() => {
     // Icons and gradients for the cards
     const icons = [Layers, Package, MapPin];
@@ -1410,7 +1414,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         )}
 
         {/* Signal Lab Availability Segment */}
-        {!isSignalLabHiddenUser && (
+        {!isSignalLabHiddenUser && !isEcom && (
           <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
             <SignalLabVisibility type="availability" loading={isLoading} />
           </div>

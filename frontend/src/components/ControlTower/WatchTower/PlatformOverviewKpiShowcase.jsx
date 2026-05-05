@@ -30,6 +30,33 @@ function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
+const KpiCell = ({ data, format = 1, suffix = "", prefix = "", isInverse = false }) => {
+  const value = data?.value;
+  const delta = data?.delta;
+
+  if (value === null || value === undefined || value === 0 || value === "0") {
+    return <span className="text-slate-400 font-normal">N/A</span>;
+  }
+
+  const formattedValue = `${prefix}${Number(value).toFixed(format)}${suffix}`;
+  
+  const isPositive = Number(delta) >= 0;
+  const trendColor = isInverse 
+    ? (isPositive ? "text-rose-700 bg-rose-50 border-rose-100" : "text-emerald-700 bg-emerald-50 border-emerald-100")
+    : (isPositive ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100");
+
+  return (
+    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+      <span>{formattedValue}</span>
+      {delta !== null && delta !== undefined && (
+        <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", trendColor)}>
+          {isPositive ? '↑' : '↓'} {Math.abs(Number(delta)).toFixed(1)}%
+        </span>
+      )}
+    </div>
+  );
+};
+
 /* -------------------------------------------------------------------------- */
 /*                           Small UI components (local)                      */
 /* -------------------------------------------------------------------------- */
@@ -39,7 +66,6 @@ function cn(...classes) {
 // Map metric IDs to their data source group for N/A detection
 export const KPI_SOURCE_MAP = {
   // PDP table KPIs
-  Offtakes: 'pdp', offtakes: 'pdp', Offtake: 'pdp',
   Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
   Discount: 'pdp', 'Promo-My': 'pdp', 'promo-my': 'pdp', PromoMyBrand: 'pdp', discount: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
@@ -74,13 +100,6 @@ const DASHBOARD_DATA = {
     defaultTimeStep: "Daily",
 
     metrics: [
-      {
-        id: "Offtakes",
-        label: "Offtakes",
-        color: "#2563EB",
-        axis: "left",
-        default: true,
-      },
       {
         id: "Spend",
         label: "Spend",
@@ -326,12 +345,6 @@ const DASHBOARD_DATA = {
     defaultTimeStep: "Weekly",
 
     metrics: [
-      {
-        id: "Offtakes",
-        label: "Offtakes",
-        color: "#2563EB",
-        default: true,
-      },
       { id: "Spend", label: "Spend", color: "#DC2626", default: true },
       { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
       { id: "MarketShare", label: "Market Share", color: "#9333EA" },
@@ -1675,7 +1688,7 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
                                 <span className="w-2 h-2 rounded-[3px]" style={{ backgroundColor: entry.color }}></span>
                                 <span className="text-slate-600 font-medium text-[12px] truncate max-w-[200px] inline-block" title={entry.name}>{entry.name.length > 40 ? entry.name.slice(0, 40) + '…' : entry.name}</span>
                               </div>
-                              <span className="font-bold text-slate-900 text-[13px]">{formatValue(entry.value)}</span>
+                              <span className="font-bold text-slate-900 text-[13px]">{entry.value !== null && entry.value !== undefined ? formatValue(entry.value) : "N/A"}</span>
                             </div>
                           ))}
                         </div>
@@ -1761,12 +1774,6 @@ const KPI_KEYS = [
     unit: "%",
   },
   {
-    key: "offtakes",
-    label: "Offtakes",
-    color: "#7C3AED", // violet
-    unit: "",
-  },
-  {
     key: "promo-my",
     label: "Promo-My %",
     color: "#06B6D4", // cyan
@@ -1845,6 +1852,7 @@ const KpiCompareView = ({ mode, filters, city, platform, brandRows, skuRows, onB
   }, [fetchCompareTrendData]);
 
   const formatValue = (v, metricKey) => {
+    if (v === null || v === undefined) return "N/A";
     const meta = KPI_KEYS.find(k => k.key === metricKey);
     if (!meta) return v.toFixed(1);
     if (meta.unit) return `${v.toFixed(1)}${meta.unit}`;
@@ -2021,45 +2029,20 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
                     {row.name || row.brand_name || row.brand}
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.OSA?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.OSA?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.OSA?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.OSA?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row.OSA} suffix="%" />
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.SOS?.value) || 0).toFixed(3)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.SOS?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.SOS?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.SOS?.delta) || 0).toFixed(3)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row.SOS} format={3} suffix="%" />
                   </td>
 
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>₹{(Number(row.Price?.value) || 0).toFixed(0)}</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.Price?.delta) || 0) <= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.Price?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.Price?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row.Price} format={0} prefix="₹" isInverse={true} />
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row['Promo-My']?.value) || Number(row.PromoMy?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" />
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 border-x border-slate-100">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.MarketShare?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row.MarketShare} suffix="%" />
                   </td>
                 </tr>
               ))}
@@ -2151,39 +2134,17 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
                     {row.brandName || row.brand_name || row.brand}
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row.OSA?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.OSA?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.OSA?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.OSA?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row.OSA} suffix="%" />
                   </td>
 
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-x border-slate-100">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>₹{(Number(row.Price?.value) || 0).toFixed(0)}</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.Price?.delta) || 0) <= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.Price?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.Price?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row.Price} format={0} prefix="₹" isInverse={true} />
                   </td>
                   <td className="px-3 py-2 text-right text-slate-900 font-medium border-r border-slate-100">
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                      <span>{(Number(row['Promo-My']?.value) || Number(row.PromoMy?.value) || 0).toFixed(1)}%</span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row['Promo-My']?.delta) || Number(row.PromoMy?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row['Promo-My'] || row.PromoMy} suffix="%" />
                   </td>
                   <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
-                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                      <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
-                        {(Number(row.MarketShare?.value) || 0).toFixed(1)}%
-                      </span>
-                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                        {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
-                      </span>
-                    </div>
+                    <KpiCell data={row.MarketShare} suffix="%" />
                   </td>
                 </tr>
               ))}

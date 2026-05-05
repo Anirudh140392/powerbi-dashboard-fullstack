@@ -590,7 +590,7 @@ const generateKpiColumns = ({
     prevOfftake = 0, prevAvailability = 0, prevSos = 0, prevMarketShare = 0, prevSpend = 0, prevRoas = 0, prevInorgSales = 0, prevConversion = 0, prevCpm = 0, prevCpc = 0, prevAsp = 0, prevAov = 0, prevPromoMyBrand = 0, prevPromoCompete = 0, prevCategorySize = 0, prevAdSov = 0, prevOrganicSov = 0, prevBuyBoxPct = 0, prevDeliveryTime = null,
     offtakeUnits = 0, inorgUnits = 0, prevOfftakeUnits = 0, prevInorgUnits = 0
 }) => {
-    const isNA = (val) => val === null;
+    const isNA = (val) => val === null || val === undefined || val === 0 || val === "0";
 
     const safeChange = (curr, prev, calcFn) => (isNA(curr) || isNA(prev)) ? null : calcFn(curr, prev);
 
@@ -10804,18 +10804,23 @@ const getSkuOverview = async (filters) => {
     };
 
     // Build SOS conditions for rb_kw_olap (SKU level uses keyword_search_product)
-    const buildSosSkuConds = (sDate, eDate) => {
+    const buildSosBaseConds = (sDate, eDate) => {
         const conds = [`toDate(DATE) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         const pCond = buildPlatformChannelCond(skuPlatform, channel, 'platform_name');
         if (pCond) conds.push(pCond);
-        if (brandArr && brandArr.length > 0) {
-            conds.push(`(${brandArr.map(b => `brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
-        }
         if (locationArr && locationArr.length > 0) {
             conds.push(`location_name IN(${locationArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
         if (categoryArr && categoryArr.length > 0) {
             conds.push(`keyword_category IN(${categoryArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+        }
+        return conds.join(' AND ');
+    };
+
+    const buildSosSkuConds = (sDate, eDate) => {
+        const conds = [buildSosBaseConds(sDate, eDate)];
+        if (brandArr && brandArr.length > 0) {
+            conds.push(`(${brandArr.map(b => `brand LIKE '%${escapeStr(b)}%'`).join(' OR ')})`);
         }
         // SKU filter on keyword_search_product
         const skuArr = normalizeFilterArray(filters.skuName);
@@ -10826,16 +10831,13 @@ const getSkuOverview = async (filters) => {
         return conds.join(' AND ');
     };
 
+    const currSosBaseConds = buildSosBaseConds(startDate, endDate);
+    const prevSosBaseConds = buildSosBaseConds(prevStartDate, prevEndDate);
     const currSosSkuConds = buildSosSkuConds(startDate, endDate);
     const prevSosSkuConds = buildSosSkuConds(prevStartDate, prevEndDate);
 
     // Query SKU metrics for both periods
-    const [
-        currSkuMetrics, prevSkuMetrics, currMsResult, prevMsResult, currSkuCatSize, prevSkuCatSize,
-        currSosNumSku, currSosDenomSku, prevSosNumSku, prevSosDenomSku,
-        currAdSovNumSku, currAdSovDenomSku, prevAdSovNumSku, prevAdSovDenomSku,
-        currOrgSovNumSku, currOrgSovDenomSku, prevOrgSovNumSku, prevOrgSovDenomSku
-    ] = await Promise.all([
+    const results = await Promise.all([
         queryClickHouse(`
             SELECT ${src.isAgg ? 'brand' : 'Product'} as Product,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.sales} ELSE 0 END) as total_sales,
@@ -10847,9 +10849,9 @@ const getSkuOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.orders} ELSE 0 END) as total_orders,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} ELSE 0 END) as my_mrp_val,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as my_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as comp_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} * 1.0 ELSE 0 END) as total_buy_box_neno,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
@@ -10858,7 +10860,7 @@ const getSkuOverview = async (filters) => {
             FROM ${src.table}
             WHERE ${currSkuConds} AND ${src.isAgg ? 'brand' : 'Product'} IS NOT NULL AND ${src.isAgg ? 'brand' : 'Product'} != ''
             GROUP BY Product
-            HAVING (total_neno > 0 OR total_deno > 0)
+            HAVING (total_sales > 0 OR total_neno > 0 OR total_deno > 0 OR total_spend > 0)
             ORDER BY total_sales DESC
                 `),
         queryClickHouse(`
@@ -10872,9 +10874,9 @@ const getSkuOverview = async (filters) => {
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.orders} ELSE 0 END) as total_orders,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.neno} ELSE 0 END) as total_neno,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.deno} ELSE 0 END) as total_deno,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} ELSE 0 END) as my_mrp_val,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as my_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.actualSales} ELSE 0 END) as my_actual_sales,
-                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} ELSE 0 END) as comp_mrp_val,
+                SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.mrpVal} * ${src.f.qty} ELSE 0 END) as comp_mrp_val,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 1 THEN ${src.f.actualSales} ELSE 0 END) as comp_actual_sales,
                 SUM(CASE WHEN ${src.f.compFlagMapping} = 0 THEN ${src.f.buyBoxNeno} * 1.0 ELSE 0 END) as total_buy_box_neno,
                 AVG(if(${src.f.compFlagMapping} = 0 AND ${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
@@ -10911,8 +10913,35 @@ const getSkuOverview = async (filters) => {
         queryClickHouse(`SELECT keyword_search_product, sumIf(toInt32(organic), toString(flag) = '1') as count FROM rb_kw_olap WHERE ${currSosSkuConds} GROUP BY keyword_search_product`),
         queryClickHouse(`SELECT keyword_search_product, sum(toInt32(organic)) as count FROM rb_kw_olap WHERE ${currSosSkuConds} GROUP BY keyword_search_product`),
         queryClickHouse(`SELECT keyword_search_product, sumIf(toInt32(organic), toString(flag) = '1') as count FROM rb_kw_olap WHERE ${prevSosSkuConds} GROUP BY keyword_search_product`),
-        queryClickHouse(`SELECT keyword_search_product, sum(toInt32(organic)) as count FROM rb_kw_olap WHERE ${prevSosSkuConds} GROUP BY keyword_search_product`)
+        queryClickHouse(`SELECT keyword_search_product, sum(toInt32(organic)) as count FROM rb_kw_olap WHERE ${prevSosSkuConds} GROUP BY keyword_search_product`),
+        // Total SOS Denominators (Category level)
+        queryClickHouse(`SELECT sum(toInt32(overall)) as total_count FROM rb_kw_olap WHERE ${currSosBaseConds}`),
+        queryClickHouse(`SELECT sum(toInt32(overall)) as total_count FROM rb_kw_olap WHERE ${prevSosBaseConds}`),
+        queryClickHouse(`SELECT sum(toInt32(spons)) as total_count FROM rb_kw_olap WHERE ${currSosBaseConds}`),
+        queryClickHouse(`SELECT sum(toInt32(spons)) as total_count FROM rb_kw_olap WHERE ${prevSosBaseConds}`),
+        queryClickHouse(`SELECT sum(toInt32(organic)) as total_count FROM rb_kw_olap WHERE ${currSosBaseConds}`),
+        queryClickHouse(`SELECT sum(toInt32(organic)) as total_count FROM rb_kw_olap WHERE ${prevSosBaseConds}`)
     ]);
+
+    const [
+        currSkuMetrics, prevSkuMetrics, currMsResult, prevMsResult, currSkuCatSize, prevSkuCatSize,
+        currSosNumSku, currSosDenomSku, prevSosNumSku, prevSosDenomSku,
+        currAdSovNumSku, currAdSovDenomSku, prevAdSovNumSku, prevAdSovDenomSku,
+        currOrgSovNumSku, currOrgSovDenomSku, prevOrgSovNumSku, prevOrgSovDenomSku,
+        currTotalSosCatRes, prevTotalSosCatRes,
+        currTotalAdSovCatRes, prevTotalAdSovCatRes,
+        currTotalOrgSovCatRes, prevTotalOrgSovCatRes
+    ] = results;
+
+    const [
+        currTotalSosCat, prevTotalSosCat,
+        currTotalAdSovCat, prevTotalAdSovCat,
+        currTotalOrgSovCat, prevTotalOrgSovCat
+    ] = [
+        parseFloat(currTotalSosCatRes[0]?.total_count || 0), parseFloat(prevTotalSosCatRes[0]?.total_count || 0),
+        parseFloat(currTotalAdSovCatRes[0]?.total_count || 0), parseFloat(prevTotalAdSovCatRes[0]?.total_count || 0),
+        parseFloat(currTotalOrgSovCatRes[0]?.total_count || 0), parseFloat(prevTotalOrgSovCatRes[0]?.total_count || 0)
+    ];
 
     const currMarketSize = parseFloat(currMsResult[0]?.total_sales || 0);
     const prevMarketSize = parseFloat(prevMsResult[0]?.total_sales || 0);
@@ -11041,24 +11070,19 @@ const getSkuOverview = async (filters) => {
         // SOS, Ad SOV, Organic SOV by keyword_search_product
         const sosNum = currSosNumSkuMap.get(skuKeyLower) || 0;
         const sosDenom = currSosDenomSkuMap.get(skuKeyLower) || 0;
-        const sos = hasSosCheck ? (sosDenom > 0 ? (sosNum / sosDenom) * 100 : null) : null;
+        const sos = hasSosCheck ? (currTotalSosCat > 0 ? (sosNum / currTotalSosCat) * 100 : null) : null;
         const prevSosNum = prevSosNumSkuMap.get(skuKeyLower) || 0;
-        const prevSosDenom = prevSosDenomSkuMap.get(skuKeyLower) || 0;
-        const prevSos = prevHasSosCheck ? (prevSosDenom > 0 ? (prevSosNum / prevSosDenom) * 100 : null) : null;
+        const prevSos = prevHasSosCheck ? (prevTotalSosCat > 0 ? (prevSosNum / prevTotalSosCat) * 100 : null) : null;
 
         const adSovNum = currAdSovNumSkuMap.get(skuKeyLower) || 0;
-        const adSovDenom = currAdSovDenomSkuMap.get(skuKeyLower) || 0;
-        const adSov = hasSosCheck ? (adSovDenom > 0 ? (adSovNum / adSovDenom) * 100 : null) : null;
+        const adSov = hasSosCheck ? (currTotalAdSovCat > 0 ? (adSovNum / currTotalAdSovCat) * 100 : null) : null;
         const prevAdSovNum = prevAdSovNumSkuMap.get(skuKeyLower) || 0;
-        const prevAdSovDenom = prevAdSovDenomSkuMap.get(skuKeyLower) || 0;
-        const prevAdSov = prevHasSosCheck ? (prevAdSovDenom > 0 ? (prevAdSovNum / prevAdSovDenom) * 100 : null) : null;
+        const prevAdSov = prevHasSosCheck ? (prevTotalAdSovCat > 0 ? (prevAdSovNum / prevTotalAdSovCat) * 100 : null) : null;
 
         const orgSovNum = currOrgSovNumSkuMap.get(skuKeyLower) || 0;
-        const orgSovDenom = currOrgSovDenomSkuMap.get(skuKeyLower) || 0;
-        const organicSov = hasSosCheck ? (orgSovDenom > 0 ? (orgSovNum / orgSovDenom) * 100 : null) : null;
+        const organicSov = hasSosCheck ? (currTotalOrgSovCat > 0 ? (orgSovNum / currTotalOrgSovCat) * 100 : null) : null;
         const prevOrgSovNum = prevOrgSovNumSkuMap.get(skuKeyLower) || 0;
-        const prevOrgSovDenom = prevOrgSovDenomSkuMap.get(skuKeyLower) || 0;
-        const prevOrganicSov = prevHasSosCheck ? (prevOrgSovDenom > 0 ? (prevOrgSovNum / prevOrgSovDenom) * 100 : null) : null;
+        const prevOrganicSov = prevHasSosCheck ? (prevTotalOrgSovCat > 0 ? (prevOrgSovNum / prevTotalOrgSovCat) * 100 : null) : null;
 
 
         const offtakeShare = currTotalSkuSales > 0 ? (offtake / currTotalSkuSales) * 100 : 0;

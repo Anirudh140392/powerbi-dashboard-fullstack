@@ -41,6 +41,21 @@ const cardSize = {
     delta: 'text-[10px] sm:text-[11px]'
 };
 
+const formatKpiValue = (value, kpiKey) => {
+    if (value === null || value === undefined || value === 0 || value === "0") {
+        return "N/A";
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) return "N/A";
+
+    if (kpiKey === 'discount') return `${num.toFixed(1)}%`;
+    if (kpiKey === 'pricePerUnit' || kpiKey === 'asp') return `₹${num.toFixed(2)}`;
+    if (kpiKey === 'rpi') return `${num.toFixed(1)}`;
+    if (kpiKey === 'offtake') return formatNumber(num, 1);
+    
+    return num.toFixed(2);
+};
+
 const kpiLabels = {
     discount: 'Discount %',
     pricePerUnit: 'Price/Unit 1g / 1 piece',
@@ -274,17 +289,15 @@ const LatestOverivewCatCity = ({
                     kpis.forEach(kpi => {
                         const cell = city.data[kpi.key];
                         if (cell) {
-                            let valStr = cell.value;
-                            if (kpi.key === 'discount') valStr = `${cell.value.toFixed(1)}%`;
-                            else if (kpi.key === 'asp' || kpi.key === 'pricePerUnit') valStr = `₹${cell.value.toFixed(2)}`;
-                            else valStr = cell.value.toFixed(2);
-
                             formattedData[kpi.key] = {
-                                value: valStr,
-                                delta: { value: `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`, dir: cell.dir }
+                                value: formatKpiValue(cell.value, kpi.key),
+                                delta: { 
+                                    value: cell.value === 0 ? "N/A" : `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`, 
+                                    dir: cell.value === 0 ? 'neutral' : cell.dir 
+                                }
                             };
                         } else {
-                            formattedData[kpi.key] = { value: '-', delta: { value: '-', dir: 'neutral' } };
+                            formattedData[kpi.key] = { value: 'N/A', delta: { value: 'N/A', dir: 'neutral' } };
                         }
                     });
                     return { ...city, data: formattedData };
@@ -331,29 +344,15 @@ const LatestOverivewCatCity = ({
             kpis.forEach(kpi => {
                 const cell = e.data[kpi.key];
                 if (cell) {
-                    let valStr = cell.value;
-                    let deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`;
-
-                    if (kpi.key === 'discount') {
-                        valStr = `${cell.value.toFixed(1)}%`;
-                    } else if (kpi.key === 'pricePerUnit' || kpi.key === 'asp') {
-                        valStr = `₹${cell.value.toFixed(2)}`;
-                    } else if (kpi.key === 'rpi') {
-                        valStr = `${cell.value.toFixed(1)}`;
-                        deltaStr = `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%`;
-                    } else if (kpi.key === 'offtake') {
-                        // Large number formatting for offtake using centralized formatter
-                        valStr = formatNumber(cell.value, 1);
-                    } else {
-                        valStr = cell.value.toFixed(2);
-                    }
-
                     formattedData[kpi.key] = {
-                        value: valStr,
-                        delta: { value: deltaStr, dir: cell.dir }
+                        value: formatKpiValue(cell.value, kpi.key),
+                        delta: { 
+                            value: cell.value === 0 ? "N/A" : (kpi.key === 'rpi' ? `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(2)}%` : `${cell.dir === 'up' ? '+' : ''}${cell.change.toFixed(1)}%`), 
+                            dir: cell.value === 0 ? 'neutral' : cell.dir 
+                        }
                     };
                 } else {
-                    formattedData[kpi.key] = { value: '-', delta: { value: '-', dir: 'neutral' } };
+                    formattedData[kpi.key] = { value: 'N/A', delta: { value: 'N/A', dir: 'neutral' } };
                 }
             });
             return {

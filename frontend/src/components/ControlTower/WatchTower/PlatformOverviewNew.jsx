@@ -160,9 +160,6 @@ const PlatformOverviewNew = ({
     onViewRca = () => { },
 }) => {
     const {
-        channels,
-        selectedChannel,
-        // setSelectedChannel, <-- Removed global
         platform: globalPlatform,
         selectedBrand,
         brands: globalBrands,
@@ -198,19 +195,18 @@ const PlatformOverviewNew = ({
         { key: 'aov', label: 'AOV' },
     ]
     const [dimension, setDimension] = useState('platform')
-    const [localChannel, setLocalChannel] = useState('All')
+    const [localPlatformFilter, setLocalPlatformFilter] = useState('All')
     const [skuPlatformFilter, setSkuPlatformFilter] = useState('All')
 
-    // Business Overview: channel filtering is controlled ONLY by the local header dropdown,
-    // NOT by the sidebar EComm/QComm selector. The overriddenContext in WatchTower.jsx
-    // already forces selectedChannel to "All", but we explicitly decouple here for safety.
-    const activeChannel = localChannel || 'All';
-    const activeChannelString = Array.isArray(activeChannel)
-        ? activeChannel.map(c => c.value || c).join(',').toLowerCase()
-        : String(activeChannel?.value || activeChannel || 'All').toLowerCase();
+    // Determine the active platform filter for non-platform, non-sku dimensions
+    // (Brand, Category, Month now use a platform dropdown instead of channel)
+    const activePlatformFilter = (dimension !== 'platform' && dimension !== 'sku')
+        ? (localPlatformFilter || 'All')
+        : 'All';
 
-    const isEcom = activeChannelString.includes('ecom')
-    const isQuick = activeChannelString.includes('quick')
+    // Derive isEcom / isQuick from the selected platform name
+    const isEcom = activePlatformFilter !== 'All' && isEcomPlatform(activePlatformFilter);
+    const isQuick = activePlatformFilter !== 'All' && isQcomPlatform(activePlatformFilter);
 
     // For SKU dimension: determine if selected platform is qcom
     const isSkuQcom = dimension === 'sku' && skuPlatformFilter !== 'All' && isQcomPlatform(skuPlatformFilter);
@@ -243,7 +239,7 @@ const PlatformOverviewNew = ({
         }
         if (dimension === 'brand') return baseKpis.filter(k => k.key !== 'categorySize' && k.key !== 'marketShare');
         return baseKpis;
-    }, [dimension, activeChannel, skuPlatformFilter]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
     const defaultKpiKeys = useMemo(() => {
         let base = ['offtakes', 'spend', 'availability', 'conversion', 'aov'];
@@ -273,7 +269,7 @@ const PlatformOverviewNew = ({
             return base.filter(k => k !== 'categorySize' && k !== 'marketShare');
         }
         return base;
-    }, [dimension, activeChannel, skuPlatformFilter]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
     const [glanceKpis, setGlanceKpis] = useState(['offtakes', 'spend', 'availability', 'marketShare', 'categorySize', 'conversion', 'cpc'])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
@@ -388,7 +384,7 @@ const PlatformOverviewNew = ({
                 return next;
             });
         }
-    }, [dimension, activeChannel, skuPlatformFilter]);
+    }, [dimension, activePlatformFilter, skuPlatformFilter]);
 
 
 
@@ -418,9 +414,12 @@ const PlatformOverviewNew = ({
 
     const filterKey = useMemo(() => {
         // For SKU dimension, use the local skuPlatformFilter to override platform
+        // For Brand/Category/Month, use localPlatformFilter to override platform
         let reqPlatform;
         if (dimension === 'sku' && skuPlatformFilter && skuPlatformFilter !== 'All') {
             reqPlatform = skuPlatformFilter;
+        } else if (dimension !== 'platform' && dimension !== 'sku' && localPlatformFilter && localPlatformFilter !== 'All') {
+            reqPlatform = localPlatformFilter;
         } else {
             reqPlatform = advancedFilters.platforms?.length > 0 ? advancedFilters.platforms.join(',')
                 : (globalPlatform === 'All' ? 'All' : (Array.isArray(globalPlatform) ? globalPlatform.join(',') : globalPlatform));
@@ -434,11 +433,6 @@ const PlatformOverviewNew = ({
         const reqCompareStart = compareStart ? compareStart.format('YYYY-MM-DD') : '';
         const reqCompareEnd = compareEnd ? compareEnd.format('YYYY-MM-DD') : '';
         const reqLocation = selectedLocation === 'All' ? 'All' : (Array.isArray(selectedLocation) ? selectedLocation.join(',') : selectedLocation);
-        const reqChannel = dimension === 'sku'
-            ? 'All'  // SKU dimension uses platform filter, not channel
-            : (Array.isArray(activeChannel)
-                ? activeChannel.map(c => c.value || c).join(',')
-                : (activeChannel?.value || activeChannel || 'All'));
 
         return JSON.stringify({
             dimension,
@@ -450,15 +444,15 @@ const PlatformOverviewNew = ({
             reqEndDate,
             reqCompareStart,
             reqCompareEnd,
-            reqChannel,
             skuPlatformFilter: dimension === 'sku' ? skuPlatformFilter : undefined,
+            localPlatformFilter: (dimension !== 'platform' && dimension !== 'sku') ? localPlatformFilter : undefined,
             advancedFilters: {
                 skuName: advancedFilters.skuName,
                 skuCode: advancedFilters.skuCode,
                 filterLogic: advancedFilters.filterLogic
             }
         });
-    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, localChannel, advancedFilters, skuPlatformFilter]);
+    }, [dimension, globalPlatform, selectedBrand, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, localPlatformFilter, advancedFilters, skuPlatformFilter]);
 
     // Fetch data from backend API when filters change (stable version)
     const fetchDimensionData = useCallback(async (currentFetchId) => {
@@ -477,7 +471,6 @@ const PlatformOverviewNew = ({
                 endDate: parsed.reqEndDate || undefined,
                 compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
                 compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
-                channel: parsed.reqChannel === 'All' ? undefined : parsed.reqChannel,
                 skuName: parsed.advancedFilters.skuName || undefined,
                 skuCode: parsed.advancedFilters.skuCode || undefined,
                 filterLogic: parsed.advancedFilters.filterLogic || 'OR'
@@ -730,18 +723,18 @@ const PlatformOverviewNew = ({
                                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-indigo-500 pointer-events-none" size={14} />
                                 </div>
                             )}
-                            {/* Channel Dropdown for non-platform, non-sku dimensions */}
+                            {/* Platform Dropdown for non-platform, non-sku dimensions (Brand, Category, Month) */}
                             {dimension !== 'platform' && dimension !== 'sku' && (
                                 <div className="relative flex items-center">
                                     <select
-                                        value={localChannel || 'All'}
-                                        onChange={(e) => setLocalChannel(e.target.value)}
+                                        value={localPlatformFilter || 'All'}
+                                        onChange={(e) => setLocalPlatformFilter(e.target.value)}
                                         className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
-                                        <option value="All">All Channels</option>
-                                        {channels?.filter(c => c !== 'All').map(c => (
-                                            <option key={c} value={c}>{c}</option>
+                                        <option value="All">All Platforms</option>
+                                        {globalPlatforms?.filter(p => p !== 'All').map(p => (
+                                            <option key={p} value={p}>{p}</option>
                                         ))}
                                     </select>
                                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />
