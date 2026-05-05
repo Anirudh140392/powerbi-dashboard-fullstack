@@ -49,9 +49,9 @@ const DELIVERY_TIME_SQL = (col, dateCol = 'DATE') => `
       WHEN ${col} IS NULL OR ${col} = '' OR ${col} = '0' THEN NULL
       ELSE
         CASE
-          WHEN dateDiff('day', ${dateCol}, parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol}))))) < 0 THEN 0
-          WHEN dateDiff('day', ${dateCol}, parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol}))))) > 30 THEN NULL
-          ELSE dateDiff('day', ${dateCol}, parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol})))))
+          WHEN dateDiff('day', ${dateCol}, coalesce(parseDateTimeBestEffortOrNull(${col}), parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol})))))) < 0 THEN 0
+          WHEN dateDiff('day', ${dateCol}, coalesce(parseDateTimeBestEffortOrNull(${col}), parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol})))))) > 30 THEN NULL
+          ELSE dateDiff('day', ${dateCol}, coalesce(parseDateTimeBestEffortOrNull(${col}), parseDateTimeBestEffortOrNull(concat(${col}, ' ', toString(toYear(${dateCol}))))))
         END
     END
 `;
