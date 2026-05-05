@@ -41,8 +41,8 @@ function AppContent() {
 
   return (
     <HelpProvider>
-      <FilterProvider key={sessionKey}>
-        <HashRouter>
+      <HashRouter>
+        <FilterProvider key={sessionKey}>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 
@@ -168,8 +168,8 @@ function AppContent() {
               </ProtectedRoute>
             } />
           </Routes>
-        </HashRouter>
-      </FilterProvider>
+        </FilterProvider>
+      </HashRouter>
       {isLoggedIn && <HelpDrawer userDbName={user?.dbName} />}
     </HelpProvider>
   );

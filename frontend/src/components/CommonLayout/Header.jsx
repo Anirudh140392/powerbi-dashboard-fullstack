@@ -3186,6 +3186,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     setTimeStart,
     timeEnd,
     setTimeEnd,
+    setUserSetDate,
     compareStart,
     setCompareStart,
     compareEnd,
@@ -3789,6 +3790,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     onApply={(start, end, cStart, cEnd, compareOn, label) => {
                       setTimeStart(start);
                       setTimeEnd(end);
+                      setUserSetDate(true);
 
                       // Format label for KPI cards
                       let formattedLabel = "VS PREV. PERIOD";

@@ -1088,8 +1088,9 @@ export const getEcomRcaData = async (filters = {}) => {
         const pSearchOrders = pSpOrders + pSbOrders + pSdOrders;
         const cSearchClicks = cSpClicks + cSbClicks + cSdClicks;
         const pSearchClicks = pSpClicks + pSbClicks + pSdClicks;
-        const cCvrAd = cSearchClicks > 0 ? (cSearchOrders / cSearchClicks) * 100 : 0;
-        const pCvrAd = pSearchClicks > 0 ? (pSearchOrders / pSearchClicks) * 100 : 0;
+        // Inorganic CVR = SUM(ad_quantity_sold) / SUM(ad_click) from rb_pm_olap
+        const cCvrAd = cPmClicks > 0 ? (cPmOrders / cPmClicks) * 100 : 0;
+        const pCvrAd = pPmClicks > 0 ? (pPmOrders / pPmClicks) * 100 : 0;
 
         const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
         const pSos = pTotalKw > 0 ? (pRbKw / pTotalKw) * 100 : 0;
@@ -1255,8 +1256,9 @@ export const getEcomRcaData = async (filters = {}) => {
             const cSearchSpendB = cSpSpendB + cSbSpendB + cSdSpendB;
             const pSearchSpendB = pSpSpendB + pSbSpendB + pSdSpendB;
 
-            const cCvrAdB = cSearchClicksB > 0 ? (cSearchOrdersB / cSearchClicksB) * 100 : 0;
-            const pCvrAdB = pSearchClicksB > 0 ? (pSearchOrdersB / pSearchClicksB) * 100 : 0;
+            // Inorganic CVR = SUM(ad_quantity_sold) / SUM(ad_click) from rb_pm_olap
+            const cCvrAdB = cPmClicksB > 0 ? (cPmOrdersB / cPmClicksB) * 100 : 0;
+            const pCvrAdB = pPmClicksB > 0 ? (pPmOrdersB / pPmClicksB) * 100 : 0;
             const cSearchRoasB = cSearchSpendB > 0 ? (cSearchSalesB / cSearchSpendB) : 0;
             const pSearchRoasB = pSearchSpendB > 0 ? (pSearchSalesB / pSearchSpendB) : 0;
 

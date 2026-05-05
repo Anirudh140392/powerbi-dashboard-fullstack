@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import dayjs from "dayjs";
 import { useAuth } from "./AuthContext";
@@ -72,6 +73,9 @@ export const FilterProvider = ({ children }) => {
     const [comparisonLabel, setComparisonLabel] = useState("VS PREV. PERIOD");
     const [maxDate, setMaxDate] = useState(dayjs());
 
+    // Tracks if the user has manually overridden the default dates
+    const [userSetDate, setUserSetDate] = useState(false);
+
     // Tracks if async data is loaded
     const [datesFetched, setDatesFetched] = useState(false);
     const [platformsFetched, setPlatformsFetched] = useState(false);
@@ -85,17 +89,19 @@ export const FilterProvider = ({ children }) => {
     // SOS / BSR toggle mode
     const [visibilityMode, setVisibilityMode] = useState('sos');
 
-    // Track current hash to detect page changes
-    const [currentHash, setCurrentHash] = useState(window.location.hash);
+    // Use react-router's useLocation instead of native hashchange for reliable route tracking
+    const location = useLocation();
+    
+    // Track current path to detect page changes
+    const [currentPath, setCurrentPath] = useState(location.pathname);
 
     useEffect(() => {
-        const handleHashChange = () => {
-            console.log("[FilterContext] Hash changed to:", window.location.hash);
-            setCurrentHash(window.location.hash);
-        };
-        window.addEventListener('hashchange', handleHashChange);
-        return () => window.removeEventListener('hashchange', handleHashChange);
-    }, []);
+        console.log("[FilterContext] Path changed to:", location.pathname);
+        setCurrentPath(location.pathname);
+    }, [location.pathname]);
+
+    // Race condition guard: prevents stale responses from overwriting fresh date state
+    const dateRequestCounter = useRef(0);
 
     const datesInitialized = Boolean(timeStart && timeEnd);
 
@@ -129,45 +135,89 @@ export const FilterProvider = ({ children }) => {
             setPlatformsFetched(false);
             setVisibilityOwnBrandsOnly(true);
             setVisibilityMode('sos');
+            setUserSetDate(false);
         }
     }, [isAuthenticated]);
 
     // ====== FETCH LATEST DATES FROM DB (on mount and hash change) ======
+    // Each page gets its max date from a specific table:
+    //   Market Share      → rb_ms_olap  via /market-share/latest-date
+    //   Visibility Analysis → rb_kw_olap via /visibility-analysis/latest-available-dates
+    //   All other pages   → rb_pdp_olap via /watchtower/latest-available-month
     const refreshDates = useCallback(async () => {
         if (!isAuthenticated) return;
 
+        const requestId = ++dateRequestCounter.current;
         setDatesFetched(false);
         try {
-            // Use window.location.hash directly to ensure it has the latest path on mount
-            const isMarketShare = window.location.hash.includes('/market-share');
-            const endpoint = isMarketShare ? '/market-share/latest-date' : '/watchtower/latest-available-month';
-            
-            console.log(`[FilterContext] Fetching basic dates from ${endpoint}...`);
+            const path = currentPath;
+            const isMarketShare = path.includes('/market-share');
+            const isVisibility = path.includes('/visibility-anlysis');
+
+            let endpoint;
+            let pageLabel;
+            if (isMarketShare) {
+                endpoint = '/market-share/latest-date';
+                pageLabel = 'Market Share (rb_ms_olap)';
+            } else if (isVisibility) {
+                endpoint = '/visibility-analysis/latest-available-dates';
+                pageLabel = 'Visibility Analysis (rb_kw_olap)';
+            } else {
+                endpoint = '/watchtower/latest-available-month';
+                pageLabel = 'Default (rb_pdp_olap)';
+            }
+
+            console.log(`[FilterContext] Fetching dates from ${endpoint} for ${pageLabel}...`);
             const res = await axiosInstance.get(endpoint);
-            if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
-                const lEnd = dayjs(res.data.defaultEndDate);
-                const lStart = dayjs(res.data.defaultStartDate);
 
-                setTimeEnd(lEnd);
-                setTimeStart(lStart);
-                setMaxDate(lEnd);
+            // Stale response guard: discard if a newer request was fired
+            if (requestId !== dateRequestCounter.current) {
+                console.log(`[FilterContext] Discarding stale date response (request ${requestId}, current ${dateRequestCounter.current})`);
+                return;
+            }
 
-                // Simple Previous period comparison
-                setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
-                setCompareStart(lStart.subtract(1, 'month').startOf('month'));
+            if (res.data && res.data.available !== false) {
+                // Normalize response: endpoints return slightly different field names
+                const endDateStr = res.data.defaultEndDate || res.data.endDate;
+                const startDateStr = res.data.defaultStartDate || res.data.startDate;
 
-                console.log(`[FilterContext] Fetched dynamic dates for ${isMarketShare ? 'Market Share' : 'Watchtower'}:`, res.data.defaultStartDate, "to", res.data.defaultEndDate);
+                if (endDateStr && startDateStr) {
+                    const lEnd = dayjs(endDateStr);
+                    const lStart = dayjs(startDateStr);
+
+                    // Always update maxDate so the date picker boundary is correct for the page
+                    setMaxDate(lEnd);
+
+                    // Only overwrite timeStart and timeEnd if the user hasn't explicitly set a custom date
+                    if (!userSetDate) {
+                        setTimeEnd(lEnd);
+                        setTimeStart(lStart);
+
+                        // Simple Previous period comparison
+                        setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
+                        setCompareStart(lStart.subtract(1, 'month').startOf('month'));
+
+                        console.log(`[FilterContext] Dates set for ${pageLabel}:`, startDateStr, "to", endDateStr);
+                    } else {
+                        console.log(`[FilterContext] Max date updated for ${pageLabel}. Preserving user's custom date selection.`);
+                    }
+                }
             }
         } catch (err) {
+            // Only apply error state if this is still the latest request
+            if (requestId !== dateRequestCounter.current) return;
             console.warn("[FilterContext] Failed to fetch latest dates:", err.message);
         } finally {
-            setDatesFetched(true);
+            // Only mark fetched if this is still the latest request
+            if (requestId === dateRequestCounter.current) {
+                setDatesFetched(true);
+            }
         }
-    }, [isAuthenticated]);
+    }, [isAuthenticated, currentPath]);
 
     useEffect(() => {
         refreshDates();
-    }, [refreshDates]);
+    }, [refreshDates, currentPath]);
 
     // ====== FETCH CHANNELS FROM DB (on mount) ======
     useEffect(() => {
@@ -299,7 +349,7 @@ export const FilterProvider = ({ children }) => {
 
     useEffect(() => {
         fetchPlatformsFromDb();
-    }, [fetchPlatformsFromDb, currentHash]);
+    }, [fetchPlatformsFromDb, currentPath]);
 
     // ====== FETCH PLATFORM METADATA (IMAGES) FROM DB ======
     useEffect(() => {
@@ -599,6 +649,8 @@ export const FilterProvider = ({ children }) => {
             setTimeStart,
             timeEnd,
             setTimeEnd,
+            userSetDate,
+            setUserSetDate,
             compareStart,
             setCompareStart,
             compareEnd,
