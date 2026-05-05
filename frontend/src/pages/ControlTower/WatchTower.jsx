@@ -202,9 +202,29 @@ export default function WatchTower() {
   const overriddenContextRef = React.useRef(null);
   const prevFilterContextRef = React.useRef(null);
 
+  // Derive full (unfiltered) platform list from platformMetadata
+  // platformMetadata always fetches ALL platforms regardless of sidebar channel
+  const allPlatformNames = React.useMemo(() => {
+    const meta = filterContext.platformMetadata;
+    if (meta && meta.length > 0) {
+      return meta.map(p => p.pf_name).filter(Boolean);
+    }
+    return null; // null = no override, use context's list
+  }, [filterContext.platformMetadata]);
+
   const overriddenContext = React.useMemo(() => {
+    // Build override: force selectedChannel/platform to "All"
+    // and use full platform list if available (prevents sidebar channel from filtering platforms)
+    const buildOverride = () => {
+      const overrides = { selectedChannel: "All", platform: "All" };
+      if (allPlatformNames) {
+        overrides.platforms = allPlatformNames;
+      }
+      return { ...filterContext, ...overrides };
+    };
+
     if (!prevFilterContextRef.current) {
-      const newCtx = { ...filterContext, selectedChannel: "All", platform: "All" };
+      const newCtx = buildOverride();
       prevFilterContextRef.current = filterContext;
       overriddenContextRef.current = newCtx;
       return newCtx;
@@ -212,7 +232,7 @@ export default function WatchTower() {
 
     let hasMeaningfulChange = false;
     for (const key in filterContext) {
-      if (key === 'selectedChannel' || key === 'platform') continue;
+      if (key === 'selectedChannel' || key === 'platform' || key === 'platforms') continue;
       if (filterContext[key] !== prevFilterContextRef.current[key]) {
         hasMeaningfulChange = true;
         break;
@@ -220,14 +240,14 @@ export default function WatchTower() {
     }
 
     if (hasMeaningfulChange) {
-      const newCtx = { ...filterContext, selectedChannel: "All", platform: "All" };
+      const newCtx = buildOverride();
       prevFilterContextRef.current = filterContext;
       overriddenContextRef.current = newCtx;
       return newCtx;
     }
 
     return overriddenContextRef.current;
-  }, [filterContext]);
+  }, [filterContext, allPlatformNames]);
 
   // Business Overview ignores sidebar channel/platform filters — always uses "All"
   const selectedChannel = "All";
