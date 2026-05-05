@@ -2776,7 +2776,7 @@ const getAvailabilityCompetitionFilterOptions = async (filters = {}) => {
         // 4. Build SKU conditions (filtered by Platform/Location/Advanced/Category/Brand)
         const skuWhere = await buildAvailabilityWhereClause({ platform, location, category, brand, channel: filters.channel, metroFlag: filters.metroFlag, zones: filters.zones, pincodes: filters.pincodes });
         const skuCondsStr = skuWhere !== '1=1' ? `${skuWhere} AND ` : '';
-        const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuCondsStr}Product IS NOT NULL AND Product != '' ORDER BY Product LIMIT 200`;
+        const skuQuery = `SELECT DISTINCT Product as value FROM rb_pdp_olap WHERE ${skuCondsStr}Product IS NOT NULL AND Product != '' ORDER BY Product`;
 
         const [locationResults, categoryResults, brandResults, skuResults] = await Promise.all([
             queryClickHouse(`SELECT DISTINCT Location as value FROM rb_pdp_olap WHERE Location IS NOT NULL AND Location != '' ORDER BY Location`),
@@ -2874,6 +2874,7 @@ const getAvailabilityCompetitionBrandTrends = async (filters = {}) => {
                     AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
+                  AND Brand IN (${brandList.map(b => `'${escapeStr(b)}'`).join(',')})
                 GROUP BY Brand, DATE
                 ORDER BY DATE ASC
             `;
@@ -3022,7 +3023,7 @@ const getAvailabilityCompetitionSkuTrends = async (filters = {}) => {
                     AVG(toFloat64OrZero(toString(listing_percent))) as avg_listing_percent
                 FROM rb_pdp_olap
                 WHERE ${whereClause}
-                  AND Product IN (${skuList.map(s => `'${s.replace(/'/g, "\\'")}'`).join(',')})
+                  AND Product IN (${skuList.map(s => `'${escapeStr(s)}'`).join(',')})
                 GROUP BY Product, DATE
                 ORDER BY DATE ASC
             `;

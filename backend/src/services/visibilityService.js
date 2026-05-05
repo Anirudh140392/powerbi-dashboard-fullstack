@@ -2623,9 +2623,13 @@ class VisibilityService {
                   AND ${formatCondition}
                   AND ${keywordCondition}
                   AND ${keywordTypeCondition}
+                  AND ${channelCondition}
                 GROUP BY crawl_date
                 ORDER BY crawl_date ASC
             `;
+
+                console.log('--- getBrandComparisonTrends Denominator Query ---');
+                console.log(volumeQuery);
 
                 const volumeResults = await queryClickHouse(volumeQuery);
                 const volumeByDate = {};
@@ -2666,9 +2670,14 @@ class VisibilityService {
                    AND ${formatCondition}
                    AND ${keywordCondition}
                    AND ${brandsCondition}
+                   AND ${keywordTypeCondition}
+                   AND ${channelCondition}
                 GROUP BY brand_name, crawl_date
                 ORDER BY crawl_date ASC
             `;
+
+                console.log('--- getBrandComparisonTrends Numerator Query ---');
+                console.log(brandDataQuery);
 
                 const queries = [queryClickHouse(brandDataQuery)];
 

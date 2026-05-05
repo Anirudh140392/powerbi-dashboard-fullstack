@@ -709,6 +709,132 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
 };
 
 /**
+ * Get Market Share KPI
+ * Logic: (Our Sales / Total Category Sales) * 100
+ * Returns: { share, prevShare, delta, trend }
+ */
+export const getMarketShareKPI = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null) => {
+    try {
+        const platformArr = normalizeFilterArray(platformFilter);
+        const categoryArr = normalizeFilterArray(categoryFilter);
+        const locationArr = normalizeFilterArray(locationFilter);
+
+        let platformCond = '';
+        if (platformArr && platformArr.length > 0 && !platformArr.includes('All')) {
+            const platformConds = platformArr.map(p => `lower(platform) LIKE lower('%${p}%')`).join(' OR ');
+            platformCond = `AND (${platformConds})`;
+        }
+
+        let locationCond = '';
+        if (locationArr && locationArr.length > 0 && !locationArr.includes('All')) {
+            locationCond = `AND lower(location) IN (${locationArr.map(l => `'${l.replace(/'/g, "''").toLowerCase()}'`).join(', ')})`;
+        }
+
+        let categoryCond = '';
+        const mappedCats = mapCategoryForMs(categoryArr);
+        if (mappedCats.length > 0) {
+            categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        const startStr = start.format('YYYY-MM-DD');
+        const endStr = end.format('YYYY-MM-DD');
+        
+        let prevStartStr, prevEndStr;
+        if (compStart && compEnd) {
+            prevStartStr = compStart.format('YYYY-MM-DD');
+            prevEndStr = compEnd.format('YYYY-MM-DD');
+        } else {
+            const periodDays = end.diff(start, 'day');
+            const prevEnd = start.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(periodDays, 'day');
+            prevStartStr = prevStart.format('YYYY-MM-DD');
+            prevEndStr = prevEnd.format('YYYY-MM-DD');
+        }
+
+        const baseCond = `${platformCond} ${locationCond} ${categoryCond}`;
+
+        // Get our brands
+        const brandQuery = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
+        const brandResult = await queryClickHouse(brandQuery);
+        let ourBrands = brandResult.map(b => b.brand_name).filter(Boolean);
+        if (ourBrands.length === 0) ourBrands = ['dummy_no_brands'];
+        const brandsSql = ourBrands.map(b => `'${b.replace(/'/g, "''")}'`).join(', ');
+
+        // Current & Previous Share
+        const currentQuery = `
+            SELECT 
+                SUM(toFloat64OrZero(toString(sales))) as total_sales,
+                SUM(IF(group_brand IN (${brandsSql}), toFloat64OrZero(toString(sales)), 0)) as our_sales
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
+        `;
+
+        const prevQuery = `
+            SELECT 
+                SUM(toFloat64OrZero(toString(sales))) as total_sales,
+                SUM(IF(group_brand IN (${brandsSql}), toFloat64OrZero(toString(sales)), 0)) as our_sales
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${prevStartStr}' AND '${prevEndStr}'
+            ${baseCond}
+        `;
+
+        // Trend Query
+        const trendQuery = `
+            SELECT 
+                formatDateTime(toDate(created_on), '%Y-%m-%d') as date_group,
+                SUM(toFloat64OrZero(toString(sales))) as total_sales,
+                SUM(IF(group_brand IN (${brandsSql}), toFloat64OrZero(toString(sales)), 0)) as our_sales
+            FROM rb_ms_olap
+            WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
+            ${baseCond}
+            GROUP BY date_group
+            ORDER BY date_group
+        `;
+
+        const [currentRes, prevRes, trendRes] = await Promise.all([
+            queryClickHouse(currentQuery),
+            queryClickHouse(prevQuery),
+            queryClickHouse(trendQuery)
+        ]);
+
+        const curTotal = parseFloat(currentRes?.[0]?.total_sales || 0);
+        const curOur = parseFloat(currentRes?.[0]?.our_sales || 0);
+        const share = curTotal > 0 ? (curOur / curTotal) * 100 : 0;
+
+        const prevTotal = parseFloat(prevRes?.[0]?.total_sales || 0);
+        const prevOur = parseFloat(prevRes?.[0]?.our_sales || 0);
+        const prevShare = prevTotal > 0 ? (prevOur / prevTotal) * 100 : 0;
+
+        const delta = share - prevShare;
+
+        const trendMap = {};
+        trendRes.forEach(t => {
+            const tTotal = parseFloat(t.total_sales || 0);
+            const tOur = parseFloat(t.our_sales || 0);
+            trendMap[t.date_group] = tTotal > 0 ? (tOur / tTotal) * 100 : 0;
+        });
+
+        const trend = [];
+        let curr = start;
+        while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+             trend.push(parseFloat((trendMap[curr.format('YYYY-MM-DD')] || 0).toFixed(2)));
+             curr = curr.add(1, 'day');
+        }
+
+        return {
+            share: parseFloat(share.toFixed(2)),
+            prevShare: parseFloat(prevShare.toFixed(2)),
+            delta: parseFloat(delta.toFixed(2)),
+            trend
+        };
+    } catch (error) {
+        console.error('[MarketShareKPI] Error:', error.message);
+        return { share: 0, prevShare: 0, delta: 0, trend: [] };
+    }
+};
+
+/**
  * Get Sub-Category KPI data
  * Returns: list of categories + brand-level KPIs for a given category
  * KPIs: market_share (sales-based), total_sales

@@ -27,6 +27,18 @@ import SubCategoryMarket from "./SubCategoryMarket";
 
 const marketShareKpis = [
   {
+    id: "ms-market-share",
+    title: "Market Share (%)",
+    value: "0%",
+    subtitle: "Our brand market share in the category",
+    delta: 0,
+    deltaLabel: "0% (vs Prev)",
+    icon: TrendingUp,
+    gradient: ["#3b82f6", "#2dd4bf"],
+    extraChangeColor: "green",
+    prevText: "vs Comparison Period",
+  },
+  {
     id: "ms-category-size",
     title: "Category Size (Cr)",
     value: "₹ 220.22 Cr",
@@ -391,6 +403,20 @@ export default function MarketShareAnalysis() {
 
         if (response.data) {
           setKpis(prev => prev.map(k => {
+            // Market Share KPI
+            if (k.id === "ms-market-share" && response.data.marketShare) {
+              const msData = response.data.marketShare;
+              const arrow = msData.delta >= 0 ? '▲' : '▼';
+              return {
+                ...k,
+                value: `${msData.share.toFixed(2)}%`,
+                delta: msData.delta,
+                deltaLabel: `${arrow} ${Math.abs(msData.delta).toFixed(2)}% (vs Prev)`,
+                extraChangeColor: msData.delta >= 0 ? "green" : "red",
+                trend: msData.trend,
+              };
+            }
+
             // Category Size KPI
             if (k.id === "ms-category-size" && response.data.categorySize !== undefined) {
               const catData = response.data.categorySize;

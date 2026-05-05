@@ -358,27 +358,32 @@ const MetricChip = ({ label, color, active, onClick }) => {
 const TrendView = ({ mode, filters, city, platform, channel, period, globalFilters, brandRows, skuRows, onBackToTable, isEcom }) => {
     const isBrandMode = mode === "brand";
 
+    // Also include any filter-selected SKUs/brands not already in the top rows
     const allPossibleIds = useMemo(() => {
         if (isBrandMode) {
             const rows = brandRows || [];
-            return rows.map((r) => r.id || r.name);
+            const ids = rows.map((r) => r.id || r.name);
+            // Add filter-selected brands not already in the list
+            if (filters.brands && filters.brands.length > 0) {
+                filters.brands.forEach(b => { if (!ids.includes(b)) ids.push(b); });
+            }
+            return ids;
         }
         const rows = skuRows || [];
-        return rows.map((r) => r.id || r.name);
-    }, [isBrandMode, brandRows, skuRows]);
+        const ids = rows.map((r) => r.id || r.name);
+        // Add filter-selected SKUs not already in the list
+        if (filters.skus && filters.skus.length > 0) {
+            filters.skus.forEach(s => { if (!ids.includes(s)) ids.push(s); });
+        }
+        return ids;
+    }, [isBrandMode, brandRows, skuRows, filters.brands, filters.skus]);
 
     const [visibleIds, setVisibleIds] = useState([]);
     const [overflowOpen, setOverflowOpen] = useState(false);
 
     useEffect(() => {
-        // Initialize visibleIds. If filters exist, use them. Otherwise top 5.
-        const currentFilters = isBrandMode ? filters.brands : filters.skus;
-        if (currentFilters && currentFilters.length > 0) {
-            setVisibleIds(currentFilters.slice(0, 10));
-        } else {
-            setVisibleIds(allPossibleIds.slice(0, 5));
-        }
-    }, [allPossibleIds, isBrandMode, filters]);
+        setVisibleIds(allPossibleIds.slice(0, 5));
+    }, [allPossibleIds]);
 
     const [apiTrendData, setApiTrendData] = useState(null);
     const [trendLoading, setTrendLoading] = useState(false);

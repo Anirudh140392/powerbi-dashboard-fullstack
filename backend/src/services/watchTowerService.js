@@ -8583,13 +8583,9 @@ const getCompetitionFilterOptions = async (filters = {}) => {
                 if (brandArr.length > 0) {
                     conds.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
                 }
-                if (context === 'performance') {
-                    conds.push(`toString(${src.f.compFlag}) = '0'`);
-                } else {
-                    conds.push(`toString(${src.f.compFlag}) IN ('0', '1')`);
-                }
+                // No comp_flag filter for SKUs - show all products from rb_pdp_olap
                 conds.push(`${src.f.product} IS NOT NULL`, `${src.f.product} != ''`, `${src.f.skuCode} IS NOT NULL`, `${src.f.skuCode} != ''`);
-                return queryClickHouse(`SELECT DISTINCT ${src.f.product} as skuName, toString(${src.f.skuCode}) as skuCode FROM ${src.table} WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY skuName LIMIT 500`);
+                return queryClickHouse(`SELECT DISTINCT ${src.f.product} as skuName, toString(${src.f.skuCode}) as skuCode FROM ${src.table} WHERE ${conds.length > 0 ? conds.join(' AND ') : '1=1'} ORDER BY skuName`);
             })()
         ]);
 

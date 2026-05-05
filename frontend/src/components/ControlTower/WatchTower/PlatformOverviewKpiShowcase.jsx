@@ -1355,14 +1355,25 @@ const TrendView = ({ mode, filters, city, platform, brandRows, skuRows, onBackTo
   const [overflowOpen, setOverflowOpen] = useState(false);
 
   // Derive all possible names from the filtered rows passed by the parent Table component
+  // Also include any filter-selected SKUs/brands not already in the top rows
   const allPossibleIds = useMemo(() => {
     if (isBrandMode) {
       const rows = brandRows || [];
-      return rows.map((r) => r.label || r.name || r.brand_name || r.brandName || r.brand);
+      const ids = rows.map((r) => r.label || r.name || r.brand_name || r.brandName || r.brand);
+      // Add filter-selected brands not already in the list
+      if (filters.brands && filters.brands.length > 0) {
+        filters.brands.forEach(b => { if (!ids.includes(b)) ids.push(b); });
+      }
+      return ids;
     }
     const rows = skuRows || [];
-    return rows.map((r) => r.label || r.name || r.sku_name || r.Product);
-  }, [isBrandMode, brandRows, skuRows]);
+    const ids = rows.map((r) => r.label || r.name || r.sku_name || r.Product);
+    // Add filter-selected SKUs not already in the list
+    if (filters.skus && filters.skus.length > 0) {
+      filters.skus.forEach(s => { if (!ids.includes(s)) ids.push(s); });
+    }
+    return ids;
+  }, [isBrandMode, brandRows, skuRows, filters.brands, filters.skus]);
 
   const [visibleIds, setVisibleIds] = useState([]);
 
@@ -1957,8 +1968,6 @@ const formatLargeNumber = (value) => {
 };
 
 const BrandTable = ({ rows, loading, onTrendClick }) => {
-  const { user } = useAuth();
-  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -1980,12 +1989,12 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[24%]" : "w-[20%]")}>Brand</th>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>OSA</th>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>SOS</th>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Price</th>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[19%]" : "w-[16%]")}>Promo-My %</th>
-                {!hideMarketShare && <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>}
+                <th className="px-3 py-2 text-center w-[20%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[16%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[16%]">SOS</th>
+                <th className="px-3 py-2 text-center w-[16%]">Price</th>
+                <th className="px-3 py-2 text-center w-[16%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[16%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -1994,10 +2003,10 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
                 <tr key={`skeleton-brand-${idx}`} className="animate-pulse">
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-2/3"></div></td>
                   <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  {!hideMarketShare && <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
+                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -2044,23 +2053,21 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
                       </span>
                     </div>
                   </td>
-                  {!hideMarketShare && (
-                    <td className="px-3 py-2 text-right text-slate-900">
-                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                        <span>{(Number(row.MarketShare?.value) || 0).toFixed(1)}%</span>
-                        <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                          {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                  )}
+                  <td className="px-3 py-2 text-right text-slate-900 border-x border-slate-100">
+                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                      <span>{(Number(row.MarketShare?.value) || 0).toFixed(1)}%</span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={hideMarketShare ? 5 : 6}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No brands matching current filters
@@ -2088,8 +2095,6 @@ const BrandTable = ({ rows, loading, onTrendClick }) => {
 
 
 const SkuTable = ({ rows, loading, onTrendClick }) => {
-  const { user } = useAuth();
-  const hideMarketShare = user?.dbName === 'mars' || user?.dbName === 'mars_petcare' || user?.dbName === 'boat';
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
@@ -2111,12 +2116,12 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
           <table className="min-w-full divide-y divide-slate-200 text-xs table-fixed">
             <thead className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[16%]")}>SKU</th>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[16%]")}>Brand</th>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>OSA</th>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Price</th>
-                <th className={cn("px-3 py-2 text-center", hideMarketShare ? "w-[20%]" : "w-[17%]")}>Promo-My %</th>
-                {!hideMarketShare && <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>}
+                <th className="px-3 py-2 text-center w-[16%]">SKU</th>
+                <th className="px-3 py-2 text-center w-[16%]">Brand</th>
+                <th className="px-3 py-2 text-center w-[17%]">OSA</th>
+                <th className="px-3 py-2 text-center w-[17%]">Price</th>
+                <th className="px-3 py-2 text-center w-[17%]">Promo-My %</th>
+                <th className="px-3 py-2 text-center w-[17%]">Mkt Share</th>
               </tr>
             </thead>
 
@@ -2125,10 +2130,10 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
                 <tr key={`skeleton-sku-${idx}`} className="animate-pulse">
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-200 rounded w-3/4"></div></td>
                   <td className="px-3 py-3 border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
+                  <td className="px-3 py-3 text-center border-r border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
                   <td className="px-3 py-3 text-center border-x border-slate-100"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>
-                  {!hideMarketShare && <td className="px-3 py-3 text-center"><div className="h-4 bg-slate-100 rounded w-1/2 mx-auto"></div></td>}
                 </tr>
               ))}
               {!loading && paginatedRows.map((row, idx) => (
@@ -2170,25 +2175,23 @@ const SkuTable = ({ rows, loading, onTrendClick }) => {
                       </span>
                     </div>
                   </td>
-                  {!hideMarketShare && (
-                    <td className="px-3 py-2 text-center text-slate-900 font-medium">
-                      <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
-                        <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
-                          {(Number(row.MarketShare?.value) || 0).toFixed(1)}%
-                        </span>
-                        <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
-                          {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                  )}
+                  <td className="px-3 py-2 text-center text-slate-900 font-medium border-x border-slate-100">
+                    <div className="flex items-center justify-center gap-1.5 whitespace-nowrap">
+                      <span className="inline-flex items-center justify-center rounded-md bg-green-50 px-2 py-1 font-semibold text-green-700 text-[12px]">
+                        {(Number(row.MarketShare?.value) || 0).toFixed(1)}%
+                      </span>
+                      <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full border", (Number(row.MarketShare?.delta) || 0) >= 0 ? "text-emerald-700 bg-emerald-50 border-emerald-100" : "text-rose-700 bg-rose-50 border-rose-100")}>
+                        {(Number(row.MarketShare?.delta) || 0) >= 0 ? '↑' : '↓'} {Math.abs(Number(row.MarketShare?.delta) || 0).toFixed(1)}%
+                      </span>
+                    </div>
+                  </td>
                 </tr>
               ))}
 
               {!loading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={hideMarketShare ? 5 : 6}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-slate-400"
                   >
                     No SKUs matching current filters

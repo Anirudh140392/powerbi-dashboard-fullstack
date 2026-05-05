@@ -1,4 +1,4 @@
-import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate } from '../services/marketShareHelper.js';
+import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getMarketShareKPI, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate } from '../services/marketShareHelper.js';
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
@@ -15,10 +15,11 @@ export const Platform = async (req, res) => {
         const compEnd = compareEndDate ? dayjs(compareEndDate) : null;
 
         // Fetch all KPIs in parallel
-        const [categorySize, leaderData, marsData] = await Promise.all([
+        const [categorySize, leaderData, marsData, marketShareData] = await Promise.all([
             getCategorySize(start, end, platform, category, location, compStart, compEnd),
             getMarketLeaderSales(start, end, platform, category, location, compStart, compEnd),
-            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd)
+            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd),
+            getMarketShareKPI(start, end, platform, category, location, compStart, compEnd)
         ]);
 
         const response = {
@@ -26,7 +27,8 @@ export const Platform = async (req, res) => {
             filters: req.query,
             categorySize,
             marketLeader: leaderData,
-            marsWrigley: marsData
+            marsWrigley: marsData,
+            marketShare: marketShareData
         };
         console.log("Sending response:", response);
 
