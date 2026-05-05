@@ -2278,11 +2278,19 @@ const PlatformOverviewKpiShowcase = ({ selectedItem, selectedLevel, filterOption
     filters.categories.length + filters.brands.length + filters.skus.length;
 
   const brandRows = useMemo(() => {
-    return apiBrandData;
+    return [...apiBrandData].sort((a, b) => {
+      const valA = Number(a.MarketShare?.value) || 0;
+      const valB = Number(b.MarketShare?.value) || 0;
+      return valB - valA;
+    });
   }, [apiBrandData]);
 
   const skuRows = useMemo(() => {
-    return apiSkuData;
+    return [...apiSkuData].sort((a, b) => {
+      const valA = Number(a.MarketShare?.value) || 0;
+      const valB = Number(b.MarketShare?.value) || 0;
+      return valB - valA;
+    });
   }, [apiSkuData]);
 
   return (
