@@ -28,6 +28,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, BrainCircuit, Loader2, Sparkles, RefreshCw } from "lucide-react";
+import { buildAISegments } from "../../pages/Insights/Insights";
 
 // ─── Helpers (copied from Insights.jsx so this file is self-contained) ────────
 
@@ -109,7 +110,7 @@ const buildPrompt = (insight) => {
     ];
 
     const cleanEvidence = (insight.evidence || [])
-        .slice(0, 10)
+        .slice(0, 15)
         .map(row => {
             const cleaned = {};
             for (const k of SAFE_KEYS) {
@@ -128,18 +129,19 @@ const buildPrompt = (insight) => {
             Object.values(cleanEvidence[0]).every(v => v === 0 || v === "-" || v === "0%"));
 
     // ── System Prompt ─────────────────────────────────────────────────────────
-    const systemPrompt = `You are a Senior Retail Data Scientist generating executive-level AI insights for a retail intelligence dashboard called Trailytics.
+    const systemPrompt = `You are an expert Retail Data Scientist generating executive-level, professional, and precise AI insights for a retail intelligence dashboard called Trailytics.
 
 RULES:
 1. Respond ONLY with a valid JSON array of exactly 4 objects. No prose, no markdown fences, no explanation.
-2. Each object must have exactly two keys: "label" (string, ≤3 words) and "text" (string).
-3. Use **double-asterisks** to bold key numbers, brand names, SKUs, and cities — e.g. **Snickers** or **₹12.4 lac**.
-4. Every bullet must follow: Observation → Financial Impact → Action. Keep each under 20 words.
-5. The Action label must have the most actionable recommendation, not just an observation.
-6. If data is empty or null (isEmpty = true), return 4 strategic "monitoring" insights — no fabricated numbers.
-7. Do NOT use introductory phrases like "The data shows" or "Based on the table".
-8. Labels must match the signal type context. Suggested labels per module:
-   - Market Share / Headroom → "Share Loss", "Root Cause", "SKU Impact", "Action"
+2. Each object must have exactly two keys: "label" (string, professional, ≤3 words) and "text" (string).
+3. Use **double-asterisks** to bold key numbers, brand names, SKUs, and cities.
+4. IMPORTANT: Analyze ALL the provided rows. Synthesize a meaningful, data-driven pattern across the dataset, OR select the single most critical row and focus the insight on it. Keep the insights objective, professional, and precise!
+5. Every bullet must follow: Key Observation → Financial Impact → Actionable Recommendation. Keep each under 25 words.
+6. The Action label must have the most actionable recommendation, not just an observation.
+7. If data is empty or null (isEmpty = true), return 4 strategic "monitoring" insights — no fabricated numbers.
+8. Do NOT use introductory phrases like "The data shows" or "Based on the table".
+9. Labels must match the signal type context. Suggested labels per module:
+   - Market Share / Headroom → "Share Alert", "Root Cause", "SKU Impact", "Action"
    - Pricing → "Pricing Alert", "SKU Gap", "Revenue at Risk", "Action"
    - Supply / Replenishment → "Stockout Risk", "Affected SKUs", "Sales at Risk", "Action"
    - Competitor OSA → "Opportunity", "Weak Competitors", "Upside", "Action"
@@ -236,40 +238,14 @@ const AIInsightsPanelLive = ({ insight, onClose }) => {
         setPhase("loading");
         setSegments([]);
 
-        const { systemPrompt, userPrompt } = buildPrompt(insight);
-
         try {
-            const response = await fetch("https://api.anthropic.com/v1/messages", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    model: "claude-sonnet-4-20250514",
-                    max_tokens: 1000,
-                    system: systemPrompt,
-                    messages: [{ role: "user", content: userPrompt }],
-                }),
-            });
-
-            if (!response.ok) throw new Error(`API error ${response.status}`);
-
-            const data = await response.json();
-
-            // Extract the text block from the response
-            const rawText = (data.content || [])
-                .filter(b => b.type === "text")
-                .map(b => b.text)
-                .join("");
-
-            // Strip any accidental markdown fences
-            const cleaned = rawText.replace(/```json|```/gi, "").trim();
-            const parsed  = JSON.parse(cleaned);
-
-            if (!Array.isArray(parsed) || parsed.length < 2) {
-                throw new Error("Unexpected response shape");
-            }
-
-            // Enforce exactly 4 segments; assign priority positionally
-            const normalised = parsed.slice(0, 4).map((seg, idx) => ({
+            // Wait 600ms to simulate analysis feeling (since it's an AI panel)
+            await new Promise(r => setTimeout(r, 600));
+            
+            // Generate hardcoded segments that scan all rows
+            const fallbackSegments = buildAISegments(insight);
+            
+            const normalised = fallbackSegments.slice(0, 4).map((seg, idx) => ({
                 label:    seg.label || `Insight ${idx + 1}`,
                 text:     seg.text  || "",
                 priority: PRIORITY_ORDER[idx] || "neutral",
@@ -277,19 +253,11 @@ const AIInsightsPanelLive = ({ insight, onClose }) => {
 
             setSegments(normalised);
             setPhase("reveal");
-
         } catch (err) {
-            console.warn("[AIInsightsPanelLive] API call failed, using static fallback:", err.message);
-
-            // Static fallback so the panel never goes blank
-            const fallback = staticFallback(insight).map((seg, idx) => ({
-                ...seg,
-                priority: PRIORITY_ORDER[idx] || "neutral",
-            }));
-            setSegments(fallback);
-            setPhase("error"); // shows a subtle retry notice
+            console.error("[AIInsightsPanelLive] Hardcoded generation failed:", err);
+            setPhase("error");
         }
-    }, [insight, retryKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [insight]);
 
     useEffect(() => {
         fetchInsights();

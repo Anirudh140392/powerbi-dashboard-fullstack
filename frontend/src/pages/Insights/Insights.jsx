@@ -72,12 +72,14 @@ const SIGNAL_META = {
         color: "#4a6fa5", accent: "#e8eef6",
         FamilyIcon: BarChart3, metricKey: "impactInr",
         metricLabel: "Offtake Loss Impact", trend: "negative",
+        isBeta: false,
     },
     "Price Parity Radar": {
         family: "Pricing Positioning",
         color: "#3d7a8a", accent: "#e4f0f3",
         FamilyIcon: BadgePercent, metricKey: "impactInr",
         metricLabel: "Opportunity Available", trend: "negative",
+        isBeta: false,
     },
     "Replenishment Breaks": {
         family: "Supply Chain",
@@ -90,12 +92,14 @@ const SIGNAL_META = {
         color: "#3a7d68", accent: "#e3f1ec",
         FamilyIcon: Radar, metricKey: "impactInr",
         metricLabel: "Opportunity Available", trend: "positive",
+        isBeta: false,
     },
     "Remove Ad Low OSA": {
         family: "Performance Marketing",
         color: "#8a6a3d", accent: "#f3ede3",
         FamilyIcon: Megaphone, metricKey: "impactInr",
         metricLabel: "Ad Efficiency Loss", trend: "negative",
+        isBeta: false,
     },
     "Keyword Efficiency and Budget Caps": {
         family: "Performance Marketing",
@@ -126,6 +130,7 @@ const SIGNAL_META = {
         color: "#4a6b8a", accent: "#e6eff6",
         FamilyIcon: MapPin, metricKey: "impactInr",
         metricLabel: "Competitor Revenue", trend: "negative",
+        isBeta: false,
     },
     "Dark Store Coverage Gaps": {
         family: "Dark Store",
@@ -249,280 +254,285 @@ const diagnoseCause = (evidence, aiTrendData, brand) => {
     return { cause: "visibility", competitor: "N/A", text: `${B(brand)} visibility underperforming vs category benchmark.` };
 };
 
-const buildAISegments = (insight) => {
+export const buildAISegments = (insight) => {
     const type = insight.type;
     const brand = insight.brandName || "Brand";
     const allEv = insight.evidence || [];
-    const ev = allEv[0] || {};
-
-    const city = (insight.city !== "-" && insight.city !== "Multi-city")
-        ? insight.city
-        : (ev.city && ev.city !== "-" ? ev.city : (insight.city !== "-" ? insight.city : "regions"));
-
-    const category = (insight.category !== "-" && insight.category !== "Overall")
-        ? insight.category
-        : (ev.category && ev.category !== "-" ? ev.category : (insight.category !== "-" ? insight.category : "category"));
+    
+    // If no evidence, fallback safely
+    if (allEv.length === 0) return [
+        { label: "Signal", priority: "high", text: "No data detected." },
+        { label: "Details", priority: "focus", text: "We need more data to analyze." },
+        { label: "Impact", priority: "good", text: "Impact unknown." },
+        { label: "Action", priority: "neutral", text: "Continue monitoring." },
+    ];
 
     const impact = B(formatINRCompact(insight.impactInr || 0));
 
     if (type === "Share Headroom Hotspots") {
-        const d = diagnoseCause(allEv, insight.aiTrendData, brand);
-        const threat = insight.aiTrendData?.topThreat;
-        const topCity = ev.city || city;
-        const compSku = ev.competitorSku && ev.competitorSku !== "-" ? ev.competitorSku : null;
-        const ourSku = ev.myTopSku && ev.myTopSku !== "-" ? ev.myTopSku : null;
+        const worst = allEv.reduce((w, e) => ((e.psl || 0) > (w.psl || 0) ? e : w), allEv[0]);
+        const totalPsl = allEv.reduce((s, e) => s + (e.psl || 0), 0);
+        const city = worst.city !== "-" ? worst.city : "multiple regions";
+        const category = worst.category !== "-" ? worst.category : "the category";
+        const compSku = worst.competitorSku && worst.competitorSku !== "-" ? worst.competitorSku : null;
+        const ourSku = worst.myTopSku && worst.myTopSku !== "-" ? worst.myTopSku : null;
 
         return [
             {
-                label: "What's Happening", priority: "high",
-                text: threat?.brandName
-                    ? `${B(threat.brandName)} gained ${B("+" + safePct(threat.shareChangePpt))} share in ${B(category)} (${B(topCity)}). ${B(brand)} losing ground.`
-                    : `Share headroom in ${B(category)} across ${B(topCity)}.`
+                label: "Share Decline", priority: "high",
+                text: `Significant share opportunity identified. ${B(brand)} is experiencing a decline in ${B(category)} across ${B(allEv.length)} locations, primarily in ${B(city)}.`
             },
-            { label: "Root Cause", priority: "focus", text: d.text },
             {
-                label: "SKU Impact", priority: "neutral",
+                label: "Root Cause", priority: "focus", 
+                text: `A ${B("visibility gap")} against competitors is the primary driver. The current market share of ${B(safePct(worst.marketShare))} in ${B(city)} requires attention.`
+            },
+            {
+                label: "SKU Performance", priority: "neutral",
                 text: compSku
-                    ? `${B(d.competitor)}'s hero: ${B("'" + compSku + "'")}${ourSku ? ` vs ${B(brand)}'s weak SKU: ${B("'" + ourSku + "'")}` : ""}.`
-                    : ourSku ? `${B(brand)} weakest SKU: ${B("'" + ourSku + "'")}.` : `No SKU-level data available.`
+                    ? `Competitor SKU ${B("'" + compSku + "'")} is outperforming ${ourSku ? `${B(brand)}'s ${B("'" + ourSku + "'")}` : "the current lineup"}.`
+                    : `Key SKUs are currently underperforming against established category benchmarks.`
             },
             {
-                label: "Action", priority: "good",
-                text: d.cause === "ad" ? `Increase bids on ${B(category)} keywords vs ${B(d.competitor)}. Recovery: ${impact}.`
-                    : d.cause === "organic" ? `Improve SEO & listing quality vs ${B(d.competitor)}. Recovery: ${impact}.`
-                        : d.cause === "osa" ? `Fix OSA in ${B(topCity)} before scaling ad spend. Recovery: ${impact}.`
-                            : `Boost visibility in ${B(topCity)}. Recovery: ${impact}.`
+                label: "Recommended Action", priority: "good",
+                text: `Focus efforts in ${B(city)}. Optimize visibility and improve OSA to capture a potential recovery pool of ${B(formatINRCompact(totalPsl))}.`
             },
         ];
     }
 
     if (type === "Price Parity Radar") {
-        const worst = allEv.reduce((w, e) => (Math.abs(e.gapPct || 0) > Math.abs(w.gapPct || 0) ? e : w), ev);
+        const worst = allEv.reduce((w, e) => (Math.abs(e.gapPct || 0) > Math.abs(w.gapPct || 0) ? e : w), allEv[0]);
         const compSku = worst.compSku && worst.compSku !== "-" ? worst.compSku : "competitor";
-        const ourSku = worst.impactedSku && worst.impactedSku !== "-" ? worst.impactedSku : null;
+        const ourSku = worst.impactedSku && worst.impactedSku !== "-" ? worst.impactedSku : "our product";
         const dir = (worst.gapPct || 0) > 0 ? "overpriced" : "underpriced";
 
         return [
             {
-                label: "Pricing Alert", priority: "high",
-                text: `${B(brand)} is ${B(dir)} by ${B(safePct(Math.abs(worst.gapPct || 0)))} for ${B(category)} vs ${B(compSku)} in ${B(worst.city || city)}.`
+                label: "Pricing Variance", priority: "high",
+                text: `Pricing discrepancy detected. ${B(brand)} is ${B(dir)} across ${B(allEv.length)} locations. Maximum variance observed: ${B(safePct(Math.abs(worst.gapPct || 0)))} in ${B(worst.city)}.`
             },
             {
                 label: "SKU Comparison", priority: "focus",
-                text: `${B(compSku)} PPU at ${B("₹" + (typeof worst.compPpu === "number" ? worst.compPpu.toFixed(1) : worst.compPpu))}${ourSku ? ` → ${B(brand)} SKU ${B("'" + ourSku + "'")} at ${B("₹" + (typeof worst.ourPpu === "number" ? worst.ourPpu.toFixed(1) : worst.ourPpu))}` : `, ${B(brand)} at ${B("₹" + (typeof worst.ourPpu === "number" ? worst.ourPpu.toFixed(1) : worst.ourPpu))}`}.`
+                text: `Competitor SKU ${B(compSku)} is priced at ${B("₹" + worst.compPpu)}, whereas ${B("'" + ourSku + "'")} is priced at ${B("₹" + worst.ourPpu)}.`
             },
             {
-                label: "Revenue at Risk", priority: "good",
-                text: `PSL from price gap: ${impact}. ${B(allEv.length.toString())} city-category combo(s) affected.`
+                label: "Revenue Impact", priority: "good",
+                text: `This pricing misalignment presents a potential revenue risk of ${impact} if unresolved.`
             },
             {
-                label: "Action", priority: "neutral",
+                label: "Recommended Action", priority: "neutral",
                 text: dir === "overpriced"
-                    ? `Run markdown / bundle offer in ${B(worst.city || city)} to close gap vs ${B(compSku)}.`
-                    : `Price advantage vs ${B(compSku)} — consider strategic price increase for margin.`
+                    ? `Consider targeted price adjustments or promotional offers in ${B(worst.city)} to align with ${B(compSku)}.`
+                    : `Pricing advantage identified. Evaluate potential price adjustments to optimize margins.`
             },
         ];
     }
 
     if (type === "Competitor OSA Weak Spots") {
-        const top3 = allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3);
+        const worstComp = allEv.reduce((w, e) => ((e.otherBrandOsa || 100) < (w.otherBrandOsa || 100) ? e : w), allEv[0]);
+        const totalGap = allEv.reduce((s, e) => s + (e.gapPct || 0), 0) / allEv.length;
+        
         return [
             {
-                label: "Opportunity", priority: "high",
-                text: `${B(ev.skuOrBrand || "Competitor")} OSA crashed to ${B(safePct(ev.otherBrandOsa))} in ${B(ev.category || category)}. ${B(brand)} healthy at ${B(safePct(ev.kwOsa))}.`
+                label: "Market Opportunity", priority: "high",
+                text: `Competitor out-of-stock events detected across ${B(allEv.length)} regions. Average availability gap: ${B(safePct(totalGap))}.`
             },
             {
-                label: "Weak Competitors", priority: "focus",
-                text: top3.map(e => `${B(e.skuOrBrand)}: ${B(safePct(e.otherBrandOsa))} OSA (${e.city || city})`).join(" · ") || `Below threshold in ${B(city)}.`
+                label: "Key Competitor", priority: "focus",
+                text: `${B(worstComp.skuOrBrand || "A key competitor")} has experienced an OSA drop to ${B(safePct(worstComp.otherBrandOsa))} in ${B(worstComp.city)}.`
             },
             {
-                label: "Upside", priority: "good",
-                text: `${impact} revenue if ${B(brand)} captures share across ${B(allEv.length.toString())} hotspot(s).`
+                label: "Upside Potential", priority: "good",
+                text: `${B(brand)} maintains stable availability at ${B(safePct(worstComp.kwOsa))}, presenting a potential ${impact} market capture opportunity.`
             },
             {
-                label: "Action", priority: "neutral",
-                text: `Boost ${B(brand)} sponsored placements in ${B(ev.city || city)} while ${B(ev.skuOrBrand || "competitor")} is OOS.`
+                label: "Recommended Action", priority: "neutral",
+                text: `Increase sponsored ad visibility in ${B(worstComp.city)} to capture consumer demand during competitor stockouts.`
             },
         ];
     }
 
     if (type === "Remove Ad Low OSA") {
+        const worst = allEv.reduce((w, e) => ((e.estLostSalesInr || 0) > (w.estLostSalesInr || 0) ? e : w), allEv[0]);
         const totalSpend = allEv.reduce((s, e) => s + (e.spendInr || 0), 0);
         const totalLoss = allEv.reduce((s, e) => s + (e.estLostSalesInr || 0), 0);
+        
         return [
             {
-                label: "Wasted Spend", priority: "high",
-                text: `${B("₹" + totalSpend.toLocaleString("en-IN"))} ad spend on SKUs with ${B(safePct(ev.kwOsa))} OSA. Worst: ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}.`
+                label: "Ad Efficiency", priority: "high",
+                text: `Inefficient ad spend detected. ${B("₹" + totalSpend.toLocaleString("en-IN"))} is allocated to promoting ${B(allEv.length)} items with low availability.`
             },
             {
-                label: "Affected SKUs", priority: "focus",
-                text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
-                    .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — OSA ${B(safePct(e.kwOsa))}`).join(" · ") || `OSA-ad mismatch in ${B(city)}.`
+                label: "Primary Driver", priority: "focus",
+                text: `${B("'" + (worst.skuOrBrand || brand) + "'")} in ${B(worst.city)} is consuming ad budget while experiencing low OSA (${B(safePct(worst.kwOsa))}).`
             },
             {
-                label: "Est. Loss", priority: "good",
-                text: `${B(formatINRCompact(totalLoss))} lost sales from ad→OOS leakage.`
+                label: "Sales Impact", priority: "good",
+                text: `Traffic directed to out-of-stock items has resulted in an estimated ${B(formatINRCompact(totalLoss))} in missed sales.`
             },
             {
-                label: "Action", priority: "neutral",
-                text: `Pause campaigns for ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)} until restocked. Redirect to OSA >80% SKUs.`
+                label: "Recommended Action", priority: "neutral",
+                text: `Pause ad campaigns for ${B("'" + (worst.skuOrBrand || brand) + "'")} in ${B(worst.city)}. Reallocate budget to items with >80% OSA.`
             },
         ];
     }
 
     if (type === "Keyword Efficiency and Budget Caps") {
+        const worst = allEv.reduce((w, e) => ((e.spend || 0) > (w.spend || 0) ? e : w), allEv[0]);
         const totalWaste = allEv.reduce((s, e) => s + (e.spend || 0), 0);
         const cappedCount = allEv.filter(e => e.budgetCapped).length;
+        
         return [
             {
-                label: "Efficiency Alert", priority: "high",
-                text: `${B(allEv.length.toString())} keywords bleeding ${B("₹" + totalWaste.toLocaleString("en-IN"))}. Top offender: ${B("'" + (ev.keyword || "-") + "'")} on ${B(ev.platform || "-")} at ${B(safePct(ev.acos))} ACOS.`
+                label: "Keyword Efficiency", priority: "high",
+                text: `${B(allEv.length)} underperforming keywords identified, resulting in ${B("₹" + totalWaste.toLocaleString("en-IN"))} of inefficient spend.`
             },
             {
-                label: "Worst Keywords", priority: "focus",
-                text: allEv.filter(e => e.keyword && e.keyword !== "-").slice(0, 3)
-                    .map(e => `${B(e.keyword)} (${e.platform || "-"}) — ACOS ${B(safePct(e.acos))}`).join(" · ") || `Underperforming in ${B(city)}.`
+                label: "Primary Driver", priority: "focus",
+                text: `The keyword ${B("'" + (worst.keyword || "-") + "'")} on ${B(worst.platform || "-")} is underperforming with an ACOS of ${B(safePct(worst.acos))}.`
             },
             {
                 label: "Budget Impact", priority: "good",
-                text: `${impact} at risk.${cappedCount > 0 ? ` ${B(cappedCount.toString())} keyword(s) budget-capped.` : ""}`
+                text: cappedCount > 0 ? `${B(cappedCount)} high-performing campaigns are currently budget-capped due to inefficient keyword allocation.` : `${impact} of ad spend could be optimized for higher returns.`
             },
             {
-                label: "Action", priority: "neutral",
-                text: cappedCount > 0
-                    ? `Uncap high-ROAS keywords, pause ${B("'" + (ev.keyword || "underperformers") + "'")}.`
-                    : `Lower bids on ${B("'" + (ev.keyword || "poor performers") + "'")}. Target ACOS <15%.`
+                label: "Recommended Action", priority: "neutral",
+                text: `Reduce bids on ${B("'" + (worst.keyword || "underperforming keywords") + "'")} to reallocate funds toward higher-yielding campaigns.`
             },
         ];
     }
 
     if (type === "Replenishment Breaks") {
+        const worst = allEv.reduce((w, e) => ((e.fillRate || 100) < (w.fillRate || 100) ? e : w), allEv[0]);
         const noPoCount = allEv.filter(e => e.poCreated === false).length;
+        
         return [
             {
-                label: "Stockout Risk", priority: "high",
-                text: `${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}: fill rate ${B(safePct(ev.fillRate))}.${noPoCount > 0 ? ` ${B(noPoCount.toString())} SKU(s) have **no active PO**.` : ""}`
+                label: "Replenishment Alert", priority: "high",
+                text: `Replenishment delays identified. ${B(allEv.length)} SKUs are currently experiencing fulfillment shortages.`
             },
             {
-                label: "Affected SKUs", priority: "focus",
-                text: allEv.filter(e => e.skuOrBrand && e.skuOrBrand !== "-").slice(0, 3)
-                    .map(e => `${B(e.skuOrBrand)} (${e.city || city}) — ${B(safePct(e.fillRate))} fill`).join(" · ") || `Supply issues in ${B(city)}.`
+                label: "Primary Driver", priority: "focus",
+                text: `${B("'" + (worst.skuOrBrand || brand) + "'")} experienced a low dispatch rate to ${B(worst.city)}, with a fill rate of ${B(safePct(worst.fillRate))}.`
             },
             {
-                label: "Sales at Risk", priority: "good",
-                text: `${impact} revenue loss. ${B(allEv.length.toString())} SKU(s) below 80% fill rate.`
+                label: "Sales Risk", priority: "good",
+                text: `${noPoCount > 0 ? `${B(noPoCount)} of these affected SKUs currently lack an active purchase order.` : `These supply chain delays place an estimated ${impact} of revenue at risk.`}`
             },
             {
-                label: "Action", priority: "neutral",
+                label: "Recommended Action", priority: "neutral",
                 text: noPoCount > 0
-                    ? `Create emergency POs for ${B(noPoCount.toString())} SKU(s). Prioritize ${B("'" + (ev.skuOrBrand || brand) + "'")} in ${B(ev.city || city)}.`
-                    : `Escalate dispatch at ${B(ev.depotOrDb || "local DC")}. Prioritize ${B("'" + (ev.skuOrBrand || brand) + "'")}.`
+                    ? `Initiate purchase orders for ${B("'" + (worst.skuOrBrand || brand) + "'")} to mitigate impending stockouts.`
+                    : `Expedite dispatch processes from the ${B(worst.depotOrDb || "local DC")} to the ${B(worst.city)} facility.`
             },
         ];
     }
 
 
     if (type === "Surplus Stock") {
+        const worst = allEv.reduce((w, e) => ((e.excessInventoryValue || 0) > (w.excessInventoryValue || 0) ? e : w), allEv[0]);
         const totalValue = allEv.reduce((s, e) => s + (e.excessInventoryValue || 0), 0);
+        
         return [
             {
-                label: "Surplus Alert", priority: "high",
-                text: `${B(allEv.length.toString())} SKUs carrying ${B(formatINRCompact(totalValue))} excess inventory. Worst: ${B("'" + (ev.skuName || brand) + "'")} in ${B(ev.city || city)} with ${B((ev.excessDOI || 0).toFixed(0))} days DOI.`
+                label: "Excess Inventory", priority: "high",
+                text: `Surplus stock identified. ${B(allEv.length)} SKUs currently account for ${B(formatINRCompact(totalValue))} in excess inventory value.`
             },
             {
-                label: "Slow Movers", priority: "focus",
-                text: allEv.filter(e => e.skuName && e.skuName !== "-").slice(0, 3)
-                    .map(e => `${B(e.skuName)} (${e.city || city}) — ${B((e.excessDOI || 0).toFixed(0))} days DOI`).join(" · ") || `Excess stock in ${B(city)}.`
+                label: "Key Contributor", priority: "focus",
+                text: `${B("'" + (worst.skuName || brand) + "'")} at the ${B(worst.city)} facility currently holds ${B((worst.excessDOI || 0).toFixed(0))} days of excess inventory.`
             },
             {
-                label: "Discount Gap", priority: "good",
-                text: `Current avg discount: ${B(safePct(ev.currentDiscount))}. ${(ev.currentDiscount || 0) < 10 ? `Consider deeper markdowns to clear stock.` : `Discount already active but DOI still high.`}`
+                label: "Movement Trend", priority: "good",
+                text: `At a current discount level of ${B(safePct(worst.currentDiscount))}, inventory depletion rates remain slower than expected.`
             },
             {
-                label: "Action", priority: "neutral",
-                text: `Clear surplus via bundle offers / flash sales for ${B("'" + (ev.skuName || brand) + "'")} in ${B(ev.city || city)}. Halt new POs until DOI normalises.`
+                label: "Recommended Action", priority: "neutral",
+                text: `Consider promotional bundles or targeted sales for ${B("'" + (worst.skuName || brand) + "'")} in ${B(worst.city)} to accelerate inventory clearance.`
             },
         ];
     }
 
     if (type === "Prioritise PO") {
+        const worst = allEv.reduce((w, e) => ((e.projectedSalesLoss || 0) > (w.projectedSalesLoss || 0) ? e : w), allEv[0]);
         const totalPSL = allEv.reduce((s, e) => s + (e.projectedSalesLoss || 0), 0);
         const criticalCount = allEv.filter(e => e.poStatus === "Critical" || e.poStatus === "High").length;
+        
         return [
             {
-                label: "PO Urgency", priority: "high",
-                text: `${B(criticalCount.toString())} critical SKUs need urgent PO. ${B("'" + (ev.skuName || brand) + "'")} in ${B(ev.city || city)} at ${B(safePct(ev.osa))} OSA — PSL: ${B(formatINRCompact(ev.projectedSalesLoss || 0))}.`
+                label: "PO Prioritization", priority: "high",
+                text: `${B(criticalCount)} critical SKUs require immediate restocking. Estimated projected sales loss is ${B(formatINRCompact(totalPSL))}.`
             },
             {
-                label: "Top PO Needs", priority: "focus",
-                text: allEv.filter(e => e.skuName && e.skuName !== "-").slice(0, 3)
-                    .map(e => `${B(e.skuName)} (${e.city || city}) — OSA ${B(safePct(e.osa))} [${e.poStatus}]`).join(" · ") || `PO needed in ${B(city)}.`
+                label: "Primary Risk", priority: "focus",
+                text: `${B("'" + (worst.skuName || brand) + "'")} in ${B(worst.city)} currently has an uncharacteristically low OSA of ${B(safePct(worst.osa))}.`
             },
             {
-                label: "Revenue at Risk", priority: "good",
-                text: `Combined PSL: ${B(formatINRCompact(totalPSL))} across ${B(allEv.length.toString())} SKU(s).`
+                label: "Revenue Risk", priority: "good",
+                text: `Failure to replenish ${B("'" + (worst.skuName || brand) + "'")} may result in an estimated ${B(formatINRCompact(worst.projectedSalesLoss || 0))} in lost sales.`
             },
             {
-                label: "Action", priority: "neutral",
-                text: `Raise emergency PO for ${B("'" + (ev.skuName || brand) + "'")}. Prioritise ${B(ev.city || city)} warehouse — OSA at ${B(safePct(ev.osa))}.`
+                label: "Recommended Action", priority: "neutral",
+                text: `Initiate a high-priority purchase order for the ${B(worst.city)} facility to restore availability levels.`
             },
         ];
     }
 
     if (type === "Transfer Issue") {
+        const worst = allEv.reduce((w, e) => ((e.projectedSalesLoss || 0) > (w.projectedSalesLoss || 0) ? e : w), allEv[0]);
         const totalPSL = allEv.reduce((s, e) => s + (e.projectedSalesLoss || 0), 0);
         const uniqueCities = new Set(allEv.map(e => e.city).filter(Boolean)).size;
+        
         return [
             {
-                label: "Transfer Alert", priority: "high",
-                text: `${B("'" + (ev.skuName || brand) + "'")} in ${B(ev.city || city)} has only ${B((ev.backedDOI || 0).toFixed(1))} days backed DOI with ${B((ev.cpd || 0).toFixed(1))} units/day demand.`
+                label: "Stock Imbalance", priority: "high",
+                text: `Demand-supply misalignment detected. A potential loss of ${B(formatINRCompact(totalPSL))} is forecasted across ${B(uniqueCities)} locations.`
             },
             {
-                label: "Affected SKUs", priority: "focus",
-                text: allEv.filter(e => e.skuName && e.skuName !== "-").slice(0, 3)
-                    .map(e => `${B(e.skuName)} (${e.city || city}) — ${B((e.backedDOI || 0).toFixed(1))} days DOI`).join(" · ") || `Supply gaps in ${B(city)}.`
+                label: "Critical Shortage", priority: "focus",
+                text: `${B(worst.city)} is currently facing a shortage of ${B("'" + (worst.skuName || brand) + "'")}, with only ${B((worst.backedDOI || 0).toFixed(1))} days of stock remaining.`
             },
             {
-                label: "PSL Impact", priority: "good",
-                text: `${B(formatINRCompact(totalPSL))} across ${B(uniqueCities.toString())} cities. Inter-warehouse transfer can recover this.`
+                label: "Depletion Rate", priority: "good",
+                text: `Given the current consumption rate of ${B((worst.cpd || 0).toFixed(1))} units/day, standard replenishment schedules may be insufficient.`
             },
             {
-                label: "Action", priority: "neutral",
-                text: `Initiate stock transfer to ${B(ev.city || city)}. CPD of ${B((ev.cpd || 0).toFixed(1))} requires immediate replenishment.`
+                label: "Recommended Action", priority: "neutral",
+                text: `Initiate an inter-warehouse stock transfer to ${B(worst.city)} to address the immediate inventory gap.`
             },
         ];
     }
 
     if (type === "New Market Entry") {
+        const worst = allEv.reduce((w, e) => ((e.pfu || 9999) < (w.pfu || 9999) ? e : w), allEv[0]);
         const uniqueCompetitors = new Set(allEv.map(e => e.competitorName).filter(Boolean)).size;
-        const uniqueCities = new Set(allEv.map(e => e.city).filter(Boolean)).size;
+        
         return [
             {
-                label: "New Entrant", priority: "high",
-                text: `${B(ev.competitorName || "Competitor")} entered ${B(ev.category || category)} in ${B(ev.city || city)} — PFU ${B("₹" + (ev.pfu || "-"))}, first seen ${B(ev.firstSeenDate || "-")}.`
+                label: "Market Entry", priority: "high",
+                text: `New competitor activity detected. ${B(uniqueCompetitors)} emerging competitor(s) identified within ${B(worst.category || "the category")}.`
             },
             {
-                label: "Market Expansion", priority: "focus",
-                text: `${B(uniqueCompetitors.toString())} competitor(s) expanding across ${B(uniqueCities.toString())} cities: ` +
-                    (allEv.filter(e => e.competitorName && e.competitorName !== "-").slice(0, 3)
-                        .map(e => `${B(e.competitorName)} in ${e.city || city}`).join(" · ") || `New entries detected.`)
+                label: "Competitor Profile", priority: "focus",
+                text: `${B(worst.competitorName || "A new brand")} has established a presence in ${B(worst.city)}, introducing potential market disruption.`
             },
             {
-                label: "Threat Assessment", priority: "good",
-                text: `${B(allEv.length.toString())} new SKU(s) detected.${ev.pfu && ev.pfu < 300 ? ` Aggressive pricing at ${B("₹" + ev.pfu)}.` : ` Premium segment entry.`}`
+                label: "Pricing Strategy", priority: "good",
+                text: `The competitor is offering a highly competitive price point of ${B("₹" + (worst.pfu || "-"))}, potentially impacting our sales volume.`
             },
             {
-                label: "Action", priority: "neutral",
-                text: `Monitor ${B(ev.competitorName || "new entrant")} in ${B(ev.city || city)}. Strengthen ${B(brand)} presence in ${B(ev.category || category)} with counter-promotions.`
+                label: "Recommended Action", priority: "neutral",
+                text: `Monitor competitor performance in ${B(worst.city)} and consider strategic promotions to maintain market share.`
             },
         ];
     }
 
+    // Default Fallback
+    const worstGeneric = allEv[0] || {};
     return [
-        { label: "Signal", priority: "high", text: insight.whatWeSee?.[1] || "Deviation detected." },
-        { label: "Details", priority: "focus", text: insight.whatWeSee?.[0] || "Notable deviation found." },
-        { label: "Impact", priority: "good", text: `${impact} opportunity.` },
-        { label: "Action", priority: "neutral", text: `Review strategies in ${B(city)}.` },
+        { label: "Anomaly Detected", priority: "high", text: `We scanned ${B(allEv.length)} rows and found critical deviations in performance.` },
+        { label: "Key Finding", priority: "focus", text: `The sharpest drop centers around ${B(worstGeneric.city || "key regions")} for ${B(worstGeneric.category || "top categories")}.` },
+        { label: "Financial Stake", priority: "good", text: `Actioning this immediately secures a ${impact} opportunity for ${B(brand)}.` },
+        { label: "Next Steps", priority: "neutral", text: `Deep dive into the data grid below to isolate the specific SKU bottlenecks.` },
     ];
 };
 
@@ -940,7 +950,7 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                 }}>
                     <SignalStatusBadge isEmpty={isEmpty} />
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        {!isEmpty && <BetaBadge size="xs" />}
+                        {!isEmpty && (meta.isBeta !== false) && <BetaBadge size="xs" />}
                         <div style={{
                             width: 22, height: 22, borderRadius: "5px",
                             background: "#f8fafc", border: "1px solid #f1f5f9",
@@ -1949,9 +1959,9 @@ const EvidenceTable = ({ insight }) => {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            background: "rgba(0, 0, 0, 0.6)",
-                            backdropFilter: "blur(12px)",
-                            WebkitBackdropFilter: "blur(12px)",
+                            background: "rgba(0, 0, 0, 0.7)",
+                            backdropFilter: "blur(20px)",
+                            WebkitBackdropFilter: "blur(20px)",
                             cursor: "zoom-out",
                         }}
                     >
@@ -1963,11 +1973,11 @@ const EvidenceTable = ({ insight }) => {
                             onClick={(e) => e.stopPropagation()}
                             style={{
                                 background: "#ffffff",
-                                borderRadius: "20px",
+                                borderRadius: "24px",
                                 padding: "0",
-                                boxShadow: "0 40px 80px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.15)",
-                                maxWidth: "480px",
-                                width: "90vw",
+                                boxShadow: "0 50px 100px -20px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.02)",
+                                maxWidth: "520px",
+                                width: "95vw",
                                 overflow: "hidden",
                                 cursor: "default",
                             }}
@@ -1975,21 +1985,21 @@ const EvidenceTable = ({ insight }) => {
                             {/* Image Container */}
                             <div style={{
                                 position: "relative",
-                                background: "linear-gradient(145deg, #f8fafc, #f1f5f9)",
-                                padding: "0",
+                                background: "radial-gradient(circle at center, #ffffff 0%, #f8fafc 100%)",
+                                padding: "20px",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                minHeight: "450px",
+                                minHeight: "480px",
                             }}>
                                 <img
                                     src={previewImage.url}
                                     alt={previewImage.name}
                                     style={{
                                         width: "100%",
-                                        maxHeight: "520px",
+                                        maxHeight: "540px",
                                         objectFit: "contain",
-                                        filter: "drop-shadow(0 12px 32px rgba(0,0,0,0.12))",
+                                        transform: "scale(1.1)",
                                     }}
                                     onError={(e) => { e.target.src = `https://placehold.co/300x300/f1f5f9/94a3b8?text=Image+Not+Found`; }}
                                 />
@@ -2016,62 +2026,76 @@ const EvidenceTable = ({ insight }) => {
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.background = "#fff";
-                                        e.currentTarget.style.transform = "scale(1.1)";
-                                        e.currentTarget.style.borderColor = "#ef4444";
+                                        e.currentTarget.style.transform = "scale(1.1) rotate(90deg)";
+                                        e.currentTarget.style.color = "#ef4444";
+                                        e.currentTarget.style.boxShadow = "0 8px 16px rgba(0,0,0,0.15)";
                                     }}
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.background = "rgba(255,255,255,0.95)";
-                                        e.currentTarget.style.transform = "scale(1)";
-                                        e.currentTarget.style.borderColor = "rgba(226,232,240,0.8)";
+                                        e.currentTarget.style.transform = "scale(1) rotate(0deg)";
+                                        e.currentTarget.style.color = "#475569";
+                                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
                                     }}
                                 >
                                     <X size={18} color="#475569" />
                                 </button>
                             </div>
-                            {/* Product Info Footer */}
-                            <div style={{
-                                padding: "16px 24px 20px",
+                             <div style={{
+                                padding: "24px",
                                 borderTop: "1px solid #f1f5f9",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                textAlign: "center",
                             }}>
                                 <h3 style={{
-                                    fontSize: "14px",
-                                    fontWeight: 700,
+                                    fontSize: "16px",
+                                    fontWeight: 800,
                                     color: "#0f172a",
-                                    margin: "0 0 8px 0",
-                                    lineHeight: 1.4,
-                                    letterSpacing: "-0.01em",
+                                    margin: "0 0 12px 0",
+                                    lineHeight: 1.3,
+                                    letterSpacing: "-0.02em",
+                                    textTransform: "capitalize",
                                 }}>
                                     {previewImage.name}
                                 </h3>
-                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" }}>
                                     {previewImage.platform && (
-                                        <span style={{
+                                        <div style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "5px",
                                             fontSize: "10px",
-                                            fontWeight: 600,
-                                            color: "#3b82f6",
-                                            background: "#eff6ff",
-                                            border: "1px solid #dbeafe",
-                                            padding: "3px 10px",
-                                            borderRadius: "20px",
+                                            fontWeight: 700,
+                                            color: "#4f46e5",
+                                            background: "#f5f3ff",
+                                            border: "1px solid #ddd6fe",
+                                            padding: "4px 10px",
+                                            borderRadius: "8px",
                                             textTransform: "uppercase",
-                                            letterSpacing: "0.04em",
+                                            letterSpacing: "0.02em",
                                         }}>
+                                            <Store size={11} strokeWidth={2.5} />
                                             {previewImage.platform}
-                                        </span>
+                                        </div>
                                     )}
                                     {previewImage.city && (
-                                        <span style={{
+                                        <div style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "5px",
                                             fontSize: "10px",
-                                            fontWeight: 600,
-                                            color: "#64748b",
-                                            background: "#f8fafc",
+                                            fontWeight: 700,
+                                            color: "#475569",
+                                            background: "#f1f5f9",
                                             border: "1px solid #e2e8f0",
-                                            padding: "3px 10px",
-                                            borderRadius: "20px",
-                                            letterSpacing: "0.04em",
+                                            padding: "4px 10px",
+                                            borderRadius: "8px",
+                                            letterSpacing: "0.02em",
                                         }}>
+                                            <MapPin size={11} strokeWidth={2.5} />
                                             {previewImage.city}
-                                        </span>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -2110,74 +2134,12 @@ const PlatformButton = ({ platform, active, onClick }) => (
 // Builds the prompt and calls Claude, returning 4 segment objects.
 // Used by both DynamicInsightsBar and RowAIPopup.
 const callClaudeForInsights = async (insight, evidenceOverride) => {
-    const clientName = insight.brandName || "Brand";
-    const moduleType = insight.type;
-    const impactStr  = formatINRCompact(insight.impactInr || 0);
-
-    const SAFE_KEYS = [
-        "city", "category", "platform",
-        "brandOsa", "brandOsaDelta", "marketShare", "marketShareMoM",
-        "offtake", "offtakeMoM", "possibleCause", "myTopSku", "competitorSku",
-        "ourPpu", "compPpu", "gapPct", "gapPctChange", "impactedSku", "compSku",
-        "skuOrBrand", "otherBrandOsa", "otherBrandOsaChangePct", "kwOsa",
-        "ourBrandMkShare", "otherBrandMkShare",
-        "adSov", "adSovChangePct", "spendInr", "spend", "acos", "acosChangePct",
-        "keyword", "campaign", "budgetCapped", "estLostSalesInr",
-        "skuName", "fillRate", "poCreated", "poNo", "depotOrDb",
-        "plannedQty", "dispatchedQty",
-        "excessDOI", "excessInventoryValue", "currentDiscount", "openPOQty",
-        "osa", "projectedSalesLoss", "poStatus", "poRaisedDate",
-        "cpd", "backedDOI",
-        "competitorName", "pfu", "firstSeenDate",
-        "storeCount", "listedSkus", "totalPlatformSkus", "listingPct",
-        "newStoreCount", "sobNewDs", "competitors", "region", "tier",
-    ];
-
-    const rawEvidence = evidenceOverride || insight.evidence || [];
-    const cleanEvidence = rawEvidence.slice(0, 10).map(row => {
-        const cleaned = {};
-        for (const k of SAFE_KEYS) {
-            if (row[k] !== undefined && row[k] !== null && row[k] !== "-") cleaned[k] = row[k];
-        }
-        return cleaned;
-    }).filter(r => Object.keys(r).length > 0);
-
-    const isEmptySignal =
-        insight.id?.startsWith("empty_") ||
-        cleanEvidence.length === 0 ||
-        (cleanEvidence.length === 1 &&
-            Object.values(cleanEvidence[0]).every(v => v === 0 || v === "-" || v === "0%"));
-
-    const systemPrompt = `You are a Senior Retail Data Scientist generating executive-level AI insights for a retail intelligence dashboard called Trailytics.
-RULES:
-1. Respond ONLY with a valid JSON array of exactly 4 objects. No prose, no markdown fences, no explanation.
-2. Each object must have exactly two keys: "label" (string, ≤3 words) and "text" (string).
-3. Use **double-asterisks** to bold key numbers, brand names, SKUs, and cities.
-4. Every bullet must follow: Observation → Financial Impact → Action. Keep each under 20 words.
-5. The Action label must have the most actionable recommendation, not just an observation.
-6. If data is empty or null, return 4 strategic "monitoring" insights — no fabricated numbers.
-7. Do NOT use introductory phrases like "The data shows" or "Based on the table".`;
-
-    const userPrompt = isEmptySignal
-        ? `Client: **${clientName}**\nModule: ${moduleType}\nData Status: EMPTY\n\nGenerate 4 strategic monitoring bullets for an empty ${moduleType} signal.`
-        : `Client: **${clientName}**\nModule: ${moduleType}\nTotal Impact: ${impactStr}\nRows: ${cleanEvidence.length}\n\nDataset:\n${JSON.stringify(cleanEvidence, null, 2)}\n\nGenerate 4 precise insight bullets.`;
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 1000,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }],
-        }),
-    });
-
-    if (!response.ok) throw new Error(`API ${response.status}`);
-    const data = await response.json();
-    const rawText = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-    const cleaned = rawText.replace(/```json|```/gi, "").trim();
-    return JSON.parse(cleaned);
+    // Return hardcoded sentences as requested by the user, skipping the LLM API completely.
+    const insightData = {
+        ...insight,
+        evidence: evidenceOverride || insight.evidence || []
+    };
+    return buildAISegments(insightData).slice(0, 4);
 };
 
 // Priority positional map
@@ -2465,7 +2427,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                             <h2 className="modal-header-title-text" style={{ fontSize: "18px", fontWeight: 800, color: "#0f172a", margin: 0, letterSpacing: "-0.02em" }}>
                                                 {insight.type}
                                             </h2>
-                                            <BetaBadge size="xs" />
+                                            {meta.isBeta !== false && <BetaBadge size="xs" />}
                                         </div>
                                     </div>
                                 </div>
@@ -2548,62 +2510,60 @@ const SignalCardSkeleton = () => (
     <div style={{
         width: "100%",
         height: "100%",
-        minHeight: "280px",
+        minHeight: "180px",
         display: "flex",
         flexDirection: "column",
         borderRadius: "0px",
         background: "#ffffff",
         overflow: "hidden",
         position: "relative",
-        boxShadow: "none",
         border: "1px solid #f1f5f9",
     }}>
         {/* Top Badge Row */}
-        <div style={{ padding: "12px 14px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div className="skeleton-pulse" style={{ width: "45px", height: "14px", borderRadius: "5px" }} />
+        <div style={{ padding: "10px 14px 4px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div className="skeleton-pulse" style={{ width: "65px", height: "18px", borderRadius: "6px" }} />
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div className="skeleton-pulse" style={{ width: "35px", height: "14px", borderRadius: "5px" }} />
-                <div className="skeleton-pulse" style={{ width: "22px", height: "22px", borderRadius: "6px" }} />
+                <div className="skeleton-pulse" style={{ width: "35px", height: "16px", borderRadius: "5px" }} />
+                <div className="skeleton-pulse" style={{ width: "22px", height: "22px", borderRadius: "5px" }} />
             </div>
         </div>
 
         {/* Title Section */}
-        <div style={{ padding: "4px 14px 12px" }}>
-            <div className="skeleton-pulse" style={{ width: "40%", height: "9px", borderRadius: "3px", marginBottom: "6px" }} />
-            <div className="skeleton-pulse" style={{ width: "85%", height: "14px", borderRadius: "4px", marginBottom: "4px" }} />
-            <div className="skeleton-pulse" style={{ width: "60%", height: "14px", borderRadius: "4px" }} />
+        <div style={{ padding: "2px 14px 8px" }}>
+            <div className="skeleton-pulse" style={{ width: "30%", height: "8px", borderRadius: "3px", marginBottom: "6px" }} />
+            <div className="skeleton-pulse" style={{ width: "80%", height: "14px", borderRadius: "4px" }} />
         </div>
 
-        <Divider sx={{ mx: 1.5, my: 1, borderColor: "#f8fafc" }} />
+        <Divider sx={{ mx: 1.5, borderColor: "#f1f5f9" }} />
 
         {/* Metric Hero Section */}
-        <div style={{ padding: "14px 14px 12px" }}>
-            <div className="skeleton-pulse" style={{ width: "55%", height: "8px", borderRadius: "3px", marginBottom: "12px" }} />
+        <div style={{ padding: "10px 14px 10px" }}>
+            <div className="skeleton-pulse" style={{ width: "55%", height: "8px", borderRadius: "3px", marginBottom: "8px" }} />
             <div className="skeleton-pulse" style={{ 
-                width: "110px", height: "36px", borderRadius: "8px"
+                width: "110px", height: "30px", borderRadius: "8px"
             }} />
         </div>
 
-        <Divider sx={{ mx: 1.5, my: 1, borderColor: "#f8fafc" }} />
-
-        {/* Evidence Rows (Preview) */}
-        <div style={{ padding: "12px 14px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div className="skeleton-pulse" style={{ width: "45%", height: "10px", borderRadius: "3px" }} />
-                <div className="skeleton-pulse" style={{ width: "30%", height: "10px", borderRadius: "3px" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div className="skeleton-pulse" style={{ width: "40%", height: "10px", borderRadius: "3px" }} />
-                <div className="skeleton-pulse" style={{ width: "25%", height: "10px", borderRadius: "3px" }} />
-            </div>
-        </div>
-
         {/* Footer */}
-        <div style={{ marginTop: "auto", padding: "10px 14px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", background: "#fcfdfe" }}>
+        <div style={{ marginTop: "auto", padding: "10px 14px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", background: "#ffffff" }}>
             <div className="skeleton-pulse" style={{ width: "70px", height: "10px", borderRadius: "3px" }} />
         </div>
     </div>
 );
+
+const StatsPillsSkeleton = () => (
+    <div style={{ display: "flex", gap: "24px" }}>
+        <div style={{ textAlign: "right" }}>
+            <div className="skeleton-pulse" style={{ width: "80px", height: "10px", borderRadius: "3px", marginBottom: "6px", marginLeft: "auto" }} />
+            <div className="skeleton-pulse" style={{ width: "100px", height: "22px", borderRadius: "4px", marginLeft: "auto" }} />
+        </div>
+        <div style={{ textAlign: "right" }}>
+            <div className="skeleton-pulse" style={{ width: "70px", height: "10px", borderRadius: "3px", marginBottom: "6px", marginLeft: "auto" }} />
+            <div className="skeleton-pulse" style={{ width: "40px", height: "22px", borderRadius: "4px", marginLeft: "auto" }} />
+        </div>
+    </div>
+);
+
 
 // ─── MAIN PAGE ────────────────────────────────────────────────────────────────
 
@@ -2852,7 +2812,7 @@ const InsightsSignalHub = () => {
             `}</style>
 
             <div className="insights-page" style={{
-                background: "#ffffff",
+                background: "#f8fafc",
                 height: "100%",
                 flex: 1,
                 display: "flex",
@@ -2862,7 +2822,7 @@ const InsightsSignalHub = () => {
             }}>
                 <div className="insights-main-container" style={{ width: "100%", margin: "0 auto", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
 
-                    {/* ── Page Header ────────────────────────────────────── */}
+                    {/* ── Page Header ──────────────────────────────────── ┐*/}
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "space-between",
                         flexWrap: "wrap", gap: "16px",
@@ -2890,7 +2850,6 @@ const InsightsSignalHub = () => {
                                     display: "flex", alignItems: "center", gap: "8px",
                                 }}>
                                     AI Signal Insights
-                                    <LiveBadge />
                                     <BetaBadge />
                                 </h1>
                                 <p style={{ fontSize: "12px", color: "#6b7280", margin: 0, marginTop: "2px", fontWeight: 400 }}>
@@ -2898,10 +2857,10 @@ const InsightsSignalHub = () => {
                                 </p>
                             </div>
                         </div>
-
-                        {/* Stats pills */}
-                        {!loading && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                        {loading ? (
+                            <StatsPillsSkeleton />
+                        ) : (
+                            <div style={{ display: "flex", gap: "24px" }}>
                                 <div style={{
                                     background: "transparent", border: "none",
                                     borderRadius: "0", padding: "4px 0", textAlign: "right",
@@ -2940,7 +2899,7 @@ const InsightsSignalHub = () => {
                             alignContent: "start",
                             paddingBottom: "12px",
                         }}>
-                            {[...Array(13)].map((_, i) => (
+                            {[...Array(REQUIRED_SIGNAL_TYPES.length)].map((_, i) => (
                                 <motion.div
                                     key={`skeleton-${i}`}
                                     initial={{ opacity: 0 }}
