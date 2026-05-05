@@ -392,8 +392,8 @@ export const FilterProvider = ({ children }) => {
                         if (prevCat === "All") return "All";
                         const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
                         const validList = currentList.filter(c => cats.includes(c));
-                        if (validList.length === 0) return "All";
-                        if (validList.length === cats.length) return "All";
+                        if (validList.length === 0) return (Array.isArray(prevCat) && prevCat.length === 0) ? [] : "All";
+                        if (validList.length === cats.length && cats.length > 0) return "All";
                         return validList.length === 1 ? validList[0] : validList;
                     });
                 } else {
@@ -450,8 +450,8 @@ export const FilterProvider = ({ children }) => {
                         if (prevCat !== "All") {
                             const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
                             const validList = currentList.filter(c => cats.includes(c));
-                            if (validList.length === 0) return "All";
-                            if (validList.length === cats.length) return "All";
+                            if (validList.length === 0) return (Array.isArray(prevCat) && prevCat.length === 0) ? [] : "All";
+                            if (validList.length === cats.length && cats.length > 0) return "All";
                             return validList.length === 1 ? validList[0] : validList;
                         }
                         return prevCat;
@@ -488,8 +488,8 @@ export const FilterProvider = ({ children }) => {
                         if (prevLoc !== "All") {
                             const currentList = Array.isArray(prevLoc) ? prevLoc : [prevLoc];
                             const validList = currentList.filter(l => locs.includes(l));
-                            if (validList.length === 0) return "All";
-                            if (validList.length === locs.length) return "All";
+                            if (validList.length === 0) return (Array.isArray(prevLoc) && prevLoc.length === 0) ? [] : "All";
+                            if (validList.length === locs.length && locs.length > 0) return "All";
                             return validList.length === 1 ? validList[0] : validList;
                         }
                         return prevLoc;
@@ -526,9 +526,9 @@ export const FilterProvider = ({ children }) => {
                             const currentList = Array.isArray(prevBrand) ? prevBrand : [prevBrand];
                             const validList = currentList.filter(b => res.data.includes(b));
                             if (validList.length === 0) {
-                                return res.data[0]; // fallback to first valid brand
+                                return (Array.isArray(prevBrand) && prevBrand.length === 0) ? [] : res.data[0]; 
                             } else {
-                                return validList.length === 1 ? validList[0] : validList;
+                                return (validList.length === res.data.length && res.data.length > 0) ? "All" : (validList.length === 1 ? validList[0] : validList);
                             }
                         }
                         return prevBrand;
@@ -569,7 +569,8 @@ export const FilterProvider = ({ children }) => {
                     setSelectedKeyword(prev => {
                         if (prev.includes("All")) return ["All"];
                         const valid = prev.filter(k => fetchedKeywords.includes(k));
-                        return valid.length > 0 ? valid : ["All"];
+                        if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : ["All"];
+                        return valid;
                     });
                 } else {
                     setKeywords([]);
@@ -604,7 +605,8 @@ export const FilterProvider = ({ children }) => {
                     setSelectedKeywordType(prev => {
                         if (prev.includes("All")) return ["All"];
                         const valid = prev.filter(k => fetchedKeywordTypes.includes(k));
-                        return valid.length > 0 ? valid : ["All"];
+                        if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : ["All"];
+                        return valid;
                     });
                 } else {
                     setKeywordTypes([]);

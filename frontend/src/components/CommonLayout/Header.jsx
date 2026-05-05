@@ -106,7 +106,7 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
 
@@ -121,7 +121,7 @@ function WatchTowerFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(c => cats.includes(c));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -136,7 +136,7 @@ function WatchTowerFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(b => brandRes.data.includes(b));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === brandRes.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -164,8 +164,8 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -179,8 +179,8 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
-            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === res.data.length && res.data.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1199,7 +1199,7 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
 
@@ -1213,7 +1213,7 @@ function AvailabilityFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(c => cats.includes(c));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -1228,7 +1228,7 @@ function AvailabilityFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(l => locRes.data.includes(l));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === locRes.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -1254,8 +1254,8 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1269,8 +1269,8 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(l => res.data.includes(l));
-            if (valid.length === 0) return "All";
-            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === res.data.length && res.data.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1809,7 +1809,7 @@ function VisibilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -1833,8 +1833,8 @@ function VisibilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1849,7 +1849,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(k => kts.includes(k));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -1865,7 +1866,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(k => kws.includes(k));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -1888,7 +1890,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -2151,7 +2154,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2175,7 +2178,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2191,7 +2194,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2410,7 +2413,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2434,7 +2437,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2450,7 +2453,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2669,7 +2672,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2693,7 +2696,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2709,7 +2712,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2927,7 +2930,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2948,7 +2951,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => res.data.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2970,7 +2973,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2993,7 +2996,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(l => res.data.includes(l));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
