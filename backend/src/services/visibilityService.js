@@ -800,8 +800,8 @@ class VisibilityService {
                 // Query builder helper for current/prev/sparkline
                 const getMatrixQueries = (dimColumn, dimAlias, filtersToExclude = []) => {
                     // Build filtered where clauses for this specific matrix
-                    let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}' AND POSITION < 11`;
-                    let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}' AND POSITION < 11`;
+                    let currentWhere = `DATE BETWEEN '${startDate}' AND '${endDate}'`;
+                    let prevWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
 
                     // Helper to add condition if not excluded
                     const addCond = (val, col, exclusionKeys) => {
