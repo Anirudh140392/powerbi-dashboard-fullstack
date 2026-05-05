@@ -680,6 +680,16 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         );
     }
 
+    const chartData = useMemo(() => {
+        if (!kpi.trendSeries) return [];
+        return kpi.trendSeries.map((item, i) => {
+            if (typeof item === 'object' && item !== null) {
+                return { i, v: item.value, label: item.label };
+            }
+            return { i, v: item, label: `Day ${i + 1}` };
+        });
+    }, [kpi.trendSeries]);
+
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";
     const deltaIcon = isPositive ? "▲" : "▼";
@@ -798,7 +808,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
             {/* Sparkline Area */}
             <div className="h-16 w-full px-0 mt-auto opacity-80 group-hover:opacity-100 transition-opacity">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={kpi.trendSeries?.map((v, i) => ({ i, v })) || []} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                    <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
@@ -806,10 +816,16 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             </linearGradient>
                         </defs>
                         <RechartsTooltip 
-                            contentStyle={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', minWidth: 'auto', border: 'none', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
-                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB" }}
-                            labelStyle={{ display: 'none' }}
+                            contentStyle={{ fontSize: '10px', padding: '4px 8px', borderRadius: '8px', minWidth: 'auto', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB", fontWeight: 'bold' }}
+                            labelStyle={{ fontSize: '10px', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}
                             cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
+                            labelFormatter={(label, payload) => {
+                                if (payload && payload.length > 0 && payload[0].payload.label) {
+                                    return payload[0].payload.label;
+                                }
+                                return label;
+                            }}
                             formatter={(value) => {
                                 if (typeof value !== 'number') return [value, ''];
                                 let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
