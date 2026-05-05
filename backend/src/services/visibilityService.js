@@ -1806,6 +1806,19 @@ class VisibilityService {
                 const cityCondition = buildCHCondition(cityFilter, 'location_name');
                 const brandCondition = buildCHCondition(brand || null, 'brand');
 
+                // CHANNELS: from rca_sku_dim filtered by platforms in rb_kw_olap
+                if (filterType === 'channels' || filterType === 'channel') {
+                    const results = await queryClickHouse(`
+                        SELECT DISTINCT channel 
+                        FROM rca_sku_dim 
+                        WHERE platform IN (SELECT DISTINCT platform_name FROM rb_kw_olap)
+                        AND channel IS NOT NULL AND channel != '' 
+                        ORDER BY channel
+                    `);
+                    const options = results.map(r => r.channel).filter(Boolean);
+                    return { options };
+                }
+
                 // PLATFORMS: from rb_kw_olap.platform_name
                 if (filterType === 'platforms') {
                     let platformWhere = "WHERE platform_name IS NOT NULL AND platform_name != ''";
