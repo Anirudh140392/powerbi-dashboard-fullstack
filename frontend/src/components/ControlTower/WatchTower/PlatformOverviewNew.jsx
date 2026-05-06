@@ -195,8 +195,23 @@ const PlatformOverviewNew = ({
         { key: 'aov', label: 'AOV' },
     ]
     const [dimension, setDimension] = useState('platform')
-    const [localPlatformFilter, setLocalPlatformFilter] = useState('All')
-    const [skuPlatformFilter, setSkuPlatformFilter] = useState('All')
+    const [localPlatformFilter, setLocalPlatformFilter] = useState('')
+    const [skuPlatformFilter, setSkuPlatformFilter] = useState('')
+
+    // Automatically set default platform to first valid platform when 'All' is selected
+    useEffect(() => {
+        if (globalPlatforms?.length > 0) {
+            const validPlatforms = globalPlatforms.filter(p => p !== 'All');
+            if (validPlatforms.length > 0) {
+                if (localPlatformFilter === 'All' || !validPlatforms.includes(localPlatformFilter)) {
+                    setLocalPlatformFilter(validPlatforms[0]);
+                }
+                if (skuPlatformFilter === 'All' || !validPlatforms.includes(skuPlatformFilter)) {
+                    setSkuPlatformFilter(validPlatforms[0]);
+                }
+            }
+        }
+    }, [globalPlatforms, localPlatformFilter, skuPlatformFilter]);
 
     // Determine the active platform filter for non-platform, non-sku dimensions
     // (Brand, Category, Month now use a platform dropdown instead of channel)
@@ -715,7 +730,6 @@ const PlatformOverviewNew = ({
                                         className="appearance-none bg-indigo-50 border border-indigo-100 text-indigo-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-indigo-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
-                                        <option value="All">All Platforms</option>
                                         {globalPlatforms?.filter(p => p !== 'All').map(p => (
                                             <option key={p} value={p}>{p}</option>
                                         ))}
@@ -727,12 +741,11 @@ const PlatformOverviewNew = ({
                             {dimension !== 'platform' && dimension !== 'sku' && (
                                 <div className="relative flex items-center">
                                     <select
-                                        value={localPlatformFilter || 'All'}
+                                        value={localPlatformFilter || ''}
                                         onChange={(e) => setLocalPlatformFilter(e.target.value)}
                                         className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
                                         style={{ fontFamily: 'Roboto, sans-serif' }}
                                     >
-                                        <option value="All">All Platforms</option>
                                         {globalPlatforms?.filter(p => p !== 'All').map(p => (
                                             <option key={p} value={p}>{p}</option>
                                         ))}
