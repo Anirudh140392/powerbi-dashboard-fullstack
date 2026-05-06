@@ -609,7 +609,8 @@ export const getSignalLabData = async (req, res) => {
                 signalType = 'drainer',
                 keyword = 'All',
                 channel = 'All',
-                groupBy = 'sku'
+                groupBy = 'sku',
+                rank = 'All'
             } = req.query;
 
             const isBrandGroup = groupBy === 'brand';
@@ -773,6 +774,14 @@ export const getSignalLabData = async (req, res) => {
                     const isAll = kList.some(v => String(v).toLowerCase() === 'all');
                     if (!isAll) {
                         kwWhereCommon.push(`LOWER(keyword) IN (${kList.map(k => `'${escapeStr(k.toLowerCase())}'`).join(', ')})`);
+                    }
+                }
+
+                // Apply Rank Filter (POSITION)
+                if (rank && rank !== 'All') {
+                    const maxRank = Number(String(rank).replace(/\D/g, ''));
+                    if (!isNaN(maxRank) && maxRank > 0) {
+                        kwWhereCommon.push(`POSITION <= ${maxRank}`);
                     }
                 }
 

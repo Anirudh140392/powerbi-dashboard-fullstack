@@ -126,6 +126,7 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
             ? (Array.isArray(localMatrixFilters.category) ? localMatrixFilters.category.join(',').toLowerCase() : String(localMatrixFilters.category).toLowerCase()) 
             : 'All',
           channel: localMatrixFilters.channel || 'All',
+          rank: localMatrixFilters.rank || 'All',
           startDate: localMatrixFilters.startDate,
           endDate: localMatrixFilters.endDate
         }).toString();

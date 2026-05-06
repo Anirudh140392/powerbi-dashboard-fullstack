@@ -51,6 +51,8 @@ const BRAND_COLORS = [
     "#6366F1", // Indigo
 ];
 
+const RANK_OPTIONS = ["Top 10", "Top 20", "Top 30", "Top 40"];
+
 const getBrandColor = (index) => BRAND_COLORS[index % BRAND_COLORS.length];
 
 /* -------------------------------------------------------------------------- */
@@ -430,6 +432,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
         if (activeTab === "sku") return filterOptions.skus;
         if (activeTab === "keywordType") return filterOptions.keywordTypes;
         if (activeTab === "keyword") return filterOptions.keywords;
+        if (activeTab === "rank") return RANK_OPTIONS;
         return [];
     };
 
@@ -440,9 +443,14 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
         );
     }, [activeTab, search, filterOptions]);
 
-    const currentKey = activeTab === "category" ? "categories" : (activeTab === "brand" ? "brands" : (activeTab === "sku" ? "skus" : (activeTab === "keywordType" ? "keywordType" : "keywords")));
+    const currentKey = activeTab === "category" ? "categories" : (activeTab === "brand" ? "brands" : (activeTab === "sku" ? "skus" : (activeTab === "keywordType" ? "keywordType" : (activeTab === "rank" ? "rank" : "keywords"))));
 
     const handleToggle = (type, item) => {
+        if (type === 'rank') {
+            const next = { ...localValue, rank: localValue.rank === item ? 'All' : item };
+            setLocalValue(next);
+            return;
+        }
         const current = new Set(localValue[type]);
         if (current.has(item)) current.delete(item);
         else current.add(item);
@@ -524,26 +532,37 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
                                 >
                                     Keyword
                                 </TabsTrigger>
+                                <TabsTrigger
+                                    value="rank"
+                                    className="justify-start rounded-lg px-3 py-2 text-sm font-medium"
+                                >
+                                    Rank
+                                </TabsTrigger>
                             </TabsList>
                         </Tabs>
                     </div>
 
                     <div className="flex-1 px-6 py-4 min-w-0 overflow-hidden">
                         <div className="flex items-center justify-between gap-4">
-                            <Input
-                                placeholder="Search"
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                className="max-w-sm bg-slate-50"
-                            />
-                            <button
-                                className="text-sm font-medium text-blue-600 hover:underline"
-                                onClick={() =>
-                                    handleSelectAll(currentKey, allItemsForCurrentTab)
-                                }
-                            >
-                                {allSelectedForCurrentTab ? "Clear all" : "Select all"}
-                            </button>
+                            {activeTab !== 'rank' && (
+                                <Input
+                                    placeholder="Search"
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="max-w-sm bg-slate-50"
+                                />
+                            )}
+                            {activeTab === 'rank' && <div className="text-sm font-semibold text-slate-700">Select Search Position</div>}
+                            {activeTab !== 'rank' && (
+                                <button
+                                    className="text-sm font-medium text-blue-600 hover:underline"
+                                    onClick={() =>
+                                        handleSelectAll(currentKey, allItemsForCurrentTab)
+                                    }
+                                >
+                                    {allSelectedForCurrentTab ? "Clear all" : "Select all"}
+                                </button>
+                            )}
                         </div>
 
                         <ScrollArea className="mt-4 h-64 rounded-md border bg-slate-50/60 overflow-x-hidden">
@@ -564,7 +583,7 @@ const FilterDialog = ({ open, onClose, mode, value, onChange, selectedPlatform, 
                                         className="flex cursor-pointer items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-slate-100 overflow-hidden min-w-0 w-full"
                                     >
                                         <Checkbox
-                                            checked={localValue[currentKey].includes(item)}
+                                            checked={activeTab === 'rank' ? localValue.rank === item : (Array.isArray(localValue[currentKey]) && localValue[currentKey].includes(item))}
                                             onCheckedChange={() => handleToggle(currentKey, item)}
                                         />
                                         <span className="truncate flex-1 min-w-0 text-slate-700" title={item}>{item}</span>
@@ -1263,6 +1282,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
         skus: [],
         keywords: [],
         keywordType: [],
+        rank: 'All'
     });
     const [viewMode, setViewMode] = useState("table");
 
@@ -1270,9 +1290,17 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
     useEffect(() => {
         if (externalFilters) {
             setFilters(prev => {
-                // Only update if values actually changed to avoid unnecessary re-renders
-                if (JSON.stringify(prev) !== JSON.stringify(externalFilters)) {
-                    return externalFilters;
+                const mapped = {
+                    categories: (externalFilters.Format && externalFilters.Format !== 'All') ? [externalFilters.Format] : [],
+                    brands: (externalFilters.Brand && externalFilters.Brand !== 'All') ? [externalFilters.Brand] : [],
+                    skus: (externalFilters.SKU && externalFilters.SKU !== 'All') ? [externalFilters.SKU] : [],
+                    keywords: (externalFilters.Keyword && externalFilters.Keyword !== 'All') ? [externalFilters.Keyword] : [],
+                    keywordType: (externalFilters.Keyword_Type && externalFilters.Keyword_Type !== 'All') ? [externalFilters.Keyword_Type] : [],
+                    rank: externalFilters.rank || 'All'
+                };
+
+                if (JSON.stringify(prev) !== JSON.stringify(mapped)) {
+                    return mapped;
                 }
                 return prev;
             });
@@ -1321,10 +1349,12 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                         : 'all',
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     brand: filters.brands.length > 0 ? filters.brands.join(',') : 'All',
+                    skus: filters.skus.length > 0 ? filters.skus.join(',') : 'All',
                     period: period || '1M',
                     channel: selectedChannel || 'All',
                     keyword: filters.keywords.length > 0 ? filters.keywords.join(',') : 'All',
-                    keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : 'All'
+                    keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : 'All',
+                    rank: filters.rank || 'All'
                 };
 
                 const res = await axiosInstance.get('/visibility-analysis/competition', { params });
@@ -1365,9 +1395,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchCompetitionData();
-    }, [city, filters.brands, filters.categories, filters.keywords, filters.keywordType, selectedPlatform, period, selectedChannel]);
+    }, [city, filters.brands, filters.categories, filters.keywords, filters.keywordType, filters.rank, selectedPlatform, period, selectedChannel]);
 
-    const selectionCount = filters.categories.length + filters.brands.length + filters.skus.length + filters.keywords.length + filters.keywordType.length;
+    const selectionCount = filters.categories.length + filters.brands.length + filters.skus.length + filters.keywords.length + filters.keywordType.length + (filters.rank !== 'All' ? 1 : 0);
 
     const brandRows = useMemo(() => {
         let rows = apiBrandData;
@@ -1422,7 +1452,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                 }
 
                 const params = {
-                    brands: idList.join(','),
+                    platform: selectedPlatform || 'All',
+                    brands: tab === 'brand' ? idList.join(',') : (filters.brands.length > 0 ? filters.brands.join(',') : 'All'),
+                    skus: tab === 'sku' ? idList.join(',') : (filters.skus.length > 0 ? filters.skus.join(',') : 'All'),
                     location: city !== 'All India' ? (Array.isArray(city) ? city.join(',') : String(city)) : 'All',
                     format: filters.categories.length > 0 ? filters.categories.join(',') : 'All',
                     dimension: tab,
@@ -1430,7 +1462,8 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                     timeStep: timeStep,
                     channel: selectedChannel || 'All',
                     keyword: filters.keywords.length > 0 ? filters.keywords.join(',') : 'All',
-                    keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : 'All'
+                    keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : 'All',
+                    rank: filters.rank || 'All'
                 };
 
                 const res = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
@@ -1445,7 +1478,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchBrandTrends();
-    }, [viewMode, city, visibleIds, filters.categories, filters.keywords, filters.keywordType, period, timeStep, selectedChannel, tab]);
+    }, [viewMode, city, visibleIds, filters.categories, filters.keywords, filters.keywordType, filters.rank, period, timeStep, selectedChannel, tab]);
 
 
 

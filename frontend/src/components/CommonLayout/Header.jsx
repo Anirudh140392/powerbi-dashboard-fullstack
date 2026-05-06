@@ -1748,6 +1748,7 @@ const VIS_FILTER_TABS = [
   { key: "location", label: "Location", icon: MapPin },
   { key: "keywordType", label: "Keyword Type", icon: Type },
   { key: "keyword", label: "Keyword", icon: Hash },
+  { key: "rank", label: "Rank", icon: Layers },
 ];
 
 function VisibilityFilterModal({
@@ -1759,6 +1760,7 @@ function VisibilityFilterModal({
   locations = [], selectedLocation, setSelectedLocation,
   keywordTypes = [], selectedKeywordType, setSelectedKeywordType,
   keywords = [], selectedKeyword, setSelectedKeyword,
+  selectedRank, setSelectedRank,
 }) {
   const [activeTab, setActiveTab] = React.useState("platform");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -1769,6 +1771,7 @@ function VisibilityFilterModal({
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftKeywordType, setDraftKeywordType] = React.useState(selectedKeywordType);
   const [draftKeyword, setDraftKeyword] = React.useState(selectedKeyword);
+  const [draftRank, setDraftRank] = React.useState(selectedRank);
 
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
@@ -1776,6 +1779,7 @@ function VisibilityFilterModal({
   const [localLocations, setLocalLocations] = React.useState(locations);
   const [localKeywordTypes, setLocalKeywordTypes] = React.useState(keywordTypes);
   const [localKeywords, setLocalKeywords] = React.useState(keywords);
+  const [localRanks] = React.useState(["All", "Top 10", "Top 20", "Top 30", "Top 40"]);
 
   React.useEffect(() => {
     if (open) {
@@ -1785,6 +1789,7 @@ function VisibilityFilterModal({
       setDraftLocation(selectedLocation);
       setDraftKeywordType(selectedKeywordType);
       setDraftKeyword(selectedKeyword);
+      setDraftRank(selectedRank);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
@@ -1908,6 +1913,7 @@ function VisibilityFilterModal({
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     keywordType: { options: localKeywordTypes, value: draftKeywordType, onChange: setDraftKeywordType },
     keyword: { options: localKeywords, value: draftKeyword, onChange: setDraftKeyword },
+    rank: { options: localRanks, value: draftRank, onChange: setDraftRank },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -1924,12 +1930,16 @@ function VisibilityFilterModal({
 
   const toggle = (opt) => {
     let next;
-    if (selected.includes(opt)) {
-      next = selected.filter(s => s !== opt && s !== "All");
+    if (activeTab === "rank") {
+      next = opt;
     } else {
-      next = [...selected.filter(s => s !== "All"), opt];
+      if (selected.includes(opt)) {
+        next = selected.filter(s => s !== opt && s !== "All");
+      } else {
+        next = [...selected.filter(s => s !== "All"), opt];
+      }
     }
-    if (next.length === options.length && options.length > 0) onChange("All");
+    if (activeTab !== "rank" && next.length === options.length && options.length > 0) onChange("All");
     else onChange(next);
   };
 
@@ -1956,6 +1966,7 @@ function VisibilityFilterModal({
     setSelectedLocation(draftLocation);
     setSelectedKeywordType(draftKeywordType);
     setSelectedKeyword(draftKeyword);
+    setSelectedRank(draftRank);
     onClose();
   };
 
@@ -1968,6 +1979,7 @@ function VisibilityFilterModal({
     setDraftLocation("All");
     setDraftKeywordType(["All"]);
     setDraftKeyword(["All"]);
+    setDraftRank("All");
   };
 
   const totalActiveCount = VIS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3203,6 +3215,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     datesFetched,
     visibilityMode,
     setVisibilityMode,
+    selectedRank,
+    setSelectedRank,
   } = React.useContext(FilterContext);
 
   const location = useLocation();
@@ -3464,6 +3478,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedKeywordType !== "All" && !(Array.isArray(selectedKeywordType) && selectedKeywordType.includes("All"))) count++;
                           if (selectedKeyword !== "All" && !(Array.isArray(selectedKeyword) && selectedKeyword.includes("All"))) count++;
+                          if (selectedRank !== "All" && !(Array.isArray(selectedRank) && selectedRank.includes("All"))) count++;
                         } else if (title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
@@ -3601,6 +3616,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       keywords={keywords}
                       selectedKeyword={selectedKeyword}
                       setSelectedKeyword={setSelectedKeyword}
+                      selectedRank={selectedRank}
+                      setSelectedRank={setSelectedRank}
                     />
                   )}
 

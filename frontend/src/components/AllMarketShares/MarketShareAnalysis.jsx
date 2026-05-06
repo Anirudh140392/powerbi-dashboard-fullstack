@@ -354,11 +354,27 @@ export default function MarketShareAnalysis() {
     platform,
     selectedCategory,
     selectedLocation,
+    selectedChannel,
     timeStart,
     timeEnd,
     compareStart,
     compareEnd,
   } = useContext(FilterContext);
+
+  // Determine time granularity based on platform type:
+  // Quickcomm platforms → Daily, Ecommerce platforms → Monthly
+  const QUICKCOMM_PLATFORMS = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+  const timeStep = useMemo(() => {
+    const platformStr = Array.isArray(platform) ? platform[0] : platform;
+    if (platformStr && QUICKCOMM_PLATFORMS.includes(platformStr.toLowerCase())) {
+      return 'Daily';
+    }
+    // Also check channel as a fallback
+    if (selectedChannel && selectedChannel.toLowerCase().includes('quickcomm')) {
+      return 'Daily';
+    }
+    return 'Monthly';
+  }, [platform, selectedChannel]);
 
   // ── Drawer state for MarketCatOverview trends ──────────────────────────────
   const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
@@ -383,6 +399,7 @@ export default function MarketShareAnalysis() {
           endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
           compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
           compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
+          timeStep, // 'Daily' for Quickcomm, 'Monthly' for Ecommerce
         };
 
         const response = await axiosInstance.get('/market-share', { params });
@@ -470,7 +487,7 @@ export default function MarketShareAnalysis() {
     };
 
     fetchMarketShareData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, timeStep]);
 
 
   return (

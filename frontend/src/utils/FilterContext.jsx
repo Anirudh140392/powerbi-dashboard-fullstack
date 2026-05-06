@@ -89,6 +89,9 @@ export const FilterProvider = ({ children }) => {
     // SOS / BSR toggle mode
     const [visibilityMode, setVisibilityMode] = useState('sos');
 
+    // Visibility rank filter (POSITION <= rank).
+    const [selectedRank, setSelectedRank] = useState('Top 10');
+
     // Use react-router's useLocation instead of native hashchange for reliable route tracking
     const location = useLocation();
     
@@ -270,11 +273,14 @@ export const FilterProvider = ({ children }) => {
                     const newCategories = res.data.categories || [];
                     const newChannels = res.data.channels || [];
                     const newLocations = res.data.locations || [];
+                    const newPlatformMetadata = res.data.platformMetadata || [];
 
                     if (newPlatforms.length > 0) setPlatforms(newPlatforms);
                     if (newCategories.length > 0) setCategories(newCategories);
                     if (newChannels.length > 0) setChannels(newChannels);
                     if (newLocations.length > 0) setLocations(newLocations);
+                    // Update platform metadata with icons sourced from rb_ms_olap platforms
+                    if (newPlatformMetadata.length > 0) setPlatformMetadata(newPlatformMetadata);
 
                     // Validate current platform selection
                     setPlatform(prev => {
@@ -397,6 +403,9 @@ export const FilterProvider = ({ children }) => {
     useEffect(() => {
         const fetchPlatformMetadata = async () => {
             if (!isAuthenticated) return;
+            // Skip watchtower metadata fetch on Market Share page — it provides its own metadata
+            const isMarketShare = window.location.hash.includes('/market-share');
+            if (isMarketShare) return;
             try {
                 const res = await axiosInstance.get("/watchtower/platform-metadata");
                 if (res.data && Array.isArray(res.data)) {
@@ -408,7 +417,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchPlatformMetadata();
-    }, [isAuthenticated]);
+    }, [isAuthenticated, currentPath]);
 
     // refreshFilters — can be called by child components to re-fetch filter options
     const refreshFilters = useCallback(() => {
@@ -733,7 +742,9 @@ export const FilterProvider = ({ children }) => {
             selectedPincode,
             setSelectedPincode,
             visibilityMode,
-            setVisibilityMode
+            setVisibilityMode,
+            selectedRank,
+            setSelectedRank
         }}>
             {children}
         </FilterContext.Provider>

@@ -5,7 +5,7 @@ export const Platform = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate } = req.query;
+        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate, timeStep } = req.query;
         console.log("Market Share API request received:", req.query);
 
         // Use provided dates or default to last 30 days
@@ -14,12 +14,15 @@ export const Platform = async (req, res) => {
         const compStart = compareStartDate ? dayjs(compareStartDate) : null;
         const compEnd = compareEndDate ? dayjs(compareEndDate) : null;
 
+        // timeStep: 'Daily' for Quickcomm platforms, 'Monthly' for Ecommerce (default)
+        const resolvedTimeStep = timeStep || 'Monthly';
+
         // Fetch all KPIs in parallel
         const [categorySize, leaderData, marsData, marketShareData] = await Promise.all([
-            getCategorySize(start, end, platform, category, location, compStart, compEnd),
+            getCategorySize(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep),
             getMarketLeaderSales(start, end, platform, category, location, compStart, compEnd),
-            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd),
-            getMarketShareKPI(start, end, platform, category, location, compStart, compEnd)
+            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep),
+            getMarketShareKPI(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep)
         ]);
 
         const response = {
