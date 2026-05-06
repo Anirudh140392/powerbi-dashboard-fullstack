@@ -187,6 +187,8 @@ const BRAND_COLORS = {
   Closeup: "#F97316",
 };
 
+const RANK_OPTIONS = ["Top 10", "Top 20", "Top 30", "Top 40"];
+
 // base compare-SKU X axis + base trend (we'll offset per SKU)
 const COMPARE_X = [
   "01 Sep",
@@ -729,7 +731,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   selectedColumn,
   initialAudience,
 }) {
-  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword } = useContext(FilterContext);
+  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword, selectedRank } = useContext(FilterContext);
 
   const [view, setView] = useState("Trends");
   const [allTrendMeta, allSetTrendMeta] = useState({
@@ -773,7 +775,8 @@ export default function VisibilityTrendsCompetitionDrawer({
     City: selectedLocation || "All",
     SKU: "All",
     Keyword_Type: selectedKeywordType || "All",
-    Keyword: selectedKeyword || "All"
+    Keyword: selectedKeyword || "All",
+    rank: selectedRank || "All"
   });
 
   // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
@@ -972,7 +975,8 @@ export default function VisibilityTrendsCompetitionDrawer({
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           keywordType: drawerFilters.Keyword_Type !== 'All' ? drawerFilters.Keyword_Type : undefined,
           keyword: drawerFilters.Keyword !== 'All' ? drawerFilters.Keyword : undefined,
-          channel: selectedChannel || 'All'
+          channel: selectedChannel || 'All',
+          rank: drawerFilters.rank || 'All'
         };
 
         // Determine which pivot filter to apply based on the selected audience
@@ -1051,7 +1055,8 @@ export default function VisibilityTrendsCompetitionDrawer({
             : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
-          channel: selectedChannel || 'All'
+          channel: selectedChannel || 'All',
+          rank: drawerFilters.Rank || 'All'
         };
 
         console.log("[VisibilityTrendsDrawer] Fetching competition data with params:", params);
@@ -1421,10 +1426,10 @@ export default function VisibilityTrendsCompetitionDrawer({
           />
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.Keyword_Type !== 'All' || drawerFilters.Keyword !== 'All') && (
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.Keyword_Type !== 'All' || drawerFilters.Keyword !== 'All' || drawerFilters.rank !== 'All') && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All", Keyword_Type: "All", Keyword: "All" })}
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All", Keyword_Type: "All", Keyword: "All", rank: "All" })}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
@@ -1486,8 +1491,15 @@ export default function VisibilityTrendsCompetitionDrawer({
                 <FilterDropdown 
                   title="City" 
                   value={drawerFilters.City} 
-                  options={CITY_OPTIONS} 
+                  options={filterOptions.cities} 
                   onChange={(v) => setDrawerFilters(prev => ({...prev, City: v}))} 
+                />
+                <FilterDropdown 
+                  title="Rank" 
+                  value={drawerFilters.rank} 
+                  options={RANK_OPTIONS} 
+                  onChange={(v) => setDrawerFilters(prev => ({...prev, rank: v}))} 
+                  searchable={false}
                 />
                 
                 <Button 
@@ -1653,6 +1665,7 @@ export default function VisibilityTrendsCompetitionDrawer({
               skus: drawerFilters.SKU !== 'All' ? [drawerFilters.SKU] : [],
               keywords: drawerFilters.Keyword !== 'All' ? [drawerFilters.Keyword] : [],
               keywordType: drawerFilters.Keyword_Type !== 'All' ? [drawerFilters.Keyword_Type] : [],
+              rank: drawerFilters.Rank || 'All'
             }}
           />
         )}

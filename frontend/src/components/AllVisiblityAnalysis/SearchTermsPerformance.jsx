@@ -34,34 +34,52 @@ const MiniSpinner = () => (
   </div>
 );
 
+const DeltaDisplay = ({ value }) => {
+  if (value === 0 || value == null) return <span style={{ color: "#6b7280", fontSize: 10, marginLeft: 4 }}>(0.0%)</span>;
+  const isPositive = value > 0;
+  const color = isPositive ? "#10b981" : "#ef4444";
+  const sign = isPositive ? "+" : "";
+  return (
+    <span style={{ color, fontSize: 10, marginLeft: 4, fontWeight: 600 }}>
+      ({sign}{value.toFixed(1)}%)
+    </span>
+  );
+};
+
 const BrandSOSBreakdown = ({ brands, loading }) => {
-  if (loading) return <div style={{ padding: "20px 0" }}><MiniSpinner /></div>;
-  if (!brands || brands.length === 0) return <div style={{ padding: 16, color: "#94a3b8", fontSize: 13, textAlign: "center" }}>No data available</div>;
+  if (loading) return <div style={{ padding: "20px 0", background: "#111827", borderRadius: 12 }}><MiniSpinner /></div>;
+  if (!brands || brands.length === 0) return <div style={{ padding: 16, color: "#94a3b8", fontSize: 13, textAlign: "center", background: "#111827", borderRadius: 12 }}>No data available</div>;
+
+  const top5 = brands.slice(0, 5);
 
   return (
-    <div style={{ padding: "16px 20px", minWidth: 260 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid #f1f5f9", paddingBottom: 8 }}>Brand SOS Breakdown</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {brands.map((b, i) => (
-          <div key={i}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 }}>{b.brand}</span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: b.overallSOS >= 50 ? "#059669" : "#3b82f6", fontFamily: "'DM Mono', monospace" }}>{b.overallSOS.toFixed(1)}%</span>
-            </div>
-            <div style={{ width: "100%", height: 6, background: "#f1f5f9", borderRadius: 10, overflow: "hidden" }}>
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${b.overallSOS}%` }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-                style={{ height: "100%", background: b.overallSOS >= 50 ? "#10b981" : "linear-gradient(90deg, #3b82f6, #60a5fa)", borderRadius: 10 }} 
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid #f1f5f9", fontSize: 10, color: "#94a3b8", fontStyle: "italic" }}>
-        Market share breakdown for this keyword
-      </div>
+    <div style={{ background: "#111827", borderRadius: 12, overflow: "hidden", minWidth: 480 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", color: "#fff", fontSize: 12, fontFamily: "'Inter', sans-serif" }}>
+        <thead>
+          <tr style={{ background: "#1f2937" }}>
+            <th style={{ textAlign: "left", padding: "12px 16px", color: "#9ca3af", fontWeight: 500, fontSize: 11, fontStyle: "italic" }}>Brand</th>
+            <th style={{ textAlign: "center", padding: "12px 16px", color: "#9ca3af", fontWeight: 500, fontSize: 11, fontStyle: "italic" }}>Ad. SOV</th>
+            <th style={{ textAlign: "center", padding: "12px 16px", color: "#9ca3af", fontWeight: 500, fontSize: 11, fontStyle: "italic" }}>Organic SOV</th>
+            <th style={{ textAlign: "center", padding: "12px 16px", color: "#9ca3af", fontWeight: 500, fontSize: 11, fontStyle: "italic" }}>Overall SOV</th>
+          </tr>
+        </thead>
+        <tbody>
+          {top5.map((b, i) => (
+            <tr key={i} style={{ borderBottom: "1px solid #374151" }}>
+              <td style={{ padding: "12px 16px", fontWeight: 600, color: i === 0 ? "#60a5fa" : "#fff" }}>{b.brand}</td>
+              <td style={{ padding: "12px 16px", textAlign: "center", color: "#fff", fontWeight: 500 }}>
+                {b.paidSOS.toFixed(1)}% <DeltaDisplay value={b.paidDelta} />
+              </td>
+              <td style={{ padding: "12px 16px", textAlign: "center", color: "#fff", fontWeight: 500 }}>
+                {b.organicSOS.toFixed(1)}% <DeltaDisplay value={b.organicDelta} />
+              </td>
+              <td style={{ padding: "12px 16px", textAlign: "center", color: "#fff", fontWeight: 600 }}>
+                {b.overallSOS.toFixed(1)}% <DeltaDisplay value={b.overallDelta} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
@@ -137,7 +155,8 @@ export default function SearchTermsPerformance() {
     selectedChannel,
     timeStart,
     timeEnd,
-    platforms: globalPlatforms
+    platforms: globalPlatforms,
+    selectedRank
   } = useContext(FilterContext);
 
   const [activeView, setActiveView] = useState("keyword");
@@ -151,6 +170,7 @@ export default function SearchTermsPerformance() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drilldownModal, setDrilldownModal] = useState(null);
   const [hoveredKeyword, setHoveredKeyword] = useState(null);
+  const [hoverPos, setHoverPos] = useState({ top: 0, left: 0 });
   const [bbData, setBbData] = useState({});
   const [bbLoading, setBbLoading] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
@@ -188,15 +208,17 @@ export default function SearchTermsPerformance() {
       ownBrandsOnly: activeView === "sku",
       startDate: timeStart,
       endDate: timeEnd,
+      rank: selectedRank || 'All',
     };
-  }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd, localFilters]);
+  }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd, localFilters, selectedRank]);
 
   useEffect(() => {
     let cancelled = false;
     const fetchData = async () => {
       setLoading(true);
       setExpandedRows({});
-      setLocationData({});
+      setLocationData({}); // Clear location drilldown cache on filter change
+      setBbData({}); // Clear brand breakdown cache on filter change
       setSummaryExpanded(false);
       try {
         const data = await fetchSearchTermsPerformance(filterParams);
@@ -272,7 +294,8 @@ export default function SearchTermsPerformance() {
         setLocationLoading(prev => ({ ...prev, [itemName]: false }));
       }
     }
-  }, [locationData, locationLoading, activeView, globalPlatform, selectedBrand, timeStart, timeEnd]);
+  }, [locationData, locationLoading, filterParams]);
+
 
   const openSkuModal = useCallback(async (e, keywordName, isMySkus) => {
     e.stopPropagation();
@@ -293,13 +316,15 @@ export default function SearchTermsPerformance() {
         channel: selectedChannel || "All",
         keyword: keywordName,
         ownBrandsOnly: isMySkus,
+        rank: selectedRank || 'All',
       });
       setDrilldownModal({ title, items: data.items || [], loading: false, type: "sku" });
     } catch (err) {
       console.error("Error fetching SKU data for keyword:", err);
       setDrilldownModal({ title, items: [], loading: false, type: "sku" });
     }
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd]);
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, selectedChannel, selectedRank]);
+
 
   const openKeywordModal = useCallback(async (e, skuName, isMyKeywords) => {
     e.stopPropagation();
@@ -320,13 +345,37 @@ export default function SearchTermsPerformance() {
         channel: selectedChannel || "All",
         sku: skuName,
         ownBrandsOnly: isMyKeywords,
+        rank: selectedRank || 'All',
       });
       setDrilldownModal({ title, items: data.items || [], loading: false, type: "keyword" });
     } catch (err) {
       console.error("Error fetching Keyword data for SKU:", err);
       setDrilldownModal({ title, items: [], loading: false, type: "keyword" });
     }
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd]);
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, selectedChannel, selectedRank]);
+
+
+  const handleBrandHover = useCallback(async (e, keyword) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoverPos({ top: rect.top, left: rect.left + rect.width / 2 });
+    setHoveredKeyword(keyword);
+    
+    if (!bbData[keyword] && !bbLoading) {
+      setBbLoading(true);
+      try {
+        const data = await fetchSearchTermsBrandBreakdown({
+          ...filterParams,
+          keyword
+        });
+        setBbData(prev => ({ ...prev, [keyword]: data.brands || [] }));
+      } catch (err) {
+        console.error("Error fetching brand breakdown:", err);
+        setBbData(prev => ({ ...prev, [keyword]: [] }));
+      } finally {
+        setBbLoading(false);
+      }
+    }
+  }, [bbData, bbLoading, filterParams]);
 
   const shouldShowDrilldown = true;
 
@@ -728,39 +777,48 @@ export default function SearchTermsPerformance() {
 
                   {/* Leading Brand — keyword mode only */}
                   {activeView === "keyword" && (
-                    <div style={{ textAlign: "center", position: "relative" }}>
-                      <span 
-                        onMouseEnter={() => handleBrandHover(row.name)}
-                        onMouseLeave={() => setHoveredKeyword(null)}
-                        style={{ background: "#f1f5f9", color: "#334155", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block", textTransform: "uppercase", cursor: "help", transition: "all 0.2s" }}>
-                        {row.leadingBrand}
-                      </span>
+                    <div style={{ textAlign: "center" }}>
+                        <div 
+                          onMouseEnter={(e) => handleBrandHover(e, row.name)}
+                          onMouseLeave={() => setHoveredKeyword(null)}
+                          style={{ position: "relative", cursor: "help" }}
+                        >
+                          <span style={{
+                            background: "#eef2ff", color: "#4338ca", borderRadius: 6, padding: "5px 12px",
+                            fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block",
+                            textTransform: "uppercase", transition: "all 0.2s",
+                            border: `1px solid ${hoveredKeyword === row.name ? "#818cf8" : "transparent"}`,
+                          }}>
+                            {row.leadingBrand}
+                          </span>
 
-                      <AnimatePresence>
-                        {hoveredKeyword === row.name && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            style={{
-                              position: "absolute",
-                              bottom: "100%",
-                              left: "50%",
-                              transform: "translateX(-50%)",
-                              marginBottom: 12,
-                              background: "#fff",
-                              borderRadius: 16,
-                              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0,0,0,0.05)",
-                              zIndex: 100,
-                              overflow: "hidden",
-                              pointerEvents: "none"
-                            }}
-                          >
-                            <BrandSOSBreakdown brands={bbData[row.name]} loading={bbLoading} />
-                            <div style={{ position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 12, height: 12, background: "#fff", boxShadow: "2px 2px 2px rgba(0,0,0,0.02)" }} />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                          <AnimatePresence>
+                            {hoveredKeyword === row.name && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10, x: "-50%" }}
+                                animate={{ opacity: 1, y: 0, x: "-50%" }}
+                                exit={{ opacity: 0, y: 10, x: "-50%" }}
+                                style={{
+                                  position: "fixed",
+                                  top: hoverPos.top - 12,
+                                  left: hoverPos.left,
+                                  transform: "translate(-50%, -100%)",
+                                  marginBottom: 12,
+                                  background: "#111827",
+                                  borderRadius: 12,
+                                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
+                                  zIndex: 9999,
+                                  overflow: "hidden",
+                                  pointerEvents: "none",
+                                  border: "1px solid #374151"
+                                }}
+                              >
+                                <BrandSOSBreakdown brands={bbData[row.name]} loading={bbLoading} />
+                                <div style={{ position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 12, height: 12, background: "#111827", borderRight: "1px solid #374151", borderBottom: "1px solid #374151" }} />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                     </div>
                   )}
 

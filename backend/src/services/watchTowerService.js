@@ -1139,10 +1139,11 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 }
 
                 // Mathematical logic matching user query: SUM(overall) for our brands / SUM(overall) total × 100
+                // POSITION <= 10 constraint: Only consider top 10 positions for SOS
                 const sql = `
                     SELECT 
-                        sumIf(toInt32(overall), ${numCondition}) as num,
-                        sum(toInt32(overall)) as den
+                        sumIf(toInt32(overall), ${numCondition} AND POSITION <= 10) as num,
+                        sumIf(toInt32(overall), POSITION <= 10) as den
                     FROM rb_kw_olap
                     WHERE ${baseConditions.join(' AND ')}
                 `;
@@ -1221,22 +1222,23 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                 const executeSOSQuery = async (start, end) => {
                     const baseConds = buildConditions(start, end);
                     // Query directly with flag = '1' to get our brands' data reliably
+                    // POSITION <= 10 constraint: Only consider top 10 positions for SOS
                     const [numResult, denResult] = await Promise.all([
                         queryClickHouse(`
                             SELECT 
                                 lower(brand) as brand, 
-                                sum(toInt32(overall)) as num_overall,
-                                sum(toInt32(spons)) as num_spons,
-                                sum(toInt32(organic)) as num_organic
+                                sumIf(toInt32(overall), POSITION <= 10) as num_overall,
+                                sumIf(toInt32(spons), POSITION <= 10) as num_spons,
+                                sumIf(toInt32(organic), POSITION <= 10) as num_organic
                             FROM rb_kw_olap
                             WHERE ${baseConds.join(' AND ')} AND toString(flag) = '1'
                             GROUP BY brand
                         `),
                         queryClickHouse(`
                             SELECT 
-                                sum(toInt32(overall)) as den_overall,
-                                sum(toInt32(spons)) as den_spons,
-                                sum(toInt32(organic)) as den_organic
+                                sumIf(toInt32(overall), POSITION <= 10) as den_overall,
+                                sumIf(toInt32(spons), POSITION <= 10) as den_spons,
+                                sumIf(toInt32(organic), POSITION <= 10) as den_organic
                             FROM rb_kw_olap
                             WHERE ${baseConds.join(' AND ')}
                         `)
@@ -1704,11 +1706,12 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     const platCond = buildPlatformChannelCond(platArr, channel, 'lower(platform_name)', true);
                     if (platCond) baseCond.push(platCond);
 
+                    // POSITION <= 10 constraint: Only consider top 10 positions for SOS
                     const result = await queryClickHouse(`
                         SELECT 
                             toDate(DATE) as date,
-                            SUM(if(lower(brand) IN (${brandInClause.toLowerCase()}), toInt32(overall), 0)) as num,
-                            SUM(toInt32(overall)) as den
+                            SUM(if(lower(brand) IN (${brandInClause.toLowerCase()}) AND POSITION <= 10, toInt32(overall), 0)) as num,
+                            SUM(if(POSITION <= 10, toInt32(overall), 0)) as den
                         FROM rb_kw_olap
                         WHERE ${baseCond.join(' AND ')}
                         GROUP BY date ORDER BY date
@@ -2368,14 +2371,15 @@ const computeSummaryMetrics = async (filters, options = {}) => {
                     }
 
                     // 2 queries: numerator uses countIf(overall=1), denominator uses count()
+                    // POSITION <= 10 constraint: Only consider top 10 positions for SOS
                     const [sosNumByMonth, sosDenomByMonth] = await Promise.all([
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sum(toInt32(overall)) as count
+                            SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sumIf(toInt32(overall), POSITION <= 10) as count
                             FROM rb_kw_olap WHERE ${sosNumConds.join(' AND ')}
                             GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
                         `),
                         queryClickHouse(`
-                            SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sum(toInt32(overall)) as count
+                            SELECT formatDateTime(toDate(DATE), '%Y-%m-01') as month, sumIf(toInt32(overall), POSITION <= 10) as count
                             FROM rb_kw_olap WHERE ${sosBaseConds.join(' AND ')}
                             GROUP BY formatDateTime(toDate(DATE), '%Y-%m-01')
                         `)
@@ -4765,8 +4769,9 @@ const computeTrendData = async (filters) => {
             numCondition = `lower(brand_name_th) IN (${validBrandNamesForMs.map(b => `'${escapeStr(b.toLowerCase())}'`).join(', ')})`;
         }
 
+        // POSITION <= 10 constraint: Only consider top 10 positions for SOS
         const sosNumerator = await queryClickHouse(`
-            SELECT ${groupExpressionKw} as date_group, sum(toInt32(overall)) as count
+            SELECT ${groupExpressionKw} as date_group, sumIf(toInt32(overall), POSITION <= 10) as count
             FROM rb_kw_olap
             WHERE ${sosNumConds} AND ${numCondition}
             GROUP BY ${groupExpressionKw}
@@ -4774,7 +4779,7 @@ const computeTrendData = async (filters) => {
 
         // Denominator: All products (no brand filter)
         const sosDenominator = await queryClickHouse(`
-            SELECT ${groupExpressionKw} as date_group, sum(toInt32(overall)) as count
+            SELECT ${groupExpressionKw} as date_group, sumIf(toInt32(overall), POSITION <= 10) as count
             FROM rb_kw_olap
             WHERE ${sosNumConds}
             GROUP BY ${groupExpressionKw}
@@ -5606,8 +5611,36 @@ const getPlatformOverview = async (filters) => {
     const allConversionRes = await getPmConversion(startDate, endDate, platformArr, locationArr, rawCategory, brandArr, channel);
     const allConversion = allConversionRes !== 0 ? allConversionRes : null; // Mapping 0 to null if appropriate for N/A, but getPmConversion usually returns value
 
-    const allCpm = (allImpressions !== null && allImpressions > 0) ? (allSpend / allImpressions) * 1000 : null;
-    const allCpc = (allClicks !== null && allClicks > 0) ? allSpend / allClicks : null;
+    // Compute CPC (Ecommerce only) and CPM (Quickcomm only) for the 'All' row
+    let ecomSpend = 0, ecomClicks = 0;
+    let quickSpend = 0, quickImpressions = 0;
+    let prevEcomSpend = 0, prevEcomClicks = 0;
+    let prevQuickSpend = 0, prevQuickImpressions = 0;
+
+    platformDefinitions.forEach(p => {
+        const key = p.label.toLowerCase();
+        const isEcomRow = key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart');
+        const isQuickRow = key.includes('blinkit') || key.includes('zepto') || key.includes('swiggy') || key.includes('instamart') || key.includes('bbnow');
+        const metrics = bulkPlatformMap.get(p.label);
+
+        if (metrics) {
+            if (isEcomRow) {
+                ecomSpend += metrics.curr.spend || 0;
+                ecomClicks += metrics.curr.clicks || 0;
+                prevEcomSpend += metrics.prev.spend || 0;
+                prevEcomClicks += metrics.prev.clicks || 0;
+            }
+            if (isQuickRow) {
+                quickSpend += metrics.curr.spend || 0;
+                quickImpressions += metrics.curr.impressions || 0;
+                prevQuickSpend += metrics.prev.spend || 0;
+                prevQuickImpressions += metrics.prev.impressions || 0;
+            }
+        }
+    });
+
+    const allCpm = (quickImpressions > 0) ? (quickSpend / quickImpressions) * 1000 : null;
+    const allCpc = (ecomClicks > 0) ? ecomSpend / ecomClicks : null;
     const allInorgSales = allPmMetricsResult.length > 0 ? allAdSales : null; // Absolute value in currency
     const allAsp = allMetricsResult.length > 0 ? parseFloat(allMetrics.avg_asp || 0) : null;
 
@@ -5637,8 +5670,8 @@ const getPlatformOverview = async (filters) => {
     const prevAllRoas = (prevAllSpend !== null && prevAllSpend > 0) ? prevAllAdSales / prevAllSpend : null;
     const prevAllConversionRes = await getPmConversion(momStart, momEnd, platformArr, locationArr, rawCategory, brandArr, channel);
     const prevAllConversion = prevAllConversionRes !== 0 ? prevAllConversionRes : null;
-    const prevAllCpm = (prevAllImpressions !== null && prevAllImpressions > 0) ? (prevAllSpend / prevAllImpressions) * 1000 : null;
-    const prevAllCpc = (prevAllClicks !== null && prevAllClicks > 0) ? prevAllSpend / prevAllClicks : null;
+    const prevAllCpm = (prevQuickImpressions > 0) ? (prevQuickSpend / prevQuickImpressions) * 1000 : null;
+    const prevAllCpc = (prevEcomClicks > 0) ? prevEcomSpend / prevEcomClicks : null;
     const prevAllInorgSales = prevAllPmMetricsResult.length > 0 ? prevAllAdSales : null;
 
     // Calculate overall SOS (sum counts across all platforms)

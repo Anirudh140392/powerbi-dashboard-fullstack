@@ -491,7 +491,7 @@ export const getMarketLeaderSales = async (start, end, platformFilter, categoryF
  * Logic: SUM(sales) WHERE brand is a Mars Wrigley brand
  * Returns: { sales, prevSales, delta, deltaAbs }
  */
-export const getMarsWrigleySales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null) => {
+export const getMarsWrigleySales = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly') => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -562,9 +562,15 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
             ${marsFilter}
         `;
 
+        // Dynamic grouping based on timeStep: Daily for Quickcomm, Monthly for Ecommerce
+        const isDaily = timeStep === 'Daily';
+        const groupExpr = isDaily
+            ? `toString(toDate(created_on))`
+            : `formatDateTime(toDate(created_on), '%Y-%m-01')`;
+
         const trendQuery = `
-            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as date_group,
-                   SUM(toFloat64OrZero(toString(sales))) as monthly_sales
+            SELECT ${groupExpr} as date_group,
+                   SUM(toFloat64OrZero(toString(sales))) as period_sales
             FROM rb_ms_olap
             WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
@@ -580,17 +586,29 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
         ]);
 
         const trendMap = {};
-        trendResult.forEach(t => trendMap[t.date_group] = parseFloat(t.monthly_sales || 0));
+        trendResult.forEach(t => trendMap[t.date_group] = parseFloat(t.period_sales || 0));
         const trend = [];
-        let curr = start.startOf('month');
-        const finalEnd = end.startOf('month');
-        while (curr.isBefore(finalEnd) || curr.isSame(finalEnd, 'month')) {
-            const key = curr.format('YYYY-MM-01');
-            trend.push({
-                label: curr.format('MMM YYYY'),
-                value: parseFloat((trendMap[key] || 0).toFixed(2))
-            });
-            curr = curr.add(1, 'month');
+        if (isDaily) {
+            let curr = start;
+            while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+                const key = curr.format('YYYY-MM-DD');
+                trend.push({
+                    label: curr.format('DD MMM'),
+                    value: parseFloat((trendMap[key] || 0).toFixed(2))
+                });
+                curr = curr.add(1, 'day');
+            }
+        } else {
+            let curr = start.startOf('month');
+            const finalEnd = end.startOf('month');
+            while (curr.isBefore(finalEnd) || curr.isSame(finalEnd, 'month')) {
+                const key = curr.format('YYYY-MM-01');
+                trend.push({
+                    label: curr.format('MMM YYYY'),
+                    value: parseFloat((trendMap[key] || 0).toFixed(2))
+                });
+                curr = curr.add(1, 'month');
+            }
         }
 
         const sales = parseFloat(currentResult?.[0]?.total_sales || 0);
@@ -616,7 +634,7 @@ export const getMarsWrigleySales = async (start, end, platformFilter, categoryFi
  * Logic: SUM of all sales in rb_ms_olap for the selected category/platform/date range
  */
 
-export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null) => {
+export const getCategorySize = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly') => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -670,9 +688,15 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
             ${baseCond}
         `;
 
+        // Dynamic grouping based on timeStep: Daily for Quickcomm, Monthly for Ecommerce
+        const isDaily = timeStep === 'Daily';
+        const groupExpr = isDaily
+            ? `toString(toDate(created_on))`
+            : `formatDateTime(toDate(created_on), '%Y-%m-01')`;
+
         const trendQuery = `
-            SELECT formatDateTime(toDate(created_on), '%Y-%m-01') as date_group,
-                   SUM(toFloat64OrZero(toString(sales))) as monthly_sales
+            SELECT ${groupExpr} as date_group,
+                   SUM(toFloat64OrZero(toString(sales))) as period_sales
             FROM rb_ms_olap
             WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
@@ -687,17 +711,29 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
         ]);
 
         const trendMap = {};
-        trendResult.forEach(t => trendMap[t.date_group] = parseFloat(t.monthly_sales || 0));
+        trendResult.forEach(t => trendMap[t.date_group] = parseFloat(t.period_sales || 0));
         const trend = [];
-        let curr = start.startOf('month');
-        const finalEnd = end.startOf('month');
-        while (curr.isBefore(finalEnd) || curr.isSame(finalEnd, 'month')) {
-            const key = curr.format('YYYY-MM-01');
-            trend.push({
-                label: curr.format('MMM YYYY'),
-                value: parseFloat((trendMap[key] || 0).toFixed(2))
-            });
-            curr = curr.add(1, 'month');
+        if (isDaily) {
+            let curr = start;
+            while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+                const key = curr.format('YYYY-MM-DD');
+                trend.push({
+                    label: curr.format('DD MMM'),
+                    value: parseFloat((trendMap[key] || 0).toFixed(2))
+                });
+                curr = curr.add(1, 'day');
+            }
+        } else {
+            let curr = start.startOf('month');
+            const finalEnd = end.startOf('month');
+            while (curr.isBefore(finalEnd) || curr.isSame(finalEnd, 'month')) {
+                const key = curr.format('YYYY-MM-01');
+                trend.push({
+                    label: curr.format('MMM YYYY'),
+                    value: parseFloat((trendMap[key] || 0).toFixed(2))
+                });
+                curr = curr.add(1, 'month');
+            }
         }
 
         const size = parseFloat(currentResult?.[0]?.total_category_size || 0);
@@ -723,7 +759,7 @@ export const getCategorySize = async (start, end, platformFilter, categoryFilter
  * Logic: (Our Sales / Total Category Sales) * 100
  * Returns: { share, prevShare, delta, trend }
  */
-export const getMarketShareKPI = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null) => {
+export const getMarketShareKPI = async (start, end, platformFilter, categoryFilter, locationFilter = null, compStart = null, compEnd = null, timeStep = 'Monthly') => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -789,10 +825,16 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
             ${baseCond}
         `;
 
+        // Dynamic grouping based on timeStep: Daily for Quickcomm, Monthly for Ecommerce
+        const isDaily = timeStep === 'Daily';
+        const groupExpr = isDaily
+            ? `toString(toDate(created_on))`
+            : `formatDateTime(toDate(created_on), '%Y-%m-01')`;
+
         // Trend Query
         const trendQuery = `
             SELECT 
-                formatDateTime(toDate(created_on), '%Y-%m-01') as date_group,
+                ${groupExpr} as date_group,
                 SUM(toFloat64OrZero(toString(sales))) as total_sales,
                 SUM(IF(group_brand IN (${brandsSql}), toFloat64OrZero(toString(sales)), 0)) as our_sales
             FROM rb_ms_olap
@@ -826,15 +868,27 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
         });
 
         const trend = [];
-        let curr = start.startOf('month');
-        const finalEnd = end.startOf('month');
-        while (curr.isBefore(finalEnd) || curr.isSame(finalEnd, 'month')) {
-            const key = curr.format('YYYY-MM-01');
-            trend.push({
-                label: curr.format('MMM YYYY'),
-                value: parseFloat((trendMap[key] || 0).toFixed(2))
-            });
-            curr = curr.add(1, 'month');
+        if (isDaily) {
+            let curr = start;
+            while (curr.isBefore(end) || curr.isSame(end, 'day')) {
+                const key = curr.format('YYYY-MM-DD');
+                trend.push({
+                    label: curr.format('DD MMM'),
+                    value: parseFloat((trendMap[key] || 0).toFixed(2))
+                });
+                curr = curr.add(1, 'day');
+            }
+        } else {
+            let curr = start.startOf('month');
+            const finalEnd = end.startOf('month');
+            while (curr.isBefore(finalEnd) || curr.isSame(finalEnd, 'month')) {
+                const key = curr.format('YYYY-MM-01');
+                trend.push({
+                    label: curr.format('MMM YYYY'),
+                    value: parseFloat((trendMap[key] || 0).toFixed(2))
+                });
+                curr = curr.add(1, 'month');
+            }
         }
 
         return {
@@ -2126,48 +2180,133 @@ export const getMarketShareCompetitionFilterOptions = async (platformFilter, loc
  */
 export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
     try {
-        let platformCond = '';
-        let categoryCond = '';
+        // 1. Get ALL distinct platforms from rb_ms_olap (the source of truth for Market Share)
+        const allPlatformResults = await queryClickHouse(
+            `SELECT DISTINCT platform FROM rb_ms_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`
+        );
+        const allMsPlatforms = allPlatformResults.map(r => r.platform);
 
-        if (channelFilter && channelFilter !== 'All') {
-            platformCond = `AND platform IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${channelFilter.replace(/'/g, "''")}')`;
-            categoryCond = `AND category IN (SELECT DISTINCT category FROM rca_sku_dim WHERE channel = '${channelFilter.replace(/'/g, "''")}')`;
+        // 2. Build platform-to-channel mapping from rca_sku_dim (only for platforms that exist in rb_ms_olap)
+        //    This determines which channel each platform belongs to
+        let platformChannelMap = new Map(); // platform -> channel
+        let channelSet = new Set();
+        try {
+            if (allMsPlatforms.length > 0) {
+                const platformList = allMsPlatforms.map(p => `'${p.replace(/'/g, "''")}'`).join(', ');
+                const mappingResults = await queryClickHouse(`
+                    SELECT DISTINCT platform, channel 
+                    FROM rca_sku_dim 
+                    WHERE platform IN (${platformList}) 
+                    AND channel IS NOT NULL AND channel != ''
+                `);
+                mappingResults.forEach(r => {
+                    if (r.platform && r.channel) {
+                        platformChannelMap.set(r.platform.toLowerCase(), r.channel);
+                        channelSet.add(r.channel);
+                    }
+                });
+            }
+        } catch (mapErr) {
+            console.warn('[MarketShareTopFilterOptions] rca_sku_dim channel mapping failed, using fallback:', mapErr.message);
+            // Fallback: classify by known platform names
+            const quickcommPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+            allMsPlatforms.forEach(p => {
+                const lower = p.toLowerCase();
+                const isQuickcomm = quickcommPlatforms.some(qc => lower.includes(qc));
+                const ch = isQuickcomm ? 'Quickcomm' : 'Ecommerce';
+                platformChannelMap.set(lower, ch);
+                channelSet.add(ch);
+            });
         }
 
-        // 1. Platforms from rb_ms_olap
-        const platformQuery = `SELECT DISTINCT platform FROM rb_ms_olap WHERE platform IS NOT NULL AND platform != '' ORDER BY platform`;
-        
-        // 2. Categories from rb_ms_olap
-        const categoryQuery = `SELECT DISTINCT category FROM rb_ms_olap WHERE category IS NOT NULL AND category != '' ORDER BY category`;
-        
-        // 3. Locations from rb_ms_olap
-        const locationQuery = `SELECT DISTINCT location FROM rb_ms_olap WHERE location IS NOT NULL AND location != '' ORDER BY location`;
+        // 3. Filter platforms by selected channel (if any)
+        let filteredPlatforms = allMsPlatforms;
+        if (channelFilter && channelFilter !== 'All') {
+            filteredPlatforms = allMsPlatforms.filter(p => {
+                const ch = platformChannelMap.get(p.toLowerCase());
+                if (!ch) return false;
+                return ch.toLowerCase() === channelFilter.toLowerCase();
+            });
+            // If no platforms matched, fall back to all (don't return empty)
+            if (filteredPlatforms.length === 0) filteredPlatforms = allMsPlatforms;
+        }
 
-        // 4. Channels - filter by platforms present in rb_ms_olap to ensure relevance
-        const channelQuery = `
-            SELECT DISTINCT channel 
-            FROM rca_sku_dim 
-            WHERE platform IN (SELECT DISTINCT platform FROM rb_ms_olap)
-            AND channel IS NOT NULL AND channel != '' 
-            ORDER BY channel
+        // 4. Build conditions for category/location queries based on filtered platforms
+        let platformCond = '';
+        if (filteredPlatforms.length > 0 && filteredPlatforms.length < allMsPlatforms.length) {
+            platformCond = `AND platform IN (${filteredPlatforms.map(p => `'${p.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
+        // 5. Categories from rb_ms_olap (filtered by channel's platforms)
+        const categoryQuery = `
+            SELECT DISTINCT category 
+            FROM rb_ms_olap 
+            WHERE category IS NOT NULL AND category != '' 
+            ${platformCond}
+            ORDER BY category
+        `;
+        
+        // 6. Locations from rb_ms_olap (filtered by channel's platforms)
+        const locationQuery = `
+            SELECT DISTINCT location 
+            FROM rb_ms_olap 
+            WHERE location IS NOT NULL AND location != '' 
+            ${platformCond}
+            ORDER BY location
         `;
 
-        const [platformResults, categoryResults, locationResults, channelResults] = await Promise.all([
-            queryClickHouse(platformQuery),
+        // 7. Platform metadata (icons) - source from rb_platform for the filtered platforms
+        let platformMetadata = [];
+        try {
+            const tableExists = await queryClickHouse("EXISTS TABLE rb_platform");
+            let visualsMap = new Map();
+            if (tableExists && tableExists[0]?.result === 1) {
+                const visuals = await queryClickHouse(
+                    "SELECT DISTINCT pf_name, platform_description FROM rb_platform WHERE status = 1"
+                );
+                visuals.forEach(v => {
+                    if (v.pf_name && v.platform_description) {
+                        visualsMap.set(v.pf_name.toLowerCase().trim(), v.platform_description);
+                    }
+                });
+            }
+
+            const fallbackLogos = {
+                'zepto': 'https://upload.wikimedia.org/wikipedia/en/7/7d/Logo_of_Zepto.png',
+                'blinkit': 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Blinkit-yellow-rounded.svg',
+                'swiggy': 'https://upload.wikimedia.org/wikipedia/commons/a/a0/Swiggy_Logo_2024.webp',
+                'amazon': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg',
+                'flipkart': 'https://upload.wikimedia.org/wikipedia/commons/f/fd/Flipkart-logo.png',
+                'instamart': '/instamart.jpeg',
+                'swiggy instamart': '/instamart.jpeg',
+            };
+
+            platformMetadata = filteredPlatforms.map(pfName => {
+                const key = pfName.toLowerCase().trim();
+                const dbImage = visualsMap.get(key);
+                const image = dbImage || fallbackLogos[key] || null;
+                return { pf_name: pfName, platform_description: image };
+            });
+        } catch (metaErr) {
+            console.warn('[MarketShareTopFilterOptions] Platform metadata fetch failed:', metaErr.message);
+            platformMetadata = filteredPlatforms.map(pfName => ({ pf_name: pfName, platform_description: null }));
+        }
+
+        const [categoryResults, locationResults] = await Promise.all([
             queryClickHouse(categoryQuery),
-            queryClickHouse(locationQuery),
-            queryClickHouse(channelQuery)
+            queryClickHouse(locationQuery)
         ]);
 
         return {
-            platforms: platformResults.map(r => r.platform),
+            platforms: filteredPlatforms,
             categories: categoryResults.map(r => r.category),
             locations: locationResults.map(r => r.location),
-            channels: channelResults.map(r => r.channel)
+            channels: Array.from(channelSet).sort(),
+            platformMetadata
         };
     } catch (error) {
         console.error('[MarketShareTopFilterOptions] Error:', error.message);
-        return { platforms: [], categories: [], channels: [], locations: [] };
+        return { platforms: [], categories: [], channels: [], locations: [], platformMetadata: [] };
     }
 };
 

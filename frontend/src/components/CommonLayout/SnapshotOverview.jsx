@@ -954,7 +954,8 @@ const SnapshotOverview = ({
                 deltaLabel: sosItem.tag,
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
-                trendSeries: makeSeries(35, 30, 0.12, seed)
+                trendSeries: makeSeries(35, 30, 0.12, seed),
+                infoTooltip: "Share of Search is calculated based on Top 10 rank positions."
             } : {
                 id: 'sos_top_loading',
                 title: 'Share of Search',
