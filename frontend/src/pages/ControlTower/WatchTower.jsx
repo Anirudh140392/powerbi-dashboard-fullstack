@@ -89,7 +89,8 @@ export default function WatchTower() {
   const [currentPage, setCurrentPage] = React.useState(0);
 
   const [filters, setFilters] = useState({
-    platform: "Blinkit",
+    platform: "All",
+    channel: "All",
     months: 6,
     timeStep: "Monthly",
   });
@@ -100,7 +101,7 @@ export default function WatchTower() {
   const [trendParams, setTrendParams] = useState({
     months: 6,
     timeStep: "Monthly",
-    platform: "Blinkit",
+    platform: "All",
   });
 
   const [trendData, setTrendData] = useState({
@@ -216,7 +217,10 @@ export default function WatchTower() {
     // Build override: force selectedChannel/platform to "All"
     // and use full platform list if available (prevents sidebar channel from filtering platforms)
     const buildOverride = () => {
-      const overrides = { selectedChannel: "All", platform: "All" };
+      const overrides = { 
+        selectedChannel: filters.channel || "All", 
+        platform: filters.platform || "All" 
+      };
       if (allPlatformNames) {
         overrides.platforms = allPlatformNames;
       }
@@ -247,11 +251,11 @@ export default function WatchTower() {
     }
 
     return overriddenContextRef.current;
-  }, [filterContext, allPlatformNames]);
+  }, [filterContext, allPlatformNames, filters.channel, filters.platform]);
 
-  // Business Overview ignores sidebar channel/platform filters — always uses "All"
-  const selectedChannel = "All";
-  const platform = "All";
+  // Business Overview now uses local filter state for channel/platform
+  const selectedChannel = filters.channel || "All";
+  const platform = filters.platform || "All";
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -460,7 +464,8 @@ export default function WatchTower() {
 
 
   const [fetchError, setFetchError] = useState(null);
-  const [categoryChannel, setCategoryChannel] = useState("All");
+  const [categoryPlatform, setCategoryPlatform] = useState("All");
+  const [pdpPlatforms, setPdpPlatforms] = useState([]);
   const overviewFetchIdRef = useRef(0);
   const categoryFetchIdRef = useRef(0);
 
@@ -479,15 +484,20 @@ export default function WatchTower() {
     }));
   }, [selectedCategory, timeStart, timeEnd, compareStart, compareEnd, platform, selectedKeyword, selectedLocation]);
 
-  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${categoryChannel}`;
+  const categoryFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${categoryPlatform}`;
 
-  // Sync category channel with global channel filter
+  // Fetch platforms from rb_pdp_olap for Category Performance dropdown
   useEffect(() => {
-    if (selectedChannel) {
-      const channelVal = typeof selectedChannel === 'object' ? (selectedChannel.value || 'All') : selectedChannel;
-      setCategoryChannel(channelVal);
-    }
-  }, [selectedChannel]);
+    axiosInstance.get("/watchtower/pdp-platforms")
+      .then(response => {
+        if (response.data) {
+          setPdpPlatforms(response.data);
+        }
+      })
+      .catch(error => {
+        console.error("Error fetching PDP platforms:", error);
+      });
+  }, []);
 
   // Sync loading state with filter changes to prevent one-frame flicker
   const currentFilterKey = `${platform}-${selectedBrand}-${selectedCategory}-${selectedLocation}-${selectedKeyword}-${timeStart?.valueOf()}-${timeEnd?.valueOf()}-${compareStart?.valueOf()}-${compareEnd?.valueOf()}-${selectedChannel}`;
@@ -595,10 +605,10 @@ export default function WatchTower() {
       if (currentFetchId !== categoryFetchIdRef.current) return;
 
       const params = {
-        platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
+        platform: categoryPlatform === "All" ? (platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform)) : categoryPlatform,
         brand: selectedBrand === "All" ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
         category: selectedCategory === "All" ? undefined : (Array.isArray(selectedCategory) ? selectedCategory.join(",") : selectedCategory),
-        channel: categoryChannel === "All" ? undefined : categoryChannel,
+        channel: undefined, // Channel dropdown removed for Category Performance
         startDate: timeStart ? timeStart.format("YYYY-MM-DD") : undefined,
         endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : undefined,
         compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
@@ -868,9 +878,9 @@ export default function WatchTower() {
             rows={FORMAT_ROWS} 
             loading={categoryDataLoading} 
             openHelpWithMenu={openHelpWithMenu} 
-            channels={channels}
-            categoryChannel={categoryChannel}
-            setCategoryChannel={setCategoryChannel}
+            pdpPlatforms={pdpPlatforms}
+            categoryPlatform={categoryPlatform}
+            setCategoryPlatform={setCategoryPlatform}
           />
 
           {/* {activeTab === "sku" && (
@@ -920,7 +930,7 @@ export default function WatchTower() {
   );
 }
 
-const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, categoryChannel, setCategoryChannel }) => {
+const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms, categoryPlatform, setCategoryPlatform }) => {
   const [activeName, setActiveName] = useState(rows[0]?.name);
   const [compareName, setCompareName] = useState(null);
 
@@ -1015,16 +1025,16 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
     {
       key: "cpm",
       label: "CPM",
-      activeValue: (categoryChannel || '').toLowerCase() === 'ecommerce' ? null : active.cpm,
-      compareValue: (categoryChannel || '').toLowerCase() === 'ecommerce' ? null : (compare?.cpm ?? null),
+      activeValue: (categoryPlatform || '').toLowerCase() === 'ecommerce' ? null : active.cpm,
+      compareValue: (categoryPlatform || '').toLowerCase() === 'ecommerce' ? null : (compare?.cpm ?? null),
       max: 800000,
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "cpc",
       label: "CPC",
-      activeValue: (categoryChannel || '').toLowerCase() === 'quickcomm' ? null : active.cpc,
-      compareValue: (categoryChannel || '').toLowerCase() === 'quickcomm' ? null : (compare?.cpc ?? null),
+      activeValue: (categoryPlatform || '').toLowerCase() === 'quickcomm' ? null : active.cpc,
+      compareValue: (categoryPlatform || '').toLowerCase() === 'quickcomm' ? null : (compare?.cpc ?? null),
       max: 5000000,
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
@@ -1062,17 +1072,17 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, channels, ca
             </p>
           </div>
 
-          {/* Local Channel Dropdown */}
+          {/* Local Platform Dropdown */}
           <div className="relative flex items-center">
             <select
-              value={categoryChannel || 'All'}
-              onChange={(e) => setCategoryChannel(e.target.value)}
+              value={categoryPlatform || 'All'}
+              onChange={(e) => setCategoryPlatform(e.target.value)}
               className="appearance-none bg-blue-50 border border-blue-100 text-blue-700 py-1.5 pl-3 pr-8 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-xs shadow-sm cursor-pointer transition-all hover:bg-blue-100/50"
               style={{ fontFamily: 'Roboto, sans-serif' }}
             >
-              <option value="All">All Channels</option>
-              {channels?.filter(c => c !== 'All').map(c => (
-                <option key={c} value={c}>{c}</option>
+              <option value="All">All Platforms</option>
+              {pdpPlatforms?.map(p => (
+                <option key={p} value={p}>{p}</option>
               ))}
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={14} />

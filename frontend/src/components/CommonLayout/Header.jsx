@@ -193,7 +193,7 @@ function WatchTowerFilterModal({
   // map tab key → { options (local), draftValue, setDraft }
   const tabConfig = {
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
-    platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
+    platform: { options: localPlatforms.filter(p => p !== 'All'), value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
@@ -215,12 +215,16 @@ function WatchTowerFilterModal({
 
   const toggle = (opt) => {
     let next;
-    if (selected.includes(opt)) {
-      next = selected.filter(s => s !== opt && s !== "All");
+    if (activeTab === "platform") {
+      next = opt;
     } else {
-      next = [...selected.filter(s => s !== "All"), opt];
+      if (selected.includes(opt)) {
+        next = selected.filter(s => s !== opt && s !== "All");
+      } else {
+        next = [...selected.filter(s => s !== "All"), opt];
+      }
     }
-    if (next.length === options.length && options.length > 0) onChange("All");
+    if (activeTab !== "platform" && next.length === options.length && options.length > 0) onChange("All");
     else onChange(next);
   };
 
@@ -472,34 +476,38 @@ function WatchTowerFilterModal({
 
             {/* Select all / Clear + Search */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 1.5 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={selectAll}
-                sx={{
-                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                  fontFamily: "'Inter', 'Roboto', sans-serif",
-                  "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Select all
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={clearAll}
-                sx={{
-                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                  fontFamily: "'Inter', 'Roboto', sans-serif",
-                  "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Clear
-              </Button>
+              {activeTab !== "platform" && (
+                <>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={selectAll}
+                    sx={{
+                      textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                      borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                      fontFamily: "'Inter', 'Roboto', sans-serif",
+                      "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={clearAll}
+                    sx={{
+                      textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                      borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                      fontFamily: "'Inter', 'Roboto', sans-serif",
+                      "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </>
+              )}
               <TextField
                 size="small"
                 placeholder="Search..."
@@ -3166,7 +3174,7 @@ function InventoryFilterModal({
   );
 }
 
-const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false }) => {
+const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersChange, hideFilters = false }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [filterModalOpen, setFilterModalOpen] = React.useState(false);
   const [availFilterModalOpen, setAvailFilterModalOpen] = React.useState(false);
@@ -3218,6 +3226,25 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     selectedRank,
     setSelectedRank,
   } = React.useContext(FilterContext);
+
+  const currentChannel = filters?.channel || selectedChannel;
+  const currentPlatform = filters?.platform || platform;
+
+  const localSetSelectedChannel = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, channel: val }));
+    } else {
+      setSelectedChannel(val);
+    }
+  };
+
+  const localSetPlatform = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, platform: val }));
+    } else {
+      setPlatform(val);
+    }
+  };
 
   const location = useLocation();
 
@@ -3467,8 +3494,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       {(() => {
                         let count = 0;
                         if (title !== "Business Overview") {
-                          if (selectedChannel !== "All" && !(Array.isArray(selectedChannel) && selectedChannel.length === channels.length)) count++;
-                          if (platform !== "All" && !(Array.isArray(platform) && platform.length === platforms.length)) count++;
+                          if (currentChannel !== "All" && !(Array.isArray(currentChannel) && currentChannel.length === channels.length)) count++;
+                          if (currentPlatform !== "All" && !(Array.isArray(currentPlatform) && currentPlatform.length === platforms.length)) count++;
                         }
                         if (selectedCategory !== "All" && !(Array.isArray(selectedCategory) && selectedCategory.length === categories.length)) count++;
                         if (title === "Availability Analysis") {
@@ -3516,13 +3543,13 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     <WatchTowerFilterModal
                       open={filterModalOpen}
                       onClose={() => setFilterModalOpen(false)}
-                      hideChannelPlatform={title === "Business Overview"}
+                      hideChannelPlatform={false}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3541,11 +3568,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={marketShareFilterModalOpen}
                       onClose={() => setMarketShareFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3558,11 +3585,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={osaFilterModalOpen}
                       onClose={() => setOsaFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3575,11 +3602,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={availFilterModalOpen}
                       onClose={() => setAvailFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3597,10 +3624,10 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     <VisibilityFilterModal
                       open={visibilityFilterModalOpen}
                       onClose={() => setVisibilityFilterModalOpen(false)}
-                      selectedChannel={selectedChannel}
+                      selectedChannel={currentChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={visibilityCategories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3627,11 +3654,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={pricingFilterModalOpen}
                       onClose={() => setPricingFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3650,11 +3677,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={performanceFilterModalOpen}
                       onClose={() => setPerformanceFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3673,11 +3700,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={contentFilterModalOpen}
                       onClose={() => setContentFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3696,11 +3723,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={inventoryFilterModalOpen}
                       onClose={() => setInventoryFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3720,8 +3747,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                   <CustomHeaderDropdown
                     label="CHANNEL"
                     options={channels}
-                    value={selectedChannel}
-                    onChange={(newValue) => setSelectedChannel(newValue)}
+                    value={currentChannel}
+                    onChange={(newValue) => localSetSelectedChannel(newValue)}
                     width={{ xs: "calc(50% - 6px)", sm: 130 }}
                     multiSelect={true}
                   />

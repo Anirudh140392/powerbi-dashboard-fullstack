@@ -4311,18 +4311,6 @@ const getPlatformChannels = async () => {
     }
 };
 
-const getPmPlatforms = async () => {
-    try {
-        const pmSrc = await getPmSource();
-        const query = `SELECT DISTINCT ${pmSrc.f.platform} AS platform FROM ${pmSrc.table} WHERE ${pmSrc.f.platform} IS NOT NULL AND ${pmSrc.f.platform} != '' ORDER BY platform`;
-        const results = await queryClickHouse(query);
-        return results.map(p => p.platform).filter(Boolean).sort();
-    } catch (error) {
-        console.error("Error fetching PM platforms:", error);
-        return [];
-    }
-};
-
 const getPlatformMetadata = async () => {
     try {
         // 1) Get distinct platforms from rca_sku_dim
@@ -4392,24 +4380,6 @@ const getChannels = async () => {
         return results.map(r => r.channel).filter(Boolean).sort();
     } catch (error) {
         console.error("Error fetching channels from rb_pdp_olap:", error);
-        return [];
-    }
-};
-
-const getPdpPlatforms = async () => {
-    try {
-        const cols = await getTableColumns('rb_pdp_olap');
-        const hasPlatform = columnExists(cols, 'platform');
-        if (!hasPlatform) {
-            console.log(`[getPdpPlatforms] 'platform' column not found in rb_pdp_olap for DB=${getCurrentDbName()}`);
-            return [];
-        }
-        const platformCol = resolveColumn(cols, 'platform');
-        const query = `SELECT DISTINCT ${platformCol} AS platform FROM rb_pdp_olap WHERE ${platformCol} IS NOT NULL AND ${platformCol} != '' ORDER BY platform`;
-        const results = await queryClickHouse(query);
-        return results.map(r => r.platform).filter(Boolean).sort();
-    } catch (error) {
-        console.error("Error fetching platforms from rb_pdp_olap:", error);
         return [];
     }
 };
@@ -5650,7 +5620,7 @@ const getPlatformOverview = async (filters) => {
     platformDefinitions.forEach(p => {
         const key = p.label.toLowerCase();
         const isEcomRow = key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart');
-        const isQuickRow = key.includes('blinkit') || key.includes('zepto') || key.includes('swiggy') || key.includes('instamart') || key.includes('bbnow') || key.includes('quick');
+        const isQuickRow = key.includes('blinkit') || key.includes('zepto') || key.includes('swiggy') || key.includes('instamart') || key.includes('bbnow');
         const metrics = bulkPlatformMap.get(p.label);
 
         if (metrics) {
@@ -5868,13 +5838,10 @@ const getPlatformOverview = async (filters) => {
         const organicSov = hasSosCheck ? (metrics.curr.organicSov ?? null) : null;
 
         const availability = hasPdp ? (metrics.curr.deno > 0 ? (metrics.curr.neno / metrics.curr.deno) * 100 : null) : null;
-        const isEcom = key.includes('amazon') || key.includes('flipkart') || key.includes('myntra') || key.includes('nykaa') || key.includes('jiomart');
-        const isQuick = key.includes('blinkit') || key.includes('zepto') || key.includes('swiggy') || key.includes('instamart') || key.includes('bbnow') || key.includes('quick');
-
         const roas = hasPm ? (totalSpend > 0 ? totalAdSales / totalSpend : null) : null;
         const conversion = hasPm ? (metrics.curr.conversion ?? null) : null;
-        const cpm = (hasPm && isQuick) ? (totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : null) : null;
-        const cpc = (hasPm && isEcom) ? (totalClicks > 0 ? totalSpend / totalClicks : null) : null;
+        const cpm = hasPm ? (totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : null) : null;
+        const cpc = hasPm ? (totalClicks > 0 ? totalSpend / totalClicks : null) : null;
         const inorgSales = hasPm ? totalAdSales : null;
 
         const promoMyBrand = hasPdp ? (metrics.curr.myAvgDiscount ?? null) : null;
@@ -5905,8 +5872,8 @@ const getPlatformOverview = async (filters) => {
         const prevAvailability = prevHasPdp ? (metrics.prev.deno > 0 ? (metrics.prev.neno / metrics.prev.deno) * 100 : null) : null;
         const prevRoas = prevHasPm ? (prevSpend > 0 ? prevAdSales / prevSpend : null) : null;
         const prevConversion = prevHasPm ? (metrics.prev.conversion ?? null) : null;
-        const prevCpm = (prevHasPm && isQuick) ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
-        const prevCpc = (prevHasPm && isEcom) ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
+        const prevCpm = prevHasPm ? (prevImpressions > 0 ? (prevSpend / prevImpressions) * 1000 : null) : null;
+        const prevCpc = prevHasPm ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
         const prevAsp = prevHasPdp ? (metrics.prev.asp ?? null) : null;
         const prevAov = (prevHasPm && prevOrders > 0) ? prevAdSales / prevOrders : null;
         const prevInorgSales = prevHasPm ? prevAdSales : null;
@@ -11773,7 +11740,6 @@ export default {
     getTrendData,
     getPlatformChannels,
     getPlatforms,
-    getPmPlatforms,
     getPlatformMetadata,
     getBrands,
     getKeywords,
@@ -11800,6 +11766,5 @@ export default {
     getPerformanceBreakdownData,
     getProducts,
     getProductCategories,
-    getChannels,
-    getPdpPlatforms
+    getChannels
 };
