@@ -554,7 +554,7 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                                                 <Box sx={{ width: `${kpi.organicPct}%`, height: '100%', bgcolor: '#22c55e', borderRadius: 2 }} />
                                             </Box>
                                         )}
-                                        <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '10px', textAlign: 'right' }}>
+                                        <Typography variant="caption" sx={{ fontSize: '10px', textAlign: 'right', color: '#ffffff', fontWeight: 500 }}>
                                             {kpi.organicPct != null ? `${kpi.organicPct.toFixed(1)}% of total` : ''}
                                         </Typography>
 
@@ -574,12 +574,12 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                                                 <Box sx={{ width: `${kpi.inorganicPct}%`, height: '100%', bgcolor: '#f59e0b', borderRadius: 2 }} />
                                             </Box>
                                         )}
-                                        <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '10px', textAlign: 'right' }}>
+                                        <Typography variant="caption" sx={{ fontSize: '10px', textAlign: 'right', color: '#ffffff', fontWeight: 500 }}>
                                             {kpi.inorganicPct != null ? `${kpi.inorganicPct.toFixed(1)}% of total` : ''}
                                         </Typography>
                                     </Box>
-                                    <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
-                                        <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.8, fontSize: '10px', color: '#94a3b8' }}>
+                                    <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.25)' }}>
+                                        <Typography variant="caption" sx={{ fontStyle: 'italic', fontSize: '10.5px', color: '#ffffff', fontWeight: 500 }}>
                                             * Organic Sales = Offtake - Inorganic Sales
                                         </Typography>
                                     </Box>
@@ -587,6 +587,20 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                             }
                             arrow
                             placement="top"
+                            slotProps={{
+                                tooltip: {
+                                    sx: {
+                                        bgcolor: '#1e293b',
+                                        color: '#ffffff',
+                                        borderRadius: '10px',
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                        maxWidth: 300,
+                                        px: 1.5,
+                                        py: 1,
+                                    }
+                                },
+                                arrow: { sx: { color: '#1e293b' } }
+                            }}
                         >
                             <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help" />
                         </Tooltip>
