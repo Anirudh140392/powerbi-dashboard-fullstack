@@ -8853,7 +8853,14 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             return { brands: {}, metadata: { period, location, category } };
         }
 
-        const endDate = await getCachedMaxDate();
+        // Get the latest date from both pdp and ms tables to ensure we show the most recent data
+        const [pdpMaxDateRes, msMaxDateRes] = await Promise.all([
+            getCachedMaxDate(),
+            queryClickHouse(`SELECT MAX(toDate(created_on)) as max_date FROM rb_ms_olap`)
+        ]);
+        const pdpMaxDate = dayjs(pdpMaxDateRes);
+        const msMaxDate = dayjs(msMaxDateRes[0]?.max_date || '2000-01-01');
+        const endDate = pdpMaxDate.isAfter(msMaxDate) ? pdpMaxDate : msMaxDate;
         let startDate;
         switch (period) {
             case '1W': startDate = endDate.subtract(7, 'days'); break;
@@ -8871,7 +8878,10 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         const baseConds = [`toDate(${src.f.date}) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         // baseConds.push(`toString(${src.f.compFlag}) = '1'`);  // REMOVED: Allow both base and competitor brands for SOS denominator and direct querying
 
+        const platArr = normalizeFilterArray(platform);
         const locArr = normalizeFilterArray(location);
+        const catArrNorm = normalizeFilterArray(category);
+
         if (locArr && locArr.length > 0) {
             baseConds.push(`${src.f.location} IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
         }
@@ -8879,19 +8889,27 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         // Market Share conditions for rb_brand_ms table (platform-level totals)
         const msBaseConds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         msBaseConds.push(`sales IS NOT NULL`);
+        if (platArr && platArr.length > 0) {
+            msBaseConds.push(`lower(platform) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
+        }
         if (locArr && locArr.length > 0) {
-            msBaseConds.push(`location IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+            msBaseConds.push(`lower(location) IN(${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        }
+        if (catArrNorm && catArrNorm.length > 0) {
+            msBaseConds.push(`lower(category) IN(${catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
         }
 
         // Category Share conditions for rb_brand_ms table (category-level totals)
         const catBaseConds = [`toDate(created_on) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         catBaseConds.push(`sales IS NOT NULL`);
-        if (locArr && locArr.length > 0) {
-            catBaseConds.push(`location IN(${locArr.map(l => `'${escapeStr(l)}'`).join(', ')})`);
+        if (platArr && platArr.length > 0) {
+            catBaseConds.push(`lower(platform) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
         }
-        const catArr = (normalizeFilterArray(category) || []).map(c => c.toLowerCase());
-        if (catArr.length > 0) {
-            const catEscaped = catArr.map(c => `'${escapeStr(c)}'`).join(', ');
+        if (locArr && locArr.length > 0) {
+            catBaseConds.push(`lower(location) IN(${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
+        }
+        if (catArrNorm && catArrNorm.length > 0) {
+            const catEscaped = catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ');
             catBaseConds.push(`lower(category) IN(${catEscaped})`);
         }
 
@@ -8901,7 +8919,6 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             : '1=0';
 
         // Build conditions for Keyword Share of Search (Denominator)
-        const platArr = normalizeFilterArray(platform);
         const kwBaseConds = [`toDate(DATE) BETWEEN '${startDate.format('YYYY-MM-DD')}' AND '${endDate.format('YYYY-MM-DD')}'`];
         if (platArr && platArr.length > 0) {
             kwBaseConds.push(`lower(platform_name) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
@@ -8909,7 +8926,6 @@ const getCompetitionBrandTrends = async (filters = {}) => {
         if (locArr && locArr.length > 0) {
             kwBaseConds.push(`lower(location_name) IN(${locArr.map(l => `'${escapeStr(l.toLowerCase())}'`).join(', ')})`);
         }
-        const catArrNorm = normalizeFilterArray(category);
         if (catArrNorm && catArrNorm.length > 0) {
             kwBaseConds.push(`lower(keyword_category) IN(${catArrNorm.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
         }
