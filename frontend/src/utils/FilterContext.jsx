@@ -138,6 +138,7 @@ export const FilterProvider = ({ children }) => {
             setPlatformsFetched(false);
             setVisibilityOwnBrandsOnly(true);
             setVisibilityMode('sos');
+            setSelectedRank('Top 10');
             setUserSetDate(false);
         }
     }, [isAuthenticated]);

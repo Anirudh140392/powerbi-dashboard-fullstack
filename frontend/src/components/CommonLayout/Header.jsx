@@ -1787,7 +1787,7 @@ function VisibilityFilterModal({
   const [localLocations, setLocalLocations] = React.useState(locations);
   const [localKeywordTypes, setLocalKeywordTypes] = React.useState(keywordTypes);
   const [localKeywords, setLocalKeywords] = React.useState(keywords);
-  const [localRanks] = React.useState(["All", "Top 10", "Top 20", "Top 30", "Top 40"]);
+  const [localRanks] = React.useState(["Top 10", "Top 20", "Top 30", "Top 40"]);
 
   React.useEffect(() => {
     if (open) {
@@ -1987,7 +1987,7 @@ function VisibilityFilterModal({
     setDraftLocation("All");
     setDraftKeywordType(["All"]);
     setDraftKeyword(["All"]);
-    setDraftRank("All");
+    setDraftRank("Top 10");
   };
 
   const totalActiveCount = VIS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
