@@ -8871,6 +8871,14 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             default: startDate = endDate.subtract(1, 'month'); // Default 1M
         }
 
+        // Generate full date range to ensure trend lines show all available data points
+        const dateRange = [];
+        let currDate = startDate.clone();
+        while (currDate.isBefore(endDate) || currDate.isSame(endDate, 'day')) {
+            dateRange.push(currDate.format('YYYY-MM-DD'));
+            currDate = currDate.add(1, 'day');
+        }
+
         console.log(`[getCompetitionBrandTrends] Valid brands(comp_flag = 0): ${validBrandNames.length} `);
 
         const src = await getWatchtowerSource();
@@ -9160,18 +9168,20 @@ const getCompetitionBrandTrends = async (filters = {}) => {
             console.log(`[getCompetitionBrandTrends] Target "${targetName}": ${rawData.length} data points, ${targetSalesData.length} market share points`);
 
             // Process the raw data to get trend points
-            brandTrends[targetName] = rawData.map(row => {
-                const dateKeyStr = String(row.date_key);
+            const rawDataMap = new Map(rawData.map(r => [dayjs(r.date_key).format('YYYY-MM-DD'), r]));
+
+            brandTrends[targetName] = dateRange.map(dateKeyStr => {
+                const row = rawDataMap.get(dateKeyStr) || {};
                 const nenoOsa = parseFloat(row.neno_osa_sum || 0);
                 const denoOsa = parseFloat(row.deno_osa_sum || 0);
-                const avgPrice = parseFloat(row.avg_price || 0);
+                const avgPrice = row.avg_price ? parseFloat(row.avg_price) : null;
 
                 // Calculate OSA
-                const osa = denoOsa > 0 ? ((nenoOsa / denoOsa) * 100) : 0;
+                const osa = denoOsa > 0 ? ((nenoOsa / denoOsa) * 100) : null;
 
                 // Calculate Discount
-                const avgDiscount = parseFloat(row.avg_discount || 0);
-                let discount = Math.max(0, Math.min(100, avgDiscount));
+                const avgDiscount = row.avg_discount ? parseFloat(row.avg_discount) : null;
+                let discount = avgDiscount !== null ? Math.max(0, Math.min(100, avgDiscount)) : null;
 
                 // Get totals for this date (use String() for consistent key format)
                 const msTotals = msTotalsMap.get(dateKeyStr) || { total_sales: 0 };
@@ -9181,35 +9191,35 @@ const getCompetitionBrandTrends = async (filters = {}) => {
                 const targetSales = targetSalesMap.get(dateKeyStr) || 0;
                 const targetKw = targetKwMap.get(dateKeyStr) || 0;
 
-                const sos = kwTotals.total_kw > 0 ? (targetKw / kwTotals.total_kw) * 100 : 0;
-                const marketShare = msTotals.total_sales > 0 ? (targetSales / msTotals.total_sales) * 100 : 0;
-                const categoryShare = catTotals.total_category_sales > 0 ? (targetSales / catTotals.total_category_sales) * 100 : 0;
+                const sos = kwTotals.total_kw > 0 ? (targetKw / kwTotals.total_kw) * 100 : null;
+                const marketShare = msTotals.total_sales > 0 ? (targetSales / msTotals.total_sales) * 100 : null;
+                const categoryShare = catTotals.total_category_sales > 0 ? (targetSales / catTotals.total_category_sales) * 100 : null;
 
                 // 2. Inorganic Sales (Ad Sales from PM / Total Sales * 100)
                 const totalSales = row.Offtakes || 0;
                 const pmAdSales = targetPmMap.get(dateKeyStr) || 0;
-                const inorganicSales = totalSales > 0 ? (pmAdSales / totalSales) * 100 : 0;
+                const inorganicSales = totalSales > 0 ? (pmAdSales / totalSales) * 100 : null;
 
                 return {
-                    date: dayjs(row.date_key).format("DD MMM'YY"),
+                    date: dayjs(dateKeyStr).format("DD MMM'YY"),
                     // Capitalized for TrendsCompetitionDrawer compatibility
-                    OSA: kpiAvailability.pdp ? parseFloat(osa.toFixed(2)) : null,
-                    osa: kpiAvailability.pdp ? parseFloat(osa.toFixed(2)) : null,
-                    SOS: kpiAvailability.kw ? parseFloat(sos.toFixed(2)) : null,
-                    sos: kpiAvailability.kw ? parseFloat(sos.toFixed(2)) : null,
-                    Price: kpiAvailability.pdp ? parseFloat(avgPrice.toFixed(0)) : null,
-                    price: kpiAvailability.pdp ? parseFloat(avgPrice.toFixed(0)) : null,
-                    'Promo-My': kpiAvailability.pdp ? parseFloat(discount.toFixed(2)) : null,
-                    'promo-my': kpiAvailability.pdp ? parseFloat(discount.toFixed(2)) : null,
-                    'PromoMy': kpiAvailability.pdp ? parseFloat(discount.toFixed(2)) : null,
-                    CategoryShare: kpiAvailability.ms ? parseFloat(categoryShare.toFixed(2)) : null,
-                    categoryShare: kpiAvailability.ms ? parseFloat(categoryShare.toFixed(2)) : null,
-                    MarketShare: kpiAvailability.ms ? parseFloat(marketShare.toFixed(2)) : null,
-                    marketShare: kpiAvailability.ms ? parseFloat(marketShare.toFixed(2)) : null,
+                    OSA: (kpiAvailability.pdp && osa !== null) ? parseFloat(osa.toFixed(2)) : null,
+                    osa: (kpiAvailability.pdp && osa !== null) ? parseFloat(osa.toFixed(2)) : null,
+                    SOS: (kpiAvailability.kw && sos !== null) ? parseFloat(sos.toFixed(2)) : null,
+                    sos: (kpiAvailability.kw && sos !== null) ? parseFloat(sos.toFixed(2)) : null,
+                    Price: (kpiAvailability.pdp && avgPrice !== null) ? parseFloat(avgPrice.toFixed(0)) : null,
+                    price: (kpiAvailability.pdp && avgPrice !== null) ? parseFloat(avgPrice.toFixed(0)) : null,
+                    'Promo-My': (kpiAvailability.pdp && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
+                    'promo-my': (kpiAvailability.pdp && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
+                    'PromoMy': (kpiAvailability.pdp && discount !== null) ? parseFloat(discount.toFixed(2)) : null,
+                    CategoryShare: (kpiAvailability.ms && categoryShare !== null) ? parseFloat(categoryShare.toFixed(2)) : null,
+                    categoryShare: (kpiAvailability.ms && categoryShare !== null) ? parseFloat(categoryShare.toFixed(2)) : null,
+                    MarketShare: (kpiAvailability.ms && marketShare !== null) ? parseFloat(marketShare.toFixed(2)) : null,
+                    marketShare: (kpiAvailability.ms && marketShare !== null) ? parseFloat(marketShare.toFixed(2)) : null,
                     Offtakes: kpiAvailability.pdp ? parseFloat(row.Offtakes || 0) : null,
                     offtakes: kpiAvailability.pdp ? parseFloat(row.Offtakes || 0) : null,
-                    InorganicSales: kpiAvailability.pm ? parseFloat(inorganicSales.toFixed(2)) : null,
-                    inorganicSales: kpiAvailability.pm ? parseFloat(inorganicSales.toFixed(2)) : null
+                    InorganicSales: (kpiAvailability.pm && inorganicSales !== null) ? parseFloat(inorganicSales.toFixed(2)) : null,
+                    inorganicSales: (kpiAvailability.pm && inorganicSales !== null) ? parseFloat(inorganicSales.toFixed(2)) : null
                 };
             });
         }
