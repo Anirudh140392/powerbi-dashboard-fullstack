@@ -578,7 +578,7 @@ export const FilterProvider = ({ children }) => {
                             const currentList = Array.isArray(prevBrand) ? prevBrand : [prevBrand];
                             const validList = currentList.filter(b => res.data.includes(b));
                             if (validList.length === 0) {
-                                return (Array.isArray(prevBrand) && prevBrand.length === 0) ? [] : res.data[0]; 
+                                return (Array.isArray(prevBrand) && prevBrand.length === 0) ? [] : "All"; 
                             } else {
                                 return (validList.length === res.data.length && res.data.length > 0) ? "All" : (validList.length === 1 ? validList[0] : validList);
                             }
@@ -587,7 +587,7 @@ export const FilterProvider = ({ children }) => {
                     });
                 } else {
                     setBrands(FALLBACK_BRANDS);
-                    setSelectedBrand(FALLBACK_BRANDS[0]);
+                    setSelectedBrand("All");
                 }
             } catch (err) {
                 console.warn("[FilterContext] Failed to fetch brands, using fallback:", err.message);
