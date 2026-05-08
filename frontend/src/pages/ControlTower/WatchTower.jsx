@@ -527,13 +527,13 @@ export default function WatchTower() {
     }
 
     if (lastFetchedOverviewKey.current === currentFilterKey && !loading) return;
-    lastFetchedOverviewKey.current = currentFilterKey;
 
     const currentFetchId = ++overviewFetchIdRef.current;
 
     const debounceTimer = setTimeout(async () => {
       // If another update arrived while we were waiting, skip this one
       if (currentFetchId !== overviewFetchIdRef.current) return;
+      lastFetchedOverviewKey.current = currentFilterKey;
 
       const params = {
         platform: platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform),
@@ -597,12 +597,12 @@ export default function WatchTower() {
     if (!datesFetched || !platformsFetched) return;
 
     if (lastFetchedCategoryKey.current === categoryFilterKey) return;
-    lastFetchedCategoryKey.current = categoryFilterKey;
 
     const currentFetchId = ++categoryFetchIdRef.current; 
 
     const debounceTimer = setTimeout(async () => {
       if (currentFetchId !== categoryFetchIdRef.current) return;
+      lastFetchedCategoryKey.current = categoryFilterKey;
 
       const params = {
         platform: categoryPlatform === "All" ? (platform === "All" ? undefined : (Array.isArray(platform) ? platform.join(",") : platform)) : categoryPlatform,

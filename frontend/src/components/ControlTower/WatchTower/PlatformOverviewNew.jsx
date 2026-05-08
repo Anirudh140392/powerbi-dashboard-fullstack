@@ -540,12 +540,12 @@ const PlatformOverviewNew = ({
         // filterKey just because loading is true causes race conditions where
         // in-flight responses get silently dropped.
         if (lastFetchedKey.current === filterKey) return;
-        lastFetchedKey.current = filterKey;
 
         const currentFetchId = ++fetchIdRef.current;
 
         const debounceTimer = setTimeout(() => {
             if (currentFetchId !== fetchIdRef.current) return;
+            lastFetchedKey.current = filterKey;
             fetchDimensionDataRef.current(currentFetchId)
         }, 1000);
 
