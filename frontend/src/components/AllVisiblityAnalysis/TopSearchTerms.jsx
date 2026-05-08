@@ -561,7 +561,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                                                                 className="bg-slate-100/20 border-b border-white hover:bg-slate-100/40"
                                                             >
                                                                 <td className="px-6 py-1 pl-[84px] text-[10px] font-medium text-slate-500">
-                                                                    {city.city}
+                                                                    {['nation', 'national', 'all india', 'india', 'total', 'pan india'].includes(city.city?.toLowerCase()) ? "Nation" : city.city}
                                                                 </td>
                                                                 <td className="px-6 py-1 text-center text-[10px] text-slate-400">—</td>
                                                                 <td className="px-6 py-1 text-center">

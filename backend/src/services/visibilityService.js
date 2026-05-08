@@ -7,7 +7,7 @@ const escapeCH = (str) => str ? str.replace(/'/g, "''") : '';
 const EXCLUDED_PLATFORMS = ['BigBasket', 'Amazon', 'Flipkart'];
 
 function buildCHCondition(value, column, options = {}) {
-    const { isBrand = false, isCategory = false, isKeywordType = false } = options;
+    const { isBrand = false, isCategory = false, isKeywordType = false, isPlatform = false, isDimension = false, noSplit = false } = options;
 
     const isAll = (val) => {
         if (!val) return true;
@@ -34,13 +34,12 @@ function buildCHCondition(value, column, options = {}) {
     if (isBrand && (isAll(value) || isOurBrand(value))) return "flag = 1";
     if (isAll(value)) return "1=1";
 
-    const list = typeof value === 'string'
-        ? value.split(',').map(v => v.trim()).filter(v => !isAll(v))
-        : Array.isArray(value) ? value.filter(v => !isAll(v)) : [value];
+    const list = (Array.isArray(value) ? value : (typeof value === 'string' && value.includes(',') && !noSplit ? value.split(',').map(v => v.trim()) : [value])).filter(v => !isAll(v));
 
     if (list.length === 0) return isBrand ? "flag = 1" : "1=1";
 
-    if (isCategory || isKeywordType) {
+    if (isCategory || isKeywordType || isPlatform || isDimension || 
+        ['platform_name', 'keyword', 'keyword_search_product', 'location_name', 'brand'].includes(column)) {
         return `LOWER(${column}) IN (${list.map(v => `'${escapeCH(String(v).toLowerCase())}'`).join(', ')})`;
     }
     return `${column} IN (${list.map(v => `'${escapeCH(v)}'`).join(', ')})`;
@@ -1309,8 +1308,9 @@ class VisibilityService {
 
                 // Exclude global rollup locations from analytical results
                 // CRITICAL: We MUST allow 'Nation' for Flipkart and Amazon because they often ONLY have nation-wide data
-                const EXCLUDED_LOCATIONS = "'Nation', 'National', 'All India', 'Total', 'India', 'nation', 'national', 'all india'";
-                const isNationOnlyPlatform = ['Flipkart', 'Amazon'].includes(platform);
+                const EXCLUDED_LOCATIONS = "'Nation', 'National', 'All India', 'Total', 'India', 'nation', 'national', 'all india', 'pan india'";
+                const normalizedPlatform = String(platform).toLowerCase();
+                const isNationOnlyPlatform = normalizedPlatform.includes('flipkart') || normalizedPlatform.includes('amazon');
 
                 const locationFilter = location === 'All'
                     ? (isNationOnlyPlatform ? '' : `AND location_name NOT IN (${EXCLUDED_LOCATIONS})`)
@@ -3127,7 +3127,7 @@ class VisibilityService {
             endDate = endDate || maxDate;
         }
 
-        const platformCondition = buildCHCondition(platform, 'platform_name');
+        const platformCondition = buildCHCondition(platform, 'platform_name', { isPlatform: true });
         const channelCondition = buildChannelCondition(channel, 'platform_name');
 
         let rankCondition = '';
@@ -3137,6 +3137,26 @@ class VisibilityService {
             if (!isNaN(maxRank) && maxRank > 0) {
                 rankCondition = ` AND POSITION <= ${maxRank}`;
             }
+        }
+
+        // Shared platform detection helpers
+        const isEcom = (plat) => {
+            if (!plat || plat === 'All') return false;
+            const plats = String(plat).split(',').map(p => p.trim().toLowerCase());
+            return plats.some(p => ['amazon', 'flipkart'].includes(p));
+        };
+        const isQuickComm = (plat) => {
+            if (!plat || plat === 'All') return false;
+            const plats = String(plat).split(',').map(p => p.trim().toLowerCase());
+            return plats.some(p => ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(p));
+        };
+
+        const NATIONAL_LABELS = "'nation', 'national', 'all india', 'india', 'total', 'pan india'";
+        let locationTypeFilter = "1=1";
+        if (channel === 'Quick Commerce' || isQuickComm(platform)) {
+            locationTypeFilter = `lower(location_name) NOT IN (${NATIONAL_LABELS})`;
+        } else if (channel === 'Ecommerce' || isEcom(platform)) {
+            locationTypeFilter = `lower(location_name) IN (${NATIONAL_LABELS})`;
         }
 
         let query = `
@@ -3159,9 +3179,10 @@ class VisibilityService {
             AND lower(keyword) = lower({kw:String})
             AND ${platformCondition}
             AND ${channelCondition}
+            AND ${locationTypeFilter}
             ${rankCondition}
             GROUP BY city 
-            HAVING num_overall > 0 
+            HAVING den_overall > 0 
             ORDER BY overallSos DESC 
             LIMIT 50
         `;
@@ -3169,7 +3190,16 @@ class VisibilityService {
         const params = { sku: sku, kw: keyword, sd: startDate, ed: endDate };
 
         try {
+            const fs = await import('fs');
+            fs.appendFileSync('debug_drilldown.log', `\n[${new Date().toISOString()}] CITY DRILLDOWN Query: ${query}\nParams: ${JSON.stringify(params)}\n`);
+            
             const cities = await queryClickHouse(query, params);
+            
+            fs.appendFileSync('debug_drilldown.log', `Result Count: ${cities.length}\n`);
+            if (cities.length > 0) {
+                fs.appendFileSync('debug_drilldown.log', `First Row: ${JSON.stringify(cities[0])}\n`);
+            }
+            
             console.log(`[VisibilityService] getCityDrilldown returned ${cities.length} cities`);
             return { cities };
         } catch (error) {
@@ -3607,40 +3637,76 @@ class VisibilityService {
 
                 const mainQuery = `
                     SELECT 
-                        ${dimColumn} as name,
-                        arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(brand)), 1) as brand_name,
-                        ${viewMode === 'keyword' ? "sumIf(toInt32(overall), flag = 1)" : "sum(toInt32(overall))"} as num_overall,
-                        ${viewMode === 'keyword' ? "sum(toInt32(overall))" : "SUM(sum(toInt32(overall))) OVER()"} as den_overall,
+                        name,
+                        any(brand_name) as brand_name,
+                        sum(num_keyword) as num_overall,
+                        sum(den_keyword) as den_overall,
                         ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
-
-                        ${viewMode === 'keyword' ? "sumIf(toInt32(organic), flag = 1)" : "sum(toInt32(organic))"} as num_organic,
-                        ${viewMode === 'keyword' ? "sum(toInt32(organic))" : "SUM(sum(toInt32(organic))) OVER()"} as den_organic,
+                        
+                        sum(num_organic_keyword) as num_organic,
+                        sum(den_organic_keyword) as den_organic,
                         ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
-
-                        ${viewMode === 'keyword' ? "sumIf(toInt32(spons), flag = 1)" : "sum(toInt32(spons))"} as num_spons,
-                        ${viewMode === 'keyword' ? "sum(toInt32(spons))" : "SUM(sum(toInt32(spons))) OVER()"} as den_spons,
+                        
+                        sum(num_spons_keyword) as num_spons,
+                        sum(den_spons_keyword) as den_spons,
                         ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
-
-                        count(*) as impressions,
-                        ${searchVolumeSelect} as search_volume,
-                        ROUND(sum(toInt32(overall)) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
-                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(spons) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS ad_position,
-                        arrayElement(topKIf(1)(toInt32(POSITION), toInt32(organic) = 1 ${viewMode === 'keyword' ? "AND flag = 1" : ""}), 1) AS organic_position
-                    FROM rb_kw_olap
-                    WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
-                      AND ${platformCondition}
-                      AND ${channelCondition}
-                      AND ${locationCondition}
-                      AND ${categoryCondition}
-                      AND ${brandCondition}
-                      AND ${globalKeywordTypeCondition}
-                      AND ${localKeywordTypeCondition}
-                      AND ${keywordCondition}
-                      AND ${skuCondition}
-                      ${ownBrandsCondition}
-                      ${rankCondition}
-                      AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
-                    GROUP BY ${dimColumn}
+                        
+                        sum(impressions_keyword) as impressions,
+                        any(search_volume) as search_volume,
+                        ROUND(sum(num_keyword) * 100.0 / nullIf(${totalLandscapeVol}, 0), 2) as max_vol_share,
+                        arrayElement(topK(1)(ad_position_keyword), 1) as ad_position,
+                        arrayElement(topK(1)(organic_position_keyword), 1) as organic_position
+                    FROM (
+                        SELECT 
+                            t1.${dimColumn} as name,
+                            t1.keyword as keyword,
+                            arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(t1.brand)), 1) as brand_name,
+                            sumIf(toInt32(t1.overall), t1.flag = 1) as num_keyword,
+                            any(t2.total_overall) as den_keyword,
+                            
+                            sumIf(toInt32(t1.organic), t1.flag = 1) as num_organic_keyword,
+                            any(t2.total_organic) as den_organic_keyword,
+                            
+                            sumIf(toInt32(t1.spons), t1.flag = 1) as num_spons_keyword,
+                            any(t2.total_spons) as den_spons_keyword,
+                            
+                            count(*) as impressions_keyword,
+                            ${searchVolumeSelect.replace(/search_volume/g, 't1.search_volume')} as search_volume,
+                            arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.spons) = 1 AND t1.flag = 1), 1) AS ad_position_keyword,
+                            arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.organic) = 1 AND t1.flag = 1), 1) AS organic_position_keyword
+                        FROM rb_kw_olap t1
+                        LEFT JOIN (
+                            SELECT keyword, 
+                                   sum(toInt32(overall)) as total_overall,
+                                   sum(toInt32(organic)) as total_organic,
+                                   sum(toInt32(spons)) as total_spons
+                            FROM rb_kw_olap
+                            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                              AND ${platformCondition}
+                              AND ${channelCondition}
+                              AND ${locationCondition}
+                              AND ${categoryCondition}
+                              AND ${globalKeywordTypeCondition}
+                              AND ${localKeywordTypeCondition}
+                              ${rankCondition}
+                            GROUP BY keyword
+                        ) t2 ON t1.keyword = t2.keyword
+                        WHERE t1.DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+                          AND ${platformCondition.replace(/platform_name/g, 't1.platform_name')}
+                          AND ${channelCondition.replace(/platform_name/g, 't1.platform_name')}
+                          AND ${locationCondition.replace(/location_name/g, 't1.location_name')}
+                          AND ${categoryCondition.replace(/keyword_category/g, 't1.keyword_category')}
+                          AND ${globalKeywordTypeCondition.replace(/keyword_type/g, 't1.keyword_type')}
+                          AND ${localKeywordTypeCondition.replace(/keyword_type/g, 't1.keyword_type')}
+                          AND ${keywordCondition.replace(/keyword/g, 't1.keyword')}
+                          AND ${skuCondition.replace(/keyword_search_product/g, 't1.keyword_search_product')}
+                          AND ${brandCondition.replace(/brand/g, 't1.brand')}
+                          ${ownBrandsCondition.replace(/flag/g, 't1.flag')}
+                          ${rankCondition.replace(/POSITION/g, 't1.POSITION')}
+                          AND t1.${dimColumn} IS NOT NULL AND t1.${dimColumn} != ''
+                        GROUP BY name, keyword
+                    )
+                    GROUP BY name
                     ORDER BY impressions DESC
                 `;
 
@@ -3833,13 +3899,13 @@ class VisibilityService {
             const dimColumn = sku ? 'keyword_search_product' : 'keyword';
             const dimValue = sku || keyword;
 
-            const platformCondition = buildCHCondition(platform, 'platform_name');
+            const platformCondition = buildCHCondition(platform, 'platform_name', { isPlatform: true });
             const channelCondition = buildChannelCondition(channel, 'platform_name');
             const locationCondition = buildCHCondition(location, 'location_name');
             const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
             const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
             const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
-            const dimCondition = buildCHCondition(dimValue, dimColumn);
+            const dimCondition = buildCHCondition(dimValue, dimColumn, { isDimension: true, noSplit: true });
 
             let rankCondition = '1=1';
             if (rank && rank !== 'All') {
@@ -3862,27 +3928,35 @@ class VisibilityService {
                 return plats.some(p => ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'].includes(p));
             };
 
+            const NATIONAL_LABELS = "'nation', 'national', 'all india', 'india', 'total', 'pan india'";
             let locationTypeFilter = "1=1";
             if (channel === 'Quick Commerce' || isQuickCommPlatform(platform)) {
-                locationTypeFilter = "lower(location_name) NOT IN ('nation', 'national', 'all india', 'india', 'total')";
+                locationTypeFilter = `lower(location_name) NOT IN (${NATIONAL_LABELS})`;
             } else if (channel === 'Ecommerce' || isEcomPlatform(platform)) {
-                locationTypeFilter = "lower(location_name) IN ('nation', 'national', 'all india', 'india', 'total')";
+                locationTypeFilter = `lower(location_name) IN (${NATIONAL_LABELS})`;
             }
+
+            const keywordFilter = (keyword && keyword !== 'All')
+                ? buildCHCondition(keyword, 'keyword', { noSplit: true })
+                : `keyword IN (SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${dimCondition} AND DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND ${platformCondition} AND ${channelCondition} AND ${rankCondition})`;
 
             const query = `
                 SELECT 
                     location_name as city,
-                    sumIf(toInt32(overall), flag = 1) as num_overall,
+                    sumIf(toInt32(overall), ${dimCondition} AND flag = 1) as num_overall,
                     sum(toInt32(overall)) as den_overall,
                     ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
                     
-                    sumIf(toInt32(organic), flag = 1) as num_organic,
+                    sumIf(toInt32(organic), ${dimCondition} AND flag = 1) as num_organic,
                     sum(toInt32(organic)) as den_organic,
                     ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
                     
-                    sumIf(toInt32(spons), flag = 1) as num_spons,
+                    sumIf(toInt32(spons), ${dimCondition} AND flag = 1) as num_spons,
                     sum(toInt32(spons)) as den_spons,
-                    ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos
+                    ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
+                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(overall) = 1), 1) as overallRank,
+                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(spons) = 1), 1) as paidRank,
+                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(organic) = 1), 1) as organicRank
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -3891,23 +3965,37 @@ class VisibilityService {
                   AND ${categoryCondition}
                   AND ${globalKeywordTypeCondition}
                   AND ${localKeywordTypeCondition}
-                  AND ${dimCondition}
-                  AND ${locationTypeFilter}
-                  AND ${rankCondition}
-                  AND location_name IS NOT NULL AND location_name != ''
+                   AND ${keywordFilter}
+                   AND ${locationTypeFilter}
+                   AND ${rankCondition}
+                   AND location_name IS NOT NULL AND location_name != ''
                 GROUP BY location_name
                 HAVING den_overall > 0
                 ORDER BY overall_sos DESC
             `;
 
             console.log('[VisibilityService] getSearchTermsLocationDrilldown query:', query.replace(/\s+/g, ' '));
-            const results = await queryClickHouse(query);
+            
+            const fs = await import('fs');
+            const params = { dim: dimValue, kw: keyword };
+            fs.appendFileSync('debug_drilldown.log', `\n[${new Date().toISOString()}] Query: ${query}\nParams: ${JSON.stringify(params)}\n`);
+            
+            const results = await queryClickHouse(query, params);
+            
+            fs.appendFileSync('debug_drilldown.log', `Result Count: ${results.length}\n`);
+            if (results.length > 0) {
+                fs.appendFileSync('debug_drilldown.log', `First Row: ${JSON.stringify(results[0])}\n`);
+            }
+
             return {
                 locations: results.map(row => ({
                     city: row.city,
                     overallSOS: Number(row.overall_sos) || 0,
                     organicSOS: Number(row.organic_sos) || 0,
-                    paidSOS: Number(row.paid_sos) || 0
+                    paidSOS: Number(row.paid_sos) || 0,
+                    overallRank: Number(row.overallRank) || 0,
+                    paidRank: Number(row.paidRank) || 0,
+                    organicRank: Number(row.organicRank) || 0
                 }))
             };
         } catch (error) {

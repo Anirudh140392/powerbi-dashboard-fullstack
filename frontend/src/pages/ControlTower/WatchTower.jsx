@@ -531,7 +531,6 @@ export default function WatchTower() {
     const currentFetchId = ++overviewFetchIdRef.current;
 
     const debounceTimer = setTimeout(async () => {
-      // If another update arrived while we were waiting, skip this one
       if (currentFetchId !== overviewFetchIdRef.current) return;
       lastFetchedOverviewKey.current = currentFilterKey;
 
