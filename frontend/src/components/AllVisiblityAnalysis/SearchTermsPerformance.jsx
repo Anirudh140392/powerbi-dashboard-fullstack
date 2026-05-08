@@ -847,7 +847,9 @@ export default function SearchTermsPerformance() {
                         <div key={li} style={{ display: "grid", gridTemplateColumns: GRID, padding: "11px 24px", alignItems: "center", gap: 8, borderBottom: li < (locationData[row.name] || []).length - 1 ? "1px solid #e2e8f0" : "none", background: li % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 30 }}>
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3b82f6", display: "inline-block", flexShrink: 0 }} />
-                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500, textTransform: "capitalize" }}>{loc.city}</span>
+                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500, textTransform: "capitalize" }}>
+                              {['nation', 'national', 'all india', 'india', 'total', 'pan india'].includes(loc.city?.toLowerCase()) ? "Nation" : loc.city}
+                            </span>
                           </div>
                           {activeView === "keyword" && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
