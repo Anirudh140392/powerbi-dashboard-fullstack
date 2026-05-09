@@ -12,9 +12,9 @@ const sosColor = (val) => {
   return "#d97706";
 };
 
-const SOSValue = ({ value }) => (
+const SOSValue = ({ value, fontSize = 15 }) => (
   <span style={{
-    fontSize: 15, fontWeight: 700, color: sosColor(value || 0),
+    fontSize, fontWeight: 700, color: sosColor(value || 0),
     letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif",
   }}>
     {value == null || Number.isNaN(value) ? "—" : `${Number(value).toFixed(2)}%`}
@@ -84,20 +84,66 @@ const BrandSOSBreakdown = ({ brands, loading }) => {
   );
 };
 
-/** Modal to display SKU details for a keyword */
-const DrilldownModal = ({ items, title, onClose, loading, type = "sku" }) => (
+const DrilldownModal = ({ 
+  items, title, onClose, loading, type = "sku", 
+  onToggleLocations, expandedLocs, locsLoading,
+  keywordTypeFilter, onKeywordTypeFilterChange 
+}) => (
   <div
     style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(2px)" }}
     onClick={onClose}
   >
     <div
-      style={{ background: "#fff", borderRadius: 16, padding: 28, minWidth: 580, maxWidth: 750, boxShadow: "0 24px 64px rgba(0,0,0,0.16)", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
+      style={{ background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", width: (type === "sku" || type === "brandKeywords") ? 880 : 600, maxWidth: "95%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e2e8f0" }}
       onClick={e => e.stopPropagation()}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif", letterSpacing: "-0.02em" }}>{title}</h3>
-        <button onClick={onClose} style={{ border: "none", background: "#f1f5f9", borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 18, color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>×</button>
+      {/* Header */}
+      <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>
+            {type === "sku" ? "SKU Analysis" : (type === "brandKeywords" ? "Brand Keyword Analysis" : "Keyword Analysis")}
+          </h3>
+          <span style={{ background: "#eef2ff", color: "#4f46e5", fontSize: 10, fontWeight: 700, borderRadius: 6, padding: "2px 8px", border: "1px solid #c7d2fe" }}>
+            {type === "brandKeywords" 
+              ? (title.split('—')[1]?.trim() || title).replace(/"/g, '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
+              : (title.split('—')[1]?.trim() || title)}
+          </span>
+        </div>
+        <button 
+          onClick={onClose} 
+          style={{ border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", padding: 4, borderRadius: 6, transition: "background 0.2s" }}
+          onMouseOver={e => e.currentTarget.style.background = "#e2e8f0"}
+          onMouseOut={e => e.currentTarget.style.background = "transparent"}
+        >
+          <X size={18} />
+        </button>
       </div>
+
+      <div style={{ padding: "0 24px 24px 24px", display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+        {/* Filters for Brand Keyword View */}
+        {type === "brandKeywords" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 20px" }}>
+            <div style={{ display: "inline-flex", background: "#f1f5f9", borderRadius: 10, padding: 3, gap: 2, border: "1px solid #e2e8f0" }}>
+              {["All", "Branded", "Competition", "Generic"].map(v => (
+                <button 
+                  key={v} 
+                  onClick={() => onKeywordTypeFilterChange?.(v)} 
+                  style={{
+                    padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                    fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+                    background: (keywordTypeFilter || "All") === v ? "#fff" : "transparent",
+                    color: (keywordTypeFilter || "All") === v ? "#0f172a" : "#64748b",
+                    boxShadow: (keywordTypeFilter || "All") === v ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginTop: 20 }}></div>
+        )}
 
       {loading ? (
         <MiniSpinner />
@@ -106,40 +152,100 @@ const DrilldownModal = ({ items, title, onClose, loading, type = "sku" }) => (
           No {type === "sku" ? "SKUs" : "keywords"} available for this {type === "sku" ? "keyword" : "SKU"}
         </p>
       ) : (
-        <div style={{ maxHeight: 460, overflowY: "auto", flex: 1 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div style={{ maxHeight: 520, overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid #f1f5f9" }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
             <tr>
-              <th rowSpan={2} style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#fff" }}>{type === "sku" ? "SKU" : "Keyword"}</th>
-              <th colSpan={2} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#fff" }}>Most Viewed Position</th>
+              <th rowSpan={2} style={{ textAlign: "left", padding: "12px 16px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#f8fafc" }}>{type === "sku" ? "SKU" : "Keyword"}</th>
+              <th colSpan={2} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>Avg. Position</th>
+              {(type === "sku" || type === "brandKeywords") && <th colSpan={3} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>Share of Search (SOS)</th>}
             </tr>
             <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
-              <th style={{ textAlign: "center", padding: "6px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#fff" }}>Ad. <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Average ad (sponsored) position on the search results page">ⓘ</span></th>
-              <th style={{ textAlign: "center", padding: "6px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#fff" }}>Organic <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Average organic position on the search results page">ⓘ</span></th>
+              <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Ad. <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Average ad (sponsored) position">ⓘ</span></th>
+              <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Organic <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Average organic position">ⓘ</span></th>
+              {(type === "sku" || type === "brandKeywords") && (
+                <>
+                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Overall</th>
+                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Organic</th>
+                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Paid</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
             {items.map((item, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fafbfc" : "#fff" }}>
-                <td style={{ padding: "12px 12px" }}>
-                  <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{item.name}</div>
-                </td>
-                <td style={{ textAlign: "center", padding: "12px" }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: item.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
-                    {item.adPosition || "—"}
-                  </span>
-                </td>
-                <td style={{ textAlign: "center", padding: "12px" }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: item.organicPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
-                    {item.organicPosition || "—"}
-                  </span>
-                </td>
-              </tr>
+              <React.Fragment key={i}>
+                <tr style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafbfc" }}>
+                  <td style={{ padding: "12px 16px" }}>
+                    <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{item.name}</div>
+                    
+                    {onToggleLocations && (
+                      <div 
+                        onClick={() => {
+                          const nameFromTitle = title.split('—')[1]?.trim().replace(/"/g, '');
+                          if (type === "sku") {
+                            onToggleLocations?.(nameFromTitle, item.name, "All");
+                          } else if (type === "brandKeywords") {
+                            onToggleLocations?.(item.name, "All", nameFromTitle);
+                          } else {
+                            onToggleLocations?.(item.name, nameFromTitle, "All");
+                          }
+                        }}
+                        style={{ fontSize: 11, color: "#60a5fa", cursor: "pointer", marginTop: 4, textDecoration: "underline", fontWeight: 500, display: "inline-block" }}
+                      >
+                        {locsLoading?.[item.name] ? "Loading..." : expandedLocs?.[item.name] ? "Hide Locations" : "Show Locations"}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ textAlign: "center", padding: "12px" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: item.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                      {item.adPosition || "—"}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "center", padding: "12px" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: item.organicPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                      {item.organicPosition || "—"}
+                    </span>
+                  </td>
+                  {(type === "sku" || type === "brandKeywords") && (
+                    <>
+                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.overallSOS} /></td>
+                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.organicSOS} /></td>
+                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.paidSOS} /></td>
+                    </>
+                  )}
+                </tr>
+                
+                {expandedLocs?.[item.name] && expandedLocs[item.name].map((loc, j) => (
+                  <tr key={`${i}-loc-${j}`} style={{ background: "#f8fafc", borderBottom: "1px solid #edf2f7" }}>
+                    <td style={{ padding: "8px 16px 8px 32px" }}>
+                      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#cbd5e1" }}></div>
+                        {loc.city}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "center", padding: "8px", color: "#94a3b8", fontSize: 12 }}>—</td>
+                    <td style={{ textAlign: "center", padding: "8px" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
+                        #{loc.overallRank ? Math.round(loc.overallRank) : "—"}
+                      </span>
+                    </td>
+                    {(type === "sku" || type === "brandKeywords") && (
+                      <>
+                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.overallSOS} fontSize={12} /></td>
+                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.organicSOS} fontSize={12} /></td>
+                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.paidSOS} fontSize={12} /></td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
         </div>
       )}
+      </div>
     </div>
   </div>
 );
@@ -169,6 +275,8 @@ export default function SearchTermsPerformance() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [drilldownModal, setDrilldownModal] = useState(null);
+  const [modalKeywordType, setModalKeywordType] = useState("All");
+  const [currentModalBrand, setCurrentModalBrand] = useState(null);
   const [hoveredKeyword, setHoveredKeyword] = useState(null);
   const [hoverPos, setHoverPos] = useState({ top: 0, left: 0 });
   const [bbData, setBbData] = useState({});
@@ -176,6 +284,9 @@ export default function SearchTermsPerformance() {
   const [summaryData, setSummaryData] = useState(null);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [expandedKeywordLocations, setExpandedKeywordLocations] = useState({});
+  const [keywordLocationLoading, setKeywordLocationLoading] = useState({});
 
   // Local Filter State
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -196,7 +307,7 @@ export default function SearchTermsPerformance() {
 
   const filterParams = useMemo(() => {
     return {
-      viewMode: activeView === "keyword" ? "keyword" : "sku",
+      viewMode: activeView === "keyword" ? "keyword" : (activeView === "brand" ? "brand" : "sku"),
       platform: normalize(localFilters.platform.length > 0 ? localFilters.platform : (activeView === "sku" ? currentSkuPlatform : globalPlatform)),
       brand: normalize(localFilters.brand.length > 0 ? localFilters.brand : selectedBrand),
       location: normalize(selectedLocation),
@@ -330,6 +441,7 @@ export default function SearchTermsPerformance() {
     e.stopPropagation();
     const title = isMyKeywords ? `My Keywords — "${skuName}"` : `All Keywords — "${skuName}"`;
     setDrilldownModal({ title, items: [], loading: true, type: "keyword" });
+    setExpandedKeywordLocations({}); // Reset location expansion
     try {
       const data = await fetchSearchTermsPerformance({
         viewMode: "keyword",
@@ -355,6 +467,69 @@ export default function SearchTermsPerformance() {
   }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, selectedChannel, selectedRank]);
 
 
+  const openBrandKeywordsModal = useCallback(async (e, brandName) => {
+    e.stopPropagation();
+    setCurrentModalBrand(brandName);
+    setModalKeywordType("All");
+    const title = `Keywords — "${brandName}"`;
+    setDrilldownModal({ title, items: [], loading: true, type: "brandKeywords" });
+    setExpandedKeywordLocations({});
+    // Fetch happens in the useEffect below
+  }, []);
+
+  // Effect to re-fetch brand keywords when modal filter changes
+  useEffect(() => {
+    if (drilldownModal?.type === "brandKeywords" && currentModalBrand) {
+      const fetchModalData = async () => {
+        setDrilldownModal(prev => ({ ...prev, loading: true }));
+        try {
+          const data = await fetchSearchTermsPerformance({
+            ...filterParams,
+            viewMode: "keyword",
+            brand: currentModalBrand,
+            keywordTypeFilter: modalKeywordType,
+            ownBrandsOnly: false,
+            sku: "All"
+          });
+          setDrilldownModal(prev => ({ ...prev, items: data.items || [], loading: false }));
+        } catch (err) {
+          console.error("Error fetching Keywords for Brand:", err);
+          setDrilldownModal(prev => ({ ...prev, items: [], loading: false }));
+        }
+      };
+      fetchModalData();
+    }
+  }, [modalKeywordType, currentModalBrand, filterParams]);
+
+
+  const toggleKeywordLocations = useCallback(async (keywordName, skuName, brandName) => {
+    if (expandedKeywordLocations[keywordName]) {
+      setExpandedKeywordLocations(prev => {
+        const newState = { ...prev };
+        delete newState[keywordName];
+        return newState;
+      });
+      return;
+    }
+
+    setKeywordLocationLoading(prev => ({ ...prev, [keywordName]: true }));
+    try {
+      const data = await fetchSearchTermsLocations({
+        ...filterParams,
+        keyword: keywordName,
+        sku: skuName || "All",
+        brand: brandName || "All",
+        viewMode: "keyword"
+      });
+      setExpandedKeywordLocations(prev => ({ ...prev, [keywordName]: data.locations || [] }));
+    } catch (err) {
+      console.error("Error fetching locations for keyword:", err);
+    } finally {
+      setKeywordLocationLoading(prev => ({ ...prev, [keywordName]: false }));
+    }
+  }, [expandedKeywordLocations, filterParams]);
+
+
   const handleBrandHover = useCallback(async (e, keyword) => {
     const rect = e.currentTarget.getBoundingClientRect();
     setHoverPos({ top: rect.top, left: rect.left + rect.width / 2 });
@@ -377,7 +552,7 @@ export default function SearchTermsPerformance() {
     }
   }, [bbData, bbLoading, filterParams]);
 
-  const shouldShowDrilldown = true;
+  const shouldShowDrilldown = activeView !== "brand";
 
   const downloadCSV = () => {
     if (!items || items.length === 0) return;
@@ -412,16 +587,25 @@ export default function SearchTermsPerformance() {
   };
 
   const filteredItems = useMemo(() => {
-    if (!searchQuery.trim()) return items;
+    let baseItems = items;
+    
+    if (activeView === "brand") {
+      baseItems = baseItems.filter(item => {
+        const n = (item.name || "").toLowerCase();
+        return n !== "other" && n !== "others" && n !== "none" && n !== "";
+      });
+    }
+
+    if (!searchQuery.trim()) return baseItems;
     const q = searchQuery.trim().toLowerCase();
-    return items.filter(item => (item.name || "").toLowerCase().includes(q));
-  }, [items, searchQuery]);
+    return baseItems.filter(item => (item.name || "").toLowerCase().includes(q));
+  }, [items, searchQuery, activeView]);
 
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
   const paginatedItems = filteredItems.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const GRID = activeView === "keyword"
     ? "minmax(260px,1fr) 150px 130px 130px 130px"
-    : "minmax(260px,1fr) 130px 130px 130px";
+    : (activeView === "brand" ? "minmax(220px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 130px 130px 130px");
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#f1f5f9", minHeight: 200, padding: "28px 32px", borderRadius: 24, margin: "24px 0", border: "1px solid #e2e8f0" }}>
@@ -447,7 +631,7 @@ export default function SearchTermsPerformance() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2 }}>
-            {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }].map(v => (
+            {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }, { id: "brand", label: "Brands" }].map(v => (
               <button key={v.id} onClick={() => { setActiveView(v.id); setSearchQuery(""); }} style={{
                 padding: "7px 20px", borderRadius: 8, border: "none", cursor: "pointer",
                 fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
@@ -465,7 +649,7 @@ export default function SearchTermsPerformance() {
               type="text"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-              placeholder={activeView === "keyword" ? "Search keywords..." : "Search SKUs..."}
+              placeholder={activeView === "keyword" ? "Search keywords..." : (activeView === "brand" ? "Search brands..." : "Search SKUs...")}
               style={{
                 padding: "7px 32px 7px 32px",
                 borderRadius: 10,
@@ -551,7 +735,7 @@ export default function SearchTermsPerformance() {
         {/* Header */}
         <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "13px 24px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", gap: 8, alignItems: "end" }}>
           {[
-            { label: activeView === "keyword" ? "Keywords" : "SKUs", sub: null },
+            { label: activeView === "keyword" ? "Keywords" : (activeView === "brand" ? "Brands" : "SKUs"), sub: null },
             ...(activeView === "keyword" ? [{ label: "Leading Brand", sub: "by Overall SOS" }] : []),
             { label: "Overall SOS", sub: null },
             { label: "Organic SOS", sub: null },
@@ -744,7 +928,11 @@ export default function SearchTermsPerformance() {
                           </svg>
                         </div>
                       )}
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>{row.name}</span>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>
+                        {activeView === "brand" 
+                          ? (row.name || "").split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
+                          : row.name}
+                      </span>
                       {row.searchVolume > 0 && activeView === "keyword" ? (
                         <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
                           Search Vol. {row.searchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })}
@@ -768,9 +956,17 @@ export default function SearchTermsPerformance() {
 
                     {/* My Keywords / All Keywords buttons — only in SKU mode */}
                     {activeView === "sku" && (
-                      <div style={{ display: "flex", gap: 6, paddingLeft: 30 + (row.imageUrl || true ? 44 : 0) }}>
+                      <div style={{ display: "flex", gap: 6, paddingLeft: 30 + (row.imageUrl ? 44 : 0) }}>
                         <button className="sku-btn" onClick={(e) => openKeywordModal(e, row.name, false)}
                           style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All Keywords</button>
+                      </div>
+                    )}
+
+                    {/* Keywords button — only in brand mode */}
+                    {activeView === "brand" && (
+                      <div style={{ display: "flex", gap: 6, paddingLeft: 30 }}>
+                        <button className="sku-btn" onClick={(e) => openBrandKeywordsModal(e, row.name)}
+                          style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>Keywords</button>
                       </div>
                     )}
                   </div>
@@ -893,7 +1089,12 @@ export default function SearchTermsPerformance() {
           title={drilldownModal.title} 
           loading={drilldownModal.loading} 
           type={drilldownModal.type} 
-          onClose={() => setDrilldownModal(null)} 
+          keywordTypeFilter={modalKeywordType}
+          onKeywordTypeFilterChange={setModalKeywordType}
+          onClose={() => { setDrilldownModal(null); setCurrentModalBrand(null); }} 
+          onToggleLocations={toggleKeywordLocations}
+          expandedLocs={expandedKeywordLocations}
+          locsLoading={keywordLocationLoading}
         />
       )}
 

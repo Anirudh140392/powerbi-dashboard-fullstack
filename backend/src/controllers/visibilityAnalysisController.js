@@ -42,7 +42,8 @@ export const getVisibilityOverview = async (req, res) => {
             metroFlag: req.query.metroFlag || 'All',
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            sku: req.query.sku || 'All'
         };
         console.log('\n========== VISIBILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -86,7 +87,8 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             metroFlag: req.query.metroFlag || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            rank: req.query.rank || 'All'
+            rank: req.query.rank || 'All',
+            sku: req.query.sku || 'All'
         };
         console.log('\n========== VISIBILITY PLATFORM KPI MATRIX API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -606,7 +608,8 @@ export const getSearchTermsPerformance = async (req, res) => {
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            channel: req.query.channel || 'All'
+            channel: req.query.channel || 'All',
+            sku: req.query.sku || 'All'
         };
         console.log('\n========== SEARCH TERMS PERFORMANCE API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
