@@ -3608,7 +3608,10 @@ class VisibilityService {
                     }
                 }
 
-                const dimColumn = viewMode === 'keyword' ? 'keyword' : 'keyword_search_product';
+                const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand' : 'keyword_search_product');
+                const numeratorCondition = (sku && sku !== 'All') 
+                    ? `lowerUTF8(t1.keyword_search_product) = lowerUTF8('${escapeCH(sku)}')` 
+                    : ((brand && brand !== 'All') || viewMode === 'brand') ? '1=1' : 't1.flag = 1';
 
                 const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
                 const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
@@ -3661,19 +3664,19 @@ class VisibilityService {
                             t1.${dimColumn} as name,
                             t1.keyword as keyword,
                             arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(t1.brand)), 1) as brand_name,
-                            sumIf(toInt32(t1.overall), t1.flag = 1) as num_keyword,
+                            sumIf(toInt32(t1.overall), ${numeratorCondition}) as num_keyword,
                             any(t2.total_overall) as den_keyword,
                             
-                            sumIf(toInt32(t1.organic), t1.flag = 1) as num_organic_keyword,
+                            sumIf(toInt32(t1.organic), ${numeratorCondition}) as num_organic_keyword,
                             any(t2.total_organic) as den_organic_keyword,
                             
-                            sumIf(toInt32(t1.spons), t1.flag = 1) as num_spons_keyword,
+                            sumIf(toInt32(t1.spons), ${numeratorCondition}) as num_spons_keyword,
                             any(t2.total_spons) as den_spons_keyword,
                             
                             count(*) as impressions_keyword,
                             ${searchVolumeSelect.replace(/search_volume/g, 't1.search_volume')} as search_volume,
-                            arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.spons) = 1 AND t1.flag = 1), 1) AS ad_position_keyword,
-                            arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.organic) = 1 AND t1.flag = 1), 1) AS organic_position_keyword
+                            arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.spons) = 1 AND ${numeratorCondition}), 1) AS ad_position_keyword,
+                            arrayElement(topKIf(1)(toInt32(t1.POSITION), toInt32(t1.organic) = 1 AND ${numeratorCondition}), 1) AS organic_position_keyword
                         FROM rb_kw_olap t1
                         LEFT JOIN (
                             SELECT keyword, 
@@ -3733,8 +3736,8 @@ class VisibilityService {
                     };
                 });
 
-                // Fetch SKU images from rb_sku_platform when in SKU view mode
-                if (viewMode !== 'keyword') {
+                // Fetch SKU images from rb_sku_platform only when in SKU view mode
+                if (viewMode === 'sku') {
                     const skuNames = Object.keys(itemsMap).filter(Boolean);
                     if (skuNames.length > 0) {
                         try {
@@ -3887,6 +3890,7 @@ class VisibilityService {
                 keywordType = 'All',
                 keywordTypeFilter = 'All',
                 sku = null,
+                brand = null,
                 keyword = null,
                 startDate,
                 endDate,
@@ -3896,8 +3900,8 @@ class VisibilityService {
             const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
             const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
-            const dimColumn = sku ? 'keyword_search_product' : 'keyword';
-            const dimValue = sku || keyword;
+            const dimColumn = sku ? 'keyword_search_product' : (brand ? 'brand' : 'keyword');
+            const dimValue = sku || brand || keyword;
 
             const platformCondition = buildCHCondition(platform, 'platform_name', { isPlatform: true });
             const channelCondition = buildChannelCondition(channel, 'platform_name');
@@ -3943,20 +3947,20 @@ class VisibilityService {
             const query = `
                 SELECT 
                     location_name as city,
-                    sumIf(toInt32(overall), ${dimCondition} AND flag = 1) as num_overall,
+                    sumIf(toInt32(overall), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_overall,
                     sum(toInt32(overall)) as den_overall,
                     ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
                     
-                    sumIf(toInt32(organic), ${dimCondition} AND flag = 1) as num_organic,
+                    sumIf(toInt32(organic), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_organic,
                     sum(toInt32(organic)) as den_organic,
                     ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
                     
-                    sumIf(toInt32(spons), ${dimCondition} AND flag = 1) as num_spons,
+                    sumIf(toInt32(spons), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_spons,
                     sum(toInt32(spons)) as den_spons,
                     ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(overall) = 1), 1) as overallRank,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(spons) = 1), 1) as paidRank,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(organic) = 1), 1) as organicRank
+                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(overall) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as overallRank,
+                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(spons) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as paidRank,
+                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(organic) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as organicRank
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
