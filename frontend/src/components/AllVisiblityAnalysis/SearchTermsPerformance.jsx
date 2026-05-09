@@ -177,25 +177,47 @@ const DrilldownModal = ({
               <React.Fragment key={i}>
                 <tr style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafbfc" }}>
                   <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{item.name}</div>
-                    
-                    {onToggleLocations && (
-                      <div 
-                        onClick={() => {
-                          const nameFromTitle = title.split('—')[1]?.trim().replace(/"/g, '');
-                          if (type === "sku") {
-                            onToggleLocations?.(nameFromTitle, item.name, "All");
-                          } else if (type === "brandKeywords") {
-                            onToggleLocations?.(item.name, "All", nameFromTitle);
-                          } else {
-                            onToggleLocations?.(item.name, nameFromTitle, "All");
-                          }
-                        }}
-                        style={{ fontSize: 11, color: "#60a5fa", cursor: "pointer", marginTop: 4, textDecoration: "underline", fontWeight: 500, display: "inline-block" }}
-                      >
-                        {locsLoading?.[item.name] ? "Loading..." : expandedLocs?.[item.name] ? "Hide Locations" : "Show Locations"}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      {type === "sku" && (
+                        item.imageUrl ? (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }}
+                            style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e8f0", background: "#f8fafc" }}
+                          />
+                        ) : (
+                          <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                              <line x1="12" y1="22.08" x2="12" y2="12" />
+                            </svg>
+                          </div>
+                        )
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{item.name}</div>
+                        
+                        {onToggleLocations && (
+                          <div 
+                            onClick={() => {
+                              const nameFromTitle = title.split('—')[1]?.trim().replace(/"/g, '');
+                              if (type === "sku") {
+                                onToggleLocations?.(nameFromTitle, item.name, "All");
+                              } else if (type === "brandKeywords") {
+                                onToggleLocations?.(item.name, "All", nameFromTitle);
+                              } else {
+                                onToggleLocations?.(item.name, nameFromTitle, "All");
+                              }
+                            }}
+                            style={{ fontSize: 11, color: "#60a5fa", cursor: "pointer", marginTop: 4, textDecoration: "underline", fontWeight: 500, display: "inline-block" }}
+                          >
+                            {locsLoading?.[item.name] ? "Loading..." : expandedLocs?.[item.name] ? "Hide Locations" : "Show Locations"}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </td>
                   <td style={{ textAlign: "center", padding: "12px" }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: item.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
@@ -909,7 +931,7 @@ export default function SearchTermsPerformance() {
                         <div style={{ width: 22, height: 22, flexShrink: 0 }} />
                       )}
                       {/* SKU Image Thumbnail — only in SKU view */}
-                      {activeView === "sku" && (
+                      {(activeView === "sku" || activeView === "brand") && (
                         row.imageUrl ? (
                           <img
                             src={row.imageUrl}
@@ -919,7 +941,7 @@ export default function SearchTermsPerformance() {
                           />
                         ) : null
                       )}
-                      {activeView === "sku" && !row.imageUrl && (
+                      {(activeView === "sku" || activeView === "brand") && !row.imageUrl && (
                         <div style={{ width: 36, height: 36, borderRadius: 8, background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />

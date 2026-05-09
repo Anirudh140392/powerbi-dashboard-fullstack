@@ -3642,6 +3642,7 @@ class VisibilityService {
                     SELECT 
                         name,
                         any(brand_name) as brand_name,
+                        any(web_pid) as web_pid,
                         sum(num_keyword) as num_overall,
                         sum(den_keyword) as den_overall,
                         ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
@@ -3663,6 +3664,7 @@ class VisibilityService {
                         SELECT 
                             t1.${dimColumn} as name,
                             t1.keyword as keyword,
+                            any(t1.web_pid) as web_pid,
                             arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(t1.brand)), 1) as brand_name,
                             sumIf(toInt32(t1.overall), ${numeratorCondition}) as num_keyword,
                             any(t2.total_overall) as den_keyword,
@@ -3724,6 +3726,7 @@ class VisibilityService {
                     itemsMap[row.name] = {
                         name: row.name,
                         leadingBrand: row.brand_name || 'Other',
+                        web_pid: row.web_pid,
                         overallSOS: Number(row.overall_sos) || 0,
                         organicSOS: Number(row.organic_sos) || 0,
                         paidSOS: Number(row.paid_sos) || 0,
@@ -3738,25 +3741,63 @@ class VisibilityService {
 
                 // Fetch SKU images from rb_sku_platform only when in SKU view mode
                 if (viewMode === 'sku') {
-                    const skuNames = Object.keys(itemsMap).filter(Boolean);
-                    if (skuNames.length > 0) {
+                    const webPids = Object.values(itemsMap).map(i => i.web_pid).filter(Boolean);
+                    if (webPids.length > 0) {
                         try {
                             const imgQuery = `
-                                SELECT sku_name, any(image_url) as img
+                                SELECT web_pid, any(image_url) as img
                                 FROM rb_sku_platform
-                                WHERE sku_name IN (${skuNames.map(n => `'${escapeCH(n)}'`).join(',')})
-                                GROUP BY sku_name
+                                WHERE web_pid IN (${webPids.map(id => `'${escapeCH(String(id))}'`).join(',')})
+                                GROUP BY web_pid
                             `;
                             const imgData = await queryClickHouse(imgQuery);
-                            imgData.forEach(row => {
-                                if (row.sku_name && itemsMap[row.sku_name]) {
-                                    const imgUrl = row.img ? String(row.img).split(',')[0].trim() : null;
-                                    itemsMap[row.sku_name].imageUrl = imgUrl || null;
+                            const imgMap = new Map();
+                            imgData.forEach(row => imgMap.set(String(row.web_pid), row.img));
+
+                            Object.values(itemsMap).forEach(item => {
+                                if (item.web_pid && imgMap.has(String(item.web_pid))) {
+                                    const imgUrl = imgMap.get(String(item.web_pid)) ? String(imgMap.get(String(item.web_pid))).split(',')[0].trim() : null;
+                                    item.imageUrl = imgUrl || null;
                                 }
                             });
-                            console.log(`[VisibilityService] Fetched ${imgData.length} SKU images from rb_sku_platform`);
+                            console.log(`[VisibilityService] Fetched ${imgData.size} SKU images from rb_sku_platform using web_pid`);
                         } catch (imgError) {
                             console.error('[VisibilityService] Failed to fetch SKU images from rb_sku_platform:', imgError);
+                        }
+                    }
+                }
+
+                // Fetch Brand images from rb_brands only when in Brand view mode
+                if (viewMode === 'brand') {
+                    const brandNames = Object.keys(itemsMap).filter(Boolean);
+                    if (brandNames.length > 0) {
+                        try {
+                            const imgQuery = `
+                                SELECT lowerUTF8(brand_name) as brand_name_lower, any(brand_description) as img
+                                FROM rb_brands
+                                WHERE brand_name_lower IN (${brandNames.map(n => `'${escapeCH(String(n).toLowerCase())}'`).join(',')})
+                                GROUP BY brand_name_lower
+                            `;
+                            const imgData = await queryClickHouse(imgQuery);
+                            
+                            // Create a map of lowercase brand names for easy lookup
+                            const brandImgMap = {};
+                            imgData.forEach(row => {
+                                if (row.brand_name_lower) {
+                                    brandImgMap[row.brand_name_lower] = row.img;
+                                }
+                            });
+
+                            // Enrich itemsMap using lowercase keys
+                            Object.keys(itemsMap).forEach(brandKey => {
+                                const lowerKey = brandKey.toLowerCase();
+                                if (brandImgMap[lowerKey]) {
+                                    itemsMap[brandKey].imageUrl = brandImgMap[lowerKey] || null;
+                                }
+                            });
+                            console.log(`[VisibilityService] Fetched ${imgData.length} brand images from rb_brands (case-insensitive)`);
+                        } catch (imgError) {
+                            console.error('[VisibilityService] Failed to fetch brand images from rb_brands:', imgError);
                         }
                     }
                 }
