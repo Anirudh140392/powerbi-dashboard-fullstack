@@ -28,6 +28,7 @@ import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
 import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
 import { HelpProvider } from "./utils/HelpContext";
+import { SocketProvider } from "./utils/SocketContext";
 import HelpDrawer from "./components/CommonLayout/HelpDrawer";
 import AdminPanel from "./pages/Admin/AdminPanel";
 
@@ -43,6 +44,7 @@ function AppContent() {
     <HelpProvider>
       <HashRouter>
         <FilterProvider key={sessionKey}>
+          <SocketProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 
@@ -168,6 +170,7 @@ function AppContent() {
               </ProtectedRoute>
             } />
           </Routes>
+          </SocketProvider>
         </FilterProvider>
       </HashRouter>
       {isLoggedIn && <HelpDrawer userDbName={user?.dbName} />}
