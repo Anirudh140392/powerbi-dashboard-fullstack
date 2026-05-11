@@ -3611,7 +3611,7 @@ class VisibilityService {
                 const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand' : 'keyword_search_product');
                 const numeratorCondition = (sku && sku !== 'All') 
                     ? `lowerUTF8(t1.keyword_search_product) = lowerUTF8('${escapeCH(sku)}')` 
-                    : ((brand && brand !== 'All') || viewMode === 'brand') ? '1=1' : 't1.flag = 1';
+                    : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : 't1.flag = 1';
 
                 const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
                 const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
