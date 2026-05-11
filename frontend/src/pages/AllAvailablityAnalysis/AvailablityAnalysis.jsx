@@ -484,22 +484,21 @@ export default function AvailablityAnalysis() {
         // OSA Detail: no date filters — show ALL months in DB
         const osaDetailParams = buildOsaDetailParams();
 
-        // Fetch all segments (errors are tracked per-segment)
-        await Promise.allSettled([
-          fetchOverview(queryParams),
-          fetchPlatformKpi(),
-          fetchFormatKpi(),
-          fetchCityKpi(),
-          fetchDoi(queryParams),
-          fetchMetroCity(queryParams),
-          fetchOsaDetail(osaDetailParams),
-          fetchKpiTrends(queryParams)
-        ]);
+        // Fire all fetches independently to allow incremental updates
+        fetchOverview(queryParams);
+        fetchPlatformKpi();
+        fetchFormatKpi();
+        fetchCityKpi();
+        fetchDoi(queryParams);
+        fetchMetroCity(queryParams);
+        fetchOsaDetail(osaDetailParams);
+        fetchKpiTrends(queryParams);
 
-        console.log('✅ All availability data segments processed');
-      } catch (error) {
-        console.error("Error fetching availability data:", error);
-      } finally {
+        // We set loading to false immediately so the child can render skeletons 
+        // based on the empty apiData and update as responses arrive.
+        setIsLoading(false);
+      } catch (err) {
+        console.error("Error in fetchData:", err);
         setIsLoading(false);
       }
     };
