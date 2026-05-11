@@ -309,10 +309,16 @@ async function getVisibilityOverviewData(filters = {}) {
             endDate = dayjs(filters.endDate);
         }
 
-        // Previous period = same range shifted back by 7 days (Weekly comparison)
+        // Previous period: use compare dates if provided, else shift back by duration
         const durationDays = endDate.diff(startDate, 'day') + 1;
-        const prevStart = startDate.subtract(durationDays, 'day');
-        const prevEnd = startDate.subtract(1, 'day');
+        let prevStart, prevEnd;
+        if (filters.compareStartDate && filters.compareEndDate) {
+            prevStart = dayjs(filters.compareStartDate);
+            prevEnd = dayjs(filters.compareEndDate);
+        } else {
+            prevStart = startDate.subtract(durationDays, 'day');
+            prevEnd = startDate.subtract(1, 'day');
+        }
 
         const dateRanges = {
             current: {
@@ -782,8 +788,14 @@ class VisibilityService {
             const start = dayjs(startDate);
             const end = dayjs(endDate);
             const duration = end.diff(start, 'day') + 1;
-            const prevStart = start.subtract(duration, 'day').format('YYYY-MM-DD');
-            const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+            let prevStart, prevEnd;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStart = filters.compareStartDate;
+                prevEnd = filters.compareEndDate;
+            } else {
+                prevStart = start.subtract(duration, 'day').format('YYYY-MM-DD');
+                prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+            }
 
             // Apply same filters to previous period
             let prevBaseWhere = `DATE BETWEEN '${prevStart}' AND '${prevEnd}'`;
@@ -3230,10 +3242,16 @@ class VisibilityService {
                     startDate = startDate || maxDate;
                 }
 
-                // Compute previous period of equal length
+                // Compute previous period: use compare dates if provided, else shift back
                 const durationDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
-                const prevEnd = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
-                const prevStart = dayjs(startDate).subtract(durationDays, 'day').format('YYYY-MM-DD');
+                let prevEnd, prevStart;
+                if (filters.compareStartDate && filters.compareEndDate) {
+                    prevStart = filters.compareStartDate;
+                    prevEnd = filters.compareEndDate;
+                } else {
+                    prevEnd = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
+                    prevStart = dayjs(startDate).subtract(durationDays, 'day').format('YYYY-MM-DD');
+                }
 
                 // Build filter conditions — same helpers as calculateAllSOS
                 const platformCond = buildCHCondition(platform, 'platform_name');
