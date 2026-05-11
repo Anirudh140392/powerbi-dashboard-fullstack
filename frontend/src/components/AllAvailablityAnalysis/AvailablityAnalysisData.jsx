@@ -1242,16 +1242,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     selectedCategory
   } = useContext(FilterContext);
 
-  // Simulated loading delay on filter change
-  useEffect(() => {
-    setLocalLoading(true);
-    const timer = setTimeout(() => {
-      setLocalLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedChannel, selectedCategory, timeStart, timeEnd, availability]);
-
-  const isLoading = parentLoading || localLoading;
+  const isLoading = parentLoading;
 
   // User request: restrict Availability Overview cards to ONLY change on Platform
   const platformContext = { platform: globalPlatform };
@@ -1395,7 +1386,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
         {/* <MetricCardContainer title="Availability Overview" cards={cards[availability]} /> */}
 
-        {isLoading ? (
+        {!apiData?.overview ? (
           <AvailabilityOverviewSkeleton />
         ) : (
           <SnapshotOverview
@@ -1416,11 +1407,11 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         {/* Signal Lab Availability Segment */}
         {!isSignalLabHiddenUser && !isEcom && (
           <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
-            <SignalLabVisibility type="availability" loading={isLoading} />
+            <SignalLabVisibility type="availability" loading={!apiData?.overview} />
           </div>
         )}
 
-        {isLoading ? (
+        {!apiData?.platformKpi ? (
           <PlatformKpiMatrixSkeleton />
         ) : (
           <TabbedHeatmapTable
@@ -1467,7 +1458,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
             }}
           />
         )}
-        {isLoading ? (
+        {!apiData?.osaDetail ? (
           <OsaDetailViewSkeleton />
         ) : (
           <OsaHeatmapTable
