@@ -104,31 +104,32 @@ export default function NotificationScroller() {
     
     // "current date - 2 days" -> If today is May 11, threshold is May 9.
     // If a platform's maxDate is BEFORE May 9 (e.g. May 8), it triggers the alert.
-    const thresholdDate = dayjs().subtract(2, 'days');
     const missingPlatforms = {}; 
 
-    const checkTable = (table, kpis) => {
+    const checkTable = (table, kpis, dayLevel) => {
       const platformDates = socketMaxDates[`${table}_platform`];
       if (!platformDates) return;
+      
+      const thresholdDate = dayjs().subtract(dayLevel, 'days');
       
       Object.entries(platformDates).forEach(([platform, mDate]) => {
         if (!mDate || mDate === "0000-00-00") return;
         const d = dayjs(mDate);
         if (d.isValid() && d.isBefore(thresholdDate, 'day')) {
           if (!missingPlatforms[platform]) missingPlatforms[platform] = [];
-          missingPlatforms[platform].push(kpis);
+          missingPlatforms[platform].push(`${kpis} data is not present at day -${dayLevel} level`);
         }
       });
     };
 
-    checkTable('rb_pdp_olap', 'Offtakes, OSA');
-    checkTable('rb_kw_olap', 'SOS');
-    checkTable('rb_ms_olap', 'Market Share');
+    checkTable('rb_pdp_olap', 'Offtakes, OSA', 3);
+    checkTable('rb_kw_olap', 'SOS', 3);
+    checkTable('rb_ms_olap', 'Market Share', 4);
 
     const alerts = [];
-    Object.entries(missingPlatforms).forEach(([platform, kpiList]) => {
-      const kpiString = kpiList.join(", ");
-      alerts.push(`⚠️ For ${platform} platform, ${kpiString} data is not present at day -3 level due to maintenance work.`);
+    Object.entries(missingPlatforms).forEach(([platform, issues]) => {
+      const issueString = issues.join(" and ");
+      alerts.push(`⚠️ For ${platform} platform, ${issueString} due to maintenance work.`);
     });
 
     return alerts;
@@ -163,6 +164,9 @@ export default function NotificationScroller() {
   }, [measure, message]);
 
   const duration = copyWidth > 0 ? copyWidth / 60 : 20;
+
+  // If no alerts, don't render the bar at all
+  if (alertMessages.length === 0) return null;
 
   return (
     <Box
