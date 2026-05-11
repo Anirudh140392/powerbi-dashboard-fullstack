@@ -306,7 +306,7 @@ export const getInsightsData = async (filters) => {
         LEFT JOIN our_brand_prev op ON o.city = op.city AND LOWER(o.platform) = LOWER(op.platform) AND LOWER(o.category) = LOWER(op.category)
         LEFT JOIN comp_brand_prev cp ON o.city = cp.city AND LOWER(o.platform) = LOWER(cp.platform) AND LOWER(o.category) = LOWER(cp.category)
         WHERE c.comp_ppu > 0 AND o.our_ppu > c.comp_ppu
-        ORDER BY gapPct DESC
+        ORDER BY psl DESC
     `;
 
     // -------------------------------------------------------------------------
@@ -1967,7 +1967,7 @@ export const getInsightsData = async (filters) => {
             const hasData = cityFilteredPriceData.length > 0;
             const topRow = hasData ? cityFilteredPriceData[0] : { gapPct: 0, ourPpu: 0, compPpu: 0 };
 
-            const evidence = hasData ? cityFilteredPriceData.slice(0, 5).map(p => ({
+            const evidence = hasData ? cityFilteredPriceData.slice(0, 10).map(p => ({
                 city: p.city,
                 platform: p.platform,
                 category: p.category,

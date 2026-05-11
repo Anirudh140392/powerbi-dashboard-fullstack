@@ -49,6 +49,7 @@ import CustomHeaderDropdown from "@/components/CommonLayout/CustomHeaderDropdown
 import DateRangeComparePicker from "@/components/CommonLayout/DateRangeComparePicker";
 import dayjs from "dayjs";
 import { Typography, Divider, Skeleton } from "@mui/material";
+import InsightsOnboardingTour, { DrillDownTour } from "@/components/insights/InsightsOnboardingTour";
 
 // ─── HELPERS ────────────────────────────────────────────────────────────────
 
@@ -1572,7 +1573,7 @@ const EvidenceTable = ({ insight }) => {
                                 <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">Competitor PPU</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">{insight.brandName} Impacted SKU</TableHead>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Competitor SKU</TableHead>
-                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">GAP %</TableHead>
+                                <TableHead className="text-right text-[10px] uppercase text-slate-500 h-8 px-3">PSL</TableHead>
                             </>)}
                             {view === "adStock" && (<>
                                 <TableHead className="text-[10px] uppercase text-slate-500 h-8 px-3">Product</TableHead>
@@ -1741,7 +1742,7 @@ const EvidenceTable = ({ insight }) => {
                                                     <TableCell className="text-right text-[11px] text-slate-800 px-3 py-3">₹{typeof d.compPpu === 'number' ? d.compPpu.toFixed(1) : d.compPpu}</TableCell>
                                                     <SkuImageCell name={d.impactedSku || '-'} imageUrl={d.impactedSkuImageUrl} onImageClick={setPreviewImage} />
                                                     <SkuImageCell name={d.compSku || '-'} imageUrl={d.compSkuImageUrl} onImageClick={setPreviewImage} />
-                                                    <TableCell className={`text-right text-[11px] font-medium px-3 py-3 ${d.gapPct > 0 ? 'text-red-600' : d.gapPct < 0 ? 'text-emerald-600' : 'text-slate-600'}`}>{safePct(d.gapPct)}</TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-red-600 px-3 py-3">{safeINR(d.psl)}</TableCell>
                                                 </>
                                             )}
                                             {view === "adStock" && (
@@ -2472,7 +2473,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                             </div>
 
                             {/* AI Insights Bar */}
-                            <div style={{ padding: "8px 24px 12px", background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
+                            <div className="dynamic-insights-bar" style={{ padding: "8px 24px 12px", background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
                                 <DynamicInsightsBar insight={insight} />
                             </div>
 
@@ -2492,6 +2493,9 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                 )}
                             </div>
                         </div>
+
+                        {/* Drill-down tour for first-time users */}
+                        <DrillDownTour enabled={!isEmpty} />
 
                         {/* AI Panel Drawer */}
                         <AnimatePresence>
@@ -2589,6 +2593,8 @@ const InsightsSignalHub = () => {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [showAIPanel, setShowAIPanel] = useState(false);
 
+
+
     useEffect(() => {
         if (typeof refreshFilters === "function") refreshFilters();
         const loadOptions = async () => {
@@ -2637,6 +2643,8 @@ const InsightsSignalHub = () => {
     }, [platform, selectedCategory, selectedBrand, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
 
 
+
+
     const allInsights = useMemo(() => fetchedInsights, [fetchedInsights]);
 
     const filteredInsights = allInsights;
@@ -2658,6 +2666,7 @@ const InsightsSignalHub = () => {
 
     return (
         <CommonContainer title="Insights" disablePadding={true}>
+            <InsightsOnboardingTour enabled={!loading && fetchedInsights.length > 0} />
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
                 @keyframes blink {
@@ -2834,7 +2843,7 @@ const InsightsSignalHub = () => {
                         boxShadow: "none",
                         flexShrink: 0,
                     }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div className="tour-header" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                             <div style={{
                                 width: 36, height: 36, borderRadius: "8px",
                                 background: "#0f172a",
@@ -2872,7 +2881,7 @@ const InsightsSignalHub = () => {
                                         {formatINRCompact(totalImpact)}
                                     </div>
                                 </div>
-                                <div style={{
+                                <div className="tour-active-signals" style={{
                                     background: "transparent", border: "none",
                                     borderRadius: "0", padding: "4px 0", textAlign: "right",
                                 }}>
@@ -2904,6 +2913,7 @@ const InsightsSignalHub = () => {
                                     key={`skeleton-${i}`}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
+clear
                                     transition={{ duration: 0.2 }}
                                 >
                                     <SignalCardSkeleton />
@@ -2935,6 +2945,7 @@ const InsightsSignalHub = () => {
                             {filteredInsights.map((ins, idx) => (
                                 <motion.div
                                     key={ins.id}
+                                    className={`tour-card-${ins.type.replace(/\s+/g, '-').toLowerCase()}`}
                                     style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}
                                     initial={{ opacity: 0, y: 16 }}
                                     animate={{ opacity: 1, y: 0 }}
