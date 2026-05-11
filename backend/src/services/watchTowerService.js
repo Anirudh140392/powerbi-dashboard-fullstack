@@ -6100,6 +6100,8 @@ const getMonthOverview = async (filters) => {
                         SUM(CASE WHEN ${src.f.compFlag} = 0 AND ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} * ${src.f.quantitySold} ELSE 0 END) as my_actual_sales,
                         SUM(CASE WHEN ${src.f.compFlag} = 1 AND ${src.f.mrp} > 0 THEN ${src.f.mrp} * ${src.f.quantitySold} ELSE 0 END) as comp_mrp_val,
                         SUM(CASE WHEN ${src.f.compFlag} = 1 AND ${src.f.mrp} > 0 THEN ${src.f.sellingPrice} * ${src.f.quantitySold} ELSE 0 END) as comp_actual_sales,
+                        SUM(${src.f.buyBoxNeno} * 1.0) as total_buy_box_neno,
+                        AVG(if(${src.f.deliveryDays} IS NOT NULL, toFloat64OrNull(toString(${src.f.deliveryDays})), NULL)) as avg_delivery_days,
                         AVG(if(${src.f.compFlag} = 0, ${src.f.sellingPrice}, NULL)) as avg_asp
                     FROM ${src.table}
                     WHERE ${moConds}
@@ -6220,6 +6222,8 @@ const getMonthOverview = async (filters) => {
         const cpc = hasPm ? (clicks > 0 ? spend / clicks : null) : null;
         const asp = hasPdp ? parseFloat(data.avg_asp || 0) : null;
         const aov = (hasPm && orders > 0) ? adSales / orders : null;
+        const buyBoxPct = hasPdp ? (deno > 0 ? (parseFloat(data.total_buy_box_neno || 0) * 1.0 / deno) * 100 : null) : null;
+        const deliveryTime = hasPdp ? (parseFloat(data.avg_delivery_days || null)) : null;
 
         const marketShare = hasMsCheck ? (msMonthMap.get(monthKey) ?? null) : null;
 
@@ -6255,6 +6259,8 @@ const getMonthOverview = async (filters) => {
         const prevCpc = prevHasPm ? (prevClicks > 0 ? prevSpend / prevClicks : null) : null;
         const prevAsp = prevHasPdp ? parseFloat(prevData.avg_asp || 0) : null;
         const prevAov = (prevHasPm && prevOrders > 0) ? prevAdSales / prevOrders : null;
+        const prevBuyBoxPct = prevHasPdp ? (prevDeno > 0 ? (parseFloat(prevData.total_buy_box_neno || 0) * 1.0 / prevDeno) * 100 : null) : null;
+        const prevDeliveryTime = prevHasPdp ? (parseFloat(prevData.avg_delivery_days || null)) : null;
 
         const promoMyBrand = hasPdp ? (parseFloat(data.my_mrp_val || 0) > 0
             ? ((parseFloat(data.my_mrp_val) - parseFloat(data.my_actual_sales)) / parseFloat(data.my_mrp_val)) * 100
@@ -6298,8 +6304,8 @@ const getMonthOverview = async (filters) => {
             type: bucket.label,
             logo: "https://cdn-icons-png.flaticon.com/512/2693/2693507.png",
             columns: generateKpiColumns({
-                offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: hasMsCheck ? (catSizeMonthMap.get(monthKey) ?? null) : null, adSov, organicSov,
-                prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? (catSizeMonthMap.get(prevMonthKey) ?? null) : null, prevAdSov, prevOrganicSov,
+                offtake, availability, sos, marketShare, spend, roas, inorgSales: adSales, conversion, cpm, cpc, asp, aov, promoMyBrand, promoCompete, categorySize: hasMsCheck ? (catSizeMonthMap.get(monthKey) ?? null) : null, adSov, organicSov, buyBoxPct, deliveryTime,
+                prevOfftake, prevAvailability, prevSos, prevMarketShare, prevSpend, prevRoas, prevInorgSales: prevAdSales, prevConversion, prevCpm, prevCpc, prevAsp, prevAov, prevPromoMyBrand, prevPromoCompete, prevCategorySize: prevHasMsCheck ? (catSizeMonthMap.get(prevMonthKey) ?? null) : null, prevAdSov, prevOrganicSov, prevBuyBoxPct, prevDeliveryTime,
                 offtakeUnits, inorgUnits, prevOfftakeUnits, prevInorgUnits
             })
         };
