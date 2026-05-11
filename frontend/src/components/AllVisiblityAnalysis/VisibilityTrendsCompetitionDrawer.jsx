@@ -37,6 +37,8 @@ import {
   Checkbox,
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus, Filter, SlidersHorizontal } from "lucide-react";
+import dayjs from "dayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import ReactECharts from "echarts-for-react";
 import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
@@ -763,6 +765,9 @@ export default function VisibilityTrendsCompetitionDrawer({
   const [skuSearchTerm, setSkuSearchTerm] = useState("");
   const [keywordSearchTerm, setKeywordSearchTerm] = useState("");
 
+  const [customStartDate, setCustomStartDate] = useState(dayjs().subtract(1, 'month'));
+  const [customEndDate, setCustomEndDate] = useState(dayjs());
+
   const [addSkuOpen, setAddSkuOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
   const [showPlatformPills, setShowPlatformPills] = useState(false);
@@ -966,6 +971,8 @@ export default function VisibilityTrendsCompetitionDrawer({
         const params = {
           period: range,
           timeStep: timeStep,
+          startDate: range === "Custom" && customStartDate ? customStartDate.format("YYYY-MM-DD") : undefined,
+          endDate: range === "Custom" && customEndDate ? customEndDate.format("YYYY-MM-DD") : undefined,
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
           location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') 
@@ -1011,7 +1018,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel, customStartDate, customEndDate]);
 
   // Clear offtake if keyword filter applied, clear search_rank if keyword filter NOT applied
   useEffect(() => {
@@ -1530,9 +1537,27 @@ export default function VisibilityTrendsCompetitionDrawer({
 
               {/* RANGE + TIMESTEP — stacked vertically */}
               <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
-                <Box display="flex" alignItems="center" gap={1.5}>
-                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Range</Typography>
-                  <PillToggleGroup value={range} onChange={setRange} options={trendMeta.rangeOptions} />
+                <Box display="flex" alignItems="flex-start" gap={1.5}>
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', mt: 0.8 }}>Range</Typography>
+                  <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+                    <PillToggleGroup value={range} onChange={setRange} options={trendMeta.rangeOptions} />
+                    {range === "Custom" && (
+                      <Box display="flex" gap={1}>
+                        <DatePicker
+                          value={customStartDate}
+                          onChange={(newValue) => setCustomStartDate(newValue)}
+                          slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                          format="DD/MM/YY"
+                        />
+                        <DatePicker
+                          value={customEndDate}
+                          onChange={(newValue) => setCustomEndDate(newValue)}
+                          slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                          format="DD/MM/YY"
+                        />
+                      </Box>
+                    )}
+                  </Box>
                 </Box>
                 <Box display="flex" alignItems="center" gap={1.5}>
                   <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Step Size</Typography>
@@ -1687,11 +1712,29 @@ export default function VisibilityTrendsCompetitionDrawer({
               gap={2}
               flexWrap="wrap"
             >
-              <PillToggleGroup
-                value={range}
-                onChange={setRange}
-                options={trendMeta.rangeOptions}
-              />
+              <Box display="flex" flexDirection="column" alignItems="flex-start" gap={1}>
+                <PillToggleGroup
+                  value={range}
+                  onChange={setRange}
+                  options={trendMeta.rangeOptions}
+                />
+                {range === "Custom" && (
+                  <Box display="flex" gap={1}>
+                    <DatePicker
+                      value={customStartDate}
+                      onChange={(newValue) => setCustomStartDate(newValue)}
+                      slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                      format="DD/MM/YY"
+                    />
+                    <DatePicker
+                      value={customEndDate}
+                      onChange={(newValue) => setCustomEndDate(newValue)}
+                      slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                      format="DD/MM/YY"
+                    />
+                  </Box>
+                )}
+              </Box>
 
               <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="body2">Time Step:</Typography>

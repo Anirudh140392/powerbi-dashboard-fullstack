@@ -98,7 +98,44 @@ export default function NotificationScroller() {
     return d.isValid() ? d.format("DD MMM YYYY") : "—";
   }, [socketMaxDates, tableName, maxDate]);
 
-  const message = `📊  ${pageName} page data refresh is scheduled for 3:00 PM daily.  Data currently displayed reflects records available up to ${formattedDate}.`;
+  // Alert Generation Engine
+  const alertMessages = useMemo(() => {
+    if (!socketMaxDates || Object.keys(socketMaxDates).length === 0) return [];
+    
+    // "current date - 2 days" -> If today is May 11, threshold is May 9.
+    // If a platform's maxDate is BEFORE May 9 (e.g. May 8), it triggers the alert.
+    const thresholdDate = dayjs().subtract(2, 'days');
+    const missingPlatforms = {}; 
+
+    const checkTable = (table, kpis) => {
+      const platformDates = socketMaxDates[`${table}_platform`];
+      if (!platformDates) return;
+      
+      Object.entries(platformDates).forEach(([platform, mDate]) => {
+        if (!mDate || mDate === "0000-00-00") return;
+        const d = dayjs(mDate);
+        if (d.isValid() && d.isBefore(thresholdDate, 'day')) {
+          if (!missingPlatforms[platform]) missingPlatforms[platform] = [];
+          missingPlatforms[platform].push(kpis);
+        }
+      });
+    };
+
+    checkTable('rb_pdp_olap', 'Offtakes, OSA');
+    checkTable('rb_kw_olap', 'SOS');
+    checkTable('rb_ms_olap', 'Market Share');
+
+    const alerts = [];
+    Object.entries(missingPlatforms).forEach(([platform, kpiList]) => {
+      const kpiString = kpiList.join(", ");
+      alerts.push(`⚠️ For ${platform} platform, ${kpiString} data is not present at day -3 level due to maintenance work.`);
+    });
+
+    return alerts;
+  }, [socketMaxDates]);
+
+  // Combine any active alerts
+  const message = alertMessages.join("  •  ");
 
   const highlightedHtml = message.replace(
     formattedDate,

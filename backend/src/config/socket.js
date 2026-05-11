@@ -38,27 +38,42 @@ async function fetchMaxDates(dbName) {
     try {
         const rows = await queryDb(dbName, `SELECT MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap WHERE toString(Comp_flag) = '0'`);
         dates.rb_pdp_olap = rows[0]?.maxDate || null;
+        
+        const platformRows = await queryDb(dbName, `SELECT Platform as platform, MAX(toDate(DATE)) as maxDate FROM rb_pdp_olap WHERE toString(Comp_flag) = '0' GROUP BY Platform`);
+        dates.rb_pdp_olap_platform = {};
+        platformRows.forEach(r => { if (r.platform) dates.rb_pdp_olap_platform[r.platform] = r.maxDate; });
     } catch (e) {
         console.warn(`[Socket] rb_pdp_olap query failed for ${dbName}:`, e.message);
         dates.rb_pdp_olap = null;
+        dates.rb_pdp_olap_platform = {};
     }
 
     // rb_ms_olap — Market Share page
     try {
         const rows = await queryDb(dbName, `SELECT MAX(toDate(created_on)) as maxDate FROM rb_ms_olap`);
         dates.rb_ms_olap = rows[0]?.maxDate || null;
+
+        const platformRows = await queryDb(dbName, `SELECT platform as platform, MAX(toDate(created_on)) as maxDate FROM rb_ms_olap GROUP BY platform`);
+        dates.rb_ms_olap_platform = {};
+        platformRows.forEach(r => { if (r.platform) dates.rb_ms_olap_platform[r.platform] = r.maxDate; });
     } catch (e) {
         console.warn(`[Socket] rb_ms_olap query failed for ${dbName}:`, e.message);
         dates.rb_ms_olap = null;
+        dates.rb_ms_olap_platform = {};
     }
 
     // rb_kw_olap — Visibility Analysis page
     try {
         const rows = await queryDb(dbName, `SELECT MAX(toDate(DATE)) as maxDate FROM rb_kw_olap`);
         dates.rb_kw_olap = rows[0]?.maxDate || null;
+
+        const platformRows = await queryDb(dbName, `SELECT platform_name as platform, MAX(toDate(DATE)) as maxDate FROM rb_kw_olap GROUP BY platform_name`);
+        dates.rb_kw_olap_platform = {};
+        platformRows.forEach(r => { if (r.platform) dates.rb_kw_olap_platform[r.platform] = r.maxDate; });
     } catch (e) {
         console.warn(`[Socket] rb_kw_olap query failed for ${dbName}:`, e.message);
         dates.rb_kw_olap = null;
+        dates.rb_kw_olap_platform = {};
     }
 
     // rb_pm_olap — Performance Marketing page

@@ -204,11 +204,11 @@ const DrilldownModal = ({
                             onClick={() => {
                               const nameFromTitle = title.split('—')[1]?.trim().replace(/"/g, '');
                               if (type === "sku") {
-                                onToggleLocations?.(nameFromTitle, item.name, "All");
+                                onToggleLocations?.(nameFromTitle, item.name, "All", item.name);
                               } else if (type === "brandKeywords") {
-                                onToggleLocations?.(item.name, "All", nameFromTitle);
+                                onToggleLocations?.(item.name, "All", nameFromTitle, item.name);
                               } else {
-                                onToggleLocations?.(item.name, nameFromTitle, "All");
+                                onToggleLocations?.(item.name, nameFromTitle, "All", item.name);
                               }
                             }}
                             style={{ fontSize: 11, color: "#60a5fa", cursor: "pointer", marginTop: 4, textDecoration: "underline", fontWeight: 500, display: "inline-block" }}
@@ -524,17 +524,19 @@ export default function SearchTermsPerformance() {
   }, [modalKeywordType, currentModalBrand, filterParams]);
 
 
-  const toggleKeywordLocations = useCallback(async (keywordName, skuName, brandName) => {
-    if (expandedKeywordLocations[keywordName]) {
+  const toggleKeywordLocations = useCallback(async (keywordName, skuName, brandName, itemKey) => {
+    const keyToExpand = itemKey || keywordName;
+
+    if (expandedKeywordLocations[keyToExpand]) {
       setExpandedKeywordLocations(prev => {
         const newState = { ...prev };
-        delete newState[keywordName];
+        delete newState[keyToExpand];
         return newState;
       });
       return;
     }
 
-    setKeywordLocationLoading(prev => ({ ...prev, [keywordName]: true }));
+    setKeywordLocationLoading(prev => ({ ...prev, [keyToExpand]: true }));
     try {
       const data = await fetchSearchTermsLocations({
         ...filterParams,
@@ -543,11 +545,11 @@ export default function SearchTermsPerformance() {
         brand: brandName || "All",
         viewMode: "keyword"
       });
-      setExpandedKeywordLocations(prev => ({ ...prev, [keywordName]: data.locations || [] }));
+      setExpandedKeywordLocations(prev => ({ ...prev, [keyToExpand]: data.locations || [] }));
     } catch (err) {
       console.error("Error fetching locations for keyword:", err);
     } finally {
-      setKeywordLocationLoading(prev => ({ ...prev, [keywordName]: false }));
+      setKeywordLocationLoading(prev => ({ ...prev, [keyToExpand]: false }));
     }
   }, [expandedKeywordLocations, filterParams]);
 

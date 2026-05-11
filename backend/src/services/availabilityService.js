@@ -662,8 +662,15 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            const prevEndDate = currentStartDate.subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            
+            let prevStartDate, prevEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+            } else {
+                prevEndDate = currentStartDate.subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            }
 
             // Determine group column based on viewMode
             const isMars = getCurrentDbName() === 'mars';
@@ -1237,8 +1244,15 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            const prevEndDate = currentStartDate.subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            
+            let prevStartDate, prevEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+            } else {
+                prevEndDate = currentStartDate.subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            }
 
             const startStr = currentStartDate.format('YYYY-MM-DD');
             const endStr = currentEndDate.format('YYYY-MM-DD');
@@ -1879,8 +1893,15 @@ const getDOI = async (filters) => {
 
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
-            const prevEndDate = currentEndDate.subtract(30, 'day').subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(29, 'day');
+            
+            let prevStartDate, prevEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+            } else {
+                prevEndDate = currentEndDate.subtract(30, 'day').subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(29, 'day');
+            }
 
             // Build filter conditions using buildAvailabilityWhereClause
             // Note: We exclude dates from the base params and add them manually for each sub-query
@@ -2077,8 +2098,15 @@ const getMetroCityStockAvailability = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            const prevEndDate = currentStartDate.subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            
+            let prevStartDate, prevEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+            } else {
+                prevEndDate = currentStartDate.subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            }
 
             // Build filter objects for current and previous periods
             const currentFilters = {
