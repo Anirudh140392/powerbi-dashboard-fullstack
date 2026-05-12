@@ -100,48 +100,66 @@ export default function NotificationScroller() {
 
   // Alert Generation Engine
   const alertMessages = useMemo(() => {
-    if (!socketMaxDates || Object.keys(socketMaxDates).length === 0) return [];
-    
-    // "current date - 2 days" -> If today is May 11, threshold is May 9.
-    // If a platform's maxDate is BEFORE May 9 (e.g. May 8), it triggers the alert.
-    const missingPlatforms = {}; 
+    const missingPlatforms = {};
+    const alerts = [];
 
     const checkTable = (table, kpis, dayLevel) => {
-      const platformDates = socketMaxDates[`${table}_platform`];
-      if (!platformDates) return;
-      
-      const thresholdDate = dayjs().subtract(dayLevel, 'days');
-      
-      Object.entries(platformDates).forEach(([platform, mDate]) => {
-        if (!mDate || mDate === "0000-00-00") return;
-        const d = dayjs(mDate);
-        if (d.isValid() && d.isBefore(thresholdDate, 'day')) {
-          if (!missingPlatforms[platform]) missingPlatforms[platform] = [];
-          missingPlatforms[platform].push(`${kpis} data is not present at day -${dayLevel} level`);
+      const platformDates = socketMaxDates?.[`${table}_platform`];
+      const thresholdDate = dayjs().subtract(dayLevel, "days");
+
+      // Case 1: We have platform-specific data from Socket
+      if (platformDates && Object.keys(platformDates).length > 0) {
+        Object.entries(platformDates).forEach(([platform, mDate]) => {
+          if (!mDate || mDate === "0000-00-00") return;
+          const d = dayjs(mDate);
+          if (d.isValid() && d.isBefore(thresholdDate, "day")) {
+            if (!missingPlatforms[platform]) missingPlatforms[platform] = [];
+            missingPlatforms[platform].push(`${kpis} data is not present at day -${dayLevel} level`);
+          }
+        });
+      } 
+      // Case 2: Fallback to global maxDate from FilterContext if Socket data is missing for this table
+      else if (maxDate) {
+        const d = dayjs(maxDate);
+        // Only apply if the table we are checking is the one relevant for this route
+        if (tableName === table && d.isValid() && d.isBefore(thresholdDate, "day")) {
+          alerts.push(`⚠️ Data refresh delayed for ${kpis} (Last update: ${d.format("DD MMM")})`);
         }
-      });
+      }
     };
 
-    checkTable('rb_pdp_olap', 'Offtakes, OSA', 3);
-    checkTable('rb_kw_olap', 'SOS', 3);
-    checkTable('rb_ms_olap', 'Market Share', 4);
+    checkTable("rb_pdp_olap", "Offtakes, OSA", 3);
+    checkTable("rb_kw_olap", "SOS", 3);
+    checkTable("rb_ms_olap", "Market Share", 4);
 
-    const alerts = [];
+    // Group specific platform alerts into concise messages
     Object.entries(missingPlatforms).forEach(([platform, issues]) => {
-      const issueString = issues.join(" and ");
-      alerts.push(`⚠️ For ${platform} platform, ${issueString} due to maintenance work.`);
+      const issueString = issues.length > 1 ? "multiple metrics" : issues[0].split(" data")[0];
+      const dayLevelStr = issues[0].match(/day -\d+/)?.[0] || "required";
+      alerts.push(
+        `⚠️ For ${platform} platform, ${issueString} data is not present at ${dayLevelStr} level due to maintenance work.`
+      );
     });
 
     return alerts;
-  }, [socketMaxDates]);
+  }, [socketMaxDates, maxDate, tableName]);
 
-  // Combine any active alerts
-  const message = alertMessages.join("  •  ");
+  // Combine Page Info with active alerts
+  const message = useMemo(() => {
+    if (alertMessages.length === 0) return "";
+    
+    const baseInfo = `${pageName}  •  Data Updated: ${formattedDate}`;
+    const alerts = alertMessages.join("  •  ");
+    return `${baseInfo}  •  ${alerts}`;
+  }, [pageName, formattedDate, alertMessages]);
 
-  const highlightedHtml = message.replace(
-    formattedDate,
-    `<span class="date-highlight">${formattedDate}</span>`
-  );
+  const highlightedHtml = useMemo(() => {
+    if (!message) return "";
+    return message.replace(
+      formattedDate,
+      `<span class="date-highlight">${formattedDate}</span>`
+    );
+  }, [message, formattedDate]);
 
   // Measure text width & calculate copies needed to fill viewport
   const measure = useCallback(() => {
@@ -165,7 +183,7 @@ export default function NotificationScroller() {
 
   const duration = copyWidth > 0 ? copyWidth / 60 : 20;
 
-  // If no alerts, don't render the bar at all
+  // If no alerts, hide the bar entirely (per user request)
   if (alertMessages.length === 0) return null;
 
   return (
