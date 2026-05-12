@@ -58,7 +58,7 @@ import {
 } from "@mui/icons-material";
 
 const getPlatformColors = (platformName) => {
-  const name = platformName?.toLowerCase() || '';
+  const name = String(platformName || '').toLowerCase();
   if (name.includes('blinkit')) return { cardBg: '#facc15', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#fef08a', squircleText: '#1e293b', border: '#eab308' };
   if (name.includes('instamart') || name.includes('swiggy')) return { cardBg: '#fb923c', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#fed7aa', squircleText: '#7c2d12', border: '#f97316' };
   if (name.includes('zepto')) return { cardBg: '#c084fc', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#e9d5ff', squircleText: '#4c1d95', border: '#a855f7' };
@@ -111,6 +111,14 @@ const Sidebar = ({
   isCollapsed,
   setIsCollapsed,
 }) => {
+  // Normalize selectedPlatform to always be a string — FilterContext or Matrix
+  // filters can occasionally pass an object or array during dynamic updates
+  selectedPlatform = typeof selectedPlatform === 'string'
+    ? selectedPlatform
+    : Array.isArray(selectedPlatform)
+      ? (selectedPlatform[0] || 'All')
+      : String(selectedPlatform || 'All');
+
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
