@@ -589,3 +589,28 @@ export const getProductCategories = async (req, res) => {
         res.status(500).json({ error: error.message, stack: error.stack });
     }
 };
+
+/**
+ * Get Max Dates for all key tables (REST fallback for WebSocket)
+ * GET /api/watchtower/max-dates-all
+ * Returns the same data as the WebSocket `maxDateUpdate` event.
+ * Used when WebSocket is unavailable (e.g., nginx not proxying /socket.io).
+ */
+export const getMaxDatesAll = async (req, res) => {
+    try {
+        const { fetchMaxDates } = await import('../config/socket.js');
+        const dbName = req.user?.dbName;
+        if (!dbName) {
+            return res.status(400).json({ error: 'No database context available' });
+        }
+        console.log(`[getMaxDatesAll] Fetching max dates for db: ${dbName}`);
+        const dates = await fetchMaxDates(dbName);
+        res.json({
+            ...dates,
+            updatedAt: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('[getMaxDatesAll] Error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch max dates' });
+    }
+};

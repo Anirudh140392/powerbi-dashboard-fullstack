@@ -215,4 +215,4 @@ async function pollAllActiveRooms() {
     }
 }
 
-export { io };
+export { io, fetchMaxDates };
