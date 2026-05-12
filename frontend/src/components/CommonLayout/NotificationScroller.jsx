@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { Box, Typography } from "@mui/material";
 import { FilterContext } from "../../utils/FilterContext";
 import { useSocket } from "../../utils/SocketContext";
+import axiosInstance from "../../api/axiosInstance";
 import dayjs from "dayjs";
 
 // Route → human-readable page name mapping
@@ -74,29 +75,82 @@ const textSx = {
 
 /**
  * NotificationScroller
- * Continuous marquee showing real-time Max(Date) via WebSocket.
- * Falls back to FilterContext.maxDate if WebSocket hasn't sent data yet.
+ * Continuous marquee showing real-time Max(Date) alerts.
+ * Data source priority:
+ *   1. WebSocket `socketMaxDates` (real-time, best case)
+ *   2. REST API `/api/watchtower/max-dates-all` (fallback when WebSocket fails on server)
+ *   3. FilterContext `maxDate` (last resort, only covers current page's table)
  */
 export default function NotificationScroller() {
   const { maxDate } = useContext(FilterContext);
-  const { socketMaxDates } = useSocket();
+  const { socketMaxDates, isConnected } = useSocket();
   const location = useLocation();
   const copyRef = useRef(null);
   const containerRef = useRef(null);
   const [copyWidth, setCopyWidth] = useState(0);
   const [copies, setCopies] = useState(4);
+  const [httpMaxDates, setHttpMaxDates] = useState(null);
+  const httpFetchedRef = useRef(false);
 
   const pageName = useMemo(() => getPageName(location.pathname), [location.pathname]);
   const tableName = useMemo(() => getTableForRoute(location.pathname), [location.pathname]);
 
+  // HTTP fallback: fetch max dates via REST API when WebSocket is not connected
+  useEffect(() => {
+    // Only fetch via HTTP if:
+    // 1. Socket is NOT connected
+    // 2. Socket data is empty (no tables received)
+    // 3. We haven't already fetched via HTTP
+    const hasSocketData = socketMaxDates && Object.keys(socketMaxDates).length > 0;
+
+    if (!hasSocketData && !httpFetchedRef.current) {
+      // Wait 5 seconds to give WebSocket a chance to connect first
+      const timer = setTimeout(async () => {
+        // Re-check if socket data arrived during the wait
+        if (httpFetchedRef.current) return;
+
+        try {
+          console.log("[NotificationScroller] 🌐 WebSocket data unavailable, fetching via REST API...");
+          const res = await axiosInstance.get("/watchtower/max-dates-all");
+          if (res.data && typeof res.data === "object") {
+            console.log("[NotificationScroller] ✅ REST API max dates received:", res.data);
+            setHttpMaxDates(res.data);
+            httpFetchedRef.current = true;
+          }
+        } catch (err) {
+          console.warn("[NotificationScroller] ⚠️ REST API fallback failed:", err.message);
+        }
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [socketMaxDates, isConnected]);
+
+  // Reset HTTP cache when socket reconnects with fresh data
+  useEffect(() => {
+    const hasSocketData = socketMaxDates && Object.keys(socketMaxDates).length > 0;
+    if (hasSocketData && isConnected) {
+      httpFetchedRef.current = false;
+      setHttpMaxDates(null);
+    }
+  }, [socketMaxDates, isConnected]);
+
+  // Merge data sources: Socket takes priority, then HTTP fallback
+  const effectiveDates = useMemo(() => {
+    const hasSocketData = socketMaxDates && Object.keys(socketMaxDates).length > 0;
+    if (hasSocketData) return socketMaxDates;
+    if (httpMaxDates) return httpMaxDates;
+    return {};
+  }, [socketMaxDates, httpMaxDates]);
+
   // Prefer real-time WebSocket date, fall back to FilterContext
   const formattedDate = useMemo(() => {
-    const socketDate = socketMaxDates?.[tableName];
+    const socketDate = effectiveDates?.[tableName];
     const dateToUse = socketDate || maxDate;
     if (!dateToUse) return "—";
     const d = dayjs(dateToUse);
     return d.isValid() ? d.format("DD MMM YYYY") : "—";
-  }, [socketMaxDates, tableName, maxDate]);
+  }, [effectiveDates, tableName, maxDate]);
 
   // Alert Generation Engine
   const alertMessages = useMemo(() => {
@@ -104,10 +158,10 @@ export default function NotificationScroller() {
     const alerts = [];
 
     const checkTable = (table, kpis, dayLevel) => {
-      const platformDates = socketMaxDates?.[`${table}_platform`];
+      const platformDates = effectiveDates?.[`${table}_platform`];
       const thresholdDate = dayjs().subtract(dayLevel, "days");
 
-      // Case 1: We have platform-specific data from Socket
+      // Case 1: We have platform-specific data (from Socket OR HTTP fallback)
       if (platformDates && Object.keys(platformDates).length > 0) {
         Object.entries(platformDates).forEach(([platform, mDate]) => {
           if (!mDate || mDate === "0000-00-00") return;
@@ -118,11 +172,17 @@ export default function NotificationScroller() {
           }
         });
       } 
-      // Case 2: Fallback to global maxDate from FilterContext if Socket data is missing for this table
-      else if (maxDate) {
+      // Case 2: Check global table-level date from effectiveDates
+      else if (effectiveDates?.[table]) {
+        const d = dayjs(effectiveDates[table]);
+        if (d.isValid() && d.isBefore(thresholdDate, "day")) {
+          alerts.push(`⚠️ Data refresh delayed for ${kpis} (Last update: ${d.format("DD MMM")})`);
+        }
+      }
+      // Case 3: Last resort - FilterContext maxDate (only for current page's table)
+      else if (maxDate && tableName === table) {
         const d = dayjs(maxDate);
-        // Only apply if the table we are checking is the one relevant for this route
-        if (tableName === table && d.isValid() && d.isBefore(thresholdDate, "day")) {
+        if (d.isValid() && d.isBefore(thresholdDate, "day")) {
           alerts.push(`⚠️ Data refresh delayed for ${kpis} (Last update: ${d.format("DD MMM")})`);
         }
       }
@@ -142,7 +202,7 @@ export default function NotificationScroller() {
     });
 
     return alerts;
-  }, [socketMaxDates, maxDate, tableName]);
+  }, [effectiveDates, maxDate, tableName]);
 
   // Combine Page Info with active alerts
   const message = useMemo(() => {
