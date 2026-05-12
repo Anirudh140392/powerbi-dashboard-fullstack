@@ -1111,7 +1111,7 @@ const cardsAbsolute = [
     extraChangeColor: "green",
   },
   {
-    title: "Days of Inventory (DOI)",
+    title: "Days of Inventory",
     value: "62.4",
     sub: "Network average days of cover",
     change: "▼5.3% (from 65.9)",
@@ -1147,7 +1147,7 @@ const cardsWeighted = [
     extraChangeColor: "green",
   },
   {
-    title: "Days of Inventory (DOI)",
+    title: "Days of Inventory",
     value: "58.1",
     sub: "Network average days of cover",
     change: "▼6.8% (from 62.3)",
@@ -1188,7 +1188,7 @@ const getAvailabilityKpis = (type, context = {}) => {
   // Map readable titles to data center keys
   const titleToKey = {
     "Stock Availability": "osa",
-    "Days of Inventory (DOI)": "doi",
+    "Days of Inventory": "doi",
     "Metro City Stock Availability": "availability"
   };
 
@@ -1203,7 +1203,7 @@ const getAvailabilityKpis = (type, context = {}) => {
     return {
       id: `avail-${type}-${idx}`,
       title: card.title,
-      value: card.title.includes('DOI') ? val.toFixed(1) : `${val}%`,
+      value: card.title.includes('Days of Inventory') ? val.toFixed(0) : `${val}%`,
       subtitle: card.sub,
       delta: parseFloat(delta),
       deltaLabel: `${isUp ? '▲' : '▼'} ${delta}%`,
@@ -1267,6 +1267,10 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     ? selectedChannel.toLowerCase().includes('quick') 
     : (Array.isArray(selectedChannel) && selectedChannel.some(c => c.toLowerCase().includes('quick')));
 
+  const isEcom = typeof selectedChannel === 'string'
+    ? selectedChannel.toLowerCase().includes('ecom')
+    : (Array.isArray(selectedChannel) && selectedChannel.some(c => c.toLowerCase().includes('ecom')));
+
   const availabilityKpis = useMemo(() => {
     // Icons and gradients for the cards
     const icons = [Layers, Package, MapPin];
@@ -1284,7 +1288,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     } : null;
 
     const doiCardData = apiData?.doi ? {
-      value: Number(apiData.doi.doi || 0).toFixed(1),
+      value: Number(apiData.doi.doi || 0).toFixed(0),
       delta: Number(apiData.doi.doi || 0) - Number(apiData.doi.prevDoi || 0),
       trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Doi || p.DOI || 0) || []
     } : null;
@@ -1326,7 +1330,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
       const isUp = getLogicalKpiValue(kpi + 'dir', platformContext) > 50;
       const delta = (getLogicalKpiValue(kpi + 'delta', platformContext) / 20).toFixed(1);
       return {
-        value: kpi === 'doi' || kpi === 'skucount' ? val.toFixed(1) : (kpi === 'delivery' ? 'Coming soon' : `${val.toFixed(2)}%`),
+        value: kpi === 'doi' || kpi === 'skucount' ? val.toFixed(0) : (kpi === 'delivery' ? 'Coming soon' : `${val.toFixed(2)}%`),
         delta: parseFloat(delta) * (isUp ? 1 : -1),
         trend: getLogicalKpiTrend(kpi, platformContext)
       };
@@ -1337,20 +1341,20 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     // Info tooltips for specific KPIs (shown as ℹ icon on hover)
     const KPI_INFO_TOOLTIPS = {
       'osa': "Weighted OSA represents the average product availability within a category, factoring in each SKU’s importance (weight) alongside its individual availability percentage.",
-      'doi': "Days of Inventory (DOI) refers to the estimated number of days the combined stock from both the backend warehouses and frontend darkstores can sustain, based on the average daily sales or consumption rate."
+      'doi': "Days of Inventory refers to the estimated number of days the combined stock from both the backend warehouses and frontend darkstores can sustain, based on the average daily sales or consumption rate."
     };
 
     if (isQuickCom) {
       cards_config = [
         { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
-        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
+        { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
         { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
     } else {
       cards_config = [
         { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
         { key: 'buybox', title: "Buy Box %", sub: "MTD Buy Box percentage", api: buyBoxCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
-        { key: 'doi', title: "Days of Inventory (DOI)", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
+        { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
         { key: 'delivery', title: "Delivery time", sub: "Average delivery time", api: deliveryCardData, icon: Zap, gradient: ['#2563EB', '#2563EB'] },
         { key: 'skucount', title: "SKU count", sub: "Total SKUs tracked", api: skuCountData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
       ];
@@ -1359,7 +1363,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     return cards_config.map((cfg, idx) => {
       const data = cfg.api || getMock(cfg.key);
       const delta = Number(data.delta || 0);
-      const deltaText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${cfg.key === 'psl' ? '₹' + formatNumber(Math.abs(delta)) : Math.abs(delta).toFixed(1)}${cfg.key === 'doi' ? ' days' : (cfg.key === 'psl' ? '' : '%')}`);
+      const deltaText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${cfg.key === 'psl' ? '₹' + formatNumber(Math.abs(delta)) : Math.abs(delta).toFixed(cfg.key === 'doi' ? 0 : 1)}${cfg.key === 'doi' ? ' days' : (cfg.key === 'psl' ? '' : '%')}`);
       const prevText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : "vs Previous Period");
 
       return {
@@ -1410,7 +1414,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         )}
 
         {/* Signal Lab Availability Segment */}
-        {!isSignalLabHiddenUser && (
+        {!isSignalLabHiddenUser && !isEcom && (
           <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
             <SignalLabVisibility type="availability" loading={isLoading} />
           </div>

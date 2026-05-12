@@ -361,6 +361,7 @@ export const getEcomRcaData = async (filters = {}) => {
             const isOrganicCvr = kpiLower.includes('organic cvr');
             const isSponsoredSearch = kpiLower.includes('sponsored search');
             const isAdGv = kpiLower.includes('ad gv') || kpiLower.includes('ad impression');
+            const isOrganicGv = kpiLower.includes('organic gv') || kpiLower.includes('organic impression');
             const isDeliveryKpi = kpiLower === 'delivery time' || kpiLower.includes('same day') || kpiLower.includes('1 day') || kpiLower.includes('2 day') || kpiLower.includes('> 2 day') || kpiLower.includes('>2 day') || kpiLower.includes('greater');
 
             const getPmDrilldownSQL = (conds, level, parentId) => {
@@ -552,7 +553,7 @@ export const getEcomRcaData = async (filters = {}) => {
 
                 currDrill = mergePmIntoOlap(cOlap, cPm);
                 prevDrill = mergePmIntoOlap(pOlap, pPm);
-            } else if (isSponsoredSearch || isAdGv) {
+            } else if (isSponsoredSearch || isAdGv || isOrganicGv) {
                 // Sponsored Search / Ad GVs = SP(PDP) + SB(PM) + SD(PDP)
                 // KPI block uses sp_ad_clicks(rb_pdp_olap) + sb_clicks(rb_pm_olap) + sd_ad_clicks(rb_pdp_olap)
                 // So we merge OLAP (for sp_ad_clicks, sd_ad_clicks) with PM (for sb_clicks)
@@ -695,6 +696,14 @@ export const getEcomRcaData = async (filters = {}) => {
                     }
 
                     if (cat.includes('organic') && cat.includes('impression')) return parseFloat(obj.organic_impressions || 0);
+                    // Organic GVs = Total GVs - Ad GVs (SP + SB + SD clicks)
+                    if (cat.includes('organic') && cat.includes('gv')) {
+                        const totalGv = parseFloat(obj.overall_gv || 0);
+                        const adGv = parseFloat(obj.sp_ad_clicks || obj.sp_clicks || 0) + 
+                                     parseFloat(obj.sb_clicks || 0) + 
+                                     parseFloat(obj.sd_ad_clicks || obj.sd_clicks || 0);
+                        return Math.max(totalGv - adGv, 0);
+                    }
                     if (cat.includes('impression') || cat.includes('gv')) return parseFloat(obj.overall_gv || 0);
                     if ((cat.includes('visibility') || cat.includes('sos') || cat.includes('search')) && !cat.includes('sponsored')) {
                         const raw = parseFloat(obj.brand_kws || 0);
@@ -1045,9 +1054,14 @@ export const getEcomRcaData = async (filters = {}) => {
         const cSearchRoas = cSearchAdSpend > 0 ? (cSearchAdSales / cSearchAdSpend) : 0;
         const pSearchRoas = pSearchAdSpend > 0 ? (pSearchAdSales / pSearchAdSpend) : 0;
 
-        // Organic GV = Total GV - Ad GV (SP + SB clicks)
-        const cImpOrg = Math.max(cTotalGvs - (cSpClicks + cSbClicks), 0);
-        const pImpOrg = Math.max(pTotalGvs - (pSpClicks + pSbClicks), 0);
+        // Organic GV = Total GV - Ad GV
+        // For Amazon: Ad GV = SP(PDP ad clicks) + SB(PM clicks) + SD(PDP ad clicks)
+        // For Flipkart: Ad GV = SP(PM clicks) + SB(PM clicks)
+        const isAmazonCalc = (platform && platform.toLowerCase().includes('amazon'));
+        const cAdGvTotal = isAmazonCalc ? (cSpAdClicks + cSbClicks + cSdAdClicks) : (cSpClicks + cSbClicks);
+        const pAdGvTotal = isAmazonCalc ? (pSpAdClicks + pSbClicks + pSdAdClicks) : (pSpClicks + pSbClicks);
+        const cImpOrg = Math.max(cTotalGvs - cAdGvTotal, 0);
+        const pImpOrg = Math.max(pTotalGvs - pAdGvTotal, 0);
 
         // Derived KPIs
         const cAsp = cQty > 0 ? cSales / cQty : 0;
@@ -1074,8 +1088,9 @@ export const getEcomRcaData = async (filters = {}) => {
         const pSearchOrders = pSpOrders + pSbOrders + pSdOrders;
         const cSearchClicks = cSpClicks + cSbClicks + cSdClicks;
         const pSearchClicks = pSpClicks + pSbClicks + pSdClicks;
-        const cCvrAd = cSearchClicks > 0 ? (cSearchOrders / cSearchClicks) * 100 : 0;
-        const pCvrAd = pSearchClicks > 0 ? (pSearchOrders / pSearchClicks) * 100 : 0;
+        // Inorganic CVR = SUM(ad_quantity_sold) / SUM(ad_click) from rb_pm_olap
+        const cCvrAd = cPmClicks > 0 ? (cPmOrders / cPmClicks) * 100 : 0;
+        const pCvrAd = pPmClicks > 0 ? (pPmOrders / pPmClicks) * 100 : 0;
 
         const cSos = cTotalKw > 0 ? (cRbKw / cTotalKw) * 100 : 0;
         const pSos = pTotalKw > 0 ? (pRbKw / pTotalKw) * 100 : 0;
@@ -1241,8 +1256,9 @@ export const getEcomRcaData = async (filters = {}) => {
             const cSearchSpendB = cSpSpendB + cSbSpendB + cSdSpendB;
             const pSearchSpendB = pSpSpendB + pSbSpendB + pSdSpendB;
 
-            const cCvrAdB = cSearchClicksB > 0 ? (cSearchOrdersB / cSearchClicksB) * 100 : 0;
-            const pCvrAdB = pSearchClicksB > 0 ? (pSearchOrdersB / pSearchClicksB) * 100 : 0;
+            // Inorganic CVR = SUM(ad_quantity_sold) / SUM(ad_click) from rb_pm_olap
+            const cCvrAdB = cPmClicksB > 0 ? (cPmOrdersB / cPmClicksB) * 100 : 0;
+            const pCvrAdB = pPmClicksB > 0 ? (pPmOrdersB / pPmClicksB) * 100 : 0;
             const cSearchRoasB = cSearchSpendB > 0 ? (cSearchSalesB / cSearchSpendB) : 0;
             const pSearchRoasB = pSearchSpendB > 0 ? (pSearchSalesB / pSearchSpendB) : 0;
 
@@ -1287,21 +1303,35 @@ export const getEcomRcaData = async (filters = {}) => {
                 rawGv: cOverallGvB,
                 rawPrevGv: pOverallGvB,
 
-                // Organic GV = Total GV - Ad GV
-                rawOrganic: Math.max(cOverallGvB - (cSpClicksB + cSbClicksB), 0),
-                rawPrevOrganic: Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0),
+                // Organic GV = Total GV - Ad GV (consistent with KPI block)
+                // For Amazon: Ad GV = SP(PDP ad_clicks) + SB(PM clicks) + SD(PDP ad_clicks)
+                // For Flipkart: Ad GV = SP(PM clicks) + SB(PM clicks)
+                rawOrganic: isAmazonCalc
+                    ? Math.max(cOverallGvB - (parseFloat(cb.sp_ad_clicks || 0) + cSbClicksB + parseFloat(cb.sd_ad_clicks || 0)), 0)
+                    : Math.max(cOverallGvB - (cSpClicksB + cSbClicksB), 0),
+                rawPrevOrganic: isAmazonCalc
+                    ? Math.max(pOverallGvB - (parseFloat(pb.sp_ad_clicks || 0) + pSbClicksB + parseFloat(pb.sd_ad_clicks || 0)), 0)
+                    : Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0),
 
                 // Organic Qty = Qty_sold - Ad_Quantity_sold
                 rawOrganicQty: Math.max(parseFloat(cb.qty || 0) - cPmOrdersB, 0),
                 rawPrevOrganicQty: Math.max(parseFloat(pb.qty || 0) - pPmOrdersB, 0),
 
-                // Organic CVR
-                rawOrganicCvr: Math.max(cOverallGvB - (cSpClicksB + cSbClicksB), 0) > 0 
-                    ? (Math.max(parseFloat(cb.qty || 0) - cPmOrdersB, 0) / Math.max(cOverallGvB - (cSpClicksB + cSbClicksB), 0)) * 100 
-                    : 0,
-                rawPrevOrganicCvr: Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0) > 0 
-                    ? (Math.max(parseFloat(pb.qty || 0) - pPmOrdersB, 0) / Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0)) * 100 
-                    : 0,
+                // Organic CVR = Organic Qty / Organic GV * 100
+                rawOrganicCvr: (() => {
+                    const orgGv = isAmazonCalc
+                        ? Math.max(cOverallGvB - (parseFloat(cb.sp_ad_clicks || 0) + cSbClicksB + parseFloat(cb.sd_ad_clicks || 0)), 0)
+                        : Math.max(cOverallGvB - (cSpClicksB + cSbClicksB), 0);
+                    const orgQty = Math.max(parseFloat(cb.qty || 0) - cPmOrdersB, 0);
+                    return orgGv > 0 ? (orgQty / orgGv) * 100 : 0;
+                })(),
+                rawPrevOrganicCvr: (() => {
+                    const orgGv = isAmazonCalc
+                        ? Math.max(pOverallGvB - (parseFloat(pb.sp_ad_clicks || 0) + pSbClicksB + parseFloat(pb.sd_ad_clicks || 0)), 0)
+                        : Math.max(pOverallGvB - (pSpClicksB + pSbClicksB), 0);
+                    const orgQty = Math.max(parseFloat(pb.qty || 0) - pPmOrdersB, 0);
+                    return orgGv > 0 ? (orgQty / orgGv) * 100 : 0;
+                })(),
 
                 // Ad GV (SP(PDP) + SB(PM) + SD(PDP)) matching KPI block
                 rawAd: parseFloat(cb.sp_ad_clicks || 0) + cSbClicksB + parseFloat(cb.sd_ad_clicks || 0),
@@ -1446,6 +1476,11 @@ export const getEcomRcaData = async (filters = {}) => {
                             isPositive: orgGvDelta.isPos,
                             category: "organic",
                             metrics: allNodeMetrics,
+                            meta: [
+                                { label: `Organic ${isAmazon ? 'GVs' : 'Impressions'}`, value: formatCount(cImpOrg), change: orgGvDelta.val, isPositive: orgGvDelta.isPos },
+                                { label: `Organic ${isAmazon ? 'GV' : 'Impression'}%`, value: `${cTotalGvs > 0 ? ((cImpOrg / cTotalGvs) * 100).toFixed(2) : '0.00'}%`, change: pctDelta(cTotalGvs > 0 ? (cImpOrg / cTotalGvs) * 100 : 0, pTotalGvs > 0 ? (pImpOrg / pTotalGvs) * 100 : 0).val, isPositive: pctDelta(cTotalGvs > 0 ? (cImpOrg / cTotalGvs) * 100 : 0, pTotalGvs > 0 ? (pImpOrg / pTotalGvs) * 100 : 0).isPos },
+                                { label: "Organic CVR", value: `${cCvrOrg.toFixed(2)}%`, change: cvrOrgDelta.val, isPositive: cvrOrgDelta.isPos }
+                            ]
                         },
                         {
                             id: `ad-${isAmazon ? 'gvs' : 'impressions'}`,

@@ -1,4 +1,4 @@
-import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductCategories } from '../controllers/watchTowerController.js';
+import { watchTowerOverview, getBrands, getKeywords, getLocations, getPlatforms, getPmPlatforms, getPlatformMetadata, getPlatformChannels, getChannels, getPdpPlatforms, debugAvailability, getTrendData, getBrandCategories, getMetrics, getOverview, getPerformanceMetrics, getPlatformOverview, getMonthOverview, getCategoryOverview, getBrandsOverview, getKpiTrends, getTrendsFilterOptions, getCompetition, getCompetitionFilterOptions, getCompetitionBrandTrends, getLatestAvailableMonth, getDarkStoreCount, getTopActions, getOsaDeepDive, getSkuOverview, getCityOverview, getPerformanceBreakdown, getProducts, getProductCategories } from '../controllers/watchTowerController.js';
 import { getSkuMetricsData } from '../controllers/skuMetricsController.js';
 import { getCompareSkuDateRange, getCompareSkuFilters, getCompareSkuProducts, getCompareSkuMetrics, getCompareSkuTrend } from '../controllers/compareSkuController.js';
 
@@ -132,9 +132,11 @@ export default (app) => {
      *     tags: [WatchTower]
      */
     app.get('/api/watchtower/platforms', getPlatforms);
+    app.get('/api/watchtower/pm-platforms', getPmPlatforms);
     app.get('/api/watchtower/platform-metadata', getPlatformMetadata);
     app.get('/api/watchtower/platform-channels', getPlatformChannels);
     app.get('/api/watchtower/channels', getChannels);
+    app.get('/api/watchtower/pdp-platforms', getPdpPlatforms);
 
     app.get('/api/watchtower/debug', debugAvailability);
     app.get('/api/watchtower/trend', getTrendData);
@@ -159,7 +161,9 @@ export default (app) => {
     // Competition data endpoints
     app.get('/api/watchtower/competition', getCompetition);
     app.get('/api/watchtower/competition-filter-options', getCompetitionFilterOptions);
+    app.post('/api/watchtower/competition-filter-options', getCompetitionFilterOptions);
     app.get('/api/watchtower/competition-brand-trends', getCompetitionBrandTrends);
+    app.post('/api/watchtower/competition-brand-trends', getCompetitionBrandTrends);
     app.get('/api/watchtower/dark-store-count', getDarkStoreCount);
     app.get('/api/watchtower/top-actions', getTopActions);
     app.get('/api/watchtower/osa-deep-dive', getOsaDeepDive);

@@ -737,8 +737,8 @@ export const getInsightsData = async (filters) => {
         LEFT JOIN prev_main p ON c.city = p.city AND c.platform = p.platform AND c.category = p.category AND c.skuOrBrand = p.skuOrBrand
         HAVING c.kwOsa < 60 AND kwOsaChangePct < 0 AND adSovChangePct > 0 AND c.spendInr > 500
         ORDER BY adSovChangePct DESC
-        LIMIT 3 BY platform
-        LIMIT 15
+        LIMIT 5 BY platform
+        LIMIT 25
     `;
 
     // -------------------------------------------------------------------------

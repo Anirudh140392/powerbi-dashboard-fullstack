@@ -463,38 +463,6 @@ export default function GeoIntelligenceMap() {
 
                         <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
 
-                        {/* Market (Platform) Dropdown */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Market</span>
-                            <div style={{ position: "relative" }}>
-                                <select
-                                    value={platform}
-                                    onChange={(e) => setPlatform(e.target.value)}
-                                    style={{
-                                        appearance: "none",
-                                        background: "#f8fafc",
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
-                                        padding: "6px 28px 6px 10px",
-                                        fontSize: "12px",
-                                        fontWeight: "700",
-                                        color: "#0f172a",
-                                        cursor: "pointer",
-                                        minWidth: "100px",
-                                        textTransform: "capitalize"
-                                    }}
-                                >
-                                    {platforms.map(p => (
-                                        <option key={p} value={p}>{p}</option>
-                                    ))}
-                                </select>
-                                <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
 
                         {/* Category Dropdown */}
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>

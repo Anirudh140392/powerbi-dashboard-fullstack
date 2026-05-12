@@ -135,11 +135,17 @@ export default function DateRangeComparePicker({
     const [end, setEnd] = useState(timeEnd ? timeEnd.toDate() : today);
 
     useEffect(() => {
-        if (timeStart) setStart(timeStart.toDate());
+        if (timeStart) {
+            setStart(timeStart.toDate());
+            setSelectedRangeLabel("Custom");
+        }
     }, [timeStart]);
 
     useEffect(() => {
-        if (timeEnd) setEnd(timeEnd.toDate());
+        if (timeEnd) {
+            setEnd(timeEnd.toDate());
+            setSelectedRangeLabel("Custom");
+        }
     }, [timeEnd]);
 
     const [compareOn, setCompareOn] = useState(true);

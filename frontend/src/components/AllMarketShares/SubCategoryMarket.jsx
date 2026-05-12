@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, ChevronDown, Check
 import { cn } from '../../lib/utils';
 import { FilterContext } from '../../utils/FilterContext';
 import axiosInstance from '../../api/axiosInstance';
+import MarketShareTrendsCompetitionDrawer from './MarketShareTrendsCompetitionDrawer';
 
 /* ── Sparkline helpers ── */
 const generateSparkData = (currentVal, delta, seed = 0) => {
@@ -102,6 +103,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
     const [subCategories, setSubCategories] = useState([]);
     const [brandsData, setBrandsData] = useState([]);
     const [dataLoading, setDataLoading] = useState(true);
+    const [isTrendOpen, setIsTrendOpen] = useState(false);
 
     // Get filters from context
     const {
@@ -321,6 +323,13 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                                         <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-widest">
                                             {kpi.label}
                                         </span>
+                                        <button
+                                            onClick={() => setIsTrendOpen(true)}
+                                            className="p-1.5 hover:bg-slate-100 rounded-lg transition-all duration-200 text-slate-400 hover:text-blue-600 group/trend"
+                                            title="View Trend"
+                                        >
+                                            <TrendingUp size={14} className="group-hover/trend:scale-110 transition-transform" />
+                                        </button>
                                     </div>
                                 </th>
                             ))}
@@ -409,6 +418,12 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     </select>
                 </div>
             </div>
+
+            <MarketShareTrendsCompetitionDrawer
+                open={isTrendOpen}
+                onClose={() => setIsTrendOpen(false)}
+                subCategory={selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined}
+            />
         </motion.div>
     );
 };

@@ -228,13 +228,15 @@ const BetaBadge = () => (
  * Props:
  *   insight  {object}   — the signal card object from Insights.jsx
  *   onClose  {function} — callback to close the panel
+ *   loading  {boolean}  — global loading state from parent
  */
-const AIInsightsPanelLive = ({ insight, onClose }) => {
+const AIInsightsPanelLive = ({ insight, onClose, loading }) => {
     const [segments, setSegments]   = useState([]);
     const [phase, setPhase]         = useState("loading"); // "loading" | "reveal" | "error"
     const [retryKey, setRetryKey]   = useState(0);
 
     const fetchInsights = useCallback(async () => {
+        if (loading) return; // Wait for global loading to finish
         setPhase("loading");
         setSegments([]);
 
@@ -260,8 +262,12 @@ const AIInsightsPanelLive = ({ insight, onClose }) => {
     }, [insight]);
 
     useEffect(() => {
-        fetchInsights();
-    }, [fetchInsights]);
+        if (loading) {
+            setPhase("loading");
+        } else {
+            fetchInsights();
+        }
+    }, [fetchInsights, loading]);
 
     return (
         <motion.div
@@ -396,7 +402,7 @@ const AIInsightsPanelLive = ({ insight, onClose }) => {
                 display: "flex", flexDirection: "column", gap: "14px",
                 background: "linear-gradient(to bottom, #ffffff, #fbfcfd)",
             }}>
-                {phase === "loading" ? (
+                {(loading || phase === "loading") ? (
                     /* Loading skeleton */
                     <div style={{
                         display: "flex", flexDirection: "column",

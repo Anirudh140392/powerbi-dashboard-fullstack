@@ -1,11 +1,11 @@
-import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate } from '../services/marketShareHelper.js';
+import { getCategorySize, getSubCategoryKpi, getMarketLeaderSales, getMarsWrigleySales, getMarketShareKPI, getCrossPlatformOverview, getMarketShareTrends, getMarketShareCompetition, getMarketShareCompetitionFilterOptions, getMarketShareTopFilterOptions, getMarketShareCompetitionTrends, getMarketShareDrilldown, getMarketShareLatestDate } from '../services/marketShareHelper.js';
 import dayjs from 'dayjs';
 
 export const Platform = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate } = req.query;
+        const { platform, category, location, startDate, endDate, compareStartDate, compareEndDate, timeStep } = req.query;
         console.log("Market Share API request received:", req.query);
 
         // Use provided dates or default to last 30 days
@@ -14,11 +14,15 @@ export const Platform = async (req, res) => {
         const compStart = compareStartDate ? dayjs(compareStartDate) : null;
         const compEnd = compareEndDate ? dayjs(compareEndDate) : null;
 
+        // timeStep: 'Daily' for Quickcomm platforms, 'Monthly' for Ecommerce (default)
+        const resolvedTimeStep = timeStep || 'Monthly';
+
         // Fetch all KPIs in parallel
-        const [categorySize, leaderData, marsData] = await Promise.all([
-            getCategorySize(start, end, platform, category, location, compStart, compEnd),
+        const [categorySize, leaderData, marsData, marketShareData] = await Promise.all([
+            getCategorySize(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep),
             getMarketLeaderSales(start, end, platform, category, location, compStart, compEnd),
-            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd)
+            getMarsWrigleySales(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep),
+            getMarketShareKPI(start, end, platform, category, location, compStart, compEnd, resolvedTimeStep)
         ]);
 
         const response = {
@@ -26,7 +30,8 @@ export const Platform = async (req, res) => {
             filters: req.query,
             categorySize,
             marketLeader: leaderData,
-            marsWrigley: marsData
+            marsWrigley: marsData,
+            marketShare: marketShareData
         };
         console.log("Sending response:", response);
 

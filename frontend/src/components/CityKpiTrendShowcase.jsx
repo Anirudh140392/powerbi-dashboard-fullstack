@@ -143,7 +143,7 @@ const mockKeywords = [
 
 function formatKpiValue(kpi, value) {
   if (value === undefined || value === null) return "–";
-  const k = kpi.toLowerCase();
+  const k = (kpi || '').toLowerCase();
 
   if (k.includes("osa") || k.includes("fillrate") || k.includes("sos") || k.includes("share")) return `${value}%`;
 
@@ -1100,14 +1100,14 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
               {/* ---------------- TABLE BODY ---------------- */}
               <tbody className="bg-white">
-                {paginatedRows.map((row) => (
-                  <tr key={row.kpi} className="group hover:bg-slate-50/50 transition-colors">
+                {paginatedRows.map((row, idx) => (
+                  <tr key={`${row.kpi || 'row'}-${idx}`} className="group hover:bg-slate-50/50 transition-colors">
 
                     {/* Sticky KPI Column */}
                     <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50/50 py-3 pl-4 pr-4 
                                      text-xs font-bold text-slate-900 border-b border-r border-slate-200 
                                      shadow-[4px_0_24px_-2px_rgba(0,0,0,0.02)]">
-                      {row.kpi.toUpperCase()}
+                      {row.kpi ? row.kpi.toUpperCase() : 'N/A'}
                     </td>
 
                     {visibleColumns.map((col) => {
@@ -1147,7 +1147,7 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
                             <PopoverContent className="w-72 p-0 border-slate-100 bg-white shadow-xl rounded-xl overflow-hidden">
                               <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                                 <span className="font-semibold text-xs text-slate-900">
-                                  {row.kpi} · {col}
+                                  {(row.kpi || 'N/A')} · {col}
                                 </span>
                                 {trendMeta.triangle && <span className={`text-sm ${trendMeta.iconColor}`}>{trendMeta.triangle}</span>}
                               </div>

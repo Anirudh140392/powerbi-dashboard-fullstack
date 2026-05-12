@@ -28,6 +28,15 @@ function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
+const formatKpiValue = (value, unit = "%") => {
+  if (value === null || value === undefined || value === 0 || value === "0") {
+      return "N/A";
+  }
+  const num = parseFloat(value);
+  if (isNaN(num)) return "N/A";
+  return `${num.toFixed(1)}${unit}`;
+};
+
 /* -------------------------------------------------------------------------- */
 /*                           Small UI components (local)                      */
 /* -------------------------------------------------------------------------- */
@@ -843,12 +852,30 @@ const SEARCH_RANK_KPI_KEY = {
   color: "#F59E0B", // amber
 };
 
+const RANK_OPTIONS = [
+  { label: 'Top 10', value: 'Top 10' },
+  { label: 'Top 20', value: 'Top 20' },
+  { label: 'Top 30', value: 'Top 30' },
+  { label: 'Top 40', value: 'Top 40' },
+];
+
 const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competitionBrands = [] }) => {
   // ✅ single selected KPI
   const [activeMetric, setActiveMetric] = useState("overall_sos");
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState({ brands: {}, days: [] });
   const [selectedChannel, setSelectedChannel] = useState("All");
+
+  // Local rank state — seeded from global FilterContext, but overridable per trend view
+  const { selectedRank: globalRank } = useContext(FilterContext);
+  const [localRank, setLocalRank] = useState(globalRank || 'Top 10');
+
+  // Keep local rank in sync with global filter context (from sidebar/drawer)
+  useEffect(() => {
+    if (globalRank) {
+      setLocalRank(globalRank);
+    }
+  }, [globalRank]);
 
   const hasKeywordFilter = useMemo(() => {
     const isNotAll = (val) => {
@@ -921,7 +948,8 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
           keywordType: filters.keywordType?.length > 0 ? filters.keywordType.join(',') : undefined,
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M',
-          channel: selectedChannel || 'All'
+          channel: selectedChannel || 'All',
+          rank: localRank || 'All'
         };
 
         // Remove undefined values
@@ -943,7 +971,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
     };
 
     fetchTrendData();
-  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, filters.productNames, filters.keywordType, selectedChannel]);
+  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, filters.productNames, filters.keywordType, selectedChannel, localRank]);
 
 
 
@@ -1071,6 +1099,46 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
         </div>
 
         <div className="flex items-center gap-2">
+          {/* ── Rank Dropdown ── */}
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <div style={{
+              position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+              fontSize: 10, fontWeight: 700, color: '#64748b', letterSpacing: '0.06em',
+              pointerEvents: 'none', textTransform: 'uppercase',
+            }}>Rank</div>
+            <select
+              value={localRank}
+              onChange={(e) => setLocalRank(e.target.value)}
+              style={{
+                paddingLeft: 46, paddingRight: 28, paddingTop: 7, paddingBottom: 7,
+                fontSize: 13, fontWeight: 600, color: '#0f172a',
+                border: '1.5px solid #e2e8f0', borderRadius: 8,
+                background: localRank !== 'Top 40'
+                  ? 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)'
+                  : '#ffffff',
+                cursor: 'pointer', outline: 'none',
+                boxShadow: localRank !== 'Top 40' ? '0 0 0 2px #93c5fd40' : '0 1px 3px rgba(0,0,0,0.04)',
+                transition: 'all 0.2s ease',
+                appearance: 'none', WebkitAppearance: 'none',
+                borderColor: localRank !== 'Top 40' ? '#2563eb' : '#e2e8f0',
+                minWidth: 130,
+              }}
+            >
+              {RANK_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {/* Custom chevron icon */}
+            <div style={{
+              position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)',
+              pointerEvents: 'none', color: '#64748b',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
+
           <Button variant="outline" size="sm" onClick={onSwitchToKpi}>
             <BarChart3 className="mr-1 h-4 w-4" />
             Compare by KPIs
@@ -1124,6 +1192,9 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
   const [trendData, setTrendData] = useState({ brands: {}, days: [] });
   const [selectedChannel, setSelectedChannel] = useState("All");
 
+  const { selectedRank: globalRank } = useContext(FilterContext);
+  const [localRank, setLocalRank] = useState(globalRank || 'All');
+
   const activeKpiKeys = useMemo(() => getKpiKeys(mode, filters), [mode, filters]);
 
   // Determine which items to compare
@@ -1165,7 +1236,8 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
           keywordType: filters.keywordType?.length > 0 ? filters.keywordType.join(',') : undefined,
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M',
-          channel: selectedChannel || 'All'
+          channel: selectedChannel || 'All',
+          rank: localRank || 'All'
         };
 
         // Remove undefined values
@@ -1184,7 +1256,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
     };
 
     fetchTrendData();
-  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, filters.productNames, filters.keywordType, selectedChannel]);
+  }, [mode, selectedItemsKey, filters.platforms, filters.cities, filters.formats, filters.productNames, filters.keywordType, selectedChannel, localRank]);
 
   // Build chart data for a specific KPI
   const chartDataFor = (kpiKey) => {
@@ -1286,10 +1358,51 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
             ))}
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          {/* ── Rank Dropdown ── */}
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <div style={{
+              position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+              fontSize: 10, fontWeight: 700, color: '#64748b', letterSpacing: '0.06em',
+              pointerEvents: 'none', textTransform: 'uppercase',
+            }}>Rank</div>
+            <select
+              value={localRank}
+              onChange={(e) => setLocalRank(e.target.value)}
+              style={{
+                paddingLeft: 46, paddingRight: 28, paddingTop: 7, paddingBottom: 7,
+                fontSize: 13, fontWeight: 600, color: '#0f172a',
+                border: '1.5px solid #e2e8f0', borderRadius: 8,
+                background: localRank !== 'All'
+                  ? 'linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%)'
+                  : '#ffffff',
+                cursor: 'pointer', outline: 'none',
+                boxShadow: localRank !== 'All' ? '0 0 0 2px #93c5fd40' : '0 1px 3px rgba(0,0,0,0.04)',
+                transition: 'all 0.2s ease',
+                appearance: 'none', WebkitAppearance: 'none',
+                borderColor: localRank !== 'All' ? '#2563eb' : '#e2e8f0',
+                minWidth: 130,
+              }}
+            >
+              {RANK_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            {/* Custom chevron icon */}
+            <div style={{
+              position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)',
+              pointerEvents: 'none', color: '#64748b',
+            }}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
 
-        <Button variant="ghost" size="sm" onClick={onBackToTrend}>
-          Back to trend
-        </Button>
+          <Button variant="ghost" size="sm" onClick={onBackToTrend}>
+            Back to trend
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="grid gap-4 pt-4 md:grid-cols-2">
@@ -1391,16 +1504,13 @@ const BrandTable = ({ rows }) => {
                   </td>
 
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.overall_sos.toFixed(1)}%
+                    {formatKpiValue(row.overall_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.sponsored_sos.toFixed(1)}%
+                    {formatKpiValue(row.sponsored_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.organic_sos.toFixed(1)}%
-                  </td>
-                  <td className="px-3 py-2 text-right text-[12px]">
-                    {row.organic_sos.toFixed(1)}%
+                    {formatKpiValue(row.organic_sos)}
                   </td>
                 </tr>
               ))}
@@ -1466,13 +1576,13 @@ const SkuTable = ({ rows }) => {
                   </td>
 
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.overall_sos.toFixed(1)}%
+                    {formatKpiValue(row.overall_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.sponsored_sos.toFixed(1)}%
+                    {formatKpiValue(row.sponsored_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.organic_sos.toFixed(1)}%
+                    {formatKpiValue(row.organic_sos)}
                   </td>
                 </tr>
               ))}
@@ -1550,13 +1660,13 @@ const KeywordTable = ({ rows }) => {
                   </td>
 
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.overall_sos.toFixed(1)}%
+                    {formatKpiValue(row.overall_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.sponsored_sos.toFixed(1)}%
+                    {formatKpiValue(row.sponsored_sos)}
                   </td>
                   <td className="px-3 py-2 text-right text-[12px]">
-                    {row.organic_sos.toFixed(1)}%
+                    {formatKpiValue(row.organic_sos)}
                   </td>
                 </tr>
               ))}
@@ -1623,7 +1733,7 @@ const TableSkeleton = () => (
 /* -------------------------------------------------------------------------- */
 
 export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], skus: [] }, loading = false }) => {
-  const { selectedChannel } = useContext(FilterContext);
+  const { selectedChannel, selectedRank } = useContext(FilterContext);
   const [tab, setTab] = useState("brand"); // "brand" | "sku" | "keyword"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1659,7 +1769,8 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
         productName: filters.productNames.length > 0 ? filters.productNames.join(',') : undefined,
         keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : undefined,
         brand: filters.brands.length > 0 ? filters.brands.join(',') : undefined,
-        channel: selectedChannel || 'All'
+        channel: selectedChannel || 'All',
+        rank: selectedRank || 'All'
       };
 
       // Remove undefined values

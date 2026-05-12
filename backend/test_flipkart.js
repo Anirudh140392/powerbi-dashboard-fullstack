@@ -10,19 +10,21 @@ const client = createClient({
 async function run() {
   try {
     const query = `
-      SELECT 
+      SELECT DISTINCT 
         delivery_date, 
-        DATE,
-        coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) as parsed_date,
-        dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) as diff
-      FROM rb_pdp_olap 
-      WHERE Platform = 'flipkart' AND delivery_date IS NOT NULL AND delivery_date != ''
+        typeof(delivery_date),
+        count() as count
+      FROM pdp 
+      WHERE platform = 'Flipkart'
+      GROUP BY delivery_date, typeof(delivery_date)
+      ORDER BY count DESC
       LIMIT 10
     `;
     const resultSet = await client.query({ query, format: 'JSONEachRow' });
     const dataset = await resultSet.json();
-    console.log("Coalesce Parsed Date check for flipkart in rb_pdp_olap table:");
+    console.log("Delivery Dates for Flipkart in pdp table:");
     console.log(dataset);
+    
   } catch (error) {
     console.error("Error querying:", error.message);
   } finally {

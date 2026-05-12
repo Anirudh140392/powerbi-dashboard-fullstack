@@ -21,6 +21,7 @@ export default function VisibilityAnalysis() {
     selectedZone,
     selectedMetroFlag,
     selectedPincode,
+    selectedRank,
     refreshFilters,
   } = useContext(FilterContext);
 
@@ -41,6 +42,7 @@ export default function VisibilityAnalysis() {
     zone: selectedZone || "All",
     metroFlag: selectedMetroFlag || "All",
     pincode: selectedPincode || "All",
+    rank: selectedRank || "All",
     months: 6,
     timeStep: "Weekly",
     startDate: null,  // Will be set after fetching latest available dates
@@ -117,6 +119,7 @@ export default function VisibilityAnalysis() {
     const currentZone = selectedZone || filters.zone;
     const currentMetroFlag = selectedMetroFlag || filters.metroFlag;
     const currentPincode = selectedPincode || filters.pincode;
+    const currentRank = selectedRank || filters.rank;
     const currentStartDate = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : filters.startDate;
     const currentEndDate = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : filters.endDate;
 
@@ -131,6 +134,7 @@ export default function VisibilityAnalysis() {
       currentZone !== filters.zone ||
       currentMetroFlag !== filters.metroFlag ||
       currentPincode !== filters.pincode ||
+      currentRank !== filters.rank ||
       currentStartDate !== filters.startDate ||
       currentEndDate !== filters.endDate
     ) {
@@ -147,11 +151,12 @@ export default function VisibilityAnalysis() {
         keywordType: currentKeywordType,
         category: currentCategory,
         channel: currentChannel,
+        rank: currentRank,
         startDate: currentStartDate,
         endDate: currentEndDate
       }));
     }
-  }, [platform, selectedBrand, selectedLocation, selectedZone, selectedMetroFlag, selectedPincode, selectedKeyword, selectedKeywordType, selectedCategory, selectedChannel, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, selectedZone, selectedMetroFlag, selectedPincode, selectedKeyword, selectedKeywordType, selectedCategory, selectedChannel, selectedRank, timeStart, timeEnd]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -221,6 +226,7 @@ export default function VisibilityAnalysis() {
         keywordType: filters.keywordType || 'All',
         category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
         channel: filters.channel || 'All',
+        rank: filters.rank || 'All',
         startDate: filters.startDate,
         endDate: filters.endDate
       };
@@ -292,6 +298,7 @@ export default function VisibilityAnalysis() {
       keywordType: filters.keywordType || 'All',
       category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel || 'All',
+      rank: filters.rank || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
     };
@@ -305,6 +312,7 @@ export default function VisibilityAnalysis() {
       keywordType: filters.keywordType || 'All',
       category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel || 'All',
+      rank: filters.rank || 'All',
       startDate: filters.startDate,
       endDate: filters.endDate
     }).toString();
@@ -345,6 +353,7 @@ export default function VisibilityAnalysis() {
       keywordType: filters.keywordType,
       category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel,
+      rank: filters.rank,
       startDate: filters.startDate,
       endDate: filters.endDate,
     });
@@ -405,6 +414,7 @@ export default function VisibilityAnalysis() {
           keywordType: filters.keywordType || 'All',
           category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
           channel: filters.channel || 'All',
+          rank: filters.rank || 'All',
           startDate: filters.startDate,
           endDate: filters.endDate
         };
