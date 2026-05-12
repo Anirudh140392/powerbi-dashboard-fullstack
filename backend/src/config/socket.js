@@ -48,6 +48,28 @@ async function fetchMaxDates(dbName) {
         dates.rb_pdp_olap_platform = {};
     }
 
+    // DOI availability per platform — check which platforms have inventory data (last 30 days)
+    try {
+        const doiRows = await queryDb(dbName, `
+            SELECT Platform as platform,
+                   SUM(ifNull(toFloat64OrZero(toString(Inventory)), 0)) as total_inv
+            FROM rb_pdp_olap
+            WHERE toString(Comp_flag) = '0'
+              AND DATE >= today() - 30
+            GROUP BY Platform
+        `);
+        // Platforms with zero inventory → DOI data is unavailable
+        dates.rb_doi_platforms = {};
+        doiRows.forEach(r => {
+            if (r.platform) {
+                dates.rb_doi_platforms[r.platform] = parseFloat(r.total_inv) > 0;
+            }
+        });
+    } catch (e) {
+        console.warn(`[Socket] DOI availability check failed for ${dbName}:`, e.message);
+        dates.rb_doi_platforms = {};
+    }
+
     // rb_ms_olap — Market Share page
     try {
         const rows = await queryDb(dbName, `SELECT MAX(toDate(created_on)) as maxDate FROM rb_ms_olap`);

@@ -201,6 +201,38 @@ export default function NotificationScroller() {
       );
     });
 
+    // Helper: capitalize first letter of platform names
+    const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+    // --- DOI Data Availability Alert (consolidated single line) ---
+    const doiPlatforms = effectiveDates?.rb_doi_platforms;
+    if (doiPlatforms && Object.keys(doiPlatforms).length > 0) {
+      const missingDoiPlatforms = Object.entries(doiPlatforms)
+        .filter(([, hasData]) => !hasData)
+        .map(([platform]) => capitalize(platform));
+      if (missingDoiPlatforms.length > 0) {
+        const platformList = missingDoiPlatforms.join(", ");
+        alerts.push(
+          `⚠️ Unable to fetch ${platformList} DOI data from Portal`
+        );
+      }
+    }
+
+    // --- Market Share Consolidated Missing Alert ---
+    const allPlatforms = effectiveDates?.rb_pdp_olap_platform;
+    const msPlatforms = effectiveDates?.rb_ms_olap_platform;
+    if (allPlatforms && Object.keys(allPlatforms).length > 0) {
+      const missingMsPlatforms = Object.keys(allPlatforms).filter(
+        (p) => !msPlatforms || !msPlatforms[p]
+      ).map(capitalize);
+      if (missingMsPlatforms.length > 0) {
+        const platformList = missingMsPlatforms.join(", ");
+        alerts.push(
+          `⚠️ ${platformList} market share data at the selected level is not available`
+        );
+      }
+    }
+
     return alerts;
   }, [effectiveDates, maxDate, tableName]);
 
