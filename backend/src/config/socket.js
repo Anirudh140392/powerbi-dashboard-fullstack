@@ -209,7 +209,7 @@ async function fetchAndEmit(dbName) {
  */
 async function pollAllActiveRooms() {
     if (activeDbRooms.size === 0) return;
-    console.log(`[Socket] ⏰ Polling ${activeDbRooms.size} active DB rooms...`);
+    console.log(`[Socket] ⏰ Polling ${activeDbRooms.size} active DB rooms: ${Array.from(activeDbRooms).join(', ')}`);
     for (const dbName of activeDbRooms) {
         await fetchAndEmit(dbName);
     }
