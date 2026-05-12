@@ -69,7 +69,7 @@ function WatchTowerFilterModal({
   const [localBrands, setLocalBrands] = React.useState(brands);
   const [localLocations, setLocalLocations] = React.useState(locations);
 
-  const availableTabs = hideChannelPlatform 
+  const availableTabs = hideChannelPlatform
     ? FILTER_TABS.filter(t => t.key !== "channel" && t.key !== "platform")
     : FILTER_TABS;
 
@@ -85,7 +85,7 @@ function WatchTowerFilterModal({
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
-      setActiveTab(hideChannelPlatform ? "category" : "channel");
+      setActiveTab("channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -106,7 +106,7 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
 
@@ -121,7 +121,7 @@ function WatchTowerFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(c => cats.includes(c));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -136,7 +136,7 @@ function WatchTowerFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(b => brandRes.data.includes(b));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === brandRes.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -164,8 +164,8 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -179,8 +179,8 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
-            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === res.data.length && res.data.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -193,7 +193,7 @@ function WatchTowerFilterModal({
   // map tab key → { options (local), draftValue, setDraft }
   const tabConfig = {
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
-    platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
+    platform: { options: localPlatforms.filter(p => p !== 'All'), value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
@@ -215,12 +215,16 @@ function WatchTowerFilterModal({
 
   const toggle = (opt) => {
     let next;
-    if (selected.includes(opt)) {
-      next = selected.filter(s => s !== opt && s !== "All");
+    if (activeTab === "platform") {
+      next = opt;
     } else {
-      next = [...selected.filter(s => s !== "All"), opt];
+      if (selected.includes(opt)) {
+        next = selected.filter(s => s !== opt && s !== "All");
+      } else {
+        next = [...selected.filter(s => s !== "All"), opt];
+      }
     }
-    if (next.length === options.length && options.length > 0) onChange("All");
+    if (activeTab !== "platform" && next.length === options.length && options.length > 0) onChange("All");
     else onChange(next);
   };
 
@@ -472,34 +476,38 @@ function WatchTowerFilterModal({
 
             {/* Select all / Clear + Search */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 1.5 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={selectAll}
-                sx={{
-                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                  fontFamily: "'Inter', 'Roboto', sans-serif",
-                  "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Select all
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={clearAll}
-                sx={{
-                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                  fontFamily: "'Inter', 'Roboto', sans-serif",
-                  "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Clear
-              </Button>
+              {activeTab !== "platform" && (
+                <>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={selectAll}
+                    sx={{
+                      textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                      borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                      fontFamily: "'Inter', 'Roboto', sans-serif",
+                      "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={clearAll}
+                    sx={{
+                      textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                      borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                      fontFamily: "'Inter', 'Roboto', sans-serif",
+                      "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </>
+              )}
               <TextField
                 size="small"
                 placeholder="Search..."
@@ -1199,7 +1207,7 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
 
@@ -1213,7 +1221,7 @@ function AvailabilityFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(c => cats.includes(c));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -1228,7 +1236,7 @@ function AvailabilityFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(l => locRes.data.includes(l));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === locRes.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -1254,8 +1262,8 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1269,8 +1277,8 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(l => res.data.includes(l));
-            if (valid.length === 0) return "All";
-            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === res.data.length && res.data.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1748,6 +1756,7 @@ const VIS_FILTER_TABS = [
   { key: "location", label: "Location", icon: MapPin },
   { key: "keywordType", label: "Keyword Type", icon: Type },
   { key: "keyword", label: "Keyword", icon: Hash },
+  { key: "rank", label: "Rank", icon: Layers },
 ];
 
 function VisibilityFilterModal({
@@ -1759,6 +1768,7 @@ function VisibilityFilterModal({
   locations = [], selectedLocation, setSelectedLocation,
   keywordTypes = [], selectedKeywordType, setSelectedKeywordType,
   keywords = [], selectedKeyword, setSelectedKeyword,
+  selectedRank, setSelectedRank,
 }) {
   const [activeTab, setActiveTab] = React.useState("platform");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -1769,6 +1779,7 @@ function VisibilityFilterModal({
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftKeywordType, setDraftKeywordType] = React.useState(selectedKeywordType);
   const [draftKeyword, setDraftKeyword] = React.useState(selectedKeyword);
+  const [draftRank, setDraftRank] = React.useState(selectedRank);
 
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
@@ -1776,6 +1787,7 @@ function VisibilityFilterModal({
   const [localLocations, setLocalLocations] = React.useState(locations);
   const [localKeywordTypes, setLocalKeywordTypes] = React.useState(keywordTypes);
   const [localKeywords, setLocalKeywords] = React.useState(keywords);
+  const [localRanks] = React.useState(["Top 10", "Top 20", "Top 30", "Top 40"]);
 
   React.useEffect(() => {
     if (open) {
@@ -1785,6 +1797,7 @@ function VisibilityFilterModal({
       setDraftLocation(selectedLocation);
       setDraftKeywordType(selectedKeywordType);
       setDraftKeyword(selectedKeyword);
+      setDraftRank(selectedRank);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
@@ -1809,7 +1822,7 @@ function VisibilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -1833,8 +1846,8 @@ function VisibilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1849,7 +1862,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(k => kts.includes(k));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -1865,7 +1879,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(k => kws.includes(k));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -1888,7 +1903,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -1905,6 +1921,7 @@ function VisibilityFilterModal({
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     keywordType: { options: localKeywordTypes, value: draftKeywordType, onChange: setDraftKeywordType },
     keyword: { options: localKeywords, value: draftKeyword, onChange: setDraftKeyword },
+    rank: { options: localRanks, value: draftRank, onChange: setDraftRank },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -1921,12 +1938,16 @@ function VisibilityFilterModal({
 
   const toggle = (opt) => {
     let next;
-    if (selected.includes(opt)) {
-      next = selected.filter(s => s !== opt && s !== "All");
+    if (activeTab === "rank") {
+      next = opt;
     } else {
-      next = [...selected.filter(s => s !== "All"), opt];
+      if (selected.includes(opt)) {
+        next = selected.filter(s => s !== opt && s !== "All");
+      } else {
+        next = [...selected.filter(s => s !== "All"), opt];
+      }
     }
-    if (next.length === options.length && options.length > 0) onChange("All");
+    if (activeTab !== "rank" && next.length === options.length && options.length > 0) onChange("All");
     else onChange(next);
   };
 
@@ -1953,6 +1974,7 @@ function VisibilityFilterModal({
     setSelectedLocation(draftLocation);
     setSelectedKeywordType(draftKeywordType);
     setSelectedKeyword(draftKeyword);
+    setSelectedRank(draftRank);
     onClose();
   };
 
@@ -1965,6 +1987,7 @@ function VisibilityFilterModal({
     setDraftLocation("All");
     setDraftKeywordType(["All"]);
     setDraftKeyword(["All"]);
+    setDraftRank("Top 10");
   };
 
   const totalActiveCount = VIS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -2151,7 +2174,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2175,7 +2198,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2191,7 +2214,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2410,7 +2433,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2434,7 +2457,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2450,7 +2473,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2669,7 +2692,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2693,7 +2716,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2709,7 +2732,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2927,7 +2950,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2948,7 +2971,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => res.data.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2970,7 +2993,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2993,7 +3016,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(l => res.data.includes(l));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -3151,7 +3174,7 @@ function InventoryFilterModal({
   );
 }
 
-const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false }) => {
+const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersChange, hideFilters = false }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [filterModalOpen, setFilterModalOpen] = React.useState(false);
   const [availFilterModalOpen, setAvailFilterModalOpen] = React.useState(false);
@@ -3186,6 +3209,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     setTimeStart,
     timeEnd,
     setTimeEnd,
+    setUserSetDate,
     compareStart,
     setCompareStart,
     compareEnd,
@@ -3199,7 +3223,28 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     datesFetched,
     visibilityMode,
     setVisibilityMode,
+    selectedRank,
+    setSelectedRank,
   } = React.useContext(FilterContext);
+
+  const currentChannel = filters?.channel || selectedChannel;
+  const currentPlatform = filters?.platform || platform;
+
+  const localSetSelectedChannel = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, channel: val }));
+    } else {
+      setSelectedChannel(val);
+    }
+  };
+
+  const localSetPlatform = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, platform: val }));
+    } else {
+      setPlatform(val);
+    }
+  };
 
   const location = useLocation();
 
@@ -3449,8 +3494,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       {(() => {
                         let count = 0;
                         if (title !== "Business Overview") {
-                          if (selectedChannel !== "All" && !(Array.isArray(selectedChannel) && selectedChannel.length === channels.length)) count++;
-                          if (platform !== "All" && !(Array.isArray(platform) && platform.length === platforms.length)) count++;
+                          if (currentChannel !== "All" && !(Array.isArray(currentChannel) && currentChannel.length === channels.length)) count++;
+                          if (currentPlatform !== "All" && !(Array.isArray(currentPlatform) && currentPlatform.length === platforms.length)) count++;
                         }
                         if (selectedCategory !== "All" && !(Array.isArray(selectedCategory) && selectedCategory.length === categories.length)) count++;
                         if (title === "Availability Analysis") {
@@ -3460,6 +3505,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedKeywordType !== "All" && !(Array.isArray(selectedKeywordType) && selectedKeywordType.includes("All"))) count++;
                           if (selectedKeyword !== "All" && !(Array.isArray(selectedKeyword) && selectedKeyword.includes("All"))) count++;
+                          if (selectedRank !== "All" && !(Array.isArray(selectedRank) && selectedRank.includes("All"))) count++;
                         } else if (title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
@@ -3497,13 +3543,13 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     <WatchTowerFilterModal
                       open={filterModalOpen}
                       onClose={() => setFilterModalOpen(false)}
-                      hideChannelPlatform={title === "Business Overview"}
+                      hideChannelPlatform={false}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3522,11 +3568,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={marketShareFilterModalOpen}
                       onClose={() => setMarketShareFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3539,11 +3585,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={osaFilterModalOpen}
                       onClose={() => setOsaFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3556,11 +3602,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={availFilterModalOpen}
                       onClose={() => setAvailFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3578,10 +3624,10 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     <VisibilityFilterModal
                       open={visibilityFilterModalOpen}
                       onClose={() => setVisibilityFilterModalOpen(false)}
-                      selectedChannel={selectedChannel}
+                      selectedChannel={currentChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={visibilityCategories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3597,6 +3643,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       keywords={keywords}
                       selectedKeyword={selectedKeyword}
                       setSelectedKeyword={setSelectedKeyword}
+                      selectedRank={selectedRank}
+                      setSelectedRank={setSelectedRank}
                     />
                   )}
 
@@ -3606,11 +3654,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={pricingFilterModalOpen}
                       onClose={() => setPricingFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3629,11 +3677,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={performanceFilterModalOpen}
                       onClose={() => setPerformanceFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3652,11 +3700,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={contentFilterModalOpen}
                       onClose={() => setContentFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3675,11 +3723,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={inventoryFilterModalOpen}
                       onClose={() => setInventoryFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3699,8 +3747,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                   <CustomHeaderDropdown
                     label="CHANNEL"
                     options={channels}
-                    value={selectedChannel}
-                    onChange={(newValue) => setSelectedChannel(newValue)}
+                    value={currentChannel}
+                    onChange={(newValue) => localSetSelectedChannel(newValue)}
                     width={{ xs: "calc(50% - 6px)", sm: 130 }}
                     multiSelect={true}
                   />
@@ -3789,6 +3837,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     onApply={(start, end, cStart, cEnd, compareOn, label) => {
                       setTimeStart(start);
                       setTimeEnd(end);
+                      setUserSetDate(true);
 
                       // Format label for KPI cards
                       let formattedLabel = "VS PREV. PERIOD";

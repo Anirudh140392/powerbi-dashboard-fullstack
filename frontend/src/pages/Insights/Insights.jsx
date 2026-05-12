@@ -130,7 +130,7 @@ const SIGNAL_META = {
         family: "Competitive Landscape",
         color: "#4a6b8a", accent: "#e6eff6",
         FamilyIcon: MapPin, metricKey: "impactInr",
-        metricLabel: "Competitor Revenue", trend: "negative",
+        metricLabel: "Last Seen Date", trend: "negative",
         isBeta: false,
     },
     "Dark Store Coverage Gaps": {
@@ -755,7 +755,7 @@ const AIInsightsPanel = ({ insight, onClose }) => {
 
 // ─── OVERVIEW SIGNAL CARD ────────────────────────────────────────────────────
 
-const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
+const OverviewSignalCard = ({ insight, isSelected, onClick, loading }) => {
     const [hovered, setHovered] = useState(false);
     const isEmpty = insight.id.startsWith("empty_");
     const meta = SIGNAL_META[insight.type] || {};
@@ -995,17 +995,28 @@ const OverviewSignalCard = ({ insight, isSelected, onClick }) => {
                         display: "inline-flex",
                         padding: "5px 13px",
                         borderRadius: "8px",
-                        background: isEmpty 
+                        background: loading ? "#f1f5f9" : (isEmpty 
                             ? "#f1f5f9" 
-                            : (isNegative ? "#fef2f2" : "#f0fdf4"),
-                        border: `1px solid ${isEmpty ? "#e2e8f0" : (isNegative ? "#fee2e2" : "#dcfce7")}`,
+                            : (isNegative ? "#fef2f2" : "#f0fdf4")),
+                        border: `1px solid ${loading ? "#e2e8f0" : (isEmpty ? "#e2e8f0" : (isNegative ? "#fee2e2" : "#dcfce7"))}`,
                     }}>
                         <span style={{
                             fontSize: "16px", fontWeight: 900,
-                            color: isEmpty ? "#94a3b8" : (isNegative ? "#dc2626" : "#16a34a"),
+                            color: loading ? "#94a3b8" : (isEmpty ? "#94a3b8" : (isNegative ? "#dc2626" : "#16a34a")),
                             letterSpacing: "-0.01em"
                         }}>
-                            {isEmpty ? "—" : formatINRCompact(insight.impactInr || 0)}
+                            {loading ? (
+                                <div className="skeleton-pulse" style={{ width: "60px", height: "16px", borderRadius: "4px" }} />
+                            ) : isEmpty ? "—" : insight.type === "New Market Entry"
+                                ? (() => {
+                                    const topRow = (insight.evidence || []).slice().sort((a, b) => {
+                                        const da = a.firstSeenDate && a.firstSeenDate !== "-" ? new Date(a.firstSeenDate) : new Date(0);
+                                        const db = b.firstSeenDate && b.firstSeenDate !== "-" ? new Date(b.firstSeenDate) : new Date(0);
+                                        return db - da;
+                                    })[0];
+                                    return (topRow && topRow.firstSeenDate && topRow.firstSeenDate !== "-") ? topRow.firstSeenDate : "—";
+                                })()
+                                : formatINRCompact(insight.impactInr || 0)}
                         </span>
                     </div>
                 </div>
@@ -1417,7 +1428,7 @@ const getEvidenceView = (type) => {
     return "osa";
 };
 
-const EvidenceTable = ({ insight }) => {
+const EvidenceTable = ({ insight, loading }) => {
     const view = getEvidenceView(insight.type);
     const [search, setSearch] = useState("");
     const [activePopupIdx, setActivePopupIdx] = useState(null);
@@ -1442,6 +1453,7 @@ const EvidenceTable = ({ insight }) => {
     }, [insight.evidence]);
 
     const filtered = useMemo(() => {
+        if (loading) return [];
         let data = insight.evidence || [];
         if (activePlatform !== "All platforms") {
             data = data.filter((e) => !e.platform || e.platform === activePlatform || e.platform === "-");
@@ -1463,7 +1475,7 @@ const EvidenceTable = ({ insight }) => {
         if (!search.trim()) return data;
         const q = search.toLowerCase();
         return data.filter((row) => Object.values(row).some((v) => String(v).toLowerCase().includes(q)));
-    }, [insight.evidence, search, activePlatform, categoryFilter, insight.type, view]);
+    }, [insight.evidence, search, activePlatform, categoryFilter, insight.type, view, loading]);
 
     return (
         <div style={{
@@ -1484,14 +1496,15 @@ const EvidenceTable = ({ insight }) => {
                     <Popover>
                         <PopoverTrigger asChild>
                             <button
+                                disabled={loading}
                                 style={{
                                     display: "flex", alignItems: "center", gap: "6px",
-                                    padding: "5px 12px", background: "#fff", border: "1px solid #bfdbfe",
-                                    borderRadius: "6px", fontSize: "11px", fontWeight: 600, color: "#1e3a5f",
-                                    cursor: "pointer"
+                                    padding: "5px 12px", background: loading ? "#f8fafc" : "#fff", border: "1px solid #bfdbfe",
+                                    borderRadius: "6px", fontSize: "11px", fontWeight: 600, color: loading ? "#94a3b8" : "#1e3a5f",
+                                    cursor: loading ? "not-allowed" : "pointer"
                                 }}
                             >
-                                <Filter size={12} color="#1e3a5f" />
+                                <Filter size={12} color={loading ? "#94a3b8" : "#1e3a5f"} />
                                 Filters {(activePlatform !== "All platforms" || categoryFilter !== "All categories") && "*"}
                             </button>
                         </PopoverTrigger>
@@ -1508,13 +1521,14 @@ const EvidenceTable = ({ insight }) => {
                     <div className="evidence-search-container" style={{ position: "relative" }}>
                         <Search size={11} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
                         <input
+                            disabled={loading}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search..."
                             style={{
                                 paddingLeft: "26px", paddingRight: "8px", paddingTop: "5px", paddingBottom: "5px",
                                 fontSize: "11px", border: "1px solid #bfdbfe", borderRadius: "6px",
-                                background: "#fff", outline: "none", width: "180px", color: "#1e3a5f",
+                                background: loading ? "#f8fafc" : "#fff", outline: "none", width: "180px", color: loading ? "#94a3b8" : "#1e3a5f",
                             }}
                         />
                     </div>
@@ -1670,7 +1684,17 @@ const EvidenceTable = ({ insight }) => {
                         </TableRow>
                     </thead>
                     <TableBody>
-                        {filtered.length === 0 ? (
+                        {loading ? (
+                            [...Array(6)].map((_, rIdx) => (
+                                <TableRow key={rIdx}>
+                                    {[...Array(8)].map((_, cIdx) => (
+                                        <TableCell key={cIdx} className="px-3 py-4">
+                                            <div style={{ height: "12px", width: "100%", borderRadius: "4px", background: "linear-gradient(90deg, #f1f5f9 25%, #f8fafc 50%, #f1f5f9 75%)", backgroundSize: "200% 100%", animation: "shimmer 2s infinite linear" }} />
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            ))
+                        ) : filtered.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={10} className="text-center py-10 text-slate-400 text-[11px]">
                                     No matching rows
@@ -2146,7 +2170,7 @@ const callClaudeForInsights = async (insight, evidenceOverride) => {
 // Priority positional map
 const SEGMENT_PRIORITY = ["high", "focus", "good", "neutral"];
 
-const DynamicInsightsBar = ({ insight }) => {
+const DynamicInsightsBar = ({ insight, loading }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [segments, setSegments] = useState(null); // null = not loaded yet
     const [isLoading, setIsLoading] = useState(false);
@@ -2267,7 +2291,7 @@ const DynamicInsightsBar = ({ insight }) => {
 
             {/* Expandable insights panel */}
             <AnimatePresence>
-                {isOpen && (
+                {(isOpen || loading) && (
                     <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
@@ -2281,7 +2305,13 @@ const DynamicInsightsBar = ({ insight }) => {
                             marginTop: "0",
                             paddingTop: "14px",
                         }}>
-                            {isLoading || segments === null ? (
+                            {loading ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                    <div className="skeleton-pulse" style={{ width: "90%", height: "12px", borderRadius: "4px" }} />
+                                    <div className="skeleton-pulse" style={{ width: "70%", height: "12px", borderRadius: "4px" }} />
+                                    <div className="skeleton-pulse" style={{ width: "85%", height: "12px", borderRadius: "4px" }} />
+                                </div>
+                            ) : (isLoading || segments === null) ? (
                                 <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "8px 0" }}>
                                     <Loader2 size={16} style={{ animation: "spin 1.2s linear infinite", color: "#6366f1" }} />
                                     <span style={{ fontSize: "12px", color: "#475569", fontWeight: 500 }}>Generating summary…</span>
@@ -2322,7 +2352,7 @@ const getKpiBadgeStyle = (label, value) => {
     return { bg: "#f8fafc", border: "#e2e8f0", text: "#475569" }; // Neutral
 };
 
-const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel }) => {
+const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPanel, loading }) => {
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === "Escape" && open) onClose();
@@ -2434,52 +2464,71 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                 </div>
                                 
                                 <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-                                    {(insight.kpis || []).map((k, i) => {
-                                        const theme = getKpiBadgeStyle(k.label, k.value);
-                                        return (
+                                    {loading ? (
+                                        [...Array(4)].map((_, i) => (
                                             <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: "60px" }}>
-                                                <p style={{ fontSize: "8px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, margin: 0 }}>{k.label}</p>
-                                                <div style={{
-                                                    background: theme.bg,
-                                                    border: `1px solid ${theme.border}`,
-                                                    padding: "3px 10px",
-                                                    borderRadius: "6px",
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    justifyContent: "center",
-                                                    width: "100%"
-                                                }}>
-                                                    <p style={{ fontSize: "12px", fontWeight: 800, color: theme.text, margin: 0 }}>{k.value}</p>
-                                                </div>
+                                                <div className="skeleton-pulse" style={{ width: "40px", height: "8px", borderRadius: "2px", marginBottom: "4px" }} />
+                                                <div className="skeleton-pulse" style={{ width: "100%", height: "22px", borderRadius: "6px" }} />
                                             </div>
-                                        );
-                                    })}
+                                        ))
+                                    ) : (
+                                        (insight.kpis || []).map((k, i) => {
+                                            const theme = getKpiBadgeStyle(k.label, k.value);
+                                            return (
+                                                <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: "60px" }}>
+                                                    <p style={{ fontSize: "8px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, margin: 0 }}>{k.label}</p>
+                                                    <div style={{
+                                                        background: theme.bg,
+                                                        border: `1px solid ${theme.border}`,
+                                                        padding: "3px 10px",
+                                                        borderRadius: "6px",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        width: "100%"
+                                                    }}>
+                                                        <p style={{ fontSize: "12px", fontWeight: 800, color: theme.text, margin: 0 }}>{k.value}</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                    {insight.type !== "New Market Entry" && (
                                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: "70px" }}>
                                         <p style={{ fontSize: "8px", color: "#94a3b8", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700, margin: 0 }}>Impact</p>
-                                        <div style={{
-                                            background: "#fff1f2",
-                                            border: "1px solid #fecaca",
-                                            padding: "3px 10px",
-                                            borderRadius: "6px",
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            width: "100%"
-                                        }}>
-                                            <p style={{ fontSize: "13px", fontWeight: 900, color: "#dc2626", margin: 0 }}>{formatINRCompact(insight.impactInr || 0)}</p>
-                                        </div>
+                                        {loading ? (
+                                            <div className="skeleton-pulse" style={{ width: "100%", height: "24px", borderRadius: "6px" }} />
+                                        ) : (
+                                            <div style={{
+                                                background: "#fff1f2",
+                                                border: "1px solid #fecaca",
+                                                padding: "3px 10px",
+                                                borderRadius: "6px",
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                width: "100%"
+                                            }}>
+                                                <p style={{ fontSize: "13px", fontWeight: 900, color: "#dc2626", margin: 0 }}>{formatINRCompact(insight.impactInr || 0)}</p>
+                                            </div>
+                                        )}
                                     </div>
+                                    )}
                                 </div>
                             </div>
 
                             {/* AI Insights Bar */}
                             <div className="dynamic-insights-bar" style={{ padding: "8px 24px 12px", background: "#fff", borderBottom: "1px solid #e2e8f0" }}>
-                                <DynamicInsightsBar insight={insight} />
+                                <DynamicInsightsBar insight={insight} loading={loading} />
                             </div>
 
                             {/* Body */}
                             <div className="modal-body-container" style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fafcff", overflow: "hidden" }}>
-                                {isEmpty ? (
+                                {loading ? (
+                                    <div style={{ flex: 1, padding: "24px" }}>
+                                        <div className="skeleton-pulse" style={{ width: "100%", height: "100%", borderRadius: "12px" }} />
+                                    </div>
+                                ) : isEmpty ? (
                                     <div style={{
                                         textAlign: "center", padding: "64px 16px",
                                         border: "1px dashed #bfdbfe", borderRadius: "10px",
@@ -2489,7 +2538,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
                                         <p style={{ fontSize: "12px", margin: 0 }}>No detailed evidence available.</p>
                                     </div>
                                 ) : (
-                                    <EvidenceTable insight={insight} />
+                                    <EvidenceTable insight={insight} loading={loading} />
                                 )}
                             </div>
                         </div>
@@ -2499,7 +2548,7 @@ const DrillDownModal = ({ insight, open, onClose, onAI, showAIPanel, onCloseAIPa
 
                         {/* AI Panel Drawer */}
                         <AnimatePresence>
-                            {showAIPanel && <AIInsightsPanelLive insight={insight} onClose={onCloseAIPanel} />}
+                            {showAIPanel && <AIInsightsPanelLive insight={insight} onClose={onCloseAIPanel} loading={loading} />}
                         </AnimatePresence>
                     </motion.div>
                 </motion.div>
@@ -2913,7 +2962,6 @@ const InsightsSignalHub = () => {
                                     key={`skeleton-${i}`}
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
-clear
                                     transition={{ duration: 0.2 }}
                                 >
                                     <SignalCardSkeleton />
@@ -2955,6 +3003,7 @@ clear
                                         insight={ins}
                                         isSelected={selectedId === ins.id && dialogOpen}
                                         onClick={() => handleCardClick(ins.id)}
+                                        loading={loading}
                                     />
                                 </motion.div>
                             ))}
@@ -2971,6 +3020,7 @@ clear
                     onAI={() => setShowAIPanel(true)}
                     showAIPanel={showAIPanel}
                     onCloseAIPanel={() => setShowAIPanel(false)}
+                    loading={loading}
                 />
             </div>
         </CommonContainer>

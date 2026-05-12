@@ -1,5 +1,6 @@
-const { ClickHouse } = require('clickhouse');
-require('dotenv').config();
+import { ClickHouse } from 'clickhouse';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const clickhouse = new ClickHouse({
     url: process.env.CLICKHOUSE_URL,

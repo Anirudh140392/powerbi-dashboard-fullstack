@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import axiosInstance from "../api/axiosInstance";
 import dayjs from "dayjs";
 import { useAuth } from "./AuthContext";
@@ -72,6 +73,9 @@ export const FilterProvider = ({ children }) => {
     const [comparisonLabel, setComparisonLabel] = useState("VS PREV. PERIOD");
     const [maxDate, setMaxDate] = useState(dayjs());
 
+    // Tracks if the user has manually overridden the default dates
+    const [userSetDate, setUserSetDate] = useState(false);
+
     // Tracks if async data is loaded
     const [datesFetched, setDatesFetched] = useState(false);
     const [platformsFetched, setPlatformsFetched] = useState(false);
@@ -85,17 +89,22 @@ export const FilterProvider = ({ children }) => {
     // SOS / BSR toggle mode
     const [visibilityMode, setVisibilityMode] = useState('sos');
 
-    // Track current hash to detect page changes
-    const [currentHash, setCurrentHash] = useState(window.location.hash);
+    // Visibility rank filter (POSITION <= rank).
+    const [selectedRank, setSelectedRank] = useState('Top 10');
+
+    // Use react-router's useLocation instead of native hashchange for reliable route tracking
+    const location = useLocation();
+    
+    // Track current path to detect page changes
+    const [currentPath, setCurrentPath] = useState(location.pathname);
 
     useEffect(() => {
-        const handleHashChange = () => {
-            console.log("[FilterContext] Hash changed to:", window.location.hash);
-            setCurrentHash(window.location.hash);
-        };
-        window.addEventListener('hashchange', handleHashChange);
-        return () => window.removeEventListener('hashchange', handleHashChange);
-    }, []);
+        console.log("[FilterContext] Path changed to:", location.pathname);
+        setCurrentPath(location.pathname);
+    }, [location.pathname]);
+
+    // Race condition guard: prevents stale responses from overwriting fresh date state
+    const dateRequestCounter = useRef(0);
 
     const datesInitialized = Boolean(timeStart && timeEnd);
 
@@ -129,71 +138,117 @@ export const FilterProvider = ({ children }) => {
             setPlatformsFetched(false);
             setVisibilityOwnBrandsOnly(true);
             setVisibilityMode('sos');
+            setSelectedRank('Top 10');
+            setUserSetDate(false);
         }
     }, [isAuthenticated]);
 
     // ====== FETCH LATEST DATES FROM DB (on mount and hash change) ======
+    // Each page gets its max date from a specific table:
+    //   Market Share      → rb_ms_olap  via /market-share/latest-date
+    //   Visibility Analysis → rb_kw_olap via /visibility-analysis/latest-available-dates
+    //   All other pages   → rb_pdp_olap via /watchtower/latest-available-month
     const refreshDates = useCallback(async () => {
         if (!isAuthenticated) return;
 
+        const requestId = ++dateRequestCounter.current;
         setDatesFetched(false);
         try {
-            // Use window.location.hash directly to ensure it has the latest path on mount
-            const isMarketShare = window.location.hash.includes('/market-share');
-            const endpoint = isMarketShare ? '/market-share/latest-date' : '/watchtower/latest-available-month';
-            
-            console.log(`[FilterContext] Fetching basic dates from ${endpoint}...`);
+            const path = currentPath;
+            const isMarketShare = path.includes('/market-share');
+            const isVisibility = path.includes('/visibility-anlysis');
+
+            let endpoint;
+            let pageLabel;
+            if (isMarketShare) {
+                endpoint = '/market-share/latest-date';
+                pageLabel = 'Market Share (rb_ms_olap)';
+            } else if (isVisibility) {
+                endpoint = '/visibility-analysis/latest-available-dates';
+                pageLabel = 'Visibility Analysis (rb_kw_olap)';
+            } else {
+                endpoint = '/watchtower/latest-available-month';
+                pageLabel = 'Default (rb_pdp_olap)';
+            }
+
+            console.log(`[FilterContext] Fetching dates from ${endpoint} for ${pageLabel}...`);
             const res = await axiosInstance.get(endpoint);
-            if (res.data && res.data.available && res.data.defaultEndDate && res.data.defaultStartDate) {
-                const lEnd = dayjs(res.data.defaultEndDate);
-                const lStart = dayjs(res.data.defaultStartDate);
 
-                setTimeEnd(lEnd);
-                setTimeStart(lStart);
-                setMaxDate(lEnd);
+            // Stale response guard: discard if a newer request was fired
+            if (requestId !== dateRequestCounter.current) {
+                console.log(`[FilterContext] Discarding stale date response (request ${requestId}, current ${dateRequestCounter.current})`);
+                return;
+            }
 
-                // Simple Previous period comparison
-                setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
-                setCompareStart(lStart.subtract(1, 'month').startOf('month'));
+            if (res.data && res.data.available !== false) {
+                // Normalize response: endpoints return slightly different field names
+                const endDateStr = res.data.defaultEndDate || res.data.endDate;
+                const startDateStr = res.data.defaultStartDate || res.data.startDate;
 
-                console.log(`[FilterContext] Fetched dynamic dates for ${isMarketShare ? 'Market Share' : 'Watchtower'}:`, res.data.defaultStartDate, "to", res.data.defaultEndDate);
+                if (endDateStr && startDateStr) {
+                    const lEnd = dayjs(endDateStr);
+                    const lStart = dayjs(startDateStr);
+
+                    // Always update maxDate so the date picker boundary is correct for the page
+                    setMaxDate(lEnd);
+
+                    // Only overwrite timeStart and timeEnd if the user hasn't explicitly set a custom date
+                    if (!userSetDate) {
+                        setTimeEnd(lEnd);
+                        setTimeStart(lStart);
+
+                        // Simple Previous period comparison
+                        setCompareEnd(lEnd.subtract(1, 'month').endOf('month'));
+                        setCompareStart(lStart.subtract(1, 'month').startOf('month'));
+
+                        console.log(`[FilterContext] Dates set for ${pageLabel}:`, startDateStr, "to", endDateStr);
+                    } else {
+                        console.log(`[FilterContext] Max date updated for ${pageLabel}. Preserving user's custom date selection.`);
+                    }
+                }
             }
         } catch (err) {
+            // Only apply error state if this is still the latest request
+            if (requestId !== dateRequestCounter.current) return;
             console.warn("[FilterContext] Failed to fetch latest dates:", err.message);
         } finally {
-            setDatesFetched(true);
+            // Only mark fetched if this is still the latest request
+            if (requestId === dateRequestCounter.current) {
+                setDatesFetched(true);
+            }
+        }
+    }, [isAuthenticated, currentPath]);
+
+    useEffect(() => {
+        refreshDates();
+    }, [refreshDates, currentPath]);
+
+    // ====== FETCH CHANNELS FROM DB (on mount) ======
+    const fetchChannels = useCallback(async () => {
+        if (!isAuthenticated) return;
+        try {
+            const res = await axiosInstance.get("/watchtower/channels");
+            if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+                console.log("[FilterContext] Fetched channels from DB:", res.data);
+                setChannels(res.data);
+                // Keep current selection if still valid, otherwise select first non-All
+                setSelectedChannel(prev => {
+                    const validChannels = res.data.filter(c => c !== 'All');
+                    if (validChannels.includes(prev)) return prev;
+                    return validChannels.length > 0 ? validChannels[0] : 'All';
+                });
+            } else {
+                setChannels(FALLBACK_CHANNELS);
+            }
+        } catch (err) {
+            console.warn("[FilterContext] Failed to fetch channels, using fallback:", err.message);
+            setChannels(FALLBACK_CHANNELS);
         }
     }, [isAuthenticated]);
 
     useEffect(() => {
-        refreshDates();
-    }, [refreshDates]);
-
-    // ====== FETCH CHANNELS FROM DB (on mount) ======
-    useEffect(() => {
-        const fetchChannels = async () => {
-            if (!isAuthenticated) return;
-            try {
-                const res = await axiosInstance.get("/watchtower/channels");
-                if (res.data && Array.isArray(res.data) && res.data.length > 0) {
-                    console.log("[FilterContext] Fetched channels from DB:", res.data);
-                    setChannels(res.data);
-                    // Keep current selection if still valid, otherwise select first non-All
-                    setSelectedChannel(prev => {
-                        const validChannels = res.data.filter(c => c !== 'All');
-                        if (validChannels.includes(prev)) return prev;
-                        return validChannels.length > 0 ? validChannels[0] : 'All';
-                    });
-                } else {
-                    setChannels(FALLBACK_CHANNELS);
-                }
-            } catch (err) {
-                console.warn("[FilterContext] Failed to fetch channels, using fallback:", err.message);
-                setChannels(FALLBACK_CHANNELS);
-            }
-        };
         fetchChannels();
-    }, [isAuthenticated]);
+    }, [fetchChannels]);
 
     const prevChannelRef = useRef(selectedChannel);
 
@@ -219,11 +274,14 @@ export const FilterProvider = ({ children }) => {
                     const newCategories = res.data.categories || [];
                     const newChannels = res.data.channels || [];
                     const newLocations = res.data.locations || [];
+                    const newPlatformMetadata = res.data.platformMetadata || [];
 
                     if (newPlatforms.length > 0) setPlatforms(newPlatforms);
                     if (newCategories.length > 0) setCategories(newCategories);
                     if (newChannels.length > 0) setChannels(newChannels);
                     if (newLocations.length > 0) setLocations(newLocations);
+                    // Update platform metadata with icons sourced from rb_ms_olap platforms
+                    if (newPlatformMetadata.length > 0) setPlatformMetadata(newPlatformMetadata);
 
                     // Validate current platform selection
                     setPlatform(prev => {
@@ -252,6 +310,44 @@ export const FilterProvider = ({ children }) => {
                         return valid.length === 1 ? valid[0] : valid;
                     });
                 }
+            } else if (window.location.hash.includes('/visibility-analysis')) {
+                console.log("[FilterContext] Fetching Visibility Analysis dynamic filters for channel:", selectedChannel);
+                
+                // Fetch platforms specifically for Visibility Analysis
+                const platRes = await axiosInstance.get("/visibility-analysis/filter-options", {
+                    params: { 
+                        filterType: 'platforms', 
+                        channel: selectedChannel === "All" ? undefined : selectedChannel 
+                    }
+                });
+
+                if (platRes.data && platRes.data.options) {
+                    const newPlatforms = platRes.data.options;
+                    if (newPlatforms.length > 0) {
+                        setPlatforms(newPlatforms);
+                        // Validate current platform selection
+                        setPlatform(prev => {
+                            if (channelChanged) return newPlatforms[0];
+                            const currentList = Array.isArray(prev) ? prev : [prev];
+                            const valid = currentList.filter(p => newPlatforms.includes(p));
+                            if (valid.length === 0) return newPlatforms[0];
+                            return valid[0];
+                        });
+                    }
+                }
+
+                // IMPORTANT: Fetch channels specifically for Visibility Analysis to ensure they refresh 
+                // when switching from other restricted pages (like Market Share)
+                const chanRes = await axiosInstance.get("/visibility-analysis/filter-options", {
+                    params: { filterType: 'channels' }
+                });
+                if (chanRes.data && chanRes.data.options) {
+                    const newChannels = chanRes.data.options;
+                    if (newChannels.length > 0) {
+                        console.log("[FilterContext] Refreshed channels for Visibility Analysis:", newChannels);
+                        setChannels(newChannels);
+                    }
+                }
             } else if (window.location.hash.includes('/content-analysis')) {
                 const res = await axiosInstance.get("/content-analysis/platforms");
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
@@ -270,6 +366,9 @@ export const FilterProvider = ({ children }) => {
                     setPlatform(FALLBACK_PLATFORMS[0]);
                 }
             } else {
+                // Refresh channels for other pages to clear any restricted lists (like from Market Share)
+                fetchChannels();
+                
                 const res = await axiosInstance.get("/watchtower/platforms", {
                     params: { channel: selectedChannel === "All" ? undefined : selectedChannel }
                 });
@@ -295,16 +394,19 @@ export const FilterProvider = ({ children }) => {
         } finally {
             setPlatformsFetched(true);
         }
-    }, [isAuthenticated, selectedChannel]);
+    }, [isAuthenticated, selectedChannel, fetchChannels]);
 
     useEffect(() => {
         fetchPlatformsFromDb();
-    }, [fetchPlatformsFromDb, currentHash]);
+    }, [fetchPlatformsFromDb, currentPath]);
 
     // ====== FETCH PLATFORM METADATA (IMAGES) FROM DB ======
     useEffect(() => {
         const fetchPlatformMetadata = async () => {
             if (!isAuthenticated) return;
+            // Skip watchtower metadata fetch on Market Share page — it provides its own metadata
+            const isMarketShare = window.location.hash.includes('/market-share');
+            if (isMarketShare) return;
             try {
                 const res = await axiosInstance.get("/watchtower/platform-metadata");
                 if (res.data && Array.isArray(res.data)) {
@@ -316,7 +418,7 @@ export const FilterProvider = ({ children }) => {
             }
         };
         fetchPlatformMetadata();
-    }, [isAuthenticated]);
+    }, [isAuthenticated, currentPath]);
 
     // refreshFilters — can be called by child components to re-fetch filter options
     const refreshFilters = useCallback(() => {
@@ -342,8 +444,8 @@ export const FilterProvider = ({ children }) => {
                         if (prevCat === "All") return "All";
                         const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
                         const validList = currentList.filter(c => cats.includes(c));
-                        if (validList.length === 0) return "All";
-                        if (validList.length === cats.length) return "All";
+                        if (validList.length === 0) return (Array.isArray(prevCat) && prevCat.length === 0) ? [] : "All";
+                        if (validList.length === cats.length && cats.length > 0) return "All";
                         return validList.length === 1 ? validList[0] : validList;
                     });
                 } else {
@@ -400,8 +502,8 @@ export const FilterProvider = ({ children }) => {
                         if (prevCat !== "All") {
                             const currentList = Array.isArray(prevCat) ? prevCat : [prevCat];
                             const validList = currentList.filter(c => cats.includes(c));
-                            if (validList.length === 0) return "All";
-                            if (validList.length === cats.length) return "All";
+                            if (validList.length === 0) return (Array.isArray(prevCat) && prevCat.length === 0) ? [] : "All";
+                            if (validList.length === cats.length && cats.length > 0) return "All";
                             return validList.length === 1 ? validList[0] : validList;
                         }
                         return prevCat;
@@ -438,8 +540,8 @@ export const FilterProvider = ({ children }) => {
                         if (prevLoc !== "All") {
                             const currentList = Array.isArray(prevLoc) ? prevLoc : [prevLoc];
                             const validList = currentList.filter(l => locs.includes(l));
-                            if (validList.length === 0) return "All";
-                            if (validList.length === locs.length) return "All";
+                            if (validList.length === 0) return (Array.isArray(prevLoc) && prevLoc.length === 0) ? [] : "All";
+                            if (validList.length === locs.length && locs.length > 0) return "All";
                             return validList.length === 1 ? validList[0] : validList;
                         }
                         return prevLoc;
@@ -476,16 +578,16 @@ export const FilterProvider = ({ children }) => {
                             const currentList = Array.isArray(prevBrand) ? prevBrand : [prevBrand];
                             const validList = currentList.filter(b => res.data.includes(b));
                             if (validList.length === 0) {
-                                return res.data[0]; // fallback to first valid brand
+                                return (Array.isArray(prevBrand) && prevBrand.length === 0) ? [] : "All"; 
                             } else {
-                                return validList.length === 1 ? validList[0] : validList;
+                                return (validList.length === res.data.length && res.data.length > 0) ? "All" : (validList.length === 1 ? validList[0] : validList);
                             }
                         }
                         return prevBrand;
                     });
                 } else {
                     setBrands(FALLBACK_BRANDS);
-                    setSelectedBrand(FALLBACK_BRANDS[0]);
+                    setSelectedBrand("All");
                 }
             } catch (err) {
                 console.warn("[FilterContext] Failed to fetch brands, using fallback:", err.message);
@@ -519,7 +621,8 @@ export const FilterProvider = ({ children }) => {
                     setSelectedKeyword(prev => {
                         if (prev.includes("All")) return ["All"];
                         const valid = prev.filter(k => fetchedKeywords.includes(k));
-                        return valid.length > 0 ? valid : ["All"];
+                        if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : ["All"];
+                        return valid;
                     });
                 } else {
                     setKeywords([]);
@@ -554,7 +657,8 @@ export const FilterProvider = ({ children }) => {
                     setSelectedKeywordType(prev => {
                         if (prev.includes("All")) return ["All"];
                         const valid = prev.filter(k => fetchedKeywordTypes.includes(k));
-                        return valid.length > 0 ? valid : ["All"];
+                        if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : ["All"];
+                        return valid;
                     });
                 } else {
                     setKeywordTypes([]);
@@ -599,6 +703,8 @@ export const FilterProvider = ({ children }) => {
             setTimeStart,
             timeEnd,
             setTimeEnd,
+            userSetDate,
+            setUserSetDate,
             compareStart,
             setCompareStart,
             compareEnd,
@@ -637,7 +743,9 @@ export const FilterProvider = ({ children }) => {
             selectedPincode,
             setSelectedPincode,
             visibilityMode,
-            setVisibilityMode
+            setVisibilityMode,
+            selectedRank,
+            setSelectedRank
         }}>
             {children}
         </FilterContext.Provider>

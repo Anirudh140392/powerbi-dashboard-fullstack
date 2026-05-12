@@ -1,22 +1,39 @@
-import { createClient } from '@clickhouse/client';
-import dotenv from 'dotenv';
-dotenv.config();
-
-const clickhouse = createClient({
-    url: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
-    username: process.env.CLICKHOUSE_USER || 'default',
-    password: process.env.CLICKHOUSE_PASSWORD || '',
-    database: process.env.CLICKHOUSE_DB || 'mars'
+const { ClickHouse } = require('clickhouse');
+const ch = new ClickHouse({
+    url: 'http://localhost',
+    port: 8123,
+    debug: false,
+    basicAuth: null,
+    isUseGzip: false,
+    format: "json", 
 });
 
-async function run() {
+const query = async (sql) => {
+    return new Promise((resolve, reject) => {
+        ch.query(sql).exec((err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+};
+
+(async () => {
     try {
-        const rs = await clickhouse.query({ query: "DESCRIBE TABLE rb_product_verify", format: 'JSON' });
-        const data = await rs.json();
-        console.log("Columns:", data.data.map(d => d.name).join(", "));
+        console.log("Checking tables...");
+        const tables = await query("SHOW TABLES LIKE '%mamaearth%'");
+        console.log(tables);
+        
+        console.log("Checking columns for mamaearth rb_ms_olap...");
+        const cols = await query("DESCRIBE mamaearth_rb_ms_olap");
+        const deliveryCols = cols.filter(c => c.name.toLowerCase().includes('delivery'));
+        console.log("Delivery cols:", deliveryCols);
+
+        if (deliveryCols.length > 0) {
+            console.log("Sample delivery data:");
+            const data = await query(`SELECT delivery_date, count(*) as count FROM mamaearth_rb_ms_olap WHERE DATE >= today() - 30 GROUP BY delivery_date ORDER BY count DESC LIMIT 5`);
+            console.log(data);
+        }
     } catch (e) {
-        console.error(e.message);
+        console.error(e);
     }
-    process.exit(0);
-}
-run();
+})();

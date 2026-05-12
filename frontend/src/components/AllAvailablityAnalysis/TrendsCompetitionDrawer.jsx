@@ -528,7 +528,6 @@ const MetricChip = ({ label, color, active, onClick, isNA }) => {
 // Map metric IDs to their data source group for N/A detection
 const KPI_SOURCE_MAP = {
   // PDP table KPIs
-  Offtakes: 'pdp', Offtake: 'pdp', offtake: 'pdp',
   Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
   'Promo-My': 'pdp', PromoMyBrand: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
@@ -1472,9 +1471,9 @@ export default function TrendsCompetitionDrawer({
               default: false,
             },
             {
-              id: "Offtake",
-              label: "Offtake",
-              color: "#F59E0B",
+              id: "ASP",
+              label: "Avg Selling Price (₹)",
+              color: "#8B5CF6",
               axis: "left",
               default: false,
             },
@@ -1505,7 +1504,6 @@ export default function TrendsCompetitionDrawer({
             { id: "Discount", label: "Promo-My %", color: "#6366F1", default: true },
             { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
-            { id: "Offtake", label: "Offtake", color: "#F59E0B", default: false },
           ],
           x: COMPARE_X,
           trendsBySku: {
@@ -1650,13 +1648,6 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
 
           metrics: [
-            {
-              id: "Offtake",
-              label: "Offtake",
-              color: "#2563EB",
-              axis: "left",
-              default: true,
-            },
             {
               id: "Spend",
               label: "Spend",
@@ -1857,7 +1848,6 @@ export default function TrendsCompetitionDrawer({
           ].map((p, idx) => ({
             ...p,
             Discount: applyVar(p.Discount || p.PromoMyBrand || 10, idx),
-            Offtake: applyVar(p.Offtake || p.Offtakes, idx),
             Spend: applyVar(p.Spend, idx),
             ROAS: applyVar(p.ROAS, idx),
             InorgSales: applyVar(p.InorgSales, idx),
@@ -1882,12 +1872,6 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Weekly",
 
           metrics: [
-            {
-              id: "Offtake",
-              label: "Offtake",
-              color: "#2563EB",
-              default: true,
-            },
             { id: "Spend", label: "Spend", color: "#DC2626", default: true },
             { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
             { id: "CategoryShare", label: "Category Share", color: "#EC4899" },
@@ -1938,7 +1922,6 @@ export default function TrendsCompetitionDrawer({
               },
             ].map(p => ({
               ...p,
-              Offtake: applyVar(p.Offtake || p.Offtakes),
               Spend: applyVar(p.Spend),
               ROAS: applyVar(p.ROAS),
               CategoryShare: applyVar(p.CategoryShare),
@@ -2105,7 +2088,7 @@ export default function TrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const formatTooltipValue = (val, seriesName) => {
-    if (val === undefined || val === null) return 'N/A';
+    if (val === undefined || val === null || val === 0 || val === "0") return 'N/A';
     let formatted = val;
     if (typeof val === 'number') {
       const absVal = Math.abs(val);
@@ -2123,7 +2106,7 @@ export default function TrendsCompetitionDrawer({
     if (seriesName.includes('%') || seriesName.toLowerCase().includes('rate')) {
       return `${formatted}%`;
     }
-    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales') || seriesName.toLowerCase().includes('offtake')) {
+    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales')) {
       return `₹ ${formatted}`;
     }
     return formatted;
@@ -2131,11 +2114,8 @@ export default function TrendsCompetitionDrawer({
 
   const createTooltipFormatter = (params) => {
     if (!params || !params.length) return '';
-    // Filter out series whose value is null (unavailable KPIs) — only show visible lines
-    const visibleParams = params.filter(p => p.value !== null && p.value !== undefined);
-    if (!visibleParams.length) return '';
-    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${visibleParams[0].axisValue}</div>`;
-    visibleParams.forEach(param => {
+    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${params[0].axisValue}</div>`;
+    params.forEach(param => {
       const formattedValue = formatTooltipValue(param.value, param.seriesName);
       html += `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px;">

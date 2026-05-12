@@ -371,6 +371,22 @@ export function AggregatedViewTable() {
     const [expandedRows, setExpandedRows] = useState(new Set());
     const [periodComparison, setPeriodComparison] = useState(null);
     const [isPeriodPanelOpen, setIsPeriodPanelOpen] = useState(false);
+    const [pmPlatforms, setPmPlatforms] = useState([]);
+    const [localPlatformFilter, setLocalPlatformFilter] = useState("All");
+
+    useEffect(() => {
+        const fetchPmPlatforms = async () => {
+            const res = await authGet('/api/watchtower/pm-platforms');
+            if (res.success && res.data && res.data.length > 0) {
+                const validPlatforms = res.data.filter(p => p !== "All");
+                setPmPlatforms(validPlatforms);
+                // Set default to first valid platform
+                setLocalPlatformFilter(validPlatforms[0]);
+            }
+        };
+        fetchPmPlatforms();
+    }, []);
+
     const [selectedPeriods, setSelectedPeriods] = useState([
         { key: "last_week", label: "Last Week", type: "preset" },
         { key: "mtd", label: "MTD", type: "preset" },
@@ -401,7 +417,11 @@ export function AggregatedViewTable() {
             const params = new URLSearchParams();
             if (accountId) params.set("platform_account_id", accountId);
             if (companyId) params.set("company_id", companyId);
-            if (filters.platform?.length > 0 && !filters.platform.includes("all") && !filters.platform.includes("All")) {
+
+            if (localPlatformFilter && localPlatformFilter !== "All") {
+                params.set("platform", localPlatformFilter);
+                params.set("platform_uuid", localPlatformFilter);
+            } else if (filters.platform?.length > 0 && !filters.platform.includes("all") && !filters.platform.includes("All")) {
                 params.set("platform_uuid", filters.platform.join(","));
             }
             
@@ -477,7 +497,7 @@ export function AggregatedViewTable() {
                 setLoading(false);
             }
         }
-    }, [groupBy, filters, selectedPeriods, selectedChannel]);
+    }, [groupBy, filters, selectedPeriods, selectedChannel, localPlatformFilter]);
     // DO NOT ADD fetchOptions or objects to dependencies that change on render
 
     useEffect(() => {
@@ -506,6 +526,20 @@ export function AggregatedViewTable() {
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
 
+
+                        {/* PM Platform Filter */}
+                        <div className="relative">
+                            <select
+                                value={localPlatformFilter}
+                                onChange={(e) => { setLocalPlatformFilter(e.target.value); setCurrentPage(1); }}
+                                className={`px-4 py-2 pr-8 rounded-xl border text-sm font-medium transition-all appearance-none cursor-pointer ${darkMode ? "bg-slate-700/50 border-slate-600 hover:bg-slate-700 text-white" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-900"}`}
+                            >
+                                {pmPlatforms.map(p => (
+                                    <option key={p} value={p}>{p}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-slate-400" />
+                        </div>
 
                         <PeriodComparisonPanel selectedPeriods={selectedPeriods} onPeriodsChange={setSelectedPeriods} isOpen={isPeriodPanelOpen} onToggle={() => setIsPeriodPanelOpen(!isPeriodPanelOpen)} />
                         {untagged && untagged.percent > 0 && (<div className={`px-3 py-1.5 rounded-full text-xs font-medium ${darkMode ? "bg-amber-500/10 text-amber-400" : "bg-amber-50 text-amber-700"}`}>{untagged.percent.toFixed(1)}% untagged</div>)}

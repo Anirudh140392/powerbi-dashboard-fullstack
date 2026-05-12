@@ -36,6 +36,7 @@ import {
   Psychology as InterpretationIcon,
   EmojiObjects as ExampleIcon,
   Calculate as LogicIcon,
+  InfoOutlined as InfoIcon,
 } from "@mui/icons-material";
 
 import { useHelp } from "../../utils/HelpContext";
@@ -81,6 +82,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Not fixing shelf size; ignoring rank importance.",
       example: "4 SKUs in top 10 → 40%.",
       logic: "(Brand SKUs in Top N ÷ N) × 100",
+      info: "• By default, SOS across the dashboard is calculated using Top 10 positions (POSITION ≤ 10).\n• To analyze SOS for Top 20, Top 30, or Top 40, use the rank filter available on the Visibility page.\n• Unless another rank bucket is selected in Visibility, all other pages will continue showing SOS values based on Top 10 results.",
     },
     {
       kpi: "Market Share",
@@ -543,7 +545,7 @@ const HelpDrawer = ({ userDbName }) => {
           <Typography variant="caption" fontWeight="700" sx={{ color: textColor, textTransform: "uppercase", display: "block", mb: 0.5 }}>
             {title}
           </Typography>
-          <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.775rem", lineHeight: 1.5 }}>
+          <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.775rem", lineHeight: 1.5, whiteSpace: "pre-line" }}>
             {text}
           </Typography>
         </Box>
@@ -853,6 +855,14 @@ const HelpDrawer = ({ userDbName }) => {
                               bgColor="#f0fdf4"
                               borderColor="#bbf7d0"
                               textColor="#15803d"
+                            />
+                            <GlossarySection
+                              title="Info"
+                              text={item.info}
+                              icon={<InfoIcon fontSize="small" />}
+                              bgColor="#eff6ff"
+                              borderColor="#bfdbfe"
+                              textColor="#1d4ed8"
                             />
                           </Box>
                         </Collapse>

@@ -554,7 +554,7 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                                                 <Box sx={{ width: `${kpi.organicPct}%`, height: '100%', bgcolor: '#22c55e', borderRadius: 2 }} />
                                             </Box>
                                         )}
-                                        <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '10px', textAlign: 'right' }}>
+                                        <Typography variant="caption" sx={{ fontSize: '10px', textAlign: 'right', color: '#ffffff', fontWeight: 500 }}>
                                             {kpi.organicPct != null ? `${kpi.organicPct.toFixed(1)}% of total` : ''}
                                         </Typography>
 
@@ -574,12 +574,12 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                                                 <Box sx={{ width: `${kpi.inorganicPct}%`, height: '100%', bgcolor: '#f59e0b', borderRadius: 2 }} />
                                             </Box>
                                         )}
-                                        <Typography variant="caption" sx={{ opacity: 0.7, fontSize: '10px', textAlign: 'right' }}>
+                                        <Typography variant="caption" sx={{ fontSize: '10px', textAlign: 'right', color: '#ffffff', fontWeight: 500 }}>
                                             {kpi.inorganicPct != null ? `${kpi.inorganicPct.toFixed(1)}% of total` : ''}
                                         </Typography>
                                     </Box>
-                                    <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.15)' }}>
-                                        <Typography variant="caption" sx={{ fontStyle: 'italic', opacity: 0.8, fontSize: '10px', color: '#94a3b8' }}>
+                                    <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.25)' }}>
+                                        <Typography variant="caption" sx={{ fontStyle: 'italic', fontSize: '10.5px', color: '#ffffff', fontWeight: 500 }}>
                                             * Organic Sales = Offtake - Inorganic Sales
                                         </Typography>
                                     </Box>
@@ -587,6 +587,20 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                             }
                             arrow
                             placement="top"
+                            slotProps={{
+                                tooltip: {
+                                    sx: {
+                                        bgcolor: '#1e293b',
+                                        color: '#ffffff',
+                                        borderRadius: '10px',
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                        maxWidth: 300,
+                                        px: 1.5,
+                                        py: 1,
+                                    }
+                                },
+                                arrow: { sx: { color: '#1e293b' } }
+                            }}
                         >
                             <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help" />
                         </Tooltip>
@@ -625,7 +639,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-slate-100/40 to-transparent rounded-full translate-y-6 -translate-x-6" />
 
                 <div className="px-5 pt-5 pb-3 flex-1 relative z-10">
-                    <div className="flex items-center gap-1.5 mb-3">
+                    <div className="flex items-center justify-between gap-1.5 mb-3">
                         <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
                         {kpi.infoTooltip && (
                             <Tooltip
@@ -680,6 +694,16 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
         );
     }
 
+    const chartData = useMemo(() => {
+        if (!kpi.trendSeries) return [];
+        return kpi.trendSeries.map((item, i) => {
+            if (typeof item === 'object' && item !== null) {
+                return { i, v: item.value, label: item.label };
+            }
+            return { i, v: item, label: `Day ${i + 1}` };
+        });
+    }, [kpi.trendSeries]);
+
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";
     const deltaIcon = isPositive ? "▲" : "▼";
@@ -691,7 +715,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
     return (
         <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
             <div className="px-5 pt-5 pb-3 flex-1">
-                <div className="flex items-center gap-1.5 mb-1">
+                <div className="flex items-center justify-between gap-1.5 mb-1">
                     <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
                     {kpi.infoTooltip && (
                         <Tooltip
@@ -798,7 +822,7 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
             {/* Sparkline Area */}
             <div className="h-16 w-full px-0 mt-auto opacity-80 group-hover:opacity-100 transition-opacity">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={kpi.trendSeries?.map((v, i) => ({ i, v })) || []} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                    <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
@@ -806,10 +830,16 @@ const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
                             </linearGradient>
                         </defs>
                         <RechartsTooltip 
-                            contentStyle={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', minWidth: 'auto', border: 'none', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
-                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB" }}
-                            labelStyle={{ display: 'none' }}
+                            contentStyle={{ fontSize: '10px', padding: '4px 8px', borderRadius: '8px', minWidth: 'auto', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB", fontWeight: 'bold' }}
+                            labelStyle={{ fontSize: '10px', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}
                             cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
+                            labelFormatter={(label, payload) => {
+                                if (payload && payload.length > 0 && payload[0].payload.label) {
+                                    return payload[0].payload.label;
+                                }
+                                return label;
+                            }}
                             formatter={(value) => {
                                 if (typeof value !== 'number') return [value, ''];
                                 let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
@@ -924,7 +954,8 @@ const SnapshotOverview = ({
                 deltaLabel: sosItem.tag,
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
-                trendSeries: makeSeries(35, 30, 0.12, seed)
+                trendSeries: makeSeries(35, 30, 0.12, seed),
+                infoTooltip: "Share of Search is calculated based on Top 10 rank positions."
             } : {
                 id: 'sos_top_loading',
                 title: 'Share of Search',
