@@ -173,6 +173,12 @@ export default function NotificationScroller() {
   }, []);
 
   useEffect(() => {
+    if (alertMessages.length > 0) {
+      console.log(`[NotificationScroller] 🔔 Active alerts for ${pageName}:`, alertMessages);
+    }
+  }, [alertMessages, pageName]);
+
+  useEffect(() => {
     const timer = setTimeout(measure, 100);
     window.addEventListener("resize", measure);
     return () => {
