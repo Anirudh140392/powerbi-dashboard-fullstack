@@ -35,10 +35,17 @@ export function SocketProvider({ children }) {
     }
 
     // Determine backend URL — same as the API but without /api path
-    const backendUrl =
+    let backendUrl =
       import.meta.env.VITE_SOCKET_URL ||
       import.meta.env.VITE_API_URL ||
       window.location.origin;
+
+    // If it ends with /api, strip it for the socket connection
+    if (backendUrl.endsWith("/api")) {
+      backendUrl = backendUrl.slice(0, -4);
+    }
+
+    console.log("[Socket] 🔌 Connecting to:", backendUrl);
 
     const socket = io(backendUrl, {
       auth: { token },
