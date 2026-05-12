@@ -65,7 +65,10 @@ export default function AvailablityAnalysis() {
 
     // Sync back to FilterContext to update global header
     if (newFilters.platform && newFilters.platform !== platform) {
-      setPlatform(newFilters.platform);
+      const platformVal = Array.isArray(newFilters.platform) ? newFilters.platform[0] : newFilters.platform;
+      if (typeof platformVal === 'string') {
+        setPlatform(platformVal);
+      }
     }
     if (newFilters.location && newFilters.location !== selectedLocation) {
       setSelectedLocation(newFilters.location);
