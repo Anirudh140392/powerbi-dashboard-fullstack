@@ -518,7 +518,15 @@ const Sidebar = ({
           width: '100%',
           borderBottom: isCollapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.08)',
         }}>
-          {channels.filter(ch => ch !== 'All').map((ch) => {
+          {channels.filter(ch => ch !== 'All').sort((a, b) => {
+            const getOrder = (ch) => {
+              const lower = ch.toLowerCase();
+              if (lower === 'quickcomm' || lower === 'quick commerce') return 1;
+              if (lower === 'ecommerce' || lower === 'ecom') return 2;
+              return 3;
+            };
+            return getOrder(a) - getOrder(b);
+          }).map((ch) => {
             const isSelected = selectedChannel === ch;
             let displayLabel = ch;
             if (ch.toLowerCase() === 'quickcomm' || ch.toLowerCase() === 'quick commerce') displayLabel = 'QComm';
