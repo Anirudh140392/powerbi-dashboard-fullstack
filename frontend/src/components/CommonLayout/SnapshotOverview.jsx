@@ -261,6 +261,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1", helpMen
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
+                    position: 'relative',
                     transition: "all 300ms ease",
                     cursor: 'pointer',
                     "&:hover": {
@@ -276,7 +277,9 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1", helpMen
                         <Typography sx={{ fontSize: "10px", fontWeight: 600, color: "text.secondary", tracking: '0.01em' }}>
                             {kpi.label || kpi.title}
                         </Typography>
-                        {kpi.infoTooltip && (
+                    </div>
+                    {kpi.infoTooltip && (
+                        <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
                             <Tooltip
                                 title={
                                     <Box>
@@ -329,8 +332,8 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1", helpMen
                                     <Info size={12} color="#94a3b8" strokeWidth={2} />
                                 </span>
                             </Tooltip>
-                        )}
-                    </div>
+                        </Box>
+                    )}
                 </Box>
 
                 <div className="flex items-end justify-between w-full mb-0.5">
@@ -445,6 +448,7 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start',
+                    position: 'relative',
                     transition: "all 400ms cubic-bezier(0.4, 0, 0.2, 1)",
                     cursor: 'pointer',
                     "&:hover": {
@@ -471,6 +475,60 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                         <DeltaIcon size={12} strokeWidth={2.5} />
                         <span className="text-[14px] font-bold">{deltaLabel}</span>
                     </div>
+
+                    {kpi.infoTooltip && (
+                        <div className="absolute top-4 right-4 z-10">
+                            <Tooltip
+                                title={
+                                    <Box>
+                                        <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                            {kpi.infoTooltip}
+                                        </Typography>
+                                        <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: '#60a5fa',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 600,
+                                                    fontSize: '11px',
+                                                    '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                                }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                                }}
+                                            >
+                                                Learn more →
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                }
+                                arrow
+                                placement="top"
+                                enterDelay={200}
+                                leaveDelay={100}
+                                slotProps={{
+                                    tooltip: {
+                                        sx: {
+                                            bgcolor: '#1e293b',
+                                            color: '#f8fafc',
+                                            borderRadius: '10px',
+                                            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                            maxWidth: 300,
+                                            px: 1.5,
+                                            py: 1,
+                                        }
+                                    },
+                                    arrow: { sx: { color: '#1e293b' } }
+                                }}
+                            >
+                                <span className="flex items-center cursor-help ml-0.5" onClick={(e) => e.stopPropagation()}>
+                                    <Info size={14} color="#94a3b8" strokeWidth={2} />
+                                </span>
+                            </Tooltip>
+                        </div>
+                    )}
                 </div>
 
                 <Typography sx={{ fontSize: "1.75rem", fontWeight: 700, color: "#111827", lineHeight: 1, mb: 1, tracking: '-0.02em' }}>
@@ -481,57 +539,6 @@ const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
                     <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
                         {kpi.title}
                     </Typography>
-                    {kpi.infoTooltip && (
-                        <Tooltip
-                            title={
-                                <Box>
-                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
-                                        {kpi.infoTooltip}
-                                    </Typography>
-                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
-                                        <Typography
-                                            variant="caption"
-                                            sx={{
-                                                color: '#60a5fa',
-                                                cursor: 'pointer',
-                                                fontWeight: 600,
-                                                fontSize: '11px',
-                                                '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
-                                            }}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openHelpWithMenu(helpMenu || 'Visibility Analysis');
-                                            }}
-                                        >
-                                            Learn more →
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            }
-                            arrow
-                            placement="top"
-                            enterDelay={200}
-                            leaveDelay={100}
-                            slotProps={{
-                                tooltip: {
-                                    sx: {
-                                        bgcolor: '#1e293b',
-                                        color: '#f8fafc',
-                                        borderRadius: '10px',
-                                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-                                        maxWidth: 300,
-                                        px: 1.5,
-                                        py: 1,
-                                    }
-                                },
-                                arrow: { sx: { color: '#1e293b' } }
-                            }}
-                        >
-                            <span className="flex items-center cursor-help ml-0.5" onClick={(e) => e.stopPropagation()}>
-                                <Info size={14} color="#94a3b8" strokeWidth={2} />
-                            </span>
-                        </Tooltip>
-                    )}
                     {kpi.id === 'offtake' && (kpi.organicSales || kpi.inorganicSales) && (
                         <Tooltip
                             title={
@@ -955,7 +962,7 @@ const SnapshotOverview = ({
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
                 trendSeries: makeSeries(35, 30, 0.12, seed),
-                infoTooltip: "Share of Search is calculated based on Top 10 rank positions."
+                infoTooltip: sosItem.infoTooltip || "Share of Search is calculated based on Top 10 rank positions.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM."
             } : {
                 id: 'sos_top_loading',
                 title: 'Share of Search',
@@ -981,15 +988,21 @@ const SnapshotOverview = ({
         // --- Bottom Row Logic ---
 
         // 1. Inorganic Sales
-        const inorganicItem = kpis.find(k => normalize(k.title) === 'inorganic_sales');
+        let inorganicItem = kpis.find(k => normalize(k.title) === 'inorganic_sales');
+        if (!inorganicItem) inorganicItem = { title: 'Inorganic Sales', id: 'inorganic_sales' };
+        inorganicItem.infoTooltip = inorganicItem.infoTooltip || "Sales generated through paid channels, including advertisements and sponsored placements.\n\nData Refresh: Sales data is typically updated daily and available by 2:00 PM.";
         const inorganicPerf = performanceData.find(p => p.id === 'inorganic') || {};
 
         // 2. Conversion
-        const conversionItem = kpis.find(k => normalize(k.title) === 'conversion') || { title: 'Conversion', id: 'conversion' };
+        let conversionItem = kpis.find(k => normalize(k.title) === 'conversion');
+        if (!conversionItem) conversionItem = { title: 'Conversion', id: 'conversion' };
+        conversionItem.infoTooltip = conversionItem.infoTooltip || "The rate at which user interactions (such as clicks or views) result in a purchase.";
         const conversionPerf = performanceData.find(p => p.id === 'conversion') || { id: 'conversion' };
 
         // 3. ROAS
-        const roasItem = kpis.find(k => normalize(k.title) === 'roas');
+        let roasItem = kpis.find(k => normalize(k.title) === 'roas');
+        if (!roasItem) roasItem = { title: 'ROAS', id: 'roas' };
+        roasItem.infoTooltip = roasItem.infoTooltip || "The revenue generated for every unit of advertising spend.";
         const roasPerf = performanceData.find(p => p.id === 'roas_new') || {};
 
         // Helper to check for zero/empty
@@ -1011,6 +1024,7 @@ const SnapshotOverview = ({
                 icon: icon,
                 gradient: gradient,
                 subtitle: footer,
+                infoTooltip: baseItem?.infoTooltip,
                 organicSales: baseItem?.organicSales || perfItem?.organicSales,
                 trendSeries: makeSeries(50 + idx * 5, 30, 0.1, seed)
             };
@@ -1051,6 +1065,7 @@ const SnapshotOverview = ({
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
             subtitle: ordersItem?.footer || ordersPerf?.footer || "Ad Quantity Sold",
+            infoTooltip: ordersItem?.infoTooltip || "The total number of completed purchase transactions within a given period.\n\nData Refresh: Sales data is typically updated daily and available by 2:00 PM.",
             trendSeries: makeSeries(45, 30, 0.14, seed)
         };
 

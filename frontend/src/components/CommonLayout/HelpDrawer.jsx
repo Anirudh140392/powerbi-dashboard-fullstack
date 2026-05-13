@@ -760,9 +760,19 @@ const HelpDrawer = ({ userDbName }) => {
 
           <Box sx={{ flex: 1, p: 3, overflowY: "auto" }}>
             <Box>
-              <Typography variant="body2" sx={{ mb: 2, p: 1.5, bgcolor: 'rgba(37, 99, 235, 0.05)', color: '#1e3a5f', borderRadius: '12px', border: '1px solid rgba(37, 99, 235, 0.15)' }}>
-                <Box component="span" sx={{ fontWeight: 600 }}>Note: </Box>
-                Overall Dashboard page data refresh is scheduled for 3:00 PM daily. Data currently displayed reflects records available up to Max(Date).
+              <Typography variant="body2" sx={{ mb: 2, p: 2, bgcolor: 'rgba(37, 99, 235, 0.05)', color: '#1e3a5f', borderRadius: '12px', border: '1px solid rgba(37, 99, 235, 0.15)' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <ScheduleIcon sx={{ fontSize: '1.1rem', color: '#2563eb' }} />
+                  <Typography variant="subtitle2" fontWeight="700">Data Refresh Schedule</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pl: 3.2 }}>
+                  <Typography variant="caption" sx={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    • <Box component="span" sx={{ fontWeight: 600 }}>Sales Data:</Box> Updated daily and available by 2:00 PM.
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    • <Box component="span" sx={{ fontWeight: 600 }}>Scraped Data:</Box> Refreshed daily and available by 10:00 AM.
+                  </Typography>
+                </Box>
               </Typography>
               <Box sx={{ display: 'grid', gap: 2 }}>
                 {["Business Overview", "India Overview", "Availability Analysis", "Market Share", "Visibility Analysis", "Performance Marketing"].includes(activeMenu) ? (
