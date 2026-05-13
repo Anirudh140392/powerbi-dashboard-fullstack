@@ -242,14 +242,11 @@ export default function NotificationScroller() {
     return alerts;
   }, [effectiveDates, maxDate, tableName]);
 
-  // Combine Page Info with active alerts
+  // Combine only active alerts for the marquee
   const message = useMemo(() => {
     if (alertMessages.length === 0) return "";
-    
-    const baseInfo = `${pageName}  •  Data Updated: ${formattedDate}`;
-    const alerts = alertMessages.join("  •  ");
-    return `${baseInfo}  •  ${alerts}`;
-  }, [pageName, formattedDate, alertMessages]);
+    return alertMessages.join("  •  ");
+  }, [alertMessages]);
 
   const highlightedHtml = useMemo(() => {
     if (!message) return "";
