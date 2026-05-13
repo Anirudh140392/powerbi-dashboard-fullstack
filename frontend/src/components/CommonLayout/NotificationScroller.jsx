@@ -219,14 +219,20 @@ export default function NotificationScroller() {
     }
 
     // --- Market Share Consolidated Missing Alert ---
-    const allPlatforms = effectiveDates?.rb_pdp_olap_platform;
+    // Only alert about platforms that HAVE historical MS data but are stale.
+    // Platforms that never existed in rb_ms_olap (e.g. Flipkart for some DBs) are excluded.
     const msPlatforms = effectiveDates?.rb_ms_olap_platform;
-    if (allPlatforms && Object.keys(allPlatforms).length > 0) {
-      const missingMsPlatforms = Object.keys(allPlatforms).filter(
-        (p) => !msPlatforms || !msPlatforms[p]
-      ).map(capitalize);
-      if (missingMsPlatforms.length > 0) {
-        const platformList = missingMsPlatforms.join(", ");
+    if (msPlatforms && Object.keys(msPlatforms).length > 0) {
+      const msThreshold = dayjs().subtract(7, "days");
+      const staleMsPlatforms = Object.entries(msPlatforms)
+        .filter(([, mDate]) => {
+          if (!mDate || mDate === "0000-00-00") return true;
+          const d = dayjs(mDate);
+          return d.isValid() && d.isBefore(msThreshold, "day");
+        })
+        .map(([platform]) => capitalize(platform));
+      if (staleMsPlatforms.length > 0) {
+        const platformList = staleMsPlatforms.join(", ");
         alerts.push(
           `⚠️ ${platformList} market share data at the selected level is not available`
         );
