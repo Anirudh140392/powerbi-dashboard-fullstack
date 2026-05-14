@@ -45,6 +45,7 @@ import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
 import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 
 /**
  * ---------------------------------------------------------------------------
@@ -61,7 +62,7 @@ const FilterDropdown = ({ title, value, options, onChange, searchable = true }) 
     setSearch("");
   };
 
-  const filteredOptions = searchable 
+  const filteredOptions = searchable
     ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
     : options;
 
@@ -93,8 +94,8 @@ const FilterDropdown = ({ title, value, options, onChange, searchable = true }) 
         {isActive ? (
           <Box display="flex" alignItems="center" gap={0.5}>
             {value}
-            <Box 
-              component="span" 
+            <Box
+              component="span"
               onClick={(e) => {
                 e.stopPropagation();
                 onChange("All");
@@ -150,15 +151,15 @@ const FilterDropdown = ({ title, value, options, onChange, searchable = true }) 
                   onChange(opt);
                   handleClose();
                 }}
-                sx={{ 
-                  fontSize: '13px', 
+                sx={{
+                  fontSize: '13px',
                   py: 0.75,
                   backgroundColor: value === opt ? "#F8FAFC" : "transparent"
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 32 }}>
-                  <Checkbox 
-                    checked={value === opt} 
+                  <Checkbox
+                    checked={value === opt}
                     icon={<Box sx={{ width: 14, height: 14, borderRadius: '4px', border: '1.5px solid #CBD5E1' }} />}
                     checkedIcon={<Box sx={{ width: 14, height: 14, borderRadius: '4px', bgcolor: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={10} color="white" style={{ transform: 'rotate(45deg)' }} /></Box>}
                     sx={{ p: 0 }}
@@ -733,14 +734,23 @@ export default function VisibilityTrendsCompetitionDrawer({
   selectedColumn,
   initialAudience,
 }) {
+  const { user } = useAuth();
+  const isSugarUser = user?.dbName === 'sugar';
+
   const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword, selectedRank } = useContext(FilterContext);
 
-  const [view, setView] = useState("Trends");
+  const [view, setView] = useState(isSugarUser ? "Trends" : "Trends"); // Default to Trends
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: "Platform", // default value
     },
   });
+
+  useEffect(() => {
+    if (isSugarUser && view === "Competition") {
+      setView("Trends");
+    }
+  }, [isSugarUser, view]);
   useLayoutEffect(() => {
     if (open) {
       const audienceToSet = initialAudience || "Platform";
@@ -949,7 +959,7 @@ export default function VisibilityTrendsCompetitionDrawer({
 
     fetchFilterOptions();
   }, [
-    open, 
+    open,
     selectedChannel,
     drawerFilters.Platform,
     drawerFilters.Format,
@@ -975,8 +985,8 @@ export default function VisibilityTrendsCompetitionDrawer({
           endDate: range === "Custom" && customEndDate ? customEndDate.format("YYYY-MM-DD") : undefined,
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
-          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') 
-            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase()) 
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India')
+            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase())
             : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
@@ -1032,7 +1042,7 @@ export default function VisibilityTrendsCompetitionDrawer({
     };
 
     const hasKeywordFilter = isNotAll(drawerFilters.Keyword) || isNotAll(drawerFilters.Keyword_Type);
-    
+
     if (hasKeywordFilter) {
       setActiveMetrics(prev => prev.filter(m => m !== "offtake"));
     } else {
@@ -1057,8 +1067,8 @@ export default function VisibilityTrendsCompetitionDrawer({
           period: '1M',
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
-          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') 
-            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase()) 
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India')
+            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase())
             : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
@@ -1157,14 +1167,14 @@ export default function VisibilityTrendsCompetitionDrawer({
 
     return {
       grid: { left: 60, right: 80, top: 32, bottom: 40 },
-      tooltip: { 
+      tooltip: {
         trigger: "axis",
         formatter: (params) => {
           let tooltipHtml = `<div style="font-weight:bold;margin-bottom:4px;">${params[0].name}</div>`;
           params.forEach((param) => {
             let val = param.value;
             let displayVal = 'N/A';
-            
+
             if (val !== null && val !== undefined && val !== 0 && val !== "0") {
               if (param.seriesName === "Offtake") {
                 displayVal = '₹' + Number(val).toLocaleString('en-IN');
@@ -1216,11 +1226,11 @@ export default function VisibilityTrendsCompetitionDrawer({
             fontSize: 11,
             formatter: hasOfftakeActive
               ? (val) => {
-                  if (val >= 10000000) return '₹' + (val / 10000000).toFixed(1) + 'Cr';
-                  if (val >= 100000) return '₹' + (val / 100000).toFixed(1) + 'L';
-                  if (val >= 1000) return '₹' + (val / 1000).toFixed(1) + 'K';
-                  return '₹' + val;
-                }
+                if (val >= 10000000) return '₹' + (val / 10000000).toFixed(1) + 'Cr';
+                if (val >= 100000) return '₹' + (val / 100000).toFixed(1) + 'L';
+                if (val >= 1000) return '₹' + (val / 1000).toFixed(1) + 'K';
+                return '₹' + val;
+              }
               : activeMetrics.includes('search_rank') ? '{value}' : '{value}%',
           },
         },
@@ -1353,7 +1363,9 @@ export default function VisibilityTrendsCompetitionDrawer({
             }}
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
-            <ToggleButton value="Competition">Competition</ToggleButton>
+            {!isSugarUser && (
+              <ToggleButton value="Competition">Competition</ToggleButton>
+            )}
             {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
@@ -1454,10 +1466,10 @@ export default function VisibilityTrendsCompetitionDrawer({
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={0}>
             {/* Title Block */}
-            <Typography 
-              variant="h5" 
-              fontWeight={800} 
-              sx={{ 
+            <Typography
+              variant="h5"
+              fontWeight={800}
+              sx={{
                 color: '#0f172a',
                 lineHeight: 1.2,
                 mb: 2,
@@ -1467,49 +1479,49 @@ export default function VisibilityTrendsCompetitionDrawer({
             </Typography>
 
             {/* HEADER FILTER CONTAINER */}
-            <Box 
-              display="flex" 
-              alignItems="center" 
-              justifyContent="space-between" 
-              flexWrap="wrap" 
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+              flexWrap="wrap"
               gap={2}
               mb={3}
             >
               {/* PRIMARY FILTERS */}
               <Box display="flex" alignItems="center" gap={1}>
-                <FilterDropdown 
-                  title="Platform" 
-                  value={drawerFilters.Platform} 
-                  options={PLATFORM_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, Platform: v}))} 
+                <FilterDropdown
+                  title="Platform"
+                  value={drawerFilters.Platform}
+                  options={PLATFORM_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Platform: v }))}
                 />
-                <FilterDropdown 
-                  title="Category" 
-                  value={drawerFilters.Format} 
-                  options={FORMAT_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, Format: v}))} 
+                <FilterDropdown
+                  title="Category"
+                  value={drawerFilters.Format}
+                  options={FORMAT_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Format: v }))}
                 />
-                <FilterDropdown 
-                  title="Brand" 
-                  value={drawerFilters.Brand} 
-                  options={BRAND_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, Brand: v}))} 
+                <FilterDropdown
+                  title="Brand"
+                  value={drawerFilters.Brand}
+                  options={BRAND_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Brand: v }))}
                 />
-                <FilterDropdown 
-                  title="City" 
-                  value={drawerFilters.City} 
-                  options={filterOptions.cities} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, City: v}))} 
+                <FilterDropdown
+                  title="City"
+                  value={drawerFilters.City}
+                  options={filterOptions.cities}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, City: v }))}
                 />
-                <FilterDropdown 
-                  title="Rank" 
-                  value={drawerFilters.rank} 
-                  options={RANK_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, rank: v}))} 
+                <FilterDropdown
+                  title="Rank"
+                  value={drawerFilters.rank}
+                  options={RANK_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, rank: v }))}
                   searchable={false}
                 />
-                
-                <Button 
+
+                <Button
                   onClick={() => setIsMoreFiltersOpen(prev => !prev)}
                   startIcon={<SlidersHorizontal size={14} />}
                   sx={{
@@ -1595,11 +1607,11 @@ export default function VisibilityTrendsCompetitionDrawer({
                     };
 
                     const hasKeywordFilter = isNotAll(drawerFilters.Keyword) || isNotAll(drawerFilters.Keyword_Type);
-                    
+
                     if (hasKeywordFilter && m.id === "offtake") {
                       return null;
                     }
-                    
+
                     const isDisabled = !hasKeywordFilter && m.id === "search_rank";
 
                     return (
@@ -1679,9 +1691,9 @@ export default function VisibilityTrendsCompetitionDrawer({
 
         {/* COMPETITION VIEW */}
         {view === "Competition" && (
-          <VisibilityPlatformOverviewKpiShowcase 
-            selectedPlatform={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (selectedColumn || selectedPlatform || 'All')} 
-            period={range === "Custom" ? "1M" : range} 
+          <VisibilityPlatformOverviewKpiShowcase
+            selectedPlatform={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (selectedColumn || selectedPlatform || 'All')}
+            period={range === "Custom" ? "1M" : range}
             timeStep={timeStep}
             externalCity={drawerFilters.City === 'All' ? 'All India' : drawerFilters.City}
             externalFilters={{
@@ -1887,7 +1899,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                   fullWidth
                   size="small"
                   value={drawerFilters.Keyword_Type}
-                  onChange={(e) => setDrawerFilters(prev => ({...prev, Keyword_Type: e.target.value}))}
+                  onChange={(e) => setDrawerFilters(prev => ({ ...prev, Keyword_Type: e.target.value }))}
                   sx={{
                     fontSize: "13px",
                     borderRadius: "8px",
@@ -1936,7 +1948,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                   }}
                 >
                   <Box
-                    onClick={() => setDrawerFilters(prev => ({...prev, Keyword: 'All'}))}
+                    onClick={() => setDrawerFilters(prev => ({ ...prev, Keyword: 'All' }))}
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1962,7 +1974,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                       return (
                         <Box
                           key={opt}
-                          onClick={() => setDrawerFilters(prev => ({...prev, Keyword: prev.Keyword === opt ? 'All' : opt}))}
+                          onClick={() => setDrawerFilters(prev => ({ ...prev, Keyword: prev.Keyword === opt ? 'All' : opt }))}
                           title={opt}
                           sx={{
                             display: 'flex',
@@ -2038,7 +2050,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                   }}
                 >
                   <Box
-                    onClick={() => setDrawerFilters(prev => ({...prev, SKU: 'All'}))}
+                    onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: 'All' }))}
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
@@ -2066,7 +2078,7 @@ export default function VisibilityTrendsCompetitionDrawer({
                       return (
                         <Box
                           key={opt}
-                          onClick={() => setDrawerFilters(prev => ({...prev, SKU: prev.SKU === opt ? 'All' : opt}))}
+                          onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: prev.SKU === opt ? 'All' : opt }))}
                           title={opt}
                           sx={{
                             display: 'flex',
@@ -2114,20 +2126,20 @@ export default function VisibilityTrendsCompetitionDrawer({
             </Box>
 
             <Box display="flex" justifyContent="flex-end" gap={2} pt={3} borderTop="1px solid #F1F5F9">
-              <Button 
+              <Button
                 onClick={() => setIsMoreFiltersOpen(false)}
                 variant="outlined"
                 sx={{ borderRadius: 2, textTransform: 'none', borderColor: '#E2E8F0', color: '#475569', minWidth: 90, fontSize: '13px' }}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={() => setIsMoreFiltersOpen(false)}
                 variant="contained"
-                sx={{ 
-                  borderRadius: 2, 
-                  textTransform: 'none', 
-                  boxShadow: 'none', 
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  boxShadow: 'none',
                   bgcolor: '#0F172A',
                   '&:hover': { bgcolor: '#1E293B', boxShadow: 'none' },
                   minWidth: 90,

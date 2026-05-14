@@ -97,6 +97,13 @@ const formatValue = (val, kpiLabel) => {
   const absVal = Math.abs(num);
   const l = (kpiLabel || "").toLowerCase();
 
+  // If it's an Organic Keyword SOS diagnostic trace, show absolute impression numbers (like Organic Impressions)
+  if (l.includes("organic") && l.includes("keyword") && l.includes("sos")) {
+    if (absVal >= 100000) return `${(num / 100000).toFixed(1)} lac`;
+    if (absVal >= 1000) return `${(num / 1000).toFixed(1)} K`;
+    return num.toLocaleString();
+  }
+
   // Delivery Time logic — format avg_delivery_days as human-readable text
   if (l === "delivery time") {
     const days = Math.round(num);
@@ -286,6 +293,17 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
 
   const isComingSoon = value && String(value).toLowerCase().includes("coming soon");
 
+  const fullKpiName = useMemo(() => {
+    let name = kpiLabel || "";
+    if (category === "ad") name = "Ad " + name;
+    else if (category === "organic") name = "Organic " + name;
+    
+    if (name.toLowerCase().includes("keyword") && !name.toLowerCase().includes("sos")) {
+        name += " SOS";
+    }
+    return name;
+  }, [kpiLabel, category]);
+
   // Ref to track if we've completed the initial discovery phase for this specific drilldown session
   const fetchKeyRef = useRef("");
 
@@ -307,10 +325,10 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
     if (isComingSoon) return [];
 
     const params = {
-      platform,
+      platform: (platform || '').toLowerCase(),
       categoryVal: category,
       category: context?.category || context?.categoryVal || 'All',
-      kpiCategory: kpiLabel,
+      kpiCategory: fullKpiName,
       drilldownLevel: level,
       drilldownId: parentId,
       activeTab: tabToFetch,
@@ -450,13 +468,13 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
     };
 
     rows.forEach(row => {
-      csv += `${escapeCSV(row.name)},${escapeCSV(formatValue(row.currentVal, kpiLabel))},${escapeCSV(formatValue(row.prevVal, kpiLabel))},${escapeCSV(row.change)}\n`;
+      csv += `${escapeCSV(row.name)},${escapeCSV(formatValue(row.currentVal, fullKpiName))},${escapeCSV(formatValue(row.prevVal, fullKpiName))},${escapeCSV(row.change)}\n`;
       if (drilldownData[row.name]) {
         drilldownData[row.name].forEach(sr => {
-          csv += `  - ${escapeCSV(sr.name)},${escapeCSV(formatValue(sr.currentVal, kpiLabel))},${escapeCSV(formatValue(sr.prevVal, kpiLabel))},${escapeCSV(sr.change)}\n`;
+          csv += `  - ${escapeCSV(sr.name)},${escapeCSV(formatValue(sr.currentVal, fullKpiName))},${escapeCSV(formatValue(sr.prevVal, fullKpiName))},${escapeCSV(sr.change)}\n`;
           if (drilldownData[sr.name]) {
             drilldownData[sr.name].forEach(ssr => {
-              csv += `    - ${escapeCSV(ssr.name)},${escapeCSV(formatValue(ssr.currentVal, kpiLabel))},${escapeCSV(formatValue(ssr.prevVal, kpiLabel))},${escapeCSV(ssr.change)}\n`;
+              csv += `    - ${escapeCSV(ssr.name)},${escapeCSV(formatValue(ssr.currentVal, fullKpiName))},${escapeCSV(formatValue(ssr.prevVal, fullKpiName))},${escapeCSV(ssr.change)}\n`;
             });
           }
         });
@@ -570,8 +588,8 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
                           <Typography sx={{ ...tdStyle, fontSize: "15px", p: 0 }}>{row.name}</Typography>
                         </Box>
                       </TableCell>
-                      <TableCell sx={tdStyle}>{formatValue(row.currentVal, kpiLabel)}</TableCell>
-                      <TableCell sx={tdMuted}>{formatValue(row.prevVal, kpiLabel)}</TableCell>
+                      <TableCell sx={tdStyle}>{formatValue(row.currentVal, fullKpiName)}</TableCell>
+                      <TableCell sx={tdMuted}>{formatValue(row.prevVal, fullKpiName)}</TableCell>
                       <TableCell>
                         <Typography sx={{
                           color: row.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
@@ -601,8 +619,8 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
                                 <Typography sx={{ ...tdStyle, fontSize: "14px", p: 0 }}>{sr.name}</Typography>
                               </Box>
                             </TableCell>
-                            <TableCell sx={tdStyle}>{formatValue(sr.currentVal, kpiLabel)}</TableCell>
-                            <TableCell sx={tdMuted}>{formatValue(sr.prevVal, kpiLabel)}</TableCell>
+                            <TableCell sx={tdStyle}>{formatValue(sr.currentVal, fullKpiName)}</TableCell>
+                            <TableCell sx={tdMuted}>{formatValue(sr.prevVal, fullKpiName)}</TableCell>
                             <TableCell>
                               <Typography sx={{
                                 color: sr.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,
@@ -621,8 +639,8 @@ const KpiDetailModal = ({ open, onClose, kpiLabel, value, category, platform, se
                                   <Typography sx={{ ...tdStyle, fontSize: "13px", p: 0 }}>{cr.name}</Typography>
                                 </Box>
                               </TableCell>
-                              <TableCell sx={tdStyle}>{formatValue(cr.currentVal, kpiLabel)}</TableCell>
-                              <TableCell sx={tdMuted}>{formatValue(cr.prevVal, kpiLabel)}</TableCell>
+                              <TableCell sx={tdStyle}>{formatValue(cr.currentVal, fullKpiName)}</TableCell>
+                              <TableCell sx={tdMuted}>{formatValue(cr.prevVal, fullKpiName)}</TableCell>
                               <TableCell>
                                 <Typography sx={{
                                   color: cr.change.startsWith("-") ? "#dc2626" : "#059669", fontWeight: 700,

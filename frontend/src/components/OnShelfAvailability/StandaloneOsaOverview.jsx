@@ -55,8 +55,10 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
         };
 
         const osaParams = buildParams();
-        // Force ownBrandsOnly to match Watch Tower KPIs identically
-        osaParams.append('ownBrandsOnly', 'true');
+        // Only force ownBrandsOnly if no specific brand is selected
+        if (!osaParams.has('brand') || osaParams.get('brand') === 'All') {
+          osaParams.append('ownBrandsOnly', 'true');
+        }
 
         const msParams = buildParams();
 
@@ -103,38 +105,30 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
   const kpis = useMemo(() => {
     // 1. Stock Availability
     const osaCardData = overviewData ? {
-      value: `${Number(overviewData.stockAvailability || 0).toFixed(2)}%`,
-      delta: Number(overviewData.stockAvailability || 0) - Number(overviewData.prevStockAvailability || 0),
+      value: (overviewData.stockAvailability !== null && overviewData.stockAvailability !== undefined && overviewData.stockAvailability !== 0)
+        ? `${Number(overviewData.stockAvailability).toFixed(2)}%`
+        : "N/A",
+      delta: (overviewData.stockAvailability && overviewData.prevStockAvailability)
+        ? Number(overviewData.stockAvailability) - Number(overviewData.prevStockAvailability)
+        : 0,
       trend: osaTrendsData?.timeSeries?.map(p => p.Osa || 0) || []
     } : null;
 
     // 2. Metro City Stock Availability
     const metroCardData = metroData ? {
-      value: metroData.isMetroCity === false ? "N/A" : `${Number(metroData.stockAvailability || 0).toFixed(2)}%`,
-      delta: metroData.isMetroCity === false ? 0 : Number(metroData.stockAvailability || 0) - Number(metroData.prevStockAvailability || 0),
-      isNotMetro: metroData.isMetroCity === false,
+      value: (metroData.isMetroCity === false || !metroData.stockAvailability) ? "N/A" : `${Number(metroData.stockAvailability).toFixed(2)}%`,
+      delta: (metroData.isMetroCity === false || !metroData.stockAvailability || !metroData.prevStockAvailability) ? 0 : Number(metroData.stockAvailability) - Number(metroData.prevStockAvailability),
+      isNotMetro: metroData.isMetroCity === false || !metroData.stockAvailability,
       trend: osaTrendsData?.timeSeries?.map(p => p.Osa || 0) || []
     } : null;
 
-    // 3. Market Share %
-    let msCardData = null;
-    if (marketShareData) {
-      // Find odd_overall or the first available platform's mwMarketShare
-      const targetPlatform = marketShareData['odd_overall'] ? marketShareData['odd_overall'] : Object.values(marketShareData)[0];
-      if (targetPlatform && targetPlatform.mwMarketShare) {
-        const msCell = targetPlatform.mwMarketShare;
-        let msTrend = [];
-        if (msTrendsData?.timeSeries) {
-          msTrend = msTrendsData.timeSeries.map(p => p.MWMarketShare ?? p.mwMarketShare ?? p.MarketShare ?? p.marketShare ?? 0);
-        }
-        msCardData = {
-          value: msCell.value,
-          delta: Number(msCell.delta?.value?.replace(/[^0-9.-]/g, '') || 0),
-          deltaLabel: msCell.delta?.value,
-          trend: msTrend
-        };
-      }
-    }
+    // 3. Market Share % — Coming Soon
+    const msCardData = {
+      value: "Coming Soon",
+      delta: 0,
+      isComingSoon: true,
+      trend: []
+    };
 
     const cards_config = [
       { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", data: osaCardData, icon: Layers, gradient: ['#6366f1', '#8b5cf6'] },
@@ -148,15 +142,16 @@ export default function StandaloneOsaOverview({ filters, loading: parentLoading 
 
       // Format delta label firmly avoiding double arrows
       let deltaText = data.deltaLabel || "";
+      const isNA = data.value === "N/A" || data.value === "—";
       if (!deltaText) {
-        deltaText = data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}%`;
+        deltaText = (data.isNotMetro || isNA) ? "" : `${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}%`;
       } else {
         const isUp = delta >= 0 || (typeof deltaText === 'string' && (deltaText.includes('+') || deltaText.includes('▲')));
         const cleanText = deltaText.replace(/^[▲▼+\-\s]*/, '').trim();
         deltaText = `${isUp ? '▲' : '▼'} ${cleanText}`;
       }
 
-      const prevText = data.isNotMetro ? "" : "vs Previous Period";
+      const prevText = (data.isNotMetro || isNA) ? "" : "vs Previous Period";
 
       return {
         id: `osa-overview-${cfg.key}`,

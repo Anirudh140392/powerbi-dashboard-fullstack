@@ -1596,3 +1596,21 @@ export const getBrandSkuCityDayLevel = async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };
+
+/**
+ * Get distinct brand options from rb_pdp_olap for Market Coverage filter modal
+ */
+export const getBrandOptions = async (req, res) => {
+    try {
+        const filters = {
+            platform: parseFilter(req.query.platform),
+            channel: req.query.channel,
+            category: parseFilter(req.query.category),
+        };
+        const brands = await availabilityService.getDistinctBrands(filters);
+        res.json({ brands });
+    } catch (error) {
+        console.error('[Controller] getBrandOptions error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};

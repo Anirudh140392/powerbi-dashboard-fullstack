@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useContext, useMemo } from "react";
 import { FilterContext } from "../../utils/FilterContext";
 import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown, fetchVisibilityFilterOptions } from "../../api/visibilityService";
+import { useAuth } from "../../utils/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Download, Search, X, Filter, ChevronRight, TrendingUp } from "lucide-react";
 
@@ -273,6 +274,9 @@ const DrilldownModal = ({
 );
 
 export default function SearchTermsPerformance() {
+  const { user } = useAuth();
+  const isSugarUser = user?.dbName === 'sugar';
+
   const {
     platform: globalPlatform,
     selectedBrand,
@@ -583,13 +587,13 @@ export default function SearchTermsPerformance() {
     
     const isKeyword = activeView === "keyword";
     const headers = isKeyword 
-      ? ["Keyword", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"]
+      ? (isSugarUser ? ["Keyword", "Overall SOS", "Organic SOS", "Paid SOS"] : ["Keyword", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"])
       : ["SKU", "Overall SOS", "Organic SOS", "Paid SOS"];
       
     const rows = items.map(item => {
       const row = [
         `"${(item.name || "").replace(/"/g, '""')}"`,
-        ...(isKeyword ? [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`] : []),
+        ...(isKeyword ? (isSugarUser ? [] : [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`]) : []),
         `"${(item.overallSOS || 0).toFixed(2)}%"`,
         `"${(item.organicSOS || 0).toFixed(2)}%"`,
         `"${(item.paidSOS || 0).toFixed(2)}%"`
@@ -628,7 +632,7 @@ export default function SearchTermsPerformance() {
   const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
   const paginatedItems = filteredItems.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const GRID = activeView === "keyword"
-    ? "minmax(260px,1fr) 150px 130px 130px 130px"
+    ? (isSugarUser ? "minmax(260px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 150px 130px 130px 130px")
     : (activeView === "brand" ? "minmax(220px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 130px 130px 130px");
 
   return (
@@ -760,7 +764,7 @@ export default function SearchTermsPerformance() {
         <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "13px 24px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", gap: 8, alignItems: "end" }}>
           {[
             { label: activeView === "keyword" ? "Keywords" : (activeView === "brand" ? "Brands" : "SKUs"), sub: null },
-            ...(activeView === "keyword" ? [{ label: "Leading Brand", sub: "by Overall SOS" }] : []),
+            ...(activeView === "keyword" ? (isSugarUser ? [] : [{ label: "Leading Brand", sub: "by Overall SOS" }]) : []),
             { label: "Overall SOS", sub: null },
             { label: "Organic SOS", sub: null },
             { label: "Paid SOS", sub: null },
@@ -845,15 +849,17 @@ export default function SearchTermsPerformance() {
                   </div>
 
                   {/* Leading Brand */}
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{
-                      background: "#e0e7ff", color: "#3730a3", borderRadius: 6, padding: "5px 12px",
-                      fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block",
-                      textTransform: "uppercase",
-                    }}>
-                      {summaryData.leadingBrand}
-                    </span>
-                  </div>
+                  {!isSugarUser && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{
+                        background: "#e0e7ff", color: "#3730a3", borderRadius: 6, padding: "5px 12px",
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block",
+                        textTransform: "uppercase",
+                      }}>
+                        {summaryData.leadingBrand}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Overall SOS */}
                   <div style={{ textAlign: "center" }}>
@@ -901,7 +907,7 @@ export default function SearchTermsPerformance() {
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#6366f1", display: "inline-block", flexShrink: 0 }} />
                             <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{loc.city}</span>
                           </div>
-                          <div />
+                          {!isSugarUser && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>
@@ -973,8 +979,10 @@ export default function SearchTermsPerformance() {
                       <div style={{ display: "flex", gap: 6, paddingLeft: 30 }}>
                         <button className="sku-btn" onClick={(e) => openSkuModal(e, row.name, true)}
                           style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>My SKUs</button>
-                        <button className="sku-btn" onClick={(e) => openSkuModal(e, row.name, false)}
-                          style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All SKUs</button>
+                        {!isSugarUser && (
+                          <button className="sku-btn" onClick={(e) => openSkuModal(e, row.name, false)}
+                            style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All SKUs</button>
+                        )}
                       </div>
                     )}
 
@@ -996,7 +1004,7 @@ export default function SearchTermsPerformance() {
                   </div>
 
                   {/* Leading Brand — keyword mode only */}
-                  {activeView === "keyword" && (
+                  {activeView === "keyword" && !isSugarUser && (
                     <div style={{ textAlign: "center" }}>
                         <div 
                           onMouseEnter={(e) => handleBrandHover(e, row.name)}

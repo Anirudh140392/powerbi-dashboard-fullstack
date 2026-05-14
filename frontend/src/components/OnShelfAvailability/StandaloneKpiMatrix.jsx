@@ -114,6 +114,7 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
         timeEnd,
         compareStart,
         compareEnd,
+        selectedBrand,
     } = useContext(FilterContext);
 
     // Close dropdown on outside click
@@ -146,6 +147,7 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
                     compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : undefined,
                     compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : undefined,
                     subCategory: selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined,
+                    brand: selectedBrand === 'All' ? undefined : (Array.isArray(selectedBrand) ? selectedBrand.join(",") : selectedBrand),
                 };
 
                 const response = await axiosInstance.get('/market-share/sub-category-kpi', { params });
@@ -172,7 +174,7 @@ const StandaloneKpiMatrix = ({ loading: parentLoading }) => {
         };
 
         fetchSubCategoryKpi();
-    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCat]);
+    }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, selectedSubCat, selectedBrand]);
 
     const loading = parentLoading || dataLoading;
 

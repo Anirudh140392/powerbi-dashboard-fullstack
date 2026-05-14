@@ -1,8 +1,6 @@
 import React, { useState, useEffect, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronRight, X, SlidersHorizontal, TrendingUp, LineChartIcon, RefreshCw, AlertTriangle } from "lucide-react";
-import { KpiFilterPanel } from "@/components/KpiFilterPanel";
-import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronRight, TrendingUp, LineChartIcon, RefreshCw, AlertTriangle } from "lucide-react";
 import { PlatformKpiMatrixSkeleton } from "../AllAvailablityAnalysis/AvailabilitySkeletons";
 import { formatNumber } from "../../utils/formatters";
 
@@ -106,129 +104,15 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
     // Use parent loading if provided, otherwise fallback to local state
     const isLoading = parentLoading !== undefined ? parentLoading : loading;
 
-
-    // Dynamic filter options fetched from backend (lazy-loaded when panel opens)
-    const [filterOptions, setFilterOptions] = useState([
-        { id: 'platform', label: 'Platform', options: [] },
-        { id: 'format', label: 'Category', options: [] },
-        { id: 'city', label: 'City', options: [] },
-        { id: 'brand', label: 'Brand', options: [] },
-        { id: 'month', label: 'Month', options: [] },
-        { id: 'metroFlag', label: 'Metro Flag', options: [] },
-    ]);
-    const [filterOptionsLoaded, setFilterOptionsLoaded] = useState(false);
-
-    // ========================================
-    // FILTER STATE (must be declared before useEffects that reference them)
-    // ========================================
-    const [showFilterPanel, setShowFilterPanel] = useState(false);
-
-    const [tentativeFilters, setTentativeFilters] = useState({
-        platform: [],
-        format: [],
-        city: [],
-        brand: [],
-        month: [],
-        metroFlag: [],
-    });
-
-    const [appliedFilters, setAppliedFilters] = useState({
-        platform: [],
-        format: [],
-        city: [],
-        brand: [],
-        month: [],
-        metroFlag: [],
-    });
-
-    const appliedCount = Object.values(appliedFilters).flat().length;
-
-    // Fetch filter options only when panel is first opened
-    useEffect(() => {
-        if (!showFilterPanel || filterOptionsLoaded) return;
-        const fetchFilterOptions = async () => {
-            try {
-                const filterTypes = [
-                    { id: 'platform', apiType: 'platforms', label: 'Platform' },
-                    { id: 'format', apiType: 'formats', label: 'Category' },
-                    { id: 'city', apiType: 'cities', label: 'City' },
-                    { id: 'brand', apiType: 'brands', label: 'Brand' },
-                    { id: 'month', apiType: 'months', label: 'Month' },
-                    { id: 'metroFlag', apiType: 'metroFlags', label: 'Metro Flag' },
-                ];
-
-                // Build query params from global filters to narrow down options
-                const filterQueryParams = new URLSearchParams();
-                if (globalFilters) {
-                    Object.entries(globalFilters).forEach(([key, value]) => {
-                        if (value && value !== 'All') {
-                            if (Array.isArray(value)) value.forEach(v => filterQueryParams.append(key, v));
-                            else filterQueryParams.append(key, value);
-                        }
-                    });
-                }
-
-                const results = await Promise.all(
-                    filterTypes.map(async (ft) => {
-                        const qp = new URLSearchParams(filterQueryParams);
-                        qp.set('filterType', ft.apiType);
-                        const res = await fetch(`/api/availability-analysis/filter-options?${qp.toString()}`, {
-                            headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
-                        });
-                        if (!res.ok) return { id: ft.id, label: ft.label, options: [] };
-                        const data = await res.json();
-                        const opts = (data.options || []).map(v => ({ id: v, label: v }));
-                        return { id: ft.id, label: ft.label, options: opts };
-                    })
-                );
-                setFilterOptions(results);
-                setFilterOptionsLoaded(true);
-            } catch (err) {
-                console.error('Error fetching filter options:', err);
-            }
-        };
-        fetchFilterOptions();
-    }, [showFilterPanel, filterOptionsLoaded, globalFilters]);
-
     // Helper to merge global and segment-level filters
     const getCombinedFilters = () => {
         const combined = { ...globalFilters };
 
-        // Segment-level overrides
-        // If segment-level filters are applied, they should OVERRIDE global ones.
-        // We also remove the global keys (location, category) to prevent additive filtering
-        // in backend services that might handle both keys.
-
-        if (appliedFilters.platform?.length > 0) {
-            combined.platform = appliedFilters.platform;
-        }
-
-        if (appliedFilters.city?.length > 0) {
-            combined.cities = appliedFilters.city;
-            // Remove global location to ensure cities override it
-            delete combined.location;
-        } else if (globalFilters.location) {
-            // Fallback to global location mapped to 'cities' for consistency
+        if (globalFilters.location) {
             combined.cities = globalFilters.location;
         }
-
-        if (appliedFilters.format?.length > 0) {
-            combined.formats = appliedFilters.format;
-            delete combined.category;
-        } else if (globalFilters.category) {
+        if (globalFilters.category) {
             combined.formats = globalFilters.category;
-        }
-
-        if (appliedFilters.brand?.length > 0) {
-            combined.brand = appliedFilters.brand;
-        }
-
-        if (appliedFilters.month?.length > 0) {
-            combined.months = appliedFilters.month;
-        }
-
-        if (appliedFilters.metroFlag?.length > 0) {
-            combined.metroFlags = appliedFilters.metroFlag;
         }
 
         return combined;
@@ -259,8 +143,10 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                     }
                 });
 
-                // Force ownBrandsOnly to match Watch Tower KPIs identically
-                params.append('ownBrandsOnly', 'true');
+                // Only force ownBrandsOnly if no specific brand is selected
+                if (!params.has('brand') || params.get('brand') === 'All') {
+                    params.append('ownBrandsOnly', 'true');
+                }
 
                 const res = await fetch(`/api/availability-analysis/standalone-kpi-matrix?${params.toString()}`, {
                     headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
@@ -277,7 +163,7 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
         };
 
         fetchData();
-    }, [reportType, globalFilters, appliedFilters, retryCount]);
+    }, [reportType, globalFilters, retryCount]);
 
     const handleRetry = () => setRetryCount(prev => prev + 1);
 
@@ -287,16 +173,6 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
     // Use API columns if available, otherwise empty array
     const entities = apiData?.columns?.filter(c => c !== 'KPI') || [];
 
-    const resetFilters = () => {
-        setTentativeFilters({
-            platform: [],
-            format: [],
-            city: [],
-            brand: [],
-            month: [],
-            metroFlag: [],
-        });
-    };
 
     // Use API data for cells
     const getCellData = (entity, kpiLabel) => {
@@ -331,20 +207,6 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                             setExpandedRows([]);
                         }}
                     />
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setShowFilterPanel(true)}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-                        >
-                            <SlidersHorizontal size={14} />
-                            Filters
-                            {appliedCount > 0 && (
-                                <Badge className="ml-1 bg-emerald-100 text-emerald-700 border-emerald-200">
-                                    {appliedCount}
-                                </Badge>
-                            )}
-                        </button>
-                    </div>
                 </div>
 
                 <div className="mt-3 flex items-start justify-between gap-3">
@@ -356,64 +218,6 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                 </div>
             </div>
 
-            {/* Filter Modal */}
-            {showFilterPanel && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
-                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[80vh] min-h-[50vh] sm:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-                            <div>
-                                <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>
-                                <p className="text-sm text-slate-500">Configure data visibility and rules</p>
-                            </div>
-                            <button
-                                onClick={() => setShowFilterPanel(false)}
-                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        <div className="flex-1 overflow-hidden bg-slate-50/30 px-6 pt-0 pb-6">
-                            <KpiFilterPanel
-                                sectionConfig={filterOptions}
-                                sectionValues={tentativeFilters}
-                                onSectionChange={(sectionId, values) => {
-                                    setTentativeFilters(prev => ({
-                                        ...prev,
-                                        [sectionId]: values || []
-                                    }));
-                                }}
-                            />
-                        </div>
-
-                        <div className="flex justify-between gap-3 border-t border-slate-100 bg-white px-6 py-4">
-                            <button
-                                onClick={resetFilters}
-                                className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors"
-                            >
-                                Reset Filter
-                            </button>
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={() => setShowFilterPanel(false)}
-                                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setAppliedFilters(tentativeFilters);
-                                        setShowFilterPanel(false);
-                                    }}
-                                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 shadow-sm shadow-emerald-200"
-                                >
-                                    Apply Filters
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Table */}
             <div className="p-4">
@@ -434,13 +238,7 @@ export default function StandaloneOsaKpiMatrix({ filters: globalFilters, loading
                         </thead>
 
                         <tbody>
-                            {kpis.filter(kpi => {
-                                if (!appliedFilters.kpi || appliedFilters.kpi.length === 0) return true;
-                                // Case-insensitive match between kpi.label and appliedFilters.kpi array
-                                return appliedFilters.kpi.some(selectedKpi =>
-                                    selectedKpi.toLowerCase() === kpi.label.toLowerCase()
-                                );
-                            }).map((kpi, kIdx) => {
+                            {kpis.map((kpi, kIdx) => {
                                 return (
                                     <Fragment key={kpi.key}>
                                         {/* Data Row */}

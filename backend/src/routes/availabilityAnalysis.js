@@ -15,10 +15,14 @@ import {
     getAvailabilityCompetitionSkuTrends,
     getSignalLabData,
     getCityDetailsForProduct,
-    getBrandSkuCityDayLevel
+    getBrandSkuCityDayLevel,
+    getBrandOptions
 } from '../controllers/availabilityAnalysisController.js';
+import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
 
 export default (app) => {
+    app.use('/api/availability-analysis', accessControlMiddleware);
+
     /**
      * @swagger
      * /api/availability-analysis:
@@ -396,5 +400,8 @@ export default (app) => {
 
     // Brand → SKU → City Day-Level ECP
     app.get('/api/availability-analysis/brand-sku-city-day', getBrandSkuCityDayLevel);
+
+    // Brand options for Market Coverage filter modal (from rb_pdp_olap)
+    app.get('/api/availability-analysis/brand-options', getBrandOptions);
 };
 
