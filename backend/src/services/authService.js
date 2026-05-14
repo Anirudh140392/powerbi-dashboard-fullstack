@@ -75,13 +75,15 @@ export async function loginUser(email, password, clientIp = '') {
 
     if (matchedDb) {
         dbName = matchedDb.db_name;
+        console.log(`[Auth] ✅ Database mapped for ${user.user_email}: ${dbName} (id: ${userDbId})`);
     } else {
-        console.warn(`[Auth] No matching database found for db_id=${userDbId}, using fallback: ${dbName}`);
+        console.warn(`[Auth] ⚠️ No matching database found for db_id=${userDbId}, using fallback: ${dbName}`);
     }
 
     // Workaround for readonly permission on tb_user: force mars for user
     if (user.user_email === 'kenilkavar@gmail.com') {
         dbName = 'mars';
+        console.log(`[Auth] 💡 Manual override: forcing dbName='mars' for ${user.user_email}`);
     }
 
     // Map user_role to role (default to 'user' if not specified)

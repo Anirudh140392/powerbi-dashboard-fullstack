@@ -64,6 +64,14 @@ const getOurBrandsList = async () => {
             const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
             const results = await queryClickHouse(query);
             const brands = results.map(b => b.brand_name).filter(Boolean);
+            
+            // Mars fallback if rca_sku_dim is not populated
+            if (brands.length === 0 && getCurrentDbName() === 'mars') {
+                const marsBrands = ['Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's", 'Orbit', 'Skittles', 'Boomer', 'Doublemint', 'Skittles', 'Gum', 'Chocolates'];
+                dbCache.ourBrands = { data: marsBrands, timestamp: Date.now(), promise: null };
+                return marsBrands;
+            }
+
             dbCache.ourBrands = { data: brands, timestamp: Date.now(), promise: null };
             console.log(`🎯 [OurBrands][MapIntellect][${getCurrentDbName()}] Found ${brands.length} brands`);
             return brands;
@@ -261,7 +269,7 @@ const getMapIntellectData = async (filters) => {
         try {
             const currentDb = getCurrentDbName()?.toLowerCase() || '';
             let allowedMsCities = [
-                "Delhi", "Ahmedabad", "Bengaluru", "Bangalore", "Chandigarh", "Chennai",
+                "Delhi", "Ahmedabad", "Bengaluru", "Bangalore", "Banglore", "Bengalore", "Chandigarh", "Chennai",
                 "Faridabad", "Gurugram", "Gurgaon", "Hyderabad", "Kolkata", "Lucknow",
                 "Mumbai", "Pune", "India", "Nation", "National"
             ];
@@ -304,8 +312,10 @@ const getMapIntellectData = async (filters) => {
             ]);
 
             // Filter out cities with only 1 brand (no competitive data → misleading 100%)
-            currMsData = (currMsData || []).filter(d => parseInt(d.total_brands || 0) > 1);
-            prevMsData = (prevMsData || []).filter(d => parseInt(d.total_brands || 0) > 1);
+            // Relaxed brand filter for better data visibility across all schemas
+            // Previously: currMsData = (currMsData || []).filter(d => parseInt(d.total_brands || 0) > 1);
+            currMsData = (currMsData || []);
+            prevMsData = (prevMsData || []);
         } catch (e) {
             console.error('[MapIntellect] Error querying market share:', e.message);
         }
@@ -313,10 +323,12 @@ const getMapIntellectData = async (filters) => {
 
     // ── Build maps for comparison ──
     const normalizeCity = (name) => {
-        let n = (name || '').trim();
-        if (n === 'Bengalore' || n === 'Bangalore') return 'bengaluru';
-        if (n === 'Gurgaon') return 'gurugram';
-        return n.toLowerCase();
+        let n = (name || '').trim().toLowerCase();
+        if (n.includes('bangalore') || n.includes('bengalore') || n.includes('banglore') || n.includes('bengaluru')) return 'bengaluru';
+        if (n.includes('gurgaon') || n.includes('gurugram')) return 'gurugram';
+        if (n.includes('delhi')) return 'delhi';
+        if (n.includes('mumbai') || n.includes('bombay')) return 'mumbai';
+        return n;
     };
 
     const prevPdpMap = new Map((prevCityData || []).map(d => [d.Location, d]));
@@ -329,8 +341,9 @@ const getMapIntellectData = async (filters) => {
     if (isMarketShareOnly) {
         resultCities = (currMsData || []).map(data => {
             let cityName = (data.location || '').trim();
-            if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
-            if (cityName === 'Gurgaon') cityName = 'Gurugram';
+            const lowerCity = cityName.toLowerCase();
+            if (lowerCity.includes('bangalore') || lowerCity.includes('bengalore') || lowerCity.includes('banglore') || lowerCity.includes('bengaluru')) cityName = 'Bengaluru';
+            if (lowerCity.includes('gurgaon') || lowerCity.includes('gurugram')) cityName = 'Gurugram';
             
             if (cityName) {
                 cityName = cityName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
@@ -356,8 +369,9 @@ const getMapIntellectData = async (filters) => {
     } else {
         resultCities = (currCityData || []).map(data => {
             let cityName = (data.Location || '').trim();
-            if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
-            if (cityName === 'Gurgaon') cityName = 'Gurugram';
+            const lowerCity = cityName.toLowerCase();
+            if (lowerCity.includes('bangalore') || lowerCity.includes('bengalore') || lowerCity.includes('banglore') || lowerCity.includes('bengaluru')) cityName = 'Bengaluru';
+            if (lowerCity.includes('gurgaon') || lowerCity.includes('gurugram')) cityName = 'Gurugram';
 
             if (cityName) {
                 cityName = cityName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');

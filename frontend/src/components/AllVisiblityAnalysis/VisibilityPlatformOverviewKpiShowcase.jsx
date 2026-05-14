@@ -6,18 +6,19 @@ import {
     LineChart as LineChartIcon,
     BarChart3,
     SlidersHorizontal,
+    Info,
 } from "lucide-react";
 import {
     LineChart,
     Line,
     XAxis,
     YAxis,
-    Tooltip,
+    Tooltip as RechartsTooltip,
     Legend,
     ResponsiveContainer,
     CartesianGrid,
 } from "recharts";
-import { Box } from "@mui/material";
+import { Box, Tooltip, Typography } from "@mui/material";
 import PaginationFooter from "../CommonLayout/PaginationFooter";
 
 
@@ -54,6 +55,12 @@ const BRAND_COLORS = [
 const RANK_OPTIONS = ["Top 10", "Top 20", "Top 30", "Top 40"];
 
 const getBrandColor = (index) => BRAND_COLORS[index % BRAND_COLORS.length];
+const KPI_TOOLTIPS = {
+    'Organic SOS': "The proportion of a brand’s product visibility within organic (non-paid) search results.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+    'Overall SOS': "Share of Search indicates the proportion of attention a product receives relative to others within the same category or type.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+    'Sponsored SOS': "The proportion of a brand’s product visibility within sponsored or paid placements in search results.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM.",
+};
+
 
 /* -------------------------------------------------------------------------- */
 /*                           Small UI components (local)                      */
@@ -654,6 +661,23 @@ const MetricChip = ({ label, color, active, onClick, comingSoon }) => {
             </Box>
             {label}
             {comingSoon && <ComingSoonBadge />}
+            {KPI_TOOLTIPS[label] && (
+                <Tooltip
+                    title={
+                        <Box sx={{ p: 0.5 }}>
+                            <Typography sx={{ fontSize: '11px', lineHeight: 1.4 }}>
+                                {KPI_TOOLTIPS[label]}
+                            </Typography>
+                        </Box>
+                    }
+                    arrow
+                    placement="top"
+                >
+                    <Box sx={{ display: 'flex', ml: 0.5, color: active ? color : '#94A3B8', '&:hover': { color: active ? color : '#64748B' } }}>
+                        <Info size={13} />
+                    </Box>
+                </Tooltip>
+            )}
         </Box>
     );
 };
@@ -899,7 +923,7 @@ const TrendView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city, onBa
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="date" fontSize={11} tickLine={false} dy={6} />
                                 <YAxis tickLine={false} fontSize={11} tickFormatter={formatValue} />
-                                <Tooltip formatter={formatValue} />
+                                <RechartsTooltip formatter={formatValue} />
                                 <Legend />
                                 {visibleIds.map((brand, index) => (
                                     <Line
@@ -1120,6 +1144,23 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
                                 <CardTitle className="text-sm font-medium flex items-center gap-1.5">
                                     {kpi.label}
                                     {kpi.comingSoon && <ComingSoonBadge />}
+                                    {KPI_TOOLTIPS[kpi.label] && (
+                                        <Tooltip
+                                            title={
+                                                <Box sx={{ p: 0.5 }}>
+                                                    <Typography sx={{ fontSize: '11px', lineHeight: 1.4 }}>
+                                                        {KPI_TOOLTIPS[kpi.label]}
+                                                    </Typography>
+                                                </Box>
+                                            }
+                                            arrow
+                                            placement="top"
+                                        >
+                                            <Box sx={{ display: 'flex', color: '#94A3B8', cursor: 'help', '&:hover': { color: '#64748B' } }}>
+                                                <Info size={14} />
+                                            </Box>
+                                        </Tooltip>
+                                    )}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="h-48 pt-0">
@@ -1134,7 +1175,7 @@ const KpiCompareView = ({ mode, visibleIds, setVisibleIds, allPossibleIds, city,
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                             <XAxis dataKey="date" hide />
                                             <YAxis tickLine={false} fontSize={10} width={32} />
-                                            <Tooltip />
+                                            <RechartsTooltip />
                                             {visibleIds.map((brand, index) => (
                                                 <Line
                                                     key={brand}

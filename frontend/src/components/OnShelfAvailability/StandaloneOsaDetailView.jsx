@@ -304,7 +304,9 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                 ? r.avgSelected
                                                 : (visibleDays === 31
                                                     ? r.avg31
-                                                    : Math.round(r.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays));
+                                                    : (r.values.filter(v => v !== null).length > 0
+                                                        ? Math.round(r.values.slice(-visibleDays).filter(v => v !== null).reduce((a, b) => a + b, 0) / r.values.slice(-visibleDays).filter(v => v !== null).length)
+                                                        : null));
 
                                             return (
                                                 <React.Fragment key={r.sku}>
@@ -334,7 +336,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
 
 
                                                         <td className="px-3 py-2 border-b border-slate-100 text-[11px] text-slate-900 text-center">
-                                                            {avgND}%
+                                                            {avgND !== null ? `${avgND}%` : 'N/A'}
                                                         </td>
 
                                                         <td className="px-3 py-2 border-b border-slate-100">
@@ -355,7 +357,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                 <td
                                                                     key={d}
                                                                     className="px-2 py-2 border-b border-slate-100 text-center"
-                                                                    title={`${r.name} • Day ${d}: ${v}%`}
+                                                                    title={`${r.name} • Day ${d}: ${v !== null ? `${v}%` : 'N/A'}`}
                                                                 >
                                                                     <span
                                                                         className={
@@ -363,7 +365,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                             cellTone(v)
                                                                         }
                                                                     >
-                                                                        {v}%
+                                                                        {v !== null ? `${v}%` : 'N/A'}
                                                                     </span>
                                                                 </td>
                                                             );
@@ -375,7 +377,9 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                 ? cityData.avgSelected
                                                                 : (visibleDays === 31
                                                                     ? cityData.avg31
-                                                                    : Math.round(cityData.values.slice(-visibleDays).reduce((a, b) => a + b, 0) / visibleDays));
+                                                                    : (cityData.values.filter(v => v !== null).length > 0
+                                                                        ? Math.round(cityData.values.slice(-visibleDays).filter(v => v !== null).reduce((a, b) => a + b, 0) / cityData.values.slice(-visibleDays).filter(v => v !== null).length)
+                                                                        : null));
 
                                                             return (
                                                                 <tr key={`${r.sku}-${cityData.name}`} className="bg-slate-50/50">
@@ -388,7 +392,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                         </div>
                                                                     </td>
                                                                     <td className="px-3 py-1.5 border-b border-slate-100 text-[10px] text-slate-500 text-center">
-                                                                        {cityAvgND}%
+                                                                        {cityAvgND !== null ? `${cityAvgND}%` : 'N/A'}
                                                                     </td>
                                                                     <td className="px-3 py-1.5 border-b border-slate-100 text-center">
                                                                         <span className="text-[10px] text-slate-400">-</span>
@@ -401,7 +405,7 @@ export default function StandaloneOsaDetailView({ apiData, loading }) {
                                                                                 className="px-2 py-1.5 border-b border-slate-100 text-center"
                                                                             >
                                                                                 <span className="text-[10px] text-slate-500 font-medium">
-                                                                                    {v !== undefined ? `${v}%` : '-'}
+                                                                                    {v !== null && v !== undefined ? `${v}%` : 'N/A'}
                                                                                 </span>
                                                                             </td>
                                                                         );

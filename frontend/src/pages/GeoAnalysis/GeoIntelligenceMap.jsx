@@ -197,7 +197,8 @@ export default function GeoIntelligenceMap() {
         const coordsLookup = {
             "nation": { lat: 22.0, lng: 79.5, type: "National" },
             "national": { lat: 22.0, lng: 79.5, type: "National" },
-            "india": { lat: 22.0, lng: 79.5, type: "National" }
+            "india": { lat: 22.0, lng: 79.5, type: "National" },
+            "banglore": { lat: 12.97, lng: 77.59, type: "City" } // Safeguard for Banglore typo
         };
         CITIES.forEach(c => { coordsLookup[c.name.toLowerCase()] = { lat: c.coords[1], lng: c.coords[0], type: "City" }; });
         STATES.forEach(s => { coordsLookup[s.name.toLowerCase()] = { lat: s.center[1], lng: s.center[0], type: "State" }; });

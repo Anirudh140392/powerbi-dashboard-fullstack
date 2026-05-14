@@ -22,9 +22,12 @@ import {
     getVisibilityBSRTrends
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
+import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
+
 
 
 export default (app) => {
+    app.use('/api/visibility-analysis', accessControlMiddleware);
     /**
      * @swagger
      * /api/visibility-analysis:

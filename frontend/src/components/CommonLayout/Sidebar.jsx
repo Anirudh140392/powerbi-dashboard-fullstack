@@ -7,6 +7,7 @@ import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
 import boatLogo from "../../assets/Boat.png";
 import zydusLogo from "../../assets/zyduslogo.png";
 import demoLogo from "../../assets/Demo.png";
+import sugarLogo from "../../assets/sugar.png";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -58,7 +59,7 @@ import {
 } from "@mui/icons-material";
 
 const getPlatformColors = (platformName) => {
-  const name = platformName?.toLowerCase() || '';
+  const name = String(platformName || '').toLowerCase();
   if (name.includes('blinkit')) return { cardBg: '#facc15', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#fef08a', squircleText: '#1e293b', border: '#eab308' };
   if (name.includes('instamart') || name.includes('swiggy')) return { cardBg: '#fb923c', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#fed7aa', squircleText: '#7c2d12', border: '#f97316' };
   if (name.includes('zepto')) return { cardBg: '#c084fc', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#e9d5ff', squircleText: '#4c1d95', border: '#a855f7' };
@@ -111,6 +112,14 @@ const Sidebar = ({
   isCollapsed,
   setIsCollapsed,
 }) => {
+  // Normalize selectedPlatform to always be a string — FilterContext or Matrix
+  // filters can occasionally pass an object or array during dynamic updates
+  selectedPlatform = typeof selectedPlatform === 'string'
+    ? selectedPlatform
+    : Array.isArray(selectedPlatform)
+      ? (selectedPlatform[0] || 'All')
+      : String(selectedPlatform || 'All');
+
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -123,6 +132,7 @@ const Sidebar = ({
     if (user?.dbName === 'boat') return boatLogo;
     if (user?.dbName === 'zydus') return zydusLogo;
     if (user?.dbName === 'demo') return demoLogo;
+    if (user?.dbName === 'sugar') return sugarLogo;
     return marsLogo;
   }, [user?.dbName]);
 
@@ -132,6 +142,7 @@ const Sidebar = ({
     if (user?.dbName === 'boat') return 'Boat Logo';
     if (user?.dbName === 'zydus') return 'Zydus Logo';
     if (user?.dbName === 'demo') return 'Demo Logo';
+    if (user?.dbName === 'sugar') return 'Sugar Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
@@ -170,7 +181,7 @@ const Sidebar = ({
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Market Coverage", path: "/on-shelf-availability", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare'] },
+      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare', 'sugar'] },
       //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
@@ -277,7 +288,7 @@ const Sidebar = ({
             justifyContent: 'center',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             width: '100%',
-            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : (user?.dbName === 'mamaearth' ? 100 : (user?.dbName === 'zydus' ? 80 : 60))),
+            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : (user?.dbName === 'mamaearth' ? 100 : (user?.dbName === 'zydus' ? 80 : (user?.dbName === 'sugar' ? 80 : 60)))),
           }}
         >
           <Box
@@ -297,9 +308,9 @@ const Sidebar = ({
                 src={activeLogo}
                 alt={activeLogoAlt}
                 style={{
-                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
+                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : (user?.dbName === 'sugar' ? '80px' : '45px')))),
                   width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
+                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : (user?.dbName === 'sugar' ? '220px' : '180px')))),
                   objectFit: 'contain',
                   padding: '0',
                   display: 'block',
@@ -370,7 +381,7 @@ const Sidebar = ({
         justifyContent: 'center',
       }}>
         {/* MAIN MENU Header (Top) */}
-        {!isCollapsed && (
+        {!isCollapsed && (user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false || Object.values(user?.tabPermissions || {}).some(v => v === true)) && (
           <Typography
             variant="overline"
             sx={{
@@ -401,100 +412,106 @@ const Sidebar = ({
         {!isCollapsed && (
           <>
             <Box sx={{ px: 0, pb: 1, width: '100%' }}>
-              <ListItemButton
-                onClick={() => navigate('/watch-tower')}
-                className={currentPath === '/watch-tower' ? "sidebar-item-active" : ""}
-                sx={{
-                  minWidth: 44,
-                  maxWidth: "100%",
-                  justifyContent: "flex-start",
-                  px: 2,
-                  py: 1,
-                  borderRadius: "12px",
-                  bgcolor: currentPath === '/watch-tower' ? "rgba(37, 99, 235, 0.08)" : "transparent",
-                  color: currentPath === '/watch-tower' ? "#2563eb" : "#64748b",
-                  position: 'relative',
-                  overflow: 'hidden',
-                  mb: 0.5,
-                  "&:hover": {
-                    bgcolor: currentPath === '/watch-tower' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
-                    color: currentPath === '/watch-tower' ? "#1d4ed8" : "#1e293b",
-                    transform: 'translateX(2px)',
-                  },
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                }}
-              >
-                <ListItemIcon
+              {user?.tabPermissions?.['Business Overview'] !== false && (
+                <ListItemButton
+                  onClick={() => navigate('/watch-tower')}
+                  className={currentPath === '/watch-tower' ? "sidebar-item-active" : ""}
                   sx={{
-                    minWidth: 0,
-                    mr: 1.5,
-                    color: currentPath === '/watch-tower' ? "#2563eb" : "inherit",
-                    display: 'flex',
-                    '& .MuiSvgIcon-root': {
-                      fontSize: '1.15rem',
-                    }
+                    minWidth: 44,
+                    maxWidth: "100%",
+                    justifyContent: "flex-start",
+                    px: 2,
+                    py: 1,
+                    borderRadius: "12px",
+                    bgcolor: currentPath === '/watch-tower' ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                    color: currentPath === '/watch-tower' ? "#2563eb" : "#64748b",
+                    position: 'relative',
+                    overflow: 'hidden',
+                    mb: 0.5,
+                    "&:hover": {
+                      bgcolor: currentPath === '/watch-tower' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                      color: currentPath === '/watch-tower' ? "#1d4ed8" : "#1e293b",
+                      transform: 'translateX(2px)',
+                    },
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                   }}
                 >
-                  <DashboardIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary={"Business Overview"}
-                  primaryTypographyProps={{
-                    fontSize: "13px",
-                    fontWeight: currentPath === '/watch-tower' ? 700 : 500,
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}
-                  sx={{ my: 0 }}
-                />
-              </ListItemButton>
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: 1.5,
+                      color: currentPath === '/watch-tower' ? "#2563eb" : "inherit",
+                      display: 'flex',
+                      '& .MuiSvgIcon-root': {
+                        fontSize: '1.15rem',
+                      }
+                    }}
+                  >
+                    <DashboardIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={"Business Overview"}
+                    primaryTypographyProps={{
+                      fontSize: "13px",
+                      fontWeight: currentPath === '/watch-tower' ? 700 : 500,
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    sx={{ my: 0 }}
+                  />
+                </ListItemButton>
+              )}
 
-              <ListItemButton
-                onClick={() => navigate('/scheduled-reports')}
-                className={currentPath === '/scheduled-reports' ? "sidebar-item-active" : ""}
-                sx={{
-                  minWidth: 44,
-                  maxWidth: "100%",
-                  justifyContent: "flex-start",
-                  px: 2,
-                  py: 1,
-                  borderRadius: "12px",
-                  bgcolor: currentPath === '/scheduled-reports' ? "rgba(37, 99, 235, 0.08)" : "transparent",
-                  color: currentPath === '/scheduled-reports' ? "#2563eb" : "#64748b",
-                  position: 'relative',
-                  overflow: 'hidden',
-                  "&:hover": {
-                    bgcolor: currentPath === '/scheduled-reports' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
-                    color: currentPath === '/scheduled-reports' ? "#1d4ed8" : "#1e293b",
-                    transform: 'translateX(2px)',
-                  },
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                }}
-              >
-                <ListItemIcon
+              {user?.tabPermissions?.['Scheduled Reports'] !== false && (
+                <ListItemButton
+                  onClick={() => navigate('/scheduled-reports')}
+                  className={currentPath === '/scheduled-reports' ? "sidebar-item-active" : ""}
                   sx={{
-                    minWidth: 0,
-                    mr: 1.5,
-                    color: currentPath === '/scheduled-reports' ? "#2563eb" : "inherit",
-                    display: 'flex',
-                    '& .MuiSvgIcon-root': {
-                      fontSize: '1.15rem',
-                    }
+                    minWidth: 44,
+                    maxWidth: "100%",
+                    justifyContent: "flex-start",
+                    px: 2,
+                    py: 1,
+                    borderRadius: "12px",
+                    bgcolor: currentPath === '/scheduled-reports' ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                    color: currentPath === '/scheduled-reports' ? "#2563eb" : "#64748b",
+                    position: 'relative',
+                    overflow: 'hidden',
+                    "&:hover": {
+                      bgcolor: currentPath === '/scheduled-reports' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                      color: currentPath === '/scheduled-reports' ? "#1d4ed8" : "#1e293b",
+                      transform: 'translateX(2px)',
+                    },
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                   }}
                 >
-                  <ScheduleIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary={"Scheduled Reports"}
-                  primaryTypographyProps={{
-                    fontSize: "13px",
-                    fontWeight: currentPath === '/scheduled-reports' ? 700 : 500,
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}
-                  sx={{ my: 0 }}
-                />
-              </ListItemButton>
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: 1.5,
+                      color: currentPath === '/scheduled-reports' ? "#2563eb" : "inherit",
+                      display: 'flex',
+                      '& .MuiSvgIcon-root': {
+                        fontSize: '1.15rem',
+                      }
+                    }}
+                  >
+                    <ScheduleIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={"Scheduled Reports"}
+                    primaryTypographyProps={{
+                      fontSize: "13px",
+                      fontWeight: currentPath === '/scheduled-reports' ? 700 : 500,
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    sx={{ my: 0 }}
+                  />
+                </ListItemButton>
+              )}
             </Box>
-            <Divider sx={{ mx: 2, mb: 1.5, borderColor: 'rgba(0,0,0,0.06)' }} />
+            {(user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false) && (
+              <Divider sx={{ mx: 2, mb: 1.5, borderColor: 'rgba(0,0,0,0.06)' }} />
+            )}
           </>
         )}
 
@@ -510,7 +527,15 @@ const Sidebar = ({
           width: '100%',
           borderBottom: isCollapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.08)',
         }}>
-          {channels.filter(ch => ch !== 'All').map((ch) => {
+          {channels.filter(ch => ch !== 'All').sort((a, b) => {
+            const getOrder = (ch) => {
+              const lower = ch.toLowerCase();
+              if (lower === 'quickcomm' || lower === 'quick commerce') return 1;
+              if (lower === 'ecommerce' || lower === 'ecom') return 2;
+              return 3;
+            };
+            return getOrder(a) - getOrder(b);
+          }).map((ch) => {
             const isSelected = selectedChannel === ch;
             let displayLabel = ch;
             if (ch.toLowerCase() === 'quickcomm' || ch.toLowerCase() === 'quick commerce') displayLabel = 'QComm';

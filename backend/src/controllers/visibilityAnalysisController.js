@@ -43,6 +43,8 @@ export const getVisibilityOverview = async (req, res) => {
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             sku: req.query.sku || 'All'
         };
         console.log('\n========== VISIBILITY OVERVIEW API ==========');
@@ -87,6 +89,8 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             metroFlag: req.query.metroFlag || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             rank: req.query.rank || 'All',
             sku: req.query.sku || 'All'
         };
@@ -134,6 +138,8 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY KEYWORDS AT GLANCE API ==========');
@@ -287,6 +293,7 @@ export const getVisibilityKpiTrends = async (req, res) => {
             category: req.query.category || req.query.format || 'All',
             period: req.query.period || '1M',
             timeStep: req.query.timeStep || 'Daily',
+            startDate: req.query.startDate,
             endDate: req.query.endDate,
             sku: req.query.sku || req.query.skus || 'All',
             rank: req.query.rank || 'All'
@@ -566,6 +573,8 @@ export const getVisibilityGainersAndDrainers = async (req, res) => {
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY GAINERS & DRAINERS API ==========');
