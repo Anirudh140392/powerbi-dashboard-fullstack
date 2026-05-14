@@ -410,13 +410,15 @@ export default function MarketShareAnalysis() {
             // Market Share KPI
             if (k.id === "ms-market-share" && response.data.marketShare) {
               const msData = response.data.marketShare;
-              const arrow = msData.delta >= 0 ? '▲' : '▼';
+              const shareVal = msData.share ?? 0;
+              const deltaVal = msData.delta ?? 0;
+              const arrow = deltaVal >= 0 ? '▲' : '▼';
               return {
                 ...k,
-                value: `${msData.share.toFixed(2)}%`,
-                delta: msData.delta,
-                deltaLabel: `${arrow} ${Math.abs(msData.delta).toFixed(2)}% (vs Prev)`,
-                extraChangeColor: msData.delta >= 0 ? "green" : "red",
+                value: `${Number(shareVal).toFixed(2)}%`,
+                delta: deltaVal,
+                deltaLabel: `${arrow} ${Math.abs(deltaVal).toFixed(2)}% (vs Prev)`,
+                extraChangeColor: deltaVal >= 0 ? "green" : "red",
                 trend: msData.trend,
               };
             }
@@ -424,27 +426,29 @@ export default function MarketShareAnalysis() {
             // Category Size KPI
             if (k.id === "ms-category-size" && response.data.categorySize !== undefined) {
               const catData = response.data.categorySize;
-              const val = catData.size || 0;
+              const val = Number(catData.size) || 0;
+              const prevSize = Number(catData.prevSize) || 0;
+              const catDelta = Number(catData.delta) || 0;
               const formattedValue = val > 10000000
                 ? `₹ ${(val / 10000000).toFixed(2)} Cr`
                 : val > 100000
                   ? `₹ ${(val / 100000).toFixed(2)} L`
                   : `₹ ${val.toFixed(2)}`;
 
-              const prevValueCr = catData.prevSize > 10000000
-                ? `₹${(catData.prevSize / 10000000).toFixed(2)} Cr`
-                : catData.prevSize > 100000
-                  ? `₹${(catData.prevSize / 100000).toFixed(2)} L`
-                  : `₹${catData.prevSize.toFixed(2)}`;
+              const prevValueCr = prevSize > 10000000
+                ? `₹${(prevSize / 10000000).toFixed(2)} Cr`
+                : prevSize > 100000
+                  ? `₹${(prevSize / 100000).toFixed(2)} L`
+                  : `₹${prevSize.toFixed(2)}`;
 
-              const arrow = catData.delta >= 0 ? '▲' : '▼';
+              const arrow = catDelta >= 0 ? '▲' : '▼';
 
               return {
                 ...k,
                 value: formattedValue,
-                delta: catData.delta,
-                deltaLabel: `${arrow} ${Math.abs(catData.delta)}% (${prevValueCr})`,
-                extraChangeColor: catData.delta >= 0 ? "green" : "red",
+                delta: catDelta,
+                deltaLabel: `${arrow} ${Math.abs(catDelta)}% (${prevValueCr})`,
+                extraChangeColor: catDelta >= 0 ? "green" : "red",
                 trend: catData.trend,
               };
             }
@@ -452,26 +456,28 @@ export default function MarketShareAnalysis() {
             // Mars Wrigley Sales KPI
             if (k.id === "ms-mars-wrigley" && response.data.marsWrigley) {
               const mars = response.data.marsWrigley;
-              const val = mars.sales;
+              const val = Number(mars.sales) || 0;
+              const prevSales = Number(mars.prevSales) || 0;
+              const marsDelta = Number(mars.delta) || 0;
               const formattedValue = val > 10000000
                 ? `₹ ${(val / 10000000).toFixed(2)} Cr`
                 : val > 100000
                   ? `₹ ${(val / 100000).toFixed(2)} L`
                   : `₹ ${val.toFixed(2)}`;
 
-              const prevValueCr = mars.prevSales > 10000000
-                ? `₹${(mars.prevSales / 10000000).toFixed(2)} Cr`
-                : mars.prevSales > 100000
-                  ? `₹${(mars.prevSales / 100000).toFixed(2)} L`
-                  : `₹${mars.prevSales.toFixed(2)}`;
+              const prevValueCr = prevSales > 10000000
+                ? `₹${(prevSales / 10000000).toFixed(2)} Cr`
+                : prevSales > 100000
+                  ? `₹${(prevSales / 100000).toFixed(2)} L`
+                  : `₹${prevSales.toFixed(2)}`;
 
-              const arrow = mars.delta >= 0 ? '▲' : '▼';
+              const arrow = marsDelta >= 0 ? '▲' : '▼';
               return {
                 ...k,
                 value: formattedValue,
-                delta: mars.delta,
-                deltaLabel: `${arrow} ${Math.abs(mars.delta)}% (${prevValueCr})`,
-                extraChangeColor: mars.delta >= 0 ? "green" : "red",
+                delta: marsDelta,
+                deltaLabel: `${arrow} ${Math.abs(marsDelta)}% (${prevValueCr})`,
+                extraChangeColor: marsDelta >= 0 ? "green" : "red",
                 trend: mars.trend,
               };
             }
