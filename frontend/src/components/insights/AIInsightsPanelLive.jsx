@@ -96,9 +96,12 @@ const buildPrompt = (insight) => {
         // Ad / Keywords
         "adSov", "adSovChangePct", "spendInr", "spend", "acos", "acosChangePct",
         "keyword", "campaign", "budgetCapped", "estLostSalesInr",
-        // Supply
+        // Supply / DS Listing
         "skuName", "fillRate", "poCreated", "poNo", "depotOrDb",
         "plannedQty", "dispatchedQty",
+        // DS Listing Summary
+        "priorityLocalities", "categorySales", "competitors",
+        "totalDarkStores", "totalLocalities", "skuSales",
         // Stock
         "excessDOI", "excessInventoryValue", "currentDiscount", "openPOQty",
         // PO
@@ -150,6 +153,7 @@ RULES:
    - Surplus Stock → "Surplus Alert", "Slow Movers", "Discount Gap", "Action"
    - Transfer Issue → "Transfer Alert", "Affected SKUs", "PSL Impact", "Action"
    - Prioritise PO → "PO Urgency", "Top PO Needs", "Revenue at Risk", "Action"
+   - DS Listing Summary → "Listing Gap", "Priority Stores", "Competitive Risk", "Action"
    - New Market Entry → "New Entrant", "Market Expansion", "Threat Assessment", "Action"`;
 
     // ── User Prompt ───────────────────────────────────────────────────────────
@@ -191,7 +195,7 @@ const staticFallback = (insight) => {
         "Competitor OSA Weak Spots":           [{ label: "Opportunity",    text: `Competitor OSA weakness detected in **${city}**.` }, { label: "Weak Competitors", text: `OSA data temporarily unavailable.` }, { label: "Upside",        text: `**${impact}** capture opportunity while competitor is weak.` }, { label: "Action",        text: `Boost **${brand}** sponsored placements in **${city}** now.` }],
         "Remove Ad Low OSA":                   [{ label: "Wasted Spend",   text: `Ad spend on low-OSA SKUs detected for **${brand}** in **${city}**.` }, { label: "Affected SKUs",  text: `OSA-ad mismatch data temporarily unavailable.` }, { label: "Est. Loss",     text: `**${impact}** lost from ad→OOS leakage.` }, { label: "Action",        text: `Pause ads for OOS SKUs in **${city}**; redirect to OSA >80% products.` }],
         "Keyword Efficiency and Budget Caps":  [{ label: "Efficiency Alert", text: `Underperforming keywords detected for **${brand}** in **${city}**.` }, { label: "Worst Keywords", text: `Keyword performance data temporarily unavailable.` }, { label: "Budget Impact", text: `**${impact}** at risk from keyword waste.` }, { label: "Action",        text: `Pause worst-ACOS keywords; target ACOS <15%.` }],
-        "Replenishment Breaks":                [{ label: "Stockout Risk",  text: `Fill rate below threshold for **${brand}** in **${city}**.` }, { label: "Affected SKUs",  text: `SKU-level replenishment data temporarily unavailable.` }, { label: "Sales at Risk", text: `**${impact}** revenue at risk from supply gap.` }, { label: "Action",        text: `Escalate dispatch at local DC. Prioritise **${city}** first.` }],
+        "DS Listing Summary":                  [{ label: "Listing Gap",    text: `**${brand}** SKUs missing from dark stores in **${city}**.` }, { label: "Priority Stores",text: `Listing coverage data temporarily unavailable.` }, { label: "Sales at Risk", text: `**${impact}** revenue at risk from listing gaps.` }, { label: "Action",        text: `Prioritize listing in **${city}** dark stores. Fix transfer issues first.` }],
         "Surplus Stock":                       [{ label: "Surplus Alert",  text: `Excess inventory detected for **${brand}** in **${city}**.` }, { label: "Slow Movers",    text: `DOI breakdown temporarily unavailable.` }, { label: "Discount Gap",   text: `**${impact}** in excess inventory value.` }, { label: "Action",        text: `Consider bundle offers or flash sales to clear stock in **${city}**.` }],
         "Prioritise PO":                       [{ label: "PO Urgency",     text: `Critical SKUs need urgent PO for **${brand}** in **${city}**.` }, { label: "Top PO Needs",  text: `SKU-level PO data temporarily unavailable.` }, { label: "Revenue at Risk", text: `PSL: **${impact}** if POs not raised immediately.` }, { label: "Action",        text: `Raise emergency PO. Prioritise **${city}** warehouse.` }],
         "Transfer Issue":                      [{ label: "Transfer Alert", text: `Stock transfer needed for **${brand}** to **${city}**.` }, { label: "Affected SKUs",  text: `Transfer details temporarily unavailable.` }, { label: "PSL Impact",    text: `**${impact}** at risk without inter-warehouse transfer.` }, { label: "Action",        text: `Initiate stock transfer to **${city}** to meet CPD demand.` }],
