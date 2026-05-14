@@ -698,6 +698,7 @@ function WatchTowerFilterModal({
 const MS_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
   { key: "category", label: "Category", icon: LayoutGrid },
+  { key: "brand", label: "Brand", icon: Tag },
 ];
 
 function MarketShareFilterModal({
@@ -705,6 +706,7 @@ function MarketShareFilterModal({
   channels, selectedChannel, setSelectedChannel,
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
+  osaBrands = [], selectedOsaBrand, setSelectedOsaBrand,
 }) {
   const [activeTab, setActiveTab] = React.useState("channel");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -712,16 +714,18 @@ function MarketShareFilterModal({
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
   const [draftPlatform, setDraftPlatform] = React.useState(platform);
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
+  const [draftBrand, setDraftBrand] = React.useState(selectedOsaBrand || "All");
 
   React.useEffect(() => {
     if (open) {
       setDraftChannel(selectedChannel);
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
+      setDraftBrand(selectedOsaBrand || "All");
       setActiveTab("channel");
       setSearchTerm("");
     }
-  }, [open, selectedChannel, platform, selectedCategory]);
+  }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
@@ -729,6 +733,7 @@ function MarketShareFilterModal({
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
     platform: { options: platforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: categories, value: draftCategory, onChange: setDraftCategory },
+    brand: { options: osaBrands, value: draftBrand, onChange: setDraftBrand },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -771,15 +776,10 @@ function MarketShareFilterModal({
   };
 
   const handleApply = () => {
-    const normalize = (val) => {
-      if (!val || val === "All") return val;
-      if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? v.toLowerCase() : v);
-      return typeof val === 'string' ? val.toLowerCase() : val;
-    };
-
-    setSelectedChannel(normalize(draftChannel));
-    setPlatform(normalize(draftPlatform));
-    setSelectedCategory(normalize(draftCategory));
+    setSelectedChannel(draftChannel);
+    setPlatform(draftPlatform);
+    setSelectedCategory(draftCategory);
+    if (setSelectedOsaBrand) setSelectedOsaBrand(draftBrand);
     onClose();
   };
 
@@ -791,6 +791,7 @@ function MarketShareFilterModal({
     setDraftChannel("All");
     setDraftPlatform("All");
     setDraftCategory("All");
+    setDraftBrand("All");
   };
 
   const totalActiveCount = MS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -3213,6 +3214,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
   const [contentFilterModalOpen, setContentFilterModalOpen] = React.useState(false);
   const [inventoryFilterModalOpen, setInventoryFilterModalOpen] = React.useState(false);
   const [osaFilterModalOpen, setOsaFilterModalOpen] = React.useState(false);
+  const [osaBrands, setOsaBrands] = React.useState([]);
 
   const {
     channels,
@@ -3259,8 +3261,30 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
 
   const currentChannel = filters?.channel || selectedChannel;
   const currentPlatform = filters?.platform || platform;
+  const currentBrand = filters?.brand || selectedBrand;
 
   const location = useLocation();
+
+  React.useEffect(() => {
+    if (location.pathname === "/market-coverage" || location.pathname === "/on-shelf-availability") {
+      const fetchOsaBrands = async () => {
+        try {
+          const res = await axiosInstance.get('/availability-analysis/brand-options', {
+            params: {
+              platform: currentPlatform,
+              channel: currentChannel,
+              category: selectedCategory
+            }
+          });
+          setOsaBrands(["All", ...(res.data.brands || [])]);
+        } catch (error) {
+          console.error("Failed to fetch OSA Brands:", error);
+          setOsaBrands(["All"]);
+        }
+      };
+      fetchOsaBrands();
+    }
+  }, [location.pathname, currentPlatform, currentChannel, selectedCategory]);
 
   const tableName = React.useMemo(() => getTableForRoute(location.pathname), [location.pathname]);
 
@@ -3288,7 +3312,21 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
     }
   };
 
+  const localSetSelectedOsaBrand = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, brand: val }));
+    } else {
+      setSelectedBrand(val);
+    }
+  };
 
+  const localSetSelectedCategory = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, category: val }));
+    } else {
+      setSelectedCategory(val);
+    }
+  };
 
   // 🌗 Dark/Light Mode
 
@@ -3538,7 +3576,9 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                         } else if (title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
-                        } else if (title !== "Market Share" && title !== "Market Coverage") {
+                        } else if (title === "Market Coverage") {
+                          if (currentBrand !== "All" && !(Array.isArray(currentBrand) && currentBrand.includes("All"))) count++;
+                        } else if (title !== "Market Share") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.length === brands.length)) count++;
                         }
                         return count > 0 ? (
@@ -3621,7 +3661,10 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
-                      setSelectedCategory={setSelectedCategory}
+                      setSelectedCategory={localSetSelectedCategory}
+                      osaBrands={osaBrands}
+                      selectedOsaBrand={currentBrand}
+                      setSelectedOsaBrand={localSetSelectedOsaBrand}
                     />
                   )}
 

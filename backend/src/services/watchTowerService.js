@@ -2,6 +2,7 @@ import TbZeptoBrandSalesAnalytics from '../models/TbZeptoBrandSalesAnalytics.js'
 import TbZeptoInventoryData from '../models/TbZeptoInventoryData.js';
 import TbBlinkitSalesData from '../models/TbBlinkitSalesData.js';
 import RbPdpOlap from '../models/RbPdpOlap.js';
+import fs from 'fs';
 
 import RbKw from '../models/RbKw.js';
 import RbBrandMs from '../models/RbBrandMs.js';
@@ -9733,18 +9734,18 @@ const getRcaData = async (filters = {}) => {
             const conds = [`${dateCol} BETWEEN '${sDate}' AND '${eDate}'`];
             const platArr = normalizeFilterArray(platform);
             if (platArr && platArr.length > 0) {
-                conds.push(`${src.f.platform} IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                conds.push(`lower(${src.f.platform}) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
             const catArr = normalizeFilterArray(category);
             if (catArr && catArr.length > 0) {
                 const catCol = src.f.category;
-                conds.push(`${catCol} IN (${catArr.map(c => `'${escapeStr(c)}'`).join(', ')})`);
+                conds.push(`lower(${catCol}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(', ')})`);
             }
             if (brand && brand !== 'All' && brand !== 'All Brands') {
-                conds.push(`${src.f.brand} LIKE '%${escapeStr(brand)}%'`);
+                conds.push(`lower(${src.f.brand}) LIKE '%${escapeStr(brand.toLowerCase())}%'`);
             }
             if (sku && sku !== 'All' && sku !== 'All SKUs') {
-                conds.push(`${src.f.skuCode} = '${escapeStr(sku)}'`);
+                conds.push(`lower(${src.f.skuCode}) = '${escapeStr(sku.toLowerCase())}'`);
             }
             return conds.join(' AND ');
         };
@@ -9754,10 +9755,10 @@ const getRcaData = async (filters = {}) => {
             const conds = [`toDate(DATE) BETWEEN '${sDate}' AND '${eDate}'`];
             const platArr = normalizeFilterArray(platform);
             if (platArr && platArr.length > 0) {
-                conds.push(`platform_name IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                conds.push(`lower(platform_name) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
             if (category && category !== 'All') {
-                conds.push(`keyword_category = '${escapeStr(category)}'`);
+                conds.push(`lower(keyword_category) = '${escapeStr(category.toLowerCase())}'`);
             }
             return conds.join(' AND ');
         };
@@ -9767,10 +9768,10 @@ const getRcaData = async (filters = {}) => {
             const conds = [`toDate(created_on) BETWEEN '${sDate}' AND '${eDate}'`];
             const platArr = normalizeFilterArray(platform);
             if (platArr && platArr.length > 0) {
-                conds.push(`platform IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                conds.push(`lower(platform) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
             if (category && category !== 'All') {
-                conds.push(`category = '${escapeStr(category)}'`);
+                conds.push(`lower(category) = '${escapeStr(category.toLowerCase())}'`);
             }
             return conds.join(' AND ');
         };
@@ -9786,13 +9787,13 @@ const getRcaData = async (filters = {}) => {
             const conds = [`toDate(DATE) BETWEEN '${sDate}' AND '${eDate}'`];
             const platArr = normalizeFilterArray(platform);
             if (platArr && platArr.length > 0) {
-                conds.push(`Platform IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`);
+                conds.push(`lower(Platform) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`);
             }
             if (category && category !== 'All') {
-                conds.push(`category = '${escapeStr(category)}'`);
+                conds.push(`lower(category) = '${escapeStr(category.toLowerCase())}'`);
             }
             if (brand && brand !== 'All' && brand !== 'All Brands') {
-                conds.push(`brand LIKE '%${escapeStr(brand)}%'`);
+                conds.push(`lower(brand) LIKE '%${escapeStr(brand.toLowerCase())}%'`);
             }
             return conds.join(' AND ');
         };
@@ -9951,12 +9952,29 @@ const getRcaData = async (filters = {}) => {
             LIMIT 100
         `;
 
+        // Query to get impressions from rb_pm_olap grouped by keyword_type (competition, branded, generic)
+        const pmImpressionsByTypeQuery = (conds) => `
+            SELECT
+                lower(keyword_type) as keyword_type,
+                SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as total_impressions
+            FROM rb_pm_olap
+            WHERE ${conds}
+              AND keyword_type IS NOT NULL AND keyword_type != ''
+            GROUP BY keyword_type
+        `;
+
         if (drilldownLevel) {
+            const platArr = normalizeFilterArray(platform);
+            const qcPlatforms = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy', 'dunzo'];
+            const isQuickComm = platArr.some(p => qcPlatforms.includes(p.toLowerCase()) || p.toLowerCase().includes('quickcomm'));
+
             console.log(`[getRcaData] Drilldown Request: ${drilldownLevel} for ${drilldownId || 'ROOT'} (${kpiCategory})`);
 
             // Special handler for Keyword SOS KPIs (Branded/Generic/Comp Keyword)
             const kpiLower = (kpiCategory || '').toLowerCase();
-            if (kpiLower.includes('keyword')) {
+            const isOrganicKeywordSOS = kpiLower.includes('organic') && kpiLower.includes('keyword') && kpiLower.includes('sos');
+
+            if (kpiLower.includes('keyword') && !isOrganicKeywordSOS) {
                 const isOrganic = kpiLower.includes('organic') ||
                     (kpiCategory || '').toLowerCase() === 'branded keyword' ||
                     (kpiCategory || '').toLowerCase() === 'generic keyword' ||
@@ -9969,23 +9987,73 @@ const getRcaData = async (filters = {}) => {
                 else if (kpiLower.includes('comp')) kwTypeFilter = `AND keyword_type IN ('Competition', 'Competitor')`;
 
                 const kwSosQuery = (sDate, eDate) => {
-                    const platArr = normalizeFilterArray(platform);
-                    const platCond = platArr && platArr.length > 0
-                        ? `AND platform_name IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
-                        : '';
                     const catProp = category && category !== 'All' ? category : 'All';
-                    const catCond = catProp !== 'All'
-                        ? `AND keyword_category = '${escapeStr(catProp)}'`
-                        : '';
-
+                    
                     let nameCol = 'keyword';
                     if (drilldownLevel === 'brand') nameCol = 'brand';
                     else if (drilldownLevel === 'sku') nameCol = 'keyword';
                     else if (drilldownLevel === 'location') nameCol = 'location_name';
 
+                    const scopeBrand = filters.brandScope || filters.brand || '';
+
+                    if (isQuickComm) {
+                        const platCondPm = platArr && platArr.length > 0
+                            ? `AND lower(Platform) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})`
+                            : '';
+                        const catCondPm = catProp !== 'All'
+                            ? `AND lower(category) = lower('${escapeStr(catProp)}')`
+                            : '';
+                        
+                        let kwTypeFilterPm = '';
+                        if (kpiLower.includes('branded')) kwTypeFilterPm = `AND lower(keyword_type) = 'branded'`;
+                        else if (kpiLower.includes('generic')) kwTypeFilterPm = `AND lower(keyword_type) = 'generic'`;
+                        else if (kpiLower.includes('comp')) kwTypeFilterPm = `AND lower(keyword_type) IN ('competition', 'competitor')`;
+
+                        let brandScopeCondPm = `1=1`;
+                        if (kpiLower.includes('branded') && scopeBrand && scopeBrand !== 'All' && scopeBrand !== 'All Brands') {
+                            brandScopeCondPm = `lower(brand) = lower('${escapeStr(scopeBrand)}')`;
+                        }
+
+                        let parentCondPm = '';
+                        if (drilldownId) {
+                            if (drilldownLevel === 'sku' || drilldownLevel === 'keyword') {
+                                parentCondPm = `AND lower(brand) = lower('${escapeStr(drilldownId)}')`;
+                            }
+                        }
+
+                        // rb_pm_olap fallback for nameCol if not available (like location)
+                        const safeNameCol = (nameCol === 'location_name') ? 'brand' : nameCol;
+
+                        const finalSql = `
+                            SELECT 
+                                ${safeNameCol} as name,
+                                (SELECT SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) FROM rb_pm_olap WHERE DATE BETWEEN '${sDate}' AND '${eDate}' ${platCondPm} ${catCondPm} ${kwTypeFilterPm}) as total_impressions,
+                                SUM(ifNull(toFloat64OrZero(toString(impressions)), 0)) as brand_impressions
+                            FROM rb_pm_olap
+                            WHERE DATE BETWEEN '${sDate}' AND '${eDate}'
+                                ${platCondPm}
+                                ${catCondPm}
+                                ${kwTypeFilterPm}
+                                ${parentCondPm}
+                                AND ${safeNameCol} IS NOT NULL AND ${safeNameCol} != ''
+                            GROUP BY name
+                            HAVING brand_impressions > 0
+                            ORDER BY brand_impressions DESC
+                            LIMIT 50
+                        `;
+                        fs.appendFileSync('sql_debug.log', `\n\n--- [${new Date().toISOString()}] ---\n${finalSql}\n`);
+                        return finalSql;
+                    }
+
+                    const platCond = platArr && platArr.length > 0
+                        ? `AND platform_name IN(${platArr.map(p => `'${escapeStr(p)}'`).join(', ')})`
+                        : '';
+                    const catCond = catProp !== 'All'
+                        ? `AND keyword_category = '${escapeStr(catProp)}'`
+                        : '';
+
                     let parentCond = '';
                     let brandScopeCond = `toString(flag)='1'`;
-                    const scopeBrand = filters.brandScope || filters.brand || '';
                     if (scopeBrand && scopeBrand !== 'All' && scopeBrand !== 'All Brands') {
                         brandScopeCond = `lower(brand) = lower('${escapeStr(scopeBrand)}')`;
                     }
@@ -10045,7 +10113,8 @@ const getRcaData = async (filters = {}) => {
 
                 const currSql = kwSosQuery(startStr, endStr);
                 const prevSql = kwSosQuery(prevStartStr, prevEndStr);
-                // console.log("[getRcaData] SQL:", currSql);
+                console.log(`[getRcaData] isQuickComm=${isQuickComm}, platArr=${JSON.stringify(platArr)}, kpiLower=${kpiLower}`);
+                console.log("[getRcaData] kwSos SQL:", currSql);
 
                 const [currKwSos, prevKwSos] = await Promise.all([
                     queryClickHouse(currSql),
@@ -10109,14 +10178,15 @@ const getRcaData = async (filters = {}) => {
                 const drilldownParentLevel = filters.drilldownParentLevel || '';
                 let parentCond = '';
                 if (parentId) {
+                    const safeId = escapeStr(parentId).toLowerCase();
                     if (level === 'sku') {
-                        parentCond = ` AND ${src.f.brand} = '${escapeStr(parentId)}'`;
+                        parentCond = ` AND lower(${src.f.brand}) = '${safeId}'`;
                     } else if (level === 'keyword') {
-                        parentCond = ` AND brand LIKE '%${escapeStr(parentId)}%'`;
+                        parentCond = ` AND lower(brand) LIKE '%${safeId}%'`;
                     } else if (level === 'location' && drilldownParentLevel === 'brand') {
-                        parentCond = ` AND ${src.f.brand} LIKE '%${escapeStr(parentId)}%'`;
+                        parentCond = ` AND lower(${src.f.brand}) LIKE '%${safeId}%'`;
                     } else {
-                        parentCond = ` AND ${src.f.product} = '${escapeStr(parentId)}'`;
+                        parentCond = ` AND lower(${src.f.product}) = '${safeId}'`;
                     }
                 }
 
@@ -10124,20 +10194,33 @@ const getRcaData = async (filters = {}) => {
                     const isOrganicKpi = (kpiCategory || '').toLowerCase().includes('organic');
                     const kpiLower = (kpiCategory || '').toLowerCase();
                     let flagCond = '';
-                    if (kpiLower.includes('branded')) flagCond = " AND toString(flag) = '1'";
-                    else if (kpiLower.includes('generic')) flagCond = " AND toString(flag) = '0'";
-                    else if (kpiLower.includes('comp')) flagCond = " AND toString(flag) = '0'";
+                    if (isQuickComm && isOrganicKpi && table === 'rb_pm_olap') {
+                        if (kpiLower.includes('branded')) flagCond = " AND lower(keyword_type) = 'branded'";
+                        else if (kpiLower.includes('generic')) flagCond = " AND lower(keyword_type) = 'generic'";
+                        else if (kpiLower.includes('comp')) flagCond = " AND lower(keyword_type) IN ('competition', 'competitor')";
+                    } else {
+                        if (kpiLower.includes('branded')) flagCond = " AND toString(flag) = '1'";
+                        else if (kpiLower.includes('generic')) flagCond = " AND toString(flag) = '0'";
+                        else if (kpiLower.includes('comp')) flagCond = " AND toString(flag) = '0'";
+                    }
 
                     if (isOrganicKpi) {
-                        table = 'rb_kw_olap';
-                        dateCol = 'toDate(DATE)';
+                        table = isQuickComm ? 'rb_pm_olap' : 'rb_kw_olap';
+                        dateCol = isQuickComm ? 'DATE' : 'toDate(DATE)';
+                        
+                        // Handle column differences
+                        const impCol = isQuickComm ? 'impressions' : 'organic';
+                        const platCol = isQuickComm ? 'Platform' : 'platform_name';
+                        const platCondDrill = isQuickComm ? `AND lower(Platform) IN(${platArr.map(p => `'${escapeStr(p.toLowerCase())}'`).join(', ')})` : '';
+                        const catCondDrill = (category && category !== 'All') ? `AND lower(category) = lower('${escapeStr(category)}')` : '';
+
                         return `
                     SELECT
                     keyword as name,
                         0 as sales,
                         0 as qty,
-                        SUM(toInt32(organic)) as impressions,
-                        SUM(toInt32(organic)) as organic_impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(${table}.${impCol})), 0)) as impressions,
+                        SUM(ifNull(toFloat64OrZero(toString(${table}.${impCol})), 0)) as organic_impressions,
                         0 as orders,
                         0 as neno,
                         0 as deno,
@@ -10145,7 +10228,7 @@ const getRcaData = async (filters = {}) => {
                         0 as avg_listing_pct
                             FROM ${table}
                             WHERE ${dateCol} BETWEEN '${conds.match(/'(\d{4}-\d{2}-\d{2})'/g)[0].replace(/'/g, '')}' AND '${conds.match(/'(\d{4}-\d{2}-\d{2})'/g)[1].replace(/'/g, '')}'
-                              AND lower(brand) LIKE '%${escapeStr(parentId).toLowerCase()}%' ${flagCond}
+                              AND lower(brand) LIKE '%${escapeStr(parentId).toLowerCase()}%' ${flagCond} ${platCondDrill} ${catCondDrill}
                             GROUP BY name
                             ORDER BY impressions DESC
                             LIMIT 50
@@ -10213,8 +10296,10 @@ const getRcaData = async (filters = {}) => {
                 const p = d.prev || {};
 
                 const getVal = (obj, cat) => {
+                    const isOrganicKeywordSOS = cat.includes('organic') && cat.includes('keyword') && cat.includes('sos');
                     if (cat.includes('offtake')) return parseFloat(obj.sales || 0);
                     if (cat.includes('price')) return (obj.qty > 0 ? obj.sales / obj.qty : 0);
+                    if (isOrganicKeywordSOS) return parseFloat(obj.organic_impressions || obj.impressions || 0);
                     if (cat.includes('organic') && cat.includes('impression')) return parseFloat(obj.organic_impressions || 0);
                     if (cat.includes('ad') && cat.includes('impression')) return parseFloat(obj.impressions || 0);
                     if (cat.includes('impression')) return parseFloat(obj.impressions || 0) + parseFloat(obj.organic_impressions || 0);
@@ -10253,7 +10338,7 @@ const getRcaData = async (filters = {}) => {
         }
 
         // Execute all queries in parallel for main tree
-        const [currOlap, prevOlap, currKw, prevKw, currMs, currBrands, prevBrands, currBrandKw, prevBrandKw, currPmKw, prevPmKw, currOrgKw, prevOrgKw] = await Promise.all([
+        const [currOlap, prevOlap, currKw, prevKw, currMs, currBrands, prevBrands, currBrandKw, prevBrandKw, currPmKw, prevPmKw, currOrgKw, prevOrgKw, currPmImpByType, prevPmImpByType] = await Promise.all([
             queryClickHouse(olapQuery(currOlapConds)),
             queryClickHouse(olapQuery(prevOlapConds)),
             queryClickHouse(kwQuery(currKwConds)),
@@ -10272,7 +10357,9 @@ const getRcaData = async (filters = {}) => {
             queryClickHouse(pmKeywordQuery(currPmConds)),
             queryClickHouse(pmKeywordQuery(prevPmConds)),
             queryClickHouse(topOrganicKwQuery(currKwConds)),
-            queryClickHouse(topOrganicKwQuery(prevKwConds))
+            queryClickHouse(topOrganicKwQuery(prevKwConds)),
+            queryClickHouse(pmImpressionsByTypeQuery(currPmConds)),
+            queryClickHouse(pmImpressionsByTypeQuery(prevPmConds))
         ]);
 
         // ... build maps for BOTH ...
@@ -10492,6 +10579,32 @@ const getRcaData = async (filters = {}) => {
         const adBrandedSosDelta = absDelta(parseFloat(cAdBrandedSos), parseFloat(pAdBrandedSos));
         const adGenericSosDelta = absDelta(parseFloat(cAdGenericSos), parseFloat(pAdGenericSos));
         const adCompSosDelta = absDelta(parseFloat(cAdCompSos), parseFloat(pAdCompSos));
+
+        // Parse rb_pm_olap impressions by keyword_type (competition, branded, generic)
+        const parsePmImpByType = (rows) => {
+            const result = { competition: 0, branded: 0, generic: 0 };
+            (rows || []).forEach(r => {
+                const kt = (r.keyword_type || '').toLowerCase();
+                const imp = parseFloat(r.total_impressions || 0);
+                if (kt === 'competition') result.competition = imp;
+                else if (kt === 'branded') result.branded = imp;
+                else if (kt === 'generic') result.generic = imp;
+            });
+            return result;
+        };
+        const cPmImpTypes = parsePmImpByType(currPmImpByType);
+        const pPmImpTypes = parsePmImpByType(prevPmImpByType);
+        const cPmCompImp = cPmImpTypes.competition;
+        const pPmCompImp = pPmImpTypes.competition;
+        const cPmBrandedImp = cPmImpTypes.branded;
+        const pPmBrandedImp = pPmImpTypes.branded;
+        const cPmGenericImp = cPmImpTypes.generic;
+        const pPmGenericImp = pPmImpTypes.generic;
+        const cPmTotalImp = cPmCompImp + cPmBrandedImp + cPmGenericImp;
+        const pPmTotalImp = pPmCompImp + pPmBrandedImp + pPmGenericImp;
+        const pmCompImpDelta = pctDelta(cPmCompImp, pPmCompImp);
+        const pmBrandedImpDelta = pctDelta(cPmBrandedImp, pPmBrandedImp);
+        const pmGenericImpDelta = pctDelta(cPmGenericImp, pPmGenericImp);
 
         // Map brand metrics for tooltips
         const brandsMap = new Map();
@@ -10725,9 +10838,24 @@ const getRcaData = async (filters = {}) => {
                             metrics: allNodeMetrics,
                             meta: [{ label: "Organic SOS", value: cTotalKw > 0 ? `${((cOrgRbKw / cTotalKw) * 100).toFixed(2)}% ` : "0.0%", change: orgRbDelta.val, isPositive: orgRbDelta.isPos }],
                             children: [
-                                { id: "org-comp", label: "Comp Keyword", value: `${cOrgCompSos}% `, prevValue: `${pOrgCompSos}% `, change: orgCompSosDelta.val, isPositive: orgCompSosDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.co },
-                                { id: "org-branded", label: "Branded Keyword", value: `${cOrgBrandedSos}% `, prevValue: `${pOrgBrandedSos}% `, change: orgBrandedSosDelta.val, isPositive: orgBrandedSosDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.br },
-                                { id: "org-generic", label: "Generic Keyword", value: `${cOrgGenericSos}% `, prevValue: `${pOrgGenericSos}% `, change: orgGenericSosDelta.val, isPositive: orgGenericSosDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.gen }
+                                { id: "org-comp", label: "Comp Keyword", value: formatCount(cPmCompImp), prevValue: formatCount(pPmCompImp), change: pmCompImpDelta.val, isPositive: pmCompImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.co,
+                                  meta: [
+                                      { label: "Comp Impressions", value: formatCount(cPmCompImp), change: pmCompImpDelta.val, isPositive: pmCompImpDelta.isPos },
+                                      { label: "Comp Imp%", value: `${cPmTotalImp > 0 ? ((cPmCompImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
+                                  ]
+                                },
+                                { id: "org-branded", label: "Branded Keyword", value: formatCount(cPmBrandedImp), prevValue: formatCount(pPmBrandedImp), change: pmBrandedImpDelta.val, isPositive: pmBrandedImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.br,
+                                  meta: [
+                                      { label: "Branded Impressions", value: formatCount(cPmBrandedImp), change: pmBrandedImpDelta.val, isPositive: pmBrandedImpDelta.isPos },
+                                      { label: "Branded Imp%", value: `${cPmTotalImp > 0 ? ((cPmBrandedImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
+                                  ]
+                                },
+                                { id: "org-generic", label: "Generic Keyword", value: formatCount(cPmGenericImp), prevValue: formatCount(pPmGenericImp), change: pmGenericImpDelta.val, isPositive: pmGenericImpDelta.isPos, category: "organic", metrics: allNodeMetrics, keywordMetrics: orgKwData.gen,
+                                  meta: [
+                                      { label: "Generic Impressions", value: formatCount(cPmGenericImp), change: pmGenericImpDelta.val, isPositive: pmGenericImpDelta.isPos },
+                                      { label: "Generic Imp%", value: `${cPmTotalImp > 0 ? ((cPmGenericImp / cPmTotalImp) * 100).toFixed(2) : '0.00'}%` }
+                                  ]
+                                }
                             ]
                         },
                         {

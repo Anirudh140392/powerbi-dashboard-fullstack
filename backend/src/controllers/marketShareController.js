@@ -46,7 +46,7 @@ export const SubCategoryKpi = async (req, res) => {
     req.query.location = 'All';
     req.query.cities = 'All';
     try {
-        const { platform, category, location, startDate, endDate, subCategory, compareStartDate, compareEndDate } = req.query;
+        const { platform, category, location, startDate, endDate, subCategory, compareStartDate, compareEndDate, brand } = req.query;
         console.log("Sub-Category KPI request received:", req.query);
 
         const start = startDate ? dayjs(startDate) : dayjs().subtract(30, 'day');
@@ -54,7 +54,7 @@ export const SubCategoryKpi = async (req, res) => {
         const compStart = compareStartDate ? dayjs(compareStartDate) : null;
         const compEnd = compareEndDate ? dayjs(compareEndDate) : null;
 
-        const result = await getSubCategoryKpi(start, end, platform, category, location, subCategory, compStart, compEnd);
+        const result = await getSubCategoryKpi(start, end, platform, category, location, subCategory, compStart, compEnd, brand);
 
         res.json({
             message: "Sub-Category KPI fetched successfully",

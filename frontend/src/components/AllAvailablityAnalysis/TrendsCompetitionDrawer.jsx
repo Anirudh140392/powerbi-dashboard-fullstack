@@ -45,6 +45,7 @@ import { AvailabilityCompetitionKpiShowcase } from "./AvailabilityCompetitionKpi
 import axiosInstance from "../../api/axiosInstance";
 import ErrorRetryOverlay from "../CommonLayout/ErrorRetryOverlay";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 
 /**
  * ---------------------------------------------------------------------------
@@ -591,6 +592,9 @@ export default function TrendsCompetitionDrawer({
   defaultView = "Trends",
   initialAudience = "Platform",
 }) {
+  const { user } = useAuth();
+  const isSugarUser = user?.dbName === 'sugar';
+
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: initialAudience, // default value
@@ -610,7 +614,14 @@ export default function TrendsCompetitionDrawer({
   const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
-  const [view, setView] = useState(defaultView || "Trends");
+  const [view, setView] = useState(isSugarUser ? "Trends" : defaultView);
+
+  useEffect(() => {
+    if (isSugarUser && view === "Competition") {
+      setView("Trends");
+    }
+  }, [isSugarUser, view]);
+
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
   const [activeMetrics, setActiveMetrics] = useState([]);
@@ -649,7 +660,7 @@ export default function TrendsCompetitionDrawer({
     if (!open) return;
 
     // Set view
-    setView(defaultView || "Trends");
+    setView(isSugarUser ? "Trends" : (defaultView || "Trends"));
 
     if (dynamicKey === "pricing") {
       setSelectedPlatform(initialPlatform || "Blinkit");
@@ -2331,11 +2342,10 @@ export default function TrendsCompetitionDrawer({
             }}
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
-            {dynamicKey !== "Performance_marketing" &&
-              dynamicKey !== "performance_dashboard_tower" && (
-                <ToggleButton value="Competition">Competition</ToggleButton>
-              )}
-            {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
+            {!isSugarUser && (
+              <ToggleButton value="Competition">Competition</ToggleButton>
+            )}
+            <ToggleButton value="Compare">Compare SKUs</ToggleButton>
           </ToggleButtonGroup>
 
           <IconButton onClick={onClose} size="small">
