@@ -59,9 +59,6 @@ const getStatusText = (delta) => {
     return delta.dir === 'up' ? "text-emerald-500" : "text-rose-500";
 };
 
-const copy = (title, value) => {
-    navigator.clipboard.writeText(`${title}: ${value}`);
-};
 
 // Truncate text to a given number of words, appending "..." if truncated
 const truncateToWords = (text, maxWords = 5) => {
@@ -197,6 +194,17 @@ const PlatformOverviewNew = ({
     const [dimension, setDimension] = useState('platform')
     const [localPlatformFilter, setLocalPlatformFilter] = useState('')
     const [skuPlatformFilter, setSkuPlatformFilter] = useState('')
+    const [toastMessage, setToastMessage] = useState('');
+
+    const handleCopy = async (title, value) => {
+        try {
+            await navigator.clipboard.writeText(`${title}: ${value}`);
+            setToastMessage(`Copied: ${value}`);
+            setTimeout(() => setToastMessage(''), 2500);
+        } catch (err) {
+            console.error('Failed to copy', err);
+        }
+    };
 
     // Automatically set default platform to first valid platform when 'All' is selected
     useEffect(() => {
@@ -1018,7 +1026,7 @@ const PlatformOverviewNew = ({
                                                 return (
                                                     <motion.button
                                                         key={kpi.key}
-                                                        onClick={() => { if (!isNA) copy(`${e.name} ${kpi.label}`, cell?.value) }}
+                                                        onClick={() => { if (!isNA) handleCopy(`${e.name} ${kpi.label}`, cell?.value) }}
                                                         className={cn(
                                                             'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
                                                             'bg-gradient-to-br from-white to-slate-50',
@@ -1116,6 +1124,16 @@ const PlatformOverviewNew = ({
                     </div>
                 </SectionWrapper>
             </div>
+
+            {/* Toast Notification */}
+            {toastMessage && (
+                <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl z-50 text-sm font-medium flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <span className="text-white text-[10px]">✓</span>
+                    </div>
+                    {toastMessage}
+                </div>
+            )}
 
             {/* Prepare options for advanced filter dropdowns */}
             {(() => {
