@@ -852,13 +852,13 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
 
         const curTotal = parseFloat(currentRes?.[0]?.total_sales || 0);
         const curOur = parseFloat(currentRes?.[0]?.our_sales || 0);
-        const share = curTotal > 0 ? (curOur / curTotal) * 100 : 0;
+        const share = curTotal > 0 ? (curOur / curTotal) * 100 : null;
 
         const prevTotal = parseFloat(prevRes?.[0]?.total_sales || 0);
         const prevOur = parseFloat(prevRes?.[0]?.our_sales || 0);
-        const prevShare = prevTotal > 0 ? (prevOur / prevTotal) * 100 : 0;
+        const prevShare = prevTotal > 0 ? (prevOur / prevTotal) * 100 : null;
 
-        const delta = share - prevShare;
+        const delta = (share !== null && prevShare !== null) ? share - prevShare : null;
 
         const trendMap = {};
         trendRes.forEach(t => {
@@ -892,9 +892,9 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
         }
 
         return {
-            share: parseFloat(share.toFixed(2)),
-            prevShare: parseFloat(prevShare.toFixed(2)),
-            delta: parseFloat(delta.toFixed(2)),
+            share: share !== null ? parseFloat(share.toFixed(2)) : null,
+            prevShare: prevShare !== null ? parseFloat(prevShare.toFixed(2)) : null,
+            delta: delta !== null ? parseFloat(delta.toFixed(2)) : null,
             trend
         };
     } catch (error) {
@@ -910,7 +910,7 @@ export const getMarketShareKPI = async (start, end, platformFilter, categoryFilt
  * Includes delta vs previous period of equal length
  * NOTE: rb_ms_olap does not have sub_category, so we use category instead
  */
-export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilter, locationFilter = null, subCategoryFilter = null, compStart = null, compEnd = null) => {
+export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilter, locationFilter = null, subCategoryFilter = null, compStart = null, compEnd = null, brandFilter = null) => {
     try {
         const platformArr = normalizeFilterArray(platformFilter);
         const categoryArr = normalizeFilterArray(categoryFilter);
@@ -934,6 +934,12 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             categoryCond = `AND category IN (${mappedCats.map(c => `'${c.replace(/'/g, "''")}'`).join(', ')})`;
         }
 
+        const brandArr = normalizeFilterArray(brandFilter);
+        let brandCond = '';
+        if (brandArr && brandArr.length > 0 && !brandArr.includes('All')) {
+            brandCond = `AND group_brand IN (${brandArr.map(b => `'${b.replace(/'/g, "''")}'`).join(', ')})`;
+        }
+
         const startStr = start.format('YYYY-MM-DD');
         const endStr = end.format('YYYY-MM-DD');
 
@@ -954,6 +960,7 @@ export const getSubCategoryKpi = async (start, end, platformFilter, categoryFilt
             ${platformCond}
             ${locationCond}
             ${categoryCond}
+            ${brandCond}
             AND category IS NOT NULL AND category != ''
         `;
 
@@ -1346,9 +1353,9 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             // MW Market Share = mw_sales / category_size * 100
             const mwSalesCurrVal = parseFloat(mwCurrMap[platKey]?.mw_sales || 0);
             const mwSalesPrevVal = parseFloat(mwPrevMap[platKey]?.mw_sales || 0);
-            const mwMsCurr = catCurr > 0 ? (mwSalesCurrVal / catCurr) * 100 : 0;
-            const mwMsPrev = catPrev > 0 ? (mwSalesPrevVal / catPrev) * 100 : 0;
-            const mwMsDelta = calcDelta(mwMsCurr, mwMsPrev);
+            const mwMsCurr = catCurr > 0 ? (mwSalesCurrVal / catCurr) * 100 : null;
+            const mwMsPrev = catPrev > 0 ? (mwSalesPrevVal / catPrev) * 100 : null;
+            const mwMsDelta = (mwMsCurr !== null && mwMsPrev !== null) ? calcDelta(mwMsCurr, mwMsPrev) : null;
 
             const mwSalesCurr = mwSalesCurrVal;
             const mwSalesPrev = mwSalesPrevVal;
@@ -1364,9 +1371,9 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
             const mlSalesPrev = parseFloat(mlPrevRow?.total_sales || 0);
             const mlSalesDelta = calcDelta(mlSalesCurr, mlSalesPrev);
             // ML Market Share = ml_sales / category_size * 100
-            const mlMsCurr = catCurr > 0 ? (mlSalesCurr / catCurr) * 100 : 0;
-            const mlMsPrev = catPrev > 0 ? (mlSalesPrev / catPrev) * 100 : 0;
-            const mlMsDelta = calcDelta(mlMsCurr, mlMsPrev);
+            const mlMsCurr = catCurr > 0 ? (mlSalesCurr / catCurr) * 100 : null;
+            const mlMsPrev = catPrev > 0 ? (mlSalesPrev / catPrev) * 100 : null;
+            const mlMsDelta = (mlMsCurr !== null && mlMsPrev !== null) ? calcDelta(mlMsCurr, mlMsPrev) : null;
 
             return {
                 categorySize: {
@@ -1379,11 +1386,11 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
                 },
                 mwMarketShare: {
                     raw: mwMsCurr,
-                    value: `${mwMsCurr.toFixed(2)}%`,
-                    delta: {
+                    value: mwMsCurr !== null ? `${mwMsCurr.toFixed(2)}%` : 'N/A',
+                    delta: mwMsDelta ? {
                         value: `${mwMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mwMsDelta.deltaPct)}% (${mwMsDelta.prevVal.toFixed(2)}%)`,
                         dir: mwMsDelta.deltaPct >= 0 ? 'up' : 'down'
-                    }
+                    } : null
                 },
                 mwSales: {
                     raw: mwSalesCurr,
@@ -1395,11 +1402,11 @@ export const getCrossPlatformOverview = async (start, end, platformFilter, categ
                 },
                 mlMarketShare: {
                     raw: mlMsCurr,
-                    value: `${mlMsCurr.toFixed(2)}%`,
-                    delta: {
+                    value: mlMsCurr !== null ? `${mlMsCurr.toFixed(2)}%` : 'N/A',
+                    delta: mlMsDelta ? {
                         value: `${mlMsDelta.deltaPct >= 0 ? '▲' : '▼'} ${Math.abs(mlMsDelta.deltaPct)}% (${mlMsDelta.prevVal.toFixed(2)}%)`,
                         dir: mlMsDelta.deltaPct >= 0 ? 'up' : 'down'
-                    }
+                    } : null
                 },
                 mlSales: {
                     raw: mlSalesCurr,

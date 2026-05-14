@@ -1,6 +1,8 @@
 import { Platform, SubCategoryKpi, CrossPlatformOverview, MarketShareTrends, MarketShareCompetition, MarketShareCompetitionFilterOptions, MarketShareTopFilterOptions, MarketShareCompetitionTrends, MarketShareDrilldown, MarketShareLatestDate } from '../controllers/marketShareController.js';
+import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
 
 export default (app) => {
+    app.use('/api/market-share', accessControlMiddleware);
     /**
      * @swagger
      * /api/market-share:

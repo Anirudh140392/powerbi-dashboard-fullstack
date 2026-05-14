@@ -472,9 +472,11 @@ export function AggregatedViewTable() {
                     return acc;
                 }, { impressions: 0, clicks: 0, atc: 0, spends: 0, orders: 0, sales: 0 });
 
-                calcTotals.ctr = calcTotals.impressions > 0 ? (calcTotals.clicks / calcTotals.impressions) * 100 : 0;
-                calcTotals.cpc = calcTotals.clicks > 0 ? (calcTotals.spends / calcTotals.clicks) : 0;
-                calcTotals.cvr = calcTotals.clicks > 0 ? (calcTotals.orders / calcTotals.clicks) * 100 : 0;
+                const totalClicks = calcTotals.clicks + calcTotals.atc;
+
+                calcTotals.ctr = calcTotals.impressions > 0 ? (totalClicks / calcTotals.impressions) * 100 : 0;
+                calcTotals.cpc = totalClicks > 0 ? (calcTotals.spends / totalClicks) : 0;
+                calcTotals.cvr = totalClicks > 0 ? (calcTotals.orders / totalClicks) * 100 : 0;
                 calcTotals.aov = calcTotals.orders > 0 ? (calcTotals.sales / calcTotals.orders) : 0;
 
                 setTotals(calcTotals);
@@ -602,7 +604,7 @@ export function AggregatedViewTable() {
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.clicks)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.atc)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatPercent(totals.ctr)}</td>
-                                <td className="px-2 py-3 text-right text-sm text-slate-400">—</td>
+                                <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>100.00%</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.spends)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatCurrency(totals.cpc)}</td>
                                 <td className={`px-2 py-3 text-right text-sm font-semibold ${darkMode ? "text-white" : "text-slate-900"}`}>{formatNumber(totals.orders)}</td>

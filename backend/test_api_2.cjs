@@ -6,14 +6,18 @@ const axios = require('axios');
         platform: 'blinkit',
         kpiCategory: 'Organic COMP KEYWORD SOS',
         drilldownLevel: 'keyword',
-        drilldownId: 'Mars',
-        startDate: '2023-01-01',
-        endDate: '2024-01-01',
-        brandScope: 'Mars'
+        drilldownId: 'boat',
+        startDate: '2024-04-13',
+        endDate: '2024-05-14',
+        brandScope: 'boat'
       }
     });
     console.log(JSON.stringify(res.data, null, 2));
   } catch (err) {
-    console.error(err.message);
+    if (err.response) {
+      console.error(err.response.data);
+    } else {
+      console.error(err.message);
+    }
   }
 })();

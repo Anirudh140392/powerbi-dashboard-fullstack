@@ -1242,16 +1242,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     selectedCategory
   } = useContext(FilterContext);
 
-  // Simulated loading delay on filter change
-  useEffect(() => {
-    setLocalLoading(true);
-    const timer = setTimeout(() => {
-      setLocalLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedChannel, selectedCategory, timeStart, timeEnd, availability]);
-
-  const isLoading = parentLoading || localLoading;
+  const isLoading = parentLoading;
 
   // User request: restrict Availability Overview cards to ONLY change on Platform
   const platformContext = { platform: globalPlatform };
@@ -1341,14 +1332,15 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     // Info tooltips for specific KPIs (shown as ℹ icon on hover)
     const KPI_INFO_TOOLTIPS = {
       'osa': "Weighted OSA represents the average product availability within a category, factoring in each SKU’s importance (weight) alongside its individual availability percentage.",
-      'doi': "Days of Inventory refers to the estimated number of days the combined stock from both the backend warehouses and frontend darkstores can sustain, based on the average daily sales or consumption rate."
+      'doi': "Days of Inventory refers to the estimated number of days the combined stock from both the backend warehouses and frontend darkstores can sustain, based on the average daily sales or consumption rate.",
+      'availability': "This metric reflects stock availability exclusively across Tier 1 metro cities, providing a focused view of inventory health in high-demand urban markets."
     };
 
     if (isQuickCom) {
       cards_config = [
         { key: 'osa', title: "Stock Availability", sub: "MTD on-shelf coverage", api: osaCardData, icon: Layers, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['osa'] },
         { key: 'doi', title: "Days of Inventory", sub: "Network average days of cover", api: doiCardData, icon: Package, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['doi'] },
-        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'] }
+        { key: 'availability', title: "Metro City Stock Availability", sub: "MTD availability across metro cities", api: metroCardData, icon: MapPin, gradient: ['#2563EB', '#2563EB'], infoTooltip: KPI_INFO_TOOLTIPS['availability'] }
       ];
     } else {
       cards_config = [
@@ -1395,7 +1387,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
         {/* <MetricCardContainer title="Availability Overview" cards={cards[availability]} /> */}
 
-        {isLoading ? (
+        {!apiData?.overview ? (
           <AvailabilityOverviewSkeleton />
         ) : (
           <SnapshotOverview
@@ -1416,11 +1408,11 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
         {/* Signal Lab Availability Segment */}
         {!isSignalLabHiddenUser && !isEcom && (
           <div className="w-full bg-white border rounded-3xl px-6 py-5 shadow">
-            <SignalLabVisibility type="availability" loading={isLoading} />
+            <SignalLabVisibility type="availability" loading={!apiData?.overview} />
           </div>
         )}
 
-        {isLoading ? (
+        {!apiData?.platformKpi ? (
           <PlatformKpiMatrixSkeleton />
         ) : (
           <TabbedHeatmapTable
@@ -1467,7 +1459,7 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
             }}
           />
         )}
-        {isLoading ? (
+        {!apiData?.osaDetail ? (
           <OsaDetailViewSkeleton />
         ) : (
           <OsaHeatmapTable

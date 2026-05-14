@@ -662,8 +662,15 @@ const getAbsoluteOsaPlatformKpiMatrix = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            const prevEndDate = currentStartDate.subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            
+            let prevStartDate, prevEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+            } else {
+                prevEndDate = currentStartDate.subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            }
 
             // Determine group column based on viewMode
             const isMars = getCurrentDbName() === 'mars';
@@ -1237,8 +1244,15 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.subtract(30, 'day');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            const prevEndDate = currentStartDate.subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            
+            let prevStartDate, prevEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+            } else {
+                prevEndDate = currentStartDate.subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            }
 
             const startStr = currentStartDate.format('YYYY-MM-DD');
             const endStr = currentEndDate.format('YYYY-MM-DD');
@@ -1264,24 +1278,31 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 if (vMode === 'platform') delete ms.platform;
                 if (vMode === 'format' || vMode === 'category') { delete ms.category; delete ms.formats; }
                 if (vMode === 'city' || vMode === 'location') { delete ms.location; delete ms.cities; }
+
+                // Normalize filters to arrays (parseFilter may return a string for single values)
+                const toArr = (v) => !v || v === 'All' ? [] : (Array.isArray(v) ? v : [v]);
                 
                 let msConds = [];
-                if (ms.platform && ms.platform.length > 0 && !ms.platform.includes('All')) {
-                    msConds.push(`platform IN (${ms.platform.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                const platArr = toArr(ms.platform);
+                if (platArr.length > 0) {
+                    msConds.push(`platform IN (${platArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
                 }
-                if (ms.formats && ms.formats.length > 0 && !ms.formats.includes('All')) {
-                    const mappedCats = ms.formats.map(c => {
+                const fmtArr = toArr(ms.formats);
+                if (fmtArr.length > 0) {
+                    const mappedCats = fmtArr.map(c => {
                         if (c === 'Chocolates') return 'Chocolates (Non Gifting)';
                         if (c === 'Chocolate Gift Pack') return 'Chocolates (Gifting)';
                         return c;
                     });
                     msConds.push(`category IN (${mappedCats.map(v => `'${escapeStr(v)}'`).join(',')})`);
                 }
-                if (ms.cities && ms.cities.length > 0 && !ms.cities.includes('All') && !ms.cities.includes('All India')) {
-                    msConds.push(`location IN (${ms.cities.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                const cityArr = toArr(ms.cities).filter(v => v !== 'All India');
+                if (cityArr.length > 0) {
+                    msConds.push(`location IN (${cityArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
                 }
-                if (ms.brand && ms.brand.length > 0 && !ms.brand.includes('All')) {
-                    msConds.push(`brand IN (${ms.brand.map(v => `'${escapeStr(v)}'`).join(',')})`);
+                const brandArr = toArr(ms.brand);
+                if (brandArr.length > 0) {
+                    msConds.push(`brand IN (${brandArr.map(v => `'${escapeStr(v)}'`).join(',')})`);
                 }
                 return msConds.length > 0 ? ' AND ' + msConds.join(' AND ') : '';
             };
@@ -1302,7 +1323,10 @@ const getStandaloneOsaPlatformKpiMatrix = async (filters) => {
                 const dbName = getCurrentDbName();
                 const colMap = getColumnMapping(dbName);
                 const rcaCatCol = colMap.rca_sku_dim.category;
-                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim WHERE status = 1 AND ${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
+                const rcaCols = await getTableColumns('rca_sku_dim');
+                const hasStatus = columnExists(rcaCols, 'status');
+                const statusFilter = hasStatus ? `${resolveColumn(rcaCols, 'status')} = 1 AND ` : '';
+                const validCatResult = await queryClickHouse(`SELECT DISTINCT ${rcaCatCol} as category FROM rca_sku_dim WHERE ${statusFilter}${rcaCatCol} IS NOT NULL AND ${rcaCatCol} != ''`);
                 const validCategories = validCatResult.map(r => r.category).filter(Boolean);
                 if (validCategories.length > 0) {
                     additionalCategoryFilter = ` AND ${groupColumn} IN (${validCategories.map(c => `'${escapeStr(c)}'`).join(',')})`;
@@ -1768,19 +1792,20 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                             return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
                         }
                     }
-                    return 0; // fallback UI
+                    return null;
                 });
 
-                const skuAvg31 = totalDeno > 0 ? Math.round((totalNeno / totalDeno) * 100) : 0;
+                const skuAvg31 = totalDeno > 0 ? Math.round((totalNeno / totalDeno) * 100) : null;
                 const avgSelected = skuAvg31;
 
                 const last7Values = skuValues.slice(-7);
-                const avg7 = last7Values.length > 0
-                    ? Math.round(last7Values.reduce((a, b) => a + b, 0) / last7Values.length)
+                const avg7 = last7Values.length > 0 && last7Values.some(v => v !== null)
+                    ? Math.round(last7Values.filter(v => v !== null).reduce((a, b) => a + b, 0) / last7Values.filter(v => v !== null).length)
                     : skuAvg31;
 
                 let status = "Healthy";
-                if (avgSelected < 70) status = "Action"; // Status based on selected period
+                if (avgSelected === null) status = "Healthy";
+                else if (avgSelected < 70) status = "Action"; // Status based on selected period
                 else if (avgSelected < 85) status = "Watch";
 
                 // Format nested cities
@@ -1796,9 +1821,9 @@ const getAbsoluteOsaPercentageDetail = async (filters) => {
                                 return parseFloat(((dayData.neno / dayData.deno) * 100).toFixed(1));
                             }
                         }
-                        return 0;
+                        return null;
                     });
-                    const cityAvg31 = cityDeno > 0 ? Math.round((cityNeno / cityDeno) * 100) : 0;
+                    const cityAvg31 = cityDeno > 0 ? Math.round((cityNeno / cityDeno) * 100) : null;
                     const cityAvgSelected = cityAvg31;
 
                     return {
@@ -1879,8 +1904,15 @@ const getDOI = async (filters) => {
 
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
-            const prevEndDate = currentEndDate.subtract(30, 'day').subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(29, 'day');
+            
+            let prevStartDate, prevEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+            } else {
+                prevEndDate = currentEndDate.subtract(30, 'day').subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(29, 'day');
+            }
 
             // Build filter conditions using buildAvailabilityWhereClause
             // Note: We exclude dates from the base params and add them manually for each sub-query
@@ -2077,8 +2109,15 @@ const getMetroCityStockAvailability = async (filters) => {
             const currentEndDate = endDate ? dayjs(endDate) : dayjs();
             const currentStartDate = startDate ? dayjs(startDate) : currentEndDate.startOf('month');
             const periodDays = currentEndDate.diff(currentStartDate, 'day') + 1;
-            const prevEndDate = currentStartDate.subtract(1, 'day');
-            const prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            
+            let prevStartDate, prevEndDate;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStartDate = dayjs(filters.compareStartDate);
+                prevEndDate = dayjs(filters.compareEndDate);
+            } else {
+                prevEndDate = currentStartDate.subtract(1, 'day');
+                prevStartDate = prevEndDate.subtract(periodDays - 1, 'day');
+            }
 
             // Build filter objects for current and previous periods
             const currentFilters = {
@@ -3283,6 +3322,41 @@ const getBrandSkuCityDayLevel = async (filters) => {
     }, CACHE_TTL.SHORT);
 };
 
+/**
+ * Get distinct Brand values from rb_pdp_olap for the Market Coverage filter modal.
+ * Optionally scoped by platform/channel/category.
+ */
+const getDistinctBrands = async (filters = {}) => {
+    const cacheKey = generateCacheKey('osa-distinct-brands', filters);
+    return getCachedOrCompute(cacheKey, async () => {
+        try {
+            const conditions = ['Brand IS NOT NULL', "Brand != ''"];
+
+            // Apply platform/channel filter
+            const platformCond = await buildPlatformChannelCond(filters.platform, filters.channel);
+            if (platformCond) conditions.push(platformCond);
+
+            // Apply category filter
+            if (filters.category && filters.category !== 'All') {
+                const catArr = Array.isArray(filters.category) ? filters.category : [filters.category];
+                const filtered = catArr.filter(v => v !== 'All' && v !== 'all');
+                if (filtered.length > 0) {
+                    const pdpCols = await getTableColumns('rb_pdp_olap');
+                    const catCol = resolveColumn(pdpCols, 'Category', 'Category');
+                    conditions.push(`lower(trim(${catCol})) IN (${filtered.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+                }
+            }
+
+            const query = `SELECT DISTINCT Brand as brand FROM rb_pdp_olap WHERE ${conditions.join(' AND ')} ORDER BY brand`;
+            const result = await queryClickHouse(query);
+            return result.map(r => r.brand).filter(Boolean);
+        } catch (error) {
+            console.error('[getDistinctBrands] Error:', error.message);
+            return [];
+        }
+    }, CACHE_TTL.MEDIUM);
+};
+
 export default {
     getAssortment,
     getAbsoluteOsaOverview,
@@ -3300,5 +3374,6 @@ export default {
     getAvailabilityCompetitionFilterOptions,
     getAvailabilityCompetitionBrandTrends,
     getAvailabilityCompetitionSkuTrends,
-    getBrandSkuCityDayLevel
+    getBrandSkuCityDayLevel,
+    getDistinctBrands
 };

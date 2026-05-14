@@ -3,6 +3,7 @@ import { Box, Container } from "@mui/material";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import HelpDrawer from "./HelpDrawer";
+import NotificationScroller from "./NotificationScroller";
 import { FilterContext } from "../../utils/FilterContext";
 import { useAuth } from "../../utils/AuthContext";
 import { HelpProvider, useHelp } from "../../utils/HelpContext";
@@ -121,6 +122,8 @@ function CommonLayoutContent({
           minHeight: 0, // Ensure flex child shrinking works
         }}
       >
+        <NotificationScroller />
+
         <Header
           title={title}
           onMenuClick={() => setMobileMenuOpen(true)}

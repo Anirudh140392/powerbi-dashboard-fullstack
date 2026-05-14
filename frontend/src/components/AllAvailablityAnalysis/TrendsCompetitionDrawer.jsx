@@ -610,7 +610,8 @@ export default function TrendsCompetitionDrawer({
   const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
-  const [view, setView] = useState(defaultView || "Trends");
+  const [view, setView] = useState(defaultView);
+
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
   const [activeMetrics, setActiveMetrics] = useState([]);
@@ -1648,6 +1649,7 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
 
           metrics: [
+            { id: "Offtake", label: "Offtake", color: "#0891B2", axis: "left", default: true },
             {
               id: "Spend",
               label: "Spend",

@@ -11,6 +11,7 @@ import redisClient from "./config/redis.js";
 import cacheRoutes from "./routes/cache.js";
 import authRoutes from "./routes/auth.js";
 import { authMiddleware } from "./helper/authMiddleware.js";
+import { initSocket } from "./config/socket.js";
 import "./models/associations.js";
 
 // Set ENABLE_DEBUG_LOGS=true in .env to enable logs (default is suppressed in production)
@@ -132,6 +133,9 @@ const port = process.env.PORT || 5000;
 const server = app.listen(port, () => {
     console.log(`✅ Backend running on: http://localhost:${port}`);
 });
+
+// Initialize WebSocket server for real-time notifications
+initSocket(server);
 
 // Extend server timeout to 10 minutes (600,000ms) for large report downloads
 server.timeout = 10 * 60 * 1000;

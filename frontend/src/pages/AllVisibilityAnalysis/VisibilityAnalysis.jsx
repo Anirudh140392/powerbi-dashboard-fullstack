@@ -18,6 +18,8 @@ export default function VisibilityAnalysis() {
     selectedChannel,
     timeStart,
     timeEnd,
+    compareStart,
+    compareEnd,
     selectedZone,
     selectedMetroFlag,
     selectedPincode,
@@ -46,7 +48,9 @@ export default function VisibilityAnalysis() {
     months: 6,
     timeStep: "Weekly",
     startDate: null,  // Will be set after fetching latest available dates
-    endDate: null     // Will be set after fetching latest available dates
+    endDate: null,    // Will be set after fetching latest available dates
+    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
   });
 
   // Ref to track last fetched filters to prevent duplicate API calls
@@ -123,6 +127,9 @@ export default function VisibilityAnalysis() {
     const currentStartDate = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : filters.startDate;
     const currentEndDate = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : filters.endDate;
 
+    const currentCompareStart = compareStart ? compareStart.format('YYYY-MM-DD') : filters.compareStartDate;
+    const currentCompareEnd = compareEnd ? compareEnd.format('YYYY-MM-DD') : filters.compareEndDate;
+
     if (
       currentPlatform !== filters.platform ||
       currentBrand !== filters.brand ||
@@ -136,7 +143,9 @@ export default function VisibilityAnalysis() {
       currentPincode !== filters.pincode ||
       currentRank !== filters.rank ||
       currentStartDate !== filters.startDate ||
-      currentEndDate !== filters.endDate
+      currentEndDate !== filters.endDate ||
+      currentCompareStart !== filters.compareStartDate ||
+      currentCompareEnd !== filters.compareEndDate
     ) {
       console.log('🗓️ [Visibility] Syncing filters from global context');
       setFilters(prev => ({
@@ -153,10 +162,12 @@ export default function VisibilityAnalysis() {
         channel: currentChannel,
         rank: currentRank,
         startDate: currentStartDate,
-        endDate: currentEndDate
+        endDate: currentEndDate,
+        compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+        compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
       }));
     }
-  }, [platform, selectedBrand, selectedLocation, selectedZone, selectedMetroFlag, selectedPincode, selectedKeyword, selectedKeywordType, selectedCategory, selectedChannel, selectedRank, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, selectedZone, selectedMetroFlag, selectedPincode, selectedKeyword, selectedKeywordType, selectedCategory, selectedChannel, selectedRank, timeStart, timeEnd, compareStart, compareEnd]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -228,7 +239,9 @@ export default function VisibilityAnalysis() {
         channel: filters.channel || 'All',
         rank: filters.rank || 'All',
         startDate: filters.startDate,
-        endDate: filters.endDate
+        endDate: filters.endDate,
+        compareStartDate: filters.compareStartDate || '',
+        compareEndDate: filters.compareEndDate || ''
       };
       const crossPlatformParams = new URLSearchParams(matrixBaseParams).toString();
       const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${crossPlatformParams}`, { signal });
@@ -300,7 +313,9 @@ export default function VisibilityAnalysis() {
       channel: filters.channel || 'All',
       rank: filters.rank || 'All',
       startDate: filters.startDate,
-      endDate: filters.endDate
+      endDate: filters.endDate,
+      compareStartDate: filters.compareStartDate || '',
+      compareEndDate: filters.compareEndDate || ''
     };
 
     const queryParams = new URLSearchParams(baseParams).toString();
@@ -314,7 +329,9 @@ export default function VisibilityAnalysis() {
       channel: filters.channel || 'All',
       rank: filters.rank || 'All',
       startDate: filters.startDate,
-      endDate: filters.endDate
+      endDate: filters.endDate,
+      compareStartDate: filters.compareStartDate || '',
+      compareEndDate: filters.compareEndDate || ''
     }).toString();
 
 
@@ -356,6 +373,8 @@ export default function VisibilityAnalysis() {
       rank: filters.rank,
       startDate: filters.startDate,
       endDate: filters.endDate,
+      compareStartDate: filters.compareStartDate,
+      compareEndDate: filters.compareEndDate,
     });
 
     // Create a stable key to detect actual filter changes
@@ -416,7 +435,9 @@ export default function VisibilityAnalysis() {
           channel: filters.channel || 'All',
           rank: filters.rank || 'All',
           startDate: filters.startDate,
-          endDate: filters.endDate
+          endDate: filters.endDate,
+          compareStartDate: filters.compareStartDate || '',
+          compareEndDate: filters.compareEndDate || ''
         };
 
         const queryParams = new URLSearchParams(baseParams).toString();

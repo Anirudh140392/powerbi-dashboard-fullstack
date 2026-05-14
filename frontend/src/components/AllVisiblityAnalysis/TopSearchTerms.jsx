@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { fetchVisibilityBrandDrilldown, fetchVisibilitySkuDrilldown, fetchVisibilityCityDrilldown } from "../../api/visibilityService";
 import dayjs from "dayjs";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 
 // TopSearchTerms component uses dynamic data passed via `apiData` prop
 
@@ -137,6 +138,9 @@ const DeltaIndicator = ({ value }) => {
 };
 
 export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", apiData }) {
+    const { user } = useAuth();
+    const isSugarUser = user?.dbName === 'sugar';
+
     const [drilldownKeyword, setDrilldownKeyword] = useState(null);
     const [expandedKeywordRows, setExpandedKeywordRows] = useState(new Set());
     const [expandedSkuRows, setExpandedSkuRows] = useState(new Set());
@@ -342,16 +346,27 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
     const downloadCSV = () => {
         if (!activeData || activeData.length === 0) return;
         
-        const headers = ["Keywords", "Volume Share", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"];
+        const headers = isSugarUser 
+            ? ["Keywords", "Volume Share", "Overall SOS", "Organic SOS", "Paid SOS"]
+            : ["Keywords", "Volume Share", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"];
         
-        const rows = activeData.map(row => [
-            `"${row.keyword}"`,
-            `"${getVolShare(row.keyword)}%"`,
-            `"${(row.topBrand && row.topBrand !== "1" ? row.topBrand : "Other").replace(/"/g, '""')}"`,
-            `"${row.overallSos}%"`,
-            `"${row.organicSos}%"`,
-            `"${row.paidSos}%"`
-        ]);
+        const rows = activeData.map(row => {
+            const baseRow = [
+                `"${row.keyword}"`,
+                `"${getVolShare(row.keyword)}%"`,
+            ];
+            
+            if (!isSugarUser) {
+                baseRow.push(`"${(row.topBrand && row.topBrand !== "1" ? row.topBrand : "Other").replace(/"/g, '""')}"`);
+            }
+            
+            return [
+                ...baseRow,
+                `"${row.overallSos}%"`,
+                `"${row.organicSos}%"`,
+                `"${row.paidSos}%"`
+            ];
+        });
 
         const csvContent = headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -399,13 +414,15 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                 <table className="w-full text-left border-collapse table-fixed">
                     <thead>
                         <tr className="border-b border-slate-100 bg-slate-50/50">
-                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[23%]">Keywords</th>
-                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[17%]">
-                                Leading Brand <span className="normal-case font-normal text-[10px] text-slate-500">(by Overall SOS)</span>
-                            </th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Overall SOS</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Organic SOS</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Paid SOS</th>
+                            <th className={`px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 ${isSugarUser ? 'w-[34%]' : 'w-[23%]'}`}>Keywords</th>
+                            {!isSugarUser && (
+                                <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[17%]">
+                                    Leading Brand <span className="normal-case font-normal text-[10px] text-slate-500">(by Overall SOS)</span>
+                                </th>
+                            )}
+                            <th className={`px-6 py-2.5 text-xs font-bold text-slate-700 ${isSugarUser ? 'w-[22%]' : 'w-[20%]'} text-center`}>Overall SOS</th>
+                            <th className={`px-6 py-2.5 text-xs font-bold text-slate-700 ${isSugarUser ? 'w-[22%]' : 'w-[20%]'} text-center`}>Organic SOS</th>
+                            <th className={`px-6 py-2.5 text-xs font-bold text-slate-700 ${isSugarUser ? 'w-[22%]' : 'w-[20%]'} text-center`}>Paid SOS</th>
                         </tr>
                     </thead>
                     <motion.tbody

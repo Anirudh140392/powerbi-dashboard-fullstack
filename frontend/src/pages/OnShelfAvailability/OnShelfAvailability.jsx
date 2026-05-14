@@ -14,6 +14,7 @@ export default function OnShelfAvailability() {
   const {
     platform,
     selectedBrand,
+    setSelectedBrand,
     selectedLocation,
     timeStart,
     timeEnd,
@@ -50,35 +51,30 @@ export default function OnShelfAvailability() {
   // Wrapper to sync context when filters change locally
   const handleFiltersChange = (newFilters) => {
     setFilters((prev) => {
-      const updatedFilters = { ...prev, ...newFilters };
+      const updates = typeof newFilters === 'function' ? newFilters(prev) : newFilters;
+      const updatedFilters = { ...prev, ...updates };
+
+      // Sync back to FilterContext to update global header
+      // Use setTimeout to ensure context updates happen after the current state transition
+      setTimeout(() => {
+        if (updates.platform && updates.platform !== platform) setPlatform?.(updates.platform);
+        if (updates.brand && updates.brand !== selectedBrand) setSelectedBrand?.(updates.brand);
+        if (updates.location && updates.location !== selectedLocation) setSelectedLocation?.(updates.location);
+        if (updates.category && updates.category !== selectedCategory) setSelectedCategory?.(updates.category);
+        if (updates.productCategory && updates.productCategory !== selectedProductCategory) setSelectedProductCategory?.(updates.productCategory);
+        
+        if (updates.startDate) {
+          const newStart = dayjs(updates.startDate);
+          if (!newStart.isSame(timeStart, 'day')) setTimeStart?.(newStart);
+        }
+        if (updates.endDate) {
+          const newEnd = dayjs(updates.endDate);
+          if (!newEnd.isSame(timeEnd, 'day')) setTimeEnd?.(newEnd);
+        }
+      }, 0);
+
       return updatedFilters;
     });
-
-    // Sync back to FilterContext to update global header
-    if (newFilters.platform && newFilters.platform !== platform) {
-      setPlatform(newFilters.platform);
-    }
-    if (newFilters.location && newFilters.location !== selectedLocation) {
-      setSelectedLocation(newFilters.location);
-    }
-    if (newFilters.category && newFilters.category !== selectedCategory) {
-      setSelectedCategory(newFilters.category);
-    }
-    if (newFilters.productCategory && newFilters.productCategory !== selectedProductCategory) {
-      setSelectedProductCategory(newFilters.productCategory);
-    }
-    if (newFilters.startDate) {
-      const newStart = dayjs(newFilters.startDate);
-      if (!newStart.isSame(timeStart, 'day')) {
-        setTimeStart(newStart);
-      }
-    }
-    if (newFilters.endDate) {
-      const newEnd = dayjs(newFilters.endDate);
-      if (!newEnd.isSame(timeEnd, 'day')) {
-        setTimeEnd(newEnd);
-      }
-    }
   };
 
   // Ref to track last fetched filters to prevent duplicate API calls
@@ -134,8 +130,10 @@ export default function OnShelfAvailability() {
     if (!params.has('brand')) params.append('brand', 'All');
     if (!params.has('location')) params.append('location', 'All');
 
-    // Force ownBrandsOnly to match Watch Tower KPIs identically
-    params.append('ownBrandsOnly', 'true');
+    // Only force ownBrandsOnly if no specific brand is selected
+    if (!params.has('brand') || params.get('brand') === 'All') {
+      params.append('ownBrandsOnly', 'true');
+    }
 
     return params.toString();
   };
