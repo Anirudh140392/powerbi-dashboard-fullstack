@@ -85,13 +85,13 @@ export const getContentAnalysisStats = async (filters) => {
 
         // Channel filter
         if (channel && channel !== 'All') {
-            query += ` AND lower(Channel) = lower('${channel}')`;
+            query += ` AND lower(Channel) = lower('${channel.replace(/'/g, "''")}')`;
         }
 
         // Category filter
         if (category && category !== 'All') {
             const cats = Array.isArray(category) ? category : category.split(',');
-            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim().replace(/'/g, "''")}')`);
             if (catConditions.length > 0) {
                 query += ` AND (${catConditions.join(' OR ')})`;
             }
@@ -192,12 +192,12 @@ export const getContentAnalysisOverviewStats = async (filters, isCompare = false
 
         // Channel filter
         if (channel && channel !== 'All') {
-             query += ` AND lower(Channel) = lower('${channel}')`;
+             query += ` AND lower(Channel) = lower('${channel.replace(/'/g, "''")}')`;
         }
         // Category filter
         if (category && category !== 'All') {
             const cats = Array.isArray(category) ? category : category.split(',');
-            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim().replace(/'/g, "''")}')`);
             if (catConditions.length > 0) {
                  query += ` AND (${catConditions.join(' OR ')})`;
             }
@@ -278,13 +278,13 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
 
         // Channel filter
         if (channel && channel !== 'All') {
-            query += ` AND lower(Channel) = lower('${channel}')`;
+            query += ` AND lower(Channel) = lower('${channel.replace(/'/g, "''")}')`;
         }
 
         // Category filter
         if (category && category !== 'All') {
             const cats = Array.isArray(category) ? category : category.split(',');
-            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim().replace(/'/g, "''")}')`);
             if (catConditions.length > 0) {
                 query += ` AND (${catConditions.join(' OR ')})`;
             }
@@ -403,7 +403,11 @@ export const getContentAnalysisZones = async (brand) => {
     try {
         let query = `SELECT DISTINCT Location as zone FROM rb_pdp_olap WHERE Location != '\\\\N' AND Location != ''`;
         if (brand && brand !== 'All') {
-             query += ` AND Brand = '${brand.replace(/'/g, "''")}'`;
+            const brands = Array.isArray(brand) ? brand : brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim().replace(/'/g, "''")}'`);
+            if (brandConditions.length > 0) {
+                query += ` AND Brand IN (${brandConditions.join(',')})`;
+            }
         }
         query += ` ORDER BY zone`;
         const result = await queryClickHouse(query);
@@ -465,12 +469,12 @@ export const getContentAnalysisTrends = async (filters) => {
         }
 
         if (channel && channel !== 'All') {
-            query += ` AND lower(Channel) = lower('${channel}')`;
+            query += ` AND lower(Channel) = lower('${channel.replace(/'/g, "''")}')`;
         }
 
         if (category && category !== 'All') {
             const cats = Array.isArray(category) ? category : category.split(',');
-            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim().replace(/'/g, "''")}')`);
             if (catConditions.length > 0) {
                 query += ` AND (${catConditions.join(' OR ')})`;
             }
