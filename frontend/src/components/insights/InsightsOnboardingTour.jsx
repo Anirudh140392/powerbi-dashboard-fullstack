@@ -489,6 +489,7 @@ export const DrillDownTour = ({ enabled = true }) => {
 
     const finish = useCallback(() => {
         setPhase("done");
+        setConfirm(false);
         localStorage.setItem(DD_KEY, "true");
     }, []);
 
