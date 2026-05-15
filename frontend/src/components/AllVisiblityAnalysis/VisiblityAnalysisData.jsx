@@ -113,7 +113,9 @@ const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
         setLocalError(null);
 
         const params = new URLSearchParams({
-          platform: 'All',  // Platform KPI Matrix always shows data across ALL platforms
+          platform: (localMatrixFilters.platform && localMatrixFilters.platform !== 'All')
+            ? (Array.isArray(localMatrixFilters.platform) ? localMatrixFilters.platform.join(',').toLowerCase() : String(localMatrixFilters.platform).toLowerCase())
+            : 'All',
           brand: (localMatrixFilters.brand && localMatrixFilters.brand !== 'All')
             ? (Array.isArray(localMatrixFilters.brand) ? localMatrixFilters.brand.join(',').toLowerCase() : String(localMatrixFilters.brand).toLowerCase())
             : 'All',

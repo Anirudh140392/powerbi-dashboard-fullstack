@@ -44,7 +44,7 @@ const marketShareKpis = [
     value: "0%",
     subtitle: "Our brand market share in the category",
     delta: 0,
-    deltaLabel: "0% (vs Prev)",
+    deltaLabel: "0% (0%)",
     icon: TrendingUp,
     gradient: ["#3b82f6", "#2dd4bf"],
     extraChangeColor: "green",
@@ -413,11 +413,12 @@ export default function MarketShareAnalysis() {
               const shareVal = msData.share ?? 0;
               const deltaVal = msData.delta ?? 0;
               const arrow = deltaVal >= 0 ? '▲' : '▼';
+              const prevShareVal = msData.prevShare ?? 0;
               return {
                 ...k,
                 value: `${Number(shareVal).toFixed(2)}%`,
                 delta: deltaVal,
-                deltaLabel: `${arrow} ${Math.abs(deltaVal).toFixed(2)}% (vs Prev)`,
+                deltaLabel: `${arrow} ${Math.abs(deltaVal).toFixed(2)}% (${Number(prevShareVal).toFixed(2)}%)`,
                 extraChangeColor: deltaVal >= 0 ? "green" : "red",
                 trend: msData.trend,
               };

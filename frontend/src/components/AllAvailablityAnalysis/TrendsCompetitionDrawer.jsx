@@ -1471,13 +1471,6 @@ export default function TrendsCompetitionDrawer({
               axis: "left",
               default: false,
             },
-            {
-              id: "ASP",
-              label: "Avg Selling Price (₹)",
-              color: "#8B5CF6",
-              axis: "left",
-              default: false,
-            },
           ],
           points: [
             { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, ASP: 190 },

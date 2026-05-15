@@ -225,9 +225,9 @@ export default function VisibilityAnalysis() {
     try {
       setLoading(prev => ({ ...prev, matrix: true }));
       setApiErrors(prev => ({ ...prev, matrix: null }));
-      // Platform KPI Matrix always shows data across ALL platforms
+      // Platform KPI Matrix uses selected platform filter or defaults to All
       const matrixBaseParams = {
-        platform: 'All',
+        platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
         brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
         location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
         zone: filters.zone || 'All',
