@@ -368,6 +368,7 @@ export const getDimensionTrends = async (req, res) => {
             brand: req.query.brand,
             category: req.query.category,
             channel: req.query.channel,
+            sku: req.query.sku || req.query.skuName,
         };
 
         console.log("[PricingAnalysisController] getDimensionTrends called with filters:", filters);
