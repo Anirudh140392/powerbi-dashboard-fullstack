@@ -2170,10 +2170,10 @@ export default function TrendsCompetitionDrawer({
           axisLabel: {
             formatter: (value) => {
               const prefix = "₹ ";
-              if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
-              if (value >= 100000) return `${prefix}${(value / 100000).toFixed(1).replace(/\.0$/, '')} lac`;
-              if (value >= 1000) return `${prefix}${(value / 1000).toFixed(1).replace(/\.0$/, '')} K`;
-              return `${prefix}${value}`;
+              if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+              if (value >= 100000) return `${prefix}${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
+              if (value >= 1000) return `${prefix}${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
+              return `${prefix}${parseFloat(value.toFixed(4))}`;
             }
           }
         },
@@ -2185,7 +2185,7 @@ export default function TrendsCompetitionDrawer({
           splitLine: { show: false },
           scale: true,
           axisLabel: {
-            formatter: (value) => `${value} %`
+            formatter: (value) => `${parseFloat(value.toFixed(2))} %`
           }
         },
       ],
