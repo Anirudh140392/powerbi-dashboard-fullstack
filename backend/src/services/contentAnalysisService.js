@@ -18,6 +18,22 @@ const calculateOverallScore = (title, image, si, desc, rating, platform) => {
     return scores.reduce((a, b) => a + b, 0) / scores.length;
 };
 
+/**
+ * Helper to generate a sanitized Brand filter for rb_product_verify queries.
+ */
+const getBrandFilterSnippet = (brand) => {
+    if (!brand || brand === 'All') return '';
+    const brands = Array.isArray(brand) ? brand : brand.split(',');
+    const brandConditions = brands
+        .filter(b => b !== 'All' && b.trim() !== '')
+        .map(b => `'${b.trim().replace(/'/g, "''")}'`);
+    
+    if (brandConditions.length > 0) {
+        return ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
+    }
+    return '';
+};
+
 export const getContentAnalysisStats = async (filters) => {
     try {
         const { platform, brand, location, startDate, endDate, channel, category } = filters;
@@ -82,13 +98,7 @@ export const getContentAnalysisStats = async (filters) => {
         }
 
         // Brand filter
-        if (brand && brand !== 'All') {
-            const brands = Array.isArray(brand) ? brand : brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim()}'`);
-            if (brandConditions.length > 0) {
-                query += ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
-            }
-        }
+        query += getBrandFilterSnippet(brand);
 
         /* Location filter removed as column does not exist */
 
@@ -194,13 +204,7 @@ export const getContentAnalysisOverviewStats = async (filters, isCompare = false
         }
 
         // Brand filter
-        if (brand && brand !== 'All') {
-            const brands = Array.isArray(brand) ? brand : brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim()}'`);
-            if (brandConditions.length > 0) {
-                query += ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
-            }
-        }
+        query += getBrandFilterSnippet(brand);
 
         /* Location filter removed as column does not exist */
 
@@ -287,14 +291,7 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
         }
 
         // Brand filter
-        const brand = filters.brand;
-        if (brand && brand !== 'All') {
-            const brands = Array.isArray(brand) ? brand : brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim()}'`);
-            if (brandConditions.length > 0) {
-                query += ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
-            }
-        }
+        query += getBrandFilterSnippet(filters.brand);
 
         /* Location filter removed as column does not exist */
 
@@ -406,7 +403,7 @@ export const getContentAnalysisZones = async (brand) => {
     try {
         let query = `SELECT DISTINCT Location as zone FROM rb_pdp_olap WHERE Location != '\\\\N' AND Location != ''`;
         if (brand && brand !== 'All') {
-             query += ` AND Brand = '${brand}'`;
+             query += ` AND Brand = '${brand.replace(/'/g, "''")}'`;
         }
         query += ` ORDER BY zone`;
         const result = await queryClickHouse(query);
@@ -480,14 +477,7 @@ export const getContentAnalysisTrends = async (filters) => {
         }
 
         // Brand filter
-        const brand = filters.brand;
-        if (brand && brand !== 'All') {
-            const brands = Array.isArray(brand) ? brand : brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim()}'`);
-            if (brandConditions.length > 0) {
-                query += ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
-            }
-        }
+        query += getBrandFilterSnippet(filters.brand);
 
         /* Location filter removed as column does not exist */
 

@@ -113,11 +113,11 @@ function WatchTowerFilterModal({
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
-      setActiveTab(hideChannel ? "category" : "channel");
+      setActiveTab(hideChannelPlatform ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, hideChannel]);
+  }, [open, hideChannelPlatform]);
 
   // ─── CASCADE: when draftChannel changes → fetch available platforms ───
   React.useEffect(() => {
@@ -2982,11 +2982,11 @@ function InventoryFilterModal({
       setLocalBrands(brands);
       setLocalLocations(locations);
 
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, hideChannel]);
 
   // CASCADE: Channel -> Platforms
   React.useEffect(() => {
