@@ -177,7 +177,7 @@ const Sidebar = ({
   const menuSections = {
     "MAIN MENU": [
       { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showBeta: true },
+      { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showLive: true },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Market Coverage", path: "/on-shelf-availability", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
@@ -949,6 +949,7 @@ const Sidebar = ({
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           {item.label}
                           {item.showBeta && !isCollapsed && <SidebarStatusBadge type="BETA" />}
+                          {item.showLive && !isCollapsed && <SidebarStatusBadge type="LIVE" />}
                         </Box>
                       }
                       primaryTypographyProps={{
