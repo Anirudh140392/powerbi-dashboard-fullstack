@@ -1636,7 +1636,7 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             FROM rb_ms_olap
             WHERE toDate(created_on) BETWEEN '${startStr}' AND '${endStr}'
             ${baseCond}
-            AND ${marsFilter}
+            ${(brandArr && brandArr.length > 0 && !brandArr.includes('All')) ? '' : `AND ${marsFilter}`}
             GROUP BY d
             ORDER BY d ASC
         `;
@@ -1675,6 +1675,10 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             GROUP BY d
         `;
 
+        const kwActiveBrandFilter = (brandArr && brandArr.length > 0 && !brandArr.includes('All')) 
+            ? `lower(brand_name_th) IN (${brandArr.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`
+            : `lower(brand_name_th) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})`;
+
         const sovNumQuery = `
             SELECT
                 ${dateGroupPartKW} as d,
@@ -1683,7 +1687,7 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             FROM rb_kw_olap
             WHERE toDate(DATE) BETWEEN '${startStr}' AND '${endStr}'
             ${kwBaseCond}
-            AND lower(brand_name_th) IN (${ourBrands.map(b => `'${b.toLowerCase().replace(/'/g, "''")}'`).join(', ')})
+            AND ${kwActiveBrandFilter}
             GROUP BY d
         `;
 
@@ -1738,19 +1742,6 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
             return timeSeriesMap.get(key);
         };
 
-        // Helper to get row by date from KW data (handling possible date format differences)
-        const getRowKW = (dRaw) => {
-            let key = '';
-            try {
-                if (typeof dRaw === 'string') {
-                    key = dayjs(dRaw.split('T')[0]).format('YYYY-MM-DD');
-                } else if (dRaw instanceof Date) {
-                    key = dayjs(dRaw).format('YYYY-MM-DD');
-                }
-            } catch (e) { key = dRaw; }
-            return timeSeriesMap.get(key);
-        };
-
         // Populate cat data
         catData.forEach(r => {
             const row = getRow(r.d);
@@ -1788,7 +1779,7 @@ export const getMarketShareTrends = async (period, timeStep, dimension, dimensio
         sovNumData.forEach(r => {
             const key = dayjs(r.d).format('YYYY-MM-DD');
             const denom = sovDenomMap.get(key);
-            const row = getRowKW(r.d);
+            const row = getRow(r.d);
             if (row && denom) {
                 row.OverallSov = denom.total_overall > 0 ? parseFloat(((parseInt(r.our_overall || 0) / denom.total_overall) * 100).toFixed(2)) : 0;
                 row.PaidSov = denom.total_spons > 0 ? parseFloat(((parseInt(r.our_spons || 0) / denom.total_spons) * 100).toFixed(2)) : 0;

@@ -1,39 +1,19 @@
-const { ClickHouse } = require('clickhouse');
-const ch = new ClickHouse({
-    url: 'http://localhost',
-    port: 8123,
-    debug: false,
-    basicAuth: null,
-    isUseGzip: false,
-    format: "json", 
+import { createClient } from '@clickhouse/client';
+
+const clickhouse = createClient({
+  url: 'http://localhost:8123',
 });
 
-const query = async (sql) => {
-    return new Promise((resolve, reject) => {
-        ch.query(sql).exec((err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-        });
-    });
-};
-
-(async () => {
+async function run() {
     try {
-        console.log("Checking tables...");
-        const tables = await query("SHOW TABLES LIKE '%mamaearth%'");
-        console.log(tables);
-        
-        console.log("Checking columns for mamaearth rb_ms_olap...");
-        const cols = await query("DESCRIBE mamaearth_rb_ms_olap");
-        const deliveryCols = cols.filter(c => c.name.toLowerCase().includes('delivery'));
-        console.log("Delivery cols:", deliveryCols);
-
-        if (deliveryCols.length > 0) {
-            console.log("Sample delivery data:");
-            const data = await query(`SELECT delivery_date, count(*) as count FROM mamaearth_rb_ms_olap WHERE DATE >= today() - 30 GROUP BY delivery_date ORDER BY count DESC LIMIT 5`);
-            console.log(data);
-        }
+        const resultSet = await clickhouse.query({
+            query: "SELECT toDate(DATE) as d, sum(toInt32(overall)) as total_overall FROM rb_kw_olap WHERE toDate(DATE) >= '2026-02-15' AND lower(platform_name) LIKE '%amazon%' GROUP BY d ORDER BY d LIMIT 10",
+            format: 'JSONEachRow',
+        });
+        const dataset = await resultSet.json();
+        console.log(dataset);
     } catch (e) {
         console.error(e);
     }
-})();
+}
+run();

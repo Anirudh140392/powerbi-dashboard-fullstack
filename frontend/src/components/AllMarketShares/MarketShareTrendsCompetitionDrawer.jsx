@@ -270,6 +270,7 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
 
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
+  const [isTimeStepManuallySet, setIsTimeStepManuallySet] = useState(false);
   const [activeMetrics, setActiveMetrics] = useState(["MWMarketShare", "OverallSov", "PaidSov"]);
   const [loading, setLoading] = useState(true);
   const [trendData, setTrendData] = useState([]);
@@ -297,6 +298,9 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
         Category: (selectedCategory && selectedCategory !== 'All') ? selectedCategory.toLowerCase() : "All",
         Brand: "All"
       }));
+      // Reset manual override when opening drawer with a new global platform
+      setIsTimeStepManuallySet(false);
+      setTimeStep("Daily");
     }
   }, [open, globalPlatform, selectedCategory]);
 
@@ -310,17 +314,68 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
   const fetchTrends = async () => {
     setLoading(true);
     try {
-      const params = {
+      const isAmazon = drawerFilters.Platform?.toLowerCase() === 'amazon';
+      
+      const baseParams = {
         platform: drawerFilters.Platform === 'All' ? undefined : drawerFilters.Platform,
         category: drawerFilters.Category === 'All' ? undefined : drawerFilters.Category,
         brand: drawerFilters.Brand === 'All' ? undefined : drawerFilters.Brand,
         period: range,
-        timeStep: timeStep,
         startDate: timeStart ? timeStart.format('YYYY-MM-DD') : undefined,
         endDate: timeEnd ? timeEnd.format('YYYY-MM-DD') : undefined
       };
-      const response = await axiosInstance.get('/market-share/trends', { params });
-      setTrendData(response.data.timeSeries || []);
+
+      if (isAmazon && !isTimeStepManuallySet) {
+        // Intelligent default for Amazon: Daily for non-Market Share, Monthly for Market Share
+        const [dailyRes, monthlyRes] = await Promise.all([
+          axiosInstance.get('/market-share/trends', { params: { ...baseParams, timeStep: 'Daily' } }),
+          axiosInstance.get('/market-share/trends', { params: { ...baseParams, timeStep: 'Monthly' } })
+        ]);
+
+        const dailyData = dailyRes.data.timeSeries || [];
+        const monthlyData = monthlyRes.data.timeSeries || [];
+
+        // Map monthly data by Month-Year for lookup
+        const monthlyMap = new Map();
+        monthlyData.forEach(d => {
+          // Extract Month and Year from "MMM YYYY" (e.g. "Jan 2023")
+          monthlyMap.set(d.date, d);
+        });
+
+        const seenMonths = new Set();
+
+        const mergedData = dailyData.map(dDaily => {
+          // dDaily.date is "DD MMM YYYY" (e.g. "01 Jan 2023"). Extract "MMM YYYY"
+          const parts = dDaily.date.split(' ');
+          if (parts.length === 3) {
+            const monthYear = `${parts[1]} ${parts[2]}`;
+            if (!seenMonths.has(monthYear)) {
+              seenMonths.add(monthYear);
+              const mPoint = monthlyMap.get(monthYear);
+              if (mPoint) {
+                return {
+                  ...dDaily,
+                  MWMarketShare: mPoint.MWMarketShare,
+                  CategorySize: mPoint.CategorySize
+                };
+              }
+            }
+          }
+          // For non-first points of the month, leave them as null to prevent dropping to 0
+          return {
+            ...dDaily,
+            MWMarketShare: null,
+            CategorySize: null
+          };
+        });
+
+        setTrendData(mergedData);
+      } else {
+        const response = await axiosInstance.get('/market-share/trends', { 
+          params: { ...baseParams, timeStep: timeStep } 
+        });
+        setTrendData(response.data.timeSeries || []);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -379,11 +434,12 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
         type: 'line',
         yAxisIndex: m.id === "CategorySize" ? 1 : 0,
         smooth: true,
+        connectNulls: true,
         symbol: 'circle',
         symbolSize: 8,
         lineStyle: { width: 3 },
         itemStyle: { color: m.color },
-        data: trendData.map(d => d[m.id] || 0)
+        data: trendData.map(d => (d[m.id] !== undefined && d[m.id] !== null) ? d[m.id] : null)
       }));
 
     return {
@@ -515,7 +571,11 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
                   title="Platform" 
                   value={drawerFilters.Platform} 
                   options={filterOptions.platforms} 
-                  onChange={(v) => setDrawerFilters(p => ({...p, Platform: v === 'All' ? 'All' : v.toLowerCase()}))} 
+                  onChange={(v) => {
+                    setDrawerFilters(p => ({...p, Platform: v === 'All' ? 'All' : v.toLowerCase()}));
+                    setIsTimeStepManuallySet(false); // Reset manual override when changing platform
+                    setTimeStep("Daily");
+                  }} 
                   formatter={capitalize}
                 />
                 <FilterDropdown 
@@ -542,7 +602,14 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
               </Box>
               <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 800, textTransform: 'uppercase' }}>Time Step</Typography>
-                <PillToggleGroup value={timeStep} onChange={setTimeStep} options={["Daily", "Weekly", "Monthly"]} />
+                <PillToggleGroup 
+                  value={timeStep} 
+                  onChange={(val) => {
+                    setIsTimeStepManuallySet(true);
+                    setTimeStep(val);
+                  }} 
+                  options={["Daily", "Weekly", "Monthly"]} 
+                />
               </Box>
             </Box>
           </Box>
@@ -559,7 +626,7 @@ const MarketShareTrendsCompetitionDrawer = ({ open, onClose, subCategory }) => {
             </Box>
             <Box sx={{ height: 450 }}>
               {loading ? <Skeleton variant="rectangular" height="100%" sx={{ borderRadius: 3 }} /> : (
-                <ReactECharts option={chartOption} style={{ height: '100%', width: '100%' }} />
+                <ReactECharts option={chartOption} notMerge={true} style={{ height: '100%', width: '100%' }} />
               )}
             </Box>
           </Paper>
