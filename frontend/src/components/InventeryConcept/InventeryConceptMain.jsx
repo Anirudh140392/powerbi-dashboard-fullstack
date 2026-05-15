@@ -540,7 +540,7 @@ function InventeryConceptMain() {
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-6 text-slate-900" >
       {/* Top Inventory & DOH Overview */}
-      < div className="mx-auto max-w-6xl space-y-6" >
+      <div className="w-full space-y-6">
         {/* Overview Cards or Error State */}
         {overviewError && !overviewLoading ? (
           <div className="rounded-3xl bg-white border border-slate-200 shadow-sm p-8 flex flex-col items-center justify-center min-h-[200px] gap-4">

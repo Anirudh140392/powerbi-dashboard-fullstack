@@ -81,7 +81,14 @@ export const getContentAnalysisStats = async (filters) => {
             }
         }
 
-        /* Brand filter removed as column does not exist */
+        // Brand filter
+        if (brand && brand !== 'All') {
+            const brands = Array.isArray(brand) ? brand : brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim()}'`);
+            if (brandConditions.length > 0) {
+                query += ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
+            }
+        }
 
         /* Location filter removed as column does not exist */
 
@@ -186,7 +193,14 @@ export const getContentAnalysisOverviewStats = async (filters, isCompare = false
             }
         }
 
-        /* Brand filter removed as column does not exist */
+        // Brand filter
+        if (brand && brand !== 'All') {
+            const brands = Array.isArray(brand) ? brand : brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim()}'`);
+            if (brandConditions.length > 0) {
+                query += ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
+            }
+        }
 
         /* Location filter removed as column does not exist */
 
@@ -272,7 +286,15 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
             }
         }
 
-        /* Brand filter removed as column does not exist */
+        // Brand filter
+        const brand = filters.brand;
+        if (brand && brand !== 'All') {
+            const brands = Array.isArray(brand) ? brand : brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim()}'`);
+            if (brandConditions.length > 0) {
+                query += ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
+            }
+        }
 
         /* Location filter removed as column does not exist */
 
@@ -352,7 +374,7 @@ export const getContentAnalysisCategories = async (platform) => {
 
 export const getContentAnalysisBrands = async (platform) => {
     try {
-        let query = `SELECT DISTINCT Brand FROM rb_product_verify WHERE Brand != '\\\\N' AND Brand != ''`;
+        let query = `SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '\\\\N' AND Brand != ''`;
         if (platform && platform !== 'All') {
             const rawPlatform = platform;
             let platforms = [];
@@ -375,18 +397,22 @@ export const getContentAnalysisBrands = async (platform) => {
         const result = await queryClickHouse(query);
         return result.map(row => row.Brand);
     } catch (error) {
-        console.error("Error in getContentAnalysisBrands (or column does not exist):", error.message);
+        console.error("Error in getContentAnalysisBrands:", error.message);
         return [];
     }
 };
 
 export const getContentAnalysisZones = async (brand) => {
     try {
-        let query = `SELECT DISTINCT city as zone FROM rb_product_verify WHERE city != '\\\\N' AND city != ''`;
+        let query = `SELECT DISTINCT Location as zone FROM rb_pdp_olap WHERE Location != '\\\\N' AND Location != ''`;
+        if (brand && brand !== 'All') {
+             query += ` AND Brand = '${brand}'`;
+        }
+        query += ` ORDER BY zone`;
         const result = await queryClickHouse(query);
         return result.map(row => row.zone);
     } catch (error) {
-        console.error("Error in getContentAnalysisZones (or column does not exist):", error.message);
+        console.error("Error in getContentAnalysisZones:", error.message);
         return [];
     }
 };
@@ -453,7 +479,15 @@ export const getContentAnalysisTrends = async (filters) => {
             }
         }
 
-        /* Brand filter removed as column does not exist */
+        // Brand filter
+        const brand = filters.brand;
+        if (brand && brand !== 'All') {
+            const brands = Array.isArray(brand) ? brand : brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim()}'`);
+            if (brandConditions.length > 0) {
+                query += ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
+            }
+        }
 
         /* Location filter removed as column does not exist */
 

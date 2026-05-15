@@ -113,11 +113,11 @@ function WatchTowerFilterModal({
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, hideChannel]);
 
   // ─── CASCADE: when draftChannel changes → fetch available platforms ───
   React.useEffect(() => {
@@ -707,8 +707,10 @@ function MarketShareFilterModal({
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
   osaBrands = [], selectedOsaBrand, setSelectedOsaBrand,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? MS_FILTER_TABS.filter(t => t.key !== "channel") : MS_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -722,10 +724,10 @@ function MarketShareFilterModal({
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedOsaBrand || "All");
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
-  }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand]);
+  }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand, hideChannel]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
@@ -788,13 +790,15 @@ function MarketShareFilterModal({
   };
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
   };
 
-  const totalActiveCount = MS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog
@@ -876,7 +880,7 @@ function MarketShareFilterModal({
 
           {/* Tabs */}
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {MS_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -1191,8 +1195,10 @@ function AvailabilityFilterModal({
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? AVAIL_FILTER_TABS.filter(t => t.key !== "channel") : AVAIL_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -1217,11 +1223,11 @@ function AvailabilityFilterModal({
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, hideChannel]);
 
   // CASCADE: draftChannel → platforms, categories, locations
   React.useEffect(() => {
@@ -1373,7 +1379,7 @@ function AvailabilityFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = AVAIL_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -1398,14 +1404,16 @@ function AvailabilityFilterModal({
   const handleCancel = () => { onClose(); };
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = AVAIL_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog
@@ -1483,7 +1491,7 @@ function AvailabilityFilterModal({
           </Box>
 
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {AVAIL_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -2156,8 +2164,10 @@ function PricingFilterModal({
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? PRICING_FILTER_TABS.filter(t => t.key !== "channel") : PRICING_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   // ─── Draft (local) state — never touches FilterContext until Apply ───
@@ -2287,7 +2297,7 @@ function PricingFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = PRICING_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -2312,14 +2322,16 @@ function PricingFilterModal({
   const handleCancel = () => onClose();
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = PRICING_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: "18px", boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)", overflow: "hidden", height: "540px", display: "flex", flexDirection: "column", background: "#fff", } }}>
@@ -2335,7 +2347,7 @@ function PricingFilterModal({
             </Box>
           </Box>
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {PRICING_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -2417,8 +2429,10 @@ function PerformanceFilterModal({
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? PERFORMANCE_FILTER_TABS.filter(t => t.key !== "channel") : PERFORMANCE_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -2546,7 +2560,7 @@ function PerformanceFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = PERFORMANCE_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -2571,14 +2585,16 @@ function PerformanceFilterModal({
   const handleCancel = () => onClose();
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = PERFORMANCE_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: "18px", boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)", overflow: "hidden", height: "540px", display: "flex", flexDirection: "column", background: "#fff", } }}>
@@ -2594,7 +2610,7 @@ function PerformanceFilterModal({
             </Box>
           </Box>
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {PERFORMANCE_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -2676,8 +2692,10 @@ function ContentFilterModal({
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
   locations, selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? CONTENT_FILTER_TABS.filter(t => t.key !== "channel") : CONTENT_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -2702,11 +2720,11 @@ function ContentFilterModal({
       setLocalCategories(categories);
       setLocalBrands(brands);
 
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, hideChannel]);
 
   // CASCADE: Channel -> Platforms
   React.useEffect(() => {
@@ -2805,7 +2823,7 @@ function ContentFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = CONTENT_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -2830,14 +2848,16 @@ function ContentFilterModal({
   const handleCancel = () => onClose();
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = CONTENT_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: "18px", boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)", overflow: "hidden", height: "540px", display: "flex", flexDirection: "column", background: "#fff", } }}>
@@ -2853,7 +2873,7 @@ function ContentFilterModal({
             </Box>
           </Box>
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {CONTENT_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -2932,8 +2952,10 @@ function InventoryFilterModal({
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
   locations, selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? INVENTORY_FILTER_TABS.filter(t => t.key !== "channel") : INVENTORY_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -3090,7 +3112,7 @@ function InventoryFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = INVENTORY_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -3115,14 +3137,16 @@ function InventoryFilterModal({
   const handleCancel = () => onClose();
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = INVENTORY_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: "18px", boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)", overflow: "hidden", height: "540px", display: "flex", flexDirection: "column", background: "#fff", } }}>
@@ -3138,7 +3162,7 @@ function InventoryFilterModal({
             </Box>
           </Box>
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {INVENTORY_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -3645,6 +3669,10 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
+                      osaBrands={brands}
+                      selectedOsaBrand={selectedBrand}
+                      setSelectedOsaBrand={setSelectedBrand}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3688,6 +3716,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3740,6 +3769,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3763,6 +3793,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3786,6 +3817,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3809,6 +3841,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      hideChannel={true}
                     />
                   )}
                 </>
