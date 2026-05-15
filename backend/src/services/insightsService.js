@@ -1745,7 +1745,7 @@ export const getInsightsData = async (filters) => {
                 // Query B: Fetch images directly by sku_name from rb_sku_platform
                 namesList.length > 0
                     ? safeQuery(
-                        `SELECT sku_name, argMax(image_url, modified_on) AS image_url FROM rb_sku_platform WHERE sku_name IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != '' GROUP BY sku_name`,
+                        `SELECT sku_name, argMax(image_url, modified_on) AS latest_image_url FROM rb_sku_platform WHERE sku_name IN (${namesList.map(n => `'${escapeCH(n)}'`).join(',')}) AND image_url IS NOT NULL AND image_url != '' GROUP BY sku_name`,
                         'ImageByName'
                     )
                     : Promise.resolve([])
@@ -1757,7 +1757,7 @@ export const getInsightsData = async (filters) => {
             }
             const nameToImgMap = {};
             for (const row of nameImageRows) {
-                nameToImgMap[row.sku_name] = row.image_url;
+                nameToImgMap[row.sku_name] = row.latest_image_url;
             }
 
             // Populate productImageMap (Priority: PID resolution if possible, else Name resolution)
