@@ -2253,6 +2253,15 @@ export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
             ORDER BY location
         `;
 
+        // 6.5 Brands from rb_ms_olap
+        const brandQuery = `
+            SELECT DISTINCT group_brand as brand
+            FROM rb_ms_olap 
+            WHERE group_brand IS NOT NULL AND group_brand != '' 
+            ${platformCond}
+            ORDER BY group_brand
+        `;
+
         // 7. Platform metadata (icons) - source from rb_platform for the filtered platforms
         let platformMetadata = [];
         try {
@@ -2290,15 +2299,17 @@ export const getMarketShareTopFilterOptions = async (channelFilter = null) => {
             platformMetadata = filteredPlatforms.map(pfName => ({ pf_name: pfName, platform_description: null }));
         }
 
-        const [categoryResults, locationResults] = await Promise.all([
+        const [categoryResults, locationResults, brandResults] = await Promise.all([
             queryClickHouse(categoryQuery),
-            queryClickHouse(locationQuery)
+            queryClickHouse(locationQuery),
+            queryClickHouse(brandQuery)
         ]);
 
         return {
             platforms: filteredPlatforms,
             categories: categoryResults.map(r => r.category),
             locations: locationResults.map(r => r.location),
+            brands: brandResults.map(r => r.brand),
             channels: Array.from(channelSet).sort(),
             platformMetadata
         };

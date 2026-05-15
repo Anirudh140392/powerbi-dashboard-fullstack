@@ -274,12 +274,14 @@ export const FilterProvider = ({ children }) => {
                     const newCategories = res.data.categories || [];
                     const newChannels = res.data.channels || [];
                     const newLocations = res.data.locations || [];
+                    const newBrands = res.data.brands || [];
                     const newPlatformMetadata = res.data.platformMetadata || [];
 
                     if (newPlatforms.length > 0) setPlatforms(newPlatforms);
                     if (newCategories.length > 0) setCategories(newCategories);
                     if (newChannels.length > 0) setChannels(newChannels);
                     if (newLocations.length > 0) setLocations(newLocations);
+                    if (newBrands.length > 0) setBrands(newBrands);
                     // Update platform metadata with icons sourced from rb_ms_olap platforms
                     if (newPlatformMetadata.length > 0) setPlatformMetadata(newPlatformMetadata);
 
@@ -306,6 +308,15 @@ export const FilterProvider = ({ children }) => {
                         if (prev === "All") return "All";
                         const currentList = Array.isArray(prev) ? prev : [prev];
                         const valid = currentList.filter(l => newLocations.includes(l));
+                        if (valid.length === 0) return "All";
+                        return valid.length === 1 ? valid[0] : valid;
+                    });
+
+                    // Validate current brand selection
+                    setSelectedBrand(prev => {
+                        if (prev === "All") return "All";
+                        const currentList = Array.isArray(prev) ? prev : [prev];
+                        const valid = currentList.filter(b => newBrands.includes(b));
                         if (valid.length === 0) return "All";
                         return valid.length === 1 ? valid[0] : valid;
                     });
