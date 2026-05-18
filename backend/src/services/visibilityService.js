@@ -3953,14 +3953,30 @@ class VisibilityService {
                 keyword = null,
                 startDate,
                 endDate,
-                rank = 'All'
+                rank = 'All',
+                viewMode = 'keyword'
             } = filters;
 
             const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
             const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
-            const dimColumn = sku ? 'keyword_search_product' : (brand ? 'brand' : 'keyword');
-            const dimValue = sku || brand || keyword;
+            let numCondition = '1=1';
+            let dimColumnForSubquery = 'keyword';
+            let dimValueForSubquery = keyword;
+
+            if (viewMode === 'sku') {
+                numCondition = (sku && sku !== 'All') 
+                    ? buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true })
+                    : '1=1';
+                dimColumnForSubquery = 'keyword_search_product';
+                dimValueForSubquery = sku;
+            } else {
+                numCondition = (brand && brand !== 'All')
+                    ? buildCHCondition(brand, 'brand', { isDimension: true, noSplit: true })
+                    : 'toInt32(flag) = 1';
+                dimColumnForSubquery = 'keyword';
+                dimValueForSubquery = keyword;
+            }
 
             const platformCondition = buildCHCondition(platform, 'platform_name', { isPlatform: true });
             const channelCondition = buildChannelCondition(channel, 'platform_name');
@@ -3968,7 +3984,7 @@ class VisibilityService {
             const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
             const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
             const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
-            const dimCondition = buildCHCondition(dimValue, dimColumn, { isDimension: true, noSplit: true });
+            const dimConditionSubquery = buildCHCondition(dimValueForSubquery, dimColumnForSubquery, { isDimension: true, noSplit: true });
 
             let rankCondition = '1=1';
             if (rank && rank !== 'All') {
@@ -4001,25 +4017,25 @@ class VisibilityService {
 
             const keywordFilter = (keyword && keyword !== 'All')
                 ? buildCHCondition(keyword, 'keyword', { noSplit: true })
-                : `keyword IN (SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${dimCondition} AND DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND ${platformCondition} AND ${channelCondition} AND ${rankCondition})`;
+                : `keyword IN (SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${dimConditionSubquery} AND DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND ${platformCondition} AND ${channelCondition} AND ${rankCondition})`;
 
             const query = `
                 SELECT 
                     location_name as city,
-                    sumIf(toInt32(overall), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_overall,
+                    sumIf(toInt32(overall), ${numCondition}) as num_overall,
                     sum(toInt32(overall)) as den_overall,
                     ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
                     
-                    sumIf(toInt32(organic), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_organic,
+                    sumIf(toInt32(organic), ${numCondition}) as num_organic,
                     sum(toInt32(organic)) as den_organic,
                     ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
                     
-                    sumIf(toInt32(spons), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_spons,
+                    sumIf(toInt32(spons), ${numCondition}) as num_spons,
                     sum(toInt32(spons)) as den_spons,
                     ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(overall) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as overallRank,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(spons) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as paidRank,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(organic) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as organicRank
+                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(overall) = 1), 1) as overallRank,
+                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(spons) = 1), 1) as paidRank,
+                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(organic) = 1), 1) as organicRank
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -4040,7 +4056,7 @@ class VisibilityService {
             console.log('[VisibilityService] getSearchTermsLocationDrilldown query:', query.replace(/\s+/g, ' '));
             
             const fs = await import('fs');
-            const params = { dim: dimValue, kw: keyword };
+            const params = { dim: dimValueForSubquery, kw: keyword };
             fs.appendFileSync('debug_drilldown.log', `\n[${new Date().toISOString()}] Query: ${query}\nParams: ${JSON.stringify(params)}\n`);
             
             const results = await queryClickHouse(query, params);
