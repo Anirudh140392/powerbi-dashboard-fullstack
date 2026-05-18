@@ -1,13 +1,19 @@
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { createClient } from '@clickhouse/client';
+
+const clickhouse = createClient({
+  url: 'http://localhost:8123',
+});
+
 async function run() {
     try {
-        const res = await queryClickHouse("DESCRIBE TABLE rb_kw_olap");
-        console.log("COLUMNS:");
-        res.forEach(r => console.log(r.name || r.Name));
-        process.exit(0);
-    } catch(e) {
+        const resultSet = await clickhouse.query({
+            query: "SELECT toDate(DATE) as d, sum(toInt32(overall)) as total_overall FROM rb_kw_olap WHERE toDate(DATE) >= '2026-02-15' AND lower(platform_name) LIKE '%amazon%' GROUP BY d ORDER BY d LIMIT 10",
+            format: 'JSONEachRow',
+        });
+        const dataset = await resultSet.json();
+        console.log(dataset);
+    } catch (e) {
         console.error(e);
-        process.exit(1);
     }
 }
 run();

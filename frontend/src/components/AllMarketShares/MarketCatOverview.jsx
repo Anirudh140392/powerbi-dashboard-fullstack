@@ -36,19 +36,16 @@ const cardSize = {
 /* --- KPI definitions (ROW headers — vertical, left side) --- */
 const kpiDefs = [
     { key: 'categorySize', label: 'Category Size' },
-    { key: 'mwMarketShare', label: 'Mars Market Share%' },
-    { key: 'mwSales', label: 'Mars Estimated Sales (Cr)' },
+    { key: 'mwMarketShare', label: 'Market Share%' },
+    { key: 'mwSales', label: 'Estimated Sales (Cr)' },
     { key: 'mlMarketShare', label: 'ML Market Share%' },
-    { key: 'mlSales', label: 'ML Sales' },
 ];
 
-/* kpiLabels are built dynamically inside the component using dbDisplayName */
 const baseKpiLabels = {
     categorySize: 'Category Size',
-    mwMarketShare: 'Mars Market Share%',
-    mwSales: 'Mars Estimated Sales (Cr)',
+    mwMarketShare: 'Market Share%',
+    mwSales: 'Estimated Sales (Cr)',
     mlMarketShare: 'ML Market Share%',
-    mlSales: 'ML Sales',
 };
 
 /* --- Platform entities (COLUMN headers — horizontal, top) --- */
@@ -65,28 +62,12 @@ const MarketCatOverview = ({
     onViewTrends = () => { },
     onViewRca = () => { },
 }) => {
-    // Derive display name from the logged-in user's dbName
-    const dbDisplayName = useMemo(() => {
-        try {
-            const u = JSON.parse(sessionStorage.getItem('user'));
-            if (u?.dbName) {
-                if (u.dbName.toLowerCase() === 'mamaearth') {
-                    return 'The Derma Co.';
-                }
-                return u.dbName
-                    .replace(/_/g, ' ')
-                    .replace(/\b\w/g, c => c.toUpperCase());
-            }
-        } catch { /* ignore */ }
-        return 'Our';
-    }, []);
-
-    // Build dynamic kpiLabels with DB name prefix for our brand KPIs
+    // Build dynamic kpiLabels for our brand KPIs
     const kpiLabels = useMemo(() => ({
         ...baseKpiLabels,
-        mwMarketShare: `${dbDisplayName} Market Share%`,
-        mwSales: `${dbDisplayName} Estimated Sales (Cr)`,
-    }), [dbDisplayName]);
+        mwMarketShare: `Market Share%`,
+        mwSales: `Estimated Sales (Cr)`,
+    }), []);
 
     const {
         selectedChannel,
@@ -104,7 +85,7 @@ const MarketCatOverview = ({
     } = useContext(FilterContext);
 
     const [glanceKpis, setGlanceKpis] = useState([
-        'categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare', 'mlSales'
+        'categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare'
     ])
     const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
 
@@ -113,7 +94,7 @@ const MarketCatOverview = ({
         cities: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare', 'mlSales'],
+        kpis: ['categorySize', 'mwMarketShare', 'mwSales', 'mlMarketShare'],
         filterLogic: 'OR',
     })
 
@@ -365,7 +346,7 @@ const MarketCatOverview = ({
                                             return (
                                                 <motion.button
                                                     key={plat.key}
-                                                    onClick={() => copy(`${plat.name} ${kpi.label} `, cell?.value)}
+                                                    onClick={() => copy(`${plat.name} ${kpiLabels[kpi.key] || kpi.label} `, cell?.value)}
                                                     className={cn(
                                                         'flex-1 px-3 rounded-xl text-center transition-all duration-200 relative overflow-hidden',
                                                         'bg-gradient-to-br from-white to-slate-50',
@@ -376,7 +357,7 @@ const MarketCatOverview = ({
                                                         'active:scale-[0.98]',
                                                         cardSize.minW, cardSize.py
                                                     )}
-                                                    title={`${plat.name} — ${kpi.label}: ${cell?.value} (${cell?.delta?.value})`}
+                                                    title={`${plat.name} — ${kpiLabels[kpi.key] || kpi.label}: ${cell?.value} (${cell?.delta?.value})`}
                                                     whileHover={{ scale: 1.02 }}
                                                     whileTap={{ scale: 0.98 }}
                                                 >

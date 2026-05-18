@@ -229,7 +229,7 @@ export const GainersDrainersSkeleton = () => {
  */
 export const VisibilityPageSkeleton = () => {
     return (
-        <div className="mx-auto max-w-7xl space-y-4">
+        <div className="w-full space-y-4">
             <VisibilityOverviewSkeleton />
             <TabbedHeatmapTableSkeleton />
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">

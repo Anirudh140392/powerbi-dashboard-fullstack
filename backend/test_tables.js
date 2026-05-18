@@ -1,19 +1,33 @@
-import { config } from 'dotenv';
-config({ path: '/home/asus/Music/powerbi-dashboard-fullstack/backend/.env' });
-import { queryClickHouse } from './src/config/clickhouse.js';
+import { createClient } from '@clickhouse/client';
+
+const client = createClient({
+  url: 'http://13.200.55.131:8123',
+  username: 'kenil_user',
+  password: 'Kenil@Kavar0604',
+  database: 'mamaearth'
+});
 
 async function run() {
-    try {
-        const q1 = `SHOW TABLES LIKE '%sku_breakdown%'`;
-        const res1 = await queryClickHouse(q1);
-        console.log("sku_breakdown tables:", res1);
-
-        const q2 = `DESCRIBE rb_brand_ms`;
-        const res2 = await queryClickHouse(q2);
-        console.log("rb_brand_ms columns:", res2.map(r => r.name));
-    } catch (e) {
-        console.error(e);
-    }
-    process.exit(0);
+  try {
+    const query = `
+      SELECT 
+        delivery_date, 
+        DATE,
+        coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE))))) as parsed_date,
+        dateDiff('day', DATE, coalesce(parseDateTimeBestEffortOrNull(delivery_date), parseDateTimeBestEffortOrNull(concat(delivery_date, ' ', toString(toYear(DATE)))))) as diff
+      FROM rb_pdp_olap 
+      WHERE Platform = 'flipkart' AND delivery_date IS NOT NULL AND delivery_date != ''
+      LIMIT 10
+    `;
+    const resultSet = await client.query({ query, format: 'JSONEachRow' });
+    const dataset = await resultSet.json();
+    console.log("Coalesce Parsed Date check for flipkart in rb_pdp_olap table:");
+    console.log(dataset);
+  } catch (error) {
+    console.error("Error querying:", error.message);
+  } finally {
+    await client.close();
+  }
 }
+
 run();

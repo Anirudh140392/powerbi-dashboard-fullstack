@@ -1,6 +1,0 @@
-{
-  "startDate": "2026-01-12",
-  "endDate": "2026-03-23",
-  "prevStartDate": "2025-11-02",
-  "prevEndDate": "2026-01-11"
-}

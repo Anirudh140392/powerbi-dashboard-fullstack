@@ -37,12 +37,15 @@ import {
   Checkbox,
 } from "@mui/material";
 import { ChevronDown, X, Search, Plus, Filter, SlidersHorizontal } from "lucide-react";
+import dayjs from "dayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import ReactECharts from "echarts-for-react";
 import KpiTrendShowcase from "../AllAvailablityAnalysis/KpiTrendShowcase";
 import AddSkuDrawer from "../AllAvailablityAnalysis/AddSkuDrawer";
 import VisibilityPlatformOverviewKpiShowcase from "./VisibilityPlatformOverviewKpiShowcase";
 import axiosInstance from "../../api/axiosInstance";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 
 /**
  * ---------------------------------------------------------------------------
@@ -59,7 +62,7 @@ const FilterDropdown = ({ title, value, options, onChange, searchable = true }) 
     setSearch("");
   };
 
-  const filteredOptions = searchable 
+  const filteredOptions = searchable
     ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
     : options;
 
@@ -91,8 +94,8 @@ const FilterDropdown = ({ title, value, options, onChange, searchable = true }) 
         {isActive ? (
           <Box display="flex" alignItems="center" gap={0.5}>
             {value}
-            <Box 
-              component="span" 
+            <Box
+              component="span"
               onClick={(e) => {
                 e.stopPropagation();
                 onChange("All");
@@ -148,15 +151,15 @@ const FilterDropdown = ({ title, value, options, onChange, searchable = true }) 
                   onChange(opt);
                   handleClose();
                 }}
-                sx={{ 
-                  fontSize: '13px', 
+                sx={{
+                  fontSize: '13px',
                   py: 0.75,
                   backgroundColor: value === opt ? "#F8FAFC" : "transparent"
                 }}
               >
                 <ListItemIcon sx={{ minWidth: 32 }}>
-                  <Checkbox 
-                    checked={value === opt} 
+                  <Checkbox
+                    checked={value === opt}
                     icon={<Box sx={{ width: 14, height: 14, borderRadius: '4px', border: '1.5px solid #CBD5E1' }} />}
                     checkedIcon={<Box sx={{ width: 14, height: 14, borderRadius: '4px', bgcolor: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={10} color="white" style={{ transform: 'rotate(45deg)' }} /></Box>}
                     sx={{ p: 0 }}
@@ -186,6 +189,8 @@ const BRAND_COLORS = {
   Pepsodent: "#0EA5E9",
   Closeup: "#F97316",
 };
+
+const RANK_OPTIONS = ["Top 10", "Top 20", "Top 30", "Top 40"];
 
 // base compare-SKU X axis + base trend (we'll offset per SKU)
 const COMPARE_X = [
@@ -238,13 +243,15 @@ const DASHBOARD_DATA = {
         color: "#F97316",
         axis: "left",
         default: true,
+        unit: "%",
       },
       {
         id: "sponsored_sos",
         label: "Sponsored SOS",
         color: "#7C3AED",
-        axis: "right",
+        axis: "left",
         default: true,
+        unit: "%",
       },
       {
         id: "organic_sos",
@@ -252,6 +259,23 @@ const DASHBOARD_DATA = {
         color: "#6366F1",
         axis: "left",
         default: false,
+        unit: "%",
+      },
+      {
+        id: "offtake",
+        label: "Offtake",
+        color: "#10B981",
+        axis: "right",
+        default: false,
+        prefix: "₹",
+      },
+      {
+        id: "search_rank",
+        label: "Search Rank",
+        color: "#EAB308",
+        axis: "right",
+        default: false,
+        prefix: "#",
       },
     ],
 
@@ -627,10 +651,10 @@ const PillToggleGroup = ({ value, onChange, options }) => (
   </ToggleButtonGroup>
 );
 
-const MetricChip = ({ label, color, active, onClick }) => {
+const MetricChip = ({ label, color, active, onClick, disabled }) => {
   return (
     <Box
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -638,14 +662,15 @@ const MetricChip = ({ label, color, active, onClick }) => {
         px: 1.5,
         py: 0.6,
         borderRadius: "999px",
-        cursor: "pointer",
-        border: `1px solid ${active ? color : "#E5E7EB"}`,
-        backgroundColor: active ? `${color}20` : "white",
-        color: active ? color : "#0f172a",
+        cursor: disabled ? "not-allowed" : "pointer",
+        border: `1px solid ${disabled ? "#E5E7EB" : (active ? color : "#E5E7EB")}`,
+        backgroundColor: disabled ? "#F3F4F6" : (active ? `${color}20` : "white"),
+        color: disabled ? "#9CA3AF" : (active ? color : "#0f172a"),
         fontSize: "12px",
         fontWeight: 600,
         userSelect: "none",
         transition: "all 0.15s ease",
+        opacity: disabled ? 0.6 : 1,
       }}
     >
       {/* CHECKBOX ICON */}
@@ -654,8 +679,8 @@ const MetricChip = ({ label, color, active, onClick }) => {
           width: 14,
           height: 14,
           borderRadius: 3,
-          border: `2px solid ${active ? color : "#CBD5E1"}`,
-          backgroundColor: active ? color : "transparent",
+          border: `2px solid ${disabled ? "#D1D5DB" : (active ? color : "#CBD5E1")}`,
+          backgroundColor: disabled ? "transparent" : (active ? color : "transparent"),
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -664,7 +689,7 @@ const MetricChip = ({ label, color, active, onClick }) => {
           lineHeight: 1,
         }}
       >
-        {active && "✓"}
+        {active && !disabled && "✓"}
       </Box>
 
       {label}
@@ -709,14 +734,23 @@ export default function VisibilityTrendsCompetitionDrawer({
   selectedColumn,
   initialAudience,
 }) {
-  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel } = useContext(FilterContext);
+  const { user } = useAuth();
+  const isSugarUser = user?.dbName === 'sugar';
 
-  const [view, setView] = useState("Trends");
+  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword, selectedRank } = useContext(FilterContext);
+
+  const [view, setView] = useState(isSugarUser ? "Trends" : "Trends"); // Default to Trends
   const [allTrendMeta, allSetTrendMeta] = useState({
     context: {
       audience: "Platform", // default value
     },
   });
+
+  useEffect(() => {
+    if (isSugarUser && view === "Competition") {
+      setView("Trends");
+    }
+  }, [isSugarUser, view]);
   useLayoutEffect(() => {
     if (open) {
       const audienceToSet = initialAudience || "Platform";
@@ -739,6 +773,10 @@ export default function VisibilityTrendsCompetitionDrawer({
   const [periodMode, setPeriodMode] = useState("primary");
   const [isMoreFiltersOpen, setIsMoreFiltersOpen] = useState(false);
   const [skuSearchTerm, setSkuSearchTerm] = useState("");
+  const [keywordSearchTerm, setKeywordSearchTerm] = useState("");
+
+  const [customStartDate, setCustomStartDate] = useState(dayjs().subtract(1, 'month'));
+  const [customEndDate, setCustomEndDate] = useState(dayjs());
 
   const [addSkuOpen, setAddSkuOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("Blinkit");
@@ -750,7 +788,10 @@ export default function VisibilityTrendsCompetitionDrawer({
     Format: selectedCategory || "All",
     Brand: selectedBrand || "All",
     City: selectedLocation || "All",
-    SKU: "All"
+    SKU: "All",
+    Keyword_Type: selectedKeywordType || "All",
+    Keyword: selectedKeyword || "All",
+    rank: selectedRank || "All"
   });
 
   // Sync selectedPlatform and drawerFilters with selectedColumn ONLY ONCE when drawer opens
@@ -767,6 +808,13 @@ export default function VisibilityTrendsCompetitionDrawer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedColumn, open]); // Removed allTrendMeta.context.audience
+
+  // Sync selectedPlatform with drawerFilters.Platform for Competition tab
+  useEffect(() => {
+    if (drawerFilters.Platform !== 'All') {
+      setSelectedPlatform(drawerFilters.Platform);
+    }
+  }, [drawerFilters.Platform]);
 
   const platformRef = useRef(null);
 
@@ -812,6 +860,9 @@ export default function VisibilityTrendsCompetitionDrawer({
     formats: [],
     cities: [],
     brands: [],
+    skus: [],
+    keywordTypes: [],
+    keywords: [],
     loading: true
   });
 
@@ -821,19 +872,39 @@ export default function VisibilityTrendsCompetitionDrawer({
 
     const fetchFilterOptions = async () => {
       try {
-        console.log("[VisibilityTrendsDrawer] Fetching filter options");
-        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes] = await Promise.all([
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms', channel: selectedChannel || 'All' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats', channel: selectedChannel || 'All' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities', channel: selectedChannel || 'All' } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', channel: selectedChannel || 'All', ownBrandsOnly: true } }),
-          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'skus', channel: selectedChannel || 'All', ownBrandsOnly: true } })
+        console.log("[VisibilityTrendsDrawer] Fetching filter options with", drawerFilters);
+
+        // Build params for each filter type, respecting all other currently selected filters
+        const getBaseParams = (excludeType) => {
+          const p = { channel: selectedChannel || 'All' };
+          if (excludeType !== 'platform' && drawerFilters.Platform !== 'All') p.platform = drawerFilters.Platform;
+          if (excludeType !== 'format' && drawerFilters.Format !== 'All') p.format = drawerFilters.Format;
+          if (excludeType !== 'city' && drawerFilters.City !== 'All' && drawerFilters.City !== 'All India') {
+            p.city = Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',') : drawerFilters.City;
+          }
+          if (excludeType !== 'brand' && drawerFilters.Brand !== 'All') p.brand = drawerFilters.Brand;
+          if (excludeType !== 'keywordType' && drawerFilters.Keyword_Type !== 'All') p.keywordType = drawerFilters.Keyword_Type;
+          if (excludeType !== 'keyword' && drawerFilters.Keyword !== 'All') p.keyword = drawerFilters.Keyword;
+          if (excludeType !== 'sku' && drawerFilters.SKU !== 'All') p.sku = drawerFilters.SKU;
+          return p;
+        };
+
+        const [platformsRes, formatsRes, citiesRes, brandsRes, skusRes, keywordTypesRes, keywordsRes] = await Promise.all([
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'platforms', ...getBaseParams('platform') } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'formats', ...getBaseParams('format') } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'cities', ...getBaseParams('city') } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'brands', ...getBaseParams('brand'), ownBrandsOnly: true } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'skus', ...getBaseParams('sku'), ownBrandsOnly: true } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'keywordTypes', ...getBaseParams('keywordType') } }),
+          axiosInstance.get('/visibility-analysis/filter-options', { params: { filterType: 'keywords', ...getBaseParams('keyword'), ownBrandsOnly: true } })
         ]);
 
         const platforms = (platformsRes.data?.options || []).filter(p => p !== 'All');
         const formats = (formatsRes.data?.options || []).filter(f => f !== 'All');
         const brands = (brandsRes.data?.options || []).filter(b => b !== 'All');
         const skus = (skusRes.data?.options || []).filter(s => s !== 'All');
+        const keywordTypes = (keywordTypesRes.data?.options || []).filter(k => k !== 'All');
+        const keywords = (keywordsRes.data?.options || []).filter(k => k !== 'All');
 
         const TIER_1_CITIES = [
           "Ahmedabad",
@@ -854,7 +925,7 @@ export default function VisibilityTrendsCompetitionDrawer({
           .filter(c => TIER_1_CITIES.some(t => c.toLowerCase().includes(t.toLowerCase())));
         const cities = ["All India", ...defaultCities];
 
-        console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length, skus: skus.length });
+        console.log("[VisibilityTrendsDrawer] Filter options fetched:", { platforms: platforms.length, formats: formats.length, cities: cities.length, brands: brands.length, skus: skus.length, keywordTypes: keywordTypes.length, keywords: keywords.length });
 
         setFilterOptions({
           platforms: platforms.length > 0 ? platforms : ["Blinkit", "Zepto", "Instamart"],
@@ -862,6 +933,8 @@ export default function VisibilityTrendsCompetitionDrawer({
           cities: cities.length > 0 ? cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"],
           brands: brands.length > 0 ? brands : [],
           skus: skus.length > 0 ? skus : [],
+          keywordTypes: keywordTypes.length > 0 ? keywordTypes : ["Branded", "Generic", "Competition"],
+          keywords: keywords.length > 0 ? keywords : [],
           loading: false
         });
 
@@ -877,13 +950,25 @@ export default function VisibilityTrendsCompetitionDrawer({
           cities: ["Delhi", "Mumbai", "Bangalore", "Chennai"],
           brands: [],
           skus: [],
+          keywordTypes: ["Branded", "Generic", "Competition"],
+          keywords: [],
           loading: false
         });
       }
     };
 
     fetchFilterOptions();
-  }, [open, selectedChannel]);
+  }, [
+    open,
+    selectedChannel,
+    drawerFilters.Platform,
+    drawerFilters.Format,
+    drawerFilters.City,
+    drawerFilters.Brand,
+    drawerFilters.Keyword_Type,
+    drawerFilters.Keyword,
+    drawerFilters.SKU
+  ]);
 
   // ===================== FETCH TREND DATA =====================
   useEffect(() => {
@@ -896,12 +981,19 @@ export default function VisibilityTrendsCompetitionDrawer({
         const params = {
           period: range,
           timeStep: timeStep,
+          startDate: range === "Custom" && customStartDate ? customStartDate.format("YYYY-MM-DD") : undefined,
+          endDate: range === "Custom" && customEndDate ? customEndDate.format("YYYY-MM-DD") : undefined,
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
-          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India')
+            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase())
+            : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
-          channel: selectedChannel || 'All'
+          keywordType: drawerFilters.Keyword_Type !== 'All' ? drawerFilters.Keyword_Type : undefined,
+          keyword: drawerFilters.Keyword !== 'All' ? drawerFilters.Keyword : undefined,
+          channel: selectedChannel || 'All',
+          rank: drawerFilters.rank || 'All'
         };
 
         // Determine which pivot filter to apply based on the selected audience
@@ -936,7 +1028,27 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel, customStartDate, customEndDate]);
+
+  // Clear offtake if keyword filter applied, clear search_rank if keyword filter NOT applied
+  useEffect(() => {
+    const isNotAll = (val) => {
+      if (!val) return false;
+      if (Array.isArray(val)) {
+        if (val.length === 0) return false;
+        return !val.some(v => String(v).toLowerCase() === 'all');
+      }
+      return String(val).toLowerCase() !== 'all';
+    };
+
+    const hasKeywordFilter = isNotAll(drawerFilters.Keyword) || isNotAll(drawerFilters.Keyword_Type);
+
+    if (hasKeywordFilter) {
+      setActiveMetrics(prev => prev.filter(m => m !== "offtake"));
+    } else {
+      setActiveMetrics(prev => prev.filter(m => m !== "search_rank"));
+    }
+  }, [drawerFilters.Keyword, drawerFilters.Keyword_Type]);
 
   // ===================== FETCH COMPETITION DATA =====================
   // Fetch competition data when drawer opens (not just when Competition view is selected)
@@ -955,10 +1067,13 @@ export default function VisibilityTrendsCompetitionDrawer({
           period: '1M',
           platform: drawerFilters.Platform !== 'All' ? drawerFilters.Platform : undefined,
           format: drawerFilters.Format !== 'All' ? drawerFilters.Format : undefined,
-          location: drawerFilters.City !== 'All' && drawerFilters.City !== 'All India' ? drawerFilters.City : undefined,
+          location: (drawerFilters.City !== 'All' && drawerFilters.City !== 'All India')
+            ? (Array.isArray(drawerFilters.City) ? drawerFilters.City.join(',').toLowerCase() : drawerFilters.City.toLowerCase())
+            : undefined,
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
-          channel: selectedChannel || 'All'
+          channel: selectedChannel || 'All',
+          rank: drawerFilters.Rank || 'All'
         };
 
         console.log("[VisibilityTrendsDrawer] Fetching competition data with params:", params);
@@ -1026,6 +1141,11 @@ export default function VisibilityTrendsCompetitionDrawer({
     const dataSource = chartData;
     const xData = dataSource.map((p) => p.date);
 
+    // Determine which metrics go on which axis:
+    // Left (index 0): All SOS KPIs (percentage %)
+    // Right (index 1): Offtake (₹) and Search Rank
+    const RIGHT_AXIS_METRICS = ['offtake', 'search_rank'];
+
     const series = trendMeta.metrics
       .filter((m) => activeMetrics.includes(m.id))
       .map((m) => ({
@@ -1035,16 +1155,46 @@ export default function VisibilityTrendsCompetitionDrawer({
         symbol: "circle",
         symbolSize: 6,
         showSymbol: true,
-        yAxisIndex: m.axis === "right" ? 1 : 0,
+        yAxisIndex: RIGHT_AXIS_METRICS.includes(m.id) ? 1 : 0,
         lineStyle: { width: 2 },
         emphasis: { focus: "series" },
         data: dataSource.map((p) => p[m.id] ?? null),
         itemStyle: { color: m.color },
       }));
 
+    // Check if any right-axis metric is active to determine right axis formatting
+    const hasOfftakeActive = activeMetrics.includes('offtake');
+
     return {
       grid: { left: 60, right: 80, top: 32, bottom: 40 },
-      tooltip: { trigger: "axis" },
+      tooltip: {
+        trigger: "axis",
+        formatter: (params) => {
+          let tooltipHtml = `<div style="font-weight:bold;margin-bottom:4px;">${params[0].name}</div>`;
+          params.forEach((param) => {
+            let val = param.value;
+            let displayVal = 'N/A';
+
+            if (val !== null && val !== undefined && val !== 0 && val !== "0") {
+              if (param.seriesName === "Offtake") {
+                displayVal = '₹' + Number(val).toLocaleString('en-IN');
+              } else if (param.seriesName === "Category Share") {
+                displayVal = Number(val).toFixed(2) + '%';
+              } else if (param.seriesName === "Search Rank") {
+                displayVal = Math.round(Number(val));
+              } else {
+                displayVal = Number(val).toFixed(2) + '%';
+              }
+            }
+
+            tooltipHtml += `<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background-color:${param.color};margin-right:4px;"></span>${param.seriesName}</span>
+              <span style="font-weight:600">${displayVal}</span>
+            </div>`;
+          });
+          return tooltipHtml;
+        }
+      },
       xAxis: {
         type: "category",
         data: xData,
@@ -1054,20 +1204,35 @@ export default function VisibilityTrendsCompetitionDrawer({
       },
       yAxis: [
         {
+          // Left axis: SOS percentages
           type: "value",
           position: "left",
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { lineStyle: { color: "#F3F4F6" } },
+          axisLabel: {
+            formatter: '{value}%',
+            fontSize: 11,
+          },
         },
         {
+          // Right axis: Offtake (₹) / Category Share
           type: "value",
           position: "right",
           axisLine: { show: false },
           axisTick: { show: false },
           splitLine: { show: false },
-          min: 0,
-          max: 100,
+          axisLabel: {
+            fontSize: 11,
+            formatter: hasOfftakeActive
+              ? (val) => {
+                if (val >= 10000000) return '₹' + (val / 10000000).toFixed(1) + 'Cr';
+                if (val >= 100000) return '₹' + (val / 100000).toFixed(1) + 'L';
+                if (val >= 1000) return '₹' + (val / 1000).toFixed(1) + 'K';
+                return '₹' + val;
+              }
+              : activeMetrics.includes('search_rank') ? '{value}' : '{value}%',
+          },
         },
       ],
       legend: { show: false },
@@ -1139,6 +1304,8 @@ export default function VisibilityTrendsCompetitionDrawer({
   const CITY_OPTIONS = filterOptions.cities.length > 0 ? filterOptions.cities : ["Delhi", "Mumbai", "Bangalore", "Chennai"];
   const BRAND_OPTIONS = filterOptions.brands.length > 0 ? filterOptions.brands : [];
   const SKU_OPTIONS = filterOptions.skus && filterOptions.skus.length > 0 ? filterOptions.skus : [];
+  const KEYWORD_TYPE_OPTIONS = filterOptions.keywordTypes && filterOptions.keywordTypes.length > 0 ? filterOptions.keywordTypes : ["Branded", "Generic", "Competition"];
+  const KEYWORD_OPTIONS = filterOptions.keywords && filterOptions.keywords.length > 0 ? filterOptions.keywords : [];
 
   if (!open) return null;
 
@@ -1196,7 +1363,9 @@ export default function VisibilityTrendsCompetitionDrawer({
             }}
           >
             <ToggleButton value="Trends">Trends</ToggleButton>
-            <ToggleButton value="Competition">Competition</ToggleButton>
+            {!isSugarUser && (
+              <ToggleButton value="Competition">Competition</ToggleButton>
+            )}
             {/* <ToggleButton value="compare skus">Compare SKUs</ToggleButton> */}
           </ToggleButtonGroup>
 
@@ -1233,9 +1402,9 @@ export default function VisibilityTrendsCompetitionDrawer({
             color={drawerFilters.Platform !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
-            label="City"
-            value={drawerFilters.City}
-            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+            label="Category"
+            value={drawerFilters.Format}
+            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
             label="Brand"
@@ -1243,9 +1412,23 @@ export default function VisibilityTrendsCompetitionDrawer({
             color={drawerFilters.Brand !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
-            label="Category"
-            value={drawerFilters.Format}
-            color={drawerFilters.Format !== 'All' ? "#0ea5e9" : "#64748B"}
+            label="City"
+            value={drawerFilters.City}
+            color={drawerFilters.City !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Keyword Type"
+            value={drawerFilters.Keyword_Type}
+            color={drawerFilters.Keyword_Type !== 'All' ? "#0ea5e9" : "#64748B"}
+          />
+          <SelectedFilterChip
+            label="Keyword"
+            value={
+              drawerFilters.Keyword !== 'All' && typeof drawerFilters.Keyword === 'string' && drawerFilters.Keyword.split(' ').length > 4
+                ? drawerFilters.Keyword.split(' ').slice(0, 4).join(' ') + ' ...'
+                : drawerFilters.Keyword
+            }
+            color={drawerFilters.Keyword !== 'All' ? "#0ea5e9" : "#64748B"}
           />
           <SelectedFilterChip
             label="SKU"
@@ -1262,10 +1445,10 @@ export default function VisibilityTrendsCompetitionDrawer({
           />
 
           {/* Clear All Drawer Filters */}
-          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All') && (
+          {(drawerFilters.Platform !== 'All' || drawerFilters.City !== 'All' || drawerFilters.Brand !== 'All' || drawerFilters.Format !== 'All' || drawerFilters.SKU !== 'All' || drawerFilters.Keyword_Type !== 'All' || drawerFilters.Keyword !== 'All' || drawerFilters.rank !== 'All') && (
             <Button
               size="small"
-              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All" })}
+              onClick={() => setDrawerFilters({ Platform: "All", Format: "All", Brand: "All", City: "All", SKU: "All", Keyword_Type: "All", Keyword: "All", rank: "All" })}
               sx={{
                 ml: 'auto',
                 fontSize: '11px',
@@ -1283,10 +1466,10 @@ export default function VisibilityTrendsCompetitionDrawer({
         {view === "Trends" && (
           <Box display="flex" flexDirection="column" gap={0}>
             {/* Title Block */}
-            <Typography 
-              variant="h5" 
-              fontWeight={800} 
-              sx={{ 
+            <Typography
+              variant="h5"
+              fontWeight={800}
+              sx={{
                 color: '#0f172a',
                 lineHeight: 1.2,
                 mb: 2,
@@ -1296,36 +1479,49 @@ export default function VisibilityTrendsCompetitionDrawer({
             </Typography>
 
             {/* HEADER FILTER CONTAINER */}
-            <Box 
-              display="flex" 
-              alignItems="center" 
-              justifyContent="space-between" 
-              flexWrap="wrap" 
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+              flexWrap="wrap"
               gap={2}
               mb={3}
             >
               {/* PRIMARY FILTERS */}
               <Box display="flex" alignItems="center" gap={1}>
-                <FilterDropdown 
-                  title="Platform" 
-                  value={drawerFilters.Platform} 
-                  options={PLATFORM_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, Platform: v}))} 
+                <FilterDropdown
+                  title="Platform"
+                  value={drawerFilters.Platform}
+                  options={PLATFORM_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Platform: v }))}
                 />
-                <FilterDropdown 
-                  title="City" 
-                  value={drawerFilters.City} 
-                  options={CITY_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, City: v}))} 
+                <FilterDropdown
+                  title="Category"
+                  value={drawerFilters.Format}
+                  options={FORMAT_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Format: v }))}
                 />
-                <FilterDropdown 
-                  title="Brand" 
-                  value={drawerFilters.Brand} 
-                  options={BRAND_OPTIONS} 
-                  onChange={(v) => setDrawerFilters(prev => ({...prev, Brand: v}))} 
+                <FilterDropdown
+                  title="Brand"
+                  value={drawerFilters.Brand}
+                  options={BRAND_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, Brand: v }))}
                 />
-                
-                <Button 
+                <FilterDropdown
+                  title="City"
+                  value={drawerFilters.City}
+                  options={filterOptions.cities}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, City: v }))}
+                />
+                <FilterDropdown
+                  title="Rank"
+                  value={drawerFilters.rank}
+                  options={RANK_OPTIONS}
+                  onChange={(v) => setDrawerFilters(prev => ({ ...prev, rank: v }))}
+                  searchable={false}
+                />
+
+                <Button
                   onClick={() => setIsMoreFiltersOpen(prev => !prev)}
                   startIcon={<SlidersHorizontal size={14} />}
                   sx={{
@@ -1353,9 +1549,27 @@ export default function VisibilityTrendsCompetitionDrawer({
 
               {/* RANGE + TIMESTEP — stacked vertically */}
               <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
-                <Box display="flex" alignItems="center" gap={1.5}>
-                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Range</Typography>
-                  <PillToggleGroup value={range} onChange={setRange} options={trendMeta.rangeOptions} />
+                <Box display="flex" alignItems="flex-start" gap={1.5}>
+                  <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', mt: 0.8 }}>Range</Typography>
+                  <Box display="flex" flexDirection="column" alignItems="flex-end" gap={1}>
+                    <PillToggleGroup value={range} onChange={setRange} options={trendMeta.rangeOptions} />
+                    {range === "Custom" && (
+                      <Box display="flex" gap={1}>
+                        <DatePicker
+                          value={customStartDate}
+                          onChange={(newValue) => setCustomStartDate(newValue)}
+                          slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                          format="DD/MM/YY"
+                        />
+                        <DatePicker
+                          value={customEndDate}
+                          onChange={(newValue) => setCustomEndDate(newValue)}
+                          slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                          format="DD/MM/YY"
+                        />
+                      </Box>
+                    )}
+                  </Box>
                 </Box>
                 <Box display="flex" alignItems="center" gap={1.5}>
                   <Typography variant="caption" sx={{ color: '#64748B', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Step Size</Typography>
@@ -1382,25 +1596,46 @@ export default function VisibilityTrendsCompetitionDrawer({
                 mb={2}
               >
                 <Box display="flex" gap={1.5} flexWrap="wrap">
-                  {trendMeta.metrics.map((m) => (
-                    <MetricChip
-                      key={m.id}
-                      label={m.label}
-                      color={m.color}
-                      active={activeMetrics.includes(m.id)}
-                      onClick={() =>
-                        setActiveMetrics((prev) =>
-                          prev.includes(m.id)
-                            ? prev.filter((x) => x !== m.id)
-                            : [...prev, m.id]
-                        )
+                  {trendMeta.metrics.map((m) => {
+                    const isNotAll = (val) => {
+                      if (!val) return false;
+                      if (Array.isArray(val)) {
+                        if (val.length === 0) return false;
+                        return !val.some(v => String(v).toLowerCase() === 'all');
                       }
-                    />
-                  ))}
+                      return String(val).toLowerCase() !== 'all';
+                    };
+
+                    const hasKeywordFilter = isNotAll(drawerFilters.Keyword) || isNotAll(drawerFilters.Keyword_Type);
+
+                    if (hasKeywordFilter && m.id === "offtake") {
+                      return null;
+                    }
+
+                    const isDisabled = !hasKeywordFilter && m.id === "search_rank";
+
+                    return (
+                      <MetricChip
+                        key={m.id}
+                        label={m.label}
+                        color={m.color}
+                        active={activeMetrics.includes(m.id) && !isDisabled}
+                        disabled={isDisabled}
+                        onClick={() =>
+                          setActiveMetrics((prev) =>
+                            prev.includes(m.id)
+                              ? prev.filter((x) => x !== m.id)
+                              : [...prev, m.id]
+                          )
+                        }
+                      />
+                    );
+                  })}
                 </Box>
 
                 <Box>
-                  {trendMeta.metrics.length > 4 && (
+                  {/* Show more button if we have many metrics, but currently we just show all */}
+                  {/* {trendMeta.metrics.length > 5 && (
                     <Button
                       size="small"
                       variant="outlined"
@@ -1419,9 +1654,9 @@ export default function VisibilityTrendsCompetitionDrawer({
                         }
                       }}
                     >
-                      +{trendMeta.metrics.length - 4} more
+                      +{trendMeta.metrics.length - 5} more
                     </Button>
-                  )}
+                  )} */}
                 </Box>
               </Box>
 
@@ -1455,7 +1690,22 @@ export default function VisibilityTrendsCompetitionDrawer({
         )}
 
         {/* COMPETITION VIEW */}
-        {view === "Competition" && <VisibilityPlatformOverviewKpiShowcase selectedPlatform={selectedColumn || selectedPlatform || 'All'} period={range === "Custom" ? "1M" : range} timeStep={timeStep} />}
+        {view === "Competition" && (
+          <VisibilityPlatformOverviewKpiShowcase
+            selectedPlatform={drawerFilters.Platform !== 'All' ? drawerFilters.Platform : (selectedColumn || selectedPlatform || 'All')}
+            period={range === "Custom" ? "1M" : range}
+            timeStep={timeStep}
+            externalCity={drawerFilters.City === 'All' ? 'All India' : drawerFilters.City}
+            externalFilters={{
+              categories: drawerFilters.Format !== 'All' ? [drawerFilters.Format] : [],
+              brands: drawerFilters.Brand !== 'All' ? [drawerFilters.Brand] : [],
+              skus: drawerFilters.SKU !== 'All' ? [drawerFilters.SKU] : [],
+              keywords: drawerFilters.Keyword !== 'All' ? [drawerFilters.Keyword] : [],
+              keywordType: drawerFilters.Keyword_Type !== 'All' ? [drawerFilters.Keyword_Type] : [],
+              rank: drawerFilters.Rank || 'All'
+            }}
+          />
+        )}
 
         {/* COMPARE SKUs VIEW */}
         {view === "compare skus" && (
@@ -1474,11 +1724,29 @@ export default function VisibilityTrendsCompetitionDrawer({
               gap={2}
               flexWrap="wrap"
             >
-              <PillToggleGroup
-                value={range}
-                onChange={setRange}
-                options={trendMeta.rangeOptions}
-              />
+              <Box display="flex" flexDirection="column" alignItems="flex-start" gap={1}>
+                <PillToggleGroup
+                  value={range}
+                  onChange={setRange}
+                  options={trendMeta.rangeOptions}
+                />
+                {range === "Custom" && (
+                  <Box display="flex" gap={1}>
+                    <DatePicker
+                      value={customStartDate}
+                      onChange={(newValue) => setCustomStartDate(newValue)}
+                      slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                      format="DD/MM/YY"
+                    />
+                    <DatePicker
+                      value={customEndDate}
+                      onChange={(newValue) => setCustomEndDate(newValue)}
+                      slotProps={{ textField: { size: 'small', sx: { width: 110, '& .MuiInputBase-root': { fontSize: '0.75rem', height: '28px', borderRadius: '999px', backgroundColor: '#F3F4F6', '& fieldset': { border: 'none' } } } } }}
+                      format="DD/MM/YY"
+                    />
+                  </Box>
+                )}
+              </Box>
 
               <Box display="flex" alignItems="center" gap={2}>
                 <Typography variant="body2">Time Step:</Typography>
@@ -1624,13 +1892,14 @@ export default function VisibilityTrendsCompetitionDrawer({
             </Box>
 
             <Box flex={1} overflow="auto" sx={{ display: "flex", flexDirection: "column", gap: 3, pr: 1 }}>
+              {/* ===== Keyword Type ===== */}
               <Box>
-                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">Category</Typography>
+                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">Keyword Type</Typography>
                 <Select
                   fullWidth
                   size="small"
-                  value={drawerFilters.Format}
-                  onChange={(e) => setDrawerFilters(prev => ({...prev, Format: e.target.value}))}
+                  value={drawerFilters.Keyword_Type}
+                  onChange={(e) => setDrawerFilters(prev => ({ ...prev, Keyword_Type: e.target.value }))}
                   sx={{
                     fontSize: "13px",
                     borderRadius: "8px",
@@ -1639,14 +1908,116 @@ export default function VisibilityTrendsCompetitionDrawer({
                     "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "#CBD5E1" },
                   }}
                 >
-                  <MenuItem value="All">All Categories</MenuItem>
-                  {FORMAT_OPTIONS.map(opt => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
+                  <MenuItem value="All">All Types</MenuItem>
+                  {KEYWORD_TYPE_OPTIONS.map(opt => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
                 </Select>
               </Box>
 
+              {/* ===== Keyword ===== */}
+              <Box>
+                <Typography variant="body2" fontWeight={600} mb={1} color="#475569">Keyword</Typography>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="Search Keywords..."
+                  value={keywordSearchTerm || ''}
+                  onChange={(e) => setKeywordSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search size={14} color="#94A3B8" />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    mb: 1,
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 2,
+                      fontSize: '13px',
+                    }
+                  }}
+                />
+                <Box
+                  sx={{
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 2,
+                    '&::-webkit-scrollbar': { width: 6 },
+                    '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
+                  }}
+                >
+                  <Box
+                    onClick={() => setDrawerFilters(prev => ({ ...prev, Keyword: 'All' }))}
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      px: 1.5,
+                      py: 1,
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #F1F5F9',
+                      backgroundColor: drawerFilters.Keyword === 'All' ? '#EFF6FF' : 'transparent',
+                      '&:hover': { backgroundColor: '#F8FAFC' },
+                    }}
+                  >
+                    <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${drawerFilters.Keyword === 'All' ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: drawerFilters.Keyword === 'All' ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {drawerFilters.Keyword === 'All' && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                    </Box>
+                    <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All Keywords</Typography>
+                  </Box>
+                  {KEYWORD_OPTIONS
+                    .filter(opt => !keywordSearchTerm || opt.toLowerCase().includes(keywordSearchTerm.toLowerCase()))
+                    .map(opt => {
+                      const isSelected = drawerFilters.Keyword === opt;
+                      const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
+                      return (
+                        <Box
+                          key={opt}
+                          onClick={() => setDrawerFilters(prev => ({ ...prev, Keyword: prev.Keyword === opt ? 'All' : opt }))}
+                          title={opt}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1,
+                            px: 1.5,
+                            py: 0.8,
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #F8FAFC',
+                            backgroundColor: isSelected ? '#EFF6FF' : 'transparent',
+                            transition: 'background 0.15s',
+                            '&:hover': { backgroundColor: isSelected ? '#DBEAFE' : '#F8FAFC' },
+                          }}
+                        >
+                          <Box sx={{ width: 16, height: 16, borderRadius: '4px', border: `2px solid ${isSelected ? '#3B82F6' : '#CBD5E1'}`, backgroundColor: isSelected ? '#3B82F6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {isSelected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                          </Box>
+                          <Box sx={{ overflow: 'hidden', minWidth: 0 }}>
+                            <Typography sx={{
+                              fontSize: '12px',
+                              fontWeight: isSelected ? 600 : 400,
+                              color: isSelected ? '#1E40AF' : '#334155',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: 200,
+                            }}>
+                              {mainName}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      );
+                    })
+                  }
+                  {KEYWORD_OPTIONS.filter(opt => !keywordSearchTerm || opt.toLowerCase().includes(keywordSearchTerm.toLowerCase())).length === 0 && (
+                    <Typography sx={{ p: 2, textAlign: 'center', fontSize: '12px', color: '#94A3B8' }}>No data is available</Typography>
+                  )}
+                </Box>
+              </Box>
+
+              {/* ===== SKU ===== */}
               <Box>
                 <Typography variant="body2" fontWeight={600} mb={1} color="#475569">SKU</Typography>
-                {/* Search input */}
                 <TextField
                   fullWidth
                   size="small"
@@ -1668,7 +2039,6 @@ export default function VisibilityTrendsCompetitionDrawer({
                     }
                   }}
                 />
-                {/* Scrollable SKU list */}
                 <Box
                   sx={{
                     maxHeight: 220,
@@ -1679,9 +2049,8 @@ export default function VisibilityTrendsCompetitionDrawer({
                     '&::-webkit-scrollbar-thumb': { backgroundColor: '#CBD5E1', borderRadius: 3 },
                   }}
                 >
-                  {/* "All SKUs" option */}
                   <Box
-                    onClick={() => setDrawerFilters(prev => ({...prev, SKU: 'All'}))}
+                    onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: 'All' }))}
                     sx={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1699,21 +2068,17 @@ export default function VisibilityTrendsCompetitionDrawer({
                     </Box>
                     <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>All SKUs</Typography>
                   </Box>
-
-                  {/* Filtered SKU items */}
                   {SKU_OPTIONS
                     .filter(opt => !skuSearchTerm || opt.toLowerCase().includes(skuSearchTerm.toLowerCase()))
                     .map(opt => {
                       const isSelected = drawerFilters.SKU === opt;
-                      // Truncate display: show last part in parentheses as variant hint
                       const parenMatch = opt.match(/\(([^)]+)\)\s*$/);
                       const variant = parenMatch ? parenMatch[1] : '';
                       const mainName = opt.length > 60 ? opt.substring(0, 57) + '...' : opt;
-
                       return (
                         <Box
                           key={opt}
-                          onClick={() => setDrawerFilters(prev => ({...prev, SKU: opt}))}
+                          onClick={() => setDrawerFilters(prev => ({ ...prev, SKU: prev.SKU === opt ? 'All' : opt }))}
                           title={opt}
                           sx={{
                             display: 'flex',
@@ -1761,20 +2126,20 @@ export default function VisibilityTrendsCompetitionDrawer({
             </Box>
 
             <Box display="flex" justifyContent="flex-end" gap={2} pt={3} borderTop="1px solid #F1F5F9">
-              <Button 
+              <Button
                 onClick={() => setIsMoreFiltersOpen(false)}
                 variant="outlined"
                 sx={{ borderRadius: 2, textTransform: 'none', borderColor: '#E2E8F0', color: '#475569', minWidth: 90, fontSize: '13px' }}
               >
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={() => setIsMoreFiltersOpen(false)}
                 variant="contained"
-                sx={{ 
-                  borderRadius: 2, 
-                  textTransform: 'none', 
-                  boxShadow: 'none', 
+                sx={{
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  boxShadow: 'none',
                   bgcolor: '#0F172A',
                   '&:hover': { bgcolor: '#1E293B', boxShadow: 'none' },
                   minWidth: 90,

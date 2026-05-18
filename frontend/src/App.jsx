@@ -14,6 +14,7 @@ import ContentScoreDashboards from "./pages/ContentScoreDashboard/ContentScoreDa
 import PricingAnalysis from "./pages/AllPricingAnalysis/PricingAnalysis";
 import MarketShares from "./pages/AllMarketShares/MarketShares";
 import AvailablityAnalysis from "./pages/AllAvailablityAnalysis/AvailablityAnalysis";
+import OnShelfAvailability from "./pages/OnShelfAvailability/OnShelfAvailability";
 import VisibilityAnalysis from "./pages/AllVisibilityAnalysis/VisibilityAnalysis";
 import PiyConcept from "./pages/PiyConcept/PiyConcept";
 
@@ -27,6 +28,7 @@ import GeoIntelligenceMap from "./pages/GeoAnalysis/GeoIntelligenceMap.jsx";
 import Insights from "./pages/Insights/Insights";
 import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMatrix";
 import { HelpProvider } from "./utils/HelpContext";
+import { SocketProvider } from "./utils/SocketContext";
 import HelpDrawer from "./components/CommonLayout/HelpDrawer";
 import WalkthroughModal from "./components/CommonLayout/WalkthroughModal";
 import AdminPanel from "./pages/Admin/AdminPanel";
@@ -42,6 +44,7 @@ function AppContent() {
   return (
     <HelpProvider>
       <FilterProvider key={sessionKey}>
+        <SocketProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 
@@ -92,6 +95,12 @@ function AppContent() {
             <Route path="/availability-analysis" element={
               <ProtectedRoute>
                 <AvailablityAnalysis />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/on-shelf-availability" element={
+              <ProtectedRoute>
+                <OnShelfAvailability />
               </ProtectedRoute>
             } />
 
@@ -163,6 +172,7 @@ function AppContent() {
           </Routes>
           {isLoggedIn && <WalkthroughModal />}
           {isLoggedIn && <HelpDrawer userDbName={user?.dbName} />}
+        </SocketProvider>
       </FilterProvider>
     </HelpProvider>
   );

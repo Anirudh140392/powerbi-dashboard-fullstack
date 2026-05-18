@@ -11,8 +11,13 @@ import dayjs from 'dayjs';
 const parseFilter = (val) => {
     if (!val || val === 'All' || val === 'all' || val === 'undefined') return 'All';
     if (Array.isArray(val)) return val.length > 0 ? val : 'All';
-    if (typeof val === 'string' && val.includes(',')) {
-        return val.split(',').map(v => v.trim()).filter(v => v !== '');
+    if (typeof val === 'string') {
+        if (val.includes('|')) {
+            return val.split('|').map(v => v.trim()).filter(v => v !== '');
+        }
+        if (val.includes(',')) {
+            return val.split(',').map(v => v.trim()).filter(v => v !== '');
+        }
     }
     return val;
 };
@@ -157,6 +162,53 @@ export const getPlatformKpiMatrix = async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('[ERROR] Platform KPI Matrix:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+/**
+ * Get Standalone KPI Matrix for Absolute OSA page (OSA + Market Share)
+ */
+export const getStandaloneKpiMatrix = async (req, res) => {
+    try {
+        const filters = {
+            viewMode: req.query.viewMode || 'Platform',  // Platform, Format, or City
+            platform: parseFilter(req.query.platform),
+            brand: parseFilter(req.query.brand),
+            location: parseFilter(req.query.location),
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
+            dates: parseFilter(req.query.dates),
+            months: parseFilter(req.query.months),
+            cities: parseFilter(req.query.cities),
+            categories: parseFilter(req.query.categories),
+            formats: parseFilter(req.query.formats),
+            category: parseFilter(req.query.category),
+            format: parseFilter(req.query.format),
+            zones: parseFilter(req.query.zones),
+            metroFlags: parseFilter(req.query.metroFlags),
+            pincodes: parseFilter(req.query.pincodes),
+            drillDimension: req.query.drillDimension || 'region',
+            includeBreakdown: req.query.includeBreakdown === 'true',
+            channel: req.query.channel,
+            productCategory: parseFilter(req.query.productCategory),
+            compareStartDate: req.query.compareStartDate,
+            compareEndDate: req.query.compareEndDate,
+            ownBrandsOnly: req.query.ownBrandsOnly
+        };
+        console.log('\n========== STANDALONE KPI MATRIX API (OSA + Market Share) ==========');
+        console.log('[DEBUG] viewMode from query:', req.query.viewMode);
+        console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
+
+        const data = await availabilityService.getStandaloneOsaPlatformKpiMatrix(filters);
+
+        console.log('[RESPONSE] viewMode:', data.viewMode);
+        console.log('[RESPONSE] Columns:', JSON.stringify(data.columns));
+        console.log('====================================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Standalone KPI Matrix:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 };
@@ -471,7 +523,7 @@ export const getAvailabilityCompetitionFilterOptions = async (req, res) => {
  */
 export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, location, category, period, startDate, endDate } = req.query;
+        const { brands, location, category, period, startDate, endDate, channel } = { ...req.query, ...req.body };
         console.log('\n========== AVAILABILITY COMPETITION BRAND TRENDS API ==========');
         console.log('[REQUEST] brands:', brands, 'location:', location, 'category:', category, 'period:', period, 'startDate:', startDate, 'endDate:', endDate);
 
@@ -480,7 +532,7 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
             location: parseFilter(location || 'All'),
             category: parseFilter(category || 'All'),
             period: period || '1M',
-            channel: req.query.channel,
+            channel: channel,
             startDate,
             endDate
         });
@@ -492,6 +544,36 @@ export const getAvailabilityCompetitionBrandTrends = async (req, res) => {
     } catch (error) {
         console.error('[ERROR] Availability Competition Brand Trends:', error);
         res.status(500).json({ metrics: [], timeSeries: {}, brands: [] });
+    }
+};
+
+/**
+ * Get Availability Competition SKU Trends
+ * Returns time-series data for comparing multiple SKUs
+ */
+export const getAvailabilityCompetitionSkuTrends = async (req, res) => {
+    try {
+        const { skus, location, category, period, startDate, endDate, channel } = { ...req.query, ...req.body };
+        console.log('\n========== AVAILABILITY COMPETITION SKU TRENDS API ==========');
+        console.log('[REQUEST] skus:', skus, 'location:', location, 'category:', category, 'period:', period);
+
+        const data = await availabilityService.getAvailabilityCompetitionSkuTrends({
+            skus: parseFilter(skus || 'All'),
+            location: parseFilter(location || 'All'),
+            category: parseFilter(category || 'All'),
+            period: period || '1M',
+            channel: channel,
+            startDate,
+            endDate
+        });
+
+        console.log('[RESPONSE]:', Object.keys(data.osa || {}).length, 'SKUs with trends');
+        console.log('=============================================================\n');
+
+        res.json(data);
+    } catch (error) {
+        console.error('[ERROR] Availability Competition SKU Trends:', error);
+        res.status(500).json({ metrics: [], timeSeries: {}, skus: [] });
     }
 };
 
@@ -527,7 +609,8 @@ export const getSignalLabData = async (req, res) => {
                 signalType = 'drainer',
                 keyword = 'All',
                 channel = 'All',
-                groupBy = 'sku'
+                groupBy = 'sku',
+                rank = 'All'
             } = req.query;
 
             const isBrandGroup = groupBy === 'brand';
@@ -691,6 +774,14 @@ export const getSignalLabData = async (req, res) => {
                     const isAll = kList.some(v => String(v).toLowerCase() === 'all');
                     if (!isAll) {
                         kwWhereCommon.push(`LOWER(keyword) IN (${kList.map(k => `'${escapeStr(k.toLowerCase())}'`).join(', ')})`);
+                    }
+                }
+
+                // Apply Rank Filter (POSITION)
+                if (rank && rank !== 'All') {
+                    const maxRank = Number(String(rank).replace(/\D/g, ''));
+                    if (!isNaN(maxRank) && maxRank > 0) {
+                        kwWhereCommon.push(`POSITION <= ${maxRank}`);
                     }
                 }
 
@@ -1502,6 +1593,24 @@ export const getBrandSkuCityDayLevel = async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('[Controller] getBrandSkuCityDayLevel error:', error);
+        res.status(500).json({ error: 'Internal Server Error', message: error.message });
+    }
+};
+
+/**
+ * Get distinct brand options from rb_pdp_olap for Market Coverage filter modal
+ */
+export const getBrandOptions = async (req, res) => {
+    try {
+        const filters = {
+            platform: parseFilter(req.query.platform),
+            channel: req.query.channel,
+            category: parseFilter(req.query.category),
+        };
+        const brands = await availabilityService.getDistinctBrands(filters);
+        res.json({ brands });
+    } catch (error) {
+        console.error('[Controller] getBrandOptions error:', error);
         res.status(500).json({ error: 'Internal Server Error', message: error.message });
     }
 };

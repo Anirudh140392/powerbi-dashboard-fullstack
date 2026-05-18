@@ -456,7 +456,8 @@ export const ScheduledReport = ({
                     MenuProps={{
                       PaperProps: {
                         style: {
-                          maxHeight: 200,
+                          maxHeight: 250,
+                          maxWidth: 350,
                           borderRadius: "12px",
                         },
                       },
@@ -475,7 +476,19 @@ export const ScheduledReport = ({
                     }}
                   >
                     {getSkuOptions().map((option) => (
-                      <MenuItem key={option} value={option}>
+                      <MenuItem 
+                        key={option} 
+                        value={option}
+                        sx={{
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                          lineHeight: 1.4,
+                          py: 1.2,
+                          fontSize: "0.875rem",
+                          borderBottom: "1px solid #f1f5f9",
+                          "&:last-child": { borderBottom: "none" }
+                        }}
+                      >
                         {option}
                       </MenuItem>
                     ))}

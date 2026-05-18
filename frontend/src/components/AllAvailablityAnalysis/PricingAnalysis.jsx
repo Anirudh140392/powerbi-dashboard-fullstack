@@ -1750,7 +1750,7 @@ export default function PricingAnalysis() {
         <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50/30 to-slate-100">
             {/* Header */}
             <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-sm">
-                <div className="max-w-7xl mx-auto px-6 py-4">
+                <div className="w-full px-6 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg">
@@ -1776,7 +1776,7 @@ export default function PricingAnalysis() {
             </div>
 
             {/* Outer Container with 3D Effect */}
-            <div className="max-w-7xl mx-auto px-6 py-6">
+            <div className="w-full px-6 py-6">
                 <div className="bg-white/70 backdrop-blur-sm rounded-3xl p-6 shadow-[0_8px_32px_-8px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.04)] ring-1 ring-slate-200/60 space-y-6">
                     {/* KPI Cards Row */}
                     <div className="grid grid-cols-6 gap-4">

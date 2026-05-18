@@ -87,6 +87,7 @@ import {
 
 import EChartsWrapper from "../EChartsWrapper";
 import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
 import LatestOverivewCatCity from "./LatestOverivewCatCity";
 import SnapshotOverview from "../CommonLayout/SnapshotOverview";
 import { LayoutGrid, Monitor, PieChart, Target, TrendingUp as TrendingUpLucide } from "lucide-react";
@@ -149,6 +150,18 @@ const DATE_OPTIONS = [
 
 const makeRandom = (a, b, decimals = 1) =>
   Number((Math.random() * (b - a) + a).toFixed(decimals));
+
+const formatKpiValue = (value, unit = "", format = 1) => {
+    if (value === null || value === undefined || value === 0 || value === "0") {
+        return "N/A";
+    }
+    const num = parseFloat(value);
+    if (isNaN(num)) return "N/A";
+    
+    // If unit is currency, put it in front
+    if (unit === "₹") return `₹${num.toFixed(format)}`;
+    return `${num.toFixed(format)}${unit}`;
+};
 
 // Base price rows
 const PRICE_ROWS = Array.from({ length: 18 }).map((_, i) => ({
@@ -1292,7 +1305,7 @@ export default function PricingAnalysisData() {
         // Process results
         results.forEach((result, idx) => {
           if (result.status === 'rejected') {
-            if (axiosInstance.isCancel(result.reason)) return;
+            if (axios.isCancel(result.reason)) return;
             console.error(`Error fetching segment ${idx}:`, result.reason);
           }
 
@@ -1340,7 +1353,7 @@ export default function PricingAnalysisData() {
           }
         });
       } catch (error) {
-        if (!axiosInstance.isCancel(error)) {
+        if (!axios.isCancel(error)) {
           console.error("Critical error in Pricing parallel fetch:", error);
           lastFetchedFiltersRef.current = null;
         }
@@ -2331,17 +2344,17 @@ export default function PricingAnalysisData() {
         packSize: packSize,
         platform: item.platform,
         categoryTag: item.brand,
-        ecpValue: `₹${ecp.toFixed(0)}`,
-        discountValue: `${discount.toFixed(1)}%`,
-        rpiValue: rpi.toFixed(2),
-        impact: `${impactPrefix}${impactValue.toFixed(metricType === 'rpi' ? 2 : 1)}${impactSuffix}`,
+        ecpValue: formatKpiValue(ecp, "₹", 0),
+        discountValue: formatKpiValue(discount, "%", 1),
+        rpiValue: formatKpiValue(rpi, "", 2),
+        impact: impactValue === 0 ? "N/A" : `${impactPrefix}${impactValue.toFixed(metricType === 'rpi' ? 2 : 1)}${impactSuffix}`,
         kpis: {
-          ecp: `₹${ecp.toFixed(0)}`,
-          mrp: `₹${mrp.toFixed(0)}`,
-          discount: `${discount.toFixed(1)}%`,
-          rpi: rpi.toFixed(2),
-          prevEcp: `₹${(Number(item.ecp_prev) || 0).toFixed(0)}`,
-          change: `${change > 0 ? '+' : ''}${change.toFixed(1)}`
+          ecp: formatKpiValue(ecp, "₹", 0),
+          mrp: formatKpiValue(mrp, "₹", 0),
+          discount: formatKpiValue(discount, "%", 1),
+          rpi: formatKpiValue(rpi, "", 2),
+          prevEcp: formatKpiValue(item.ecp_prev, "₹", 0),
+          change: change === 0 ? "N/A" : `${change > 0 ? '+' : ''}${change.toFixed(1)}`
         },
         topCities: item.topCities || []
       };
@@ -2399,36 +2412,38 @@ export default function PricingAnalysisData() {
       {
         id: 'vis-0',
         title: 'Discount',
-        value: `${(d.discount?.value || 0).toFixed(1)}%`,
+        value: formatKpiValue(d.discount?.value, "%", 1),
         subtitle: 'Average discount across active SKUs',
         delta: Math.abs(d.discount?.change || 0),
-        deltaLabel: `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
+        deltaLabel: !d.discount?.value || d.discount?.value === 0 ? "N/A" : `${(d.discount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.discount?.change || 0).toFixed(1)}%`,
         icon: icons[0],
         gradient: gradients[0],
         trend: d.discount?.sparklineData || [],
         trendDir: (d.discount?.change || 0) >= 0 ? 'up' : 'down',
-        prevText: 'vs Previous Period'
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
       },
       {
         id: 'vis-1',
         title: 'Weighted Discount',
-        value: `${(d.weightedDiscount?.value || 0).toFixed(1)}%`,
+        value: formatKpiValue(d.weightedDiscount?.value, "%", 1),
         subtitle: 'Discount weighted by sales',
         delta: Math.abs(d.weightedDiscount?.change || 0),
-        deltaLabel: `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
+        deltaLabel: !d.weightedDiscount?.value || d.weightedDiscount?.value === 0 ? "N/A" : `${(d.weightedDiscount?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.weightedDiscount?.change || 0).toFixed(1)}%`,
         icon: icons[1],
         gradient: gradients[1],
         trend: d.weightedDiscount?.sparklineData || [],
         trendDir: (d.weightedDiscount?.change || 0) >= 0 ? 'up' : 'down',
-        prevText: 'vs Previous Period'
+        prevText: 'vs Previous Period',
+        infoTooltip: 'Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.'
       },
       {
         id: 'vis-2',
         title: 'Average selling price',
-        value: `₹${(d.asp?.value || 0).toFixed(2)}`,
+        value: formatKpiValue(d.asp?.value, "₹", 2),
         subtitle: 'Average selling price of SKUs',
         delta: Math.abs(d.asp?.change || 0),
-        deltaLabel: `${(d.asp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.asp?.change || 0).toFixed(1)}%`,
+        deltaLabel: !d.asp?.value || d.asp?.value === 0 ? "N/A" : `${(d.asp?.change || 0) >= 0 ? '▲' : '▼'} ${Math.abs(d.asp?.change || 0).toFixed(1)}%`,
         icon: icons[2],
         gradient: gradients[2],
         trend: d.asp?.sparklineData || [],
@@ -2465,6 +2480,7 @@ export default function PricingAnalysisData() {
         }
         kpis={pricingKpis}
         variant="detailed"
+        helpMenu="Pricing Analysis"
         loading={pricingKpiLoading}
       />
 

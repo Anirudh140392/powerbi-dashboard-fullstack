@@ -36,6 +36,7 @@ import {
   Psychology as InterpretationIcon,
   EmojiObjects as ExampleIcon,
   Calculate as LogicIcon,
+  InfoOutlined as InfoIcon,
 } from "@mui/icons-material";
 
 import { useHelp } from "../../utils/HelpContext";
@@ -62,7 +63,7 @@ const HelpDrawer = ({ userDbName }) => {
       interpretation: "Higher offtake → strong sales performance.",
       pitfalls: "Price vs volume confusion; double counting across SKUs.",
       example: "Brand sales = ₹5 Cr in last 30 days.",
-      logic: "Sum(Sales Value)",
+      logic: "Sum(Sales Value). Note: Organic Sales = Offtake - Inorganic Sales.",
     },
     {
       kpi: "Availability",
@@ -81,6 +82,7 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "Not fixing shelf size; ignoring rank importance.",
       example: "4 SKUs in top 10 → 40%.",
       logic: "(Brand SKUs in Top N ÷ N) × 100",
+      info: "• By default, SOS across the dashboard is calculated using Top 10 positions (POSITION ≤ 10).\n• To analyze SOS for Top 20, Top 30, or Top 40, use the rank filter available on the Visibility page.\n• Unless another rank bucket is selected in Visibility, all other pages will continue showing SOS values based on Top 10 results.",
     },
     {
       kpi: "Market Share",
@@ -216,6 +218,15 @@ const HelpDrawer = ({ userDbName }) => {
       pitfalls: "High CTR but low conversion.",
       example: "5,000 clicks / 1,00,000 impressions = 5%.",
       logic: "(Clicks ÷ Impressions) × 100",
+    },
+    {
+      kpi: "Cost per Click (CPC)",
+      definition: "The average cost paid for each click on an advertisement.",
+      usage: "Monitor advertising cost efficiency.",
+      interpretation: "Lower CPC → more traffic for same spend.",
+      pitfalls: "Low CPC doesn't always mean high quality traffic.",
+      example: "₹500 for 100 clicks → CPC = ₹5.",
+      logic: "Total Spend ÷ Total Clicks",
     },
   ];
 
@@ -389,6 +400,26 @@ const HelpDrawer = ({ userDbName }) => {
       logic: "(Sponsored Brand Appearances ÷ N) × 100",
     },
   ];
+  const pricingAnalysisGlossary = [
+    {
+      kpi: "Weighted Discount %",
+      definition: "Weighted Discount % represents the average discount across all SKUs within a specific BGR or Ptype, weighted by each SKU’s sales in the current period on the platform.",
+      usage: "Evaluate average promotional intensity while prioritizing high-volume products.",
+      interpretation: "Higher weighted discount indicates aggressive pricing on top-selling items.",
+      pitfalls: "Can mask low discounts on low-volume items.",
+      example: "SKU A (50% sales) at 10% off + SKU B (50% sales) at 20% off → Weighted Discount = 15%.",
+      logic: "Σ(Discount % × Sales) ÷ Σ(Sales)",
+    },
+    {
+      kpi: "Wt. PPU (Price per Unit)",
+      definition: "Wt. PPU represents the average price per unit across a category, with each SKU weighted based on its sales.",
+      usage: "Monitor price positioning across the category.",
+      interpretation: "Provides a realistic view of what customers are actually paying on average.",
+      pitfalls: "Ignoring pack size differences (e.g., 1g vs 1kg).",
+      example: "Average price paid per unit across all brands in the category.",
+      logic: "Σ(Price per Unit × Sales Volume) ÷ Σ(Total Sales Volume)",
+    },
+  ];
 
   const visibilityAnalysisGlossary = [
     {
@@ -484,6 +515,15 @@ const HelpDrawer = ({ userDbName }) => {
       example: "₹1.5 Cr via ads.",
       logic: "Sum(Ad Sales Value)",
     },
+    {
+      kpi: "CPC (Cost per Click)",
+      definition: "The average cost paid for each click on an advertisement.",
+      usage: "Monitor advertising cost efficiency.",
+      interpretation: "Lower CPC → more traffic for same spend.",
+      pitfalls: "Low CPC doesn't always mean high quality traffic.",
+      example: "₹500 for 100 clicks → CPC = ₹5.",
+      logic: "Total Spend ÷ Total Clicks",
+    },
   ];
 
   const GlossarySection = ({ title, text, icon, bgColor, borderColor, textColor }) => {
@@ -505,7 +545,7 @@ const HelpDrawer = ({ userDbName }) => {
           <Typography variant="caption" fontWeight="700" sx={{ color: textColor, textTransform: "uppercase", display: "block", mb: 0.5 }}>
             {title}
           </Typography>
-          <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.775rem", lineHeight: 1.5 }}>
+          <Typography variant="body2" sx={{ color: "#475569", fontSize: "0.775rem", lineHeight: 1.5, whiteSpace: "pre-line" }}>
             {text}
           </Typography>
         </Box>
@@ -542,6 +582,8 @@ const HelpDrawer = ({ userDbName }) => {
         return marketShareGlossary;
       case "Visibility Analysis":
         return visibilityAnalysisGlossary;
+      case "Pricing Analysis":
+        return pricingAnalysisGlossary;
       case "Performance Marketing":
         return performanceMarketingGlossary;
       default:
@@ -718,6 +760,20 @@ const HelpDrawer = ({ userDbName }) => {
 
           <Box sx={{ flex: 1, p: 3, overflowY: "auto" }}>
             <Box>
+              <Typography variant="body2" sx={{ mb: 2, p: 2, bgcolor: 'rgba(37, 99, 235, 0.05)', color: '#1e3a5f', borderRadius: '12px', border: '1px solid rgba(37, 99, 235, 0.15)' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <ScheduleIcon sx={{ fontSize: '1.1rem', color: '#2563eb' }} />
+                  <Typography variant="subtitle2" fontWeight="700">Data Refresh Schedule</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pl: 3.2 }}>
+                  <Typography variant="caption" sx={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    • <Box component="span" sx={{ fontWeight: 600 }}>Sales Data:</Box> Updated daily and available by 2:00 PM.
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    • <Box component="span" sx={{ fontWeight: 600 }}>Scraped Data:</Box> Refreshed daily and available by 10:00 AM.
+                  </Typography>
+                </Box>
+              </Typography>
               <Box sx={{ display: 'grid', gap: 2 }}>
                 {["Business Overview", "India Overview", "Availability Analysis", "Market Share", "Visibility Analysis", "Performance Marketing"].includes(activeMenu) ? (
                   filteredGlossary.map((item) => {
@@ -813,6 +869,14 @@ const HelpDrawer = ({ userDbName }) => {
                               bgColor="#f0fdf4"
                               borderColor="#bbf7d0"
                               textColor="#15803d"
+                            />
+                            <GlossarySection
+                              title="Info"
+                              text={item.info}
+                              icon={<InfoIcon fontSize="small" />}
+                              bgColor="#eff6ff"
+                              borderColor="#bfdbfe"
+                              textColor="#1d4ed8"
                             />
                           </Box>
                         </Collapse>

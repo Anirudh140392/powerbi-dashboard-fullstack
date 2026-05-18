@@ -1,12 +1,12 @@
 import React, { useState, useContext, useMemo } from "react";
 import { FilterContext } from "../../utils/FilterContext";
-import { Inbox } from "lucide-react";
+import { Inbox, ArrowUpDown } from "lucide-react";
 import { GainersDrainersSkeleton } from './VisibilitySkeletons';
 
 /* ─── Fonts ───────────────── */
 const FontLoader = () => (
   <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&family=Mulish:wght@400;500;600;700;800&display=swap');
   `}</style>
 );
 
@@ -162,40 +162,48 @@ function SOSTable({ data, type, isGain, title, shouldShowDrilldown }) {
         </thead>
 
         <tbody>
-          {data.map((b, i) => {
-            const [val, delta] = getVal(b);
+          {data.length === 0 ? (
+            <tr>
+              <td colSpan={2} style={{ padding: "32px 16px", textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                No {isGain ? "gainers" : "drainers"} found for the selected filters
+              </td>
+            </tr>
+          ) : (
+            data.map((b, i) => {
+              const [val, delta] = getVal(b);
 
-            return (
-              <ExpandableRow key={i} title={b.platform ? `${b.brand} (${b.platform})` : b.brand} indentLevel={0}>
-                <SosCell value={val} delta={delta} color={isGain ? "#22863a" : "#e24b4a"} />
+              return (
+                <ExpandableRow key={i} title={b.platform ? `${b.brand} (${b.platform})` : b.brand} indentLevel={0}>
+                  <SosCell value={val} delta={delta} color={isGain ? "#22863a" : "#e24b4a"} />
 
-                {(b.keywords || []).map((k, ki) => {
-                  const [kVal, kDelta] = getKwVal(k);
+                  {(b.keywords || []).map((k, ki) => {
+                    const [kVal, kDelta] = getKwVal(k);
 
-                  return (
-                    <ExpandableRow key={ki} title={k.kw} indentLevel={1} disableExpand={!shouldShowDrilldown}>
-                      <SosCell value={kVal} delta={kDelta} color={isGain ? "#22863a" : "#e24b4a"} />
+                    return (
+                      <ExpandableRow key={ki} title={k.kw} indentLevel={1} disableExpand={!shouldShowDrilldown}>
+                        <SosCell value={kVal} delta={kDelta} color={isGain ? "#22863a" : "#e24b4a"} />
 
-                      {(k.locations || []).filter(l => l.loc && l.loc.toLowerCase() !== 'other' && l.loc.toLowerCase() !== 'others').map((l, li) => {
-                        const [lVal, lDelta] = getKwVal(l);
+                        {(k.locations || []).filter(l => l.loc && l.loc.toLowerCase() !== 'other' && l.loc.toLowerCase() !== 'others').map((l, li) => {
+                          const [lVal, lDelta] = getKwVal(l);
 
-                        return (
-                          <tr key={li} style={{ borderBottom: "1px solid #f3f4f6", background: "#f9fafb" }}>
-                            <td style={{ padding: "10px 14px 10px 54px", fontSize: 13, color: "#475569" }}>
-                              • {l.loc}
-                            </td>
-                            <td style={{ padding: 10 }}>
-                              <SosCell value={lVal} delta={lDelta} color={isGain ? "#22863a" : "#e24b4a"} />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </ExpandableRow>
-                  );
-                })}
-              </ExpandableRow>
-            );
-          })}
+                          return (
+                            <tr key={li} style={{ borderBottom: "1px solid #f3f4f6", background: "#f9fafb" }}>
+                              <td style={{ padding: "10px 14px 10px 54px", fontSize: 13, color: "#475569" }}>
+                                • {l.loc}
+                              </td>
+                              <td style={{ padding: 10 }}>
+                                <SosCell value={lVal} delta={lDelta} color={isGain ? "#22863a" : "#e24b4a"} />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </ExpandableRow>
+                    );
+                  })}
+                </ExpandableRow>
+              );
+            })
+          )}
         </tbody>
       </table>
     </div>
@@ -208,20 +216,62 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
 
   const shouldShowDrilldown = useMemo(() => {
     if (!globalPlatform || globalPlatform === "All") return true;
-    const plats = typeof globalPlatform === "string" 
-      ? globalPlatform.split(",").map(p => p.trim().toLowerCase()) 
+    const plats = typeof globalPlatform === "string"
+      ? globalPlatform.split(",").map(p => p.trim().toLowerCase())
       : (Array.isArray(globalPlatform) ? globalPlatform.map(p => typeof p === 'string' ? p.toLowerCase() : String(p).toLowerCase()) : []);
-      
+
     if (plats.length === 0) return true;
-    
-    const isEcomOnly = plats.every(p => 
+
+    const isEcomOnly = plats.every(p =>
       p.includes("ecom") || p.includes("e-com") || p.includes("ecommerce") || p === "amazon" || p === "flipkart" || p === "myntra" || p === "nykaa"
     );
-    
+
     return !isEcomOnly;
   }, [globalPlatform]);
 
   const [type, setType] = useState("overall");
+
+  const processedData = useMemo(() => {
+    if (!apiData) return { gain: [], drain: [] };
+
+    const allBrandsMap = new Map();
+
+    // Combine keywords from both backend lists for each brand
+    const processList = (list) => {
+      (list || []).forEach(b => {
+        const key = `${b.brand}||${b.platform}`;
+        if (!allBrandsMap.has(key)) {
+          allBrandsMap.set(key, { ...b, keywords: [...(b.keywords || [])] });
+        } else {
+          const existing = allBrandsMap.get(key);
+          const kwMap = new Map(existing.keywords.map(k => [k.kw, k]));
+          (b.keywords || []).forEach(k => {
+            if (!kwMap.has(k.kw)) {
+              kwMap.set(k.kw, k);
+            }
+          });
+          existing.keywords = Array.from(kwMap.values());
+        }
+      });
+    };
+
+    processList(apiData.gain);
+    processList(apiData.drain);
+
+    const allBrands = Array.from(allBrandsMap.values());
+
+    const getBrandDelta = (b) => {
+      if (type === "organic") return b.dOrganic;
+      if (type === "paid") return b.dPaid;
+      return b.dOverall;
+    };
+
+    // Divide based on brand's actual SOS delta for the selected type
+    const gain = allBrands.filter(b => getBrandDelta(b) > 0).sort((a, b) => getBrandDelta(b) - getBrandDelta(a)).slice(0, 5);
+    const drain = allBrands.filter(b => getBrandDelta(b) < 0).sort((a, b) => getBrandDelta(a) - getBrandDelta(b)).slice(0, 5);
+
+    return { gain, drain };
+  }, [apiData, type]);
 
   // Show skeleton while loading
   if (loading) {
@@ -233,8 +283,15 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
     return (
       <div style={{ padding: 24, background: "#f8fafc", borderRadius: 20, border: "1px solid #e2e8f0", marginTop: 24, fontFamily: "'DM Sans', sans-serif" }}>
         <FontLoader />
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}>Share of Search — Gainers & Drainers</h2>
-        <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Side-by-side comparison of SOS growth and decline</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <ArrowUpDown size={20} color="#6366f1" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', fontFamily: "'Mulish', system-ui, sans-serif", margin: 0 }}>Gainers & Drainers</h2>
+            <p style={{ fontSize: 13, color: '#64748b', fontFamily: "'Mulish', system-ui, sans-serif", margin: '2px 0 0 0' }}>Side-by-side comparison of SOS growth and decline</p>
+          </div>
+        </div>
         <NoDataAvailable title="No gainers & drainers data available" />
       </div>
     );
@@ -244,8 +301,15 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
     <div style={{ padding: 24, background: "#f8fafc", borderRadius: 20, border: "1px solid #e2e8f0", marginTop: 24, fontFamily: "'DM Sans', sans-serif" }}>
       <FontLoader />
 
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "#0f172a" }}>Share of Search — Gainers & Drainers</h2>
-      <p style={{ fontSize: 13, color: "#64748b", marginBottom: 20 }}>Side-by-side comparison of SOS growth and decline</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <ArrowUpDown size={20} color="#6366f1" />
+        </div>
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', fontFamily: "'Mulish', system-ui, sans-serif", margin: 0 }}>Gainers & Drainers</h2>
+          <p style={{ fontSize: 13, color: '#64748b', fontFamily: "'Mulish', system-ui, sans-serif", margin: '2px 0 0 0' }}>Side-by-side comparison of SOS growth and decline</p>
+        </div>
+      </div>
 
       {/* Toggle */}
       <div style={{ marginBottom: 20, display: "flex", gap: 8 }}>
@@ -272,8 +336,8 @@ export default function KeywordVisibilityDashboard({ apiData, loading }) {
 
       {/* Tables */}
       <div style={{ display: "flex", gap: 16, flexDirection: "row" }}>
-        <SOSTable data={apiData.gain || []} type={type} isGain={true} title="Top Gainers" shouldShowDrilldown={shouldShowDrilldown} />
-        <SOSTable data={apiData.drain || []} type={type} isGain={false} title="Top Drainers" shouldShowDrilldown={shouldShowDrilldown} />
+        <SOSTable data={processedData.gain} type={type} isGain={true} title="Top Gainers" shouldShowDrilldown={shouldShowDrilldown} />
+        <SOSTable data={processedData.drain} type={type} isGain={false} title="Top Drainers" shouldShowDrilldown={shouldShowDrilldown} />
       </div>
     </div>
   );

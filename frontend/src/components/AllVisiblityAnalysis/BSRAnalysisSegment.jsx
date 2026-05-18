@@ -97,7 +97,7 @@ const BSRAnalysisSegment = () => {
             if (!acc[cat]) {
                 acc[cat] = {
                     category: cat,
-                    platform: row.platform || 'AMAZON', 
+                    platform: row.platform || 'amazon', 
                     productsCount: 0,
                     prevProductsCount: 0,
                     totalBSR: 0,
@@ -342,7 +342,7 @@ const BSRAnalysisSegment = () => {
             <>
             <SnapshotOverview 
                 title="BSR Overview"
-                chip={data[0]?.platform || selectedPlatform === 'All' ? 'AMAZON' : selectedPlatform}
+                chip={data[0]?.platform || selectedPlatform === 'All' ? 'amazon' : selectedPlatform}
                 headerRight="VS PREVIOUS PERIOD"
                 kpis={kpiMetrics} 
                 loading={loading} 
@@ -468,7 +468,7 @@ const BSRAnalysisSegment = () => {
                         <h2 className="text-[17px] font-bold text-slate-900">Key Insights</h2>
                         <div className="flex items-center gap-2">
                             <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-bold uppercase tracking-wide">
-                                {data[0]?.platform || selectedPlatform === 'All' ? 'AMAZON' : selectedPlatform}
+                                {data[0]?.platform || selectedPlatform === 'All' ? 'amazon' : selectedPlatform}
                             </span>
                             <span className="text-slate-400 text-sm font-medium">for</span>
                             <div className="px-3 py-1 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold flex items-center gap-1 border border-blue-100 cursor-pointer">
@@ -545,7 +545,15 @@ const BSRAnalysisSegment = () => {
                                     <TableRow key={index} sx={{ '&:hover': { bgcolor: '#f8fafc' }, td: { borderBottom: '1px solid #f1f5f9' } }}>
                                         <TableCell sx={{ py: 1.5, minWidth: 350 }}>
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/60 shadow-sm shrink-0">
+                                                {row.imageUrl ? (
+                                                    <img
+                                                        src={row.imageUrl}
+                                                        alt={row.sku}
+                                                        onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                                                        style={{ width: 40, height: 40, borderRadius: 12, objectFit: 'cover', border: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}
+                                                    />
+                                                ) : null}
+                                                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-slate-200/60 shadow-sm shrink-0" style={{ display: row.imageUrl ? 'none' : 'flex' }}>
                                                     <Package size={20} strokeWidth={1.5} />
                                                 </div>
                                                 <Typography sx={{ fontWeight: 600, color: '#1e293b', fontSize: '13px', lineHeight: 1.4 }}>

@@ -40,17 +40,19 @@ export const getVisibilityOverview = async (req, res) => {
             pincode: req.query.pincode || 'All',
             zone: req.query.zone || 'All',
             metroFlag: req.query.metroFlag || 'All',
+            rank: req.query.rank || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
+            sku: req.query.sku || 'All'
         };
         console.log('\n========== VISIBILITY OVERVIEW API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_overview', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getVisibilityOverview(filters);
-        }, CACHE_TTL.METRICS);
+        // Disabled caching for Visibility Overview to ensure fresh rank-based results
+        const data = await visibilityService.getVisibilityOverview(filters);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Cards count:', data.cards?.length);
@@ -86,16 +88,18 @@ export const getVisibilityPlatformKpiMatrix = async (req, res) => {
             zone: req.query.zone || 'All',
             metroFlag: req.query.metroFlag || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
+            rank: req.query.rank || 'All',
+            sku: req.query.sku || 'All'
         };
         console.log('\n========== VISIBILITY PLATFORM KPI MATRIX API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_matrix_v3', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getPlatformKpiMatrix(filters);
-        }, CACHE_TTL.METRICS);
+        // Disabled caching for Visibility Platform KPI Matrix to ensure fresh rank-based results
+        const data = await visibilityService.getPlatformKpiMatrix(filters);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Platform rows:', data.platformData?.rows?.length, 'Format rows:', data.formatData?.rows?.length, 'City rows:', data.cityData?.rows?.length);
@@ -131,18 +135,19 @@ export const getVisibilityKeywordsAtGlance = async (req, res) => {
             pincode: req.query.pincode || 'All',
             zone: req.query.zone || 'All',
             metroFlag: req.query.metroFlag || 'All',
+            rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY KEYWORDS AT GLANCE API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_keywords', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getKeywordsAtGlance(filters);
-        }, CACHE_TTL.METRICS);
+        // Disabled caching for Visibility Keywords At Glance to ensure fresh results
+        const data = await visibilityService.getKeywordsAtGlance(filters);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Hierarchy items:', data.hierarchy?.length);
@@ -174,7 +179,11 @@ export const getVisibilityFilterOptions = async (req, res) => {
             city: req.query.city || 'All',
             metroFlag: req.query.metroFlag || 'All',
             brand: req.query.brand || 'All',
-            ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true'
+            keywordType: req.query.keywordType || 'All',
+            keyword: req.query.keyword || 'All',
+            sku: req.query.sku || 'All',
+            ownBrandsOnly: req.query.ownBrandsOnly === 'true' || req.query.ownOnly === 'true',
+            channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY FILTER OPTIONS API ==========');
         console.log('[REQUEST] Params:', JSON.stringify(params, null, 2));
@@ -210,6 +219,7 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
             location: req.query.location || 'All',
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
+            rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -285,16 +295,14 @@ export const getVisibilityKpiTrends = async (req, res) => {
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            sku: req.query.sku || req.query.skus || 'All'
+            sku: req.query.sku || req.query.skus || 'All',
+            rank: req.query.rank || 'All'
         };
         console.log('\n========== VISIBILITY KPI TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_trends', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getVisibilityKpiTrends(filters);
-        }, CACHE_TTL.METRICS);
+        const data = await visibilityService.getVisibilityKpiTrends(filters);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Data points:', data.timeSeries?.length);
@@ -326,16 +334,14 @@ export const getVisibilityCompetition = async (req, res) => {
             category: req.query.category || req.query.format || 'All',
             brand: req.query.brand || 'All',  // Filter by specific competitor brand
             period: req.query.period || '1M',
-            sku: req.query.sku || req.query.skus || 'All'
+            sku: req.query.sku || req.query.skus || 'All',
+            rank: req.query.rank || 'All'
         };
         console.log('\n========== VISIBILITY COMPETITION API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_competition', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getVisibilityCompetition(filters);
-        }, CACHE_TTL.METRICS);
+        const data = await visibilityService.getVisibilityCompetition(filters);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Brands:', data.brands?.length, 'SKUs:', data.skus?.length);
@@ -369,26 +375,39 @@ export const getBrandComparisonTrends = async (req, res) => {
             }
         }
 
+        let skusParam = req.query.skus || req.query.sku;
+        let skus = [];
+        if (skusParam) {
+            if (Array.isArray(skusParam)) {
+                skus = skusParam;
+            } else {
+                skus = skusParam.split(',').map(s => s.trim()).filter(Boolean);
+            }
+        }
+
         const filters = {
             brands,
+            skus: skus,
             platform: req.query.platform || 'All',
-            location: req.query.location || 'All',
-            keyword: req.query.keyword || 'All',
+            location: req.query.location || req.query.city || 'All',
+            keyword: req.query.keyword || req.query.productName || 'All',
             keywordType: req.query.keywordType || 'All',
-            category: req.query.category || 'All',
+            category: req.query.category || req.query.format || 'All',
+            format: req.query.format || req.query.category || 'All',
+            channel: req.query.channel || 'All',
             period: req.query.period || '1M',
-            startDate: req.query.startDate || null,
-            endDate: req.query.endDate || null
+            timeStep: req.query.timeStep || 'Daily',
+            dimension: req.query.dimension || 'brand',
+            startDate: req.query.startDate,
+            endDate: req.query.endDate || null,
+            rank: req.query.rank || 'All'
         };
 
         console.log('\n========== BRAND COMPARISON TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_brand_trends', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getBrandComparisonTrends(filters);
-        }, CACHE_TTL.METRICS);
+        const data = await visibilityService.getBrandComparisonTrends(filters);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Brands:', Object.keys(data.brands || {}).length, 'Days:', data.days?.length);
@@ -461,8 +480,10 @@ export const getVisibilitySkuDrilldown = async (req, res) => {
             category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            rank: req.query.rank || 'All',
             ownBrandsOnly: req.query.ownBrandsOnly === 'true'
         };
+
 
         if (!filters.keyword) {
             return res.status(400).json({ error: 'Keyword is required' });
@@ -503,8 +524,10 @@ export const getVisibilityCityDrilldown = async (req, res) => {
             keywordType: req.query.keywordType || 'All',
             category: req.query.category || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            rank: req.query.rank || 'All'
         };
+
 
         if (!filters.keyword || !filters.sku) {
             return res.status(400).json({ error: 'Keyword and SKU are required' });
@@ -547,18 +570,19 @@ export const getVisibilityGainersAndDrainers = async (req, res) => {
             pincode: req.query.pincode || 'All',
             zone: req.query.zone || 'All',
             metroFlag: req.query.metroFlag || 'All',
+            rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             channel: req.query.channel || 'All'
         };
         console.log('\n========== VISIBILITY GAINERS & DRAINERS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('visibility_gainers_drainers_ctrl', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getSOSGainersAndDrainers(filters);
-        }, CACHE_TTL.METRICS);
+        // Disabled caching for Visibility Gainers & Drainers to ensure fresh results
+        const data = await visibilityService.getSOSGainersAndDrainers(filters);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Gainers:', data.gain?.length, 'Drainers:', data.drain?.length);
@@ -590,18 +614,18 @@ export const getSearchTermsPerformance = async (req, res) => {
             keywordTypeFilter: req.query.keywordTypeFilter || 'All',
             category: req.query.category || 'All',
             ownBrandsOnly: req.query.ownBrandsOnly === 'true',
+            rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
-            channel: req.query.channel || 'All'
+            channel: req.query.channel || 'All',
+            sku: req.query.sku || 'All'
         };
         console.log('\n========== SEARCH TERMS PERFORMANCE API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
         console.log('[TIMING] Request received at:', new Date().toISOString());
 
-        const cacheKey = generateCacheKey('search_terms_perf_ctrl', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getSearchTermsPerformance(filters);
-        }, CACHE_TTL.METRICS);
+        // Disabled caching for Search Terms Performance to ensure fresh results
+        const data = await visibilityService.getSearchTermsPerformance(filters);
 
         const duration = Date.now() - startTime;
         console.log('[RESPONSE]: Items count:', data.items?.length, 'Mode:', data.mode);
@@ -629,6 +653,11 @@ export const getSearchTermsLocationDrilldown = async (req, res) => {
             platform: req.query.platform || 'All',
             brand: req.query.brand || 'All',
             location: req.query.location || 'All',
+            channel: req.query.channel || 'All',
+            category: req.query.category || 'All',
+            keywordType: req.query.keywordType || 'All',
+            keywordTypeFilter: req.query.keywordTypeFilter || 'All',
+            rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };
@@ -668,6 +697,12 @@ export const getSearchTermsBrandBreakdown = async (req, res) => {
         const filters = {
             platform: req.query.platform || 'All',
             keyword: req.query.keyword || 'All',
+            channel: req.query.channel || 'All',
+            location: req.query.location || 'All',
+            category: req.query.category || 'All',
+            keywordType: req.query.keywordType || 'All',
+            keywordTypeFilter: req.query.keywordTypeFilter || 'All',
+            rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate
         };

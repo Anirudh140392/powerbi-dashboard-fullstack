@@ -27,6 +27,30 @@ import SubCategoryMarket from "./SubCategoryMarket";
 
 const marketShareKpis = [
   {
+    id: "ms-mars-wrigley",
+    title: "Boat Estimated Sales (Cr)",
+    value: "₹ 6.90 Cr",
+    subtitle: "Our brand estimated sales performance",
+    delta: 38.1,
+    deltaLabel: "▲ 38.1% (₹4.88 Cr)",
+    icon: PieChart,
+    gradient: ["#f43f5e", "#ec4899"],
+    extraChangeColor: "green",
+    prevText: "vs Comparison Period",
+  },
+  {
+    id: "ms-market-share",
+    title: "Market Share (%)",
+    value: "0%",
+    subtitle: "Our brand market share in the category",
+    delta: 0,
+    deltaLabel: "0% (0%)",
+    icon: TrendingUp,
+    gradient: ["#3b82f6", "#2dd4bf"],
+    extraChangeColor: "green",
+    prevText: "vs Comparison Period",
+  },
+  {
     id: "ms-category-size",
     title: "Category Size (Cr)",
     value: "₹ 220.22 Cr",
@@ -37,32 +61,7 @@ const marketShareKpis = [
     gradient: ["#6366f1", "#8b5cf6"],
     extraChangeColor: "green",
     prevText: "vs Comparison Period",
-  },
-  {
-    id: "ms-leader-sales",
-    title: "Market Leader Sales (Cr)",
-    value: "₹ 77.46 Cr",
-    subtitle: "Sales of the market leading brand",
-    brand: "Amul",
-    delta: 91.1,
-    deltaLabel: "▲ 91.1% (₹40.53 Cr)",
-    icon: TrendingUp,
-    gradient: ["#14b8a6", "#06b6d4"],
-    extraChangeColor: "green",
-    prevText: "vs Comparison Period",
-  },
-  {
-    id: "ms-mars-wrigley",
-    title: "Our Estimated Sales (Cr)",
-    value: "₹ 6.90 Cr",
-    subtitle: "Our brand estimated sales performance",
-    delta: 38.1,
-    deltaLabel: "▲ 38.1% (₹4.88 Cr)",
-    icon: PieChart,
-    gradient: ["#f43f5e", "#ec4899"],
-    extraChangeColor: "green",
-    prevText: "vs Comparison Period",
-  },
+  }
 ];
 
 const stats = [
@@ -355,11 +354,27 @@ export default function MarketShareAnalysis() {
     platform,
     selectedCategory,
     selectedLocation,
+    selectedChannel,
     timeStart,
     timeEnd,
     compareStart,
     compareEnd,
   } = useContext(FilterContext);
+
+  // Determine time granularity based on platform type:
+  // Quickcomm platforms → Daily, Ecommerce platforms → Monthly
+  const QUICKCOMM_PLATFORMS = ['blinkit', 'zepto', 'instamart', 'swiggy instamart', 'swiggy'];
+  const timeStep = useMemo(() => {
+    const platformStr = Array.isArray(platform) ? platform[0] : platform;
+    if (platformStr && QUICKCOMM_PLATFORMS.includes(platformStr.toLowerCase())) {
+      return 'Daily';
+    }
+    // Also check channel as a fallback
+    if (selectedChannel && selectedChannel.toLowerCase().includes('quickcomm')) {
+      return 'Daily';
+    }
+    return 'Monthly';
+  }, [platform, selectedChannel]);
 
   // ── Drawer state for MarketCatOverview trends ──────────────────────────────
   const [trendsDrawer, setTrendsDrawer] = useState({ open: false, entity: '', dimension: '' });
@@ -384,6 +399,7 @@ export default function MarketShareAnalysis() {
           endDate: timeEnd ? timeEnd.format("YYYY-MM-DD") : null,
           compareStartDate: compareStart ? compareStart.format("YYYY-MM-DD") : null,
           compareEndDate: compareEnd ? compareEnd.format("YYYY-MM-DD") : null,
+          timeStep, // 'Daily' for Quickcomm, 'Monthly' for Ecommerce
         };
 
         const response = await axiosInstance.get('/market-share', { params });
@@ -391,85 +407,78 @@ export default function MarketShareAnalysis() {
 
         if (response.data) {
           setKpis(prev => prev.map(k => {
-            // Category Size KPI
-            if (k.id === "ms-category-size" && response.data.categorySize !== undefined) {
-              const catData = response.data.categorySize;
-              const val = catData.size || 0;
-              const formattedValue = val > 10000000
-                ? `₹ ${(val / 10000000).toFixed(2)} Cr`
-                : val > 100000
-                  ? `₹ ${(val / 100000).toFixed(2)} L`
-                  : `₹ ${val.toFixed(2)}`;
-
-              const prevValueCr = catData.prevSize > 10000000
-                ? `₹${(catData.prevSize / 10000000).toFixed(2)} Cr`
-                : catData.prevSize > 100000
-                  ? `₹${(catData.prevSize / 100000).toFixed(2)} L`
-                  : `₹${catData.prevSize.toFixed(2)}`;
-
-              const arrow = catData.delta >= 0 ? '▲' : '▼';
-
+            // Market Share KPI
+            if (k.id === "ms-market-share" && response.data.marketShare) {
+              const msData = response.data.marketShare;
+              const shareVal = msData.share ?? 0;
+              const deltaVal = msData.delta ?? 0;
+              const arrow = deltaVal >= 0 ? '▲' : '▼';
+              const prevShareVal = msData.prevShare ?? 0;
               return {
                 ...k,
-                value: formattedValue,
-                delta: catData.delta,
-                deltaLabel: `${arrow} ${Math.abs(catData.delta)}% (${prevValueCr})`,
-                extraChangeColor: catData.delta >= 0 ? "green" : "red",
-                trend: catData.trend,
+                value: `${Number(shareVal).toFixed(2)}%`,
+                delta: deltaVal,
+                deltaLabel: `${arrow} ${Math.abs(deltaVal).toFixed(2)}% (${Number(prevShareVal).toFixed(2)}%)`,
+                extraChangeColor: deltaVal >= 0 ? "green" : "red",
+                trend: msData.trend,
               };
             }
 
-            // Market Leader Sales KPI
-            if (k.id === "ms-leader-sales" && response.data.marketLeader) {
-              const leader = response.data.marketLeader;
-              const val = leader.sales;
+            // Category Size KPI
+            if (k.id === "ms-category-size" && response.data.categorySize !== undefined) {
+              const catData = response.data.categorySize;
+              const val = Number(catData.size) || 0;
+              const prevSize = Number(catData.prevSize) || 0;
+              const catDelta = Number(catData.delta) || 0;
               const formattedValue = val > 10000000
                 ? `₹ ${(val / 10000000).toFixed(2)} Cr`
                 : val > 100000
                   ? `₹ ${(val / 100000).toFixed(2)} L`
                   : `₹ ${val.toFixed(2)}`;
 
-              const prevValueCr = leader.prevSales > 10000000
-                ? `₹${(leader.prevSales / 10000000).toFixed(2)} Cr`
-                : leader.prevSales > 100000
-                  ? `₹${(leader.prevSales / 100000).toFixed(2)} L`
-                  : `₹${leader.prevSales.toFixed(2)}`;
+              const prevValueCr = prevSize > 10000000
+                ? `₹${(prevSize / 10000000).toFixed(2)} Cr`
+                : prevSize > 100000
+                  ? `₹${(prevSize / 100000).toFixed(2)} L`
+                  : `₹${prevSize.toFixed(2)}`;
 
-              const arrow = leader.delta >= 0 ? '▲' : '▼';
+              const arrow = catDelta >= 0 ? '▲' : '▼';
+
               return {
                 ...k,
                 value: formattedValue,
-                brand: leader.brand,
-                delta: leader.delta,
-                deltaLabel: `${arrow} ${Math.abs(leader.delta)}% (${prevValueCr})`,
-                extraChangeColor: leader.delta >= 0 ? "green" : "red",
-                trend: leader.trend,
+                delta: catDelta,
+                deltaLabel: `${arrow} ${Math.abs(catDelta)}% (${prevValueCr})`,
+                extraChangeColor: catDelta >= 0 ? "green" : "red",
+                trend: catData.trend,
               };
             }
 
             // Mars Wrigley Sales KPI
             if (k.id === "ms-mars-wrigley" && response.data.marsWrigley) {
               const mars = response.data.marsWrigley;
-              const val = mars.sales;
+              const val = Number(mars.sales) || 0;
+              const prevSales = Number(mars.prevSales) || 0;
+              const marsDelta = Number(mars.delta) || 0;
               const formattedValue = val > 10000000
                 ? `₹ ${(val / 10000000).toFixed(2)} Cr`
                 : val > 100000
                   ? `₹ ${(val / 100000).toFixed(2)} L`
                   : `₹ ${val.toFixed(2)}`;
 
-              const prevValueCr = mars.prevSales > 10000000
-                ? `₹${(mars.prevSales / 10000000).toFixed(2)} Cr`
-                : mars.prevSales > 100000
-                  ? `₹${(mars.prevSales / 100000).toFixed(2)} L`
-                  : `₹${mars.prevSales.toFixed(2)}`;
+              const prevValueCr = prevSales > 10000000
+                ? `₹${(prevSales / 10000000).toFixed(2)} Cr`
+                : prevSales > 100000
+                  ? `₹${(prevSales / 100000).toFixed(2)} L`
+                  : `₹${prevSales.toFixed(2)}`;
 
-              const arrow = mars.delta >= 0 ? '▲' : '▼';
+              const arrow = marsDelta >= 0 ? '▲' : '▼';
               return {
                 ...k,
                 value: formattedValue,
-                delta: mars.delta,
-                deltaLabel: `${arrow} ${Math.abs(mars.delta)}% (${prevValueCr})`,
-                extraChangeColor: mars.delta >= 0 ? "green" : "red",
+                delta: marsDelta,
+                deltaLabel: `${arrow} ${Math.abs(marsDelta)}% (${prevValueCr})`,
+                extraChangeColor: marsDelta >= 0 ? "green" : "red",
                 trend: mars.trend,
               };
             }
@@ -485,7 +494,7 @@ export default function MarketShareAnalysis() {
     };
 
     fetchMarketShareData();
-  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd]);
+  }, [platform, selectedCategory, selectedLocation, timeStart, timeEnd, compareStart, compareEnd, timeStep]);
 
 
   return (

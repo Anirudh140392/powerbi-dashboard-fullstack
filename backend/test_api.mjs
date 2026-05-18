@@ -1,32 +1,27 @@
-import jwt from 'jsonwebtoken';
-import fs from 'fs';
+import axios from 'axios';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'trailytics_jwt_secret_2026';
-const tokenPayload = {
-    userId: 1,
-    email: 'test@test.com',
-    userName: 'test',
-    dbName: 'mars',
-};
-const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
-
-async function run() {
-    const url = "http://localhost:5000/api/availability-analysis/signal-lab?type=visibility&signalType=drainer&page=1&limit=5&groupBy=brand";
-    console.log("Fetching", url);
-    const res = await fetch(url, {
-        headers: {
-            'Authorization': `Bearer ${token}`
-        }
-    });
-    console.log("Status:", res.status);
-    const text = await res.text();
-    console.log("Body:", text);
-
+async function test() {
     try {
-        const errDump = fs.readFileSync('/tmp/signal_err.txt', 'utf8');
-        console.log("ERROR DUMP:\\n", errDump);
+        const queryParams = new URLSearchParams({
+            platform: 'Amazon,Blinkit,Instamart',
+            timePeriod: 'Last 30 Days',
+            reportType: 'Master Dump',
+            metrics: 'Offtake,Units Sold,Orders,Stock Availability,Listing %,Inorganic Sales,ROAS,Conversion Rate,CPM,CPC,BMI Sales Ratio,Promo %,OSA %,Stock Out %,DOI,SOS %,PSL,Assortment,Metro City Stock Availability,Overall SOS %,Sponsored SOS %,Organic SOS %,Ad Position,Org Position,ECP,MRP,Discount %,RPI,Sales Value,Market Share %,Category Size',
+            dimensions: 'Category,Brand,City',
+            granularityTime: 'Daily',
+            granularitySku: 'Category',
+            granularityGeo: 'Pan India',
+            startDate: '2026-03-28',
+            endDate: '2026-04-27'
+        });
+        
+        console.log("Calling API...");
+        // Call the endpoint on the running backend server.
+        // The backend uses JWT auth, but we don't have a token.
+        // Actually, we can just call it if we mock the request.
+        // It's easier to just construct the req and res objects and call `downloadReport`.
     } catch (e) {
-        console.log("No error dump found locally");
+        console.log(e);
     }
 }
-run();
+test();

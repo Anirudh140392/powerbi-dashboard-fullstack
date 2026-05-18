@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { fetchVisibilityBrandDrilldown, fetchVisibilitySkuDrilldown, fetchVisibilityCityDrilldown } from "../../api/visibilityService";
 import dayjs from "dayjs";
 import { FilterContext } from "../../utils/FilterContext";
+import { useAuth } from "../../utils/AuthContext";
 
 // TopSearchTerms component uses dynamic data passed via `apiData` prop
 
@@ -137,6 +138,9 @@ const DeltaIndicator = ({ value }) => {
 };
 
 export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", apiData }) {
+    const { user } = useAuth();
+    const isSugarUser = user?.dbName === 'sugar';
+
     const [drilldownKeyword, setDrilldownKeyword] = useState(null);
     const [expandedKeywordRows, setExpandedKeywordRows] = useState(new Set());
     const [expandedSkuRows, setExpandedSkuRows] = useState(new Set());
@@ -194,7 +198,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
             const data = await fetchVisibilityBrandDrilldown({
                 keyword,
                 platform,
-                location,
+                location: (location && location !== 'All') ? location.toLowerCase() : 'All',
                 startDate: timeStart,
                 endDate: timeEnd
             });
@@ -247,7 +251,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                 const params = {
                     keyword,
                     platform,
-                    location: 'All',
+                    location: (location && location !== 'All') ? location.toLowerCase() : 'All',
                     ownBrandsOnly: visibilityOwnBrandsOnly
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
@@ -281,7 +285,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                     keyword,
                     sku: skuName,
                     platform,
-                    location: 'All',
+                    location: (location && location !== 'All') ? location.toLowerCase() : 'All',
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
                 if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
@@ -342,16 +346,27 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
     const downloadCSV = () => {
         if (!activeData || activeData.length === 0) return;
         
-        const headers = ["Keywords", "Volume Share", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"];
+        const headers = isSugarUser 
+            ? ["Keywords", "Volume Share", "Overall SOS", "Organic SOS", "Paid SOS"]
+            : ["Keywords", "Volume Share", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"];
         
-        const rows = activeData.map(row => [
-            `"${row.keyword}"`,
-            `"${getVolShare(row.keyword)}%"`,
-            `"${(row.topBrand && row.topBrand !== "1" ? row.topBrand : "Other").replace(/"/g, '""')}"`,
-            `"${row.overallSos}%"`,
-            `"${row.organicSos}%"`,
-            `"${row.paidSos}%"`
-        ]);
+        const rows = activeData.map(row => {
+            const baseRow = [
+                `"${row.keyword}"`,
+                `"${getVolShare(row.keyword)}%"`,
+            ];
+            
+            if (!isSugarUser) {
+                baseRow.push(`"${(row.topBrand && row.topBrand !== "1" ? row.topBrand : "Other").replace(/"/g, '""')}"`);
+            }
+            
+            return [
+                ...baseRow,
+                `"${row.overallSos}%"`,
+                `"${row.organicSos}%"`,
+                `"${row.paidSos}%"`
+            ];
+        });
 
         const csvContent = headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -399,13 +414,15 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                 <table className="w-full text-left border-collapse table-fixed">
                     <thead>
                         <tr className="border-b border-slate-100 bg-slate-50/50">
-                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[23%]">Keywords</th>
-                            <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[17%]">
-                                Leading Brand <span className="normal-case font-normal text-[10px] text-slate-500">(by Overall SOS)</span>
-                            </th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Overall SOS</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Organic SOS</th>
-                            <th className="px-6 py-2.5 text-xs font-bold text-slate-700 w-[20%] text-center">Paid SOS</th>
+                            <th className={`px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 ${isSugarUser ? 'w-[34%]' : 'w-[23%]'}`}>Keywords</th>
+                            {!isSugarUser && (
+                                <th className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 w-[17%]">
+                                    Leading Brand <span className="normal-case font-normal text-[10px] text-slate-500">(by Overall SOS)</span>
+                                </th>
+                            )}
+                            <th className={`px-6 py-2.5 text-xs font-bold text-slate-700 ${isSugarUser ? 'w-[22%]' : 'w-[20%]'} text-center`}>Overall SOS</th>
+                            <th className={`px-6 py-2.5 text-xs font-bold text-slate-700 ${isSugarUser ? 'w-[22%]' : 'w-[20%]'} text-center`}>Organic SOS</th>
+                            <th className={`px-6 py-2.5 text-xs font-bold text-slate-700 ${isSugarUser ? 'w-[22%]' : 'w-[20%]'} text-center`}>Paid SOS</th>
                         </tr>
                     </thead>
                     <motion.tbody
@@ -561,7 +578,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                                                                 className="bg-slate-100/20 border-b border-white hover:bg-slate-100/40"
                                                             >
                                                                 <td className="px-6 py-1 pl-[84px] text-[10px] font-medium text-slate-500">
-                                                                    {city.city}
+                                                                    {['nation', 'national', 'all india', 'india', 'total', 'pan india'].includes(city.city?.toLowerCase()) ? "Nation" : city.city}
                                                                 </td>
                                                                 <td className="px-6 py-1 text-center text-[10px] text-slate-400">—</td>
                                                                 <td className="px-6 py-1 text-center">

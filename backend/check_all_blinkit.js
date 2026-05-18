@@ -15,5 +15,4 @@ async function checkAllBlinkit() {
         console.error('Error:', err);
     }
 }
-
 checkAllBlinkit();

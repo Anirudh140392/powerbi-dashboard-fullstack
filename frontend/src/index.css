@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Mulish:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 /* @plugin "tw-animate-css"; */
 
@@ -6,7 +6,12 @@
 
 body {
   margin: 0;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Mulish', system-ui, sans-serif;
+}
+
+/* Global font override — forces Mulish everywhere, overriding inline styles */
+*:not(svg):not(svg *):not(.material-icons):not([class*="icon"]) {
+  font-family: 'Mulish', system-ui, sans-serif !important;
 }
 
 html,
@@ -248,4 +253,60 @@ body {
 .underline-slide:hover {
   color: #2563eb !important;
   transform: translateY(-2px);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL CAPITALIZE: Platform, Brand, Category, Channel names
+   Applied to table cells, chips, cards, tooltips, legends
+   ═══════════════════════════════════════════════════════════ */
+
+/* MUI Table body cells — capitalize data values (not headers) */
+.MuiTableCell-body {
+  text-transform: capitalize;
+}
+
+/* MUI Chip labels */
+.MuiChip-label {
+  text-transform: capitalize;
+}
+
+/* Recharts tooltip/legend text */
+.recharts-tooltip-item-value,
+.recharts-legend-item-text {
+  text-transform: capitalize !important;
+}
+
+/* Generic data label utility class */
+.capitalize-words {
+  text-transform: capitalize;
+}
+
+/* Common card/list data text in the dashboard */
+.MuiListItemText-primary {
+  text-transform: capitalize;
+}
+
+/* Native HTML table body cells (SimpleTableWithTabs, etc.) */
+table tbody td {
+  text-transform: capitalize;
+}
+
+/* MUI Autocomplete dropdown options */
+.MuiAutocomplete-option {
+  text-transform: capitalize;
+}
+
+/* Custom Tailwind Badges */
+[data-slot="badge"] {
+  text-transform: capitalize;
+}
+
+/* MUI Select rendered value */
+.MuiSelect-select {
+  text-transform: capitalize;
+}
+
+/* MUI MenuItem text (dropdown menus) */
+.MuiMenuItem-root {
+  text-transform: capitalize;
 }

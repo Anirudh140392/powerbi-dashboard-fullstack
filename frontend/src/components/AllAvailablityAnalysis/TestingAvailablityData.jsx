@@ -893,10 +893,9 @@ const quarterTimeSeries = [
 ];
 
 const cellHeat = (value) => {
-  if (value >= 95) return "bg-emerald-100 text-emerald-900";
-  if (value >= 85) return "bg-emerald-50 text-emerald-800";
-  if (value >= 75) return "bg-amber-50 text-amber-800";
-  return "bg-rose-50 text-rose-800";
+  if (value >= 85) return { arrow: "↑", arrowClass: "text-emerald-500" };
+  if (value >= 75) return { arrow: "→", arrowClass: "text-amber-500" };
+  return { arrow: "↓", arrowClass: "text-rose-500" };
 };
 
 const kpiModes = {
@@ -905,10 +904,9 @@ const kpiModes = {
     description: "Availability strength across the network.",
     formatter: (v) => `${v.toFixed(0)}%`,
     heat: (v) => {
-      if (v >= 92) return "bg-emerald-100 text-emerald-900";
-      if (v >= 85) return "bg-emerald-50 text-emerald-800";
-      if (v >= 78) return "bg-amber-50 text-amber-800";
-      return "bg-rose-100 text-rose-900";
+      if (v >= 85) return { arrow: "↑", arrowClass: "text-emerald-500" };
+      if (v >= 78) return { arrow: "→", arrowClass: "text-amber-500" };
+      return { arrow: "↓", arrowClass: "text-rose-500" };
     },
   },
   loss: {
@@ -916,9 +914,9 @@ const kpiModes = {
     description: "Estimated revenue at risk (₹ lakh). Lower is better.",
     formatter: (v) => `₹${v.toFixed(1)}L`,
     heat: (v) => {
-      if (v <= 0.1) return "bg-emerald-100 text-emerald-900";
-      if (v <= 0.25) return "bg-amber-50 text-amber-800";
-      return "bg-rose-100 text-rose-900";
+      if (v <= 0.1) return { arrow: "↑", arrowClass: "text-emerald-500" };
+      if (v <= 0.25) return { arrow: "→", arrowClass: "text-amber-500" };
+      return { arrow: "↓", arrowClass: "text-rose-500" };
     },
   },
   roas: {
@@ -926,10 +924,9 @@ const kpiModes = {
     description: "Return on ad spend at the edge.",
     formatter: (v) => `${v.toFixed(1)}x`,
     heat: (v) => {
-      if (v >= 5.5) return "bg-emerald-100 text-emerald-900";
-      if (v >= 4.5) return "bg-emerald-50 text-emerald-800";
-      if (v >= 4) return "bg-amber-50 text-amber-800";
-      return "bg-rose-100 text-rose-900";
+      if (v >= 4.5) return { arrow: "↑", arrowClass: "text-emerald-500" };
+      if (v >= 4) return { arrow: "→", arrowClass: "text-amber-500" };
+      return { arrow: "↓", arrowClass: "text-rose-500" };
     },
   },
 };
@@ -1607,8 +1604,7 @@ const MatrixPlatformFormat = () => {
                   })
                 }
                 className={[
-                  "w-full px-2 py-1 rounded-md text-[11px] font-semibold border transition-all",
-                  cellHeat(val),
+                  "w-full px-2 py-1 rounded-md text-[11px] font-semibold border transition-all text-slate-800",
                   isSelectedCell
                     ? "border-sky-500 shadow-[0_0_0_1px_rgba(56,189,248,0.5)]"
                     : "border-transparent hover:border-sky-300 hover:shadow-sm",
@@ -1616,7 +1612,7 @@ const MatrixPlatformFormat = () => {
                   .filter(Boolean)
                   .join(" ")}
               >
-                {val ? `${val}%` : "—"}
+                {val ? <>{val}%<span className={`ml-1 text-[10px] ${cellHeat(val).arrowClass}`}>{cellHeat(val).arrow}</span></> : "—"}
               </button>
             </td>
           );
@@ -1961,17 +1957,15 @@ const PowerHierarchyHeat = () => {
                       </button>
                       {platform}
                     </td>
-                    {formatColumns.map((f) => (
-                      <td key={f} className="px-3 py-2 text-center">
-                        <span
-                          className={`px-2 py-1 rounded ${cellHeat(
-                            platformAvg[f]
-                          )}`}
-                        >
-                          {platformAvg[f]}%
-                        </span>
-                      </td>
-                    ))}
+                    {formatColumns.map((f) => {
+                      const hv = cellHeat(platformAvg[f]);
+                      return (
+                        <td key={f} className="px-3 py-2 text-center">
+                          <span className="text-sm font-semibold text-slate-800">{platformAvg[f]}%</span>
+                          <span className={`ml-1 text-xs font-medium ${hv.arrowClass}`}>{hv.arrow}</span>
+                        </td>
+                      );
+                    })}
                   </tr>
                   {platformExpanded &&
                     regionsForPlatform(platform).map((region) => {
@@ -2008,17 +2002,15 @@ const PowerHierarchyHeat = () => {
                             {showCityColumn && (
                               <td className="px-3 py-2 text-slate-300">-</td>
                             )}
-                            {formatColumns.map((f) => (
-                              <td key={f} className="px-3 py-2 text-center">
-                                <span
-                                  className={`px-2 py-1 rounded ${cellHeat(
-                                    avg[f]
-                                  )}`}
-                                >
-                                  {avg[f]}%
-                                </span>
-                              </td>
-                            ))}
+                            {formatColumns.map((f) => {
+                              const hv = cellHeat(avg[f]);
+                              return (
+                                <td key={f} className="px-3 py-2 text-center">
+                                  <span className="text-sm font-semibold text-slate-800">{avg[f]}%</span>
+                                  <span className={`ml-1 text-xs font-medium ${hv.arrowClass}`}>{hv.arrow}</span>
+                                </td>
+                              );
+                            })}
                           </tr>
                           {isOpen &&
                             regionRows.map((row) => (
@@ -2039,23 +2031,16 @@ const PowerHierarchyHeat = () => {
                                     {row.city}
                                   </td>
                                 )}
-                                {formatColumns.map((f) => {
-                                  const val = row.values[f] ?? 0;
-                                  return (
-                                    <td
-                                      key={f}
-                                      className="px-3 py-2 text-center"
-                                    >
-                                      <span
-                                        className={`px-2 py-1 rounded ${cellHeat(
-                                          val
-                                        )}`}
-                                      >
-                                        {val}%
-                                      </span>
-                                    </td>
-                                  );
-                                })}
+                                    {formatColumns.map((f) => {
+                                      const val = row.values[f] ?? 0;
+                                      const hv = cellHeat(val);
+                                      return (
+                                        <td key={f} className="px-3 py-2 text-center">
+                                          <span className="text-sm font-semibold text-slate-800">{val}%</span>
+                                          <span className={`ml-1 text-xs font-medium ${hv.arrowClass}`}>{hv.arrow}</span>
+                                        </td>
+                                      );
+                                    })}
                               </tr>
                             ))}
                         </React.Fragment>
@@ -2170,17 +2155,17 @@ const QuarterlyDrilldownGrid = () => {
                 <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
                   {timelinePlatforms.map((platform) => {
                     const avg = averageForQuarter(quarter, platform);
+                    const heatResult = heat(avg);
                     return (
                       <span
                         key={platform}
-                        className={`px-2 py-1 rounded-full border border-slate-200 bg-white flex items-center gap-2 shadow-sm ${heat(
-                          avg
-                        )}`}
+                        className="px-2 py-1 rounded-full border border-slate-200 bg-white flex items-center gap-2 shadow-sm"
                       >
                         <span className="font-semibold text-slate-800">
                           {platform}
                         </span>
-                        <span>{formatMetric(avg)}</span>
+                        <span className="text-slate-800">{formatMetric(avg)}</span>
+                        <span className={`text-xs font-medium ${heatResult.arrowClass}`}>{heatResult.arrow}</span>
                       </span>
                     );
                   })}
@@ -2255,13 +2240,15 @@ const QuarterlyDrilldownGrid = () => {
                                       key={`${platform}-${m.name}-${d.day}`}
                                       className="px-1.5 py-1 text-center"
                                     >
-                                      <span
-                                        className={`block rounded-md px-2 py-1 font-semibold ${heat(
-                                          value
-                                        )}`}
-                                      >
-                                        {formatMetric(value)}
-                                      </span>
+                                      {(() => {
+                                        const heatResult = heat(value);
+                                        return (
+                                          <span className="block rounded-md px-2 py-1 font-semibold text-slate-800">
+                                            {formatMetric(value)}
+                                            <span className={`ml-1 text-xs ${heatResult.arrowClass}`}>{heatResult.arrow}</span>
+                                          </span>
+                                        );
+                                      })()}
                                     </td>
                                   );
                                 })

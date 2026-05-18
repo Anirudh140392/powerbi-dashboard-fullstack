@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { KpiFilterPanel } from '../KpiFilterPanel'
+import { useAuth } from '../../utils/AuthContext'
 import { SlidersHorizontal, X } from 'lucide-react'
 import PaginationFooter from '../CommonLayout/PaginationFooter'
 import axiosInstance from '../../api/axiosInstance'
@@ -337,6 +338,9 @@ const FILTER_OPTIONS_CONFIG = [
 ]
 
 export default function VisibilityDrilldownTable({ data = null, loading = false, filters: parentFilters = null, onFiltersChange = null }) {
+    const { user } = useAuth();
+    const isSugarUser = user?.dbName === 'sugar';
+
     const [popupFilters, setPopupFilters] = useState({
         keyword: null,
         brand: null,
@@ -477,11 +481,16 @@ export default function VisibilityDrilldownTable({ data = null, loading = false,
     }
 
     const hierarchyData = useMemo(() => {
-        if (activeView === 'skus') {
-            return restructureForSkus(sourceData)
+        let baseData = sourceData;
+        if (isSugarUser) {
+            baseData = sourceData.filter(item => item.id !== 'competition');
         }
-        return sourceData
-    }, [activeView, sourceData])
+
+        if (activeView === 'skus') {
+            return restructureForSkus(baseData)
+        }
+        return baseData
+    }, [activeView, sourceData, isSugarUser])
 
     const flatRows = useMemo(() => flattenHierarchy(hierarchyData, expandedRows, filters, activeView), [hierarchyData, expandedRows, filters, activeView])
 
@@ -1274,7 +1283,7 @@ export default function VisibilityDrilldownTable({ data = null, loading = false,
                                                 keyword: newFilters.keyword || 'All',
                                                 brand: newFilters.brand || 'All',
                                                 platform: newFilters.platform || 'All',
-                                                location: newFilters.city || prev.location
+                                                location: newFilters.city ? (Array.isArray(newFilters.city) ? newFilters.city.join(',').toLowerCase() : newFilters.city.toLowerCase()) : prev.location
                                             }));
                                         }
 

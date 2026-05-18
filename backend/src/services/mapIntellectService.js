@@ -64,6 +64,14 @@ const getOurBrandsList = async () => {
             const query = `SELECT DISTINCT brand_name FROM rca_sku_dim WHERE comp_flag = 0 AND brand_name IS NOT NULL AND brand_name != ''`;
             const results = await queryClickHouse(query);
             const brands = results.map(b => b.brand_name).filter(Boolean);
+            
+            // Mars fallback if rca_sku_dim is not populated
+            if (brands.length === 0 && getCurrentDbName() === 'mars') {
+                const marsBrands = ['Snickers', 'Galaxy', 'Bounty', 'Twix', 'Mars', "M&M's", 'Orbit', 'Skittles', 'Boomer', 'Doublemint', 'Skittles', 'Gum', 'Chocolates'];
+                dbCache.ourBrands = { data: marsBrands, timestamp: Date.now(), promise: null };
+                return marsBrands;
+            }
+
             dbCache.ourBrands = { data: brands, timestamp: Date.now(), promise: null };
             console.log(`🎯 [OurBrands][MapIntellect][${getCurrentDbName()}] Found ${brands.length} brands`);
             return brands;
@@ -117,7 +125,8 @@ async function getGeoSource() {
             location: r('Location'),
             date: r('DATE'),
             platform: r('Platform'),
-            category: r('Category', r('Product_type'))
+            category: r('Category', r('Product_type')),
+            compFlag: r('Comp_flag')
         }
     };
 }
@@ -176,7 +185,7 @@ const formatLac = (val) => {
 const getMapIntellectData = async (filters) => {
     console.log(`[MapIntellect][${getCurrentDbName()}] Computing dynamic data:`, JSON.stringify(filters));
 
-    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category } = filters;
+    const { months, days, startDate: qStartDate, endDate: qEndDate, metric = 'all', category, channel } = filters;
     const platform = filters.platform || 'All';
 
     // Date range
@@ -208,10 +217,15 @@ const getMapIntellectData = async (filters) => {
         if (!src) return '1=0';
         const conds = [`toDate(${src.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'`];
         if (platform && platform !== 'All') {
-            conds.push(`${src.f.platform} LIKE '%${escapeStr(platform)}%'`);
+            conds.push(`lower(${src.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'`);
+        } else if (channel && channel !== 'All') {
+            conds.push(`${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`);
         }
         if (category && category !== 'All') {
-            conds.push(`${src.f.category} = '${escapeStr(category)}'`);
+            conds.push(`lower(${src.f.category}) = '${escapeStr(category.toLowerCase())}'`);
+        }
+        if (src.f.compFlag) {
+            conds.push(`${src.f.compFlag} = 0`);
         }
         return conds.join(' AND ');
     };
@@ -255,14 +269,14 @@ const getMapIntellectData = async (filters) => {
         try {
             const currentDb = getCurrentDbName()?.toLowerCase() || '';
             let allowedMsCities = [
-                "Delhi", "Ahmedabad", "Bengaluru", "Bangalore", "Chandigarh", "Chennai",
+                "Delhi", "Ahmedabad", "Bengaluru", "Bangalore", "Banglore", "Bengalore", "Chandigarh", "Chennai",
                 "Faridabad", "Gurugram", "Gurgaon", "Hyderabad", "Kolkata", "Lucknow",
-                "Mumbai", "Pune"
+                "Mumbai", "Pune", "India", "Nation", "National"
             ];
             if (currentDb === 'mamaearth') {
                 allowedMsCities = allowedMsCities.filter(c => c !== "Ahmedabad");
             }
-            const cityConditions = allowedMsCities.map(c => `${msSrc.f.location} LIKE '%${escapeStr(c)}%'`).join(' OR ');
+            const cityConditions = allowedMsCities.map(c => `lower(${msSrc.f.location}) LIKE '%${escapeStr(c.toLowerCase())}%'`).join(' OR ');
 
             let brandsCondition = 'FALSE';
             if (ourBrands.length > 0) {
@@ -287,8 +301,8 @@ const getMapIntellectData = async (filters) => {
                 WHERE toDate(${msSrc.f.date}) BETWEEN '${sDate.format('YYYY-MM-DD')}' AND '${eDate.format('YYYY-MM-DD')}'
                   AND (${cityConditions})
                   AND ${msSrc.f.location} IS NOT NULL AND ${msSrc.f.location} != ''
-                  ${platform && platform !== 'All' ? `AND ${msSrc.f.platform} LIKE '%${escapeStr(platform)}%'` : ''}
-                  ${category && category !== 'All' ? `AND ${msSrc.f.category} = '${escapeStr(category)}'` : ''}
+                  ${platform && platform !== 'All' ? `AND lower(${msSrc.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'` : (channel && channel !== 'All' ? `AND ${msSrc.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')` : '')}
+                  ${category && category !== 'All' ? `AND lower(${msSrc.f.category}) = '${escapeStr(category.toLowerCase())}'` : ''}
                 GROUP BY location
             `;
 
@@ -298,8 +312,10 @@ const getMapIntellectData = async (filters) => {
             ]);
 
             // Filter out cities with only 1 brand (no competitive data → misleading 100%)
-            currMsData = (currMsData || []).filter(d => parseInt(d.total_brands || 0) > 1);
-            prevMsData = (prevMsData || []).filter(d => parseInt(d.total_brands || 0) > 1);
+            // Relaxed brand filter for better data visibility across all schemas
+            // Previously: currMsData = (currMsData || []).filter(d => parseInt(d.total_brands || 0) > 1);
+            currMsData = (currMsData || []);
+            prevMsData = (prevMsData || []);
         } catch (e) {
             console.error('[MapIntellect] Error querying market share:', e.message);
         }
@@ -307,10 +323,12 @@ const getMapIntellectData = async (filters) => {
 
     // ── Build maps for comparison ──
     const normalizeCity = (name) => {
-        let n = (name || '').trim();
-        if (n === 'Bengalore' || n === 'Bangalore') return 'bengaluru';
-        if (n === 'Gurgaon') return 'gurugram';
-        return n.toLowerCase();
+        let n = (name || '').trim().toLowerCase();
+        if (n.includes('bangalore') || n.includes('bengalore') || n.includes('banglore') || n.includes('bengaluru')) return 'bengaluru';
+        if (n.includes('gurgaon') || n.includes('gurugram')) return 'gurugram';
+        if (n.includes('delhi')) return 'delhi';
+        if (n.includes('mumbai') || n.includes('bombay')) return 'mumbai';
+        return n;
     };
 
     const prevPdpMap = new Map((prevCityData || []).map(d => [d.Location, d]));
@@ -323,8 +341,13 @@ const getMapIntellectData = async (filters) => {
     if (isMarketShareOnly) {
         resultCities = (currMsData || []).map(data => {
             let cityName = (data.location || '').trim();
-            if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
-            if (cityName === 'Gurgaon') cityName = 'Gurugram';
+            const lowerCity = cityName.toLowerCase();
+            if (lowerCity.includes('bangalore') || lowerCity.includes('bengalore') || lowerCity.includes('banglore') || lowerCity.includes('bengaluru')) cityName = 'Bengaluru';
+            if (lowerCity.includes('gurgaon') || lowerCity.includes('gurugram')) cityName = 'Gurugram';
+            
+            if (cityName) {
+                cityName = cityName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            }
 
             const cityKey = cityName.toLowerCase();
             if (!cityName || cityKey === 'unknown' || cityKey === 'other') return null;
@@ -346,8 +369,13 @@ const getMapIntellectData = async (filters) => {
     } else {
         resultCities = (currCityData || []).map(data => {
             let cityName = (data.Location || '').trim();
-            if (cityName === 'Bengalore' || cityName === 'Bangalore') cityName = 'Bengaluru';
-            if (cityName === 'Gurgaon') cityName = 'Gurugram';
+            const lowerCity = cityName.toLowerCase();
+            if (lowerCity.includes('bangalore') || lowerCity.includes('bengalore') || lowerCity.includes('banglore') || lowerCity.includes('bengaluru')) cityName = 'Bengaluru';
+            if (lowerCity.includes('gurgaon') || lowerCity.includes('gurugram')) cityName = 'Gurugram';
+
+            if (cityName) {
+                cityName = cityName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+            }
 
             const cityKey = cityName.toLowerCase();
             if (!cityName || cityKey === 'unknown' || cityKey === 'other') return null;
@@ -394,7 +422,7 @@ const getMapIntellectData = async (filters) => {
 /**
  * Fetch distinct categories based on metric and platform
  */
-const getMapIntellectCategories = async (metric, platform) => {
+const getMapIntellectCategories = async (metric, platform, channel) => {
     const isMarketShare = metric === 'Market Share';
     const src = isMarketShare ? await getMsGeoSource() : await getGeoSource();
 
@@ -403,7 +431,9 @@ const getMapIntellectCategories = async (metric, platform) => {
     let query = `SELECT DISTINCT ${src.f.category} as category FROM ${src.table} WHERE ${src.f.category} IS NOT NULL AND ${src.f.category} != ''`;
 
     if (platform && platform !== 'All') {
-        query += ` AND ${src.f.platform} LIKE '%${escapeStr(platform)}%'`;
+        query += ` AND lower(${src.f.platform}) LIKE '%${escapeStr(platform.toLowerCase())}%'`;
+    } else if (channel && channel !== 'All') {
+        query += ` AND ${src.f.platform} IN (SELECT DISTINCT platform FROM rca_sku_dim WHERE channel = '${escapeStr(channel)}')`;
     }
 
     query += ` ORDER BY category`;

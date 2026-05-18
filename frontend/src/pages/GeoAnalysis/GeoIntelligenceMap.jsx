@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useContext } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { STATES, CITIES } from "./indiaData"; // Assuming we can use these coords
@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { IconButton } from "@mui/material";
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
+import { FilterContext } from "../../utils/FilterContext";
 
 // --- Constants & Types ---
 const INDIA_BOUNDS = [
@@ -35,11 +36,17 @@ const getPinSvg = (color, valueText) => `
 
 export default function GeoIntelligenceMap() {
     const { toggleHelp, openHelpWithMenu } = useHelp();
+    const {
+        platform: globalPlatform,
+        selectedChannel,
+        platforms: contextPlatforms,
+    } = useContext(FilterContext);
+
     const mapContainer = useRef(null);
     const map = useRef(null);
     const [filters, setFilters] = useState({ platform: 'Blinkit' });
-    const [metric, setMetric] = useState("Wt. OSA %");
-    const [platform, setPlatform] = useState("Blinkit");
+    const [metric, setMetric] = useState("OSA %");
+    const [platform, setPlatform] = useState(globalPlatform || "Blinkit");
     const [timePeriod, setTimePeriod] = useState("MTD");
     const [markers, setMarkers] = useState([]);
     const [apiData, setApiData] = useState([]);
@@ -48,6 +55,26 @@ export default function GeoIntelligenceMap() {
     const [platforms, setPlatforms] = useState([]);
     const [category, setCategory] = useState("All");
     const [categories, setCategories] = useState([]);
+
+    // --- Sync platform from global FilterContext (sidebar channel/platform selection) ---
+    useEffect(() => {
+        if (globalPlatform && globalPlatform !== 'All') {
+            const newPlatform = globalPlatform;
+            if (newPlatform !== platform) {
+                setPlatform(newPlatform);
+            }
+            // If platform is Amazon, ensure metric is not Market Share
+            if (newPlatform.toLowerCase().includes('amazon') && metric === 'Market Share') {
+                setMetric('OSA %');
+            }
+        }
+    }, [globalPlatform, metric]);
+
+    useEffect(() => {
+        if (platform.toLowerCase().includes('amazon') && metric === 'Market Share') {
+            setMetric('OSA %');
+        }
+    }, [platform, metric]);
 
     // --- Fetch Platforms from DB ---
     useEffect(() => {
@@ -71,7 +98,7 @@ export default function GeoIntelligenceMap() {
     useEffect(() => {
         const fetchCategories = async () => {
             try {
-                const res = await axiosInstance.get('/map-intellect/categories', { params: { metric, platform } });
+                const res = await axiosInstance.get('/map-intellect/categories', { params: { metric, platform, channel: selectedChannel } });
                 setCategories(res.data || []);
                 setCategory("All"); // Reset category when metric or platform changes
             } catch (error) {
@@ -80,7 +107,7 @@ export default function GeoIntelligenceMap() {
             }
         };
         fetchCategories();
-    }, [metric, platform]);
+    }, [metric, platform, selectedChannel]);
 
     // Filter Handling
     const [importanceFilter, setImportanceFilter] = useState("All");
@@ -97,7 +124,7 @@ export default function GeoIntelligenceMap() {
                 let metricParam = 'all';
                 if (metric === 'Market Share') {
                     metricParam = 'marketshare';
-                } else if (metric === 'Wt. OSA %') {
+                } else if (metric === 'OSA %') {
                     metricParam = 'osa';
                 } else if (metric === 'Sales') {
                     metricParam = 'sales';
@@ -119,10 +146,23 @@ export default function GeoIntelligenceMap() {
                 if (category && category !== 'All') {
                     params += `&category=${encodeURIComponent(category)}`;
                 }
+                
+                if (selectedChannel && selectedChannel !== 'All') {
+                    params += `&channel=${encodeURIComponent(selectedChannel)}`;
+                }
 
                 const res = await axiosInstance.get('/map-intellect/data', { params: Object.fromEntries(new URLSearchParams(params)) });
                 if (res.data && res.data.cities) {
-                    setApiData(res.data.cities);
+                    let citiesData = res.data.cities;
+                    // If platform is Amazon, only keep Nation-level data as per user instructions
+                    // Relaxed for Market Share to ensure it displays correctly
+                    if (platform.toLowerCase().includes('amazon') && metric !== 'Market Share') {
+                        citiesData = citiesData.filter(city => {
+                            const name = (city.name || '').toLowerCase();
+                            return name === 'india' || name === 'nation' || name === 'national';
+                        });
+                    }
+                    setApiData(citiesData);
                 } else {
                     setApiData([]);
                 }
@@ -140,7 +180,7 @@ export default function GeoIntelligenceMap() {
             }
         };
         fetchData();
-    }, [platform, metric, timePeriod, category]); // Added category dependency
+    }, [platform, metric, timePeriod, category, selectedChannel]); // Added category and channel dependency
 
     // --- Intercept Nation-level Data ---
     const nationData = useMemo(() => {
@@ -157,7 +197,8 @@ export default function GeoIntelligenceMap() {
         const coordsLookup = {
             "nation": { lat: 22.0, lng: 79.5, type: "National" },
             "national": { lat: 22.0, lng: 79.5, type: "National" },
-            "india": { lat: 22.0, lng: 79.5, type: "National" }
+            "india": { lat: 22.0, lng: 79.5, type: "National" },
+            "banglore": { lat: 12.97, lng: 77.59, type: "City" } // Safeguard for Banglore typo
         };
         CITIES.forEach(c => { coordsLookup[c.name.toLowerCase()] = { lat: c.coords[1], lng: c.coords[0], type: "City" }; });
         STATES.forEach(s => { coordsLookup[s.name.toLowerCase()] = { lat: s.center[1], lng: s.center[0], type: "State" }; });
@@ -175,7 +216,7 @@ export default function GeoIntelligenceMap() {
                 let value = 0;
                 let color = COLORS.Red; // Default
 
-                if (metric === "Wt. OSA %") {
+                if (metric === "OSA %") {
                     value = city.osa || 0;
                     if (value > 80) color = COLORS.Green;
                     else if (value > 65) color = COLORS.Blue;
@@ -320,8 +361,8 @@ export default function GeoIntelligenceMap() {
             let kpiLabel = '';
             let kpiValue = '';
 
-            if (metric === 'Wt. OSA %') {
-                kpiLabel = 'Wt. OSA %';
+            if (metric === 'OSA %') {
+                kpiLabel = 'OSA %';
                 kpiValue = `${d.osa}%`;
             } else if (metric === 'Market Share') {
                 kpiLabel = 'Market Share';
@@ -340,7 +381,7 @@ export default function GeoIntelligenceMap() {
                 <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b;">
                     <span>${kpiLabel}:</span> <span style="font-weight: 600; color: #1e293b;">${kpiValue}</span>
                 </div>
-                ${metric === "Wt. OSA %" ? `
+                ${metric === "OSA %" ? `
                 <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748b; margin-top: 4px;">
                     <span>Listing %:</span> <span style="font-weight: 600; color: #1e293b;">${d.listingPercentage}%</span>
                 </div>
@@ -397,7 +438,9 @@ export default function GeoIntelligenceMap() {
                     }}>
                         {/* Metrics Selector */}
                         <div style={{ display: "flex", gap: "4px", background: "#f8fafc", padding: "3px", borderRadius: "10px", border: "1px solid #e2e8f0", flexShrink: 0 }}>
-                            {["Wt. OSA %", "Market Share", "Sales", "Orders"].map(m => (
+                            {["OSA %", "Market Share", "Sales", "Orders"]
+                                .filter(m => !(m === 'Market Share' && platform.toLowerCase().includes('amazon')))
+                                .map(m => (
                                 <button
                                     key={m}
                                     onClick={() => setMetric(m)}
@@ -421,37 +464,6 @@ export default function GeoIntelligenceMap() {
 
                         <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
 
-                        {/* Market (Platform) Dropdown */}
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
-                            <span style={{ fontSize: "10px", color: "#94a3b8", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Market</span>
-                            <div style={{ position: "relative" }}>
-                                <select
-                                    value={platform}
-                                    onChange={(e) => setPlatform(e.target.value)}
-                                    style={{
-                                        appearance: "none",
-                                        background: "#f8fafc",
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: "8px",
-                                        padding: "6px 28px 6px 10px",
-                                        fontSize: "12px",
-                                        fontWeight: "700",
-                                        color: "#0f172a",
-                                        cursor: "pointer",
-                                        minWidth: "100px"
-                                    }}
-                                >
-                                    {platforms.map(p => (
-                                        <option key={p} value={p}>{p}</option>
-                                    ))}
-                                </select>
-                                <div style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style={{ height: "20px", width: "1px", background: "#e2e8f0", flexShrink: 0 }}></div>
 
                         {/* Category Dropdown */}
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
@@ -470,7 +482,8 @@ export default function GeoIntelligenceMap() {
                                         fontWeight: "700",
                                         color: "#0f172a",
                                         cursor: "pointer",
-                                        minWidth: "80px"
+                                        minWidth: "80px",
+                                        textTransform: "capitalize"
                                     }}
                                 >
                                     <option value="All">All Categories</option>

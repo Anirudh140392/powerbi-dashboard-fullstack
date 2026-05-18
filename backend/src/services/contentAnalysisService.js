@@ -18,6 +18,22 @@ const calculateOverallScore = (title, image, si, desc, rating, platform) => {
     return scores.reduce((a, b) => a + b, 0) / scores.length;
 };
 
+/**
+ * Helper to generate a sanitized Brand filter for rb_product_verify queries.
+ */
+const getBrandFilterSnippet = (brand) => {
+    if (!brand || brand === 'All') return '';
+    const brands = Array.isArray(brand) ? brand : brand.split(',');
+    const brandConditions = brands
+        .filter(b => b !== 'All' && b.trim() !== '')
+        .map(b => `'${b.trim().replace(/'/g, "''")}'`);
+    
+    if (brandConditions.length > 0) {
+        return ` AND web_pid IN (SELECT Web_Pid FROM rb_pdp_olap WHERE Brand IN (${brandConditions.join(',')}))`;
+    }
+    return '';
+};
+
 export const getContentAnalysisStats = async (filters) => {
     try {
         const { platform, brand, location, startDate, endDate, channel, category } = filters;
@@ -69,35 +85,22 @@ export const getContentAnalysisStats = async (filters) => {
 
         // Channel filter
         if (channel && channel !== 'All') {
-            query += ` AND lower(Channel) = lower('${channel}')`;
+            query += ` AND lower(Channel) = lower('${channel.replace(/'/g, "''")}')`;
         }
 
         // Category filter
         if (category && category !== 'All') {
             const cats = Array.isArray(category) ? category : category.split(',');
-            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim().replace(/'/g, "''")}')`);
             if (catConditions.length > 0) {
                 query += ` AND (${catConditions.join(' OR ')})`;
             }
         }
 
         // Brand filter
-        if (brand && brand !== 'All') {
-            const brands = Array.isArray(brand) ? brand : brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
-            if (brandConditions.length > 0) {
-                query += ` AND (${brandConditions.join(' OR ')})`;
-            }
-        }
+        query += getBrandFilterSnippet(brand);
 
-        // Location / Zone filter (City in rb_product_verify)
-        if (location && location !== 'All') {
-            const zones = Array.isArray(location) ? location : location.split(',');
-            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
-            if (zoneConditions.length > 0) {
-                query += ` AND (${zoneConditions.join(' OR ')})`;
-            }
-        }
+        /* Location filter removed as column does not exist */
 
         query += ` LIMIT 1000`;
 
@@ -189,34 +192,21 @@ export const getContentAnalysisOverviewStats = async (filters, isCompare = false
 
         // Channel filter
         if (channel && channel !== 'All') {
-             query += ` AND lower(Channel) = lower('${channel}')`;
+             query += ` AND lower(Channel) = lower('${channel.replace(/'/g, "''")}')`;
         }
         // Category filter
         if (category && category !== 'All') {
             const cats = Array.isArray(category) ? category : category.split(',');
-            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim().replace(/'/g, "''")}')`);
             if (catConditions.length > 0) {
                  query += ` AND (${catConditions.join(' OR ')})`;
             }
         }
 
         // Brand filter
-        if (brand && brand !== 'All') {
-            const brands = Array.isArray(brand) ? brand : brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
-            if (brandConditions.length > 0) {
-                query += ` AND (${brandConditions.join(' OR ')})`;
-            }
-        }
+        query += getBrandFilterSnippet(brand);
 
-        // Location / Zone filter (City in rb_product_verify)
-        if (location && location !== 'All') {
-            const zones = Array.isArray(location) ? location : location.split(',');
-            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
-            if (zoneConditions.length > 0) {
-                query += ` AND (${zoneConditions.join(' OR ')})`;
-            }
-        }
+        /* Location filter removed as column does not exist */
 
         const result = await queryClickHouse(query);
         
@@ -288,35 +278,22 @@ export const getContentAnalysisPlatformBreakdown = async (filters, isCompare = f
 
         // Channel filter
         if (channel && channel !== 'All') {
-            query += ` AND lower(Channel) = lower('${channel}')`;
+            query += ` AND lower(Channel) = lower('${channel.replace(/'/g, "''")}')`;
         }
 
         // Category filter
         if (category && category !== 'All') {
             const cats = Array.isArray(category) ? category : category.split(',');
-            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim().replace(/'/g, "''")}')`);
             if (catConditions.length > 0) {
                 query += ` AND (${catConditions.join(' OR ')})`;
             }
         }
 
-        // Brand filter (PlatformBreakdown)
-        if (filters.brand && filters.brand !== 'All') {
-            const brands = Array.isArray(filters.brand) ? filters.brand : filters.brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
-            if (brandConditions.length > 0) {
-                query += ` AND (${brandConditions.join(' OR ')})`;
-            }
-        }
+        // Brand filter
+        query += getBrandFilterSnippet(filters.brand);
 
-        // Location / Zone filter (PlatformBreakdown)
-        if (filters.location && filters.location !== 'All') {
-            const zones = Array.isArray(filters.location) ? filters.location : filters.location.split(',');
-            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
-            if (zoneConditions.length > 0) {
-                query += ` AND (${zoneConditions.join(' OR ')})`;
-            }
-        }
+        /* Location filter removed as column does not exist */
 
         query += ` GROUP BY Platform ORDER BY Platform`;
 
@@ -394,7 +371,7 @@ export const getContentAnalysisCategories = async (platform) => {
 
 export const getContentAnalysisBrands = async (platform) => {
     try {
-        let query = `SELECT DISTINCT Brand FROM rb_product_verify WHERE Brand != '\\\\N' AND Brand != ''`;
+        let query = `SELECT DISTINCT Brand FROM rb_pdp_olap WHERE Brand != '\\\\N' AND Brand != ''`;
         if (platform && platform !== 'All') {
             const rawPlatform = platform;
             let platforms = [];
@@ -417,18 +394,26 @@ export const getContentAnalysisBrands = async (platform) => {
         const result = await queryClickHouse(query);
         return result.map(row => row.Brand);
     } catch (error) {
-        console.error("Error in getContentAnalysisBrands (or column does not exist):", error.message);
+        console.error("Error in getContentAnalysisBrands:", error.message);
         return [];
     }
 };
 
 export const getContentAnalysisZones = async (brand) => {
     try {
-        let query = `SELECT DISTINCT city as zone FROM rb_product_verify WHERE city != '\\\\N' AND city != ''`;
+        let query = `SELECT DISTINCT Location as zone FROM rb_pdp_olap WHERE Location != '\\\\N' AND Location != ''`;
+        if (brand && brand !== 'All') {
+            const brands = Array.isArray(brand) ? brand : brand.split(',');
+            const brandConditions = brands.filter(b => b !== 'All').map(b => `'${b.trim().replace(/'/g, "''")}'`);
+            if (brandConditions.length > 0) {
+                query += ` AND Brand IN (${brandConditions.join(',')})`;
+            }
+        }
+        query += ` ORDER BY zone`;
         const result = await queryClickHouse(query);
         return result.map(row => row.zone);
     } catch (error) {
-        console.error("Error in getContentAnalysisZones (or column does not exist):", error.message);
+        console.error("Error in getContentAnalysisZones:", error.message);
         return [];
     }
 };
@@ -484,34 +469,21 @@ export const getContentAnalysisTrends = async (filters) => {
         }
 
         if (channel && channel !== 'All') {
-            query += ` AND lower(Channel) = lower('${channel}')`;
+            query += ` AND lower(Channel) = lower('${channel.replace(/'/g, "''")}')`;
         }
 
         if (category && category !== 'All') {
             const cats = Array.isArray(category) ? category : category.split(',');
-            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim()}')`);
+            const catConditions = cats.filter(c => c !== 'All').map(c => `lower(Category) = lower('${c.trim().replace(/'/g, "''")}')`);
             if (catConditions.length > 0) {
                 query += ` AND (${catConditions.join(' OR ')})`;
             }
         }
 
-        // Brand filter (Trends)
-        if (filters.brand && filters.brand !== 'All') {
-            const brands = Array.isArray(filters.brand) ? filters.brand : filters.brand.split(',');
-            const brandConditions = brands.filter(b => b !== 'All').map(b => `lower(Brand) = lower('${b.trim()}')`);
-            if (brandConditions.length > 0) {
-                query += ` AND (${brandConditions.join(' OR ')})`;
-            }
-        }
+        // Brand filter
+        query += getBrandFilterSnippet(filters.brand);
 
-        // Location / Zone filter (Trends)
-        if (filters.location && filters.location !== 'All') {
-            const zones = Array.isArray(filters.location) ? filters.location : filters.location.split(',');
-            const zoneConditions = zones.filter(z => z !== 'All').map(z => `lower(City) = lower('${z.trim()}')`);
-            if (zoneConditions.length > 0) {
-                query += ` AND (${zoneConditions.join(' OR ')})`;
-            }
-        }
+        /* Location filter removed as column does not exist */
 
         query += ` GROUP BY date ORDER BY date`;
 

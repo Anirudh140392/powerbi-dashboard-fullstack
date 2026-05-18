@@ -30,9 +30,16 @@ export const downloadReport = async (params = {}) => {
             responseType: 'blob',
             timeout: 10 * 60 * 1000, // 10 minutes – report queries can be slow for large date ranges
         });
+        if (response.status === 204) {
+            const err = new Error("No Content");
+            err.status = 204;
+            throw err;
+        }
         return response.data;
     } catch (error) {
-        console.error("downloadReport error:", error);
+        if (error.status !== 204) {
+            console.error("downloadReport error:", error);
+        }
         throw error;
     }
 };
@@ -44,5 +51,15 @@ export const fetchAvailableReportTypes = async () => {
     } catch (error) {
         console.error("fetchAvailableReportTypes error:", error);
         return [];
+    }
+};
+
+export const fetchReportBuilderOptions = async () => {
+    try {
+        const response = await axiosInstance.get("/reports/builder-options");
+        return response.data;
+    } catch (error) {
+        console.error("fetchReportBuilderOptions error:", error);
+        return {};
     }
 };
