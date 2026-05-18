@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useContext, useMemo } from "react";
 import { FilterContext } from "../../utils/FilterContext";
-import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown } from "../../api/visibilityService";
+import { fetchSearchTermsPerformance, fetchSearchTermsLocations, fetchSearchTermsBrandBreakdown, fetchVisibilityFilterOptions } from "../../api/visibilityService";
+import { useAuth } from "../../utils/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
-import { Download } from "lucide-react";
+import { Download, Search, X, Filter, ChevronRight, TrendingUp } from "lucide-react";
+
 
 const sosColor = (val) => {
   if (val === 0) return "#94a3b8";
@@ -11,9 +13,9 @@ const sosColor = (val) => {
   return "#d97706";
 };
 
-const SOSValue = ({ value }) => (
+const SOSValue = ({ value, fontSize = 15 }) => (
   <span style={{
-    fontSize: 15, fontWeight: 700, color: sosColor(value || 0),
+    fontSize, fontWeight: 700, color: sosColor(value || 0),
     letterSpacing: "-0.02em", fontFamily: "'Inter', sans-serif",
   }}>
     {value == null || Number.isNaN(value) ? "—" : `${Number(value).toFixed(2)}%`}
@@ -33,102 +35,248 @@ const MiniSpinner = () => (
   </div>
 );
 
+const DeltaDisplay = ({ value }) => {
+  if (value === 0 || value == null) return <span style={{ color: "#6b7280", fontSize: 10, marginLeft: 4 }}>(0.0%)</span>;
+  const isPositive = value > 0;
+  const color = isPositive ? "#10b981" : "#ef4444";
+  const sign = isPositive ? "+" : "";
+  return (
+    <span style={{ color, fontSize: 10, marginLeft: 4, fontWeight: 600 }}>
+      ({sign}{value.toFixed(1)}%)
+    </span>
+  );
+};
+
 const BrandSOSBreakdown = ({ brands, loading }) => {
-  if (loading) return <div style={{ padding: "20px 0" }}><MiniSpinner /></div>;
-  if (!brands || brands.length === 0) return <div style={{ padding: 16, color: "#94a3b8", fontSize: 13, textAlign: "center" }}>No data available</div>;
+  if (loading) return <div style={{ padding: "20px 0", background: "#111827", borderRadius: 12 }}><MiniSpinner /></div>;
+  if (!brands || brands.length === 0) return <div style={{ padding: 16, color: "#94a3b8", fontSize: 13, textAlign: "center", background: "#111827", borderRadius: 12 }}>No data available</div>;
+
+  const top5 = brands.slice(0, 5);
 
   return (
-    <div style={{ padding: "16px 20px", minWidth: 260 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 14, textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid #f1f5f9", paddingBottom: 8 }}>Brand SOS Breakdown</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {brands.map((b, i) => (
-          <div key={i}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 }}>{b.brand}</span>
-              <span style={{ fontSize: 12, fontWeight: 800, color: b.overallSOS >= 50 ? "#059669" : "#3b82f6", fontFamily: "'DM Mono', monospace" }}>{b.overallSOS.toFixed(1)}%</span>
-            </div>
-            <div style={{ width: "100%", height: 6, background: "#f1f5f9", borderRadius: 10, overflow: "hidden" }}>
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: `${b.overallSOS}%` }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-                style={{ height: "100%", background: b.overallSOS >= 50 ? "#10b981" : "linear-gradient(90deg, #3b82f6, #60a5fa)", borderRadius: 10 }} 
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid #f1f5f9", fontSize: 10, color: "#94a3b8", fontStyle: "italic" }}>
-        Market share breakdown for this keyword
-      </div>
+    <div style={{ background: "#111827", borderRadius: 12, overflow: "hidden", minWidth: 480 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", color: "#fff", fontSize: 12, fontFamily: "'Inter', sans-serif" }}>
+        <thead>
+          <tr style={{ background: "#1f2937" }}>
+            <th style={{ textAlign: "left", padding: "12px 16px", color: "#9ca3af", fontWeight: 500, fontSize: 11, fontStyle: "italic" }}>Brand</th>
+            <th style={{ textAlign: "center", padding: "12px 16px", color: "#9ca3af", fontWeight: 500, fontSize: 11, fontStyle: "italic" }}>Ad. SOV</th>
+            <th style={{ textAlign: "center", padding: "12px 16px", color: "#9ca3af", fontWeight: 500, fontSize: 11, fontStyle: "italic" }}>Organic SOV</th>
+            <th style={{ textAlign: "center", padding: "12px 16px", color: "#9ca3af", fontWeight: 500, fontSize: 11, fontStyle: "italic" }}>Overall SOV</th>
+          </tr>
+        </thead>
+        <tbody>
+          {top5.map((b, i) => (
+            <tr key={i} style={{ borderBottom: "1px solid #374151" }}>
+              <td style={{ padding: "12px 16px", fontWeight: 600, color: i === 0 ? "#60a5fa" : "#fff" }}>{b.brand}</td>
+              <td style={{ padding: "12px 16px", textAlign: "center", color: "#fff", fontWeight: 500 }}>
+                {b.paidSOS.toFixed(1)}% <DeltaDisplay value={b.paidDelta} />
+              </td>
+              <td style={{ padding: "12px 16px", textAlign: "center", color: "#fff", fontWeight: 500 }}>
+                {b.organicSOS.toFixed(1)}% <DeltaDisplay value={b.organicDelta} />
+              </td>
+              <td style={{ padding: "12px 16px", textAlign: "center", color: "#fff", fontWeight: 600 }}>
+                {b.overallSOS.toFixed(1)}% <DeltaDisplay value={b.overallDelta} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
 
-/** Modal to display SKU details for a keyword */
-const SkuModal = ({ skus, title, onClose, loading }) => (
+const DrilldownModal = ({ 
+  items, title, onClose, loading, type = "sku", 
+  onToggleLocations, expandedLocs, locsLoading,
+  keywordTypeFilter, onKeywordTypeFilterChange 
+}) => (
   <div
     style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(2px)" }}
     onClick={onClose}
   >
     <div
-      style={{ background: "#fff", borderRadius: 16, padding: 28, minWidth: 580, maxWidth: 750, boxShadow: "0 24px 64px rgba(0,0,0,0.16)", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
+      style={{ background: "#fff", borderRadius: 20, boxShadow: "0 24px 64px rgba(0,0,0,0.2)", width: (type === "sku" || type === "brandKeywords") ? 880 : 600, maxWidth: "95%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid #e2e8f0" }}
       onClick={e => e.stopPropagation()}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif", letterSpacing: "-0.02em" }}>{title}</h3>
-        <button onClick={onClose} style={{ border: "none", background: "#f1f5f9", borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 18, color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>×</button>
+      {/* Header */}
+      <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>
+            {type === "sku" ? "SKU Analysis" : (type === "brandKeywords" ? "Brand Keyword Analysis" : "Keyword Analysis")}
+          </h3>
+          <span style={{ background: "#eef2ff", color: "#4f46e5", fontSize: 10, fontWeight: 700, borderRadius: 6, padding: "2px 8px", border: "1px solid #c7d2fe" }}>
+            {type === "brandKeywords" 
+              ? (title.split('—')[1]?.trim() || title).replace(/"/g, '').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
+              : (title.split('—')[1]?.trim() || title)}
+          </span>
+        </div>
+        <button 
+          onClick={onClose} 
+          style={{ border: "none", background: "transparent", cursor: "pointer", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", padding: 4, borderRadius: 6, transition: "background 0.2s" }}
+          onMouseOver={e => e.currentTarget.style.background = "#e2e8f0"}
+          onMouseOut={e => e.currentTarget.style.background = "transparent"}
+        >
+          <X size={18} />
+        </button>
       </div>
+
+      <div style={{ padding: "0 24px 24px 24px", display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+        {/* Filters for Brand Keyword View */}
+        {type === "brandKeywords" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 20px" }}>
+            <div style={{ display: "inline-flex", background: "#f1f5f9", borderRadius: 10, padding: 3, gap: 2, border: "1px solid #e2e8f0" }}>
+              {["All", "Branded", "Competition", "Generic"].map(v => (
+                <button 
+                  key={v} 
+                  onClick={() => onKeywordTypeFilterChange?.(v)} 
+                  style={{
+                    padding: "6px 16px", borderRadius: 8, border: "none", cursor: "pointer",
+                    fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+                    background: (keywordTypeFilter || "All") === v ? "#fff" : "transparent",
+                    color: (keywordTypeFilter || "All") === v ? "#0f172a" : "#64748b",
+                    boxShadow: (keywordTypeFilter || "All") === v ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                  }}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginTop: 20 }}></div>
+        )}
 
       {loading ? (
         <MiniSpinner />
-      ) : skus.length === 0 ? (
+      ) : items.length === 0 ? (
         <p style={{ color: "#94a3b8", fontSize: 14, textAlign: "center", padding: "32px 0", fontFamily: "'Inter', sans-serif" }}>
-          No SKUs available for this keyword
+          No {type === "sku" ? "SKUs" : "keywords"} available for this {type === "sku" ? "keyword" : "SKU"}
         </p>
       ) : (
-        <div style={{ maxHeight: 360, overflowY: "auto", flex: 1 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div style={{ maxHeight: 520, overflowY: "auto", flex: 1, borderRadius: 8, border: "1px solid #f1f5f9" }}>
+        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
           <thead style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
             <tr>
-              <th rowSpan={2} style={{ textAlign: "left", padding: "10px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#fff" }}>SKU</th>
-              <th colSpan={2} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#fff" }}>Most Viewed Position</th>
+              <th rowSpan={2} style={{ textAlign: "left", padding: "12px 16px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", borderBottom: "2px solid #e2e8f0", verticalAlign: "bottom", background: "#f8fafc" }}>{type === "sku" ? "SKU" : "Keyword"}</th>
+              <th colSpan={2} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>Avg. Position</th>
+              {(type === "sku" || type === "brandKeywords") && <th colSpan={3} style={{ textAlign: "center", padding: "8px 12px 4px", color: "#0f172a", fontWeight: 700, fontSize: 12, fontFamily: "'Inter', sans-serif", borderBottom: "1px solid #e2e8f0", letterSpacing: "-0.01em", background: "#f8fafc" }}>Share of Search (SOS)</th>}
             </tr>
             <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
-              <th style={{ textAlign: "center", padding: "6px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#fff" }}>Ad. <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Average ad (sponsored) position on the search results page">ⓘ</span></th>
-              <th style={{ textAlign: "center", padding: "6px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#fff" }}>Organic <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Average organic position on the search results page">ⓘ</span></th>
+              <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Ad. <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Average ad (sponsored) position">ⓘ</span></th>
+              <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Organic <span style={{ color: "#94a3b8", fontWeight: 400, fontSize: 10, cursor: "help" }} title="Average organic position">ⓘ</span></th>
+              {(type === "sku" || type === "brandKeywords") && (
+                <>
+                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Overall</th>
+                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Organic</th>
+                  <th style={{ textAlign: "center", padding: "8px 12px", color: "#64748b", fontWeight: 600, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "'Inter', sans-serif", background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>Paid</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
-            {skus.map((sku, i) => (
-              <tr key={i} style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fafbfc" : "#fff" }}>
-                <td style={{ padding: "12px 12px" }}>
-                  <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{sku.name}</div>
-                  {sku.volShare > 0 && (
-                    <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 600, borderRadius: 4, padding: "2px 6px", marginTop: 3, display: "inline-block" }}>{sku.volShare}% VOL.</span>
+            {items.map((item, i) => (
+              <React.Fragment key={i}>
+                <tr style={{ borderBottom: "1px solid #f1f5f9", background: i % 2 === 0 ? "#fff" : "#fafbfc" }}>
+                  <td style={{ padding: "12px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      {type === "sku" && (
+                        item.imageUrl ? (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }}
+                            style={{ width: 40, height: 40, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e8f0", background: "#f8fafc" }}
+                          />
+                        ) : (
+                          <div style={{ width: 40, height: 40, borderRadius: 8, background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                              <line x1="12" y1="22.08" x2="12" y2="12" />
+                            </svg>
+                          </div>
+                        )
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: "#0f172a", fontSize: 13, fontFamily: "'Inter', sans-serif", wordBreak: "break-word" }}>{item.name}</div>
+                        
+                        {onToggleLocations && (
+                          <div 
+                            onClick={() => {
+                              const nameFromTitle = title.split('—')[1]?.trim().replace(/"/g, '');
+                              if (type === "sku") {
+                                onToggleLocations?.(nameFromTitle, item.name, "All", item.name);
+                              } else if (type === "brandKeywords") {
+                                onToggleLocations?.(item.name, "All", nameFromTitle, item.name);
+                              } else {
+                                onToggleLocations?.(item.name, nameFromTitle, "All", item.name);
+                              }
+                            }}
+                            style={{ fontSize: 11, color: "#60a5fa", cursor: "pointer", marginTop: 4, textDecoration: "underline", fontWeight: 500, display: "inline-block" }}
+                          >
+                            {locsLoading?.[item.name] ? "Loading..." : expandedLocs?.[item.name] ? "Hide Locations" : "Show Locations"}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: "center", padding: "12px" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: item.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                      {item.adPosition || "—"}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: "center", padding: "12px" }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: item.organicPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
+                      {item.organicPosition || "—"}
+                    </span>
+                  </td>
+                  {(type === "sku" || type === "brandKeywords") && (
+                    <>
+                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.overallSOS} /></td>
+                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.organicSOS} /></td>
+                      <td style={{ textAlign: "center", padding: "12px" }}><SOSValue value={item.paidSOS} /></td>
+                    </>
                   )}
-                </td>
-                <td style={{ textAlign: "center", padding: "12px" }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: sku.adPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
-                    {sku.adPosition || "—"}
-                  </span>
-                </td>
-                <td style={{ textAlign: "center", padding: "12px" }}>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: sku.organicPosition ? "#0f172a" : "#94a3b8", fontFamily: "'Inter', sans-serif" }}>
-                    {sku.organicPosition || "—"}
-                  </span>
-                </td>
-              </tr>
+                </tr>
+                
+                {expandedLocs?.[item.name] && expandedLocs[item.name].map((loc, j) => (
+                  <tr key={`${i}-loc-${j}`} style={{ background: "#f8fafc", borderBottom: "1px solid #edf2f7" }}>
+                    <td style={{ padding: "8px 16px 8px 32px" }}>
+                      <div style={{ fontSize: 12, color: "#64748b", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ width: 4, height: 4, borderRadius: "50%", background: "#cbd5e1" }}></div>
+                        {loc.city}
+                      </div>
+                    </td>
+                    <td style={{ textAlign: "center", padding: "8px", color: "#94a3b8", fontSize: 12 }}>—</td>
+                    <td style={{ textAlign: "center", padding: "8px" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>
+                        #{loc.overallRank ? Math.round(loc.overallRank) : "—"}
+                      </span>
+                    </td>
+                    {(type === "sku" || type === "brandKeywords") && (
+                      <>
+                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.overallSOS} fontSize={12} /></td>
+                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.organicSOS} fontSize={12} /></td>
+                        <td style={{ textAlign: "center", padding: "8px" }}><SOSValue value={loc.paidSOS} fontSize={12} /></td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
         </div>
       )}
+      </div>
     </div>
   </div>
 );
 
 export default function SearchTermsPerformance() {
+  const { user } = useAuth();
+  const isSugarUser = user?.dbName === 'sugar';
+
   const {
     platform: globalPlatform,
     selectedBrand,
@@ -139,7 +287,8 @@ export default function SearchTermsPerformance() {
     selectedChannel,
     timeStart,
     timeEnd,
-    platforms: globalPlatforms
+    platforms: globalPlatforms,
+    selectedRank
   } = useContext(FilterContext);
 
   const [activeView, setActiveView] = useState("keyword");
@@ -151,37 +300,62 @@ export default function SearchTermsPerformance() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [skuModal, setSkuModal] = useState(null);
+  const [drilldownModal, setDrilldownModal] = useState(null);
+  const [modalKeywordType, setModalKeywordType] = useState("All");
+  const [currentModalBrand, setCurrentModalBrand] = useState(null);
   const [hoveredKeyword, setHoveredKeyword] = useState(null);
+  const [hoverPos, setHoverPos] = useState({ top: 0, left: 0 });
   const [bbData, setBbData] = useState({});
   const [bbLoading, setBbLoading] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [expandedKeywordLocations, setExpandedKeywordLocations] = useState({});
+  const [keywordLocationLoading, setKeywordLocationLoading] = useState({});
+
+  // Local Filter State
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("Platform");
+  const [optionSearch, setOptionSearch] = useState("");
+  const [localFilters, setLocalFilters] = useState({ platform: [], category: [], brand: [] });
+  const [tempLocalFilters, setTempLocalFilters] = useState({ platform: [], category: [], brand: [] });
+  const [filterOptions, setFilterOptions] = useState({ platforms: [], categories: [], brands: [] });
+  const [optionsLoading, setOptionsLoading] = useState({ platforms: false, categories: false, brands: false });
 
   // Removed local skuPlatform state - now using global platform filter
   const currentSkuPlatform = globalPlatform || "All";
 
-  const filterParams = useMemo(() => ({
-    viewMode: activeView === "keyword" ? "keyword" : "sku",
-    platform: activeView === "sku" ? currentSkuPlatform : (globalPlatform || "All"),
-    brand: selectedBrand || "All",
-    location: selectedLocation || "All",
-    category: selectedCategory || "All",
-    keyword: selectedKeyword || "All",
-    keywordTypeFilter: activeFilter,
-    keywordType: selectedKeywordType || "All",
-    channel: selectedChannel || "All",
-    ownBrandsOnly: activeView === "sku",
-    startDate: timeStart,
-    endDate: timeEnd,
-  }), [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd]);
+  const normalize = (val) => {
+    if (!val || val === "All" || (Array.isArray(val) && val.length === 0)) return "All";
+    return Array.isArray(val) ? val.join(',') : String(val);
+  };
+
+  const filterParams = useMemo(() => {
+    return {
+      viewMode: activeView === "keyword" ? "keyword" : (activeView === "brand" ? "brand" : "sku"),
+      platform: normalize(localFilters.platform.length > 0 ? localFilters.platform : (activeView === "sku" ? currentSkuPlatform : globalPlatform)),
+      brand: normalize(localFilters.brand.length > 0 ? localFilters.brand : selectedBrand),
+      location: normalize(selectedLocation),
+      category: normalize(localFilters.category.length > 0 ? localFilters.category : selectedCategory),
+      keyword: normalize(selectedKeyword),
+      keywordTypeFilter: activeFilter.toLowerCase(),
+      keywordType: normalize(selectedKeywordType),
+      channel: normalize(selectedChannel),
+      ownBrandsOnly: activeView === "sku",
+      startDate: timeStart,
+      endDate: timeEnd,
+      rank: selectedRank || 'All',
+    };
+  }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd, localFilters, selectedRank]);
 
   useEffect(() => {
     let cancelled = false;
     const fetchData = async () => {
       setLoading(true);
       setExpandedRows({});
-      setLocationData({});
+      setLocationData({}); // Clear location drilldown cache on filter change
+      setBbData({}); // Clear brand breakdown cache on filter change
       setSummaryExpanded(false);
       try {
         const data = await fetchSearchTermsPerformance(filterParams);
@@ -201,17 +375,49 @@ export default function SearchTermsPerformance() {
     return () => { cancelled = true; };
   }, [filterParams]);
 
+  // Fetch filter options when modal opens or temp filters change
+  useEffect(() => {
+    if (!isFilterModalOpen) return;
+
+    let cancelled = false;
+
+    const loadOptions = async (type, key) => {
+      setOptionsLoading(prev => ({ ...prev, [key]: true }));
+      try {
+        const params = {
+          filterType: type,
+          platform: type === "platforms" ? "All" : normalize(tempLocalFilters.platform.length > 0 ? tempLocalFilters.platform : globalPlatform),
+          brand: type === "brands" ? "All" : normalize(tempLocalFilters.brand.length > 0 ? tempLocalFilters.brand : selectedBrand),
+          format: type === "categories" ? "All" : normalize(tempLocalFilters.category.length > 0 ? tempLocalFilters.category : selectedCategory),
+          channel: selectedChannel,
+          city: selectedLocation
+        };
+        const data = await fetchVisibilityFilterOptions(params);
+        if (!cancelled) {
+          setFilterOptions(prev => ({ ...prev, [key]: data.options || [] }));
+        }
+      } catch (err) {
+        console.error(`Error fetching ${type} options:`, err);
+        if (!cancelled) setFilterOptions(prev => ({ ...prev, [key]: [] }));
+      } finally {
+        if (!cancelled) setOptionsLoading(prev => ({ ...prev, [key]: false }));
+      }
+    };
+
+    loadOptions("platforms", "platforms");
+    loadOptions("categories", "categories");
+    loadOptions("brands", "brands");
+
+    return () => { cancelled = true; };
+  }, [isFilterModalOpen, tempLocalFilters.platform, tempLocalFilters.category, tempLocalFilters.brand, globalPlatform, selectedBrand, selectedCategory, selectedChannel, selectedLocation]);
+
   const toggleRow = useCallback(async (itemName) => {
     setExpandedRows(prev => ({ ...prev, [itemName]: !prev[itemName] }));
     if (!locationData[itemName] && !locationLoading[itemName]) {
       setLocationLoading(prev => ({ ...prev, [itemName]: true }));
       try {
         const params = { 
-          platform: globalPlatform || "All", 
-          brand: selectedBrand || "All", 
-          channel: selectedChannel || "All",
-          startDate: timeStart, 
-          endDate: timeEnd 
+          ...filterParams
         };
         if (activeView === "keyword") params.keyword = itemName;
         else params.sku = itemName;
@@ -225,60 +431,169 @@ export default function SearchTermsPerformance() {
         setLocationLoading(prev => ({ ...prev, [itemName]: false }));
       }
     }
-  }, [locationData, locationLoading, activeView, globalPlatform, selectedBrand, timeStart, timeEnd]);
+  }, [locationData, locationLoading, filterParams]);
+
 
   const openSkuModal = useCallback(async (e, keywordName, isMySkus) => {
     e.stopPropagation();
     const title = isMySkus ? `My SKUs — "${keywordName}"` : `All SKUs — "${keywordName}"`;
-    setSkuModal({ title, skus: [], loading: true });
+    setDrilldownModal({ title, items: [], loading: true, type: "sku" });
     try {
       const data = await fetchSearchTermsPerformance({
         viewMode: "sku",
         platform: globalPlatform || "All",
         brand: isMySkus ? (selectedBrand || "All") : "All",
-        location: selectedLocation || "All",
+        location: (selectedLocation && selectedLocation !== "All") 
+          ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
+          : "All",
         category: selectedCategory || "All",
         startDate: timeStart, endDate: timeEnd,
-        keywordTypeFilter: activeFilter,
+        keywordTypeFilter: activeFilter.toLowerCase(),
         keywordType: selectedKeywordType || "All",
         channel: selectedChannel || "All",
         keyword: keywordName,
         ownBrandsOnly: isMySkus,
+        rank: selectedRank || 'All',
       });
-      setSkuModal({ title, skus: data.items || [], loading: false });
+      setDrilldownModal({ title, items: data.items || [], loading: false, type: "sku" });
     } catch (err) {
       console.error("Error fetching SKU data for keyword:", err);
-      setSkuModal({ title, skus: [], loading: false });
+      setDrilldownModal({ title, items: [], loading: false, type: "sku" });
     }
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd]);
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, selectedChannel, selectedRank]);
 
-  const shouldShowDrilldown = useMemo(() => {
-    if (!globalPlatform || globalPlatform === "All") return true;
-    const plats = typeof globalPlatform === "string" 
-      ? globalPlatform.split(",").map(p => p.trim().toLowerCase()) 
-      : (Array.isArray(globalPlatform) ? globalPlatform.map(p => typeof p === 'string' ? p.toLowerCase() : String(p).toLowerCase()) : []);
-      
-    if (plats.length === 0) return true;
+
+  const openKeywordModal = useCallback(async (e, skuName, isMyKeywords) => {
+    e.stopPropagation();
+    const title = isMyKeywords ? `My Keywords — "${skuName}"` : `All Keywords — "${skuName}"`;
+    setDrilldownModal({ title, items: [], loading: true, type: "keyword" });
+    setExpandedKeywordLocations({}); // Reset location expansion
+    try {
+      const data = await fetchSearchTermsPerformance({
+        viewMode: "keyword",
+        platform: globalPlatform || "All",
+        brand: isMyKeywords ? (selectedBrand || "All") : "All",
+        location: (selectedLocation && selectedLocation !== "All") 
+          ? (Array.isArray(selectedLocation) ? selectedLocation.join(',').toLowerCase() : selectedLocation.toLowerCase()) 
+          : "All",
+        category: selectedCategory || "All",
+        startDate: timeStart, endDate: timeEnd,
+        keywordTypeFilter: activeFilter.toLowerCase(),
+        keywordType: selectedKeywordType || "All",
+        channel: selectedChannel || "All",
+        sku: skuName,
+        ownBrandsOnly: isMyKeywords,
+        rank: selectedRank || 'All',
+      });
+      setDrilldownModal({ title, items: data.items || [], loading: false, type: "keyword" });
+    } catch (err) {
+      console.error("Error fetching Keyword data for SKU:", err);
+      setDrilldownModal({ title, items: [], loading: false, type: "keyword" });
+    }
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, selectedChannel, selectedRank]);
+
+
+  const openBrandKeywordsModal = useCallback(async (e, brandName) => {
+    e.stopPropagation();
+    setCurrentModalBrand(brandName);
+    setModalKeywordType("All");
+    const title = `Keywords — "${brandName}"`;
+    setDrilldownModal({ title, items: [], loading: true, type: "brandKeywords" });
+    setExpandedKeywordLocations({});
+    // Fetch happens in the useEffect below
+  }, []);
+
+  // Effect to re-fetch brand keywords when modal filter changes
+  useEffect(() => {
+    if (drilldownModal?.type === "brandKeywords" && currentModalBrand) {
+      const fetchModalData = async () => {
+        setDrilldownModal(prev => ({ ...prev, loading: true }));
+        try {
+          const data = await fetchSearchTermsPerformance({
+            ...filterParams,
+            viewMode: "keyword",
+            brand: currentModalBrand,
+            keywordTypeFilter: modalKeywordType,
+            ownBrandsOnly: false,
+            sku: "All"
+          });
+          setDrilldownModal(prev => ({ ...prev, items: data.items || [], loading: false }));
+        } catch (err) {
+          console.error("Error fetching Keywords for Brand:", err);
+          setDrilldownModal(prev => ({ ...prev, items: [], loading: false }));
+        }
+      };
+      fetchModalData();
+    }
+  }, [modalKeywordType, currentModalBrand, filterParams]);
+
+
+  const toggleKeywordLocations = useCallback(async (keywordName, skuName, brandName, itemKey) => {
+    const keyToExpand = itemKey || keywordName;
+
+    if (expandedKeywordLocations[keyToExpand]) {
+      setExpandedKeywordLocations(prev => {
+        const newState = { ...prev };
+        delete newState[keyToExpand];
+        return newState;
+      });
+      return;
+    }
+
+    setKeywordLocationLoading(prev => ({ ...prev, [keyToExpand]: true }));
+    try {
+      const data = await fetchSearchTermsLocations({
+        ...filterParams,
+        keyword: keywordName,
+        sku: skuName || "All",
+        brand: brandName || "All",
+        viewMode: "keyword"
+      });
+      setExpandedKeywordLocations(prev => ({ ...prev, [keyToExpand]: data.locations || [] }));
+    } catch (err) {
+      console.error("Error fetching locations for keyword:", err);
+    } finally {
+      setKeywordLocationLoading(prev => ({ ...prev, [keyToExpand]: false }));
+    }
+  }, [expandedKeywordLocations, filterParams]);
+
+
+  const handleBrandHover = useCallback(async (e, keyword) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoverPos({ top: rect.top, left: rect.left + rect.width / 2 });
+    setHoveredKeyword(keyword);
     
-    const isEcomOnly = plats.every(p => 
-      p.includes("ecom") || p.includes("e-com") || p.includes("ecommerce") || p === "amazon" || p === "flipkart" || p === "myntra" || p === "nykaa"
-    );
-    
-    return !isEcomOnly;
-  }, [globalPlatform]);
+    if (!bbData[keyword] && !bbLoading) {
+      setBbLoading(true);
+      try {
+        const data = await fetchSearchTermsBrandBreakdown({
+          ...filterParams,
+          keyword
+        });
+        setBbData(prev => ({ ...prev, [keyword]: data.brands || [] }));
+      } catch (err) {
+        console.error("Error fetching brand breakdown:", err);
+        setBbData(prev => ({ ...prev, [keyword]: [] }));
+      } finally {
+        setBbLoading(false);
+      }
+    }
+  }, [bbData, bbLoading, filterParams]);
+
+  const shouldShowDrilldown = activeView !== "brand";
 
   const downloadCSV = () => {
     if (!items || items.length === 0) return;
     
     const isKeyword = activeView === "keyword";
     const headers = isKeyword 
-      ? ["Keyword", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"]
+      ? (isSugarUser ? ["Keyword", "Overall SOS", "Organic SOS", "Paid SOS"] : ["Keyword", "Leading Brand", "Overall SOS", "Organic SOS", "Paid SOS"])
       : ["SKU", "Overall SOS", "Organic SOS", "Paid SOS"];
       
     const rows = items.map(item => {
       const row = [
         `"${(item.name || "").replace(/"/g, '""')}"`,
-        ...(isKeyword ? [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`] : []),
+        ...(isKeyword ? (isSugarUser ? [] : [`"${(item.leadingBrand || "").replace(/"/g, '""')}"`]) : []),
         `"${(item.overallSOS || 0).toFixed(2)}%"`,
         `"${(item.organicSOS || 0).toFixed(2)}%"`,
         `"${(item.paidSOS || 0).toFixed(2)}%"`
@@ -299,11 +614,26 @@ export default function SearchTermsPerformance() {
     URL.revokeObjectURL(url);
   };
 
-  const totalPages = Math.max(1, Math.ceil(items.length / rowsPerPage));
-  const paginatedItems = items.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
+  const filteredItems = useMemo(() => {
+    let baseItems = items;
+    
+    if (activeView === "brand") {
+      baseItems = baseItems.filter(item => {
+        const n = (item.name || "").toLowerCase();
+        return n !== "other" && n !== "others" && n !== "none" && n !== "";
+      });
+    }
+
+    if (!searchQuery.trim()) return baseItems;
+    const q = searchQuery.trim().toLowerCase();
+    return baseItems.filter(item => (item.name || "").toLowerCase().includes(q));
+  }, [items, searchQuery, activeView]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / rowsPerPage));
+  const paginatedItems = filteredItems.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const GRID = activeView === "keyword"
-    ? "minmax(260px,1fr) 150px 130px 130px 130px"
-    : "minmax(260px,1fr) 130px 130px 130px";
+    ? (isSugarUser ? "minmax(260px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 150px 130px 130px 130px")
+    : (activeView === "brand" ? "minmax(220px,1fr) 130px 130px 130px" : "minmax(260px,1fr) 130px 130px 130px");
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: "#f1f5f9", minHeight: 200, padding: "28px 32px", borderRadius: 24, margin: "24px 0", border: "1px solid #e2e8f0" }}>
@@ -315,27 +645,90 @@ export default function SearchTermsPerformance() {
       `}</style>
 
       {/* Page title */}
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.03em" }}>Top Search Terms</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748b" }}>Share of search performance by keyword</p>
+      <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <TrendingUp size={20} color="#7c3aed" />
+        </div>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0f172a', fontFamily: "'Mulish', system-ui, sans-serif" }}>Top Search Terms</h1>
+          <p style={{ margin: '2px 0 0', fontSize: 13, color: '#64748b', fontFamily: "'Mulish', system-ui, sans-serif" }}>Share of search performance by keyword</p>
+        </div>
       </div>
 
       {/* Controls Row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2 }}>
-          {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }].map(v => (
-            <button key={v.id} onClick={() => setActiveView(v.id)} style={{
-              padding: "7px 20px", borderRadius: 8, border: "none", cursor: "pointer",
-              fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
-              background: activeView === v.id ? "#0f172a" : "transparent",
-              color: activeView === v.id ? "#fff" : "#64748b",
-              boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
-            }}>{v.label}</button>
-          ))}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", background: "#e2e8f0", borderRadius: 10, padding: 3, gap: 2 }}>
+            {[{ id: "keyword", label: "My Keywords" }, { id: "sku", label: "My SKU" }, { id: "brand", label: "Brands" }].map(v => (
+              <button key={v.id} onClick={() => { setActiveView(v.id); setSearchQuery(""); }} style={{
+                padding: "7px 20px", borderRadius: 8, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
+                background: activeView === v.id ? "#0f172a" : "transparent",
+                color: activeView === v.id ? "#fff" : "#64748b",
+                boxShadow: activeView === v.id ? "0 1px 4px rgba(0,0,0,0.18)" : "none",
+              }}>{v.label}</button>
+            ))}
+          </div>
+
+          {/* Search Bar */}
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <Search size={15} style={{ position: "absolute", left: 10, color: "#94a3b8", pointerEvents: "none" }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+              placeholder={activeView === "keyword" ? "Search keywords..." : (activeView === "brand" ? "Search brands..." : "Search SKUs...")}
+              style={{
+                padding: "7px 32px 7px 32px",
+                borderRadius: 10,
+                border: "1.5px solid #e2e8f0",
+                background: "#fff",
+                fontSize: 13,
+                fontFamily: "'Inter', sans-serif",
+                color: "#0f172a",
+                width: 220,
+                outline: "none",
+                transition: "border-color 0.18s, box-shadow 0.18s",
+              }}
+              onFocus={(e) => { e.target.style.borderColor = "#3b82f6"; e.target.style.boxShadow = "0 0 0 3px rgba(59,130,246,0.1)"; }}
+              onBlur={(e) => { e.target.style.borderColor = "#e2e8f0"; e.target.style.boxShadow = "none"; }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(""); setPage(0); }}
+                style={{ position: "absolute", right: 8, background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", alignItems: "center", color: "#94a3b8" }}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Local Filter Button */}
+          <button
+            onClick={() => {
+              setTempLocalFilters(localFilters);
+              setIsFilterModalOpen(true);
+            }}
+            style={{
+              padding: "7px 14px", borderRadius: 10, border: "1.5px solid #bfdbfe", background: "#eff6ff", color: "#3b82f6",
+              fontSize: 13, fontWeight: 600, fontFamily: "'Inter', sans-serif", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 6, transition: "all 0.18s",
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.background = "#dbeafe"; e.currentTarget.style.borderColor = "#93c5fd"; }}
+            onMouseOut={(e) => { e.currentTarget.style.background = "#eff6ff"; e.currentTarget.style.borderColor = "#bfdbfe"; }}
+          >
+            <Filter size={15} />
+            <span>Filter Segment</span>
+            {(localFilters.platform.length > 0 || localFilters.category.length > 0 || localFilters.brand.length > 0) && (
+               <div style={{ width: 8, height: 8, background: "#ef4444", borderRadius: "50%", marginLeft: 4 }} />
+            )}
+          </button>
         </div>
+
         <div style={{ display: "flex", gap: 7 }}>
           {activeView === "keyword" && (
-            ["All", "Branded", "Competitor", "Generic"].map(f => (
+            ["All", "Branded", "Competition", "Generic"].map(f => (
               <button key={f} onClick={() => setActiveFilter(f)} style={{
                 padding: "6px 16px", borderRadius: 20, cursor: "pointer",
                 fontSize: 12, fontWeight: 600, fontFamily: "'Inter', sans-serif", transition: "all 0.18s",
@@ -370,8 +763,8 @@ export default function SearchTermsPerformance() {
         {/* Header */}
         <div style={{ display: "grid", gridTemplateColumns: GRID, padding: "13px 24px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", gap: 8, alignItems: "end" }}>
           {[
-            { label: activeView === "keyword" ? "Keywords" : "SKUs", sub: null },
-            ...(activeView === "keyword" ? [{ label: "Leading Brand", sub: "by Overall SOS" }] : []),
+            { label: activeView === "keyword" ? "Keywords" : (activeView === "brand" ? "Brands" : "SKUs"), sub: null },
+            ...(activeView === "keyword" ? (isSugarUser ? [] : [{ label: "Leading Brand", sub: "by Overall SOS" }]) : []),
             { label: "Overall SOS", sub: null },
             { label: "Organic SOS", sub: null },
             { label: "Paid SOS", sub: null },
@@ -385,8 +778,10 @@ export default function SearchTermsPerformance() {
 
         {loading ? (
           <LoadingSpinner />
-        ) : items.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8", fontSize: 14, fontFamily: "'Inter', sans-serif" }}>No data available for the selected filters</div>
+        ) : filteredItems.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px 0", color: "#94a3b8", fontSize: 14, fontFamily: "'Inter', sans-serif" }}>
+            {searchQuery.trim() ? `No results matching "${searchQuery}"` : "No data available for the selected filters"}
+          </div>
         ) : (
           <>
             {/* ── Summary Aggregate Row ── */}
@@ -424,7 +819,7 @@ export default function SearchTermsPerformance() {
                           fontSize: 14, fontWeight: 800, color: "#312e81", letterSpacing: "-0.01em",
                           fontFamily: "'Inter', sans-serif",
                         }}>
-                          {activeFilter === "All" ? "All Keywords" : `${activeFilter} Keywords`}
+                          {activeFilter === "All" ? "Overview" : `${activeFilter} Overview`}
                         </span>
                         <span style={{
                           background: "#4f46e5", color: "#fff", fontSize: 9, fontWeight: 700,
@@ -436,7 +831,8 @@ export default function SearchTermsPerformance() {
                       </div>
                       {(() => {
                         const summaryVolPercent = items.reduce((sum, item) => sum + (item.volShare || 0), 0);
-                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0 || (summaryData.totalSearchVolume || 0) > 0) ? (
+                        const summarySearchVolume = items.reduce((sum, item) => sum + (item.searchVolume || 0), 0);
+                        return (summaryData.totalKeywords > 0 || summaryVolPercent > 0 || (summaryData.totalSearchVolume || 0) > 0 || summarySearchVolume > 0) ? (
                           <div style={{ display: "flex", gap: 6, paddingLeft: 30, marginTop: 4 }}>
                             {summaryData.totalKeywords > 0 && (
                               <span style={{
@@ -446,15 +842,6 @@ export default function SearchTermsPerformance() {
                                 {summaryData.totalKeywords.toLocaleString()} Keywords
                               </span>
                             )}
-                            {summaryVolPercent > 0 && (
-                              <span style={{
-                                background: "#fff7ed", color: "#ea580c", fontSize: 10, fontWeight: 700,
-                                borderRadius: 4, padding: "2px 8px", letterSpacing: "0.02em",
-                                border: "1px solid #ffedd5"
-                              }}>
-                                {summaryVolPercent.toFixed(2)}% Total Vol. Share
-                              </span>
-                            )}
                           </div>
                         ) : null;
                       })()}
@@ -462,15 +849,17 @@ export default function SearchTermsPerformance() {
                   </div>
 
                   {/* Leading Brand */}
-                  <div style={{ textAlign: "center" }}>
-                    <span style={{
-                      background: "#e0e7ff", color: "#3730a3", borderRadius: 6, padding: "5px 12px",
-                      fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block",
-                      textTransform: "uppercase",
-                    }}>
-                      {summaryData.leadingBrand}
-                    </span>
-                  </div>
+                  {!isSugarUser && (
+                    <div style={{ textAlign: "center" }}>
+                      <span style={{
+                        background: "#e0e7ff", color: "#3730a3", borderRadius: 6, padding: "5px 12px",
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block",
+                        textTransform: "uppercase",
+                      }}>
+                        {summaryData.leadingBrand}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Overall SOS */}
                   <div style={{ textAlign: "center" }}>
@@ -518,7 +907,7 @@ export default function SearchTermsPerformance() {
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#6366f1", display: "inline-block", flexShrink: 0 }} />
                             <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{loc.city}</span>
                           </div>
-                          <div />
+                          {!isSugarUser && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.organicSOS} /></div>
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.paidSOS} /></div>
@@ -549,10 +938,40 @@ export default function SearchTermsPerformance() {
                       ) : (
                         <div style={{ width: 22, height: 22, flexShrink: 0 }} />
                       )}
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>{row.name}</span>
-                      {row.volShare > 0 && activeView === "keyword" && (
-                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>{row.volShare}% VOL.</span>
+                      {/* SKU Image Thumbnail — only in SKU view */}
+                      {(activeView === "sku" || activeView === "brand") && (
+                        row.imageUrl ? (
+                          <img
+                            src={row.imageUrl}
+                            alt={row.name}
+                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling && (e.target.nextSibling.style.display = 'flex'); }}
+                            style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", flexShrink: 0, border: "1px solid #e2e8f0", background: "#f8fafc" }}
+                          />
+                        ) : null
                       )}
+                      {(activeView === "sku" || activeView === "brand") && !row.imageUrl && (
+                        <div style={{ width: 36, height: 36, borderRadius: 8, background: "#f1f5f9", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                            <line x1="12" y1="22.08" x2="12" y2="12" />
+                          </svg>
+                        </div>
+                      )}
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", letterSpacing: "-0.01em", lineHeight: 1.3, wordBreak: "break-word" }}>
+                        {activeView === "brand" 
+                          ? (row.name || "").split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
+                          : row.name}
+                      </span>
+                      {row.searchVolume > 0 && activeView === "keyword" ? (
+                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
+                          Search Vol. {row.searchVolume.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                        </span>
+                      ) : (row.volShare > 0 && activeView === "keyword" ? (
+                        <span style={{ background: "#eff6ff", color: "#3b82f6", fontSize: 10, fontWeight: 700, borderRadius: 4, padding: "2px 7px", letterSpacing: "0.02em", flexShrink: 0 }}>
+                          {row.volShare}% VOL.
+                        </span>
+                      ) : null)}
                     </div>
 
                     {/* My SKUs / All SKUs buttons — only in keyword mode */}
@@ -560,47 +979,74 @@ export default function SearchTermsPerformance() {
                       <div style={{ display: "flex", gap: 6, paddingLeft: 30 }}>
                         <button className="sku-btn" onClick={(e) => openSkuModal(e, row.name, true)}
                           style={{ background: "#f0fdf4", color: "#15803d", border: "1px solid #bbf7d0", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>My SKUs</button>
-                        <button className="sku-btn" onClick={(e) => openSkuModal(e, row.name, false)}
-                          style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All SKUs</button>
+                        {!isSugarUser && (
+                          <button className="sku-btn" onClick={(e) => openSkuModal(e, row.name, false)}
+                            style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All SKUs</button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* My Keywords / All Keywords buttons — only in SKU mode */}
+                    {activeView === "sku" && (
+                      <div style={{ display: "flex", gap: 6, paddingLeft: 30 + (row.imageUrl ? 44 : 0) }}>
+                        <button className="sku-btn" onClick={(e) => openKeywordModal(e, row.name, false)}
+                          style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>All Keywords</button>
+                      </div>
+                    )}
+
+                    {/* Keywords button — only in brand mode */}
+                    {activeView === "brand" && (
+                      <div style={{ display: "flex", gap: 6, paddingLeft: 30 }}>
+                        <button className="sku-btn" onClick={(e) => openBrandKeywordsModal(e, row.name)}
+                          style={{ background: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', sans-serif", transition: "opacity 0.15s" }}>Keywords</button>
                       </div>
                     )}
                   </div>
 
                   {/* Leading Brand — keyword mode only */}
-                  {activeView === "keyword" && (
-                    <div style={{ textAlign: "center", position: "relative" }}>
-                      <span 
-                        onMouseEnter={() => handleBrandHover(row.name)}
-                        onMouseLeave={() => setHoveredKeyword(null)}
-                        style={{ background: "#f1f5f9", color: "#334155", borderRadius: 6, padding: "5px 12px", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block", textTransform: "uppercase", cursor: "help", transition: "all 0.2s" }}>
-                        {row.leadingBrand}
-                      </span>
+                  {activeView === "keyword" && !isSugarUser && (
+                    <div style={{ textAlign: "center" }}>
+                        <div 
+                          onMouseEnter={(e) => handleBrandHover(e, row.name)}
+                          onMouseLeave={() => setHoveredKeyword(null)}
+                          style={{ position: "relative", cursor: "help" }}
+                        >
+                          <span style={{
+                            background: "#eef2ff", color: "#4338ca", borderRadius: 6, padding: "5px 12px",
+                            fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", display: "inline-block",
+                            textTransform: "uppercase", transition: "all 0.2s",
+                            border: `1px solid ${hoveredKeyword === row.name ? "#818cf8" : "transparent"}`,
+                          }}>
+                            {row.leadingBrand}
+                          </span>
 
-                      <AnimatePresence>
-                        {hoveredKeyword === row.name && (
-                          <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            style={{
-                              position: "absolute",
-                              bottom: "100%",
-                              left: "50%",
-                              transform: "translateX(-50%)",
-                              marginBottom: 12,
-                              background: "#fff",
-                              borderRadius: 16,
-                              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0,0,0,0.05)",
-                              zIndex: 100,
-                              overflow: "hidden",
-                              pointerEvents: "none"
-                            }}
-                          >
-                            <BrandSOSBreakdown brands={bbData[row.name]} loading={bbLoading} />
-                            <div style={{ position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 12, height: 12, background: "#fff", boxShadow: "2px 2px 2px rgba(0,0,0,0.02)" }} />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                          <AnimatePresence>
+                            {hoveredKeyword === row.name && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10, x: "-50%" }}
+                                animate={{ opacity: 1, y: 0, x: "-50%" }}
+                                exit={{ opacity: 0, y: 10, x: "-50%" }}
+                                style={{
+                                  position: "fixed",
+                                  top: hoverPos.top - 12,
+                                  left: hoverPos.left,
+                                  transform: "translate(-50%, -100%)",
+                                  marginBottom: 12,
+                                  background: "#111827",
+                                  borderRadius: 12,
+                                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2)",
+                                  zIndex: 9999,
+                                  overflow: "hidden",
+                                  pointerEvents: "none",
+                                  border: "1px solid #374151"
+                                }}
+                              >
+                                <BrandSOSBreakdown brands={bbData[row.name]} loading={bbLoading} />
+                                <div style={{ position: "absolute", bottom: -6, left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 12, height: 12, background: "#111827", borderRight: "1px solid #374151", borderBottom: "1px solid #374151" }} />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
                     </div>
                   )}
 
@@ -629,7 +1075,9 @@ export default function SearchTermsPerformance() {
                         <div key={li} style={{ display: "grid", gridTemplateColumns: GRID, padding: "11px 24px", alignItems: "center", gap: 8, borderBottom: li < (locationData[row.name] || []).length - 1 ? "1px solid #e2e8f0" : "none", background: li % 2 === 0 ? "#f8fafc" : "#f1f5f9" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 30 }}>
                             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#3b82f6", display: "inline-block", flexShrink: 0 }} />
-                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>{loc.city}</span>
+                            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500, textTransform: "capitalize" }}>
+                              {['nation', 'national', 'all india', 'india', 'total', 'pan india'].includes(loc.city?.toLowerCase()) ? "Nation" : loc.city}
+                            </span>
                           </div>
                           {activeView === "keyword" && <div />}
                           <div style={{ textAlign: "center" }}><SOSValue value={loc.overallSOS} /></div>
@@ -646,7 +1094,7 @@ export default function SearchTermsPerformance() {
         )}
 
         {/* Pagination */}
-        {!loading && items.length > 0 && (
+        {!loading && filteredItems.length > 0 && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 24px", borderTop: "1px solid #e2e8f0", background: "#fafafa" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button disabled={page === 0} onClick={() => setPage(p => Math.max(0, p - 1))}
@@ -666,8 +1114,196 @@ export default function SearchTermsPerformance() {
         )}
       </div>
 
-      {/* SKU Modal */}
-      {skuModal && <SkuModal skus={skuModal.skus} title={skuModal.title} loading={skuModal.loading} onClose={() => setSkuModal(null)} />}
+      {/* Drilldown Modal (SKU/Keyword) */}
+      {drilldownModal && (
+        <DrilldownModal 
+          items={drilldownModal.items} 
+          title={drilldownModal.title} 
+          loading={drilldownModal.loading} 
+          type={drilldownModal.type} 
+          keywordTypeFilter={modalKeywordType}
+          onKeywordTypeFilterChange={setModalKeywordType}
+          onClose={() => { setDrilldownModal(null); setCurrentModalBrand(null); }} 
+          onToggleLocations={toggleKeywordLocations}
+          expandedLocs={expandedKeywordLocations}
+          locsLoading={keywordLocationLoading}
+        />
+      )}
+
+      {/* Local Filter Modal - Colorful Two-Pane Theme */}
+      <AnimatePresence>
+        {isFilterModalOpen && (
+          <div style={{ position: "fixed", inset: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,0.4)", backdropFilter: "blur(4px)" }}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              style={{ background: "#f8fafc", borderRadius: 16, width: "100%", maxWidth: 650, height: 460, boxShadow: "0 24px 48px rgba(0,0,0,0.15)", display: "flex", flexDirection: "column", overflow: "hidden" }}
+            >
+              {/* Header */}
+              <div style={{ padding: "20px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f8fafc" }}>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>Filters</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                  <button
+                    onClick={() => setTempLocalFilters({ platform: [], category: [], brand: [] })}
+                    style={{ border: "none", background: "none", cursor: "pointer", color: "#0066ff", fontWeight: 600, fontSize: 14, fontFamily: "'Inter', sans-serif" }}
+                  >
+                    Clear All
+                  </button>
+                  <button onClick={() => setIsFilterModalOpen(false)} style={{ border: "none", background: "#f1f5f9", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#475569" }}>
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+                {/* Sidebar */}
+                <div style={{ width: 220, borderRight: "1px solid #e2e8f0", padding: "16px 0", background: "#f8fafc", overflowY: "auto" }}>
+                  {[
+                    { id: "Platform", label: "Platform" },
+                    { id: "Category", label: "Category" },
+                    { id: "Brand", label: "Brand" }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => { setActiveTab(tab.id); setOptionSearch(""); }}
+                      style={{
+                        width: "100%", padding: "10px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", border: "none",
+                        background: activeTab === tab.id ? "#eff6ff" : "transparent",
+                        color: activeTab === tab.id ? "#0066ff" : "#64748b",
+                        borderLeft: activeTab === tab.id ? "3px solid #0066ff" : "3px solid transparent",
+                        cursor: "pointer", fontSize: 14, fontWeight: activeTab === tab.id ? 600 : 500, fontFamily: "'Inter', sans-serif",
+                        transition: "all 0.1s"
+                      }}
+                    >
+                      <span>{tab.label}</span>
+                      {activeTab === tab.id && <ChevronRight size={16} color="#0066ff" />}
+                      {activeTab !== tab.id && <ChevronRight size={16} color="#cbd5e1" />}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Content Pane */}
+                <div style={{ flex: 1, padding: 24, overflowY: "auto", background: "#fff" }}>
+                  <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, padding: "20px 24px", minHeight: 220, position: "relative" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "#0f172a", fontFamily: "'Inter', sans-serif" }}>{activeTab}</h4>
+                      <button
+                        onClick={() => {
+                          const keyMap = { "Platform": "platform", "Category": "category", "Brand": "brand" };
+                          setTempLocalFilters(prev => ({ ...prev, [keyMap[activeTab]]: [] }));
+                        }}
+                        style={{ border: "none", background: "none", cursor: "pointer", color: "#64748b", fontWeight: 600, fontSize: 13, fontFamily: "'Inter', sans-serif" }}
+                      >
+                        Reset
+                      </button>
+                    </div>
+
+                    {/* Checkbox List with Search */}
+                    {(() => {
+                      const keyMap = { "Platform": "platform", "Category": "category", "Brand": "brand" };
+                      const optionMap = { "Platform": filterOptions.platforms, "Category": filterOptions.categories, "Brand": filterOptions.brands };
+                      const loadingMap = { "Platform": optionsLoading.platforms, "Category": optionsLoading.categories, "Brand": optionsLoading.brands };
+                      
+                      const filterKey = keyMap[activeTab];
+                      const allOptions = optionMap[activeTab] || [];
+                      const isLoading = loadingMap[activeTab];
+                      const activeValues = tempLocalFilters[filterKey] || [];
+                      const filteredOptions = allOptions.filter(o => o.toLowerCase().includes(optionSearch.toLowerCase()));
+                      const isNoneSelected = activeValues.includes('__NONE__');
+                      const isAllSelected = activeValues.length === 0 || (!isNoneSelected && activeValues.length === allOptions.length);
+
+                      const toggleOption = (opt) => {
+                        setTempLocalFilters(prev => {
+                          let current = prev[filterKey] || [];
+                          const wasNone = current.includes('__NONE__');
+                          
+                          if (wasNone) {
+                            // If they previously deselected all, selecting one should select ONLY that one
+                            return { ...prev, [filterKey]: [opt] };
+                          }
+                          
+                          if (current.length === 0) {
+                            // If currently in "All" state, clicking one unchecks it
+                            return { ...prev, [filterKey]: allOptions.filter(x => x !== opt) };
+                          } else if (current.includes(opt)) {
+                            const next = current.filter(x => x !== opt);
+                            if (next.length === 0) return { ...prev, [filterKey]: ['__NONE__'] };
+                            return { ...prev, [filterKey]: next };
+                          } else {
+                            const next = [...current, opt];
+                            if (next.length === allOptions.length) return { ...prev, [filterKey]: [] };
+                            return { ...prev, [filterKey]: next };
+                          }
+                        });
+                      };
+
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", height: 260 }}>
+                          <div style={{ marginBottom: 16, position: "relative" }}>
+                            <Search size={16} color="#94a3b8" style={{ position: "absolute", left: 12, top: 10 }} />
+                            <input 
+                              type="text" 
+                              placeholder="Search" 
+                              value={optionSearch}
+                              onChange={e => setOptionSearch(e.target.value)}
+                              style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 8, border: "1px solid #cbd5e1", background: "#f8fafc", fontSize: 14, outline: "none", fontFamily: "'Inter', sans-serif" }}
+                            />
+                          </div>
+                          
+                          <div style={{ flex: 1, overflowY: "auto", paddingRight: 8 }}>
+                            {isLoading ? (
+                              <div style={{ padding: 12, color: "#64748b", fontSize: 13, fontFamily: "'Inter', sans-serif" }}>Loading...</div>
+                            ) : (
+                              <>
+                                <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 4px", borderBottom: "1px solid #f1f5f9" }}>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                                    <input type="checkbox" checked={isAllSelected} onChange={() => setTempLocalFilters(prev => ({...prev, [filterKey]: isAllSelected ? ['__NONE__'] : []}))} style={{ accentColor: "#0066ff", width: 16, height: 16, cursor: "pointer" }} />
+                                    <span style={{ fontSize: 14, color: "#334155", fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>Select All</span>
+                                  </label>
+                                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                                    <input type="checkbox" checked={isNoneSelected} onChange={() => setTempLocalFilters(prev => ({...prev, [filterKey]: isNoneSelected ? [] : ['__NONE__']}))} style={{ accentColor: "#ef4444", width: 16, height: 16, cursor: "pointer" }} />
+                                    <span style={{ fontSize: 14, color: "#334155", fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>Deselect All</span>
+                                  </label>
+                                </div>
+                                {filteredOptions.map(opt => (
+                                  <label key={opt} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 4px", cursor: "pointer" }}>
+                                    <input type="checkbox" checked={isAllSelected || (!isNoneSelected && activeValues.includes(opt))} onChange={() => toggleOption(opt)} style={{ accentColor: "#0066ff", width: 16, height: 16, cursor: "pointer" }} />
+                                    <span style={{ fontSize: 14, color: "#475569", fontFamily: "'Inter', sans-serif" }}>{opt}</span>
+                                  </label>
+                                ))}
+                                {filteredOptions.length === 0 && !isLoading && (
+                                  <div style={{ padding: "12px 4px", color: "#94a3b8", fontSize: 13, fontFamily: "'Inter', sans-serif" }}>No options found.</div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{ padding: "16px 24px", borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "flex-end", background: "#fff" }}>
+                <button
+                  onClick={() => {
+                    setLocalFilters(tempLocalFilters);
+                    setPage(0);
+                    setIsFilterModalOpen(false);
+                  }}
+                  style={{ padding: "10px 32px", borderRadius: 8, border: "none", background: "#0066ff", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Inter', sans-serif", boxShadow: "0 4px 12px rgba(0,102,255,0.25)" }}
+                >
+                  Apply
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

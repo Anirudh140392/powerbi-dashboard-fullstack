@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { KpiFilterPanel, KpiField } from '../components/KpiFilterPanel'
+import { useAuth } from '../../utils/AuthContext'
 
 const KPI_LABELS = {
     catImpShare: 'Cat Imp Share',
@@ -374,6 +375,9 @@ const LEFT_CITY = FROZEN_WIDTHS.keywordType + FROZEN_WIDTHS.keyword + FROZEN_WID
 const LEFT_SPACER = FROZEN_WIDTHS.keywordType + FROZEN_WIDTHS.keyword + FROZEN_WIDTHS.sku + FROZEN_WIDTHS.city
 
 export default function Visibility4() {
+    const { user } = useAuth();
+    const isSugarUser = user?.dbName === 'sugar';
+
     const [activeView, setActiveView] = useState('platforms')
     const [expandedRows, setExpandedRows] = useState(new Set())
     const [expandedKpis, setExpandedKpis] = useState(new Set())
@@ -444,11 +448,16 @@ export default function Visibility4() {
     }
 
     const hierarchyData = useMemo(() => {
-        if (activeView === 'skus') {
-            return restructureForSkus(sampleHierarchy)
+        let baseData = sampleHierarchy;
+        if (isSugarUser) {
+            baseData = sampleHierarchy.filter(item => item.id !== 'competition');
         }
-        return sampleHierarchy
-    }, [activeView])
+
+        if (activeView === 'skus') {
+            return restructureForSkus(baseData)
+        }
+        return baseData
+    }, [activeView, isSugarUser])
 
     const flatRows = useMemo(() => flattenHierarchy(hierarchyData, expandedRows, filters, activeView), [hierarchyData, expandedRows, filters, activeView])
 

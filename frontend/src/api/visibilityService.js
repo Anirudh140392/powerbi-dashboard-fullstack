@@ -5,16 +5,23 @@ import axiosInstance from './axiosInstance';
  * All functions return promises that can be called in parallel
  */
 
+// Helper to normalize parameters for backend consistency
+const normalize = (val) => {
+    if (!val || val === 'All' || val === 'all') return 'All';
+    return Array.isArray(val) ? val.join(',').toLowerCase() : String(val).toLowerCase();
+};
+
 /**
  * Fetch Visibility Overview (KPI cards)
  */
 export const fetchVisibilityOverview = async (filters = {}) => {
     const params = new URLSearchParams();
-    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
-    if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
-    if (filters.location && filters.location !== 'All') params.append('location', filters.location);
-    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
-    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
+    if (filters.platform && filters.platform !== 'All') params.append('platform', normalize(filters.platform));
+    if (filters.brand && filters.brand !== 'All') params.append('brand', normalize(filters.brand));
+    if (filters.location && filters.location !== 'All') params.append('location', normalize(filters.location));
+    if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
+    if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
 
@@ -28,11 +35,12 @@ export const fetchVisibilityOverview = async (filters = {}) => {
 export const fetchVisibilityPlatformKpiMatrix = async (filters = {}) => {
     const params = new URLSearchParams();
     if (filters.viewMode) params.append('viewMode', filters.viewMode);
-    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
-    if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
-    if (filters.location && filters.location !== 'All') params.append('location', filters.location);
-    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
-    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
+    if (filters.platform && filters.platform !== 'All') params.append('platform', normalize(filters.platform));
+    if (filters.brand && filters.brand !== 'All') params.append('brand', normalize(filters.brand));
+    if (filters.location && filters.location !== 'All') params.append('location', normalize(filters.location));
+    if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
+    if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
 
@@ -45,11 +53,12 @@ export const fetchVisibilityPlatformKpiMatrix = async (filters = {}) => {
  */
 export const fetchVisibilityKeywordsAtGlance = async (filters = {}) => {
     const params = new URLSearchParams();
-    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
-    if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
-    if (filters.location && filters.location !== 'All') params.append('location', filters.location);
-    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
-    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
+    if (filters.platform && filters.platform !== 'All') params.append('platform', normalize(filters.platform));
+    if (filters.brand && filters.brand !== 'All') params.append('brand', normalize(filters.brand));
+    if (filters.location && filters.location !== 'All') params.append('location', normalize(filters.location));
+    if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
+    if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.view) params.append('view', filters.view);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
@@ -64,13 +73,14 @@ export const fetchVisibilityKeywordsAtGlance = async (filters = {}) => {
 export const fetchVisibilityTopSearchTerms = async (filters = {}) => {
     const params = new URLSearchParams();
     if (filters.viewMode) params.append('viewMode', filters.viewMode);
-    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
-    if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
-    if (filters.location && filters.location !== 'All') params.append('location', filters.location);
-    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
-    if (filters.keywordType && filters.keywordType !== 'All') params.append('keywordType', filters.keywordType);
-    if (filters.category && filters.category !== 'All') params.append('category', filters.category);
-    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
+    if (filters.platform && filters.platform !== 'All') params.append('platform', normalize(filters.platform));
+    if (filters.brand && filters.brand !== 'All') params.append('brand', normalize(filters.brand));
+    if (filters.location && filters.location !== 'All') params.append('location', normalize(filters.location));
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
+    if (filters.keywordType && filters.keywordType !== 'All') params.append('keywordType', normalize(filters.keywordType));
+    if (filters.category && filters.category !== 'All') params.append('category', normalize(filters.category));
+    if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
+    if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.filter && filters.filter !== 'All') params.append('filter', filters.filter);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
@@ -84,11 +94,12 @@ export const fetchVisibilityTopSearchTerms = async (filters = {}) => {
  */
 export const fetchVisibilityBrandDrilldown = async (filters = {}) => {
     const params = new URLSearchParams();
-    if (filters.keyword) params.append('keyword', filters.keyword);
-    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
-    if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
-    if (filters.location && filters.location !== 'All') params.append('location', filters.location);
-    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
+    if (filters.keyword) params.append('keyword', normalize(filters.keyword));
+    if (filters.platform && filters.platform !== 'All') params.append('platform', normalize(filters.platform));
+    if (filters.brand && filters.brand !== 'All') params.append('brand', normalize(filters.brand));
+    if (filters.location && filters.location !== 'All') params.append('location', normalize(filters.location));
+    if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
+    if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
 
@@ -146,19 +157,21 @@ export const fetchVisibilityCityDrilldown = async (params) => {
 };
 
 /**
- * Fetch Search Terms Performance (Top Search Terms segment — keyword/SKU modes)
+ * Fetch Search Terms Performance (Top Search Terms segment \u2014 keyword/SKU modes)
  */
 export const fetchSearchTermsPerformance = async (filters = {}) => {
     const params = new URLSearchParams();
     if (filters.viewMode) params.append('viewMode', filters.viewMode);
-    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
-    if (filters.brand && filters.brand !== 'All') params.append('brand', filters.brand);
-    if (filters.location && filters.location !== 'All') params.append('location', filters.location);
-    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
-    if (filters.keywordType && filters.keywordType !== 'All') params.append('keywordType', filters.keywordType);
-    if (filters.keywordTypeFilter && filters.keywordTypeFilter !== 'All') params.append('keywordTypeFilter', filters.keywordTypeFilter);
-    if (filters.category && filters.category !== 'All') params.append('category', filters.category);
-    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
+    if (filters.platform && filters.platform !== 'All') params.append('platform', normalize(filters.platform));
+    if (filters.brand && filters.brand !== 'All') params.append('brand', normalize(filters.brand));
+    if (filters.location && filters.location !== 'All') params.append('location', normalize(filters.location));
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
+    if (filters.keywordType && filters.keywordType !== 'All') params.append('keywordType', normalize(filters.keywordType));
+    if (filters.keywordTypeFilter && filters.keywordTypeFilter !== 'All') params.append('keywordTypeFilter', normalize(filters.keywordTypeFilter));
+    if (filters.category && filters.category !== 'All') params.append('category', normalize(filters.category));
+    if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
+    if (filters.sku && filters.sku !== 'All') params.append('sku', normalize(filters.sku));
+    if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.ownBrandsOnly) params.append('ownBrandsOnly', filters.ownBrandsOnly);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
@@ -186,12 +199,27 @@ export const fetchSearchTermsLocations = async (params) => {
  */
 export const fetchSearchTermsBrandBreakdown = async (filters = {}) => {
     const params = new URLSearchParams();
-    if (filters.platform && filters.platform !== 'All') params.append('platform', filters.platform);
-    if (filters.channel && filters.channel !== 'All') params.append('channel', filters.channel);
-    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', filters.keyword);
+    if (filters.platform && filters.platform !== 'All') params.append('platform', normalize(filters.platform));
+    if (filters.channel && filters.channel !== 'All') params.append('channel', normalize(filters.channel));
+    if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.rank && filters.rank !== 'All') params.append('rank', filters.rank);
 
     const response = await axiosInstance.get(`/visibility-analysis/search-terms-brand-breakdown?${params.toString()}`);
+
     return response.data;
+};
+/**
+ * Fetch dynamic filter options for Visibility Analysis
+ */
+export const fetchVisibilityFilterOptions = async (params) => {
+    try {
+        const queryParams = new URLSearchParams(params).toString();
+        const response = await axiosInstance.get(`/visibility-analysis/filter-options?${queryParams}`);
+        return response.data;
+    } catch (error) {
+        console.error("Error fetching visibility filter options:", error);
+        throw error;
+    }
 };

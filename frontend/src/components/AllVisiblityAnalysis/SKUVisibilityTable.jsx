@@ -64,7 +64,9 @@ export default function SKUVisibilityTable({ activeTab, setActiveTab, filter, ap
                     keyword,
                     sku: skuName,
                     platform,
-                    location: location || 'All',
+                    location: (location && location !== 'All') 
+                        ? (Array.isArray(location) ? location.join(',').toLowerCase() : location.toLowerCase()) 
+                        : 'All',
                     startDate: dayjs(timeStart).format('YYYY-MM-DD'),
                     endDate: dayjs(timeEnd).format('YYYY-MM-DD')
                 });

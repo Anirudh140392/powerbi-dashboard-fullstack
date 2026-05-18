@@ -18,7 +18,6 @@ const SECTION_LABELS = [
   { id: "skus", label: "SKUs" },
   { id: "weekendFlag", label: "Weekend Flag" },
   { id: "cities", label: "Cities" },
-  { id: "platforms", label: "Platforms" },
   { id: "kpiRules", label: "KPI rules" },
 ];
 
@@ -476,7 +475,7 @@ function MultiSelectSection({ title, description, options, onChange, pageSize, v
                 checked={selected.has(opt.id)}
                 onChange={() => toggleOne(opt.id)}
               />
-              <span className="font-medium text-slate-800">{opt.label}</span>
+              <span className="font-medium text-slate-800 capitalize">{opt.label}</span>
             </div>
             <div className="flex items-center gap-2">
               {typeof opt.value === "number" && (

@@ -1370,9 +1370,9 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
                 }
                 if (selectedLocation && selectedLocation !== 'All') {
                     if (Array.isArray(selectedLocation)) {
-                        params.append('location', selectedLocation.join(','));
+                        params.append('location', selectedLocation.map(l => l.toLowerCase()).join(','));
                     } else {
-                        params.append('location', selectedLocation);
+                        params.append('location', selectedLocation.toLowerCase());
                     }
                 }
                 if (selectedBrand && selectedBrand !== 'All') {
@@ -1455,9 +1455,9 @@ function SignalLabBase({ metricType, usePagination = true, loading = false }) {
                 }
                 if (selectedLocation && selectedLocation !== 'All') {
                     if (Array.isArray(selectedLocation)) {
-                        params.append('location', selectedLocation.join(','));
+                        params.append('location', selectedLocation.map(l => l.toLowerCase()).join(','));
                     } else {
-                        params.append('location', selectedLocation);
+                        params.append('location', selectedLocation.toLowerCase());
                     }
                 }
                 if (selectedBrand && selectedBrand !== 'All') {

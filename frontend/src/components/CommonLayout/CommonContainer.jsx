@@ -3,6 +3,7 @@ import { Box, Container } from "@mui/material";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import HelpDrawer from "./HelpDrawer";
+import NotificationScroller from "./NotificationScroller";
 import { FilterContext } from "../../utils/FilterContext";
 import { useAuth } from "../../utils/AuthContext";
 import { HelpProvider, useHelp } from "../../utils/HelpContext";
@@ -12,9 +13,10 @@ export default function CommonContainer({
   filters,
   onFiltersChange,
   hideFilters = false,
+  disablePadding = false,
   children,
 }) {
-  const { platforms } = React.useContext(FilterContext);
+  const { channels, selectedChannel, setSelectedChannel, platforms, platformMetadata, setPlatform, platform } = React.useContext(FilterContext);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user } = useAuth();
@@ -25,7 +27,14 @@ export default function CommonContainer({
       filters={filters}
       onFiltersChange={onFiltersChange}
       hideFilters={hideFilters}
+      disablePadding={disablePadding}
+      channels={channels}
+      selectedChannel={selectedChannel}
+      setSelectedChannel={setSelectedChannel}
       platforms={platforms}
+      platformMetadata={platformMetadata}
+      setPlatform={setPlatform}
+      currentPlatform={platform}
       mobileMenuOpen={mobileMenuOpen}
       setMobileMenuOpen={setMobileMenuOpen}
       isCollapsed={isCollapsed}
@@ -42,7 +51,14 @@ function CommonLayoutContent({
   filters,
   onFiltersChange,
   hideFilters,
+  disablePadding,
+  channels,
+  selectedChannel,
+  setSelectedChannel,
   platforms,
+  platformMetadata,
+  setPlatform,
+  currentPlatform,
   mobileMenuOpen,
   setMobileMenuOpen,
   isCollapsed,
@@ -67,11 +83,20 @@ function CommonLayoutContent({
       }}
     >
       <Sidebar
+        channels={channels}
+        selectedChannel={selectedChannel}
+        onChannelChange={(ch) => {
+          setSelectedChannel(ch);
+          // Clear local filters.platform so the new context platform value flows through
+          onFiltersChange?.((prev) => ({ ...prev, platform: undefined }));
+        }}
         platforms={platforms}
-        selectedPlatform={filters?.platform}
-        onPlatformChange={(p) =>
-          onFiltersChange?.((prev) => ({ ...prev, platform: p }))
-        }
+        platformMetadata={platformMetadata}
+        selectedPlatform={filters?.platform || currentPlatform}
+        onPlatformChange={(p) => {
+          setPlatform?.(p);
+          onFiltersChange?.((prev) => ({ ...prev, platform: p }));
+        }}
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
         isCollapsed={isCollapsed}
@@ -97,6 +122,8 @@ function CommonLayoutContent({
           minHeight: 0, // Ensure flex child shrinking works
         }}
       >
+        <NotificationScroller />
+
         <Header
           title={title}
           onMenuClick={() => setMobileMenuOpen(true)}
@@ -122,11 +149,13 @@ function CommonLayoutContent({
             maxWidth={false}
             disableGutters
             sx={{
-              py: 2,
-              px: { xs: 2, sm: 3 },
+              py: disablePadding ? 0 : 2,
+              px: disablePadding ? 0 : { xs: 2, sm: 3 },
               width: "100%",
               boxSizing: "border-box",
-
+              minHeight: "100%", // Ensures it stretches to fill the flex Box height
+              display: "flex",
+              flexDirection: "column",
               overflowX: "hidden", // 🔥 no horizontal scroll inside content
             }}
           >

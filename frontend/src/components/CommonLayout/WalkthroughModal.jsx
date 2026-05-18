@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ChevronLeft,
@@ -19,21 +19,30 @@ const API_BASE = import.meta.env.VITE_API_URL
 const WalkthroughModal = () => {
     const location = useLocation();
     const { isLoggedIn, user } = useAuth();
-    const [walkthrough, setWalkthrough] = useState(null);
-    const [currentIndex, setCurrentIndex] = useState(0);
+
+    // Queue of walkthroughs to show (each has id, title, steps[], createdOn)
+    const [queue, setQueue] = useState([]);
+    // Index of the current walkthrough in the queue
+    const [queueIndex, setQueueIndex] = useState(0);
+    // Index of the current step within the current walkthrough
+    const [currentStepIndex, setCurrentStepIndex] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
-    const [seenKeys, setSeenKeys] = useState(() => {
-        const saved = localStorage.getItem('seen_walkthroughs');
-        return saved ? JSON.parse(saved) : [];
-    });
+
+    // Track whether we already fetched for this route to avoid re-fetching on
+    // every render while the modal is open
+    const fetchedRouteRef = useRef(null);
 
     useEffect(() => {
         if (!isLoggedIn || !user) return;
 
-        const checkWalkthrough = async () => {
+        const currentRoute = location.pathname;
+
+        // Don't re-fetch if we already checked this route
+        if (fetchedRouteRef.current === currentRoute) return;
+
+        const checkWalkthroughs = async () => {
             try {
                 const token = sessionStorage.getItem("token");
-                const currentRoute = location.pathname;
 
                 console.log(`[WalkthroughModal] Checking route: ${currentRoute}, client: ${user?.dbName}`);
 
@@ -42,40 +51,69 @@ const WalkthroughModal = () => {
                     headers: { Authorization: `Bearer ${token}` }
                 });
 
-                if (response.data.success && response.data.data) {
-                    const data = response.data.data;
-                    // Use walkthrough ID + route as a unique key so each page's
-                    // steps are tracked independently
-                    const seenKey = `${data.id}::${currentRoute}`;
+                if (response.data.success && Array.isArray(response.data.data) && response.data.data.length > 0) {
+                    const walkthroughs = response.data.data;
+                    console.log(`[WalkthroughModal] Received ${walkthroughs.length} walkthrough(s) for route ${currentRoute}`);
 
-                    if (!seenKeys.includes(seenKey)) {
-                        setWalkthrough({ ...data, _seenKey: seenKey });
-                        setIsOpen(true);
-                        setCurrentIndex(0);
-                    }
+                    setQueue(walkthroughs);
+                    setQueueIndex(0);
+                    setCurrentStepIndex(0);
+                    setIsOpen(true);
+                    fetchedRouteRef.current = currentRoute;
+                } else {
+                    // No pending walkthroughs for this route
+                    fetchedRouteRef.current = currentRoute;
                 }
             } catch (err) {
                 console.error('[WalkthroughModal] Error:', err);
             }
         };
 
-        checkWalkthrough();
+        checkWalkthroughs();
     }, [location.pathname, isLoggedIn, user]);
 
-    const handleClose = () => {
-        setIsOpen(false);
-        if (walkthrough) {
-            const updated = [...seenKeys, walkthrough._seenKey];
-            setSeenKeys(updated);
-            localStorage.setItem('seen_walkthroughs', JSON.stringify(updated));
+    // Reset fetched route ref when route changes so we re-check
+    useEffect(() => {
+        fetchedRouteRef.current = null;
+    }, [location.pathname]);
+
+    /**
+     * Called when the user finishes or skips the current walkthrough.
+     * If more walkthroughs are in the queue, advance to the next one.
+     * If this was the last one, close the modal and acknowledge on the server.
+     */
+    const handleFinishCurrent = async () => {
+        const nextIndex = queueIndex + 1;
+
+        if (nextIndex < queue.length) {
+            // More walkthroughs to show
+            setQueueIndex(nextIndex);
+            setCurrentStepIndex(0);
+        } else {
+            // All done — close and acknowledge
+            setIsOpen(false);
+
+            try {
+                const token = sessionStorage.getItem("token");
+                await axios.post(`${API_BASE}/walkthroughs/acknowledge`, {}, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                console.log('[WalkthroughModal] ✅ All walkthroughs acknowledged');
+            } catch (err) {
+                console.error('[WalkthroughModal] Failed to acknowledge:', err);
+            }
         }
     };
 
-    if (!isOpen || !walkthrough || !walkthrough.steps?.length) return null;
+    if (!isOpen || queue.length === 0) return null;
 
-    const currentStep = walkthrough.steps[currentIndex];
-    const totalSteps = walkthrough.steps.length;
-    const isLastStep = currentIndex >= totalSteps - 1;
+    const currentWalkthrough = queue[queueIndex];
+    if (!currentWalkthrough || !currentWalkthrough.steps?.length) return null;
+
+    const currentStep = currentWalkthrough.steps[currentStepIndex];
+    const totalSteps = currentWalkthrough.steps.length;
+    const isLastStep = currentStepIndex >= totalSteps - 1;
+    const totalWalkthroughs = queue.length;
 
     return (
         <AnimatePresence>
@@ -109,7 +147,7 @@ const WalkthroughModal = () => {
                     <div style={{ position: 'relative', height: '220px', overflow: 'hidden', backgroundColor: '#f1f5f9' }}>
                         <AnimatePresence mode="wait">
                             <motion.div
-                                key={currentIndex}
+                                key={`${queueIndex}-${currentStepIndex}`}
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
@@ -143,7 +181,7 @@ const WalkthroughModal = () => {
                         }} />
 
                         {/* Close */}
-                        <button onClick={handleClose} style={{
+                        <button onClick={handleFinishCurrent} style={{
                             position: 'absolute', top: '16px', right: '16px', zIndex: 10,
                             width: '36px', height: '36px', borderRadius: '50%',
                             backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)',
@@ -159,13 +197,13 @@ const WalkthroughModal = () => {
                                 position: 'absolute', bottom: '16px', left: '50%', transform: 'translateX(-50%)',
                                 zIndex: 10, display: 'flex', gap: '6px', alignItems: 'center',
                             }}>
-                                {walkthrough.steps.map((_, i) => (
+                                {currentWalkthrough.steps.map((_, i) => (
                                     <div key={i} style={{
-                                        width: i === currentIndex ? '24px' : '8px',
+                                        width: i === currentStepIndex ? '24px' : '8px',
                                         height: '8px', borderRadius: '100px',
-                                        backgroundColor: i === currentIndex ? '#fff' : 'rgba(255,255,255,0.45)',
+                                        backgroundColor: i === currentStepIndex ? '#fff' : 'rgba(255,255,255,0.45)',
                                         transition: 'all 0.35s cubic-bezier(0.4,0,0.2,1)',
-                                        boxShadow: i === currentIndex ? '0 0 8px rgba(255,255,255,0.5)' : 'none',
+                                        boxShadow: i === currentStepIndex ? '0 0 8px rgba(255,255,255,0.5)' : 'none',
                                     }} />
                                 ))}
                             </div>
@@ -174,6 +212,22 @@ const WalkthroughModal = () => {
 
                     {/* Content */}
                     <div style={{ padding: '24px 28px 20px' }}>
+                        {/* Walkthrough queue indicator (only when multiple walkthroughs) */}
+                        {totalWalkthroughs > 1 && (
+                            <div style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                padding: '3px 8px', borderRadius: '6px',
+                                backgroundColor: '#fef3c7', marginBottom: '8px',
+                            }}>
+                                <span style={{
+                                    fontSize: '10px', fontWeight: 600, color: '#92400e',
+                                    letterSpacing: '0.03em',
+                                }}>
+                                    Update {queueIndex + 1} of {totalWalkthroughs}
+                                </span>
+                            </div>
+                        )}
+
                         {/* Step badge */}
                         <div style={{
                             display: 'inline-flex', alignItems: 'center', gap: '6px',
@@ -188,13 +242,13 @@ const WalkthroughModal = () => {
                                 fontSize: '11px', fontWeight: 600, color: '#4f46e5',
                                 letterSpacing: '0.03em',
                             }}>
-                                Step {currentIndex + 1} of {totalSteps}
+                                Step {currentStepIndex + 1} of {totalSteps}
                             </span>
                         </div>
 
                         <AnimatePresence mode="wait">
                             <motion.div
-                                key={currentIndex}
+                                key={`${queueIndex}-${currentStepIndex}`}
                                 initial={{ opacity: 0, y: 8 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -8 }}
@@ -236,16 +290,16 @@ const WalkthroughModal = () => {
                     <div style={{ padding: '0 28px 24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         {totalSteps > 1 && (
                             <button
-                                disabled={currentIndex === 0}
-                                onClick={() => setCurrentIndex(Math.max(0, currentIndex - 1))}
+                                disabled={currentStepIndex === 0}
+                                onClick={() => setCurrentStepIndex(Math.max(0, currentStepIndex - 1))}
                                 style={{
                                     width: '44px', height: '44px', borderRadius: '12px',
                                     border: '1px solid #e2e8f0',
-                                    backgroundColor: currentIndex === 0 ? '#f8fafc' : '#fff',
-                                    color: currentIndex === 0 ? '#cbd5e1' : '#475569',
+                                    backgroundColor: currentStepIndex === 0 ? '#f8fafc' : '#fff',
+                                    color: currentStepIndex === 0 ? '#cbd5e1' : '#475569',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
-                                    opacity: currentIndex === 0 ? 0.4 : 1, flexShrink: 0,
+                                    cursor: currentStepIndex === 0 ? 'not-allowed' : 'pointer',
+                                    opacity: currentStepIndex === 0 ? 0.4 : 1, flexShrink: 0,
                                 }}
                             >
                                 <ChevronLeft style={{ width: 18, height: 18 }} />
@@ -254,8 +308,8 @@ const WalkthroughModal = () => {
 
                         <button
                             onClick={() => {
-                                if (!isLastStep) setCurrentIndex(currentIndex + 1);
-                                else handleClose();
+                                if (!isLastStep) setCurrentStepIndex(currentStepIndex + 1);
+                                else handleFinishCurrent();
                             }}
                             style={{
                                 flex: 1, height: '44px', borderRadius: '12px', border: 'none',
@@ -279,7 +333,7 @@ const WalkthroughModal = () => {
 
                         {!isLastStep && (
                             <button
-                                onClick={handleClose}
+                                onClick={handleFinishCurrent}
                                 style={{
                                     background: 'none', border: 'none', color: '#94a3b8',
                                     fontSize: '12.5px', fontWeight: 500, cursor: 'pointer',

@@ -2,6 +2,7 @@ import {
     AvailabilityControlTower,
     getAvailabilityOverview,
     getPlatformKpiMatrix,
+    getStandaloneKpiMatrix,
     getOsaPercentageDetail,
     getDOI,
     getMetroCityStockAvailability,
@@ -11,12 +12,17 @@ import {
     getAvailabilityCompetition,
     getAvailabilityCompetitionFilterOptions,
     getAvailabilityCompetitionBrandTrends,
+    getAvailabilityCompetitionSkuTrends,
     getSignalLabData,
     getCityDetailsForProduct,
-    getBrandSkuCityDayLevel
+    getBrandSkuCityDayLevel,
+    getBrandOptions
 } from '../controllers/availabilityAnalysisController.js';
+import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
 
 export default (app) => {
+    app.use('/api/availability-analysis', accessControlMiddleware);
+
     /**
      * @swagger
      * /api/availability-analysis:
@@ -102,6 +108,7 @@ export default (app) => {
      *         description: Successful response
      */
     app.get('/api/availability-analysis/absolute-osa/platform-kpi-matrix', getPlatformKpiMatrix);
+    app.get('/api/availability-analysis/standalone-kpi-matrix', getStandaloneKpiMatrix);
 
     /**
      * @swagger
@@ -317,6 +324,10 @@ export default (app) => {
      *     description: Returns time-series data for comparing multiple brands
      */
     app.get('/api/availability-analysis/competition-brand-trends', getAvailabilityCompetitionBrandTrends);
+    app.post('/api/availability-analysis/competition-brand-trends', getAvailabilityCompetitionBrandTrends);
+    
+    app.get('/api/availability-analysis/competition-sku-trends', getAvailabilityCompetitionSkuTrends);
+    app.post('/api/availability-analysis/competition-sku-trends', getAvailabilityCompetitionSkuTrends);
 
     /**
      * @swagger
@@ -389,5 +400,8 @@ export default (app) => {
 
     // Brand → SKU → City Day-Level ECP
     app.get('/api/availability-analysis/brand-sku-city-day', getBrandSkuCityDayLevel);
+
+    // Brand options for Market Coverage filter modal (from rb_pdp_olap)
+    app.get('/api/availability-analysis/brand-options', getBrandOptions);
 };
 

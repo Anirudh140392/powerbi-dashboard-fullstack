@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, ChevronDown, Check
 import { cn } from '../../lib/utils';
 import { FilterContext } from '../../utils/FilterContext';
 import axiosInstance from '../../api/axiosInstance';
+import MarketShareTrendsCompetitionDrawer from './MarketShareTrendsCompetitionDrawer';
 
 /* ── Sparkline helpers ── */
 const generateSparkData = (currentVal, delta, seed = 0) => {
@@ -102,6 +103,7 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
     const [subCategories, setSubCategories] = useState([]);
     const [brandsData, setBrandsData] = useState([]);
     const [dataLoading, setDataLoading] = useState(true);
+    const [isTrendOpen, setIsTrendOpen] = useState(false);
 
     // Get filters from context
     const {
@@ -321,6 +323,13 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                                         <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-widest">
                                             {kpi.label}
                                         </span>
+                                        <button
+                                            onClick={() => setIsTrendOpen(true)}
+                                            className="p-1.5 hover:bg-slate-100 rounded-lg transition-all duration-200 text-slate-400 hover:text-blue-600 group/trend"
+                                            title="View Trend"
+                                        >
+                                            <TrendingUp size={14} className="group-hover/trend:scale-110 transition-transform" />
+                                        </button>
                                     </div>
                                 </th>
                             ))}
@@ -355,22 +364,13 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                                         return (
                                             <td key={kpi.id} className="px-6 py-4 border-l border-slate-50/30">
                                                 <SparklineCell data={data} kpiId={kpi.id}>
-                                                    <div className={cn(
-                                                        "inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl border transition-all duration-300 cursor-default",
-                                                        getStatusStyles(data.status)
-                                                    )}>
-                                                        <span className="text-[11px] font-extrabold tracking-tight">
+                                                    <div className="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl transition-all duration-300 cursor-default">
+                                                        <span className="text-[11px] font-extrabold tracking-tight text-slate-800">
                                                             {formatValue(data.val, kpi.id)}
                                                         </span>
-                                                        <div className="flex items-center gap-1 opacity-80">
-                                                            {data.delta >= 0 ?
-                                                                <TrendingUp size={10} className="text-emerald-500" /> :
-                                                                <TrendingDown size={10} className="text-rose-500" />
-                                                            }
-                                                            <span className="text-[9px] font-bold">
-                                                                {data.delta >= 0 ? '+' : ''}{data.delta}
-                                                            </span>
-                                                        </div>
+                                                        <span className={cn("text-[10px] font-bold", data.delta >= 0 ? "text-emerald-600" : "text-rose-600")}>
+                                                            {data.delta >= 0 ? '▲' : '▼'} {data.delta >= 0 ? '+' : ''}{data.delta}
+                                                        </span>
                                                     </div>
                                                 </SparklineCell>
                                             </td>
@@ -418,6 +418,12 @@ const SubCategoryMarket = ({ loading: parentLoading }) => {
                     </select>
                 </div>
             </div>
+
+            <MarketShareTrendsCompetitionDrawer
+                open={isTrendOpen}
+                onClose={() => setIsTrendOpen(false)}
+                subCategory={selectedSubCat.length > 0 ? selectedSubCat.join(",") : undefined}
+            />
         </motion.div>
     );
 };

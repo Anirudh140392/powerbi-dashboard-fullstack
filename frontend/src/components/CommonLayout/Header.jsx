@@ -33,6 +33,34 @@ import { ChevronDown, ChevronUp, Search, SlidersHorizontal, X, Layers, Monitor, 
 import { motion, AnimatePresence } from "framer-motion";
 import CustomHeaderDropdown from "./CustomHeaderDropdown";
 import axiosInstance from "../../api/axiosInstance";
+import { useSocket } from "../../utils/SocketContext";
+import dayjs from "dayjs";
+
+// Route → ClickHouse table for max date lookup
+const ROUTE_TABLE_MAP = {
+  "/watch-tower": "rb_pdp_olap",
+  "/market-share": "rb_ms_olap",
+  "/visibility-anlysis": "rb_kw_olap",
+  "/availability-analysis": "rb_pdp_olap",
+  "/on-shelf-availability": "rb_pdp_olap",
+  "/pricing-analysis": "rb_pdp_olap",
+  "/performance-marketing": "rb_pm_olap",
+  "/inventory": "rb_pdp_olap",
+  "/content-score": "tb_content_score_data",
+  "/scheduled-reports": "rb_pdp_olap",
+  "/geo-intelligence": "rb_pdp_olap",
+  "/insights": "rb_pdp_olap",
+  "/sales": "rb_pdp_olap",
+  "/volume-cohort": "rb_pdp_olap",
+};
+
+function getTableForRoute(pathname) {
+  if (ROUTE_TABLE_MAP[pathname]) return ROUTE_TABLE_MAP[pathname];
+  for (const [route, table] of Object.entries(ROUTE_TABLE_MAP)) {
+    if (pathname.startsWith(route)) return table;
+  }
+  return "rb_pdp_olap";
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    WATCH TOWER FILTER MODAL — sidebar tabs + checkbox panel
@@ -42,16 +70,18 @@ const FILTER_TABS = [
   { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
+  { key: "location", label: "City", icon: MapPin },
 ];
 
 function WatchTowerFilterModal({
-  open, onClose,
+  open, onClose, hideChannelPlatform = false,
   channels, selectedChannel, setSelectedChannel,
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
+  locations = [], selectedLocation, setSelectedLocation,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const [activeTab, setActiveTab] = React.useState(hideChannelPlatform ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   // ─── Draft (local) state — never touches FilterContext until Apply ───
@@ -59,11 +89,17 @@ function WatchTowerFilterModal({
   const [draftPlatform, setDraftPlatform] = React.useState(platform);
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
   const [draftBrand, setDraftBrand] = React.useState(selectedBrand);
+  const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
 
   // ─── Local option lists (cascaded from draft selections) ───
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
   const [localBrands, setLocalBrands] = React.useState(brands);
+  const [localLocations, setLocalLocations] = React.useState(locations);
+
+  const availableTabs = hideChannelPlatform
+    ? FILTER_TABS.filter(t => t.key !== "channel" && t.key !== "platform")
+    : FILTER_TABS;
 
   // Sync drafts + local options from context every time the modal opens
   React.useEffect(() => {
@@ -72,19 +108,21 @@ function WatchTowerFilterModal({
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
       setDraftBrand(selectedBrand);
+      setDraftLocation(selectedLocation);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
-      setActiveTab("channel");
+      setLocalLocations(locations);
+      setActiveTab(hideChannelPlatform ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, hideChannelPlatform]);
 
   // ─── CASCADE: when draftChannel changes → fetch available platforms ───
   React.useEffect(() => {
     if (!open) return;
-    const channelParam = draftChannel === "All" ? undefined : (Array.isArray(draftChannel) ? draftChannel.join(",") : draftChannel);
+    const channelParam = draftChannel === "All" ? undefined : (Array.isArray(draftChannel) ? draftChannel.join(",").toLowerCase() : draftChannel.toLowerCase());
 
     // Fetch platforms for this channel (only platforms support the channel param)
     axiosInstance.get("/watchtower/platforms", { params: { channel: channelParam } })
@@ -96,12 +134,12 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
 
           // Also trigger categories/brands refetch for these platforms
-          const platParam = res.data.join(",");
+          const platParam = res.data.join(",").toLowerCase();
           axiosInstance.get("/watchtower/categories", { params: { platform: platParam } })
             .then(catRes => {
               if (catRes.data && Array.isArray(catRes.data) && catRes.data.length > 0) {
@@ -111,7 +149,7 @@ function WatchTowerFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(c => cats.includes(c));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -126,7 +164,7 @@ function WatchTowerFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(b => brandRes.data.includes(b));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === brandRes.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -143,7 +181,7 @@ function WatchTowerFilterModal({
     // Only run when a specific platform is selected (not "All")
     // When "All", the channel cascade already handles categories/brands
     if (draftPlatform === "All") return;
-    const platformParam = Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform;
+    const platformParam = (Array.isArray(draftPlatform) ? draftPlatform.join(",") : draftPlatform).toLowerCase();
 
     axiosInstance.get("/watchtower/categories", { params: { platform: platformParam } })
       .then(res => {
@@ -154,8 +192,8 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -169,8 +207,8 @@ function WatchTowerFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
-            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === res.data.length && res.data.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -183,9 +221,10 @@ function WatchTowerFilterModal({
   // map tab key → { options (local), draftValue, setDraft }
   const tabConfig = {
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
-    platform: { options: localPlatforms, value: draftPlatform, onChange: setDraftPlatform },
+    platform: { options: localPlatforms.filter(p => p !== 'All'), value: draftPlatform, onChange: setDraftPlatform },
     category: { options: localCategories, value: draftCategory, onChange: setDraftCategory },
     brand: { options: localBrands, value: draftBrand, onChange: setDraftBrand },
+    location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -204,19 +243,23 @@ function WatchTowerFilterModal({
 
   const toggle = (opt) => {
     let next;
-    if (selected.includes(opt)) {
-      next = selected.filter(s => s !== opt && s !== "All");
+    if (activeTab === "platform") {
+      next = opt;
     } else {
-      next = [...selected.filter(s => s !== "All"), opt];
+      if (selected.includes(opt)) {
+        next = selected.filter(s => s !== opt && s !== "All");
+      } else {
+        next = [...selected.filter(s => s !== "All"), opt];
+      }
     }
-    if (next.length === options.length && options.length > 0) onChange("All");
+    if (activeTab !== "platform" && next.length === options.length && options.length > 0) onChange("All");
     else onChange(next);
   };
 
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   // count selected for a given filter key (draft-based)
   const countFor = (key) => {
@@ -232,10 +275,19 @@ function WatchTowerFilterModal({
 
   // ─── APPLY: commit all drafts to FilterContext (triggers API calls) ───
   const handleApply = () => {
-    setSelectedChannel(draftChannel);
-    setPlatform(draftPlatform);
-    setSelectedCategory(draftCategory);
-    setSelectedBrand(draftBrand);
+    const normalize = (val) => {
+      if (!val || val === "All") return val;
+      if (Array.isArray(val)) return val.map(v => typeof v === 'string' ? v.toLowerCase() : v);
+      return typeof val === 'string' ? val.toLowerCase() : val;
+    };
+
+    if (!hideChannelPlatform) {
+      setSelectedChannel(normalize(draftChannel));
+      setPlatform(normalize(draftPlatform));
+    }
+    setSelectedCategory(normalize(draftCategory));
+    setSelectedBrand(normalize(draftBrand));
+    if (setSelectedLocation) setSelectedLocation(normalize(draftLocation));
     onClose();
   };
 
@@ -246,14 +298,17 @@ function WatchTowerFilterModal({
 
   // ─── RESET ALL: set all drafts to "All" (not yet committed) ───
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannelPlatform) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
+    setDraftLocation("All");
   };
 
   // total active filter count across all tabs
-  const totalActiveCount = FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog
@@ -335,7 +390,7 @@ function WatchTowerFilterModal({
 
           {/* Tabs */}
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -449,34 +504,38 @@ function WatchTowerFilterModal({
 
             {/* Select all / Clear + Search */}
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.8, mt: 1.5 }}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={selectAll}
-                sx={{
-                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                  fontFamily: "'Inter', 'Roboto', sans-serif",
-                  "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Select all
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={clearAll}
-                sx={{
-                  textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
-                  borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
-                  fontFamily: "'Inter', 'Roboto', sans-serif",
-                  "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
-                  transition: "all 0.15s ease",
-                }}
-              >
-                Clear
-              </Button>
+              {activeTab !== "platform" && (
+                <>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={selectAll}
+                    sx={{
+                      textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                      borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                      fontFamily: "'Inter', 'Roboto', sans-serif",
+                      "&:hover": { borderColor: "#2563eb", color: "#2563eb", bgcolor: "#eff6ff" },
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Select all
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={clearAll}
+                    sx={{
+                      textTransform: "none", borderRadius: "8px", fontSize: "0.72rem", fontWeight: 600,
+                      borderColor: "#e2e8f0", color: "#334155", px: 1.5, py: 0.3,
+                      fontFamily: "'Inter', 'Roboto', sans-serif",
+                      "&:hover": { borderColor: "#ef4444", color: "#ef4444", bgcolor: "#fef2f2" },
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </>
+              )}
               <TextField
                 size="small"
                 placeholder="Search..."
@@ -556,6 +615,7 @@ function WatchTowerFilterModal({
                         color: isChecked ? "#1e40af" : "#475569",
                         fontFamily: "'Inter', 'Roboto', sans-serif",
                         transition: "all 0.15s ease",
+                        textTransform: 'capitalize',
                       }}
                     >
                       {opt}
@@ -637,8 +697,8 @@ function WatchTowerFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const MS_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
+  { key: "brand", label: "Brand", icon: Tag },
 ];
 
 function MarketShareFilterModal({
@@ -646,23 +706,28 @@ function MarketShareFilterModal({
   channels, selectedChannel, setSelectedChannel,
   platforms, platform, setPlatform,
   categories, selectedCategory, setSelectedCategory,
+  osaBrands = [], selectedOsaBrand, setSelectedOsaBrand,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? MS_FILTER_TABS.filter(t => t.key !== "channel") : MS_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
   const [draftPlatform, setDraftPlatform] = React.useState(platform);
   const [draftCategory, setDraftCategory] = React.useState(selectedCategory);
+  const [draftBrand, setDraftBrand] = React.useState(selectedOsaBrand || "All");
 
   React.useEffect(() => {
     if (open) {
       setDraftChannel(selectedChannel);
       setDraftPlatform(platform);
       setDraftCategory(selectedCategory);
-      setActiveTab("channel");
+      setDraftBrand(selectedOsaBrand || "All");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
-  }, [open, selectedChannel, platform, selectedCategory]);
+  }, [open, selectedChannel, platform, selectedCategory, selectedOsaBrand, hideChannel]);
 
   React.useEffect(() => { setSearchTerm(""); }, [activeTab]);
 
@@ -670,6 +735,7 @@ function MarketShareFilterModal({
     channel: { options: channels, value: draftChannel, onChange: setDraftChannel },
     platform: { options: platforms, value: draftPlatform, onChange: setDraftPlatform },
     category: { options: categories, value: draftCategory, onChange: setDraftCategory },
+    brand: { options: osaBrands, value: draftBrand, onChange: setDraftBrand },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -715,6 +781,7 @@ function MarketShareFilterModal({
     setSelectedChannel(draftChannel);
     setPlatform(draftPlatform);
     setSelectedCategory(draftCategory);
+    if (setSelectedOsaBrand) setSelectedOsaBrand(draftBrand);
     onClose();
   };
 
@@ -723,12 +790,15 @@ function MarketShareFilterModal({
   };
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
+    setDraftBrand("All");
   };
 
-  const totalActiveCount = MS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog
@@ -810,7 +880,7 @@ function MarketShareFilterModal({
 
           {/* Tabs */}
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {MS_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -1031,6 +1101,7 @@ function MarketShareFilterModal({
                         color: isChecked ? "#1e40af" : "#475569",
                         fontFamily: "'Inter', 'Roboto', sans-serif",
                         transition: "all 0.15s ease",
+                        textTransform: 'capitalize',
                       }}
                     >
                       {opt}
@@ -1112,7 +1183,6 @@ function MarketShareFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const AVAIL_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -1125,8 +1195,10 @@ function AvailabilityFilterModal({
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? AVAIL_FILTER_TABS.filter(t => t.key !== "channel") : AVAIL_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -1151,11 +1223,11 @@ function AvailabilityFilterModal({
       setLocalCategories(categories);
       setLocalBrands(brands);
       setLocalLocations(locations);
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, hideChannel]);
 
   // CASCADE: draftChannel → platforms, categories, locations
   React.useEffect(() => {
@@ -1170,7 +1242,7 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
 
@@ -1184,7 +1256,7 @@ function AvailabilityFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(c => cats.includes(c));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -1199,7 +1271,7 @@ function AvailabilityFilterModal({
                   if (prev === "All") return "All";
                   const currList = Array.isArray(prev) ? prev : [prev];
                   const valid = currList.filter(l => locRes.data.includes(l));
-                  if (valid.length === 0) return "All";
+                  if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
                   return valid.length === locRes.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
                 });
               }
@@ -1225,8 +1297,8 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1240,8 +1312,8 @@ function AvailabilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(l => res.data.includes(l));
-            if (valid.length === 0) return "All";
-            return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === res.data.length && res.data.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1307,7 +1379,7 @@ function AvailabilityFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = AVAIL_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -1332,14 +1404,16 @@ function AvailabilityFilterModal({
   const handleCancel = () => { onClose(); };
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = AVAIL_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog
@@ -1417,7 +1491,7 @@ function AvailabilityFilterModal({
           </Box>
 
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {AVAIL_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -1633,6 +1707,7 @@ function AvailabilityFilterModal({
                         color: isChecked ? "#1e40af" : "#475569",
                         fontFamily: "'Inter', 'Roboto', sans-serif",
                         transition: "all 0.15s ease",
+                        textTransform: 'capitalize',
                       }}
                     >
                       {opt}
@@ -1713,12 +1788,12 @@ function AvailabilityFilterModal({
    VISIBILITY ANALYSIS FILTER MODAL — Channel, Platform, Category, Keyword Type, Keyword
    ═══════════════════════════════════════════════════════════════════ */
 const VIS_FILTER_TABS = [
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
   { key: "keywordType", label: "Keyword Type", icon: Type },
   { key: "keyword", label: "Keyword", icon: Hash },
+  { key: "rank", label: "Rank", icon: Layers },
 ];
 
 function VisibilityFilterModal({
@@ -1730,6 +1805,7 @@ function VisibilityFilterModal({
   locations = [], selectedLocation, setSelectedLocation,
   keywordTypes = [], selectedKeywordType, setSelectedKeywordType,
   keywords = [], selectedKeyword, setSelectedKeyword,
+  selectedRank, setSelectedRank,
 }) {
   const [activeTab, setActiveTab] = React.useState("platform");
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -1740,6 +1816,7 @@ function VisibilityFilterModal({
   const [draftLocation, setDraftLocation] = React.useState(selectedLocation);
   const [draftKeywordType, setDraftKeywordType] = React.useState(selectedKeywordType);
   const [draftKeyword, setDraftKeyword] = React.useState(selectedKeyword);
+  const [draftRank, setDraftRank] = React.useState(selectedRank);
 
   const [localPlatforms, setLocalPlatforms] = React.useState(platforms);
   const [localCategories, setLocalCategories] = React.useState(categories);
@@ -1747,6 +1824,7 @@ function VisibilityFilterModal({
   const [localLocations, setLocalLocations] = React.useState(locations);
   const [localKeywordTypes, setLocalKeywordTypes] = React.useState(keywordTypes);
   const [localKeywords, setLocalKeywords] = React.useState(keywords);
+  const [localRanks] = React.useState(["Top 10", "Top 20", "Top 30", "Top 40"]);
 
   React.useEffect(() => {
     if (open) {
@@ -1756,6 +1834,7 @@ function VisibilityFilterModal({
       setDraftLocation(selectedLocation);
       setDraftKeywordType(selectedKeywordType);
       setDraftKeyword(selectedKeyword);
+      setDraftRank(selectedRank);
       setLocalPlatforms(platforms);
       setLocalCategories(categories);
       setLocalBrands(brands);
@@ -1780,7 +1859,7 @@ function VisibilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -1804,8 +1883,8 @@ function VisibilityFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
-            return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return (valid.length === cats.length && cats.length > 0) ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
       })
@@ -1820,7 +1899,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(k => kts.includes(k));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -1836,7 +1916,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(k => kws.includes(k));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -1859,7 +1940,8 @@ function VisibilityFilterModal({
             if (prev === "All" || (Array.isArray(prev) && prev.includes("All"))) return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            return valid.length > 0 ? valid : "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
+            return valid;
           });
         }
       })
@@ -1876,6 +1958,7 @@ function VisibilityFilterModal({
     location: { options: localLocations, value: draftLocation, onChange: setDraftLocation },
     keywordType: { options: localKeywordTypes, value: draftKeywordType, onChange: setDraftKeywordType },
     keyword: { options: localKeywords, value: draftKeyword, onChange: setDraftKeyword },
+    rank: { options: localRanks, value: draftRank, onChange: setDraftRank },
   };
 
   const { options, value, onChange } = tabConfig[activeTab];
@@ -1892,12 +1975,16 @@ function VisibilityFilterModal({
 
   const toggle = (opt) => {
     let next;
-    if (selected.includes(opt)) {
-      next = selected.filter(s => s !== opt && s !== "All");
+    if (activeTab === "rank") {
+      next = opt;
     } else {
-      next = [...selected.filter(s => s !== "All"), opt];
+      if (selected.includes(opt)) {
+        next = selected.filter(s => s !== opt && s !== "All");
+      } else {
+        next = [...selected.filter(s => s !== "All"), opt];
+      }
     }
-    if (next.length === options.length && options.length > 0) onChange("All");
+    if (activeTab !== "rank" && next.length === options.length && options.length > 0) onChange("All");
     else onChange(next);
   };
 
@@ -1924,6 +2011,7 @@ function VisibilityFilterModal({
     setSelectedLocation(draftLocation);
     setSelectedKeywordType(draftKeywordType);
     setSelectedKeyword(draftKeyword);
+    setSelectedRank(draftRank);
     onClose();
   };
 
@@ -1936,6 +2024,7 @@ function VisibilityFilterModal({
     setDraftLocation("All");
     setDraftKeywordType(["All"]);
     setDraftKeyword(["All"]);
+    setDraftRank("Top 10");
   };
 
   const totalActiveCount = VIS_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
@@ -2037,7 +2126,7 @@ function VisibilityFilterModal({
                     sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)" } }}
                   >
                     <Checkbox size="small" checked={isChecked} sx={{ p: 0.3, color: "#cbd5e1", "&.Mui-checked": { color: "#2563eb" }, transition: "all 0.15s ease" }} />
-                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease" }}>{opt}</Typography>
+                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: 'capitalize' }}>{opt}</Typography>
                   </Box>
                 );
               })
@@ -2063,7 +2152,6 @@ function VisibilityFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const PRICING_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -2076,8 +2164,10 @@ function PricingFilterModal({
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? PRICING_FILTER_TABS.filter(t => t.key !== "channel") : PRICING_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   // ─── Draft (local) state — never touches FilterContext until Apply ───
@@ -2123,7 +2213,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2147,7 +2237,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2163,7 +2253,7 @@ function PricingFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2207,7 +2297,7 @@ function PricingFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = PRICING_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -2232,14 +2322,16 @@ function PricingFilterModal({
   const handleCancel = () => onClose();
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = PRICING_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: "18px", boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)", overflow: "hidden", height: "540px", display: "flex", flexDirection: "column", background: "#fff", } }}>
@@ -2255,7 +2347,7 @@ function PricingFilterModal({
             </Box>
           </Box>
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {PRICING_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -2301,7 +2393,7 @@ function PricingFilterModal({
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
                     <Checkbox size="small" checked={isChecked} sx={{ p: 0.3, color: "#cbd5e1", "&.Mui-checked": { color: "#2563eb" }, transition: "all 0.15s ease", }} />
-                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", }}>{opt}</Typography>
+                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: 'capitalize' }}>{opt}</Typography>
                   </Box>
                 );
               })
@@ -2325,7 +2417,6 @@ function PricingFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const PERFORMANCE_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -2338,8 +2429,10 @@ function PerformanceFilterModal({
   categories = [], selectedCategory, setSelectedCategory,
   brands = [], selectedBrand, setSelectedBrand,
   locations = [], selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? PERFORMANCE_FILTER_TABS.filter(t => t.key !== "channel") : PERFORMANCE_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -2383,7 +2476,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2407,7 +2500,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2423,7 +2516,7 @@ function PerformanceFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2467,7 +2560,7 @@ function PerformanceFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = PERFORMANCE_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -2492,14 +2585,16 @@ function PerformanceFilterModal({
   const handleCancel = () => onClose();
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = PERFORMANCE_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: "18px", boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)", overflow: "hidden", height: "540px", display: "flex", flexDirection: "column", background: "#fff", } }}>
@@ -2515,7 +2610,7 @@ function PerformanceFilterModal({
             </Box>
           </Box>
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {PERFORMANCE_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -2561,7 +2656,7 @@ function PerformanceFilterModal({
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
                     <Checkbox size="small" checked={isChecked} sx={{ p: 0.3, color: "#cbd5e1", "&.Mui-checked": { color: "#2563eb" }, transition: "all 0.15s ease", }} />
-                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", }}>{opt}</Typography>
+                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: 'capitalize' }}>{opt}</Typography>
                   </Box>
                 );
               })
@@ -2585,7 +2680,6 @@ function PerformanceFilterModal({
    ═══════════════════════════════════════════════════════════════════ */
 const CONTENT_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -2598,8 +2692,10 @@ function ContentFilterModal({
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
   locations, selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? CONTENT_FILTER_TABS.filter(t => t.key !== "channel") : CONTENT_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -2624,11 +2720,11 @@ function ContentFilterModal({
       setLocalCategories(categories);
       setLocalBrands(brands);
 
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, hideChannel]);
 
   // CASCADE: Channel -> Platforms
   React.useEffect(() => {
@@ -2643,7 +2739,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2667,7 +2763,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => cats.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === cats.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2683,7 +2779,7 @@ function ContentFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2727,7 +2823,7 @@ function ContentFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = CONTENT_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -2752,14 +2848,16 @@ function ContentFilterModal({
   const handleCancel = () => onClose();
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = CONTENT_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: "18px", boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)", overflow: "hidden", height: "540px", display: "flex", flexDirection: "column", background: "#fff", } }}>
@@ -2775,7 +2873,7 @@ function ContentFilterModal({
             </Box>
           </Box>
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {CONTENT_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -2821,7 +2919,7 @@ function ContentFilterModal({
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
                     <Checkbox size="small" checked={isChecked} sx={{ p: 0.3, color: "#cbd5e1", "&.Mui-checked": { color: "#2563eb" }, transition: "all 0.15s ease", }} />
-                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", }}>{opt}</Typography>
+                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: 'capitalize' }}>{opt}</Typography>
                   </Box>
                 );
               })
@@ -2842,7 +2940,6 @@ function ContentFilterModal({
 
 const INVENTORY_FILTER_TABS = [
   { key: "channel", label: "Channel", icon: Layers },
-  { key: "platform", label: "Platform", icon: Monitor },
   { key: "category", label: "Category", icon: LayoutGrid },
   { key: "brand", label: "Brand", icon: Tag },
   { key: "location", label: "Location", icon: MapPin },
@@ -2855,8 +2952,10 @@ function InventoryFilterModal({
   categories, selectedCategory, setSelectedCategory,
   brands, selectedBrand, setSelectedBrand,
   locations, selectedLocation, setSelectedLocation,
+  hideChannel = false,
 }) {
-  const [activeTab, setActiveTab] = React.useState("channel");
+  const availableTabs = hideChannel ? INVENTORY_FILTER_TABS.filter(t => t.key !== "channel") : INVENTORY_FILTER_TABS;
+  const [activeTab, setActiveTab] = React.useState(hideChannel ? "category" : "channel");
   const [searchTerm, setSearchTerm] = React.useState("");
 
   const [draftChannel, setDraftChannel] = React.useState(selectedChannel);
@@ -2883,11 +2982,11 @@ function InventoryFilterModal({
       setLocalBrands(brands);
       setLocalLocations(locations);
 
-      setActiveTab("channel");
+      setActiveTab(hideChannel ? "category" : "channel");
       setSearchTerm("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, hideChannel]);
 
   // CASCADE: Channel -> Platforms
   React.useEffect(() => {
@@ -2902,7 +3001,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(p => res.data.includes(p));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2923,7 +3022,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(c => res.data.includes(c));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2945,7 +3044,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(b => res.data.includes(b));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -2968,7 +3067,7 @@ function InventoryFilterModal({
             if (prev === "All") return "All";
             const currList = Array.isArray(prev) ? prev : [prev];
             const valid = currList.filter(l => res.data.includes(l));
-            if (valid.length === 0) return "All";
+            if (valid.length === 0) return (Array.isArray(prev) && prev.length === 0) ? [] : "All";
             return valid.length === res.data.length ? "All" : (valid.length === 1 ? valid[0] : valid);
           });
         }
@@ -3013,7 +3112,7 @@ function InventoryFilterModal({
   const selectAll = () => onChange("All");
   const clearAll = () => onChange([]);
 
-  const tabMeta = INVENTORY_FILTER_TABS.find(t => t.key === activeTab);
+  const tabMeta = availableTabs.find(t => t.key === activeTab);
 
   const countFor = (key) => {
     const cfg = tabConfig[key];
@@ -3038,14 +3137,16 @@ function InventoryFilterModal({
   const handleCancel = () => onClose();
 
   const handleResetAll = () => {
-    setDraftChannel("All");
-    setDraftPlatform("All");
+    if (!hideChannel) {
+      setDraftChannel("All");
+      setDraftPlatform("All");
+    }
     setDraftCategory("All");
     setDraftBrand("All");
     setDraftLocation("All");
   };
 
-  const totalActiveCount = INVENTORY_FILTER_TABS.reduce((sum, t) => sum + countFor(t.key), 0);
+  const totalActiveCount = availableTabs.reduce((sum, t) => sum + countFor(t.key), 0);
 
   return (
     <Dialog open={open} onClose={handleCancel} maxWidth="md" fullWidth PaperProps={{ sx: { borderRadius: "18px", boxShadow: "0 30px 60px -15px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.04)", overflow: "hidden", height: "540px", display: "flex", flexDirection: "column", background: "#fff", } }}>
@@ -3061,7 +3162,7 @@ function InventoryFilterModal({
             </Box>
           </Box>
           <Box sx={{ pt: 1.5, pb: 1, flex: 1 }}>
-            {INVENTORY_FILTER_TABS.map(tab => {
+            {availableTabs.map(tab => {
               const isActive = activeTab === tab.key;
               const cnt = countFor(tab.key);
               const TabIcon = tab.icon;
@@ -3107,7 +3208,7 @@ function InventoryFilterModal({
                 return (
                   <Box key={opt} onClick={() => toggle(opt)} sx={{ display: "flex", alignItems: "center", gap: 1.5, px: 1.5, py: 1, mx: 0.5, my: 0.3, cursor: "pointer", borderRadius: "10px", bgcolor: isChecked ? "#eff6ff" : "transparent", border: isChecked ? "1px solid #bfdbfe" : "1px solid transparent", transition: "all 0.15s cubic-bezier(0.4, 0, 0.2, 1)", "&:hover": { bgcolor: isChecked ? "#dbeafe" : "#f8fafc", transform: "translateX(2px)", }, }}>
                     <Checkbox size="small" checked={isChecked} sx={{ p: 0.3, color: "#cbd5e1", "&.Mui-checked": { color: "#2563eb" }, transition: "all 0.15s ease", }} />
-                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", }}>{opt}</Typography>
+                    <Typography sx={{ fontSize: "0.84rem", fontWeight: isChecked ? 600 : 450, color: isChecked ? "#1e40af" : "#475569", fontFamily: "'Inter', 'Roboto', sans-serif", transition: "all 0.15s ease", textTransform: 'capitalize' }}>{opt}</Typography>
                   </Box>
                 );
               })
@@ -3126,7 +3227,7 @@ function InventoryFilterModal({
   );
 }
 
-const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false }) => {
+const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersChange, hideFilters = false }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [filterModalOpen, setFilterModalOpen] = React.useState(false);
   const [availFilterModalOpen, setAvailFilterModalOpen] = React.useState(false);
@@ -3136,6 +3237,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
   const [marketShareFilterModalOpen, setMarketShareFilterModalOpen] = React.useState(false);
   const [contentFilterModalOpen, setContentFilterModalOpen] = React.useState(false);
   const [inventoryFilterModalOpen, setInventoryFilterModalOpen] = React.useState(false);
+  const [osaFilterModalOpen, setOsaFilterModalOpen] = React.useState(false);
+  const [osaBrands, setOsaBrands] = React.useState([]);
 
   const {
     channels,
@@ -3160,6 +3263,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     setTimeStart,
     timeEnd,
     setTimeEnd,
+    setUserSetDate,
     compareStart,
     setCompareStart,
     compareEnd,
@@ -3173,9 +3277,80 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
     datesFetched,
     visibilityMode,
     setVisibilityMode,
+    selectedRank,
+    setSelectedRank,
   } = React.useContext(FilterContext);
 
+  const { socketMaxDates } = useSocket();
+
+  const currentChannel = filters?.channel || selectedChannel;
+  const currentPlatform = filters?.platform || platform;
+  const currentBrand = filters?.brand || selectedBrand;
+
   const location = useLocation();
+
+  React.useEffect(() => {
+    if (location.pathname === "/market-coverage" || location.pathname === "/on-shelf-availability") {
+      const fetchOsaBrands = async () => {
+        try {
+          const res = await axiosInstance.get('/availability-analysis/brand-options', {
+            params: {
+              platform: currentPlatform,
+              channel: currentChannel,
+              category: selectedCategory
+            }
+          });
+          setOsaBrands(["All", ...(res.data.brands || [])]);
+        } catch (error) {
+          console.error("Failed to fetch OSA Brands:", error);
+          setOsaBrands(["All"]);
+        }
+      };
+      fetchOsaBrands();
+    }
+  }, [location.pathname, currentPlatform, currentChannel, selectedCategory]);
+
+  const tableName = React.useMemo(() => getTableForRoute(location.pathname), [location.pathname]);
+
+  const formattedDate = React.useMemo(() => {
+    const socketDate = socketMaxDates?.[tableName];
+    const dateToUse = socketDate || maxDate;
+    if (!dateToUse) return "—";
+    const d = dayjs(dateToUse);
+    return d.isValid() ? d.format("DD MMM YYYY") : "—";
+  }, [socketMaxDates, tableName, maxDate]);
+
+  const localSetSelectedChannel = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, channel: val }));
+    } else {
+      setSelectedChannel(val);
+    }
+  };
+
+  const localSetPlatform = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, platform: val }));
+    } else {
+      setPlatform(val);
+    }
+  };
+
+  const localSetSelectedOsaBrand = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, brand: val }));
+    } else {
+      setSelectedBrand(val);
+    }
+  };
+
+  const localSetSelectedCategory = (val) => {
+    if (onFiltersChange) {
+      onFiltersChange(prev => ({ ...prev, category: val }));
+    } else {
+      setSelectedCategory(val);
+    }
+  };
 
   // 🌗 Dark/Light Mode
 
@@ -3268,36 +3443,24 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                 <Box sx={{ display: "flex", flexDirection: "column" }}>
                   <Typography
                     fontWeight="600"
-                    sx={{ whiteSpace: "nowrap", lineHeight: 1.2, fontSize: { xs: "0.9rem", sm: "1.0rem" } }}
+                    sx={{ whiteSpace: "nowrap", lineHeight: 1.2, fontSize: { xs: "0.9rem", sm: "1.0rem" }, color: "#1e3a5f" }}
                   >
                     {title}
                   </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: "0.7rem",
+                      fontWeight: 500,
+                      color: "#64748b",
+                      mt: 0.2,
+                      fontFamily: "'Inter', sans-serif",
+                    }}
+                  >
+                    Data Updated: <span style={{ color: "#2563eb", fontWeight: 700 }}>{formattedDate}</span>
+                  </Typography>
                   {title === "Availability Analysis" || title === "Visibility Analysis" ? (
                     <>
-                      <Box sx={{ display: 'flex', mt: 0.5, bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
-                        {channels?.filter(c => c !== 'All').map((c) => (
-                          <Box
-                            key={c}
-                            onClick={() => setSelectedChannel(c)}
-                            sx={{
-                              px: 1.5, py: 0.3,
-                              fontSize: '0.65rem',
-                              fontWeight: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? 700 : 500,
-                              color: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '#2563eb' : '#64748b',
-                              bgcolor: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '#ffffff' : 'transparent',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              boxShadow: selectedChannel === c || (Array.isArray(selectedChannel) && selectedChannel.includes(c)) ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                              transition: 'all 0.2s',
-                              fontFamily: "'Inter', 'Roboto', sans-serif"
-                            }}
-                          >
-                            {c}
-                          </Box>
-                        ))}
-                      </Box>
-
-                      {/* SOS / BSR Toggle below Channel Switch */}
+                      {/* Channel Switch Removed as per user request */}                      {/* SOS / BSR Toggle below Channel Switch */}
                       {title === "Visibility Analysis" && (['ecommerce', 'e-commerce', 'ecom'].includes(selectedChannel?.toLowerCase())) && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
                           <Box sx={{ display: 'flex', bgcolor: '#f1f5f9', borderRadius: '8px', p: '3px', width: 'fit-content', border: '1px solid #e2e8f0' }}>
@@ -3317,22 +3480,33 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                             >
                               Share of Shelf
                             </Box>
-                            <Box
-                              onClick={() => setVisibilityMode('bsr')}
-                              sx={{
-                                px: 1.2, py: 0.2,
-                                fontSize: '0.6rem',
-                                fontWeight: visibilityMode === 'bsr' ? 700 : 500,
-                                color: visibilityMode === 'bsr' ? '#ffffff' : '#64748b',
-                                bgcolor: visibilityMode === 'bsr' ? '#6366f1' : 'transparent',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                fontFamily: "'Inter', 'Roboto', sans-serif"
-                              }}
-                            >
-                              BSR
-                            </Box>
+                            {(() => {
+                              const isAmazon = platform === 'Amazon' || platform === 'amazon' || (Array.isArray(platform) && platform.some(p => p?.toLowerCase() === 'amazon'));
+                              const isBsrDisabled = isAmazon;
+
+                              return (
+                                <Box
+                                  onClick={() => {
+                                    if (isBsrDisabled) return;
+                                    setVisibilityMode('bsr');
+                                  }}
+                                  sx={{
+                                    px: 1.2, py: 0.2,
+                                    fontSize: '0.6rem',
+                                    fontWeight: visibilityMode === 'bsr' ? 700 : 500,
+                                    color: visibilityMode === 'bsr' ? '#ffffff' : (isBsrDisabled ? '#94a3b8' : '#64748b'),
+                                    bgcolor: visibilityMode === 'bsr' ? '#6366f1' : 'transparent',
+                                    borderRadius: '6px',
+                                    cursor: isBsrDisabled ? 'not-allowed' : 'pointer',
+                                    opacity: isBsrDisabled ? 0.5 : 1,
+                                    transition: 'all 0.2s',
+                                    fontFamily: "'Inter', 'Roboto', sans-serif"
+                                  }}
+                                >
+                                  BSR
+                                </Box>
+                              );
+                            })()}
                           </Box>
 
                           <Tooltip title="BSR page contains only Amazon platform data" arrow placement="top">
@@ -3343,31 +3517,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                         </Box>
                       )}
                     </>
-                  ) : title !== "Performance Marketing" && (
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                      <Box
-                        sx={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: "50%",
-                          bgcolor: "#22C55E",
-                          flexShrink: 0
-                        }}
-                      />
-                      <Typography
-                        sx={{
-                          fontSize: "0.65rem",
-                          fontWeight: 600,
-                          color: "#64748b",
-                          maxWidth: { xs: "150px", sm: "none" },
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                      </Typography>
-                    </Box>
-                  )}
+                  ) : null}
                 </Box>
               )}
             </Box>
@@ -3393,12 +3543,12 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
             >
 
               {/* ============ WATCH TOWER / MARKET SHARE / PRICING ANALYSIS / INVENTORY ANALYSIS: SINGLE FILTER BUTTON ============ */}
-              {(title === "Business Overview" || title === "Market Share" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
+              {(title === "Business Overview" || title === "Insights" || title === "Market Share" || title === "Market Coverage" || title === "Availability Analysis" || title === "Visibility Analysis" || title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") ? (
                 <>
                   <Box sx={{ display: "flex", alignItems: "flex-end" }}>
                     <Button
                       onClick={() => {
-                        if (title === "Business Overview") setFilterModalOpen(true);
+                        if (title === "Business Overview" || title === "Insights") setFilterModalOpen(true);
                         else if (title === "Market Share") setMarketShareFilterModalOpen(true);
                         else if (title === "Availability Analysis") setAvailFilterModalOpen(true);
                         else if (title === "Visibility Analysis") setVisibilityFilterModalOpen(true);
@@ -3406,6 +3556,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                         else if (title === "Performance Marketing") setPerformanceFilterModalOpen(true);
                         else if (title === "Content Analysis") setContentFilterModalOpen(true);
                         else if (title === "Inventory Analysis") setInventoryFilterModalOpen(true);
+                        else if (title === "Market Coverage") setOsaFilterModalOpen(true);
                       }}
                       variant="contained"
                       startIcon={<SlidersHorizontal size={14} strokeWidth={2.5} />}
@@ -3433,8 +3584,10 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       Filters
                       {(() => {
                         let count = 0;
-                        if (selectedChannel !== "All" && !(Array.isArray(selectedChannel) && selectedChannel.length === channels.length)) count++;
-                        if (platform !== "All" && !(Array.isArray(platform) && platform.length === platforms.length)) count++;
+                        if (title !== "Business Overview") {
+                          if (currentChannel !== "All" && !(Array.isArray(currentChannel) && currentChannel.length === channels.length)) count++;
+                          if (currentPlatform !== "All" && !(Array.isArray(currentPlatform) && currentPlatform.length === platforms.length)) count++;
+                        }
                         if (selectedCategory !== "All" && !(Array.isArray(selectedCategory) && selectedCategory.length === categories.length)) count++;
                         if (title === "Availability Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
@@ -3443,9 +3596,12 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedKeywordType !== "All" && !(Array.isArray(selectedKeywordType) && selectedKeywordType.includes("All"))) count++;
                           if (selectedKeyword !== "All" && !(Array.isArray(selectedKeyword) && selectedKeyword.includes("All"))) count++;
+                          if (selectedRank !== "All" && !(Array.isArray(selectedRank) && selectedRank.includes("All"))) count++;
                         } else if (title === "Pricing Analysis" || title === "Performance Marketing" || title === "Content Analysis" || title === "Inventory Analysis") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.includes("All"))) count++;
                           if (selectedLocation !== "All" && !(Array.isArray(selectedLocation) && selectedLocation.length === locations.length)) count++;
+                        } else if (title === "Market Coverage") {
+                          if (currentBrand !== "All" && !(Array.isArray(currentBrand) && currentBrand.includes("All"))) count++;
                         } else if (title !== "Market Share") {
                           if (selectedBrand !== "All" && !(Array.isArray(selectedBrand) && selectedBrand.length === brands.length)) count++;
                         }
@@ -3476,22 +3632,26 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                   </Box>
 
                   {/* WATCH TOWER FILTER MODAL */}
-                  {title === "Business Overview" && (
+                  {(title === "Business Overview" || title === "Insights") && (
                     <WatchTowerFilterModal
                       open={filterModalOpen}
                       onClose={() => setFilterModalOpen(false)}
+                      hideChannelPlatform={false}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      locations={title === "Insights" ? ['Chandigarh', 'Delhi', 'Gurugram', 'Faridabad', 'Lucknow', 'Kolkata', 'Ahmedabad', 'Mumbai', 'Pune', 'Hyderabad', 'Bengaluru', 'Chennai'] : locations}
+                      selectedLocation={selectedLocation}
+                      setSelectedLocation={setSelectedLocation}
                     />
                   )}
 
@@ -3501,14 +3661,38 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={marketShareFilterModalOpen}
                       onClose={() => setMarketShareFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
+                      osaBrands={brands}
+                      selectedOsaBrand={selectedBrand}
+                      setSelectedOsaBrand={setSelectedBrand}
+                      hideChannel={true}
+                    />
+                  )}
+
+                  {/* MARKET COVERAGE FILTER MODAL */}
+                  {title === "Market Coverage" && (
+                    <MarketShareFilterModal
+                      open={osaFilterModalOpen}
+                      onClose={() => setOsaFilterModalOpen(false)}
+                      channels={channels}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
+                      platforms={platforms}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
+                      categories={categories}
+                      selectedCategory={selectedCategory}
+                      setSelectedCategory={localSetSelectedCategory}
+                      osaBrands={osaBrands}
+                      selectedOsaBrand={currentBrand}
+                      setSelectedOsaBrand={localSetSelectedOsaBrand}
                     />
                   )}
 
@@ -3518,11 +3702,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={availFilterModalOpen}
                       onClose={() => setAvailFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3532,6 +3716,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       brands={brands}
                       selectedBrand={selectedBrand}
                       setSelectedBrand={setSelectedBrand}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3540,10 +3725,10 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     <VisibilityFilterModal
                       open={visibilityFilterModalOpen}
                       onClose={() => setVisibilityFilterModalOpen(false)}
-                      selectedChannel={selectedChannel}
+                      selectedChannel={currentChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={visibilityCategories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3559,6 +3744,8 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       keywords={keywords}
                       selectedKeyword={selectedKeyword}
                       setSelectedKeyword={setSelectedKeyword}
+                      selectedRank={selectedRank}
+                      setSelectedRank={setSelectedRank}
                     />
                   )}
 
@@ -3568,11 +3755,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={pricingFilterModalOpen}
                       onClose={() => setPricingFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3582,6 +3769,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3591,11 +3779,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={performanceFilterModalOpen}
                       onClose={() => setPerformanceFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3605,6 +3793,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3614,11 +3803,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={contentFilterModalOpen}
                       onClose={() => setContentFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3628,6 +3817,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      hideChannel={true}
                     />
                   )}
 
@@ -3637,11 +3827,11 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       open={inventoryFilterModalOpen}
                       onClose={() => setInventoryFilterModalOpen(false)}
                       channels={channels}
-                      selectedChannel={selectedChannel}
-                      setSelectedChannel={setSelectedChannel}
+                      selectedChannel={currentChannel}
+                      setSelectedChannel={localSetSelectedChannel}
                       platforms={platforms}
-                      platform={platform}
-                      setPlatform={setPlatform}
+                      platform={currentPlatform}
+                      setPlatform={localSetPlatform}
                       categories={categories}
                       selectedCategory={selectedCategory}
                       setSelectedCategory={setSelectedCategory}
@@ -3651,6 +3841,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                       locations={locations}
                       selectedLocation={selectedLocation}
                       setSelectedLocation={setSelectedLocation}
+                      hideChannel={true}
                     />
                   )}
                 </>
@@ -3661,21 +3852,12 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                   <CustomHeaderDropdown
                     label="CHANNEL"
                     options={channels}
-                    value={selectedChannel}
-                    onChange={(newValue) => setSelectedChannel(newValue)}
+                    value={currentChannel}
+                    onChange={(newValue) => localSetSelectedChannel(newValue)}
                     width={{ xs: "calc(50% - 6px)", sm: 130 }}
                     multiSelect={true}
                   />
 
-                  {/* PLATFORM SELECTION */}
-                  <CustomHeaderDropdown
-                    label="PLATFORM"
-                    options={platforms}
-                    value={platform}
-                    onChange={(newValue) => setPlatform(newValue)}
-                    width={{ xs: "calc(50% - 6px)", sm: 115 }}
-                    multiSelect={true}
-                  />
 
                   {/* CATEGORY SELECTION */}
                   <CustomHeaderDropdown
@@ -3760,6 +3942,7 @@ const Header = ({ title = "Business Overview", onMenuClick, hideFilters = false 
                     onApply={(start, end, cStart, cEnd, compareOn, label) => {
                       setTimeStart(start);
                       setTimeEnd(end);
+                      setUserSetDate(true);
 
                       // Format label for KPI cards
                       let formattedLabel = "VS PREV. PERIOD";

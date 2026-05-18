@@ -3,6 +3,7 @@ import CommonContainer from "../../components/CommonLayout/CommonContainer";
 import VisiblityAnalysisData from "../../components/AllVisiblityAnalysis/VisiblityAnalysisData";
 import { FilterContext } from "../../utils/FilterContext";
 import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
 import dayjs from "dayjs";
 
 export default function VisibilityAnalysis() {
@@ -17,9 +18,12 @@ export default function VisibilityAnalysis() {
     selectedChannel,
     timeStart,
     timeEnd,
+    compareStart,
+    compareEnd,
     selectedZone,
     selectedMetroFlag,
     selectedPincode,
+    selectedRank,
     refreshFilters,
   } = useContext(FilterContext);
 
@@ -40,10 +44,13 @@ export default function VisibilityAnalysis() {
     zone: selectedZone || "All",
     metroFlag: selectedMetroFlag || "All",
     pincode: selectedPincode || "All",
+    rank: selectedRank || "All",
     months: 6,
     timeStep: "Weekly",
     startDate: null,  // Will be set after fetching latest available dates
-    endDate: null     // Will be set after fetching latest available dates
+    endDate: null,    // Will be set after fetching latest available dates
+    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
   });
 
   // Ref to track last fetched filters to prevent duplicate API calls
@@ -116,8 +123,12 @@ export default function VisibilityAnalysis() {
     const currentZone = selectedZone || filters.zone;
     const currentMetroFlag = selectedMetroFlag || filters.metroFlag;
     const currentPincode = selectedPincode || filters.pincode;
+    const currentRank = selectedRank || filters.rank;
     const currentStartDate = timeStart ? dayjs(timeStart).format('YYYY-MM-DD') : filters.startDate;
     const currentEndDate = timeEnd ? dayjs(timeEnd).format('YYYY-MM-DD') : filters.endDate;
+
+    const currentCompareStart = compareStart ? compareStart.format('YYYY-MM-DD') : filters.compareStartDate;
+    const currentCompareEnd = compareEnd ? compareEnd.format('YYYY-MM-DD') : filters.compareEndDate;
 
     if (
       currentPlatform !== filters.platform ||
@@ -130,8 +141,11 @@ export default function VisibilityAnalysis() {
       currentZone !== filters.zone ||
       currentMetroFlag !== filters.metroFlag ||
       currentPincode !== filters.pincode ||
+      currentRank !== filters.rank ||
       currentStartDate !== filters.startDate ||
-      currentEndDate !== filters.endDate
+      currentEndDate !== filters.endDate ||
+      currentCompareStart !== filters.compareStartDate ||
+      currentCompareEnd !== filters.compareEndDate
     ) {
       console.log('🗓️ [Visibility] Syncing filters from global context');
       setFilters(prev => ({
@@ -146,11 +160,14 @@ export default function VisibilityAnalysis() {
         keywordType: currentKeywordType,
         category: currentCategory,
         channel: currentChannel,
+        rank: currentRank,
         startDate: currentStartDate,
-        endDate: currentEndDate
+        endDate: currentEndDate,
+        compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : null,
+        compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : null
       }));
     }
-  }, [platform, selectedBrand, selectedLocation, selectedZone, selectedMetroFlag, selectedPincode, selectedKeyword, selectedKeywordType, selectedCategory, selectedChannel, timeStart, timeEnd]);
+  }, [platform, selectedBrand, selectedLocation, selectedZone, selectedMetroFlag, selectedPincode, selectedKeyword, selectedKeywordType, selectedCategory, selectedChannel, selectedRank, timeStart, timeEnd, compareStart, compareEnd]);
 
   // Restore comprehensive platform list from rca_sku_dim on mount
   // (Prevents subsetting from other pages like Performance Marketing)
@@ -195,7 +212,7 @@ export default function VisibilityAnalysis() {
       setApiData(prev => ({ ...prev, overview: data }));
       return true;
     } catch (err) {
-      if (axiosInstance.isCancel(err)) return false;
+      if (axios.isCancel(err)) return false;
       console.error('❌ [Visibility] Overview fetch error:', err);
       setApiErrors(prev => ({ ...prev, overview: err.message }));
       return false;
@@ -204,16 +221,35 @@ export default function VisibilityAnalysis() {
     }
   };
 
-  const fetchVisibilityMatrix = async (matrixParams, signal) => {
+  const fetchVisibilityMatrix = async (signal) => {
     try {
       setLoading(prev => ({ ...prev, matrix: true }));
       setApiErrors(prev => ({ ...prev, matrix: null }));
-      const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${matrixParams}`, { signal });
+      // Platform KPI Matrix uses selected platform filter or defaults to All
+      const matrixBaseParams = {
+        platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+        brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+        location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
+        zone: filters.zone || 'All',
+        metroFlag: filters.metroFlag || 'All',
+        pincode: filters.pincode || 'All',
+        keyword: filters.keyword || 'All',
+        keywordType: filters.keywordType || 'All',
+        category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
+        channel: filters.channel || 'All',
+        rank: filters.rank || 'All',
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        compareStartDate: filters.compareStartDate || '',
+        compareEndDate: filters.compareEndDate || ''
+      };
+      const crossPlatformParams = new URLSearchParams(matrixBaseParams).toString();
+      const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${crossPlatformParams}`, { signal });
       const data = res.data;
       setApiData(prev => ({ ...prev, matrix: data }));
       return true;
     } catch (err) {
-      if (axiosInstance.isCancel(err)) return false;
+      if (axios.isCancel(err)) return false;
       console.error('❌ [Visibility] Platform KPI Matrix fetch error:', err);
       setApiErrors(prev => ({ ...prev, matrix: err.message }));
       return false;
@@ -231,7 +267,7 @@ export default function VisibilityAnalysis() {
       setApiData(prev => ({ ...prev, keywords: data }));
       return true;
     } catch (err) {
-      if (axiosInstance.isCancel(err)) return false;
+      if (axios.isCancel(err)) return false;
       console.error('❌ [Visibility] Keywords at Glance fetch error:', err);
       setApiErrors(prev => ({ ...prev, keywords: err.message }));
       return false;
@@ -251,7 +287,7 @@ export default function VisibilityAnalysis() {
       setApiData(prev => ({ ...prev, gainersAndDrainers: data }));
       return true;
     } catch (err) {
-      if (axiosInstance.isCancel(err)) return false;
+      if (axios.isCancel(err)) return false;
       console.error('❌ [Visibility] Gainers & Drainers fetch error:', err);
       setApiErrors(prev => ({ ...prev, gainersAndDrainers: err.message }));
       return false;
@@ -268,34 +304,40 @@ export default function VisibilityAnalysis() {
     }
 
     const baseParams = {
-      platform: filters.platform || 'All',
-      brand: filters.brand || 'All',
-      location: filters.location || 'All',
+      platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+      brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+      location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
-      category: filters.category || 'All',
+      category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel || 'All',
+      rank: filters.rank || 'All',
       startDate: filters.startDate,
-      endDate: filters.endDate
+      endDate: filters.endDate,
+      compareStartDate: filters.compareStartDate || '',
+      compareEndDate: filters.compareEndDate || ''
     };
 
     const queryParams = new URLSearchParams(baseParams).toString();
     const matrixParams = new URLSearchParams({
-      platform: filters.platform || 'All',
-      brand: filters.brand || 'All',
-      location: filters.location || 'All',
+      platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+      brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+      location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
       keyword: filters.keyword || 'All',
       keywordType: filters.keywordType || 'All',
-      category: filters.category || 'All',
+      category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel || 'All',
+      rank: filters.rank || 'All',
       startDate: filters.startDate,
-      endDate: filters.endDate
+      endDate: filters.endDate,
+      compareStartDate: filters.compareStartDate || '',
+      compareEndDate: filters.compareEndDate || ''
     }).toString();
 
 
     switch (segmentKey) {
       case 'overview': return fetchVisibilityOverview(queryParams);
-      case 'matrix': return fetchVisibilityMatrix(matrixParams);
+      case 'matrix': return fetchVisibilityMatrix();
       case 'keywords': return fetchVisibilityKeywords(queryParams);
       case 'gainersAndDrainers': return fetchVisibilityGainersAndDrainers(queryParams);
       default: return false;
@@ -321,15 +363,18 @@ export default function VisibilityAnalysis() {
 
     // Create a stable key for main global filters only
     const mainFiltersKey = JSON.stringify({
-      platform: filters.platform,
-      brand: filters.brand,
-      location: filters.location || 'All',
+      platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+      brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+      location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
       keyword: filters.keyword,
       keywordType: filters.keywordType,
-      category: filters.category,
+      category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
       channel: filters.channel,
+      rank: filters.rank,
       startDate: filters.startDate,
       endDate: filters.endDate,
+      compareStartDate: filters.compareStartDate,
+      compareEndDate: filters.compareEndDate,
     });
 
     // Create a stable key to detect actual filter changes
@@ -378,18 +423,21 @@ export default function VisibilityAnalysis() {
     const fetchData = async () => {
       try {
         const baseParams = {
-          platform: filters.platform || 'All',
-          brand: filters.brand || 'All',
-          location: filters.location || 'All',
+          platform: (filters.platform && filters.platform !== 'All') ? (Array.isArray(filters.platform) ? filters.platform.join(',').toLowerCase() : String(filters.platform).toLowerCase()) : 'All',
+          brand: (filters.brand && filters.brand !== 'All') ? (Array.isArray(filters.brand) ? filters.brand.join(',').toLowerCase() : String(filters.brand).toLowerCase()) : 'All',
+          location: (filters.location && filters.location !== 'All') ? (Array.isArray(filters.location) ? filters.location.join(',').toLowerCase() : String(filters.location).toLowerCase()) : 'all',
           zone: filters.zone || 'All',
           metroFlag: filters.metroFlag || 'All',
           pincode: filters.pincode || 'All',
           keyword: filters.keyword || 'All',
           keywordType: filters.keywordType || 'All',
-          category: filters.category || 'All',
+          category: (filters.category && filters.category !== 'All') ? (Array.isArray(filters.category) ? filters.category.join(',').toLowerCase() : String(filters.category).toLowerCase()) : 'All',
           channel: filters.channel || 'All',
+          rank: filters.rank || 'All',
           startDate: filters.startDate,
-          endDate: filters.endDate
+          endDate: filters.endDate,
+          compareStartDate: filters.compareStartDate || '',
+          compareEndDate: filters.compareEndDate || ''
         };
 
         const queryParams = new URLSearchParams(baseParams).toString();
@@ -403,7 +451,7 @@ export default function VisibilityAnalysis() {
         if (isMainFilterChange) {
           fetchPromises.push(
             fetchVisibilityOverview(queryParams, abortController.signal),
-            fetchVisibilityMatrix(matrixParams, abortController.signal),
+            fetchVisibilityMatrix(abortController.signal),
             fetchVisibilityKeywords(queryParams, abortController.signal),
             fetchVisibilityGainersAndDrainers(queryParams, abortController.signal)
           );
@@ -411,7 +459,7 @@ export default function VisibilityAnalysis() {
 
         await Promise.allSettled(fetchPromises);
       } catch (error) {
-        if (axiosInstance.isCancel(error)) {
+        if (axios.isCancel(error)) {
           console.log('Fetch operation cancelled by AbortController');
         } else {
           console.error("[Visibility] Error setting up data fetch:", error);

@@ -42,7 +42,7 @@ export const getTrendData = async (req, res) => {
         // UPDATED: Extract all 4 filter keys with default values
         const filters = {
             platform: req.query.platform || "All",
-            location: "All",
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             brand: req.query.brand || "All",
             category: req.query.category || "All",
             channel: req.query.channel,
@@ -94,6 +94,16 @@ export const getPlatforms = async (req, res) => {
     }
 };
 
+export const getPmPlatforms = async (req, res) => {
+    try {
+        const platforms = await watchTowerService.getPmPlatforms();
+        res.json(platforms);
+    } catch (error) {
+        console.error('Error fetching PM platforms:', error);
+        res.json([]);
+    }
+};
+
 export const getPlatformChannels = async (req, res) => {
     try {
         const platformChannels = await watchTowerService.getPlatformChannels();
@@ -104,12 +114,32 @@ export const getPlatformChannels = async (req, res) => {
     }
 };
 
+export const getPlatformMetadata = async (req, res) => {
+    try {
+        const metadata = await watchTowerService.getPlatformMetadata();
+        res.json(metadata);
+    } catch (error) {
+        console.error('Error fetching platform metadata:', error);
+        res.json([]);
+    }
+};
+
 export const getChannels = async (req, res) => {
     try {
         const channels = await watchTowerService.getChannels();
         res.json(channels);
     } catch (error) {
         console.error('Error fetching channels:', error);
+        res.json([]);
+    }
+};
+
+export const getPdpPlatforms = async (req, res) => {
+    try {
+        const platforms = await watchTowerService.getPdpPlatforms();
+        res.json(platforms);
+    } catch (error) {
+        console.error('Error fetching PDP platforms:', error);
         res.json([]);
     }
 };
@@ -295,7 +325,7 @@ export const getKpiTrends = async (req, res) => {
         // UPDATED: Extract all 4 filter keys with default values
         const filters = {
             platform: req.query.platform || "All",
-            location: "All",
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             brand: req.query.brand || "All",
             category: req.query.category || "All",
             channel: req.query.channel,
@@ -339,7 +369,7 @@ export const getCompetition = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: 'All',
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             category: req.query.category || 'All',
             brand: req.query.brand || 'All',
             sku: req.query.sku || 'All',
@@ -362,11 +392,13 @@ export const getCompetition = async (req, res) => {
  */
 export const getCompetitionFilterOptions = async (req, res) => {
     try {
-        const { platform, category, brand, context } = req.query;
-        console.log('[getCompetitionFilterOptions] API call with:', { platform, location: 'All', category, brand, context });
+        const filters = { ...req.query, ...req.body };
+        const { platform, location, category, brand, context } = filters;
+        const resolvedLocation = location && location !== 'All India' ? location : 'All';
+        console.log('[getCompetitionFilterOptions] API call with:', { platform, location: resolvedLocation, category, brand, context });
         const data = await watchTowerService.getCompetitionFilterOptions({
             platform: platform || 'All',
-            location: 'All',
+            location: resolvedLocation,
             category: category || 'All',
             brand: brand || 'All',
             context: context || undefined
@@ -381,18 +413,24 @@ export const getCompetitionFilterOptions = async (req, res) => {
 
 /**
  * Get multi-brand KPI trends for Competition page
- * GET /api/watchtower/competition-brand-trends
+ * GET/POST /api/watchtower/competition-brand-trends
+ * POST body supports `skus` as an array (for SKU names containing commas)
  */
 export const getCompetitionBrandTrends = async (req, res) => {
     try {
-        const { brands, skus, category, period } = req.query;
-        console.log('[getCompetitionBrandTrends] Request:', { brands, skus, location: 'All', category, period });
+        // Merge query params and body to support both GET and POST
+        const params = { ...req.query, ...req.body };
+        const { brands, skus, category, period, location, platform, timeStep } = params;
+        const resolvedLocation = location && location !== 'All India' ? location : 'All';
+        console.log('[getCompetitionBrandTrends] Request:', { brands, skus: Array.isArray(skus) ? `[array:${skus.length}]` : skus, location: resolvedLocation, platform, category, period, timeStep });
         const data = await watchTowerService.getCompetitionBrandTrends({
             brands,
             skus,
-            location: 'All',
+            location: resolvedLocation,
+            platform: platform || 'All',
             category,
-            period
+            period,
+            timeStep
         });
 
         res.json(data);
@@ -410,7 +448,7 @@ export const getDarkStoreCount = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: 'All',
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
             startDate: req.query.startDate,
             endDate: req.query.endDate
@@ -432,7 +470,7 @@ export const getTopActions = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: 'All',
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
             endDate: req.query.endDate
         };
@@ -452,7 +490,7 @@ export const getOsaDeepDive = async (req, res) => {
     try {
         const filters = {
             platform: req.query.platform || 'All',
-            location: 'All',
+            location: req.query.location && req.query.location !== 'All India' ? req.query.location : 'All',
             channel: req.query.channel,
             endDate: req.query.endDate
         };
@@ -549,5 +587,30 @@ export const getProductCategories = async (req, res) => {
     } catch (error) {
         console.error('[getProductCategories] Error:', error.message, error.stack);
         res.status(500).json({ error: error.message, stack: error.stack });
+    }
+};
+
+/**
+ * Get Max Dates for all key tables (REST fallback for WebSocket)
+ * GET /api/watchtower/max-dates-all
+ * Returns the same data as the WebSocket `maxDateUpdate` event.
+ * Used when WebSocket is unavailable (e.g., nginx not proxying /socket.io).
+ */
+export const getMaxDatesAll = async (req, res) => {
+    try {
+        const { fetchMaxDates } = await import('../config/socket.js');
+        const dbName = req.user?.dbName;
+        if (!dbName) {
+            return res.status(400).json({ error: 'No database context available' });
+        }
+        console.log(`[getMaxDatesAll] Fetching max dates for db: ${dbName}`);
+        const dates = await fetchMaxDates(dbName);
+        res.json({
+            ...dates,
+            updatedAt: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error('[getMaxDatesAll] Error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch max dates' });
     }
 };

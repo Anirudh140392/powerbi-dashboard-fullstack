@@ -14,11 +14,12 @@ import {
     PieChart,
     Wallet,
     MousePointer2,
-    MapPin
+    MapPin,
+    Info
 } from 'lucide-react'
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
+import { AreaChart, Area, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 import { cn } from '../../lib/utils'
-import { Skeleton, Box, Card, Typography, IconButton } from '@mui/material'
+import { Skeleton, Box, Card, Typography, IconButton, Tooltip } from '@mui/material'
 import { HelpOutline as HelpIcon } from "@mui/icons-material";
 import { useHelp } from "../../utils/HelpContext";
 import React, { useRef, useState, useEffect, useMemo } from 'react'
@@ -145,7 +146,8 @@ function HoverPopover({ open, anchorRect, children, onMouseEnter, onMouseLeave }
  * ActionableMetricCard: Premium styled card for the bottom row (Performance Metrics).
  * NOW WITH HOVER TRENDS!
  */
-const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
+const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1", helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     // Hover State Logic (Copied from ComparisonCard)
     const [open, setOpen] = useState(false);
     const [period, setPeriod] = useState(14);
@@ -227,6 +229,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 
     const hoverDeltaStr = `${scaledDelta >= 0 ? '+' : ''}${hoverDeltaPct}${suffix}`;
 
+    const isNA = !kpi.value || kpi.value === '-' || String(kpi.value).trim() === '0' || String(kpi.value).trim() === '0%' || String(kpi.value).trim() === '₹0M' || String(kpi.value).trim() === '₹0';
 
     const onCardEnter = (e) => {
         if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
@@ -258,6 +261,7 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
+                    position: 'relative',
                     transition: "all 300ms ease",
                     cursor: 'pointer',
                     "&:hover": {
@@ -271,20 +275,78 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
                     <div className="flex items-center gap-1.5">
                         <Icon size={16} color={themeColor} strokeWidth={2.5} />
                         <Typography sx={{ fontSize: "10px", fontWeight: 600, color: "text.secondary", tracking: '0.01em' }}>
-                            {kpi.title}
+                            {kpi.label || kpi.title}
                         </Typography>
                     </div>
+                    {kpi.infoTooltip && (
+                        <Box sx={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
+                            <Tooltip
+                                title={
+                                    <Box>
+                                        <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                            {kpi.infoTooltip}
+                                        </Typography>
+                                        <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: '#60a5fa',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 600,
+                                                    fontSize: '11px',
+                                                    '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                                }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                                }}
+                                            >
+                                                Learn more →
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                }
+                                arrow
+                                placement="top"
+                                enterDelay={200}
+                                leaveDelay={100}
+                                slotProps={{
+                                    tooltip: {
+                                        sx: {
+                                            bgcolor: '#1e293b',
+                                            color: '#f8fafc',
+                                            borderRadius: '10px',
+                                            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                            maxWidth: 300,
+                                            px: 1.5,
+                                            py: 1,
+                                        }
+                                    },
+                                    arrow: { sx: { color: '#1e293b' } }
+                                }}
+                            >
+                                <span
+                                    className="flex items-center cursor-help"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <Info size={12} color="#94a3b8" strokeWidth={2} />
+                                </span>
+                            </Tooltip>
+                        </Box>
+                    )}
                 </Box>
 
                 <div className="flex items-end justify-between w-full mb-0.5">
                     <Typography sx={{ fontSize: "22px", fontWeight: 700, color: themeColor, lineHeight: 1, letterSpacing: "-0.01em" }}>
-                        {kpi.value}
+                        {isNA ? 'N/A' : kpi.value}
                     </Typography>
 
-                    <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
-                        <DeltaIcon size={10} strokeWidth={3} />
-                        <span className="text-[14px] font-bold">{deltaLabel}</span>
-                    </div>
+                    {!isNA && (
+                        <div className={`flex items-center gap-0.5 ${deltaColor} bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100`}>
+                            <DeltaIcon size={10} strokeWidth={3} />
+                            <span className="text-[14px] font-bold">{deltaLabel}</span>
+                        </div>
+                    )}
                 </div>
 
                 <Typography sx={{ fontSize: "9px", color: "text.disabled", fontWeight: 500, mt: 0.5 }}>
@@ -298,7 +360,8 @@ const ActionableMetricCard = ({ kpi, loading = false, color = "#6366f1" }) => {
 /**
  * ComparisonCard: Squarish design as per user image.
  */
-const ComparisonCard = ({ kpi, loading = false }) => {
+const ComparisonCard = ({ kpi, loading = false, helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     const [open, setOpen] = useState(false);
     const [period, setPeriod] = useState(14);
     const [anchorRect, setAnchorRect] = useState(null);
@@ -385,6 +448,7 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'flex-start',
+                    position: 'relative',
                     transition: "all 400ms cubic-bezier(0.4, 0, 0.2, 1)",
                     cursor: 'pointer',
                     "&:hover": {
@@ -411,15 +475,144 @@ const ComparisonCard = ({ kpi, loading = false }) => {
                         <DeltaIcon size={12} strokeWidth={2.5} />
                         <span className="text-[14px] font-bold">{deltaLabel}</span>
                     </div>
+
+                    {kpi.infoTooltip && (
+                        <div className="absolute top-4 right-4 z-10">
+                            <Tooltip
+                                title={
+                                    <Box>
+                                        <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>
+                                            {kpi.infoTooltip}
+                                        </Typography>
+                                        <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    color: '#60a5fa',
+                                                    cursor: 'pointer',
+                                                    fontWeight: 600,
+                                                    fontSize: '11px',
+                                                    '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                                }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                                }}
+                                            >
+                                                Learn more →
+                                            </Typography>
+                                        </Box>
+                                    </Box>
+                                }
+                                arrow
+                                placement="top"
+                                enterDelay={200}
+                                leaveDelay={100}
+                                slotProps={{
+                                    tooltip: {
+                                        sx: {
+                                            bgcolor: '#1e293b',
+                                            color: '#f8fafc',
+                                            borderRadius: '10px',
+                                            boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                            maxWidth: 300,
+                                            px: 1.5,
+                                            py: 1,
+                                        }
+                                    },
+                                    arrow: { sx: { color: '#1e293b' } }
+                                }}
+                            >
+                                <span className="flex items-center cursor-help ml-0.5" onClick={(e) => e.stopPropagation()}>
+                                    <Info size={14} color="#94a3b8" strokeWidth={2} />
+                                </span>
+                            </Tooltip>
+                        </div>
+                    )}
                 </div>
 
                 <Typography sx={{ fontSize: "1.75rem", fontWeight: 700, color: "#111827", lineHeight: 1, mb: 1, tracking: '-0.02em' }}>
                     {kpi.value}
                 </Typography>
 
-                <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
-                    {kpi.title}
-                </Typography>
+                <div className="flex items-center gap-1">
+                    <Typography sx={{ fontSize: "11.5px", fontWeight: 500, color: "#64748b", tracking: '0.01em' }}>
+                        {kpi.title}
+                    </Typography>
+                    {kpi.id === 'offtake' && (kpi.organicSales || kpi.inorganicSales) && (
+                        <Tooltip
+                            title={
+                                <Box sx={{ p: 0.5, minWidth: 200 }}>
+                                    <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 1, fontSize: '12px' }}>
+                                        Offtake Sales Breakdown
+                                    </Typography>
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#22c55e' }} />
+                                                <Typography variant="caption" sx={{ fontWeight: 500 }}>Organic Sales</Typography>
+                                            </Box>
+                                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                                {kpi.organicSales || 'N/A'}
+                                            </Typography>
+                                        </Box>
+                                        {kpi.organicPct != null && (
+                                            <Box sx={{ width: '100%', height: 4, bgcolor: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                                                <Box sx={{ width: `${kpi.organicPct}%`, height: '100%', bgcolor: '#22c55e', borderRadius: 2 }} />
+                                            </Box>
+                                        )}
+                                        <Typography variant="caption" sx={{ fontSize: '10px', textAlign: 'right', color: '#ffffff', fontWeight: 500 }}>
+                                            {kpi.organicPct != null ? `${kpi.organicPct.toFixed(1)}% of total` : ''}
+                                        </Typography>
+
+                                        <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.15)', pt: 1 }} />
+
+                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#f59e0b' }} />
+                                                <Typography variant="caption" sx={{ fontWeight: 500 }}>Inorganic Sales</Typography>
+                                            </Box>
+                                            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                                {kpi.inorganicSales || 'N/A'}
+                                            </Typography>
+                                        </Box>
+                                        {kpi.inorganicPct != null && (
+                                            <Box sx={{ width: '100%', height: 4, bgcolor: 'rgba(255,255,255,0.15)', borderRadius: 2, overflow: 'hidden' }}>
+                                                <Box sx={{ width: `${kpi.inorganicPct}%`, height: '100%', bgcolor: '#f59e0b', borderRadius: 2 }} />
+                                            </Box>
+                                        )}
+                                        <Typography variant="caption" sx={{ fontSize: '10px', textAlign: 'right', color: '#ffffff', fontWeight: 500 }}>
+                                            {kpi.inorganicPct != null ? `${kpi.inorganicPct.toFixed(1)}% of total` : ''}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ mt: 1.5, pt: 1, borderTop: '1px solid rgba(255,255,255,0.25)' }}>
+                                        <Typography variant="caption" sx={{ fontStyle: 'italic', fontSize: '10.5px', color: '#ffffff', fontWeight: 500 }}>
+                                            * Organic Sales = Offtake - Inorganic Sales
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            }
+                            arrow
+                            placement="top"
+                            slotProps={{
+                                tooltip: {
+                                    sx: {
+                                        bgcolor: '#1e293b',
+                                        color: '#ffffff',
+                                        borderRadius: '10px',
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                                        maxWidth: 300,
+                                        px: 1.5,
+                                        py: 1,
+                                    }
+                                },
+                                arrow: { sx: { color: '#1e293b' } }
+                            }}
+                        >
+                            <Info size={14} className="text-slate-400 hover:text-slate-600 transition-colors cursor-help" />
+                        </Tooltip>
+                    )}
+                </div>
             </Card>
         </>
     )
@@ -428,7 +621,8 @@ const ComparisonCard = ({ kpi, loading = false }) => {
 /**
  * DetailedSparklineCard: Clean, detailed card for Visibility/Availability pages.
  */
-const DetailedSparklineCard = ({ kpi, loading = false }) => {
+const DetailedSparklineCard = ({ kpi, loading = false, helpMenu }) => {
+    const { openHelpWithMenu } = useHelp();
     if (loading) {
         return (
             <Card sx={{ p: 3, height: "100%", borderRadius: "1rem", boxShadow: "sm", border: "1px solid", borderColor: "slate.200" }}>
@@ -452,7 +646,18 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                 <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-slate-100/40 to-transparent rounded-full translate-y-6 -translate-x-6" />
 
                 <div className="px-5 pt-5 pb-3 flex-1 relative z-10">
-                    <h3 className="text-sm font-semibold text-slate-500 mb-3">{kpi.title}</h3>
+                    <div className="flex items-center justify-between gap-1.5 mb-3">
+                        <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                        {kpi.infoTooltip && (
+                            <Tooltip
+                                title={<Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>}
+                                arrow placement="top" enterDelay={200} leaveDelay={100}
+                                slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
+                            >
+                                <span className="flex items-center cursor-help"><Info size={14} color="#94a3b8" strokeWidth={2} /></span>
+                            </Tooltip>
+                        )}
+                    </div>
 
                     <div className="flex flex-col items-center justify-center py-4 gap-3">
                         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center shadow-lg shadow-violet-200/50">
@@ -496,6 +701,16 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
         );
     }
 
+    const chartData = useMemo(() => {
+        if (!kpi.trendSeries) return [];
+        return kpi.trendSeries.map((item, i) => {
+            if (typeof item === 'object' && item !== null) {
+                return { i, v: item.value, label: item.label };
+            }
+            return { i, v: item, label: `Day ${i + 1}` };
+        });
+    }, [kpi.trendSeries]);
+
     const isPositive = (kpi.delta || 0) >= 0;
     const deltaColor = isPositive ? "text-emerald-600" : "text-rose-600";
     const deltaIcon = isPositive ? "▲" : "▼";
@@ -507,7 +722,40 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
     return (
         <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg flex flex-col h-full font-roboto">
             <div className="px-5 pt-5 pb-3 flex-1">
-                <h3 className="text-sm font-semibold text-slate-500 mb-1">{kpi.title}</h3>
+                <div className="flex items-center justify-between gap-1.5 mb-1">
+                    <h3 className="text-sm font-semibold text-slate-500 mb-0">{kpi.title}</h3>
+                    {kpi.infoTooltip && (
+                        <Tooltip
+                            title={
+                                <Box>
+                                    <Typography sx={{ fontSize: '12px', lineHeight: 1.5, p: 0.5 }}>{kpi.infoTooltip}</Typography>
+                                    <Box sx={{ mt: 1, pt: 0.5, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'flex-end' }}>
+                                        <Typography
+                                            variant="caption"
+                                            sx={{
+                                                color: '#60a5fa',
+                                                cursor: 'pointer',
+                                                fontWeight: 600,
+                                                fontSize: '11px',
+                                                '&:hover': { textDecoration: 'underline', color: '#93c5fd' }
+                                            }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openHelpWithMenu(helpMenu || 'Visibility Analysis');
+                                            }}
+                                        >
+                                            Learn more →
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            }
+                            arrow placement="top" enterDelay={200} leaveDelay={100}
+                            slotProps={{ tooltip: { sx: { bgcolor: '#1e293b', color: '#f8fafc', borderRadius: '10px', boxShadow: '0 10px 30px rgba(0,0,0,0.2)', maxWidth: 300, px: 1.5, py: 1 } }, arrow: { sx: { color: '#1e293b' } } }}
+                        >
+                            <span className="flex items-center cursor-help"><Info size={14} color="#94a3b8" strokeWidth={2} /></span>
+                        </Tooltip>
+                    )}
+                </div>
 
                 <div className="mb-4">
                     <div className="text-3xl font-bold text-slate-900 tracking-tight leading-none mb-2">
@@ -581,18 +829,24 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
             {/* Sparkline Area */}
             <div className="h-16 w-full px-0 mt-auto opacity-80 group-hover:opacity-100 transition-opacity">
                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={kpi.trendSeries?.map((v, i) => ({ i, v })) || []} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                    <AreaChart data={chartData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                         <defs>
                             <linearGradient id={`grad-${kpi.id}`} x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0.2} />
-                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#6366f1"} stopOpacity={0} />
+                                <stop offset="5%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.08} />
+                                <stop offset="95%" stopColor={kpi.gradient?.[0] || "#2563EB"} stopOpacity={0.01} />
                             </linearGradient>
                         </defs>
-                        <Tooltip 
-                            contentStyle={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', minWidth: 'auto', border: 'none', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
-                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#6366f1" }}
-                            labelStyle={{ display: 'none' }}
+                        <RechartsTooltip 
+                            contentStyle={{ fontSize: '10px', padding: '4px 8px', borderRadius: '8px', minWidth: 'auto', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+                            itemStyle={{ fontSize: '10px', padding: 0, color: kpi.gradient?.[0] || "#2563EB", fontWeight: 'bold' }}
+                            labelStyle={{ fontSize: '10px', color: '#64748b', marginBottom: '2px', fontWeight: '500' }}
                             cursor={{ stroke: 'rgba(0,0,0,0.05)', strokeWidth: 1 }}
+                            labelFormatter={(label, payload) => {
+                                if (payload && payload.length > 0 && payload[0].payload.label) {
+                                    return payload[0].payload.label;
+                                }
+                                return label;
+                            }}
                             formatter={(value) => {
                                 if (typeof value !== 'number') return [value, ''];
                                 let isCurrency = kpi.title?.toLowerCase().includes('sales') || kpi.title?.toLowerCase().includes('size') || kpi.title?.toLowerCase().includes('(cr)');
@@ -607,7 +861,7 @@ const DetailedSparklineCard = ({ kpi, loading = false }) => {
                         <Area
                             type="monotone"
                             dataKey="v"
-                            stroke={kpi.gradient?.[0] || "#6366f1"}
+                            stroke={kpi.gradient?.[0] || "#2563EB"}
                             strokeWidth={2}
                             fill={`url(#grad-${kpi.id})`}
                             fillOpacity={1}
@@ -662,10 +916,41 @@ const SnapshotOverview = ({
             kpis.find(k => normalize(k.title) === 'share_of_search' || k.id === 'sos');
         const isSosWait = performanceLoading && !sosItem;
 
-        let topRowItems = baseTop.map((kpi, idx) => ({
-            ...kpi,
-            trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
-        }));
+        // Extract organic/inorganic sales data from performanceData to attach to Offtake KPI
+        const inorganicPerfItem = performanceData.find(p => p.id === 'inorganic') || {};
+        const organicSalesVal = inorganicPerfItem.organicSales || null;
+        const inorganicSalesVal = inorganicPerfItem.value || null;
+
+        // Parse numeric values for percentage calculation
+        const parseVal = (v) => {
+            if (!v || v === 'N/A') return 0;
+            const str = String(v).replace(/[₹,\s]/g, '');
+            const match = str.match(/([\d.]+)/);
+            if (!match) return 0;
+            let num = parseFloat(match[1]);
+            if (str.toLowerCase().includes('cr')) num *= 10000000;
+            else if (str.toLowerCase().includes('lac') || str.toLowerCase().includes('lak')) num *= 100000;
+            else if (str.toLowerCase().includes('k')) num *= 1000;
+            return num;
+        };
+        const organicNum = parseVal(organicSalesVal);
+        const inorganicNum = parseVal(inorganicSalesVal);
+        const totalSplit = organicNum + inorganicNum;
+
+        let topRowItems = baseTop.map((kpi, idx) => {
+            const enriched = {
+                ...kpi,
+                trendSeries: makeSeries(40 + idx * 10, 30, 0.15 + idx * 0.02, seed)
+            };
+            // Attach organic/inorganic data to Offtake KPI
+            if (normalize(kpi.title) === 'offtake' || normalize(kpi.title) === 'offtakes' || kpi.id === 'offtake') {
+                enriched.organicSales = organicSalesVal;
+                enriched.inorganicSales = inorganicSalesVal;
+                enriched.organicPct = totalSplit > 0 ? (organicNum / totalSplit) * 100 : null;
+                enriched.inorganicPct = totalSplit > 0 ? (inorganicNum / totalSplit) * 100 : null;
+            }
+            return enriched;
+        });
 
         if (sosItem || isSosWait) {
             const sosKpi = sosItem ? {
@@ -676,7 +961,8 @@ const SnapshotOverview = ({
                 deltaLabel: sosItem.tag,
                 icon: Eye,
                 gradient: ['#6366f1', '#8b5cf6'],
-                trendSeries: makeSeries(35, 30, 0.12, seed)
+                trendSeries: makeSeries(35, 30, 0.12, seed),
+                infoTooltip: sosItem.infoTooltip || "Share of Search is calculated based on Top 10 rank positions.\n\nData Refresh: Platform-scraped insights are refreshed daily by 10:00 AM."
             } : {
                 id: 'sos_top_loading',
                 title: 'Share of Search',
@@ -702,15 +988,21 @@ const SnapshotOverview = ({
         // --- Bottom Row Logic ---
 
         // 1. Inorganic Sales
-        const inorganicItem = kpis.find(k => normalize(k.title) === 'inorganic_sales');
+        let inorganicItem = kpis.find(k => normalize(k.title) === 'inorganic_sales');
+        if (!inorganicItem) inorganicItem = { title: 'Inorganic Sales', id: 'inorganic_sales' };
+        inorganicItem.infoTooltip = inorganicItem.infoTooltip || "Sales generated through paid channels, including advertisements and sponsored placements.\n\nData Refresh: Sales data is typically updated daily and available by 2:00 PM.";
         const inorganicPerf = performanceData.find(p => p.id === 'inorganic') || {};
 
         // 2. Conversion
-        const conversionItem = kpis.find(k => normalize(k.title) === 'conversion') || { title: 'Conversion', id: 'conversion' };
+        let conversionItem = kpis.find(k => normalize(k.title) === 'conversion');
+        if (!conversionItem) conversionItem = { title: 'Conversion', id: 'conversion' };
+        conversionItem.infoTooltip = conversionItem.infoTooltip || "The rate at which user interactions (such as clicks or views) result in a purchase.";
         const conversionPerf = performanceData.find(p => p.id === 'conversion') || { id: 'conversion' };
 
         // 3. ROAS
-        const roasItem = kpis.find(k => normalize(k.title) === 'roas');
+        let roasItem = kpis.find(k => normalize(k.title) === 'roas');
+        if (!roasItem) roasItem = { title: 'ROAS', id: 'roas' };
+        roasItem.infoTooltip = roasItem.infoTooltip || "The revenue generated for every unit of advertising spend.";
         const roasPerf = performanceData.find(p => p.id === 'roas_new') || {};
 
         // Helper to check for zero/empty
@@ -732,6 +1024,8 @@ const SnapshotOverview = ({
                 icon: icon,
                 gradient: gradient,
                 subtitle: footer,
+                infoTooltip: baseItem?.infoTooltip,
+                organicSales: baseItem?.organicSales || perfItem?.organicSales,
                 trendSeries: makeSeries(50 + idx * 5, 30, 0.1, seed)
             };
         };
@@ -771,6 +1065,7 @@ const SnapshotOverview = ({
             icon: ShoppingCart,
             gradient: ['#3b82f6', '#60a5fa'],
             subtitle: ordersItem?.footer || ordersPerf?.footer || "Ad Quantity Sold",
+            infoTooltip: ordersItem?.infoTooltip || "The total number of completed purchase transactions within a given period.\n\nData Refresh: Sales data is typically updated daily and available by 2:00 PM.",
             trendSeries: makeSeries(45, 30, 0.14, seed)
         };
 
@@ -854,7 +1149,7 @@ const SnapshotOverview = ({
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     >
-                                        <ComparisonCard kpi={kpi} loading={kpi.loading} />
+                                        <ComparisonCard kpi={kpi} loading={kpi.loading} helpMenu={helpMenu} />
                                     </motion.div>
                                 ))
                             )}
@@ -880,7 +1175,7 @@ const SnapshotOverview = ({
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: (idx + 5) * 0.02, duration: 0.15 }}
                                             >
-                                                <ActionableMetricCard kpi={kpi} />
+                                                <ActionableMetricCard kpi={kpi} helpMenu={helpMenu} />
                                             </motion.div>
                                         ))
                                     )}
@@ -970,7 +1265,7 @@ const SnapshotOverview = ({
                                     transition={{ delay: idx * 0.02, duration: 0.15 }}
                                     className="h-full"
                                 >
-                                    <DetailedSparklineCard kpi={kpi} />
+                                    <DetailedSparklineCard kpi={kpi} helpMenu={helpMenu} />
                                 </motion.div>
                             ))
                         )}

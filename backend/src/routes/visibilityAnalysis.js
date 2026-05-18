@@ -22,9 +22,12 @@ import {
     getVisibilityBSRTrends
 } from '../controllers/visibilityAnalysisController.js';
 import { getSalesVisibilitySignalCityDetails, getSalesVisibilitySignals } from '../controllers/salesSignalLabController.js';
+import accessControlMiddleware from '../middleware/accessControlMiddleware.js';
+
 
 
 export default (app) => {
+    app.use('/api/visibility-analysis', accessControlMiddleware);
     /**
      * @swagger
      * /api/visibility-analysis:
@@ -157,7 +160,7 @@ export default (app) => {
      *         required: true
      *         schema:
      *           type: string
-     *           enum: [platforms, months, formats, cities, pincodes, metroFlags, kpis]
+     *           enum: [platforms, months, formats, cities, pincodes, metroFlags, kpis, channels]
      *         description: Type of filter options to fetch
      *       - in: query
      *         name: platform

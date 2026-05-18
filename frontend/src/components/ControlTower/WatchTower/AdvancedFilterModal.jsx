@@ -76,6 +76,7 @@ const kpiOptions = [
     { key: 'marketShare', label: 'Market share' },
     { key: 'cpm', label: 'CPM' },
     { key: 'cpc', label: 'CPC' },
+    { key: 'aov', label: 'AOV' },
 ]
 
 // ========================================
@@ -254,7 +255,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
         skus: [],
         dateFrom: '',
         dateTo: '',
-        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
+        kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion', 'aov'].filter(k => {
             if (currentDimension === 'sku') {
                 if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
                 if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
@@ -297,7 +298,7 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
             categories: [],
             platforms: [],
             skus: [],
-            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion'].filter(k => {
+            kpis: ['offtakes', 'spend', 'categorySize', 'availability', 'marketShare', 'conversion', 'aov'].filter(k => {
                 if (currentDimension === 'sku') {
                     if (k === 'categorySize' || k === 'shareOfVolume' || k === 'ad_sov' || k === 'organic_sov') return false;
                     if (isBoatUser && (k === 'spend' || k === 'conversion')) return false;
@@ -311,7 +312,14 @@ export default function AdvancedFilterModal({ isOpen, onClose, filters, onApply,
     }
 
     const handleApply = () => {
-        onApply(localFilters)
+        const lowerFilters = {
+            ...localFilters,
+            platforms: localFilters.platforms.map(p => typeof p === 'string' ? p.toLowerCase() : p),
+            brands: localFilters.brands.map(b => typeof b === 'string' ? b.toLowerCase() : b),
+            categories: localFilters.categories.map(c => typeof c === 'string' ? c.toLowerCase() : c),
+            skus: localFilters.skus.map(s => typeof s === 'string' ? s.toLowerCase() : s),
+        };
+        onApply(lowerFilters)
         onClose()
     }
 

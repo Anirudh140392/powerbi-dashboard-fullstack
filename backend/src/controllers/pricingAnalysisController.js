@@ -368,6 +368,7 @@ export const getDimensionTrends = async (req, res) => {
             brand: req.query.brand,
             category: req.query.category,
             channel: req.query.channel,
+            sku: req.query.sku || req.query.skuName,
         };
 
         console.log("[PricingAnalysisController] getDimensionTrends called with filters:", filters);
@@ -437,5 +438,26 @@ export const getPricingCompetition = async (req, res) => {
     } catch (error) {
         console.error('[PricingAnalysisController] Error in getPricingCompetition:', error);
         res.status(500).json({ success: false, error: 'Internal Server Error', message: error.message });
+    }
+};
+
+export const getPricingPlatforms = async (req, res) => {
+    try {
+        const { channel } = req.query;
+        const platforms = await pricingAnalysisService.getPricingPlatforms(channel);
+        res.json(platforms);
+    } catch (error) {
+        console.error('Error fetching pricing platforms:', error);
+        res.json([]);
+    }
+};
+
+export const getPricingChannels = async (req, res) => {
+    try {
+        const channels = await pricingAnalysisService.getPricingChannels();
+        res.json(channels);
+    } catch (error) {
+        console.error('Error fetching pricing channels:', error);
+        res.json([]);
     }
 };

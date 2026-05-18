@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import eyLogo from "../../assets/sidebar_logo.png";
 import marsLogo from "../../assets/mars2.svg";
@@ -6,6 +6,8 @@ import mamaearthLogo from "../../assets/mamaearth.jpeg";
 import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
 import boatLogo from "../../assets/Boat.png";
 import zydusLogo from "../../assets/zyduslogo.png";
+import demoLogo from "../../assets/Demo.png";
+import sugarLogo from "../../assets/sugar.png";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -22,6 +24,7 @@ import {
   Collapse,
   IconButton,
   Tooltip,
+  Popover,
 } from "@mui/material";
 import {
   ExpandMore as ExpandMoreIcon,
@@ -49,7 +52,23 @@ import {
   Logout as LogoutIcon,
   Menu as MenuIcon,
   MenuOpen as MenuOpenIcon,
+  KeyboardArrowUp as KeyboardArrowUpIcon,
+  KeyboardArrowDown as KeyboardArrowDownIcon,
+  KeyboardArrowLeft as KeyboardArrowLeftIcon,
+  KeyboardArrowRight as KeyboardArrowRightIcon,
 } from "@mui/icons-material";
+
+const getPlatformColors = (platformName) => {
+  const name = String(platformName || '').toLowerCase();
+  if (name.includes('blinkit')) return { cardBg: '#facc15', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#fef08a', squircleText: '#1e293b', border: '#eab308' };
+  if (name.includes('instamart') || name.includes('swiggy')) return { cardBg: '#fb923c', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#fed7aa', squircleText: '#7c2d12', border: '#f97316' };
+  if (name.includes('zepto')) return { cardBg: '#c084fc', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#e9d5ff', squircleText: '#4c1d95', border: '#a855f7' };
+  if (name.includes('bigbasket') || name.includes('bb')) return { cardBg: '#4ade80', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#bbf7d0', squircleText: '#14532d', border: '#22c55e' };
+  if (name.includes('amazon')) return { cardBg: '#60a5fa', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#bfdbfe', squircleText: '#1e3a8a', border: '#3b82f6' };
+  if (name.includes('flipkart')) return { cardBg: '#38bdf8', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#bae6fd', squircleText: '#0c4a6e', border: '#0ea5e9' };
+  return { cardBg: '#94a3b8', text: '#ffffff', subtext: 'rgba(255,255,255,0.9)', squircle: '#e2e8f0', squircleText: '#334155', border: '#64748b' };
+};
+
 import { Sparkles } from "lucide-react";
 
 const SidebarStatusBadge = ({ type }) => {
@@ -81,7 +100,11 @@ const SidebarStatusBadge = ({ type }) => {
 
 
 const Sidebar = ({
+  channels = ["All"],
+  selectedChannel,
+  onChannelChange,
   platforms = ["Blinkit", "Instamart", "Zepto", "Flipkart", "Amazon"],
+  platformMetadata = [],
   selectedPlatform,
   onPlatformChange,
   open = false,
@@ -89,6 +112,14 @@ const Sidebar = ({
   isCollapsed,
   setIsCollapsed,
 }) => {
+  // Normalize selectedPlatform to always be a string — FilterContext or Matrix
+  // filters can occasionally pass an object or array during dynamic updates
+  selectedPlatform = typeof selectedPlatform === 'string'
+    ? selectedPlatform
+    : Array.isArray(selectedPlatform)
+      ? (selectedPlatform[0] || 'All')
+      : String(selectedPlatform || 'All');
+
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -100,6 +131,8 @@ const Sidebar = ({
     if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
     if (user?.dbName === 'boat') return boatLogo;
     if (user?.dbName === 'zydus') return zydusLogo;
+    if (user?.dbName === 'demo') return demoLogo;
+    if (user?.dbName === 'sugar') return sugarLogo;
     return marsLogo;
   }, [user?.dbName]);
 
@@ -108,22 +141,47 @@ const Sidebar = ({
     if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
     if (user?.dbName === 'boat') return 'Boat Logo';
     if (user?.dbName === 'zydus') return 'Zydus Logo';
+    if (user?.dbName === 'demo') return 'Demo Logo';
+    if (user?.dbName === 'sugar') return 'Sugar Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const [expandedSection, setExpandedSection] = useState("Q-COMM");
+  const [channelAnchorEl, setChannelAnchorEl] = useState(null);
+  const [platformAnchorEl, setPlatformAnchorEl] = useState(null);
+  const [showPlatformOptions, setShowPlatformOptions] = useState(true); // Default to showing the carousel for visibility
+  const platformScrollRef = useRef(null);
+
+  const handleChannelHover = (event) => {
+    setChannelAnchorEl(event.currentTarget);
+  };
+
+  const handleChannelClose = () => {
+    setChannelAnchorEl(null);
+  };
+
+  const handlePlatformHover = (event) => {
+    setPlatformAnchorEl(event.currentTarget);
+  };
+
+  const handlePlatformClose = () => {
+    setPlatformAnchorEl(null);
+  };
+
+  const openChannelPopover = Boolean(channelAnchorEl);
+  const openPlatformPopover = Boolean(platformAnchorEl);
 
   const currentPath = location.pathname;
 
   const menuSections = {
     "MAIN MENU": [
-      { label: "Business Overview", path: "/watch-tower", icon: <DashboardIcon sx={{ fontSize: '1.1rem' }} /> },
       { label: "India Overview", path: "/geo-intelligence", icon: <PublicIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showBeta: true },
+      { label: "Insights", path: "/insights", icon: <AssessmentIcon sx={{ fontSize: '1rem' }} />, showLive: true },
       { label: "Availability Analysis", path: "/availability-analysis", icon: <ShoppingCartIcon sx={{ fontSize: '1rem' }} /> },
+      { label: "Market Coverage", path: "/on-shelf-availability", icon: <InventoryIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Visibility Analysis", path: "/visibility-anlysis", icon: <VisibilityIcon sx={{ fontSize: '1rem' }} /> },
-      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare'] },
+      { label: "Market Share", path: "/market-share", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars_petcare', 'sugar'] },
       //{ label: "Sales Data", path: "/sales", icon: <BarChartIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Pricing Analysis", path: "/pricing-analysis", icon: <PriceChangeIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth'] },
       { label: "Performance Marketing", path: "/performance-marketing", icon: <AdsClickIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
@@ -132,11 +190,7 @@ const Sidebar = ({
       { label: "Inventory Analysis", path: "/inventory", icon: <InventoryIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mamaearth', 'boat'] },
       // { label: "Play it Yourself", path: "/piy", icon: <ScienceIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
       // { label: "Category RCA", path: "/category-rca", icon: <AutoGraphIcon sx={{ fontSize: '1rem' }} />, isPiy: true },
-      { label: "Scheduled Reports", path: "/scheduled-reports", icon: <ScheduleIcon sx={{ fontSize: '1rem' }} /> },
       { label: "Ad Auto", path: "https://frontend-mamaearth.onrender.com", icon: <CampaignIcon sx={{ fontSize: '1rem' }} />, hideForDb: ['mars', 'boat', 'zydus', 'mars_petcare'] },
-      //{ label: "Rating", path: "https://prestige-lac.vercel.app/", icon: <StarBorderIcon sx={{ fontSize: '1rem' }} /> },
-      //{ label: "Supply", path: "https://sku360.up.railway.app", icon: <LocalShippingIcon sx={{ fontSize: '1rem' }} /> },
-      //{ label: "Content", path: "https://content-pied-psi.vercel.app/", icon: <DescriptionIcon sx={{ fontSize: '1rem' }} /> },
     ],
   };
 
@@ -234,7 +288,7 @@ const Sidebar = ({
             justifyContent: 'center',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             width: '100%',
-            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : (user?.dbName === 'mamaearth' ? 100 : (user?.dbName === 'zydus' ? 80 : 60))),
+            height: isCollapsed ? 50 : (user?.dbName === 'mars_petcare' ? 150 : (user?.dbName === 'mamaearth' ? 100 : (user?.dbName === 'zydus' ? 80 : (user?.dbName === 'sugar' ? 80 : 60)))),
           }}
         >
           <Box
@@ -254,9 +308,9 @@ const Sidebar = ({
                 src={activeLogo}
                 alt={activeLogoAlt}
                 style={{
-                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : '45px'))),
+                  maxHeight: isCollapsed ? '32px' : (user?.dbName === 'mamaearth' ? '100px' : (user?.dbName === 'mars_petcare' ? '150px' : (user?.dbName === 'zydus' ? '80px' : (user?.dbName === 'sugar' ? '80px' : '45px')))),
                   width: isCollapsed ? '100%' : 'auto',
-                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : '180px'))),
+                  maxWidth: isCollapsed ? '42px' : (user?.dbName === 'mamaearth' ? '240px' : (user?.dbName === 'mars_petcare' ? '250px' : (user?.dbName === 'zydus' ? '220px' : (user?.dbName === 'sugar' ? '220px' : '180px')))),
                   objectFit: 'contain',
                   padding: '0',
                   display: 'block',
@@ -316,8 +370,493 @@ const Sidebar = ({
           </IconButton>
         )}
       </Box>
+      
+      {/* Channel Selector - Pill Segmented Control */}
+      <Box sx={{
+        px: isCollapsed ? 1 : 1.5,
+        pt: 2,
+        pb: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+      }}>
+        {/* MAIN MENU Header (Top) */}
+        {!isCollapsed && (user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false || Object.values(user?.tabPermissions || {}).some(v => v === true)) && (
+          <Typography
+            variant="overline"
+            sx={{
+              fontSize: "12px",
+              fontFamily: "'DM Sans', sans-serif",
+              fontWeight: 800,
+              color: "rgba(30, 41, 59, 0.4)",
+              letterSpacing: "0.08em",
+              mb: 1,
+              mt: 1,
+              px: 2,
+              display: 'flex',
+              alignItems: 'center',
+              '&::after': {
+                content: '""',
+                flex: 1,
+                height: '1px',
+                bgcolor: 'rgba(0, 0, 0, 0.04)',
+                ml: 1.5,
+              }
+            }}
+          >
+            MAIN MENU
+          </Typography>
+        )}
 
-      {/* Search Bar */}
+        {/* Top Priority Actions */}
+        {!isCollapsed && (
+          <>
+            <Box sx={{ px: 0, pb: 1, width: '100%' }}>
+              {user?.tabPermissions?.['Business Overview'] !== false && (
+                <ListItemButton
+                  onClick={() => navigate('/watch-tower')}
+                  className={currentPath === '/watch-tower' ? "sidebar-item-active" : ""}
+                  sx={{
+                    minWidth: 44,
+                    maxWidth: "100%",
+                    justifyContent: "flex-start",
+                    px: 2,
+                    py: 1,
+                    borderRadius: "12px",
+                    bgcolor: currentPath === '/watch-tower' ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                    color: currentPath === '/watch-tower' ? "#2563eb" : "#64748b",
+                    position: 'relative',
+                    overflow: 'hidden',
+                    mb: 0.5,
+                    "&:hover": {
+                      bgcolor: currentPath === '/watch-tower' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                      color: currentPath === '/watch-tower' ? "#1d4ed8" : "#1e293b",
+                      transform: 'translateX(2px)',
+                    },
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: 1.5,
+                      color: currentPath === '/watch-tower' ? "#2563eb" : "inherit",
+                      display: 'flex',
+                      '& .MuiSvgIcon-root': {
+                        fontSize: '1.15rem',
+                      }
+                    }}
+                  >
+                    <DashboardIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={"Business Overview"}
+                    primaryTypographyProps={{
+                      fontSize: "13px",
+                      fontWeight: currentPath === '/watch-tower' ? 700 : 500,
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    sx={{ my: 0 }}
+                  />
+                </ListItemButton>
+              )}
+
+              {user?.tabPermissions?.['Scheduled Reports'] !== false && (
+                <ListItemButton
+                  onClick={() => navigate('/scheduled-reports')}
+                  className={currentPath === '/scheduled-reports' ? "sidebar-item-active" : ""}
+                  sx={{
+                    minWidth: 44,
+                    maxWidth: "100%",
+                    justifyContent: "flex-start",
+                    px: 2,
+                    py: 1,
+                    borderRadius: "12px",
+                    bgcolor: currentPath === '/scheduled-reports' ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                    color: currentPath === '/scheduled-reports' ? "#2563eb" : "#64748b",
+                    position: 'relative',
+                    overflow: 'hidden',
+                    "&:hover": {
+                      bgcolor: currentPath === '/scheduled-reports' ? "rgba(37, 99, 235, 0.12)" : "rgba(30, 41, 59, 0.04)",
+                      color: currentPath === '/scheduled-reports' ? "#1d4ed8" : "#1e293b",
+                      transform: 'translateX(2px)',
+                    },
+                    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: 1.5,
+                      color: currentPath === '/scheduled-reports' ? "#2563eb" : "inherit",
+                      display: 'flex',
+                      '& .MuiSvgIcon-root': {
+                        fontSize: '1.15rem',
+                      }
+                    }}
+                  >
+                    <ScheduleIcon />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={"Scheduled Reports"}
+                    primaryTypographyProps={{
+                      fontSize: "13px",
+                      fontWeight: currentPath === '/scheduled-reports' ? 700 : 500,
+                      fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    sx={{ my: 0 }}
+                  />
+                </ListItemButton>
+              )}
+            </Box>
+            {(user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false) && (
+              <Divider sx={{ mx: 2, mb: 1.5, borderColor: 'rgba(0,0,0,0.06)' }} />
+            )}
+          </>
+        )}
+
+        <Box sx={{
+          display: 'flex',
+          flexDirection: isCollapsed ? 'column' : 'row',
+          gap: isCollapsed ? 1 : 3,
+          alignItems: 'center',
+          justifyContent: isCollapsed ? 'center' : 'flex-start',
+          px: isCollapsed ? 0 : 2.5,
+          pt: 1,
+          pb: 0,
+          width: '100%',
+          borderBottom: isCollapsed ? 'none' : '1px solid rgba(0, 0, 0, 0.08)',
+        }}>
+          {channels.filter(ch => ch !== 'All').sort((a, b) => {
+            const getOrder = (ch) => {
+              const lower = ch.toLowerCase();
+              if (lower === 'quickcomm' || lower === 'quick commerce') return 1;
+              if (lower === 'ecommerce' || lower === 'ecom') return 2;
+              return 3;
+            };
+            return getOrder(a) - getOrder(b);
+          }).map((ch) => {
+            const isSelected = selectedChannel === ch;
+            let displayLabel = ch;
+            if (ch.toLowerCase() === 'quickcomm' || ch.toLowerCase() === 'quick commerce') displayLabel = 'QComm';
+            else if (ch.toLowerCase() === 'ecommerce' || ch.toLowerCase() === 'ecom') displayLabel = 'EComm';
+            
+            if (isCollapsed) {
+              return (
+                <Tooltip key={ch} title={displayLabel} placement="right">
+                  <Box
+                    onClick={() => onChannelChange?.(ch)}
+                    sx={{
+                      cursor: 'pointer',
+                      width: 28,
+                      height: 28,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '8px',
+                      bgcolor: isSelected ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                      color: isSelected ? '#2563eb' : '#64748b',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: '12px', fontWeight: 800, fontFamily: "'DM Sans', sans-serif" }}>
+                      {displayLabel.charAt(0)}
+                    </Typography>
+                  </Box>
+                </Tooltip>
+              );
+            }
+
+            return (
+              <Box
+                key={ch}
+                onClick={() => onChannelChange?.(ch)}
+                sx={{
+                  position: 'relative',
+                  cursor: 'pointer',
+                  pb: 1,
+                  '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '2px',
+                    bgcolor: isSelected ? '#2563eb' : 'transparent',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }
+                }}
+              >
+                <Typography sx={{ 
+                  fontSize: '13px', 
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontWeight: isSelected ? 700 : 500,
+                  color: isSelected ? '#1e293b' : '#64748b',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    color: '#1e293b'
+                  }
+                }}>
+                  {displayLabel}
+                </Typography>
+              </Box>
+            );
+          })}
+        </Box>
+      </Box>
+
+      {/* Platform Section: Active Card & Carousel */}
+      {selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && !isCollapsed && (
+        <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          
+          {/* Active Platform Card */}
+          {selectedPlatform && (
+            <Box 
+              onClick={() => currentPath !== '/watch-tower' && setShowPlatformOptions(!showPlatformOptions)}
+              sx={{
+                bgcolor: '#ffffff',
+                border: '1px solid rgba(0,0,0,0.05)',
+                borderRadius: '12px',
+                py: 0.75,
+                px: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: currentPath === '/watch-tower' ? 'default' : 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                boxShadow: '0 2px 4px -1px rgba(0,0,0,0.05)',
+                '&:hover': {
+                  transform: currentPath === '/watch-tower' ? 'none' : 'translateY(-1px)',
+                  boxShadow: currentPath === '/watch-tower' ? '0 2px 4px -1px rgba(0,0,0,0.05)' : '0 4px 6px -1px rgba(0,0,0,0.08)',
+                }
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                {/* Squircle Icon */}
+                <Box sx={{
+                  width: 28,
+                  height: 28,
+                  bgcolor: '#ffffff',
+                  borderRadius: '8px', // squircle shape
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: getPlatformColors(selectedPlatform).squircleText,
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  overflow: 'hidden',
+                }}>
+                  {(() => {
+                    if (selectedPlatform === 'All') return <DashboardIcon sx={{ fontSize: '1.2rem' }} />;
+                    const activeMeta = platformMetadata.find(meta => meta.pf_name === selectedPlatform);
+                    return activeMeta?.platform_description ? (
+                      <img 
+                        src={activeMeta.platform_description} 
+                        alt={selectedPlatform} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      selectedPlatform.substring(0, 2).toUpperCase()
+                    );
+                  })()}
+                </Box>
+                {/* Text Content */}
+                <Box>
+                  <Typography sx={{ 
+                    color: '#1e293b', 
+                    fontWeight: 700, 
+                    fontSize: '12px',
+                    fontFamily: "'DM Sans', sans-serif",
+                    lineHeight: 1.1,
+                    display: selectedPlatform === 'All' ? 'none' : 'block'
+                  }}>
+                    {selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''}
+                  </Typography>
+                  <Typography sx={{ 
+                    color: selectedPlatform === 'All' ? '#1e293b' : '#64748b', 
+                    fontSize: selectedPlatform === 'All' ? '12px' : '10px', 
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontWeight: selectedPlatform === 'All' ? 600 : 500,
+                    mt: selectedPlatform === 'All' ? 0 : 0.2
+                  }}>
+                    {currentPath === '/watch-tower' ? 'Tap to change platform' : (selectedPlatform === 'All' ? 'Select Platform' : 'Tap to change platform')}
+                  </Typography>
+                </Box>
+
+              </Box>
+              
+              {/* Chevron */}
+              {currentPath !== '/watch-tower' && (
+                <Box sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  bgcolor: '#f1f5f9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#64748b'
+                }}>
+                  {showPlatformOptions ? <KeyboardArrowUpIcon sx={{ fontSize: '1rem' }}/> : <KeyboardArrowDownIcon sx={{ fontSize: '1rem' }}/>}
+                </Box>
+              )}
+            </Box>
+          )}
+
+          {/* Platform Carousel */}
+          <Collapse in={showPlatformOptions && currentPath !== '/watch-tower'}>
+            <Box sx={{ 
+              position: 'relative', 
+              display: 'flex', 
+              alignItems: 'center',
+              mt: 0.5 
+            }}>
+              {/* Scrollable Container */}
+              <Box 
+                ref={platformScrollRef}
+                sx={{
+                  display: 'flex',
+                  gap: 1.5,
+                  overflowX: 'auto',
+                  py: 1,
+                  px: 1,
+                  scrollBehavior: 'smooth',
+                  '&::-webkit-scrollbar': { display: 'none' },
+                  msOverflowStyle: 'none',
+                  scrollbarWidth: 'none',
+                  width: '100%',
+                }}
+              >
+                {platforms.filter(p => p !== 'All').map(pName => {
+                  const pf = platformMetadata.find(meta => meta.pf_name === pName);
+                  if (!pf) return null;
+                  const isSelected = selectedPlatform === pf.pf_name;
+                  const colors = getPlatformColors(pf.pf_name);
+                  
+                  return (
+                    <Box
+                      key={pf.pf_name}
+                      onClick={() => {
+                        onPlatformChange(pf.pf_name);
+                        setShowPlatformOptions(false);
+                      }}
+                      sx={{
+                        position: 'relative',
+                        flexShrink: 0,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 38,
+                        height: 38,
+                        borderRadius: '12px', // Squircle
+                        border: isSelected ? `2px solid #2563eb` : `2px solid ${colors.border}`,
+                        transition: 'all 0.2s',
+                        p: 0, // No padding to ensure image touches border
+                      }}
+                    >
+                      <Box sx={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '10px',
+                        bgcolor: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: colors.squircleText,
+                        fontWeight: 800,
+                        fontSize: '0.85rem',
+                        overflow: 'hidden',
+                      }}>
+                        {pf.platform_description ? (
+                          <img 
+                            src={pf.platform_description} 
+                            alt={pf.pf_name} 
+                            style={{ 
+                              width: '100%', 
+                              height: '100%', 
+                              objectFit: 'cover',
+                              display: 'block',
+                            }} 
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          pf.pf_name.substring(0, 2).toUpperCase()
+                        )}
+                      </Box>
+                      
+                      {/* Checkmark Badge */}
+                      {isSelected && (
+                        <Box sx={{
+                          position: 'absolute',
+                          top: -6,
+                          right: -6,
+                          width: 20,
+                          height: 20,
+                          borderRadius: '50%',
+                          bgcolor: '#2563eb',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          border: '2px solid #fff',
+                          zIndex: 2,
+                          boxShadow: '0 2px 4px rgba(37,99,235,0.3)',
+                        }}>
+                          <Typography sx={{ color: '#fff', fontSize: '0.7rem', fontWeight: 900 }}>✓</Typography>
+                        </Box>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          </Collapse>
+          <Divider sx={{ mt: 1, borderColor: "rgba(0,0,0,0.04)" }} />
+        </Box>
+      )}
+
+      {/* Collapsed view for platform */}
+      {selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && isCollapsed && (
+        <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center', borderBottom: "1px solid rgba(0, 0, 0, 0.04)" }}>
+          {selectedPlatform && selectedPlatform !== 'All' && (
+             <Tooltip title={selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''} placement="right">
+               <Box sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: '#ffffff',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: getPlatformColors(selectedPlatform).squircleText,
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  border: '2px solid #2563eb',
+                  overflow: 'hidden',
+               }}>
+                 {(() => {
+                    const activeMeta = platformMetadata.find(meta => meta.pf_name === selectedPlatform);
+                    return activeMeta?.platform_description ? (
+                      <img 
+                        src={activeMeta.platform_description} 
+                        alt={selectedPlatform} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    ) : (
+                      selectedPlatform.substring(0, 2).toUpperCase()
+                    );
+                 })()}
+               </Box>
+             </Tooltip>
+          )}
+        </Box>
+      )}
+
 
 
       {/* Menu scroll area */}
@@ -330,36 +869,6 @@ const Sidebar = ({
       }}>
         {Object.entries(menuSections).map(([sectionName, items]) => (
           <Box key={sectionName} sx={{ mb: 2 }}>
-            {!isCollapsed && (
-              <Typography
-                variant="overline"
-                sx={{
-                  fontSize: "0.68rem",
-                  fontWeight: 800,
-                  color: "rgba(30, 41, 59, 0.4)",
-                  letterSpacing: "0.08em",
-                  mb: 1.5,
-                  mt: 1,
-                  pl: isCollapsed ? 0 : 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: isCollapsed ? 'center' : 'flex-start',
-                  opacity: isCollapsed ? 0 : 1,
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  '&::after': {
-                    content: '""',
-                    flex: isCollapsed ? 0 : 1,
-                    height: '1px',
-                    bgcolor: 'rgba(0, 0, 0, 0.04)',
-                    ml: isCollapsed ? 0 : 1.5,
-                    mr: isCollapsed ? 0 : 1,
-                    transition: 'all 0.3s'
-                  }
-                }}
-              >
-                {sectionName}
-              </Typography>
-            )}
             {items.filter((item) => {
               const dbName = user?.dbName;
               // If user's DB status is inactive, hide all items
@@ -440,10 +949,12 @@ const Sidebar = ({
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           {item.label}
                           {item.showBeta && !isCollapsed && <SidebarStatusBadge type="BETA" />}
+                          {item.showLive && !isCollapsed && <SidebarStatusBadge type="LIVE" />}
                         </Box>
                       }
                       primaryTypographyProps={{
-                        fontSize: "0.88rem",
+                      fontSize: "12px",
+                      fontFamily: "'DM Sans', sans-serif",
                         fontWeight: isActive ? 700 : 500,
                         sx: {
                           opacity: isCollapsed ? 0 : 1,

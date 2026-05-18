@@ -528,7 +528,6 @@ const MetricChip = ({ label, color, active, onClick, isNA }) => {
 // Map metric IDs to their data source group for N/A detection
 const KPI_SOURCE_MAP = {
   // PDP table KPIs
-  Offtakes: 'pdp', Offtake: 'pdp', offtake: 'pdp',
   Availability: 'pdp', Osa: 'pdp', osa: 'pdp',
   'Promo-My': 'pdp', PromoMyBrand: 'pdp',
   Assortment: 'pdp', Listing: 'pdp',
@@ -611,7 +610,8 @@ export default function TrendsCompetitionDrawer({
   const { maxDate, platform: globalPlatform, selectedBrand: globalBrand, selectedLocation: globalLocation, selectedCategory: globalCategory } = React.useContext(FilterContext);
   const maxDateStr = useMemo(() => maxDate?.format('YYYY-MM-DD'), [maxDate]);
 
-  const [view, setView] = useState(defaultView || "Trends");
+  const [view, setView] = useState(defaultView);
+
   const [range, setRange] = useState("1M");
   const [timeStep, setTimeStep] = useState("Daily");
   const [activeMetrics, setActiveMetrics] = useState([]);
@@ -735,11 +735,7 @@ export default function TrendsCompetitionDrawer({
     return platformChannelMap[plat] || '';
   }, [drawerFilters.Platform, platformChannelMap]);
 
-  // Whether to hide PM metrics (Spend, Conversion, ROAS, Inorganic Sales, CPC)
-  const isQuickcommSku = useMemo(() => {
-    const isSkuSelected = drawerFilters.SKU && drawerFilters.SKU !== 'All';
-    return isSkuSelected && derivedChannel.toLowerCase() === 'quickcomm';
-  }, [drawerFilters.SKU, derivedChannel]);
+  // PM metrics (Spend, Conversion, ROAS, CPC) are always visible.\n  // When SKU is selected, backend sources these from rb_pdp_olap instead of rb_pm_olap.
 
   const PLATFORM_OPTIONS = filterOptions.platforms.length > 0 ? filterOptions.platforms : [
     "Blinkit",
@@ -1475,13 +1471,6 @@ export default function TrendsCompetitionDrawer({
               axis: "left",
               default: false,
             },
-            {
-              id: "Offtake",
-              label: "Offtake",
-              color: "#F59E0B",
-              axis: "left",
-              default: false,
-            },
           ],
           points: [
             { date: "06 Sep'25", Discount: 10.2, PricePerUnit: 178, ASP: 190 },
@@ -1509,7 +1498,6 @@ export default function TrendsCompetitionDrawer({
             { id: "Discount", label: "Promo-My %", color: "#6366F1", default: true },
             { id: "PricePerUnit", label: "Price Per Unit", color: "#14B8A6", default: true },
             { id: "ASP", label: "ASP", color: "#8B5CF6", default: false },
-            { id: "Offtake", label: "Offtake", color: "#F59E0B", default: false },
           ],
           x: COMPARE_X,
           trendsBySku: {
@@ -1654,13 +1642,7 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Daily",
 
           metrics: [
-            {
-              id: "Offtake",
-              label: "Offtake",
-              color: "#2563EB",
-              axis: "left",
-              default: true,
-            },
+            { id: "Offtake", label: "Offtake", color: "#0891B2", axis: "left", default: true },
             {
               id: "Spend",
               label: "Spend",
@@ -1861,7 +1843,6 @@ export default function TrendsCompetitionDrawer({
           ].map((p, idx) => ({
             ...p,
             Discount: applyVar(p.Discount || p.PromoMyBrand || 10, idx),
-            Offtake: applyVar(p.Offtake || p.Offtakes, idx),
             Spend: applyVar(p.Spend, idx),
             ROAS: applyVar(p.ROAS, idx),
             InorgSales: applyVar(p.InorgSales, idx),
@@ -1886,12 +1867,6 @@ export default function TrendsCompetitionDrawer({
           defaultTimeStep: "Weekly",
 
           metrics: [
-            {
-              id: "Offtake",
-              label: "Offtake",
-              color: "#2563EB",
-              default: true,
-            },
             { id: "Spend", label: "Spend", color: "#DC2626", default: true },
             { id: "ROAS", label: "ROAS", color: "#16A34A", default: true },
             { id: "CategoryShare", label: "Category Share", color: "#EC4899" },
@@ -1942,7 +1917,6 @@ export default function TrendsCompetitionDrawer({
               },
             ].map(p => ({
               ...p,
-              Offtake: applyVar(p.Offtake || p.Offtakes),
               Spend: applyVar(p.Spend),
               ROAS: applyVar(p.ROAS),
               CategoryShare: applyVar(p.CategoryShare),
@@ -2031,17 +2005,8 @@ export default function TrendsCompetitionDrawer({
     }
   }, [isEcom, activeMetrics]);
 
-  // Sync active metrics: remove PM metrics if Quickcomm + SKU selected
-  useEffect(() => {
-    if (isQuickcommSku) {
-      const pmIds = ['Spend', 'Conversion', 'Roas', 'ROAS', 'InorgSales', 'InorganicSales', 'CPC'];
-      setActiveMetrics(prev => {
-        const filtered = prev.filter(m => !pmIds.includes(m));
-        // If all were removed, default to first available non-PM metric
-        return filtered.length > 0 ? filtered : prev.filter(m => !pmIds.includes(m));
-      });
-    }
-  }, [isQuickcommSku]);
+  // Note: PM metrics (Spend, Conversion, ROAS, CPC) are now always visible.
+  // When SKU is selected, the backend sources these from rb_pdp_olap instead of rb_pm_olap.
 
 
   const platformRef = useRef(null);
@@ -2056,15 +2021,8 @@ export default function TrendsCompetitionDrawer({
 
   const trendMetaRaw = DASHBOARD_DATA.trends || { metrics: [], points: [] };
 
-  // Hide PM metrics from pills when Quickcomm + SKU selected
-  const PM_METRIC_IDS = ['Spend', 'Conversion', 'Roas', 'ROAS', 'InorgSales', 'InorganicSales', 'CPC'];
-  const trendMeta = useMemo(() => {
-    if (!isQuickcommSku) return trendMetaRaw;
-    return {
-      ...trendMetaRaw,
-      metrics: (trendMetaRaw.metrics || []).filter(m => !PM_METRIC_IDS.includes(m.id)),
-    };
-  }, [trendMetaRaw, isQuickcommSku]);
+  // PM metrics are always visible - backend routes SKU-level data from rb_pdp_olap
+  const trendMeta = trendMetaRaw;
 
   const compMeta = DASHBOARD_DATA.competition || {};
   const compareMeta = DASHBOARD_DATA.compareSkus || {};
@@ -2125,7 +2083,7 @@ export default function TrendsCompetitionDrawer({
   }, [trendMeta, range]);
 
   const formatTooltipValue = (val, seriesName) => {
-    if (val === undefined || val === null) return 'N/A';
+    if (val === undefined || val === null || val === 0 || val === "0") return 'N/A';
     let formatted = val;
     if (typeof val === 'number') {
       const absVal = Math.abs(val);
@@ -2143,7 +2101,7 @@ export default function TrendsCompetitionDrawer({
     if (seriesName.includes('%') || seriesName.toLowerCase().includes('rate')) {
       return `${formatted}%`;
     }
-    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales') || seriesName.toLowerCase().includes('offtake')) {
+    if (seriesName.includes('₹') || seriesName.toLowerCase().includes('price') || seriesName.toLowerCase().includes('sales')) {
       return `₹ ${formatted}`;
     }
     return formatted;
@@ -2151,11 +2109,8 @@ export default function TrendsCompetitionDrawer({
 
   const createTooltipFormatter = (params) => {
     if (!params || !params.length) return '';
-    // Filter out series whose value is null (unavailable KPIs) — only show visible lines
-    const visibleParams = params.filter(p => p.value !== null && p.value !== undefined);
-    if (!visibleParams.length) return '';
-    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${visibleParams[0].axisValue}</div>`;
-    visibleParams.forEach(param => {
+    let html = `<div style="font-weight:600;margin-bottom:4px;font-size:13px;color:#374151;">${params[0].axisValue}</div>`;
+    params.forEach(param => {
       const formattedValue = formatTooltipValue(param.value, param.seriesName);
       html += `
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px;">
@@ -2215,10 +2170,10 @@ export default function TrendsCompetitionDrawer({
           axisLabel: {
             formatter: (value) => {
               const prefix = "₹ ";
-              if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(1).replace(/\.0$/, '')} Cr`;
-              if (value >= 100000) return `${prefix}${(value / 100000).toFixed(1).replace(/\.0$/, '')} lac`;
-              if (value >= 1000) return `${prefix}${(value / 1000).toFixed(1).replace(/\.0$/, '')} K`;
-              return `${prefix}${value}`;
+              if (value >= 10000000) return `${prefix}${(value / 10000000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+              if (value >= 100000) return `${prefix}${(value / 100000).toFixed(2).replace(/\.?0+$/, '')} lac`;
+              if (value >= 1000) return `${prefix}${(value / 1000).toFixed(2).replace(/\.?0+$/, '')} K`;
+              return `${prefix}${parseFloat(value.toFixed(4))}`;
             }
           }
         },
@@ -2230,7 +2185,7 @@ export default function TrendsCompetitionDrawer({
           splitLine: { show: false },
           scale: true,
           axisLabel: {
-            formatter: (value) => `${value} %`
+            formatter: (value) => `${parseFloat(value.toFixed(2))} %`
           }
         },
       ],

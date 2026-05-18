@@ -1,4 +1,6 @@
-import React, { useMemo, useState, useContext, useCallback, useEffect } from 'react'
+import React, { useMemo, useState, useContext, useCallback, useEffect, useRef } from 'react'
+import axiosInstance from "../../api/axiosInstance";
+import axios from "axios";
 import CityKpiTrendShowcase from "@/components/CityKpiTrendShowcase.jsx";
 import {
   Area,
@@ -53,6 +55,213 @@ const NoDataAvailable = ({ title = 'No data available' }) => (
     <p className="text-xs text-slate-400 mt-1">Try adjusting your filters or check back later.</p>
   </div>
 );
+
+// ---------------- TABBED HEATMAP TABLE COMPONENT ----------------
+// Isolates 'Advanced Filter' logic to only this segment
+const TabbedHeatmapTable = ({ apiMatrixData, filters }) => {
+  const [activeTab, setActiveTab] = useState("platform");
+
+  // 2. Local State for Matrix
+  const [localMatrixFilters, setLocalMatrixFilters] = useState(filters);
+  const [localMatrixData, setLocalMatrixData] = useState(apiMatrixData);
+  const [isLocalFetching, setIsLocalFetching] = useState(false);
+  const [localError, setLocalError] = useState(null);
+
+  // Ref to track parent filters to detect global changes vs local ones
+  const lastGlobalFiltersRef = useRef(JSON.stringify(filters));
+  const abortControllerRef = useRef(null);
+
+  // 3. Effect: Sync local filters with global filters when global ones change (from header)
+  useEffect(() => {
+    const globalFiltersStr = JSON.stringify(filters);
+    if (globalFiltersStr !== lastGlobalFiltersRef.current) {
+      console.log('🔄 [Matrix] Global filters changed in header, syncing local filters');
+      lastGlobalFiltersRef.current = globalFiltersStr;
+      setLocalMatrixFilters(filters);
+      // We reset localData to null so we use the new data from props or fetch
+      setLocalMatrixData(null);
+    }
+  }, [filters]);
+
+  // 4. Effect: Initial data from props
+  useEffect(() => {
+    if (apiMatrixData && !localMatrixData && lastGlobalFiltersRef.current === JSON.stringify(filters)) {
+      setLocalMatrixData(apiMatrixData);
+    }
+  }, [apiMatrixData, filters, localMatrixData]);
+
+  // 5. Effect: Fetch data when LOCAL filters change (Advanced Filter)
+  useEffect(() => {
+    // If local filters match global filters, reset to prop data (no separate fetch needed)
+    const isGlobalMatch = JSON.stringify(localMatrixFilters) === lastGlobalFiltersRef.current;
+    if (isGlobalMatch) {
+      // Clear any locally fetched data so we fall back to apiMatrixData from props
+      setLocalMatrixData(null);
+      setLocalError(null);
+      setIsLocalFetching(false);
+      console.log('🔄 [Matrix] Filters match global — reverting to prop data');
+      return;
+    }
+
+    const fetchLocalMatrix = async () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      try {
+        setIsLocalFetching(true);
+        setLocalError(null);
+
+        const params = new URLSearchParams({
+          platform: (localMatrixFilters.platform && localMatrixFilters.platform !== 'All')
+            ? (Array.isArray(localMatrixFilters.platform) ? localMatrixFilters.platform.join(',').toLowerCase() : String(localMatrixFilters.platform).toLowerCase())
+            : 'All',
+          brand: (localMatrixFilters.brand && localMatrixFilters.brand !== 'All')
+            ? (Array.isArray(localMatrixFilters.brand) ? localMatrixFilters.brand.join(',').toLowerCase() : String(localMatrixFilters.brand).toLowerCase())
+            : 'All',
+          location: (localMatrixFilters.location && localMatrixFilters.location !== 'All')
+            ? (Array.isArray(localMatrixFilters.location) ? localMatrixFilters.location.join(',').toLowerCase() : String(localMatrixFilters.location).toLowerCase())
+            : 'All',
+          keyword: localMatrixFilters.keyword || 'All',
+          keywordType: localMatrixFilters.keywordType || 'All',
+          category: (localMatrixFilters.category && localMatrixFilters.category !== 'All')
+            ? (Array.isArray(localMatrixFilters.category) ? localMatrixFilters.category.join(',').toLowerCase() : String(localMatrixFilters.category).toLowerCase())
+            : 'All',
+          channel: localMatrixFilters.channel || 'All',
+          rank: localMatrixFilters.rank || 'All',
+          startDate: localMatrixFilters.startDate,
+          endDate: localMatrixFilters.endDate
+        }).toString();
+
+        console.log('📡 [Matrix] Fetching isolated matrix data with local filters...');
+        const res = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${params}`, {
+          signal: controller.signal
+        });
+
+        setLocalMatrixData(res.data);
+      } catch (err) {
+        if (axios.isCancel(err)) return;
+        console.error('❌ [Matrix] Local fetch error:', err);
+        setLocalError(err.message);
+      } finally {
+        setIsLocalFetching(false);
+      }
+    };
+
+    fetchLocalMatrix();
+
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, [localMatrixFilters]);
+
+  // Use localMatrixData if available, otherwise fallback to apiMatrixData from props
+  const effectiveData = localMatrixData || apiMatrixData;
+
+  // ---------------- TABS (pure backend data, no fallbacks) ----------------
+  const tabs = useMemo(() => {
+    const emptyData = { columns: ["kpi"], rows: [] };
+
+    const platformKpis = effectiveData?.platformData?.rows?.length > 0
+      ? effectiveData.platformData
+      : emptyData;
+
+    const formatKpis = effectiveData?.formatData?.rows?.length > 0
+      ? effectiveData.formatData
+      : emptyData;
+
+    const cityKpis = effectiveData?.cityData?.rows?.length > 0
+      ? effectiveData.cityData
+      : emptyData;
+
+    return [
+      { key: "platform", label: "Platform", data: platformKpis },
+      { key: "format", label: "Category", data: formatKpis },
+      { key: "city", label: "City", data: cityKpis },
+    ];
+  }, [effectiveData]);
+
+  const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
+
+  // 6. Memoize filter sections to prevent prop instability in CityKpiTrendShowcase
+  const matrixFilterSections = useMemo(() => [
+    { id: "platforms", label: "Platform", apiType: "platforms" },
+    { id: "categories", label: "Category", apiType: "formats" },
+    { id: "cities", label: "City", apiType: "cities" },
+    { id: "brands", label: "Brand", apiType: "brands" },
+  ], []);
+
+  return (
+    <div className="rounded-3xl bg-white border shadow p-6 flex flex-col gap-4 relative">
+      <div className="space-y-4">
+        {/* -------- TABS -------- */}
+        <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`px-4 py-1.5 text-sm rounded-full transition-all 
+            ${activeTab === t.key
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+                }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* -------- MATRIX TABLE -------- */}
+        {localError ? (
+          <div className="py-20 text-center">
+            <p className="text-rose-500 font-medium">Failed to update matrix</p>
+            <button
+              onClick={() => setLocalMatrixFilters({ ...localMatrixFilters })}
+              className="mt-2 text-blue-600 text-sm hover:underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : active.data.rows.length === 0 ? (
+          <NoDataAvailable title={`No ${active.label} data available for the selected filters`} />
+        ) : (
+          <div className="relative">
+            {isLocalFetching && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-[1px] transition-all rounded-3xl">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-600"></div>
+                  <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">Updating Matrix...</span>
+                </div>
+              </div>
+            )}
+            <CityKpiTrendShowcase
+              dynamicKey="visibility"
+              data={active.data}
+              title={active.label}
+              showPagination={true}
+              filterApiUrl="/api/visibility-analysis/filter-options"
+              onFilterChange={(appliedFilters) => {
+                console.log('✅ [Matrix] Advanced Filters APPLIED by user:', appliedFilters);
+
+                // Update ONLY local filters
+                const mapped = {
+                  platform: (appliedFilters.platforms && appliedFilters.platforms.length > 0) ? (appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : appliedFilters.platforms) : 'All',
+                  category: (appliedFilters.categories && appliedFilters.categories.length > 0) ? (appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : appliedFilters.categories) : 'All',
+                  brand: (appliedFilters.brands && appliedFilters.brands.length > 0) ? (appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : appliedFilters.brands) : 'All',
+                  location: (appliedFilters.cities && appliedFilters.cities.length > 0) ? (appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : appliedFilters.cities) : 'All'
+                };
+
+                setLocalMatrixFilters(prev => ({ ...prev, ...mapped }));
+              }}
+              filterSections={matrixFilterSections}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ------------------------------
 // NO TYPES — JSX ONLY
 // ------------------------------
@@ -626,12 +835,14 @@ const VisiblityAnalysisData = ({
   // Show toggle when Ecommerce + (Amazon explicitly selected OR only Amazon available)
   const showBSRToggle = isEcommerceChannel && (isAmazonSelected || isOnlyAmazonAvailable);
 
-  // Auto-select BSR when only Amazon is available under Ecommerce
+  // Removed automatic redirect to BSR; default is now SOS as requested.
+  /*
   useEffect(() => {
     if (isEcommerceChannel && isOnlyAmazonAvailable) {
       setVisibilityMode('bsr');
     }
   }, [isEcommerceChannel, isOnlyAmazonAvailable]);
+  */
 
   // Reset to SOS when leaving Ecommerce channel
   useEffect(() => {
@@ -643,11 +854,20 @@ const VisiblityAnalysisData = ({
   const visibilityKpis = useMemo(() => {
     const icons = [PieChart, Target, TrendingUp, Monitor];
     const gradients = [
-      ['#6366f1', '#8b5cf6'],
-      ['#14b8a6', '#06b6d4'],
-      ['#f43f5e', '#ec4899'],
-      ['#8b5cf6', '#a855f7']
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb'],
+      ['#2563Eb', '#2563Eb']
     ];
+
+    const KPI_INFO_TOOLTIPS = {
+      'Overall SOS': "Share of Search indicates the proportion of attention a product receives relative to others within the same category or type.",
+      'Sponsored SOS': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
+      'Ad SOS': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
+      'Ad SOs': "Share of Search measures the level of advertising visibility a product receives compared to other products within the same category.",
+      'Organic SOS': "The proportion of a brand’s product visibility within organic (non-paid) search results.",
+      'Organic Weighted SOS': "The proportion of a brand’s product visibility within organic (non-paid) search results."
+    };
 
     // Use real API data only — no random generators
     const overviewCards = apiData?.overview?.cards;
@@ -673,7 +893,8 @@ const VisiblityAnalysisData = ({
           extra: card.extra,
           extraChange: card.extraChange,
           extraChangeColor: card.extraChangeColor,
-          prevText: card.prevText
+          prevText: card.prevText,
+          infoTooltip: KPI_INFO_TOOLTIPS[card.title] || KPI_INFO_TOOLTIPS[card.title?.replace(' Weighted', '')] || undefined
         };
       });
     }
@@ -776,106 +997,11 @@ const VisiblityAnalysisData = ({
   // };
 
   // ---------------- FILTER OPTIONS ----------------
-  const TabbedHeatmapTable = ({ apiMatrixData }) => {
-    const { 
-      setPlatform, 
-      setSelectedBrand, 
-      setSelectedLocation, 
-      setSelectedCategory 
-    } = useContext(FilterContext);
 
-    const [activeTab, setActiveTab] = useState("platform");
-
-    // ---------------- TABS (pure backend data, no fallbacks) ----------------
-    const tabs = useMemo(() => {
-      // Use only real API matrix data — no hardcoded fallback
-      const emptyData = { columns: ["kpi"], rows: [] };
-
-      const platformKpis = apiMatrixData?.platformData?.rows?.length > 0
-        ? apiMatrixData.platformData
-        : emptyData;
-
-      const formatKpis = apiMatrixData?.formatData?.rows?.length > 0
-        ? apiMatrixData.formatData
-        : emptyData;
-
-      const cityKpis = apiMatrixData?.cityData?.rows?.length > 0
-        ? apiMatrixData.cityData
-        : emptyData;
-
-      return [
-        { key: "platform", label: "Platform", data: platformKpis },
-        { key: "format", label: "Category", data: formatKpis },
-        { key: "city", label: "City", data: cityKpis },
-      ];
-    }, [apiMatrixData]);
-
-    const active = tabs.find((t) => t.key === activeTab) ?? tabs[0];
-
-    return (
-      <div className="rounded-3xl bg-white border shadow p-5 flex flex-col gap-4">
-
-        {/* -------- TABS -------- */}
-        <div className="flex gap-2 bg-gray-100 border border-slate-300 rounded-full p-1 w-max">
-          {tabs.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              className={`px-4 py-1.5 text-sm rounded-full transition-all 
-              ${activeTab === t.key
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-                }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* -------- MATRIX TABLE -------- */}
-        {active.data.rows.length === 0 ? (
-          <NoDataAvailable title={`No ${active.label} data available for the selected filters`} />
-        ) : (
-          <CityKpiTrendShowcase
-            dynamicKey="visibility"
-            data={active.data}
-            title={active.label}
-            showPagination={true}
-            filterApiUrl="/api/visibility-analysis/filter-options"
-            onFilterChange={(appliedFilters) => {
-              console.log('🔄 [Matrix] Filters applied in modal:', appliedFilters);
-
-              // 1. Update Global Filter Context (Source of Truth)
-              // Handle single/multi-selection based on what's returned from the modal
-              if (appliedFilters.platforms) setPlatform(appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : (appliedFilters.platforms.length === 0 ? 'All' : appliedFilters.platforms));
-              if (appliedFilters.categories) setSelectedCategory(appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : (appliedFilters.categories.length === 0 ? 'All' : appliedFilters.categories));
-              if (appliedFilters.brands) setSelectedBrand(appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : (appliedFilters.brands.length === 0 ? 'All' : appliedFilters.brands));
-              if (appliedFilters.cities) setSelectedLocation(appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : (appliedFilters.cities.length === 0 ? 'All' : appliedFilters.cities));
-
-              // 2. Also update local page state for immediate UI reaction/fetch
-              const mapped = {
-                platform: (appliedFilters.platforms && appliedFilters.platforms.length > 0) ? (appliedFilters.platforms.length === 1 ? appliedFilters.platforms[0] : appliedFilters.platforms) : 'All',
-                category: (appliedFilters.categories && appliedFilters.categories.length > 0) ? (appliedFilters.categories.length === 1 ? appliedFilters.categories[0] : appliedFilters.categories) : 'All',
-                brand: (appliedFilters.brands && appliedFilters.brands.length > 0) ? (appliedFilters.brands.length === 1 ? appliedFilters.brands[0] : appliedFilters.brands) : 'All',
-                location: (appliedFilters.cities && appliedFilters.cities.length > 0) ? (appliedFilters.cities.length === 1 ? appliedFilters.cities[0] : appliedFilters.cities) : 'All'
-              };
-              onFiltersChange(prev => ({ ...prev, ...mapped }));
-            }}
-            filterSections={[
-              { id: "platforms", label: "Platform", apiType: "platforms" },
-              { id: "categories", label: "Category", apiType: "formats" },
-              { id: "cities", label: "City", apiType: "cities" },
-              { id: "brands", label: "Brand", apiType: "brands" },
-            ]}
-          />
-        )}
-      </div>
-    );
-  };
 
   return (
 
-    <div className="mx-auto max-w-7xl space-y-4">
+    <div className="w-full space-y-4">
 
       {/* HEADER */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -900,38 +1026,38 @@ const VisiblityAnalysisData = ({
         <>
           {/* Section 1: Visibility Overview */}
           {apiErrors?.overview ? (
-        <ErrorRetryOverlay onRetry={() => onRetry?.('overview')} message={apiErrors.overview} compact />
-      ) : (loading?.overview || apiData?.overview === undefined) ? (
-        <VisibilityOverviewSkeleton />
-      ) : apiData?.overview?.cards?.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <NoDataAvailable title="No visibility overview data available" />
-        </div>
-      ) : (
-        <SnapshotOverview
-          title="Visibility Overview"
-          icon={LayoutGrid}
-          chip="All Platforms"
-          helpMenu="Visibility Analysis"
-          headerRight={
-            <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
-              vs Previous Period
-            </span>
-          }
-          kpis={visibilityKpis}
-          variant="detailed"
-        />
-      )}
-      {/* Section 2: Platform KPI Matrix */}
-      {apiErrors?.matrix ? (
-        <ErrorRetryOverlay onRetry={() => onRetry?.('matrix')} message={apiErrors.matrix} compact />
-      ) : (loading?.matrix || apiData?.matrix === undefined) ? (
-        <TabbedHeatmapTableSkeleton />
-      ) : (
-        <TabbedHeatmapTable apiMatrixData={apiData?.matrix} />
-      )}
-      {/* PULSEBOARD */}
-      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <ErrorRetryOverlay onRetry={() => onRetry?.('overview')} message={apiErrors.overview} compact />
+          ) : (loading?.overview || apiData?.overview === undefined) ? (
+            <VisibilityOverviewSkeleton />
+          ) : apiData?.overview?.cards?.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <NoDataAvailable title="No visibility overview data available" />
+            </div>
+          ) : (
+            <SnapshotOverview
+              title="Visibility Overview"
+              icon={LayoutGrid}
+              chip="All Platforms"
+              helpMenu="Visibility Analysis"
+              headerRight={
+                <span className="px-4 py-1.5 text-xs font-bold text-slate-500 bg-slate-50/50 rounded-xl border border-slate-100 uppercase tracking-tight">
+                  vs Previous Period
+                </span>
+              }
+              kpis={visibilityKpis}
+              variant="detailed"
+            />
+          )}
+          {/* Section 2: Platform KPI Matrix */}
+          {apiErrors?.matrix ? (
+            <ErrorRetryOverlay onRetry={() => onRetry?.('matrix')} message={apiErrors.matrix} compact />
+          ) : (loading?.matrix || apiData?.matrix === undefined) ? (
+            <TabbedHeatmapTableSkeleton />
+          ) : (
+            <TabbedHeatmapTable apiMatrixData={apiData?.matrix} filters={parentFilters} />
+          )}
+          {/* PULSEBOARD */}
+          {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <DrillHeatTable
             data={sampleData}
             title="Keyword level Sos"
@@ -969,9 +1095,9 @@ const VisiblityAnalysisData = ({
           />
 
         // </div> */}
-      {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
-      {/* Section 3: Keywords at a Glance */}
-      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {/* // <MetricCardContainer title="Visibility Overview" cards={cards} /> */}
+          {/* Section 3: Keywords at a Glance */}
+          {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         {apiErrors?.keywords ? (
           <ErrorRetryOverlay onRetry={() => onRetry?.('keywords')} message={apiErrors.keywords} compact />
         ) : (loading?.keywords || apiData?.keywords === undefined) ? (
@@ -987,147 +1113,147 @@ const VisiblityAnalysisData = ({
         )}
       </div> */}
 
-      {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {/* <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <VisibilityLayoutOne />
       </div> */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
-          <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-800 capitalize">{modal.type} for {modal.context}</p>
-                <p className="text-xs text-slate-500">Interactive view</p>
-              </div>
-              <button onClick={() => setModal(null)} className="rounded-full border border-slate-200 bg-slate-50 p-2">
-                <CloseIcon fontSize="small" />
-              </button>
-            </div>
-
-            {/* COMPETITION MODAL */}
-            {modal.type === 'competition' && (
-              <div className="space-y-3">
-                {/* TAG SELECTOR */}
-                <div className="flex flex-wrap gap-2">
-                  {competitorSeries.map((c) => {
-                    const active = selectedCompetitors.includes(c.name)
-                    return (
-                      <button
-                        key={c.name}
-                        onClick={() => {
-                          const set = new Set(selectedCompetitors)
-                          if (set.has(c.name)) set.delete(c.name)
-                          else set.add(c.name)
-                          setSelectedCompetitors(Array.from(set))
-                        }}
-                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
-                          }`}
-                      >
-                        {c.name}
-                      </button>
-                    )
-                  })}
+          {modal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+              <div className="w-full max-w-5xl rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 capitalize">{modal.type} for {modal.context}</p>
+                    <p className="text-xs text-slate-500">Interactive view</p>
+                  </div>
+                  <button onClick={() => setModal(null)} className="rounded-full border border-slate-200 bg-slate-50 p-2">
+                    <CloseIcon fontSize="small" />
+                  </button>
                 </div>
 
-                {/* COMPETITOR LINE CHART */}
-                <div className="h-80">
-                  <ResponsiveContainer>
-                    <LineChart
-                      data={competitorSeries[0].values.map((_, idx) => {
-                        const point = { date: competitorSeries[0].values[idx].date }
-                        competitorSeries.forEach((c) => {
-                          point[c.name] = c.values[idx]?.value ?? 0
-                        })
-                        return point
+                {/* COMPETITION MODAL */}
+                {modal.type === 'competition' && (
+                  <div className="space-y-3">
+                    {/* TAG SELECTOR */}
+                    <div className="flex flex-wrap gap-2">
+                      {competitorSeries.map((c) => {
+                        const active = selectedCompetitors.includes(c.name)
+                        return (
+                          <button
+                            key={c.name}
+                            onClick={() => {
+                              const set = new Set(selectedCompetitors)
+                              if (set.has(c.name)) set.delete(c.name)
+                              else set.add(c.name)
+                              setSelectedCompetitors(Array.from(set))
+                            }}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${active ? 'border-slate-900 bg-slate-100' : 'border-slate-200 text-slate-600'
+                              }`}
+                          >
+                            {c.name}
+                          </button>
+                        )
                       })}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(v, n) => [`${v.toFixed(1)}%`, n]} />
-                      <Legend />
-                      {competitorSeries
-                        .filter((c) => selectedCompetitors.includes(c.name))
-                        .map((c) => (
-                          <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={false} />
+                    </div>
+
+                    {/* COMPETITOR LINE CHART */}
+                    <div className="h-80">
+                      <ResponsiveContainer>
+                        <LineChart
+                          data={competitorSeries[0].values.map((_, idx) => {
+                            const point = { date: competitorSeries[0].values[idx].date }
+                            competitorSeries.forEach((c) => {
+                              point[c.name] = c.values[idx]?.value ?? 0
+                            })
+                            return point
+                          })}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="date" tick={{ fontSize: 11 }} />
+                          <YAxis tick={{ fontSize: 11 }} />
+                          <Tooltip formatter={(v, n) => [`${v.toFixed(1)}%`, n]} />
+                          <Legend />
+                          {competitorSeries
+                            .filter((c) => selectedCompetitors.includes(c.name))
+                            .map((c) => (
+                              <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={false} />
+                            ))}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {/* CATEGORY TREND MODAL */}
+                {modal.type === 'trends' && (
+                  <div className="h-80">
+                    <ResponsiveContainer>
+                      <LineChart
+                        data={activeCategory.trend.map((v, i) => ({ idx: i, Value: v }))}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="idx" />
+                        <YAxis />
+                        <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
+                        <Legend />
+                        <Line type="monotone" dataKey="Value" stroke="#6366f1" strokeWidth={3} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* INSIGHTS MODAL */}
+                {modal.type === 'insights' && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Gainers</p>
+                      <ul className="mt-2 space-y-1 text-xs">
+                        {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
+                          <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
+                            <span>{b}</span>
+                            <span className="font-semibold text-emerald-600">+0.8%</span>
+                          </li>
                         ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
+                      </ul>
+                    </div>
 
-            {/* CATEGORY TREND MODAL */}
-            {modal.type === 'trends' && (
-              <div className="h-80">
-                <ResponsiveContainer>
-                  <LineChart
-                    data={activeCategory.trend.map((v, i) => ({ idx: i, Value: v }))}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="idx" />
-                    <YAxis />
-                    <Tooltip formatter={(v) => [`${v.toFixed(1)}%`, 'Visibility']} />
-                    <Legend />
-                    <Line type="monotone" dataKey="Value" stroke="#6366f1" strokeWidth={3} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Drainers</p>
+                      <ul className="mt-2 space-y-1 text-xs">
+                        {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
+                          <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
+                            <span>{b}</span>
+                            <span className="font-semibold text-rose-600">-0.6%</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
 
-            {/* INSIGHTS MODAL */}
-            {modal.type === 'insights' && (
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Gainers</p>
-                  <ul className="mt-2 space-y-1 text-xs">
-                    {['Dettol', 'Loreal Paris', 'Palmolive', 'Cetaphil', 'Clinic Plus'].map((b) => (
-                      <li key={b} className="flex items-center justify-between rounded-lg bg-white px-2 py-1">
-                        <span>{b}</span>
-                        <span className="font-semibold text-emerald-600">+0.8%</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Drainers</p>
-                  <ul className="mt-2 space-y-1 text-xs">
-                    {['Foxtale', 'Minimalist', 'Lacto Calamine', 'Simple', 'Dove'].map((b) => (
-                      <li key={b} className="flex items-center justify_between rounded-lg bg-white px-2 py-1">
-                        <span>{b}</span>
-                        <span className="font-semibold text-rose-600">-0.6%</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {/* CROSS PLATFORM MODAL */}
+                {modal.type === 'cross' && (
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Date comparison</p>
+                      <p className="text-xs text-slate-500">Custom vs Previous month</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Cross Platform</p>
+                      <p className="text-xs text-slate-500">Distributor · Store · Web</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-sm font-semibold text-slate-800">Customer selection</p>
+                      <p className="text-xs text-slate-500">All customers · Custom segments</p>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-
-            {/* CROSS PLATFORM MODAL */}
-            {modal.type === 'cross' && (
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Date comparison</p>
-                  <p className="text-xs text-slate-500">Custom vs Previous month</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Cross Platform</p>
-                  <p className="text-xs text-slate-500">Distributor · Store · Web</p>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm font-semibold text-slate-800">Customer selection</p>
-                  <p className="text-xs text-slate-500">All customers · Custom segments</p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      <KeywordVisibilityDashboard
-        apiData={apiData?.gainersAndDrainers}
-        loading={loading?.gainersAndDrainers || apiData?.gainersAndDrainers === undefined}
-      />
-      <SearchTermsPerformance />
+            </div>
+          )}
+          <KeywordVisibilityDashboard
+            apiData={apiData?.gainersAndDrainers}
+            loading={loading?.gainersAndDrainers || apiData?.gainersAndDrainers === undefined}
+          />
+          <SearchTermsPerformance />
         </>
       )}
     </div>

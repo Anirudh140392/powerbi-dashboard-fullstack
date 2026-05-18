@@ -1,26 +1,16 @@
-
 import { createClient } from '@clickhouse/client';
 
-const client = createClient({
-    host: 'http://13.200.55.131:8123',
-    user: 'readonly_user',
-    password: 'Readonly@123',
-    database: 'mamaearth',
+const clickhouse = createClient({
+    host: process.env.CLICKHOUSE_HOST || 'http://localhost:8123',
+    username: process.env.CLICKHOUSE_USER || 'default',
+    password: process.env.CLICKHOUSE_PASSWORD || '',
+    database: process.env.CLICKHOUSE_DB || 'mars'
 });
 
-async function checkSchema() {
-    try {
-        const resultSet = await client.query({
-            query: 'DESCRIBE watchtower_agg_daily',
-            format: 'JSONEachRow',
-        });
-        const dataset = await resultSet.json();
-        console.log(JSON.stringify(dataset, null, 2));
-    } catch (err) {
-        console.error(err);
-    } finally {
-        await client.close();
-    }
+async function run() {
+    const rs = await clickhouse.query({ query: "DESCRIBE TABLE rb_product_verify", format: 'JSON' });
+    const data = await rs.json();
+    console.log(data.data.map(d => d.name));
+    process.exit(0);
 }
-
-checkSchema();
+run();

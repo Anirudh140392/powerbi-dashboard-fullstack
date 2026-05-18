@@ -1124,9 +1124,31 @@ const getDimensionTrends = async (filters = {}) => {
 
         const brandCondition = brands ? buildInClause(`p.${f.brand}`, brands) : `p.${f.compFlag} = '0'`;
 
+        // ===================== TIME STEP GROUPING =====================
+        // Build proper date grouping expression based on timeStep parameter
+        const timeStep = filters.timeStep || 'Daily';
+        let groupExpression;
+        let dateLabelExpression;
+        let offtakeGroupExpression;
+
+        if (timeStep === 'Monthly') {
+            groupExpression = `formatDateTime(toDate(p.${f.date}), '%Y-%m-01')`;
+            dateLabelExpression = `formatDateTime(toDate(p.${f.date}), '%Y-%m-01')`;
+            offtakeGroupExpression = `formatDateTime(toDate(${f.date}), '%Y-%m-01')`;
+        } else if (timeStep === 'Weekly') {
+            groupExpression = `toYearWeek(toDate(p.${f.date}), 1)`;
+            dateLabelExpression = `toString(toYearWeek(toDate(p.${f.date}), 1))`;
+            offtakeGroupExpression = `toYearWeek(toDate(${f.date}), 1)`;
+        } else { // Daily
+            groupExpression = `toString(p.${f.date})`;
+            dateLabelExpression = `toString(p.${f.date})`;
+            offtakeGroupExpression = `toString(${f.date})`;
+        }
+
         const query = `
         SELECT
-            toString(p.${f.date}) AS date,
+            ${dateLabelExpression} AS date_group,
+            MAX(toDate(p.${f.date})) AS ref_date,
             -- Current metrics (Subject Brands)
             (SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END) - SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wSellingPrice} ELSE 0 END)) / NULLIF(SUM(CASE WHEN ${f.wMrp} > 0 AND ${brandCondition} THEN ${f.wMrp} ELSE 0 END), 0) * 100 AS discount,
             AVG(CASE WHEN ${f.wPpu} > 0 AND ${brandCondition}
@@ -1144,14 +1166,14 @@ const getDimensionTrends = async (filters = {}) => {
             any(po.platform_offtake) AS offtake
         FROM ${src.table} p
         LEFT JOIN (
-            SELECT ${f.date}, ${f.platform}, sum(ifNull(toFloat64OrZero(toString(${f.sales})), 0)) as platform_offtake 
+            SELECT ${offtakeGroupExpression} AS offtake_group, ${f.platform}, sum(ifNull(toFloat64OrZero(toString(${f.sales})), 0)) as platform_offtake 
             FROM ${src.table} 
             WHERE ${f.date} BETWEEN '${startDate}' AND '${endDate}'
-            GROUP BY ${f.date}, ${f.platform}
-        ) po ON p.${f.date} = po.${f.date} AND p.${f.platform} = po.${f.platform}
+            GROUP BY offtake_group, ${f.platform}
+        ) po ON ${dateLabelExpression} = toString(po.offtake_group) AND p.${f.platform} = po.${f.platform}
         WHERE ${whereClause}
-        GROUP BY p.${f.date}
-        ORDER BY p.${f.date} ASC
+        GROUP BY date_group
+        ORDER BY ref_date ASC
         SETTINGS max_execution_time = 30
         `;
 
@@ -1191,8 +1213,47 @@ const getDimensionTrends = async (filters = {}) => {
 
         console.log('[PricingAnalysisService] KPI Availability:', kpiAvailability);
 
+        // Helper to format date label from ref_date for the frontend chart
+        const formatDateLabel = (row) => {
+            const refDate = row.ref_date || row.date_group;
+            if (timeStep === 'Weekly') {
+                // For weekly, use ref_date (MAX date in that week) to generate readable label
+                const d = new Date(refDate);
+                if (!isNaN(d.getTime())) {
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const mon = months[d.getMonth()];
+                    const yr = String(d.getFullYear()).slice(-2);
+                    return `${day} ${mon}'${yr}`;
+                }
+                return String(row.date_group);
+            } else if (timeStep === 'Monthly') {
+                // For monthly, format YYYY-MM-01 to "01 Mon'YY"
+                const d = new Date(refDate);
+                if (!isNaN(d.getTime())) {
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const mon = months[d.getMonth()];
+                    const yr = String(d.getFullYear()).slice(-2);
+                    return `${day} ${mon}'${yr}`;
+                }
+                return String(row.date_group);
+            } else {
+                // Daily: format YYYY-MM-DD to "DD Mon'YY"
+                const d = new Date(refDate);
+                if (!isNaN(d.getTime())) {
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                    const mon = months[d.getMonth()];
+                    const yr = String(d.getFullYear()).slice(-2);
+                    return `${day} ${mon}'${yr}`;
+                }
+                return String(row.date_group);
+            }
+        };
+
         const timeSeries = (results || []).map(r => ({
-            date: r.date,
+            date: formatDateLabel(r),
             Discount: hasDiscountData ? (parseFloat(r.discount) || 0) : null,
             PricePerUnit: hasPpuData ? (parseFloat(r.price_per_unit) || 0) : null,
             ASP: hasAspData ? (parseFloat(r.asp) || 0) : null,
@@ -1475,6 +1536,40 @@ const getPricingCompetition = async (filters) => {
     }
 };
 
+// New endpoints for filters
+const getPricingPlatforms = async (channel) => {
+    try {
+        const src = await getPricingSource();
+        const conds = [];
+        if (channel && channel !== 'All') {
+            const isEcom = channel.toLowerCase().includes('ecom') || channel.toLowerCase().includes('e-com');
+            const searchPattern = isEcom ? '%ecom%' : (channel.toLowerCase().includes('quick') ? '%quick%' : `%${channel.toLowerCase().replace(/'/g, "''")}%`);
+            conds.push(`lower(${src.f.channel || 'channel'}) LIKE '${searchPattern}'`);
+        }
+        conds.push(`${src.f.platform} IS NOT NULL AND ${src.f.platform} != ''`);
+
+        const query = `SELECT DISTINCT ${src.f.platform} AS platform FROM ${src.table} WHERE ${conds.join(' AND ')} ORDER BY platform`;
+        const results = await queryClickHouse(query);
+        return results.map(p => p.platform).filter(Boolean).sort();
+    } catch (error) {
+        console.error("Error fetching pricing platforms:", error);
+        return [];
+    }
+};
+
+const getPricingChannels = async () => {
+    try {
+        const src = await getPricingSource();
+        const channelCol = src.f.channel || 'channel';
+        const query = `SELECT DISTINCT ${channelCol} AS channel FROM ${src.table} WHERE ${channelCol} IS NOT NULL AND ${channelCol} != '' ORDER BY channel`;
+        const results = await queryClickHouse(query);
+        return results.map(r => r.channel).filter(Boolean).sort();
+    } catch (error) {
+        console.error("Error fetching pricing channels:", error);
+        return [];
+    }
+};
+
 export {
     getEcpComparison,
     getPricingKpis,
@@ -1482,5 +1577,7 @@ export {
     getDimensionOverview,
     getDimensionTrends,
     getPricingCompetition,
-    getPricingCompetitionTrends
+    getPricingCompetitionTrends,
+    getPricingPlatforms,
+    getPricingChannels
 };
