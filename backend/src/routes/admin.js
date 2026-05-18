@@ -170,6 +170,8 @@ export default (app) => {
      *       201:
      *         description: Successful response
      */
+    app.post('/api/admin/users', createUser);
+
     /**
      * @swagger
      * /api/admin/walkthrough-notifications:
