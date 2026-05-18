@@ -38,7 +38,7 @@ function buildCHCondition(value, column, options = {}) {
 
     if (list.length === 0) return isBrand ? "flag = 1" : "1=1";
 
-    if (isCategory || isKeywordType || isPlatform || isDimension || 
+    if (isCategory || isKeywordType || isPlatform || isDimension ||
         ['platform_name', 'keyword', 'keyword_search_product', 'location_name', 'brand'].includes(column)) {
         return `LOWER(${column}) IN (${list.map(v => `'${escapeCH(String(v).toLowerCase())}'`).join(', ')})`;
     }
@@ -958,7 +958,7 @@ class VisibilityService {
 
                 // Identify unique dimension names (Blinkit, Swiggy, etc.)
                 const dimensionNames = current.map(r => r.platform || r.format || r.city);
-                
+
                 // Define the KPIs (which will now be our rows)
                 const kpiConfig = [
                     { key: 'overall_sos', label: 'Overall SOS', sparkKey: 'overall' },
@@ -978,10 +978,10 @@ class VisibilityService {
                     dimensionNames.forEach(dimName => {
                         const currData = current.find(c => (c.platform || c.format || c.city) === dimName);
                         const prevData = prevMap[dimName];
-                        
+
                         const val = Number(currData?.[kpi.key]) || 0;
                         const prevVal = Number(prevData?.[kpi.key]) || 0;
-                        
+
                         row[dimName] = val;
                         trend[dimName] = Number((val - prevVal).toFixed(1));
                         series[dimName] = sparkMap[dimName]?.[kpi.sparkKey] || [val];
@@ -1017,66 +1017,66 @@ class VisibilityService {
     async getKeywordsAtGlance(filters) {
         console.log('[VisibilityService] getKeywordsAtGlance called with filters:', filters);
         try {
-                // Build WHERE clause based on filters
-                let whereConditions = ["1=1"]; // Start with a safe default
-                const replacements = {};
+            // Build WHERE clause based on filters
+            let whereConditions = ["1=1"]; // Start with a safe default
+            const replacements = {};
 
-                if (filters.platform && filters.platform !== 'All') {
-                    const platCond = buildCHCondition(filters.platform, 'platform_name');
-                    whereConditions.push(platCond);
-                }
-                if (filters.channel && filters.channel !== 'All') {
-                    const channelCond = buildChannelCondition(filters.channel, 'platform_name');
-                    whereConditions.push(channelCond);
-                }
-                if (filters.keyword && filters.keyword !== 'All') {
-                    whereConditions.push(buildCHCondition(filters.keyword, 'keyword'));
-                }
-                if (filters.keywordType && filters.keywordType !== 'All') {
-                    whereConditions.push(buildCHCondition(filters.keywordType, 'keyword_type'));
-                }
-                if (filters.location && filters.location !== 'All') {
-                    const locCond = buildCHCondition(filters.location, 'location_name');
-                    whereConditions.push(locCond);
-                }
-                const categoryValue = filters.category || filters.format;
-                if (categoryValue && String(categoryValue).toLowerCase() !== 'all') {
-                    const catCond = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
-                    whereConditions.push(catCond);
-                }
-                if (filters.sku && filters.sku !== 'All') {
-                    whereConditions.push(`keyword_search_product IN (${(Array.isArray(filters.sku) ? filters.sku : [filters.sku]).map(s => `'${escapeCH(s)}'`).join(',')})`);
-                }
-                if (filters.city && filters.city !== 'All') {
-                    whereConditions.push(`location_name IN (${(Array.isArray(filters.city) ? filters.city : [filters.city]).map(c => `'${escapeCH(c)}'`).join(',')})`);
-                }
-                if (filters.startDate && filters.endDate) {
-                    whereConditions.push(`DATE BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
-                } else {
-                    // Default to latest date using subquery for precision
-                    whereConditions.push("DATE = (SELECT MAX(DATE) FROM rb_kw_olap)");
-                }
+            if (filters.platform && filters.platform !== 'All') {
+                const platCond = buildCHCondition(filters.platform, 'platform_name');
+                whereConditions.push(platCond);
+            }
+            if (filters.channel && filters.channel !== 'All') {
+                const channelCond = buildChannelCondition(filters.channel, 'platform_name');
+                whereConditions.push(channelCond);
+            }
+            if (filters.keyword && filters.keyword !== 'All') {
+                whereConditions.push(buildCHCondition(filters.keyword, 'keyword'));
+            }
+            if (filters.keywordType && filters.keywordType !== 'All') {
+                whereConditions.push(buildCHCondition(filters.keywordType, 'keyword_type'));
+            }
+            if (filters.location && filters.location !== 'All') {
+                const locCond = buildCHCondition(filters.location, 'location_name');
+                whereConditions.push(locCond);
+            }
+            const categoryValue = filters.category || filters.format;
+            if (categoryValue && String(categoryValue).toLowerCase() !== 'all') {
+                const catCond = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+                whereConditions.push(catCond);
+            }
+            if (filters.sku && filters.sku !== 'All') {
+                whereConditions.push(`keyword_search_product IN (${(Array.isArray(filters.sku) ? filters.sku : [filters.sku]).map(s => `'${escapeCH(s)}'`).join(',')})`);
+            }
+            if (filters.city && filters.city !== 'All') {
+                whereConditions.push(`location_name IN (${(Array.isArray(filters.city) ? filters.city : [filters.city]).map(c => `'${escapeCH(c)}'`).join(',')})`);
+            }
+            if (filters.startDate && filters.endDate) {
+                whereConditions.push(`DATE BETWEEN '${filters.startDate}' AND '${filters.endDate}'`);
+            } else {
+                // Default to latest date using subquery for precision
+                whereConditions.push("DATE = (SELECT MAX(DATE) FROM rb_kw_olap)");
+            }
 
-                if (filters.rank && filters.rank !== 'All') {
-                    const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
-                    const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
-                    if (!isNaN(maxRank) && maxRank > 0) {
-                        whereConditions.push(`POSITION <= ${maxRank}`);
-                    }
+            if (filters.rank && filters.rank !== 'All') {
+                const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
+                const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
+                if (!isNaN(maxRank) && maxRank > 0) {
+                    whereConditions.push(`POSITION <= ${maxRank}`);
                 }
-                const baseWhereClause = `WHERE ${whereConditions.join(' AND ')}`;
+            }
+            const baseWhereClause = `WHERE ${whereConditions.join(' AND ')}`;
 
-                const sosBrandCondition = buildCHCondition(filters.brand, 'brand', { isBrand: true });
+            const sosBrandCondition = buildCHCondition(filters.brand, 'brand', { isBrand: true });
 
-                // If a specific brand is selected, we filter the TOP keywords BY that brand(s)
-                if (filters.brand && filters.brand !== 'All') {
-                    whereConditions.push(sosBrandCondition);
-                }
+            // If a specific brand is selected, we filter the TOP keywords BY that brand(s)
+            if (filters.brand && filters.brand !== 'All') {
+                whereConditions.push(sosBrandCondition);
+            }
 
-                const searchWhereClause = `WHERE ${whereConditions.join(' AND ')}`;
+            const searchWhereClause = `WHERE ${whereConditions.join(' AND ')}`;
 
-                // Stage 1: Fast fetch of top keywords per type - ClickHouse
-                const topKeywordsQuery = `
+            // Stage 1: Fast fetch of top keywords per type - ClickHouse
+            const topKeywordsQuery = `
                     SELECT * FROM (
                         SELECT 
                             keyword, 
@@ -1091,21 +1091,21 @@ class VisibilityService {
                     ${filters.brand && filters.brand !== 'All' ? `AND rb_results > 0` : ''}
                 `;
 
-                console.log('[VisibilityService] Fetching top keywords (ClickHouse)...');
-                const selectedKeywords = await queryClickHouse(topKeywordsQuery);
+            console.log('[VisibilityService] Fetching top keywords (ClickHouse)...');
+            const selectedKeywords = await queryClickHouse(topKeywordsQuery);
 
-                console.log(`[VisibilityService] Found ${selectedKeywords.length} top keywords`);
-                if (selectedKeywords.length === 0) {
-                    return { hierarchy: [] };
-                }
+            console.log(`[VisibilityService] Found ${selectedKeywords.length} top keywords`);
+            if (selectedKeywords.length === 0) {
+                return { hierarchy: [] };
+            }
 
-                // Group keywords by type for a multi-IN condition
-                const keywordList = selectedKeywords.map(sk => `'${sk.keyword.replace(/'/g, "''")}'`).join(',');
-                const typeList = [...new Set(selectedKeywords.map(sk => `'${sk.keyword_type.replace(/'/g, "''")}'`))].join(',');
-                const keywordCondition = `AND keyword IN (${keywordList}) AND keyword_type IN (${typeList})`;
+            // Group keywords by type for a multi-IN condition
+            const keywordList = selectedKeywords.map(sk => `'${sk.keyword.replace(/'/g, "''")}'`).join(',');
+            const typeList = [...new Set(selectedKeywords.map(sk => `'${sk.keyword_type.replace(/'/g, "''")}'`))].join(',');
+            const keywordCondition = `AND keyword IN (${keywordList}) AND keyword_type IN (${typeList})`;
 
-                // Stage 2: Detailed hierarchy for selected keywords - ClickHouse
-                const query = `
+            // Stage 2: Detailed hierarchy for selected keywords - ClickHouse
+            const query = `
                     SELECT 
                         keyword_type, 
                         keyword, 
@@ -1144,161 +1144,161 @@ class VisibilityService {
                     ) AS base_agg
                 `;
 
-                console.log('[VisibilityService] Fetching hierarchy details (ClickHouse)...');
-                const results = await queryClickHouse(query);
+            console.log('[VisibilityService] Fetching hierarchy details (ClickHouse)...');
+            const results = await queryClickHouse(query);
 
-                console.log(`[VisibilityService] Fetched ${results.length} rows for hierarchy`);
+            console.log(`[VisibilityService] Fetched ${results.length} rows for hierarchy`);
 
-                // Build hierarchy in memory
-                const typeMap = new Map();
+            // Build hierarchy in memory
+            const typeMap = new Map();
 
-                results.forEach(row => {
-                    const {
-                        keyword_type: kt,
-                        keyword: kw,
-                        brand_name: brand,
-                        sku,
-                        city,
-                        total,
-                        market_overall,
-                        market_spons,
-                        market_organic,
-                        rbr,
-                        rbs,
-                        rbo,
-                        aap,
-                        aop
-                    } = row;
+            results.forEach(row => {
+                const {
+                    keyword_type: kt,
+                    keyword: kw,
+                    brand_name: brand,
+                    sku,
+                    city,
+                    total,
+                    market_overall,
+                    market_spons,
+                    market_organic,
+                    rbr,
+                    rbs,
+                    rbo,
+                    aap,
+                    aop
+                } = row;
 
-                    if (!kt || !kw || !brand || !sku || !city) return;
+                if (!kt || !kw || !brand || !sku || !city) return;
 
-                    // If a specific brand is selected, we filter the BRAND nodes, 
-                    // but we always process the row to ensure ALL brands contribute to Keyword-level metrics
-                    const isTargetBrand = filters.brand === 'All' || filters.brand === brand;
+                // If a specific brand is selected, we filter the BRAND nodes, 
+                // but we always process the row to ensure ALL brands contribute to Keyword-level metrics
+                const isTargetBrand = filters.brand === 'All' || filters.brand === brand;
 
-                    // Helper to initialize or get level node
-                    if (!typeMap.has(kt)) {
-                        typeMap.set(kt, {
-                            id: kt.toLowerCase().replace(/\s+/g, '-'),
-                            label: kt, level: 'keyword-type',
-                            children: new Map(),
-                            metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
-                        });
-                    }
-                    const ktNode = typeMap.get(kt);
-
-                    if (!ktNode.children.has(kw)) {
-                        ktNode.children.set(kw, {
-                            id: `${kt}-${kw}`.toLowerCase().replace(/\s+/g, '-'),
-                            label: kw, level: 'keyword',
-                            children: new Map(),
-                            metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
-                        });
-                    }
-                    const kwNode = ktNode.children.get(kw);
-
-                    // Update metrics for Type and Keyword levels (must include ALL brands for correct Market Total)
-                    [ktNode, kwNode].forEach(node => {
-                        if (node === ktNode) {
-                            node.metrics.market_overall = (node.metrics.market_overall || 0) + Number(market_overall || 0);
-                            node.metrics.market_spons = (node.metrics.market_spons || 0) + Number(market_spons || 0);
-                            node.metrics.market_organic = (node.metrics.market_organic || 0) + Number(market_organic || 0);
-                        }
-                        // kwNode.metrics.total is already set correctly from keyword_market_total partition
-                        node.metrics.rb += Number(rbr || 0);
-                        node.metrics.rbs += Number(rbs || 0);
-                        node.metrics.rbo += Number(rbo || 0);
-                        if (aap !== null && aap !== undefined && aap > 0) node.metrics.aap.push(Number(aap));
-                        if (aop !== null && aop !== undefined && aop > 0) node.metrics.aop.push(Number(aop));
+                // Helper to initialize or get level node
+                if (!typeMap.has(kt)) {
+                    typeMap.set(kt, {
+                        id: kt.toLowerCase().replace(/\s+/g, '-'),
+                        label: kt, level: 'keyword-type',
+                        children: new Map(),
+                        metrics: { rb: 0, total: 0, rbs: 0, rbo: 0, aap: [], aop: [] }
                     });
+                }
+                const ktNode = typeMap.get(kt);
 
-                    // For lower levels (Brand, SKU, City), we only create nodes and aggregate if it's the target brand
-                    if (!isTargetBrand) return;
-
-                    if (!kwNode.children.has(brand)) {
-                        kwNode.children.set(brand, {
-                            id: `${kt}-${kw}-${brand}`.toLowerCase().replace(/\s+/g, '-'),
-                            label: brand, level: 'brand',
-                            children: new Map(),
-                            metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
-                        });
-                    }
-                    const brandNode = kwNode.children.get(brand);
-
-                    if (!brandNode.children.has(sku)) {
-                        brandNode.children.set(sku, {
-                            id: `${kt}-${kw}-${brand}-${sku}`.toLowerCase().replace(/\s+/g, '-'),
-                            label: sku, level: 'sku',
-                            children: new Map(),
-                            metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
-                        });
-                    }
-                    const brandSkuNode = brandNode.children.get(sku);
-
-                    if (!brandSkuNode.children.has(city)) {
-                        brandSkuNode.children.set(city, {
-                            id: `${kt}-${kw}-${brand}-${sku}-${city}`.toLowerCase().replace(/\s+/g, '-'),
-                            label: city, level: 'city',
-                            children: [],
-                            metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
-                        });
-                    }
-                    const brandCityNode = brandSkuNode.children.get(city);
-
-                    [brandNode, brandSkuNode, brandCityNode].forEach(node => {
-                        node.metrics.rb += Number(rbr || 0);
-                        node.metrics.rbs += Number(rbs || 0);
-                        node.metrics.rbo += Number(rbo || 0);
-                        if (aap !== null && aap !== undefined && aap > 0) node.metrics.aap.push(Number(aap));
-                        if (aop !== null && aop !== undefined && aop > 0) node.metrics.aop.push(Number(aop));
+                if (!ktNode.children.has(kw)) {
+                    ktNode.children.set(kw, {
+                        id: `${kt}-${kw}`.toLowerCase().replace(/\s+/g, '-'),
+                        label: kw, level: 'keyword',
+                        children: new Map(),
+                        metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
                     });
+                }
+                const kwNode = ktNode.children.get(kw);
+
+                // Update metrics for Type and Keyword levels (must include ALL brands for correct Market Total)
+                [ktNode, kwNode].forEach(node => {
+                    if (node === ktNode) {
+                        node.metrics.market_overall = (node.metrics.market_overall || 0) + Number(market_overall || 0);
+                        node.metrics.market_spons = (node.metrics.market_spons || 0) + Number(market_spons || 0);
+                        node.metrics.market_organic = (node.metrics.market_organic || 0) + Number(market_organic || 0);
+                    }
+                    // kwNode.metrics.total is already set correctly from keyword_market_total partition
+                    node.metrics.rb += Number(rbr || 0);
+                    node.metrics.rbs += Number(rbs || 0);
+                    node.metrics.rbo += Number(rbo || 0);
+                    if (aap !== null && aap !== undefined && aap > 0) node.metrics.aap.push(Number(aap));
+                    if (aop !== null && aop !== undefined && aop > 0) node.metrics.aop.push(Number(aop));
                 });
 
-                // Post-process to calculate final percentages and convert Maps to arrays
-                const finalizeNode = (node) => {
-                    const mOverall = node.metrics.market_overall || 1;
-                    const mSpons = node.metrics.market_spons || 1;
-                    const mOrganic = node.metrics.market_organic || 1;
+                // For lower levels (Brand, SKU, City), we only create nodes and aggregate if it's the target brand
+                if (!isTargetBrand) return;
 
-                    const finalMetrics = {
-                        catImpShare: Number(((node.metrics.rb / mOverall) * 100).toFixed(2)),
-                        overallSos: Number(((node.metrics.rb / mOverall) * 100).toFixed(2)),
-                        adSos: Number(((node.metrics.rbs / mSpons) * 100).toFixed(2)),
-                        orgSos: Number(((node.metrics.rbo / mOrganic) * 100).toFixed(2)),
-                        adPos: node.metrics.aap.length > 0 ? Number((node.metrics.aap.reduce((a, b) => a + b, 0) / node.metrics.aap.length).toFixed(1)) : 0,
-                        orgPos: node.metrics.aop.length > 0 ? Number((node.metrics.aop.reduce((a, b) => a + b, 0) / node.metrics.aop.length).toFixed(1)) : 0,
-                    };
-                    node.metrics = finalMetrics;
-
-                    if (node.children instanceof Map) {
-                        node.children = Array.from(node.children.values())
-                            .map(finalizeNode)
-                            .sort((a, b) => {
-                                // Primary: Overall SOS (desc)
-                                const sosDiff = b.metrics.overallSos - a.metrics.overallSos;
-                                if (Math.abs(sosDiff) > 0.001) return sosDiff;
-                                // Secondary: Label (asc)
-                                return a.label.localeCompare(b.label);
-                            });
-                    }
-                    return node;
-                };
-
-                const hierarchy = Array.from(typeMap.values())
-                    .map(finalizeNode)
-                    .sort((a, b) => {
-                        const sosDiff = b.metrics.overallSos - a.metrics.overallSos;
-                        if (Math.abs(sosDiff) > 0.001) return sosDiff;
-                        return a.label.localeCompare(b.label);
+                if (!kwNode.children.has(brand)) {
+                    kwNode.children.set(brand, {
+                        id: `${kt}-${kw}-${brand}`.toLowerCase().replace(/\s+/g, '-'),
+                        label: brand, level: 'brand',
+                        children: new Map(),
+                        metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
                     });
+                }
+                const brandNode = kwNode.children.get(brand);
 
-                console.log('[VisibilityService] Built hierarchy tree with', hierarchy.length, 'root types');
-                return { hierarchy };
-            } catch (error) {
-                console.error('[VisibilityService] Error fetching keywords at glance:', error);
-                return { hierarchy: [] };
+                if (!brandNode.children.has(sku)) {
+                    brandNode.children.set(sku, {
+                        id: `${kt}-${kw}-${brand}-${sku}`.toLowerCase().replace(/\s+/g, '-'),
+                        label: sku, level: 'sku',
+                        children: new Map(),
+                        metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
+                    });
+                }
+                const brandSkuNode = brandNode.children.get(sku);
+
+                if (!brandSkuNode.children.has(city)) {
+                    brandSkuNode.children.set(city, {
+                        id: `${kt}-${kw}-${brand}-${sku}-${city}`.toLowerCase().replace(/\s+/g, '-'),
+                        label: city, level: 'city',
+                        children: [],
+                        metrics: { rb: 0, rbs: 0, rbo: 0, market_overall: Number(market_overall || 0), market_spons: Number(market_spons || 0), market_organic: Number(market_organic || 0), aap: [], aop: [] }
+                    });
+                }
+                const brandCityNode = brandSkuNode.children.get(city);
+
+                [brandNode, brandSkuNode, brandCityNode].forEach(node => {
+                    node.metrics.rb += Number(rbr || 0);
+                    node.metrics.rbs += Number(rbs || 0);
+                    node.metrics.rbo += Number(rbo || 0);
+                    if (aap !== null && aap !== undefined && aap > 0) node.metrics.aap.push(Number(aap));
+                    if (aop !== null && aop !== undefined && aop > 0) node.metrics.aop.push(Number(aop));
+                });
+            });
+
+            // Post-process to calculate final percentages and convert Maps to arrays
+            const finalizeNode = (node) => {
+                const mOverall = node.metrics.market_overall || 1;
+                const mSpons = node.metrics.market_spons || 1;
+                const mOrganic = node.metrics.market_organic || 1;
+
+                const finalMetrics = {
+                    catImpShare: Number(((node.metrics.rb / mOverall) * 100).toFixed(2)),
+                    overallSos: Number(((node.metrics.rb / mOverall) * 100).toFixed(2)),
+                    adSos: Number(((node.metrics.rbs / mSpons) * 100).toFixed(2)),
+                    orgSos: Number(((node.metrics.rbo / mOrganic) * 100).toFixed(2)),
+                    adPos: node.metrics.aap.length > 0 ? Number((node.metrics.aap.reduce((a, b) => a + b, 0) / node.metrics.aap.length).toFixed(1)) : 0,
+                    orgPos: node.metrics.aop.length > 0 ? Number((node.metrics.aop.reduce((a, b) => a + b, 0) / node.metrics.aop.length).toFixed(1)) : 0,
+                };
+                node.metrics = finalMetrics;
+
+                if (node.children instanceof Map) {
+                    node.children = Array.from(node.children.values())
+                        .map(finalizeNode)
+                        .sort((a, b) => {
+                            // Primary: Overall SOS (desc)
+                            const sosDiff = b.metrics.overallSos - a.metrics.overallSos;
+                            if (Math.abs(sosDiff) > 0.001) return sosDiff;
+                            // Secondary: Label (asc)
+                            return a.label.localeCompare(b.label);
+                        });
+                }
+                return node;
+            };
+
+            const hierarchy = Array.from(typeMap.values())
+                .map(finalizeNode)
+                .sort((a, b) => {
+                    const sosDiff = b.metrics.overallSos - a.metrics.overallSos;
+                    if (Math.abs(sosDiff) > 0.001) return sosDiff;
+                    return a.label.localeCompare(b.label);
+                });
+
+            console.log('[VisibilityService] Built hierarchy tree with', hierarchy.length, 'root types');
+            return { hierarchy };
+        } catch (error) {
+            console.error('[VisibilityService] Error fetching keywords at glance:', error);
+            return { hierarchy: [] };
+        }
     }
-}
 
     async getTopSearchTerms(filters = {}) {
         console.log('[VisibilityService] getTopSearchTerms called with filters:', filters);
@@ -2181,79 +2181,79 @@ class VisibilityService {
     async getVisibilityKpiTrends(filters = {}) {
         console.log('[VisibilityService] getVisibilityKpiTrends called with filters:', filters);
         try {
-                // Determine date range based on period or explicit dates
-                let startDate, endDate;
-                const period = filters.period || '1M';
+            // Determine date range based on period or explicit dates
+            let startDate, endDate;
+            const period = filters.period || '1M';
 
-                if (filters.startDate && filters.endDate) {
-                    startDate = dayjs(filters.startDate);
-                    endDate = dayjs(filters.endDate);
-                } else {
-                    // Fetch the latest available date from ClickHouse
-                    const maxDateRes = await queryClickHouse(`
+            if (filters.startDate && filters.endDate) {
+                startDate = dayjs(filters.startDate);
+                endDate = dayjs(filters.endDate);
+            } else {
+                // Fetch the latest available date from ClickHouse
+                const maxDateRes = await queryClickHouse(`
                         SELECT MAX(DATE) as maxDate
                         FROM rb_kw_olap
                         WHERE DATE IS NOT NULL
                     `);
-                    const maxDate = maxDateRes[0]?.maxDate;
+                const maxDate = maxDateRes[0]?.maxDate;
 
-                    if (maxDate && maxDate !== '0000-00-00' && maxDate !== '1970-01-01') {
-                        endDate = dayjs(maxDate);
-                    } else {
-                        endDate = dayjs();
-                    }
-
-                    const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
-                    const days = periodToDays[period] || 30;
-                    startDate = endDate.subtract(days, 'day');
-                }
-
-                const dateFrom = startDate.format('YYYY-MM-DD');
-                const dateTo = endDate.format('YYYY-MM-DD');
-
-                const platform = filters.platform || null;
-                const location = filters.location || null;
-                const brand = filters.brand || null;
-                const categoryValue = filters.category || filters.format || null;
-
-                const platformCondition = buildCHCondition(platform, 'platform_name');
-                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
-                const locationCondition = buildCHCondition(location, 'location_name');
-                const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
-                const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
-                const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
-                const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
-                // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
-                const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand', { isBrand: true }); // Dynamic SOS
-
-                let rankCondition = '';
-                if (filters.rank && filters.rank !== 'All') {
-                    const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
-                    const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
-                    if (maxRank > 0) {
-                        rankCondition = `AND POSITION <= ${maxRank}`;
-                    }
-                }
-
-                // Determine aggregation based on timeStep
-                let dateAggregation;
-                let dateFormat;
-                const timeStep = filters.timeStep || 'Daily';
-
-                if (timeStep === 'Weekly') {
-                    dateAggregation = 'toStartOfWeek(DATE, 1)'; // 1 for Monday
-                    dateFormat = "DD MMM'YY";
-                } else if (timeStep === 'Monthly') {
-                    dateAggregation = 'toStartOfMonth(DATE)';
-                    dateFormat = "MMM 'YY";
+                if (maxDate && maxDate !== '0000-00-00' && maxDate !== '1970-01-01') {
+                    endDate = dayjs(maxDate);
                 } else {
-                    // Default to Daily
-                    dateAggregation = 'DATE';
-                    dateFormat = "DD MMM'YY";
+                    endDate = dayjs();
                 }
 
-                // Aggregate by selected time step - ClickHouse
-                const querySOS = `
+                const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                const days = periodToDays[period] || 30;
+                startDate = endDate.subtract(days, 'day');
+            }
+
+            const dateFrom = startDate.format('YYYY-MM-DD');
+            const dateTo = endDate.format('YYYY-MM-DD');
+
+            const platform = filters.platform || null;
+            const location = filters.location || null;
+            const brand = filters.brand || null;
+            const categoryValue = filters.category || filters.format || null;
+
+            const platformCondition = buildCHCondition(platform, 'platform_name');
+            const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
+            const locationCondition = buildCHCondition(location, 'location_name');
+            const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
+            const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
+            const formatCondition = buildCHCondition(categoryValue, 'keyword_category', { isCategory: true });
+            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
+            // const brandSOSCondition = buildCHCondition(brand, 'brand_name', { isBrand: true });
+            const brandSOSCondition = buildCHCondition(filters.brand || 'All', 'brand', { isBrand: true }); // Dynamic SOS
+
+            let rankCondition = '';
+            if (filters.rank && filters.rank !== 'All') {
+                const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
+                const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
+                if (maxRank > 0) {
+                    rankCondition = `AND POSITION <= ${maxRank}`;
+                }
+            }
+
+            // Determine aggregation based on timeStep
+            let dateAggregation;
+            let dateFormat;
+            const timeStep = filters.timeStep || 'Daily';
+
+            if (timeStep === 'Weekly') {
+                dateAggregation = 'toStartOfWeek(DATE, 1)'; // 1 for Monday
+                dateFormat = "DD MMM'YY";
+            } else if (timeStep === 'Monthly') {
+                dateAggregation = 'toStartOfMonth(DATE)';
+                dateFormat = "MMM 'YY";
+            } else {
+                // Default to Daily
+                dateAggregation = 'DATE';
+                dateFormat = "DD MMM'YY";
+            }
+
+            // Aggregate by selected time step - ClickHouse
+            const querySOS = `
                 SELECT 
                     ${dateAggregation} as crawl_date,
                     ROUND(sumIf(toInt32(overall), ${brandSOSCondition}) * 100.0 / nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
@@ -2275,37 +2275,37 @@ class VisibilityService {
                 ORDER BY crawl_date ASC
             `;
 
-                // Determine if we should query pdp and ms tables
-                const isNotAll = (val) => {
-                    if (!val) return false;
-                    if (Array.isArray(val)) {
-                        if (val.length === 0) return false;
-                        return !val.some(v => String(v).toLowerCase() === 'all');
-                    }
-                    return String(val).toLowerCase() !== 'all';
-                };
-                const hasKeywordFilter = isNotAll(filters.keyword) || isNotAll(filters.keywordType);
+            // Determine if we should query pdp and ms tables
+            const isNotAll = (val) => {
+                if (!val) return false;
+                if (Array.isArray(val)) {
+                    if (val.length === 0) return false;
+                    return !val.some(v => String(v).toLowerCase() === 'all');
+                }
+                return String(val).toLowerCase() !== 'all';
+            };
+            const hasKeywordFilter = isNotAll(filters.keyword) || isNotAll(filters.keywordType);
 
-                let queryOfftake = null;
-                let queryCatShare = null;
+            let queryOfftake = null;
+            let queryCatShare = null;
 
-                if (!hasKeywordFilter) {
-                    const pdpPlatformCondition = buildCHCondition(platform, 'Platform');
-                    const msPlatformCondition = buildCHCondition(platform, 'platform');
-                    
-                    const pdpLocationCondition = buildCHCondition(location, 'Location');
-                    const msLocationCondition = buildCHCondition(location, 'location');
-                    
-                    const pdpBrandCondition = buildCHCondition(brand, 'Brand');
-                    const msBrandCondition = buildCHCondition(brand, 'brand');
+            if (!hasKeywordFilter) {
+                const pdpPlatformCondition = buildCHCondition(platform, 'Platform');
+                const msPlatformCondition = buildCHCondition(platform, 'platform');
 
-                    const pdpSkuCondition = buildCHCondition(filters.sku, 'Product');
-                    const msSkuCondition = buildCHCondition(filters.sku, 'item_name');
+                const pdpLocationCondition = buildCHCondition(location, 'Location');
+                const msLocationCondition = buildCHCondition(location, 'location');
 
-                    const pdpCategoryCondition = buildCHCondition(categoryValue, 'Category');
-                    const msCategoryCondition = buildCHCondition(categoryValue, 'category');
+                const pdpBrandCondition = buildCHCondition(brand, 'Brand');
+                const msBrandCondition = buildCHCondition(brand, 'brand');
 
-                    queryOfftake = `
+                const pdpSkuCondition = buildCHCondition(filters.sku, 'Product');
+                const msSkuCondition = buildCHCondition(filters.sku, 'item_name');
+
+                const pdpCategoryCondition = buildCHCondition(categoryValue, 'Category');
+                const msCategoryCondition = buildCHCondition(categoryValue, 'category');
+
+                queryOfftake = `
                         SELECT 
                             ${dateAggregation.replace(/DATE/g, 'toDate(DATE)')} as crawl_date,
                             SUM(toFloat64OrZero(toString(Sales))) as total_sales
@@ -2320,8 +2320,8 @@ class VisibilityService {
                         ORDER BY crawl_date ASC
                     `;
 
-                    // For Category Share, we need brand sales / total category sales
-                    queryCatShare = `
+                // For Category Share, we need brand sales / total category sales
+                queryCatShare = `
                         SELECT 
                             ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
                             SUM(toFloat64OrZero(toString(sales))) as cat_total_sales,
@@ -2335,53 +2335,53 @@ class VisibilityService {
                         GROUP BY crawl_date
                         ORDER BY crawl_date ASC
                     `;
-                }
+            }
 
-                // Execute queries in parallel
-                const queries = [queryClickHouse(querySOS)];
-                if (queryOfftake) queries.push(queryClickHouse(queryOfftake));
-                if (queryCatShare) queries.push(queryClickHouse(queryCatShare));
+            // Execute queries in parallel
+            const queries = [queryClickHouse(querySOS)];
+            if (queryOfftake) queries.push(queryClickHouse(queryOfftake));
+            if (queryCatShare) queries.push(queryClickHouse(queryCatShare));
 
-                const [resultsSOS, resultsOfftake, resultsCatShare] = await Promise.all(queries);
+            const [resultsSOS, resultsOfftake, resultsCatShare] = await Promise.all(queries);
 
-                // Map results for easy lookup
-                const offtakeMap = new Map();
-                if (resultsOfftake) {
-                    resultsOfftake.forEach(row => {
-                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
-                        offtakeMap.set(dateStr, parseFloat(row.total_sales || 0));
-                    });
-                }
-
-                const catShareMap = new Map();
-                if (resultsCatShare) {
-                    resultsCatShare.forEach(row => {
-                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
-                        const brandSales = parseFloat(row.brand_total_sales || 0);
-                        const totalSales = parseFloat(row.cat_total_sales || 0);
-                        const catShare = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
-                        catShareMap.set(dateStr, parseFloat(catShare.toFixed(2)));
-                    });
-                }
-
-                // Format dates based on time step
-                const timeSeries = resultsSOS.map(row => {
-                    const date = dayjs(row.crawl_date);
-                    const dateFormatted = date.format(dateFormat);
-                    
-                    return {
-                        date: dateFormatted,
-                        overall_sos: Number(row.overall_sos) || 0,
-                        sponsored_sos: Number(row.sponsored_sos) || 0,
-                        organic_sos: Number(row.organic_sos) || 0,
-                        display_sos: Number(row.display_sos) || 0,
-                        search_rank: row.search_rank !== null && !isNaN(row.search_rank) ? Number(row.search_rank) : null,
-                        offtake: offtakeMap.get(dateFormatted) || null,
-                        category_share: catShareMap.get(dateFormatted) || null
-                    };
+            // Map results for easy lookup
+            const offtakeMap = new Map();
+            if (resultsOfftake) {
+                resultsOfftake.forEach(row => {
+                    const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                    offtakeMap.set(dateStr, parseFloat(row.total_sales || 0));
                 });
+            }
 
-                console.log('[VisibilityService] Returning', timeSeries.length, 'trend data points');
+            const catShareMap = new Map();
+            if (resultsCatShare) {
+                resultsCatShare.forEach(row => {
+                    const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                    const brandSales = parseFloat(row.brand_total_sales || 0);
+                    const totalSales = parseFloat(row.cat_total_sales || 0);
+                    const catShare = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
+                    catShareMap.set(dateStr, parseFloat(catShare.toFixed(2)));
+                });
+            }
+
+            // Format dates based on time step
+            const timeSeries = resultsSOS.map(row => {
+                const date = dayjs(row.crawl_date);
+                const dateFormatted = date.format(dateFormat);
+
+                return {
+                    date: dateFormatted,
+                    overall_sos: Number(row.overall_sos) || 0,
+                    sponsored_sos: Number(row.sponsored_sos) || 0,
+                    organic_sos: Number(row.organic_sos) || 0,
+                    display_sos: Number(row.display_sos) || 0,
+                    search_rank: row.search_rank !== null && !isNaN(row.search_rank) ? Number(row.search_rank) : null,
+                    offtake: offtakeMap.get(dateFormatted) || null,
+                    category_share: catShareMap.get(dateFormatted) || null
+                };
+            });
+
+            console.log('[VisibilityService] Returning', timeSeries.length, 'trend data points');
             return { timeSeries };
         } catch (error) {
             console.error('[VisibilityService] Error getting visibility KPI trends:', error);
@@ -2398,66 +2398,66 @@ class VisibilityService {
     async getVisibilityCompetition(filters = {}) {
         console.log('[VisibilityService] getVisibilityCompetition called with filters:', filters);
         try {
-                // First, get the latest available date from ClickHouse
-                const maxDateRes = await queryClickHouse(`
+            // First, get the latest available date from ClickHouse
+            const maxDateRes = await queryClickHouse(`
                 SELECT MAX(DATE) as maxDate
                 FROM rb_kw_olap
                 WHERE DATE IS NOT NULL
             `);
 
-                const maxDate = maxDateRes[0]?.maxDate;
+            const maxDate = maxDateRes[0]?.maxDate;
 
-                if (!maxDate || maxDate === '0000-00-00') {
-                    console.error('[VisibilityService] No data found in rb_kw_olap table');
-                    return { brands: [], skus: [] };
+            if (!maxDate || maxDate === '0000-00-00') {
+                console.error('[VisibilityService] No data found in rb_kw_olap table');
+                return { brands: [], skus: [] };
+            }
+
+            const latestDate = dayjs(maxDate);
+            console.log('[VisibilityService] Using latest available date (ClickHouse):', latestDate.format('YYYY-MM-DD'));
+
+            // Determine date ranges
+            const period = filters.period || '1M';
+            const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+            const days = periodToDays[period] || 30;
+
+            const currentEnd = latestDate;
+            const currentStart = currentEnd.subtract(days, 'day');
+            const prevEnd = currentStart.subtract(1, 'day');
+            const prevStart = prevEnd.subtract(days, 'day');
+
+            const dateFrom = currentStart.format('YYYY-MM-DD');
+            const dateTo = currentEnd.format('YYYY-MM-DD');
+            const prevDateFrom = prevStart.format('YYYY-MM-DD');
+            const prevDateTo = prevEnd.format('YYYY-MM-DD');
+
+            // Build conditions
+            const platform = filters.platform || null;
+            const location = filters.location || null;
+            const categoryValue = filters.category || filters.format || null;
+            const productName = filters.productName || filters.keyword || null;
+            const brandFilter = filters.brand || null;
+
+            const platformCondition = buildCHCondition(filters.platform, 'platform_name');
+            const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
+            const locationCondition = buildCHCondition(filters.location, 'location_name');
+            const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
+            const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
+            const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
+            const brandCondition = buildCHCondition(brandFilter, 'brand');
+            const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
+
+            let rankCondition = '';
+            if (filters.rank && filters.rank !== 'All') {
+                const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
+                const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
+                if (maxRank > 0) {
+                    rankCondition = `AND POSITION <= ${maxRank}`;
                 }
+            }
 
-                const latestDate = dayjs(maxDate);
-                console.log('[VisibilityService] Using latest available date (ClickHouse):', latestDate.format('YYYY-MM-DD'));
-
-                // Determine date ranges
-                const period = filters.period || '1M';
-                const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
-                const days = periodToDays[period] || 30;
-
-                const currentEnd = latestDate;
-                const currentStart = currentEnd.subtract(days, 'day');
-                const prevEnd = currentStart.subtract(1, 'day');
-                const prevStart = prevEnd.subtract(days, 'day');
-
-                const dateFrom = currentStart.format('YYYY-MM-DD');
-                const dateTo = currentEnd.format('YYYY-MM-DD');
-                const prevDateFrom = prevStart.format('YYYY-MM-DD');
-                const prevDateTo = prevEnd.format('YYYY-MM-DD');
-
-                // Build conditions
-                const platform = filters.platform || null;
-                const location = filters.location || null;
-                const categoryValue = filters.category || filters.format || null;
-                const productName = filters.productName || filters.keyword || null;
-                const brandFilter = filters.brand || null;
-
-                const platformCondition = buildCHCondition(filters.platform, 'platform_name');
-                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
-                const locationCondition = buildCHCondition(filters.location, 'location_name');
-                const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
-                const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
-                const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
-                const brandCondition = buildCHCondition(brandFilter, 'brand');
-                const skuCondition = buildCHCondition(filters.sku, 'keyword_search_product');
-
-                let rankCondition = '';
-                if (filters.rank && filters.rank !== 'All') {
-                    const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
-                    const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
-                    if (maxRank > 0) {
-                        rankCondition = `AND POSITION <= ${maxRank}`;
-                    }
-                }
-
-                // [FIX] Separate filters: volume filters should NOT include the specific brand filter
-                // so that SOS is calculated against the total category volume.
-                const volumeFilters = `
+            // [FIX] Separate filters: volume filters should NOT include the specific brand filter
+            // so that SOS is calculated against the total category volume.
+            const volumeFilters = `
                 AND ${platformCondition}
                 AND ${channelCondition}
                 AND ${locationCondition}
@@ -2468,13 +2468,13 @@ class VisibilityService {
                 ${rankCondition}
             `;
 
-                const allFilters = `
+            const allFilters = `
                 ${volumeFilters}
                 AND ${brandCondition}
             `;
 
-                // 1. Get total volume for both periods (UNFILTERED by specific brand)
-                const volumeQuery = `
+            // 1. Get total volume for both periods (UNFILTERED by specific brand)
+            const volumeQuery = `
                 SELECT 
                     sumIf(toInt32(overall), DATE BETWEEN '${dateFrom}' AND '${dateTo}') as current_total_overall,
                     sumIf(toInt32(overall), DATE BETWEEN '${prevDateFrom}' AND '${prevDateTo}') as prev_total_overall,
@@ -2487,22 +2487,22 @@ class VisibilityService {
                 ${volumeFilters}
             `;
 
-                const volumeRes = await queryClickHouse(volumeQuery);
-                const currV = {
-                    overall: Number(volumeRes[0]?.current_total_overall) || 1,
-                    spons: Number(volumeRes[0]?.current_total_spons) || 1,
-                    organic: Number(volumeRes[0]?.current_total_organic) || 1
-                };
-                const prevV = {
-                    overall: Number(volumeRes[0]?.prev_total_overall) || 1,
-                    spons: Number(volumeRes[0]?.prev_total_spons) || 1,
-                    organic: Number(volumeRes[0]?.prev_total_organic) || 1
-                };
+            const volumeRes = await queryClickHouse(volumeQuery);
+            const currV = {
+                overall: Number(volumeRes[0]?.current_total_overall) || 1,
+                spons: Number(volumeRes[0]?.current_total_spons) || 1,
+                organic: Number(volumeRes[0]?.current_total_organic) || 1
+            };
+            const prevV = {
+                overall: Number(volumeRes[0]?.prev_total_overall) || 1,
+                spons: Number(volumeRes[0]?.prev_total_spons) || 1,
+                organic: Number(volumeRes[0]?.prev_total_organic) || 1
+            };
 
-                console.log(`[VisibilityService] Competition Volume (ClickHouse) - Current: ${currV.overall}, Prev: ${prevV.overall}`);
+            console.log(`[VisibilityService] Competition Volume (ClickHouse) - Current: ${currV.overall}, Prev: ${prevV.overall}`);
 
-                // 2. Query for brand-level competition
-                const brandQuery = `
+            // 2. Query for brand-level competition
+            const brandQuery = `
                 SELECT 
                     brand as brand_name,
                     ROUND(sumIf(toInt32(overall), DATE BETWEEN '${dateFrom}' AND '${dateTo}') * 100.0 / ${currV.overall}, 2) AS current_overall_sos,
@@ -2525,27 +2525,27 @@ class VisibilityService {
             `;
 
 
-                const brandResults = await queryClickHouse(brandQuery);
+            const brandResults = await queryClickHouse(brandQuery);
 
-                const brands = brandResults.map(b => ({
-                    brand: b.brand_name,
-                    overall_sos: {
-                        value: Number(b.current_overall_sos) || 0,
-                        delta: Number((Number(b.current_overall_sos) - Number(b.prev_overall_sos)).toFixed(2))
-                    },
-                    sponsored_sos: {
-                        value: Number(b.current_sponsored_sos) || 0,
-                        delta: Number((Number(b.current_sponsored_sos) - Number(b.prev_sponsored_sos)).toFixed(2))
-                    },
-                    organic_sos: {
-                        value: Number(b.current_organic_sos) || 0,
-                        delta: Number((Number(b.current_organic_sos) - Number(b.prev_organic_sos)).toFixed(2))
-                    },
-                    display_sos: { value: 0, delta: 0 }
-                }));
+            const brands = brandResults.map(b => ({
+                brand: b.brand_name,
+                overall_sos: {
+                    value: Number(b.current_overall_sos) || 0,
+                    delta: Number((Number(b.current_overall_sos) - Number(b.prev_overall_sos)).toFixed(2))
+                },
+                sponsored_sos: {
+                    value: Number(b.current_sponsored_sos) || 0,
+                    delta: Number((Number(b.current_sponsored_sos) - Number(b.prev_sponsored_sos)).toFixed(2))
+                },
+                organic_sos: {
+                    value: Number(b.current_organic_sos) || 0,
+                    delta: Number((Number(b.current_organic_sos) - Number(b.prev_organic_sos)).toFixed(2))
+                },
+                display_sos: { value: 0, delta: 0 }
+            }));
 
-                // 3. Query for SKU-level competition using rb_kw_olap
-                const skuQuery = `
+            // 3. Query for SKU-level competition using rb_kw_olap
+            const skuQuery = `
                 SELECT 
                     keyword_search_product as sku_name,
                     brand as brand_name,
@@ -2565,23 +2565,23 @@ class VisibilityService {
                 LIMIT 20
             `;
 
-                console.log(`[VisibilityService] ClickHouse SKU Competition Query: ${skuQuery}`);
-                const skuResults = await queryClickHouse(skuQuery);
+            console.log(`[VisibilityService] ClickHouse SKU Competition Query: ${skuQuery}`);
+            const skuResults = await queryClickHouse(skuQuery);
 
-                const skus = skuResults.map(s => ({
-                    sku: s.sku_name,
-                    brand: s.brand_name,
-                    overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
-                    sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
-                    organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
-                    display_sos: { value: 0, delta: 0 }
-                }));
+            const skus = skuResults.map(s => ({
+                sku: s.sku_name,
+                brand: s.brand_name,
+                overall_sos: { value: Number(s.overall_sos) || 0, delta: 0 },
+                sponsored_sos: { value: Number(s.sponsored_sos) || 0, delta: 0 },
+                organic_sos: { value: Number(s.organic_sos) || 0, delta: 0 },
+                display_sos: { value: 0, delta: 0 }
+            }));
 
-                return { brands, skus };
-            } catch (error) {
-                console.error('[VisibilityService] Error getting visibility competition (ClickHouse):', error);
-                return { brands: [], skus: [] };
-            }
+            return { brands, skus };
+        } catch (error) {
+            console.error('[VisibilityService] Error getting visibility competition (ClickHouse):', error);
+            return { brands: [], skus: [] };
+        }
     }
 
     /**
@@ -2593,129 +2593,129 @@ class VisibilityService {
     async getBrandComparisonTrends(filters = {}) {
         console.log('[VisibilityService] getBrandComparisonTrends called with filters:', filters);
         try {
-                // Predefined colors for brand lines (up to 10 brands)
-                const BRAND_COLORS = [
-                    '#3B82F6', // blue
-                    '#10B981', // emerald
-                    '#F59E0B', // amber
-                    '#EF4444', // red
-                    '#8B5CF6', // violet
-                    '#EC4899', // pink
-                    '#06B6D4', // cyan
-                    '#84CC16', // lime
-                    '#F97316', // orange
-                    '#6366F1', // indigo
-                ];
+            // Predefined colors for brand lines (up to 10 brands)
+            const BRAND_COLORS = [
+                '#3B82F6', // blue
+                '#10B981', // emerald
+                '#F59E0B', // amber
+                '#EF4444', // red
+                '#8B5CF6', // violet
+                '#EC4899', // pink
+                '#06B6D4', // cyan
+                '#84CC16', // lime
+                '#F97316', // orange
+                '#6366F1', // indigo
+            ];
 
-                const dimension = filters.dimension || 'brand';
-                let selectedItems = [];
-                
-                if (dimension === 'sku') {
-                    selectedItems = Array.isArray(filters.skus) ? filters.skus : (filters.skus ? filters.skus.split(',') : []);
-                    if (selectedItems.length === 0 || selectedItems[0] === 'All') {
-                        selectedItems = Array.isArray(filters.brands) ? filters.brands : (filters.brands ? filters.brands.split(',') : []);
-                    }
-                } else if (dimension === 'keyword') {
-                    selectedItems = Array.isArray(filters.keyword) ? filters.keyword : (filters.keyword ? filters.keyword.split(',') : []);
-                } else {
+            const dimension = filters.dimension || 'brand';
+            let selectedItems = [];
+
+            if (dimension === 'sku') {
+                selectedItems = Array.isArray(filters.skus) ? filters.skus : (filters.skus ? filters.skus.split(',') : []);
+                if (selectedItems.length === 0 || selectedItems[0] === 'All') {
                     selectedItems = Array.isArray(filters.brands) ? filters.brands : (filters.brands ? filters.brands.split(',') : []);
                 }
+            } else if (dimension === 'keyword') {
+                selectedItems = Array.isArray(filters.keyword) ? filters.keyword : (filters.keyword ? filters.keyword.split(',') : []);
+            } else {
+                selectedItems = Array.isArray(filters.brands) ? filters.brands : (filters.brands ? filters.brands.split(',') : []);
+            }
 
-                // [FIX] Remove 'Other' brand from comparison as requested
-                selectedItems = selectedItems.filter(b => b && b.trim().toLowerCase() !== 'other');
+            // [FIX] Remove 'Other' brand from comparison as requested
+            selectedItems = selectedItems.filter(b => b && b.trim().toLowerCase() !== 'other');
 
-                if (selectedItems.length === 0) {
-                    return { brands: {}, days: [] };
+            if (selectedItems.length === 0) {
+                return { brands: {}, days: [] };
+            }
+
+            let dimColumn = 'brand';
+            if (dimension === 'sku') dimColumn = 'keyword_search_product';
+            else if (dimension === 'keyword') dimColumn = 'keyword';
+
+            const platformCondition = buildCHCondition(filters.platform, 'platform_name');
+            const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
+            const locationCondition = buildCHCondition(filters.location, 'location_name');
+            const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
+            const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
+            const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
+
+            // Specific conditions for the selected comparison items (the lines on the graph)
+            const targetCondition = buildCHCondition(selectedItems, dimColumn);
+
+            // Drawer filters that apply globally
+            let drawerBrandCondition = '1=1';
+            let drawerSkuCondition = '1=1';
+
+            if (dimension === 'brand') {
+                // When comparing brands, apply the drawer's SKU filter if present
+                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product');
+            } else if (dimension === 'sku') {
+                // When comparing SKUs, apply the drawer's brand filter if present
+                drawerBrandCondition = buildCHCondition(filters.brands, 'brand');
+            } else {
+                drawerBrandCondition = buildCHCondition(filters.brands, 'brand');
+                drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product');
+            }
+
+            let rankCondition = '';
+            if (filters.rank && filters.rank !== 'All') {
+                const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
+                const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
+                if (maxRank > 0) {
+                    rankCondition = `AND POSITION <= ${maxRank}`;
                 }
+            }
 
-                let dimColumn = 'brand';
-                if (dimension === 'sku') dimColumn = 'keyword_search_product';
-                else if (dimension === 'keyword') dimColumn = 'keyword';
+            // Determine date range
+            let startDate, endDate;
+            const period = filters.period || '1M';
 
-                const platformCondition = buildCHCondition(filters.platform, 'platform_name');
-                const channelCondition = buildChannelCondition(filters.channel, 'platform_name');
-                const locationCondition = buildCHCondition(filters.location, 'location_name');
-                const formatCondition = buildCHCondition(filters.category || filters.format, 'keyword_category', { isCategory: true });
-                const keywordCondition = buildCHCondition(filters.keyword, 'keyword');
-                const keywordTypeCondition = buildCHCondition(filters.keywordType, 'keyword_type');
-                
-                // Specific conditions for the selected comparison items (the lines on the graph)
-                const targetCondition = buildCHCondition(selectedItems, dimColumn);
-
-                // Drawer filters that apply globally
-                let drawerBrandCondition = '1=1';
-                let drawerSkuCondition = '1=1';
-                
-                if (dimension === 'brand') {
-                    // When comparing brands, apply the drawer's SKU filter if present
-                    drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product');
-                } else if (dimension === 'sku') {
-                    // When comparing SKUs, apply the drawer's brand filter if present
-                    drawerBrandCondition = buildCHCondition(filters.brands, 'brand');
-                } else {
-                    drawerBrandCondition = buildCHCondition(filters.brands, 'brand');
-                    drawerSkuCondition = buildCHCondition(filters.skus, 'keyword_search_product');
-                }
-
-                let rankCondition = '';
-                if (filters.rank && filters.rank !== 'All') {
-                    const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
-                    const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
-                    if (maxRank > 0) {
-                        rankCondition = `AND POSITION <= ${maxRank}`;
-                    }
-                }
-
-                // Determine date range
-                let startDate, endDate;
-                const period = filters.period || '1M';
-
-                if (filters.startDate && filters.endDate) {
-                    startDate = dayjs(filters.startDate);
-                    endDate = dayjs(filters.endDate);
-                } else {
-                    // Fetch the latest available date from ClickHouse
-                    const maxDateRes = await queryClickHouse(`
+            if (filters.startDate && filters.endDate) {
+                startDate = dayjs(filters.startDate);
+                endDate = dayjs(filters.endDate);
+            } else {
+                // Fetch the latest available date from ClickHouse
+                const maxDateRes = await queryClickHouse(`
                         SELECT MAX(DATE) as maxDate
                         FROM rb_kw_olap
                         WHERE DATE IS NOT NULL
                     `);
-                    const maxDate = maxDateRes[0]?.maxDate;
+                const maxDate = maxDateRes[0]?.maxDate;
 
-                    if (maxDate && maxDate !== '0000-00-00' && maxDate !== '1970-01-01') {
-                        endDate = dayjs(maxDate);
-                    } else {
-                        endDate = dayjs();
-                    }
-
-                    const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
-                    const days = periodToDays[period] || 30;
-                    startDate = endDate.subtract(days, 'day');
-                }
-
-                const dateFrom = startDate.format('YYYY-MM-DD');
-                const dateTo = endDate.format('YYYY-MM-DD');
-
-                // Determine aggregation based on timeStep
-                let dateAggregation;
-                let dateFormat;
-                const timeStep = filters.timeStep || 'Daily';
-
-                if (timeStep === 'Weekly') {
-                    dateAggregation = 'toStartOfWeek(DATE, 1)'; // 1 for Monday
-                    dateFormat = "DD MMM'YY";
-                } else if (timeStep === 'Monthly') {
-                    dateAggregation = 'toStartOfMonth(DATE)';
-                    dateFormat = "MMM 'YY";
+                if (maxDate && maxDate !== '0000-00-00' && maxDate !== '1970-01-01') {
+                    endDate = dayjs(maxDate);
                 } else {
-                    // Default to Daily
-                    dateAggregation = 'DATE';
-                    dateFormat = "DD MMM'YY";
+                    endDate = dayjs();
                 }
 
+                const periodToDays = { '1M': 30, '3M': 90, '6M': 180, '1Y': 365 };
+                const days = periodToDays[period] || 30;
+                startDate = endDate.subtract(days, 'day');
+            }
 
-                // 1. Get total volume by date for denominator
-                const volumeQuery = `
+            const dateFrom = startDate.format('YYYY-MM-DD');
+            const dateTo = endDate.format('YYYY-MM-DD');
+
+            // Determine aggregation based on timeStep
+            let dateAggregation;
+            let dateFormat;
+            const timeStep = filters.timeStep || 'Daily';
+
+            if (timeStep === 'Weekly') {
+                dateAggregation = 'toStartOfWeek(DATE, 1)'; // 1 for Monday
+                dateFormat = "DD MMM'YY";
+            } else if (timeStep === 'Monthly') {
+                dateAggregation = 'toStartOfMonth(DATE)';
+                dateFormat = "MMM 'YY";
+            } else {
+                // Default to Daily
+                dateAggregation = 'DATE';
+                dateFormat = "DD MMM'YY";
+            }
+
+
+            // 1. Get total volume by date for denominator
+            const volumeQuery = `
                 SELECT 
                     ${dateAggregation} as crawl_date,
                     sum(toInt32(overall)) as total_overall,
@@ -2735,34 +2735,34 @@ class VisibilityService {
                 ORDER BY crawl_date ASC
             `;
 
-                console.log('--- getBrandComparisonTrends Denominator Query ---');
-                console.log(volumeQuery);
+            console.log('--- getBrandComparisonTrends Denominator Query ---');
+            console.log(volumeQuery);
 
-                const volumeResults = await queryClickHouse(volumeQuery);
-                const volumeByDate = {};
-                const allDays = [];
-                volumeResults.forEach(row => {
-                    const date = dayjs(row.crawl_date);
-                    const dateStr = date.format(dateFormat);
-                    volumeByDate[dateStr] = {
-                        overall: Number(row.total_overall) || 1,
-                        spons: Number(row.total_spons) || 1,
-                        organic: Number(row.total_organic) || 1
-                    };
-                    allDays.push(dateStr);
-                });
-
-                const isNotAll = (val) => {
-                    if (!val) return false;
-                    if (Array.isArray(val)) {
-                        if (val.length === 0) return false;
-                        return !val.some(v => String(v).toLowerCase() === 'all');
-                    }
-                    return String(val).toLowerCase() !== 'all';
+            const volumeResults = await queryClickHouse(volumeQuery);
+            const volumeByDate = {};
+            const allDays = [];
+            volumeResults.forEach(row => {
+                const date = dayjs(row.crawl_date);
+                const dateStr = date.format(dateFormat);
+                volumeByDate[dateStr] = {
+                    overall: Number(row.total_overall) || 1,
+                    spons: Number(row.total_spons) || 1,
+                    organic: Number(row.total_organic) || 1
                 };
-                const hasKeywordFilter = isNotAll(filters.keyword) || isNotAll(filters.keywordType) || dimension === 'keyword';
+                allDays.push(dateStr);
+            });
 
-                const brandDataQuery = `
+            const isNotAll = (val) => {
+                if (!val) return false;
+                if (Array.isArray(val)) {
+                    if (val.length === 0) return false;
+                    return !val.some(v => String(v).toLowerCase() === 'all');
+                }
+                return String(val).toLowerCase() !== 'all';
+            };
+            const hasKeywordFilter = isNotAll(filters.keyword) || isNotAll(filters.keywordType) || dimension === 'keyword';
+
+            const brandDataQuery = `
                 SELECT 
                     ${dimColumn} as brand_name,
                     ${dateAggregation} as crawl_date,
@@ -2786,29 +2786,29 @@ class VisibilityService {
                 ORDER BY crawl_date ASC
             `;
 
-                console.log('--- getBrandComparisonTrends Numerator Query ---');
-                console.log(brandDataQuery);
+            console.log('--- getBrandComparisonTrends Numerator Query ---');
+            console.log(brandDataQuery);
 
-                const queries = [queryClickHouse(brandDataQuery)];
+            const queries = [queryClickHouse(brandDataQuery)];
 
-                let offtakeQuery = null;
-                let msBrandQuery = null;
-                let msCatTotalQuery = null;
+            let offtakeQuery = null;
+            let msBrandQuery = null;
+            let msCatTotalQuery = null;
 
-                if (!hasKeywordFilter) {
-                    let pdpDimCol = dimension === 'sku' ? 'Product' : 'Brand';
-                    let msDimCol = dimension === 'sku' ? 'item_name' : 'brand';
-                    
-                    const pdpPlatformCondition = buildCHCondition(filters.platform, 'Platform');
-                    const msPlatformCondition = buildCHCondition(filters.platform, 'platform');
-                    const pdpLocationCondition = buildCHCondition(filters.location, 'Location');
-                    const msLocationCondition = buildCHCondition(filters.location, 'location');
-                    const pdpCategoryCondition = buildCHCondition(filters.category || filters.format, 'Category');
-                    const msCategoryCondition = buildCHCondition(filters.category || filters.format, 'category');
-                    const pdpBrandsCondition = buildCHCondition(selectedItems, pdpDimCol);
-                    const msBrandsCondition = buildCHCondition(selectedItems, msDimCol);
+            if (!hasKeywordFilter) {
+                let pdpDimCol = dimension === 'sku' ? 'Product' : 'Brand';
+                let msDimCol = dimension === 'sku' ? 'item_name' : 'brand';
 
-                    offtakeQuery = `
+                const pdpPlatformCondition = buildCHCondition(filters.platform, 'Platform');
+                const msPlatformCondition = buildCHCondition(filters.platform, 'platform');
+                const pdpLocationCondition = buildCHCondition(filters.location, 'Location');
+                const msLocationCondition = buildCHCondition(filters.location, 'location');
+                const pdpCategoryCondition = buildCHCondition(filters.category || filters.format, 'Category');
+                const msCategoryCondition = buildCHCondition(filters.category || filters.format, 'category');
+                const pdpBrandsCondition = buildCHCondition(selectedItems, pdpDimCol);
+                const msBrandsCondition = buildCHCondition(selectedItems, msDimCol);
+
+                offtakeQuery = `
                         SELECT 
                             ${pdpDimCol} as brand_name,
                             ${dateAggregation.replace(/DATE/g, 'toDate(DATE)')} as crawl_date,
@@ -2821,8 +2821,8 @@ class VisibilityService {
                           AND ${pdpBrandsCondition}
                         GROUP BY brand_name, crawl_date
                     `;
-                    
-                    msBrandQuery = `
+
+                msBrandQuery = `
                         SELECT 
                             ${msDimCol} as brand_name,
                             ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
@@ -2835,8 +2835,8 @@ class VisibilityService {
                           AND ${msBrandsCondition}
                         GROUP BY brand_name, crawl_date
                     `;
-                    
-                    msCatTotalQuery = `
+
+                msCatTotalQuery = `
                         SELECT 
                             ${dateAggregation.replace(/DATE/g, 'toDate(created_on)')} as crawl_date,
                             SUM(toFloat64OrZero(toString(sales))) as cat_total_sales
@@ -2848,83 +2848,83 @@ class VisibilityService {
                         GROUP BY crawl_date
                     `;
 
-                    queries.push(queryClickHouse(offtakeQuery));
-                    queries.push(queryClickHouse(msBrandQuery));
-                    queries.push(queryClickHouse(msCatTotalQuery));
-                }
+                queries.push(queryClickHouse(offtakeQuery));
+                queries.push(queryClickHouse(msBrandQuery));
+                queries.push(queryClickHouse(msCatTotalQuery));
+            }
 
-                const [brandResults, offtakeResults, msResults, msTotalResults] = await Promise.all(queries);
+            const [brandResults, offtakeResults, msResults, msTotalResults] = await Promise.all(queries);
 
-                // Group results by brand
-                const brandDataMap = {};
-                brandResults.forEach(row => {
-                    if (!brandDataMap[row.brand_name]) brandDataMap[row.brand_name] = {};
-                    const date = dayjs(row.crawl_date);
-                    const dateStr = date.format(dateFormat);
-                    brandDataMap[row.brand_name][dateStr] = {
-                        brand_volume: Number(row.brand_volume) || 0,
-                        sponsored_volume: Number(row.sponsored_volume) || 0,
-                        organic_volume: Number(row.organic_volume) || 0,
-                        display_volume: Number(row.display_volume) || 0
+            // Group results by brand
+            const brandDataMap = {};
+            brandResults.forEach(row => {
+                if (!brandDataMap[row.brand_name]) brandDataMap[row.brand_name] = {};
+                const date = dayjs(row.crawl_date);
+                const dateStr = date.format(dateFormat);
+                brandDataMap[row.brand_name][dateStr] = {
+                    brand_volume: Number(row.brand_volume) || 0,
+                    sponsored_volume: Number(row.sponsored_volume) || 0,
+                    organic_volume: Number(row.organic_volume) || 0,
+                    display_volume: Number(row.display_volume) || 0
+                };
+            });
+
+            const offtakeMap = {};
+            if (offtakeResults) {
+                offtakeResults.forEach(row => {
+                    if (!offtakeMap[row.brand_name]) offtakeMap[row.brand_name] = {};
+                    const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                    offtakeMap[row.brand_name][dateStr] = parseFloat(row.total_sales || 0);
+                });
+            }
+
+            const catTotalMap = {};
+            if (msTotalResults) {
+                msTotalResults.forEach(row => {
+                    const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                    catTotalMap[dateStr] = parseFloat(row.cat_total_sales || 0);
+                });
+            }
+
+            const msMap = {};
+            if (msResults) {
+                msResults.forEach(row => {
+                    if (!msMap[row.brand_name]) msMap[row.brand_name] = {};
+                    const dateStr = dayjs(row.crawl_date).format(dateFormat);
+                    const brandSales = parseFloat(row.brand_total_sales || 0);
+                    const totalSales = catTotalMap[dateStr] || 0;
+                    const catShare = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
+                    msMap[row.brand_name][dateStr] = parseFloat(catShare.toFixed(2));
+                });
+            }
+
+            const brandsResult = {};
+            selectedItems.forEach((brandName, index) => {
+                const brandHistory = brandDataMap[brandName] || {};
+                const offtakeHistory = offtakeMap[brandName] || {};
+                const msHistory = msMap[brandName] || {};
+
+                const timeSeries = allDays.map(dateStr => {
+                    const totalVol = volumeByDate[dateStr] || { overall: 1, spons: 1, organic: 1 };
+                    const data = brandHistory[dateStr] || { brand_volume: 0, sponsored_volume: 0, organic_volume: 0, display_volume: 0 };
+                    return {
+                        date: dateStr,
+                        overall_sos: Number(((data.brand_volume / totalVol.overall) * 100).toFixed(2)),
+                        sponsored_sos: Number(((data.sponsored_volume / totalVol.spons) * 100).toFixed(2)),
+                        organic_sos: Number(((data.organic_volume / totalVol.organic) * 100).toFixed(2)),
+                        display_sos: Number(((data.display_volume / totalVol.spons) * 100).toFixed(2)),
+                        offtake: offtakeHistory[dateStr] || null,
+                        category_share: msHistory[dateStr] || null
                     };
                 });
 
-                const offtakeMap = {};
-                if (offtakeResults) {
-                    offtakeResults.forEach(row => {
-                        if (!offtakeMap[row.brand_name]) offtakeMap[row.brand_name] = {};
-                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
-                        offtakeMap[row.brand_name][dateStr] = parseFloat(row.total_sales || 0);
-                    });
-                }
+                brandsResult[brandName] = {
+                    color: BRAND_COLORS[index % BRAND_COLORS.length],
+                    timeSeries
+                };
+            });
 
-                const catTotalMap = {};
-                if (msTotalResults) {
-                    msTotalResults.forEach(row => {
-                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
-                        catTotalMap[dateStr] = parseFloat(row.cat_total_sales || 0);
-                    });
-                }
-
-                const msMap = {};
-                if (msResults) {
-                    msResults.forEach(row => {
-                        if (!msMap[row.brand_name]) msMap[row.brand_name] = {};
-                        const dateStr = dayjs(row.crawl_date).format(dateFormat);
-                        const brandSales = parseFloat(row.brand_total_sales || 0);
-                        const totalSales = catTotalMap[dateStr] || 0;
-                        const catShare = totalSales > 0 ? (brandSales / totalSales) * 100 : 0;
-                        msMap[row.brand_name][dateStr] = parseFloat(catShare.toFixed(2));
-                    });
-                }
-
-                const brandsResult = {};
-                selectedItems.forEach((brandName, index) => {
-                    const brandHistory = brandDataMap[brandName] || {};
-                    const offtakeHistory = offtakeMap[brandName] || {};
-                    const msHistory = msMap[brandName] || {};
-
-                    const timeSeries = allDays.map(dateStr => {
-                        const totalVol = volumeByDate[dateStr] || { overall: 1, spons: 1, organic: 1 };
-                        const data = brandHistory[dateStr] || { brand_volume: 0, sponsored_volume: 0, organic_volume: 0, display_volume: 0 };
-                        return {
-                            date: dateStr,
-                            overall_sos: Number(((data.brand_volume / totalVol.overall) * 100).toFixed(2)),
-                            sponsored_sos: Number(((data.sponsored_volume / totalVol.spons) * 100).toFixed(2)),
-                            organic_sos: Number(((data.organic_volume / totalVol.organic) * 100).toFixed(2)),
-                            display_sos: Number(((data.display_volume / totalVol.spons) * 100).toFixed(2)),
-                            offtake: offtakeHistory[dateStr] || null,
-                            category_share: msHistory[dateStr] || null
-                        };
-                    });
-
-                    brandsResult[brandName] = {
-                        color: BRAND_COLORS[index % BRAND_COLORS.length],
-                        timeSeries
-                    };
-                });
-
-                console.log('[VisibilityService] Returning trends for', Object.keys(brandsResult).length, 'brands');
+            console.log('[VisibilityService] Returning trends for', Object.keys(brandsResult).length, 'brands');
             return {
                 brands: brandsResult,
                 days: allDays
@@ -3204,14 +3204,14 @@ class VisibilityService {
         try {
             const fs = await import('fs');
             fs.appendFileSync('debug_drilldown.log', `\n[${new Date().toISOString()}] CITY DRILLDOWN Query: ${query}\nParams: ${JSON.stringify(params)}\n`);
-            
+
             const cities = await queryClickHouse(query, params);
-            
+
             fs.appendFileSync('debug_drilldown.log', `Result Count: ${cities.length}\n`);
             if (cities.length > 0) {
                 fs.appendFileSync('debug_drilldown.log', `First Row: ${JSON.stringify(cities[0])}\n`);
             }
-            
+
             console.log(`[VisibilityService] getCityDrilldown returned ${cities.length} cities`);
             return { cities };
         } catch (error) {
@@ -3233,44 +3233,44 @@ class VisibilityService {
         try {
             const { startDate, endDate, platform, brand, location, keyword, keywordType, category, channel } = filters;
 
-                // If dates not provided, fetch latest available date from DB
-                if (!startDate || !endDate) {
-                    const maxDateRes = await queryClickHouse(`SELECT MAX(DATE) as maxDate FROM rb_kw_olap WHERE DATE IS NOT NULL`);
-                    const maxDate = maxDateRes[0]?.maxDate;
-                    if (!maxDate || maxDate === '0000-00-00') return { gain: [], drain: [] };
-                    endDate = endDate || maxDate;
-                    startDate = startDate || maxDate;
+            // If dates not provided, fetch latest available date from DB
+            if (!startDate || !endDate) {
+                const maxDateRes = await queryClickHouse(`SELECT MAX(DATE) as maxDate FROM rb_kw_olap WHERE DATE IS NOT NULL`);
+                const maxDate = maxDateRes[0]?.maxDate;
+                if (!maxDate || maxDate === '0000-00-00') return { gain: [], drain: [] };
+                endDate = endDate || maxDate;
+                startDate = startDate || maxDate;
+            }
+
+            // Compute previous period: use compare dates if provided, else shift back
+            const durationDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
+            let prevEnd, prevStart;
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStart = filters.compareStartDate;
+                prevEnd = filters.compareEndDate;
+            } else {
+                prevEnd = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
+                prevStart = dayjs(startDate).subtract(durationDays, 'day').format('YYYY-MM-DD');
+            }
+
+            // Build filter conditions — same helpers as calculateAllSOS
+            const platformCond = buildCHCondition(platform, 'platform_name');
+            const channelCond = buildChannelCondition(channel, 'platform_name');
+            const locationCond = buildCHCondition(location, 'location_name');
+            const keywordCond = buildCHCondition(keyword, 'keyword');
+            const keywordTypeCond = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
+            const categoryCond = buildCHCondition(category, 'keyword_category', { isCategory: true });
+
+            let rankCondition = '';
+            if (filters.rank && filters.rank !== 'All') {
+                const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
+                const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
+                if (!isNaN(maxRank) && maxRank > 0) {
+                    rankCondition = ` AND POSITION <= ${maxRank}`;
                 }
+            }
 
-                // Compute previous period: use compare dates if provided, else shift back
-                const durationDays = dayjs(endDate).diff(dayjs(startDate), 'day') + 1;
-                let prevEnd, prevStart;
-                if (filters.compareStartDate && filters.compareEndDate) {
-                    prevStart = filters.compareStartDate;
-                    prevEnd = filters.compareEndDate;
-                } else {
-                    prevEnd = dayjs(startDate).subtract(1, 'day').format('YYYY-MM-DD');
-                    prevStart = dayjs(startDate).subtract(durationDays, 'day').format('YYYY-MM-DD');
-                }
-
-                // Build filter conditions — same helpers as calculateAllSOS
-                const platformCond = buildCHCondition(platform, 'platform_name');
-                const channelCond = buildChannelCondition(channel, 'platform_name');
-                const locationCond = buildCHCondition(location, 'location_name');
-                const keywordCond = buildCHCondition(keyword, 'keyword');
-                const keywordTypeCond = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
-                const categoryCond = buildCHCondition(category, 'keyword_category', { isCategory: true });
-
-                let rankCondition = '';
-                if (filters.rank && filters.rank !== 'All') {
-                    const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
-                    const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
-                    if (!isNaN(maxRank) && maxRank > 0) {
-                        rankCondition = ` AND POSITION <= ${maxRank}`;
-                    }
-                }
-
-                const globalFilterClause = `
+            const globalFilterClause = `
                     AND ${platformCond}
                     AND ${channelCond}
                     AND ${locationCond}
@@ -3278,14 +3278,14 @@ class VisibilityService {
                     ${rankCondition}
                 `;
 
-                const filterClause = `
+            const filterClause = `
                     ${globalFilterClause}
                     AND ${keywordCond}
                     AND ${keywordTypeCond}
                 `;
 
-                // ── Step 1: Brand-level SOS — grouped by brand AND platform ──
-                const brandQuery = `
+            // ── Step 1: Brand-level SOS — grouped by brand AND platform ──
+            const brandQuery = `
                     SELECT 
                         brand, 
                         platform_name AS platform, 
@@ -3323,32 +3323,32 @@ class VisibilityService {
                     GROUP BY brand, platform_name
                 `;
 
-                const brandRows = await queryClickHouse(brandQuery);
+            const brandRows = await queryClickHouse(brandQuery);
 
-                // Build brand map: { "brand||platform": { brand, platform, current: {...}, previous: {...} } }
-                const brandMap = {};
-                for (const row of brandRows) {
-                    const b = row.brand;
-                    const p = row.platform;
-                    if (!b || b.trim().toLowerCase() === 'other' || !p) continue;
+            // Build brand map: { "brand||platform": { brand, platform, current: {...}, previous: {...} } }
+            const brandMap = {};
+            for (const row of brandRows) {
+                const b = row.brand;
+                const p = row.platform;
+                if (!b || b.trim().toLowerCase() === 'other' || !p) continue;
 
-                    const key = `${b}||${p}`;
-                    if (!brandMap[key]) brandMap[key] = { brand: b, platform: p };
-                    brandMap[key][row.period] = {
-                        overall: Number(row.overall_sos) || 0,
-                        organic: Number(row.organic_sos) || 0,
-                        paid: Number(row.paid_sos) || 0,
-                    };
-                }
+                const key = `${b}||${p}`;
+                if (!brandMap[key]) brandMap[key] = { brand: b, platform: p };
+                brandMap[key][row.period] = {
+                    overall: Number(row.overall_sos) || 0,
+                    organic: Number(row.organic_sos) || 0,
+                    paid: Number(row.paid_sos) || 0,
+                };
+            }
 
-                // ── Step 2: Get keyword-level SOS per brand+platform for classification ──
-                const allBrandKeys = Object.keys(brandMap);
-                if (allBrandKeys.length === 0) return { gain: [], drain: [] };
+            // ── Step 2: Get keyword-level SOS per brand+platform for classification ──
+            const allBrandKeys = Object.keys(brandMap);
+            if (allBrandKeys.length === 0) return { gain: [], drain: [] };
 
-                const brandListSQL = [...new Set(allBrandKeys.map(k => brandMap[k].brand))].map(b => `'${escapeCH(b)}'`).join(',');
+            const brandListSQL = [...new Set(allBrandKeys.map(k => brandMap[k].brand))].map(b => `'${escapeCH(b)}'`).join(',');
 
-                // Query A: Raw impression counts per (brand, keyword, platform)
-                const brandKwCountsQuery = `
+            // Query A: Raw impression counts per (brand, keyword, platform)
+            const brandKwCountsQuery = `
                     SELECT brand, keyword AS kw, platform_name AS platform, 'current' AS period,
                         sum(toInt32(overall)) AS cnt_overall,
                         sum(toInt32(organic)) AS cnt_organic,
@@ -3372,8 +3372,8 @@ class VisibilityService {
                     HAVING cnt_overall > 0
                 `;
 
-                // Query B: Total impression counts per (keyword, platform)
-                const kwTotalsQuery = `
+            // Query B: Total impression counts per (keyword, platform)
+            const kwTotalsQuery = `
                     SELECT keyword AS kw, platform_name AS platform, 'current' AS period,
                         sum(toInt32(overall)) AS total_overall,
                         sum(toInt32(organic)) AS total_organic,
@@ -3395,107 +3395,107 @@ class VisibilityService {
                     HAVING total_overall > 0
                 `;
 
-                const [brandKwRows, kwTotalRows] = await Promise.all([
-                    queryClickHouse(brandKwCountsQuery),
-                    queryClickHouse(kwTotalsQuery)
-                ]);
+            const [brandKwRows, kwTotalRows] = await Promise.all([
+                queryClickHouse(brandKwCountsQuery),
+                queryClickHouse(kwTotalsQuery)
+            ]);
 
-                // Build keyword totals map: { "keyword||platform||period": { overall, organic, spons } }
-                const kwTotals = {};
-                for (const row of kwTotalRows) {
-                    const key = `${row.kw}||${row.platform}||${row.period}`;
-                    kwTotals[key] = {
-                        overall: Number(row.total_overall) || 1,
-                        organic: Number(row.total_organic) || 1,
-                        spons: Number(row.total_spons) || 1,
-                    };
+            // Build keyword totals map: { "keyword||platform||period": { overall, organic, spons } }
+            const kwTotals = {};
+            for (const row of kwTotalRows) {
+                const key = `${row.kw}||${row.platform}||${row.period}`;
+                kwTotals[key] = {
+                    overall: Number(row.total_overall) || 1,
+                    organic: Number(row.total_organic) || 1,
+                    spons: Number(row.total_spons) || 1,
+                };
+            }
+
+            // Build keyword map with SOS
+            const kwMap = {};
+            for (const row of brandKwRows) {
+                if (!row.brand || !row.kw || !row.platform) continue;
+                const key = `${row.brand}||${row.platform}||${row.kw}`;
+                const totKey = `${row.kw}||${row.platform}||${row.period}`;
+                const tot = kwTotals[totKey] || { overall: 1, organic: 1, spons: 1 };
+
+                if (!kwMap[key]) kwMap[key] = { brand: row.brand, platform: row.platform, kw: row.kw };
+                kwMap[key][row.period] = {
+                    overall: Number(((Number(row.cnt_overall) / tot.overall) * 100).toFixed(2)),
+                    organic: Number(((Number(row.cnt_organic) / tot.organic) * 100).toFixed(2)),
+                    paid: Number(((Number(row.cnt_spons) / tot.spons) * 100).toFixed(2)),
+                };
+            }
+
+            // Compute keyword-level deltas and classify
+            const kwList = Object.values(kwMap).map(item => {
+                const curr = item.current || { overall: 0, organic: 0, paid: 0 };
+                const prev = item.previous || { overall: 0, organic: 0, paid: 0 };
+                return {
+                    brand: item.brand,
+                    platform: item.platform,
+                    kw: item.kw,
+                    overall: curr.overall,
+                    organic: curr.organic,
+                    paid: curr.paid,
+                    dO: Number((curr.overall - prev.overall).toFixed(2)),
+                    dOr: Number((curr.organic - prev.organic).toFixed(2)),
+                    dP: Number((curr.paid - prev.paid).toFixed(2)),
+                };
+            });
+
+            // Split keywords into gainers and drainers by their own delta
+            const kwGainers = kwList.filter(k => k.dO > 0).sort((a, b) => b.dO - a.dO);
+            const kwDrainers = kwList.filter(k => k.dO < 0).sort((a, b) => a.dO - b.dO);
+
+            // Group keywords by brand+platform and build hierarchy
+            const groupByBrand = (keywords) => {
+                const grouped = {};
+                for (const kw of keywords) {
+                    const key = `${kw.brand}||${kw.platform}`;
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(kw);
                 }
-
-                // Build keyword map with SOS
-                const kwMap = {};
-                for (const row of brandKwRows) {
-                    if (!row.brand || !row.kw || !row.platform) continue;
-                    const key = `${row.brand}||${row.platform}||${row.kw}`;
-                    const totKey = `${row.kw}||${row.platform}||${row.period}`;
-                    const tot = kwTotals[totKey] || { overall: 1, organic: 1, spons: 1 };
-
-                    if (!kwMap[key]) kwMap[key] = { brand: row.brand, platform: row.platform, kw: row.kw };
-                    kwMap[key][row.period] = {
-                        overall: Number(((Number(row.cnt_overall) / tot.overall) * 100).toFixed(2)),
-                        organic: Number(((Number(row.cnt_organic) / tot.organic) * 100).toFixed(2)),
-                        paid: Number(((Number(row.cnt_spons) / tot.spons) * 100).toFixed(2)),
-                    };
-                }
-
-                // Compute keyword-level deltas and classify
-                const kwList = Object.values(kwMap).map(item => {
-                    const curr = item.current || { overall: 0, organic: 0, paid: 0 };
-                    const prev = item.previous || { overall: 0, organic: 0, paid: 0 };
+                // Build brand-level entries with aggregated SOS from brandMap
+                return Object.entries(grouped).map(([key, kws]) => {
+                    const bPeriods = brandMap[key] || {};
+                    const curr = bPeriods.current || { overall: 0, organic: 0, paid: 0 };
+                    const prev = bPeriods.previous || { overall: 0, organic: 0, paid: 0 };
                     return {
-                        brand: item.brand,
-                        platform: item.platform,
-                        kw: item.kw,
+                        brand: bPeriods.brand || kws[0].brand,
+                        platform: bPeriods.platform || kws[0].platform,
                         overall: curr.overall,
                         organic: curr.organic,
                         paid: curr.paid,
-                        dO: Number((curr.overall - prev.overall).toFixed(2)),
-                        dOr: Number((curr.organic - prev.organic).toFixed(2)),
-                        dP: Number((curr.paid - prev.paid).toFixed(2)),
+                        dOverall: Number((curr.overall - prev.overall).toFixed(2)),
+                        dOrganic: Number((curr.organic - prev.organic).toFixed(2)),
+                        dPaid: Number((curr.paid - prev.paid).toFixed(2)),
+                        keywords: kws.slice(0, 40), // top 10 keywords
                     };
                 });
+            };
 
-                // Split keywords into gainers and drainers by their own delta
-                const kwGainers = kwList.filter(k => k.dO > 0).sort((a, b) => b.dO - a.dO);
-                const kwDrainers = kwList.filter(k => k.dO < 0).sort((a, b) => a.dO - b.dO);
+            let gainerBrands = groupByBrand(kwGainers);
+            let drainerBrands = groupByBrand(kwDrainers);
 
-                // Group keywords by brand+platform and build hierarchy
-                const groupByBrand = (keywords) => {
-                    const grouped = {};
-                    for (const kw of keywords) {
-                        const key = `${kw.brand}||${kw.platform}`;
-                        if (!grouped[key]) grouped[key] = [];
-                        grouped[key].push(kw);
-                    }
-                    // Build brand-level entries with aggregated SOS from brandMap
-                    return Object.entries(grouped).map(([key, kws]) => {
-                        const bPeriods = brandMap[key] || {};
-                        const curr = bPeriods.current || { overall: 0, organic: 0, paid: 0 };
-                        const prev = bPeriods.previous || { overall: 0, organic: 0, paid: 0 };
-                        return {
-                            brand: bPeriods.brand || kws[0].brand,
-                            platform: bPeriods.platform || kws[0].platform,
-                            overall: curr.overall,
-                            organic: curr.organic,
-                            paid: curr.paid,
-                            dOverall: Number((curr.overall - prev.overall).toFixed(2)),
-                            dOrganic: Number((curr.organic - prev.organic).toFixed(2)),
-                            dPaid: Number((curr.paid - prev.paid).toFixed(2)),
-                            keywords: kws.slice(0, 10), // top 10 keywords
-                        };
-                    });
-                };
+            // Sort brands by number of classified keywords (most keywords first)
+            gainerBrands.sort((a, b) => b.keywords.length - a.keywords.length);
+            drainerBrands.sort((a, b) => b.keywords.length - a.keywords.length);
 
-                let gainerBrands = groupByBrand(kwGainers);
-                let drainerBrands = groupByBrand(kwDrainers);
+            // Limit to top 10 brands
+            gainerBrands = gainerBrands.slice(0, 5);
+            drainerBrands = drainerBrands.slice(0, 5);
 
-                // Sort brands by number of classified keywords (most keywords first)
-                gainerBrands.sort((a, b) => b.keywords.length - a.keywords.length);
-                drainerBrands.sort((a, b) => b.keywords.length - a.keywords.length);
+            // ── Step 3: Location drill-down for each keyword ──
+            const enrichBrandKws = async (brandItem, isGainer) => {
+                const escapedBrand = escapeCH(brandItem.brand);
+                const escapedPlatform = escapeCH(brandItem.platform);
 
-                // Limit to top 10 brands
-                gainerBrands = gainerBrands.slice(0, 5);
-                drainerBrands = drainerBrands.slice(0, 5);
+                const keywords = await Promise.all(
+                    brandItem.keywords.map(async (kwItem) => {
+                        const escapedKw = escapeCH(kwItem.kw);
 
-                // ── Step 3: Location drill-down for each keyword ──
-                const enrichBrandKws = async (brandItem, isGainer) => {
-                    const escapedBrand = escapeCH(brandItem.brand);
-                    const escapedPlatform = escapeCH(brandItem.platform);
-
-                    const keywords = await Promise.all(
-                        brandItem.keywords.map(async (kwItem) => {
-                            const escapedKw = escapeCH(kwItem.kw);
-
-                            const locQuery = `
+                        const locQuery = `
                                 SELECT location_name AS loc, 'current' AS period,
                                     ROUND(sumIf(toInt32(overall), brand = '${escapedBrand}') * 100.0 /
                                         nullIf(sum(toInt32(overall)), 0), 2) AS overall_sos,
@@ -3527,49 +3527,49 @@ class VisibilityService {
                                 HAVING sumIf(toInt32(overall), brand = '${escapedBrand}') > 0
                             `;
 
-                            const locRows = await queryClickHouse(locQuery);
-                            const locMap = {};
-                            for (const row of locRows) {
-                                const l = row.loc;
-                                if (!l) continue;
-                                if (!locMap[l]) locMap[l] = {};
-                                locMap[l][row.period] = {
-                                    overall: Number(row.overall_sos) || 0,
-                                    organic: Number(row.organic_sos) || 0,
-                                    paid: Number(row.paid_sos) || 0,
-                                };
-                            }
+                        const locRows = await queryClickHouse(locQuery);
+                        const locMap = {};
+                        for (const row of locRows) {
+                            const l = row.loc;
+                            if (!l) continue;
+                            if (!locMap[l]) locMap[l] = {};
+                            locMap[l][row.period] = {
+                                overall: Number(row.overall_sos) || 0,
+                                organic: Number(row.organic_sos) || 0,
+                                paid: Number(row.paid_sos) || 0,
+                            };
+                        }
 
-                            const allLocations = Object.entries(locMap).map(([loc, periods]) => {
-                                const curr = periods.current || { overall: 0, organic: 0, paid: 0 };
-                                const prev = periods.previous || { overall: 0, organic: 0, paid: 0 };
-                                return {
-                                    loc,
-                                    overall: curr.overall,
-                                    organic: curr.organic,
-                                    paid: curr.paid,
-                                    dO: Number((curr.overall - prev.overall).toFixed(2)),
-                                    dOr: Number((curr.organic - prev.organic).toFixed(2)),
-                                    dP: Number((curr.paid - prev.paid).toFixed(2)),
-                                };
-                            });
+                        const allLocations = Object.entries(locMap).map(([loc, periods]) => {
+                            const curr = periods.current || { overall: 0, organic: 0, paid: 0 };
+                            const prev = periods.previous || { overall: 0, organic: 0, paid: 0 };
+                            return {
+                                loc,
+                                overall: curr.overall,
+                                organic: curr.organic,
+                                paid: curr.paid,
+                                dO: Number((curr.overall - prev.overall).toFixed(2)),
+                                dOr: Number((curr.organic - prev.organic).toFixed(2)),
+                                dP: Number((curr.paid - prev.paid).toFixed(2)),
+                            };
+                        });
 
-                            // Filter and sort locations matching keyword direction
-                            const locations = isGainer
-                                ? allLocations.filter(l => l.dO > 0).sort((a, b) => b.dO - a.dO).slice(0, 5)
-                                : allLocations.filter(l => l.dO < 0).sort((a, b) => a.dO - b.dO).slice(0, 5);
+                        // Filter and sort locations matching keyword direction
+                        const locations = isGainer
+                            ? allLocations.filter(l => l.dO > 0).sort((a, b) => b.dO - a.dO).slice(0, 5)
+                            : allLocations.filter(l => l.dO < 0).sort((a, b) => a.dO - b.dO).slice(0, 5);
 
-                            return { ...kwItem, locations };
-                        })
-                    );
+                        return { ...kwItem, locations };
+                    })
+                );
 
-                    return { ...brandItem, keywords };
-                };
+                return { ...brandItem, keywords };
+            };
 
-                const [gain, drain] = await Promise.all([
-                    Promise.all(gainerBrands.map(b => enrichBrandKws(b, true))),
-                    Promise.all(drainerBrands.map(b => enrichBrandKws(b, false))),
-                ]);
+            const [gain, drain] = await Promise.all([
+                Promise.all(gainerBrands.map(b => enrichBrandKws(b, true))),
+                Promise.all(drainerBrands.map(b => enrichBrandKws(b, false))),
+            ]);
 
             console.log(`[VisibilityService] getSOSGainersAndDrainers returned ${gain.length} gainers, ${drain.length} drainers`);
             return { gain, drain };
@@ -3586,59 +3586,59 @@ class VisibilityService {
     async getSearchTermsPerformance(filters = {}) {
         console.log('[VisibilityService] getSearchTermsPerformance called');
         try {
-                const {
-                    viewMode = 'keyword',
-                    platform = 'All',
-                    brand = 'All',
-                    location = 'All',
-                    keywordType = 'All',
-                    keywordTypeFilter = 'All',
-                    keyword = 'All',
-                    ownBrandsOnly = false,
-                    startDate,
-                    endDate,
-                    category = 'All',
-                    channel = 'All',
-                    sku = 'All'
-                } = filters;
+            const {
+                viewMode = 'keyword',
+                platform = 'All',
+                brand = 'All',
+                location = 'All',
+                keywordType = 'All',
+                keywordTypeFilter = 'All',
+                keyword = 'All',
+                ownBrandsOnly = false,
+                startDate,
+                endDate,
+                category = 'All',
+                channel = 'All',
+                sku = 'All'
+            } = filters;
 
-                const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
-                const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+            const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
+            const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
-                // Conditions
-                const platformCondition = buildCHCondition(platform, 'platform_name');
-                const channelCondition = buildChannelCondition(channel, 'platform_name');
-                const brandCondition = buildCHCondition(brand, 'brand');
-                const locationCondition = buildCHCondition(location, 'location_name');
-                const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
-                const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
-                const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
-                const keywordCondition = buildCHCondition(keyword, 'keyword');
-                const skuCondition = buildCHCondition(sku, 'keyword_search_product');
-                const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
+            // Conditions
+            const platformCondition = buildCHCondition(platform, 'platform_name');
+            const channelCondition = buildChannelCondition(channel, 'platform_name');
+            const brandCondition = buildCHCondition(brand, 'brand');
+            const locationCondition = buildCHCondition(location, 'location_name');
+            const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
+            const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
+            const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
+            const keywordCondition = buildCHCondition(keyword, 'keyword');
+            const skuCondition = buildCHCondition(sku, 'keyword_search_product');
+            const ownBrandsCondition = ownBrandsOnly ? 'AND toInt32(flag) = 1' : 'AND 1=1';
 
-                let rankCondition = '';
-                if (filters.rank && filters.rank !== 'All') {
-                    const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
-                    const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
-                    if (!isNaN(maxRank) && maxRank > 0) {
-                        rankCondition = ` AND toInt32(POSITION) <= ${maxRank}`;
-                    }
+            let rankCondition = '';
+            if (filters.rank && filters.rank !== 'All') {
+                const ranksArray = Array.isArray(filters.rank) ? filters.rank : [filters.rank];
+                const maxRank = Math.max(...ranksArray.map(r => Number(String(r).replace(/\D/g, ''))));
+                if (!isNaN(maxRank) && maxRank > 0) {
+                    rankCondition = ` AND toInt32(POSITION) <= ${maxRank}`;
                 }
+            }
 
-                const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand' : 'keyword_search_product');
-                const numeratorCondition = (sku && sku !== 'All') 
-                    ? `lowerUTF8(t1.keyword_search_product) = lowerUTF8('${escapeCH(sku)}')` 
-                    : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : 't1.flag = 1';
+            const dimColumn = viewMode === 'keyword' ? 'keyword' : (viewMode === 'brand' ? 'brand' : 'keyword_search_product');
+            const numeratorCondition = (sku && sku !== 'All')
+                ? `lowerUTF8(t1.keyword_search_product) = lowerUTF8('${escapeCH(sku)}')`
+                : ((brand && brand !== 'All') || viewMode === 'brand' || viewMode === 'sku') ? '1=1' : 't1.flag = 1';
 
-                const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
-                const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
-                const searchVolumeSelect = hasSearchVolPct
-                    ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
-                    : `0`;
+            const colsRes = await queryClickHouse(`SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'rb_kw_olap'`);
+            const hasSearchVolPct = colsRes.some((c) => c.name === 'search_volume_percentage');
+            const searchVolumeSelect = hasSearchVolPct
+                ? `ROUND(AVG(toFloat64OrZero(toString(search_volume_percentage))), 2)`
+                : `0`;
 
-                // Calculate total landscape volume for relative share (ignoring local segment filters)
-                const landscapeVolQuery = `
+            // Calculate total landscape volume for relative share (ignoring local segment filters)
+            const landscapeVolQuery = `
                     SELECT sum(toInt32(overall)) as total_vol
                     FROM rb_kw_olap
                     WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
@@ -3653,10 +3653,10 @@ class VisibilityService {
                       ${rankCondition}
                       AND ${dimColumn} IS NOT NULL AND ${dimColumn} != ''
                 `;
-                const landscapeRes = await queryClickHouse(landscapeVolQuery);
-                const totalLandscapeVol = Number(landscapeRes[0]?.total_vol) || 0;
+            const landscapeRes = await queryClickHouse(landscapeVolQuery);
+            const totalLandscapeVol = Number(landscapeRes[0]?.total_vol) || 0;
 
-                const mainQuery = `
+            const mainQuery = `
                     SELECT 
                         name,
                         any(brand_name) as brand_name,
@@ -3733,101 +3733,101 @@ class VisibilityService {
                     ORDER BY impressions DESC
                 `;
 
-                console.log('[VisibilityService] getSearchTermsPerformance query:', mainQuery.replace(/\s+/g, ' '));
-                const results = await queryClickHouse(mainQuery);
-                console.log('[VisibilityService] getSearchTermsPerformance results count:', results.length);
+            console.log('[VisibilityService] getSearchTermsPerformance query:', mainQuery.replace(/\s+/g, ' '));
+            const results = await queryClickHouse(mainQuery);
+            console.log('[VisibilityService] getSearchTermsPerformance results count:', results.length);
 
-                // Group by name if keyword view (since keywords can have multiple brands)
-                // We want the leading brand (one with highest impressions for that keyword)
-                const itemsMap = {};
-                results.forEach(row => {
-                    itemsMap[row.name] = {
-                        name: row.name,
-                        leadingBrand: row.brand_name || 'Other',
-                        web_pid: row.web_pid,
-                        overallSOS: Number(row.overall_sos) || 0,
-                        organicSOS: Number(row.organic_sos) || 0,
-                        paidSOS: Number(row.paid_sos) || 0,
-                        volShare: Number(row.max_vol_share) || 0,
-                        searchVolume: Number(row.search_volume) || 0,
-                        impressions: Number(row.impressions),
-                        adPosition: Number(row.ad_position) || null,
-                        organicPosition: Number(row.organic_position) || null,
-                        imageUrl: null
-                    };
-                });
+            // Group by name if keyword view (since keywords can have multiple brands)
+            // We want the leading brand (one with highest impressions for that keyword)
+            const itemsMap = {};
+            results.forEach(row => {
+                itemsMap[row.name] = {
+                    name: row.name,
+                    leadingBrand: row.brand_name || 'Other',
+                    web_pid: row.web_pid,
+                    overallSOS: Number(row.overall_sos) || 0,
+                    organicSOS: Number(row.organic_sos) || 0,
+                    paidSOS: Number(row.paid_sos) || 0,
+                    volShare: Number(row.max_vol_share) || 0,
+                    searchVolume: Number(row.search_volume) || 0,
+                    impressions: Number(row.impressions),
+                    adPosition: Number(row.ad_position) || null,
+                    organicPosition: Number(row.organic_position) || null,
+                    imageUrl: null
+                };
+            });
 
-                // Fetch SKU images from rb_sku_platform only when in SKU view mode
-                if (viewMode === 'sku') {
-                    const webPids = Object.values(itemsMap).map(i => i.web_pid).filter(Boolean);
-                    if (webPids.length > 0) {
-                        try {
-                            const imgQuery = `
+            // Fetch SKU images from rb_sku_platform only when in SKU view mode
+            if (viewMode === 'sku') {
+                const webPids = Object.values(itemsMap).map(i => i.web_pid).filter(Boolean);
+                if (webPids.length > 0) {
+                    try {
+                        const imgQuery = `
                                 SELECT web_pid, any(image_url) as img
                                 FROM rb_sku_platform
                                 WHERE web_pid IN (${webPids.map(id => `'${escapeCH(String(id))}'`).join(',')})
                                 GROUP BY web_pid
                             `;
-                            const imgData = await queryClickHouse(imgQuery);
-                            const imgMap = new Map();
-                            imgData.forEach(row => imgMap.set(String(row.web_pid), row.img));
+                        const imgData = await queryClickHouse(imgQuery);
+                        const imgMap = new Map();
+                        imgData.forEach(row => imgMap.set(String(row.web_pid), row.img));
 
-                            Object.values(itemsMap).forEach(item => {
-                                if (item.web_pid && imgMap.has(String(item.web_pid))) {
-                                    const imgUrl = imgMap.get(String(item.web_pid)) ? String(imgMap.get(String(item.web_pid))).split(',')[0].trim() : null;
-                                    item.imageUrl = imgUrl || null;
-                                }
-                            });
-                            console.log(`[VisibilityService] Fetched ${imgData.size} SKU images from rb_sku_platform using web_pid`);
-                        } catch (imgError) {
-                            console.error('[VisibilityService] Failed to fetch SKU images from rb_sku_platform:', imgError);
-                        }
+                        Object.values(itemsMap).forEach(item => {
+                            if (item.web_pid && imgMap.has(String(item.web_pid))) {
+                                const imgUrl = imgMap.get(String(item.web_pid)) ? String(imgMap.get(String(item.web_pid))).split(',')[0].trim() : null;
+                                item.imageUrl = imgUrl || null;
+                            }
+                        });
+                        console.log(`[VisibilityService] Fetched ${imgData.size} SKU images from rb_sku_platform using web_pid`);
+                    } catch (imgError) {
+                        console.error('[VisibilityService] Failed to fetch SKU images from rb_sku_platform:', imgError);
                     }
                 }
+            }
 
-                // Fetch Brand images from rb_brands only when in Brand view mode
-                if (viewMode === 'brand') {
-                    const brandNames = Object.keys(itemsMap).filter(Boolean);
-                    if (brandNames.length > 0) {
-                        try {
-                            const imgQuery = `
+            // Fetch Brand images from rb_brands only when in Brand view mode
+            if (viewMode === 'brand') {
+                const brandNames = Object.keys(itemsMap).filter(Boolean);
+                if (brandNames.length > 0) {
+                    try {
+                        const imgQuery = `
                                 SELECT lowerUTF8(brand_name) as brand_name_lower, any(brand_description) as img
                                 FROM rb_brands
                                 WHERE brand_name_lower IN (${brandNames.map(n => `'${escapeCH(String(n).toLowerCase())}'`).join(',')})
                                 GROUP BY brand_name_lower
                             `;
-                            const imgData = await queryClickHouse(imgQuery);
-                            
-                            // Create a map of lowercase brand names for easy lookup
-                            const brandImgMap = {};
-                            imgData.forEach(row => {
-                                if (row.brand_name_lower) {
-                                    brandImgMap[row.brand_name_lower] = row.img;
-                                }
-                            });
+                        const imgData = await queryClickHouse(imgQuery);
 
-                            // Enrich itemsMap using lowercase keys
-                            Object.keys(itemsMap).forEach(brandKey => {
-                                const lowerKey = brandKey.toLowerCase();
-                                if (brandImgMap[lowerKey]) {
-                                    itemsMap[brandKey].imageUrl = brandImgMap[lowerKey] || null;
-                                }
-                            });
-                            console.log(`[VisibilityService] Fetched ${imgData.length} brand images from rb_brands (case-insensitive)`);
-                        } catch (imgError) {
-                            console.error('[VisibilityService] Failed to fetch brand images from rb_brands:', imgError);
-                        }
+                        // Create a map of lowercase brand names for easy lookup
+                        const brandImgMap = {};
+                        imgData.forEach(row => {
+                            if (row.brand_name_lower) {
+                                brandImgMap[row.brand_name_lower] = row.img;
+                            }
+                        });
+
+                        // Enrich itemsMap using lowercase keys
+                        Object.keys(itemsMap).forEach(brandKey => {
+                            const lowerKey = brandKey.toLowerCase();
+                            if (brandImgMap[lowerKey]) {
+                                itemsMap[brandKey].imageUrl = brandImgMap[lowerKey] || null;
+                            }
+                        });
+                        console.log(`[VisibilityService] Fetched ${imgData.length} brand images from rb_brands (case-insensitive)`);
+                    } catch (imgError) {
+                        console.error('[VisibilityService] Failed to fetch brand images from rb_brands:', imgError);
                     }
                 }
+            }
 
-                const items = Object.values(itemsMap).sort((a, b) => b.overallSOS - a.overallSOS);
+            const items = Object.values(itemsMap).sort((a, b) => b.overallSOS - a.overallSOS);
 
-                // ── Summary row: aggregate SOS across all keywords at filter level (keyword mode only) ──
-                let summary = null;
-                if (viewMode === 'keyword') {
-                    try {
-                        // Query 1: Aggregate SOS + leading brand + keyword count across all keywords
-                        const summaryQuery = `
+            // ── Summary row: aggregate SOS across all keywords at filter level (keyword mode only) ──
+            let summary = null;
+            if (viewMode === 'keyword') {
+                try {
+                    // Query 1: Aggregate SOS + leading brand + keyword count across all keywords
+                    const summaryQuery = `
                             SELECT
                                 arrayElement(arrayFilter(x -> lowerUTF8(x) NOT IN ('other', 'others', ''), topK(5)(brand)), 1) as leading_brand,
                                 count(DISTINCT keyword) as total_keywords,
@@ -3860,8 +3860,8 @@ class VisibilityService {
                               AND keyword IS NOT NULL AND keyword != ''
                         `;
 
-                        // Query 2: Location-level breakdown for summary drill-down
-                        const summaryLocQuery = `
+                    // Query 2: Location-level breakdown for summary drill-down
+                    const summaryLocQuery = `
                             SELECT
                                 location_name as city,
                                 sumIf(toInt32(overall), flag = 1) as num_overall,
@@ -3894,46 +3894,46 @@ class VisibilityService {
                             ORDER BY overall_sos DESC
                         `;
 
-                        const [summaryRes, locRes] = await Promise.all([
-                            queryClickHouse(summaryQuery),
-                            queryClickHouse(summaryLocQuery)
-                        ]);
+                    const [summaryRes, locRes] = await Promise.all([
+                        queryClickHouse(summaryQuery),
+                        queryClickHouse(summaryLocQuery)
+                    ]);
 
-                        const sRow = summaryRes[0];
-                        if (sRow) {
-                            const locations = (locRes || [])
-                                .filter(l => l.city && l.city.toLowerCase() !== 'other' && l.city.toLowerCase() !== 'others')
-                                .map(l => ({
-                                    city: l.city,
-                                    overallSOS: Number(l.overall_sos) || 0,
-                                    organicSOS: Number(l.organic_sos) || 0,
-                                    paidSOS: Number(l.paid_sos) || 0
-                                }));
+                    const sRow = summaryRes[0];
+                    if (sRow) {
+                        const locations = (locRes || [])
+                            .filter(l => l.city && l.city.toLowerCase() !== 'other' && l.city.toLowerCase() !== 'others')
+                            .map(l => ({
+                                city: l.city,
+                                overallSOS: Number(l.overall_sos) || 0,
+                                organicSOS: Number(l.organic_sos) || 0,
+                                paidSOS: Number(l.paid_sos) || 0
+                            }));
 
-                            summary = {
-                                leadingBrand: sRow.leading_brand || 'Other',
-                                overallSOS: Number(sRow.overall_sos) || 0,
-                                organicSOS: Number(sRow.organic_sos) || 0,
-                                paidSOS: Number(sRow.paid_sos) || 0,
-                                totalKeywords: Number(sRow.total_keywords) || 0,
-                                totalSearchVolume: Number(sRow.total_search_volume) || 0,
-                                filterLabel: keywordTypeFilter !== 'All' ? keywordTypeFilter : 'All',
-                                locations
-                            };
-                        }
-                        console.log('[VisibilityService] Summary computed:', summary ? `Overall SOS: ${summary.overallSOS}%, Keywords: ${summary.totalKeywords}` : 'null');
-                    } catch (sumErr) {
-                        console.error('[VisibilityService] Error computing summary row:', sumErr);
-                        // Non-critical — continue without summary
+                        summary = {
+                            leadingBrand: sRow.leading_brand || 'Other',
+                            overallSOS: Number(sRow.overall_sos) || 0,
+                            organicSOS: Number(sRow.organic_sos) || 0,
+                            paidSOS: Number(sRow.paid_sos) || 0,
+                            totalKeywords: Number(sRow.total_keywords) || 0,
+                            totalSearchVolume: Number(sRow.total_search_volume) || 0,
+                            filterLabel: keywordTypeFilter !== 'All' ? keywordTypeFilter : 'All',
+                            locations
+                        };
                     }
+                    console.log('[VisibilityService] Summary computed:', summary ? `Overall SOS: ${summary.overallSOS}%, Keywords: ${summary.totalKeywords}` : 'null');
+                } catch (sumErr) {
+                    console.error('[VisibilityService] Error computing summary row:', sumErr);
+                    // Non-critical — continue without summary
                 }
-
-                return { items, mode: viewMode, summary };
-            } catch (error) {
-                console.error('[VisibilityService] Error in getSearchTermsPerformance:', error);
-                return { items: [], mode: filters.viewMode || 'keyword', summary: null };
             }
+
+            return { items, mode: viewMode, summary };
+        } catch (error) {
+            console.error('[VisibilityService] Error in getSearchTermsPerformance:', error);
+            return { items: [], mode: filters.viewMode || 'keyword', summary: null };
         }
+    }
     /**
      * Get Search Terms Location Drilldown
      * Queries rb_kw_olap for SOS metrics by location for a specific keyword/SKU
@@ -4038,13 +4038,13 @@ class VisibilityService {
             `;
 
             console.log('[VisibilityService] getSearchTermsLocationDrilldown query:', query.replace(/\s+/g, ' '));
-            
+
             const fs = await import('fs');
             const params = { dim: dimValue, kw: keyword };
             fs.appendFileSync('debug_drilldown.log', `\n[${new Date().toISOString()}] Query: ${query}\nParams: ${JSON.stringify(params)}\n`);
-            
+
             const results = await queryClickHouse(query, params);
-            
+
             fs.appendFileSync('debug_drilldown.log', `Result Count: ${results.length}\n`);
             if (results.length > 0) {
                 fs.appendFileSync('debug_drilldown.log', `First Row: ${JSON.stringify(results[0])}\n`);
@@ -4171,7 +4171,7 @@ class VisibilityService {
             `;
 
             const results = await queryClickHouse(query);
-            
+
             // Pivot results to brands
             const brandMap = {};
             results.forEach(row => {
@@ -4184,7 +4184,7 @@ class VisibilityService {
             const brands = Object.entries(brandMap).map(([brand, periods]) => {
                 const curr = periods.current || { overall_sos: 0, organic_sos: 0, paid_sos: 0 };
                 const prev = periods.previous || { overall_sos: 0, organic_sos: 0, paid_sos: 0 };
-                
+
                 return {
                     brand,
                     overallSOS: Number(curr.overall_sos) || 0,
