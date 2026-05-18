@@ -9,6 +9,7 @@ import zydusLogo from "../../assets/zyduslogo.png";
 import demoLogo from "../../assets/Demo.png";
 import sugarLogo from "../../assets/sugar.png";
 import pidiliteLogo from "../../assets/pidilite.png";
+import marsDmartLogo from "../../assets/mars2.svg";
 import { useAuth } from "../../utils/AuthContext";
 import {
   Box,
@@ -130,6 +131,7 @@ const Sidebar = ({
   const activeLogo = useMemo(() => {
     if (user?.dbName === 'mamaearth') return mamaearthLogo;
     if (user?.dbName === 'mars_petcare') return marsPetcareLogo;
+    if (user?.dbName === 'mars_dmart') return marsDmartLogo;
     if (user?.dbName === 'boat') return boatLogo;
     if (user?.dbName === 'zydus') return zydusLogo;
     if (user?.dbName === 'demo') return demoLogo;
@@ -141,6 +143,7 @@ const Sidebar = ({
   const activeLogoAlt = useMemo(() => {
     if (user?.dbName === 'mamaearth') return 'Mamaearth Logo';
     if (user?.dbName === 'mars_petcare') return 'Mars Petcare Logo';
+    if (user?.dbName === 'mars_dmart') return 'Mars Dmart Logo';
     if (user?.dbName === 'boat') return 'Boat Logo';
     if (user?.dbName === 'zydus') return 'Zydus Logo';
     if (user?.dbName === 'demo') return 'Demo Logo';
@@ -373,7 +376,7 @@ const Sidebar = ({
           </IconButton>
         )}
       </Box>
-      
+
       {/* Channel Selector - Pill Segmented Control */}
       <Box sx={{
         px: isCollapsed ? 1 : 1.5,
@@ -543,7 +546,7 @@ const Sidebar = ({
             let displayLabel = ch;
             if (ch.toLowerCase() === 'quickcomm' || ch.toLowerCase() === 'quick commerce') displayLabel = 'QComm';
             else if (ch.toLowerCase() === 'ecommerce' || ch.toLowerCase() === 'ecom') displayLabel = 'EComm';
-            
+
             if (isCollapsed) {
               return (
                 <Tooltip key={ch} title={displayLabel} placement="right">
@@ -590,8 +593,8 @@ const Sidebar = ({
                   }
                 }}
               >
-                <Typography sx={{ 
-                  fontSize: '13px', 
+                <Typography sx={{
+                  fontSize: '13px',
                   fontFamily: "'DM Sans', sans-serif",
                   fontWeight: isSelected ? 700 : 500,
                   color: isSelected ? '#1e293b' : '#64748b',
@@ -611,10 +614,10 @@ const Sidebar = ({
       {/* Platform Section: Active Card & Carousel */}
       {selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && !isCollapsed && (
         <Box sx={{ px: 2, pt: 2, pb: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          
+
           {/* Active Platform Card */}
           {selectedPlatform && (
-            <Box 
+            <Box
               onClick={() => currentPath !== '/watch-tower' && setShowPlatformOptions(!showPlatformOptions)}
               sx={{
                 bgcolor: '#ffffff',
@@ -653,10 +656,10 @@ const Sidebar = ({
                     if (selectedPlatform === 'All') return <DashboardIcon sx={{ fontSize: '1.2rem' }} />;
                     const activeMeta = platformMetadata.find(meta => meta.pf_name === selectedPlatform);
                     return activeMeta?.platform_description ? (
-                      <img 
-                        src={activeMeta.platform_description} 
-                        alt={selectedPlatform} 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
+                      <img
+                        src={activeMeta.platform_description}
+                        alt={selectedPlatform}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                         onError={(e) => { e.target.style.display = 'none'; }}
                       />
                     ) : (
@@ -666,9 +669,9 @@ const Sidebar = ({
                 </Box>
                 {/* Text Content */}
                 <Box>
-                  <Typography sx={{ 
-                    color: '#1e293b', 
-                    fontWeight: 700, 
+                  <Typography sx={{
+                    color: '#1e293b',
+                    fontWeight: 700,
                     fontSize: '12px',
                     fontFamily: "'DM Sans', sans-serif",
                     lineHeight: 1.1,
@@ -676,9 +679,9 @@ const Sidebar = ({
                   }}>
                     {selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''}
                   </Typography>
-                  <Typography sx={{ 
-                    color: selectedPlatform === 'All' ? '#1e293b' : '#64748b', 
-                    fontSize: selectedPlatform === 'All' ? '12px' : '10px', 
+                  <Typography sx={{
+                    color: selectedPlatform === 'All' ? '#1e293b' : '#64748b',
+                    fontSize: selectedPlatform === 'All' ? '12px' : '10px',
                     fontFamily: "'DM Sans', sans-serif",
                     fontWeight: selectedPlatform === 'All' ? 600 : 500,
                     mt: selectedPlatform === 'All' ? 0 : 0.2
@@ -688,7 +691,7 @@ const Sidebar = ({
                 </Box>
 
               </Box>
-              
+
               {/* Chevron */}
               {currentPath !== '/watch-tower' && (
                 <Box sx={{
@@ -701,7 +704,7 @@ const Sidebar = ({
                   justifyContent: 'center',
                   color: '#64748b'
                 }}>
-                  {showPlatformOptions ? <KeyboardArrowUpIcon sx={{ fontSize: '1rem' }}/> : <KeyboardArrowDownIcon sx={{ fontSize: '1rem' }}/>}
+                  {showPlatformOptions ? <KeyboardArrowUpIcon sx={{ fontSize: '1rem' }} /> : <KeyboardArrowDownIcon sx={{ fontSize: '1rem' }} />}
                 </Box>
               )}
             </Box>
@@ -709,14 +712,14 @@ const Sidebar = ({
 
           {/* Platform Carousel */}
           <Collapse in={showPlatformOptions && currentPath !== '/watch-tower'}>
-            <Box sx={{ 
-              position: 'relative', 
-              display: 'flex', 
+            <Box sx={{
+              position: 'relative',
+              display: 'flex',
               alignItems: 'center',
-              mt: 0.5 
+              mt: 0.5
             }}>
               {/* Scrollable Container */}
-              <Box 
+              <Box
                 ref={platformScrollRef}
                 sx={{
                   display: 'flex',
@@ -736,7 +739,7 @@ const Sidebar = ({
                   if (!pf) return null;
                   const isSelected = selectedPlatform === pf.pf_name;
                   const colors = getPlatformColors(pf.pf_name);
-                  
+
                   return (
                     <Box
                       key={pf.pf_name}
@@ -773,15 +776,15 @@ const Sidebar = ({
                         overflow: 'hidden',
                       }}>
                         {pf.platform_description ? (
-                          <img 
-                            src={pf.platform_description} 
-                            alt={pf.pf_name} 
-                            style={{ 
-                              width: '100%', 
-                              height: '100%', 
+                          <img
+                            src={pf.platform_description}
+                            alt={pf.pf_name}
+                            style={{
+                              width: '100%',
+                              height: '100%',
                               objectFit: 'cover',
                               display: 'block',
-                            }} 
+                            }}
                             onError={(e) => {
                               e.target.onerror = null;
                               e.target.style.display = 'none';
@@ -791,7 +794,7 @@ const Sidebar = ({
                           pf.pf_name.substring(0, 2).toUpperCase()
                         )}
                       </Box>
-                      
+
                       {/* Checkmark Badge */}
                       {isSelected && (
                         <Box sx={{
@@ -826,36 +829,36 @@ const Sidebar = ({
       {selectedChannel && selectedChannel !== 'All' && platforms.length > 0 && isCollapsed && (
         <Box sx={{ py: 1.5, display: 'flex', justifyContent: 'center', borderBottom: "1px solid rgba(0, 0, 0, 0.04)" }}>
           {selectedPlatform && selectedPlatform !== 'All' && (
-             <Tooltip title={selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''} placement="right">
-               <Box sx={{
-                  width: 32,
-                  height: 32,
-                  bgcolor: '#ffffff',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: getPlatformColors(selectedPlatform).squircleText,
-                  fontWeight: 800,
-                  fontSize: '0.8rem',
-                  border: '2px solid #2563eb',
-                  overflow: 'hidden',
-               }}>
-                 {(() => {
-                    const activeMeta = platformMetadata.find(meta => meta.pf_name === selectedPlatform);
-                    return activeMeta?.platform_description ? (
-                      <img 
-                        src={activeMeta.platform_description} 
-                        alt={selectedPlatform} 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    ) : (
-                      selectedPlatform.substring(0, 2).toUpperCase()
-                    );
-                 })()}
-               </Box>
-             </Tooltip>
+            <Tooltip title={selectedPlatform ? selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1) : ''} placement="right">
+              <Box sx={{
+                width: 32,
+                height: 32,
+                bgcolor: '#ffffff',
+                borderRadius: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: getPlatformColors(selectedPlatform).squircleText,
+                fontWeight: 800,
+                fontSize: '0.8rem',
+                border: '2px solid #2563eb',
+                overflow: 'hidden',
+              }}>
+                {(() => {
+                  const activeMeta = platformMetadata.find(meta => meta.pf_name === selectedPlatform);
+                  return activeMeta?.platform_description ? (
+                    <img
+                      src={activeMeta.platform_description}
+                      alt={selectedPlatform}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    selectedPlatform.substring(0, 2).toUpperCase()
+                  );
+                })()}
+              </Box>
+            </Tooltip>
           )}
         </Box>
       )}
@@ -955,8 +958,8 @@ const Sidebar = ({
                         </Box>
                       }
                       primaryTypographyProps={{
-                      fontSize: "12px",
-                      fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "12px",
+                        fontFamily: "'DM Sans', sans-serif",
                         fontWeight: isActive ? 700 : 500,
                         sx: {
                           opacity: isCollapsed ? 0 : 1,
