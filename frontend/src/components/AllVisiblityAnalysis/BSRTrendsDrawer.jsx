@@ -366,7 +366,7 @@ export default function BSRTrendsDrawer({
   selectedCategory = 'All'
 }) {
   const { 
-    platform: globalPlatform, selectedBrand, selectedLocation, selectedChannel, timeStart, timeEnd 
+    platform: globalPlatform, selectedBrand, selectedLocation, selectedChannel, timeStart, timeEnd, compareStart, compareEnd 
   } = useContext(FilterContext);
 
   const [view, setView] = useState("Trends");
@@ -472,6 +472,8 @@ export default function BSRTrendsDrawer({
                     sku: drawerFilters.SKU,
                     startDate: start.format('YYYY-MM-DD'),
                     endDate: end.format('YYYY-MM-DD'),
+                    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+                    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined
                 }
             });
             setTrendData(res.data || { days: [], categories: {} });
@@ -482,7 +484,7 @@ export default function BSRTrendsDrawer({
         }
     };
     fetchTrends();
-  }, [open, drawerFilters, timeStart, timeEnd, range]);
+  }, [open, drawerFilters, timeStart, timeEnd, compareStart, compareEnd, range]);
 
   // Transform data for ECharts based on selected category lines & metrics
   const chartOption = useMemo(() => {

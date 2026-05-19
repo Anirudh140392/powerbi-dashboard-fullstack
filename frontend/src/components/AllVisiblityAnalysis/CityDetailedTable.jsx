@@ -118,7 +118,7 @@ export default function CityDetailedTable({ sku, onClose }) {
 
         fetchDetails();
         return () => { mounted = false; };
-    }, [sku.Web_Pid, timeStart, timeEnd, platform, selectedBrand, selectedCategory, selectedLocation, selectedChannel]);
+    }, [sku.Web_Pid, timeStart, timeEnd, platform, selectedBrand, selectedCategory, selectedLocation, selectedChannel, compareStart, compareEnd]);
 
     const totalPages = Math.ceil(allCities.length / rowsPerPage);
     const displayedData = allCities.slice((page - 1) * rowsPerPage, page * rowsPerPage);

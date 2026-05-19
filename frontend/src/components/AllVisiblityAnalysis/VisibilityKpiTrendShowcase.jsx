@@ -867,7 +867,7 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
   const [selectedChannel, setSelectedChannel] = useState("All");
 
   // Local rank state — seeded from global FilterContext, but overridable per trend view
-  const { selectedRank: globalRank } = useContext(FilterContext);
+  const { selectedRank: globalRank, compareStart, compareEnd } = useContext(FilterContext);
   const [localRank, setLocalRank] = useState(globalRank || 'Top 10');
 
   // Keep local rank in sync with global filter context (from sidebar/drawer)
@@ -949,7 +949,9 @@ const TrendView = ({ mode, filters, city, onBackToTable, onSwitchToKpi, competit
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M',
           channel: selectedChannel || 'All',
-          rank: localRank || 'All'
+          rank: localRank || 'All',
+          compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+          compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined
         };
 
         // Remove undefined values
@@ -1192,7 +1194,7 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
   const [trendData, setTrendData] = useState({ brands: {}, days: [] });
   const [selectedChannel, setSelectedChannel] = useState("All");
 
-  const { selectedRank: globalRank } = useContext(FilterContext);
+  const { selectedRank: globalRank, compareStart, compareEnd } = useContext(FilterContext);
   const [localRank, setLocalRank] = useState(globalRank || 'All');
 
   const activeKpiKeys = useMemo(() => getKpiKeys(mode, filters), [mode, filters]);
@@ -1237,7 +1239,9 @@ const KpiCompareView = ({ mode, filters, city, onBackToTrend, competitionBrands 
           dimension: mode === "keyword" ? "keyword" : mode === "sku" ? "sku" : "brand",
           period: '1M',
           channel: selectedChannel || 'All',
-          rank: localRank || 'All'
+          rank: localRank || 'All',
+          compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+          compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined
         };
 
         // Remove undefined values
@@ -1733,7 +1737,7 @@ const TableSkeleton = () => (
 /* -------------------------------------------------------------------------- */
 
 export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], skus: [] }, loading = false }) => {
-  const { selectedChannel, selectedRank } = useContext(FilterContext);
+  const { selectedChannel, selectedRank, compareStart, compareEnd } = useContext(FilterContext);
   const [tab, setTab] = useState("brand"); // "brand" | "sku" | "keyword"
   const [city, setCity] = useState(CITIES[0]);
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1770,7 +1774,9 @@ export const VisibilityKpiTrendShowcase = ({ competitionData = { brands: [], sku
         keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : undefined,
         brand: filters.brands.length > 0 ? filters.brands.join(',') : undefined,
         channel: selectedChannel || 'All',
-        rank: selectedRank || 'All'
+        rank: selectedRank || 'All',
+        compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+        compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined
       };
 
       // Remove undefined values
