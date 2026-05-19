@@ -244,8 +244,11 @@ export default function ContentScoreAnalysis() {
           setOverviewData(overviewRes.data);
         }
 
-        // Fetch Platform Breakdown
-        const breakdownRes = await axiosInstance.get('/content-analysis/platform-breakdown', { params: commonParams });
+        // Fetch Platform Breakdown — exclude channel & platform filters so Cross Platform Overview is unfiltered
+        const crossPlatformParams = { ...commonParams };
+        delete crossPlatformParams.platform;
+        delete crossPlatformParams.channel;
+        const breakdownRes = await axiosInstance.get('/content-analysis/platform-breakdown', { params: crossPlatformParams });
         if (breakdownRes.data) {
           setPlatformBreakdown(breakdownRes.data);
         }
