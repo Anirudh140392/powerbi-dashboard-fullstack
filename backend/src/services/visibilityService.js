@@ -4256,13 +4256,13 @@ class VisibilityService {
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];
 
-                // Build channel condition directly (channel column has 'Ecommerce'/'QuickComm' values)
+                // Build channel condition (case-insensitive to handle both 'Ecommerce'/'ecommerce' across DBs)
                 if (filters.channel && filters.channel !== 'All') {
                     const ch = filters.channel.toLowerCase();
                     if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
-                        filterConditions.push(`${channelCol} = 'Ecommerce'`);
+                        filterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
                     } else if (ch.includes('quick')) {
-                        filterConditions.push(`${channelCol} = 'QuickComm'`);
+                        filterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
                     }
                 }
 
@@ -4506,9 +4506,9 @@ class VisibilityService {
                 if (filters.channel && filters.channel !== 'All') {
                     const ch = filters.channel.toLowerCase();
                     if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
-                        filterConditions.push(`${channelCol} = 'Ecommerce'`);
+                        filterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
                     } else if (ch.includes('quick')) {
-                        filterConditions.push(`${channelCol} = 'QuickComm'`);
+                        filterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
                     }
                 }
                 if (filters.platform && filters.platform !== 'All') {

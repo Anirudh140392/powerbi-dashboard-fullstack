@@ -746,13 +746,11 @@ export const getVisibilityBSRData = async (req, res) => {
         console.log('\n========== VISIBILITY BSR DATA API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
 
-        const cacheKey = generateCacheKey('visibility_bsr_v2', filters);
-        const data = await getCachedOrCompute(cacheKey, async () => {
-            return await visibilityService.getBSRData(filters);
-        }, CACHE_TTL.METRICS);
+        // No outer cache — getBSRData already caches internally
+        const data = await visibilityService.getBSRData(filters);
 
         const duration = Date.now() - startTime;
-        console.log('[RESPONSE]: Rows count:', data?.length);
+        console.log('[RESPONSE]: SKUs count:', data?.skus?.length);
         console.log('[TIMING] Response time:', duration, 'ms');
         console.log('==============================================\n');
 
