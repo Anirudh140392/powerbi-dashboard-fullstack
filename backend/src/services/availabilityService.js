@@ -498,11 +498,13 @@ const getAbsoluteOsaOverview = async (filters) => {
             const prevFillRate = prevSumDeno > 0 ? (prevSumBuyBox / prevSumDeno) * 100 : 0;
 
             const skuCount = curr.skuCount ? parseFloat(curr.skuCount) : 0;
+            const prevSkuCount = prev.skuCount ? parseFloat(prev.skuCount) : 0;
 
             const psl = stockAvailability > 0 ? currSumSales * ((100 / stockAvailability) - 1) : 0;
             const prevPslValue = prevStockAvailability > 0 ? prevSumSales * ((100 / prevStockAvailability) - 1) : 0;
 
             const currAvgDeliveryDays = parseFloat(curr.avgDeliveryDays);
+            const prevAvgDeliveryDays = parseFloat(prev.avgDeliveryDays);
             let deliveryTime = "N/A";
             if (!isNaN(currAvgDeliveryDays)) {
                 const roundedDays = Math.round(currAvgDeliveryDays);
@@ -518,9 +520,12 @@ const getAbsoluteOsaOverview = async (filters) => {
                 fillRate: parseFloat(fillRate.toFixed(2)),
                 prevFillRate: parseFloat(prevFillRate.toFixed(2)),
                 skuCount: skuCount,
+                prevSkuCount: prevSkuCount,
                 psl: parseFloat(psl.toFixed(2)),
                 prevPsl: parseFloat(prevPslValue.toFixed(2)),
                 deliveryTime: deliveryTime,
+                currAvgDeliveryDays: !isNaN(currAvgDeliveryDays) ? currAvgDeliveryDays : 0,
+                prevAvgDeliveryDays: !isNaN(prevAvgDeliveryDays) ? prevAvgDeliveryDays : 0,
                 sumNenoOsa: currSumNeno,
                 sumDenoOsa: currSumDeno,
                 filters: filters,

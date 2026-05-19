@@ -1299,13 +1299,13 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
 
     const deliveryCardData = apiData?.overview ? {
       value: apiData.overview.deliveryTime !== undefined ? apiData.overview.deliveryTime : "Coming soon",
-      delta: 0,
+      delta: (apiData.overview.currAvgDeliveryDays || 0) - (apiData.overview.prevAvgDeliveryDays || 0),
       trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Delivery || 0) || []
     } : null;
 
     const skuCountData = apiData?.overview ? {
       value: formatNumber(apiData.overview.skuCount || 0),
-      delta: 0,
+      delta: Number(apiData.overview.skuCount || 0) - Number(apiData.overview.prevSkuCount || 0),
       trend: apiData?.kpiTrends?.timeSeries?.map(p => p.Assortment || 0) || []
     } : null;
 
@@ -1355,8 +1355,24 @@ export const AvailablityAnalysisData = ({ apiData, loading: parentLoading, apiEr
     return cards_config.map((cfg, idx) => {
       const data = cfg.api || getMock(cfg.key);
       const delta = Number(data.delta || 0);
-      const deltaText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${cfg.key === 'psl' ? '₹' + formatNumber(Math.abs(delta)) : Math.abs(delta).toFixed(cfg.key === 'doi' ? 0 : 1)}${cfg.key === 'doi' ? ' days' : (cfg.key === 'psl' ? '' : '%')}`);
-      const prevText = cfg.key === 'delivery' || cfg.key === 'skucount' ? "" : (data.isNotMetro ? "" : "vs Previous Period");
+
+      let formatSuffix = '%';
+      if (cfg.key === 'doi' || cfg.key === 'delivery') formatSuffix = ' days';
+      if (cfg.key === 'psl' || cfg.key === 'skucount') formatSuffix = '';
+
+      let prefixStr = '';
+      if (cfg.key === 'psl') prefixStr = '₹';
+
+      let fixedDigits = 1;
+      if (cfg.key === 'doi' || cfg.key === 'skucount') fixedDigits = 0;
+
+      const absDeltaNum = Math.abs(delta);
+      const deltaFormatted = (cfg.key === 'skucount' || cfg.key === 'psl') 
+        ? formatNumber(Number(absDeltaNum.toFixed(fixedDigits))) 
+        : absDeltaNum.toFixed(fixedDigits);
+
+      const deltaText = data.isNotMetro ? "" : `${delta >= 0 ? '▲' : '▼'} ${prefixStr}${deltaFormatted}${formatSuffix}`;
+      const prevText = data.isNotMetro ? "" : "vs Previous Period";
 
       return {
         id: `avail-card-${cfg.key}`,
