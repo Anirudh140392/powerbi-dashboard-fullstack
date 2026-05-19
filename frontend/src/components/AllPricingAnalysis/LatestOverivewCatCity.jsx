@@ -23,6 +23,7 @@ import { getLogicalKpiValue } from '@/components/AllAvailablityAnalysis/availabl
 import AdvancedFilterModal from './../ControlTower/WatchTower/AdvancedFilterModal'
 import { formatNumber } from '../../utils/formatters'
 import { cn } from '../../lib/utils'
+import { copyToClipboard } from '../../utils/clipboard';
 
 /* --- HELPERS --- */
 const getStatusText = (delta) => {
@@ -30,8 +31,12 @@ const getStatusText = (delta) => {
     return delta.dir === 'up' ? "text-emerald-500" : "text-rose-500";
 };
 
-const copy = (title, value) => {
-    navigator.clipboard.writeText(`${title}: ${value}`);
+const copy = async (title, value) => {
+    try {
+        await copyToClipboard(`${title}: ${value}`);
+    } catch (err) {
+        console.error('Failed to copy', err);
+    }
 };
 
 const cardSize = {
