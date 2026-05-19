@@ -821,10 +821,15 @@ const VisiblityAnalysisData = ({
 
   const isAmazonSelected = useMemo(() => {
     if (!globalPlatform) return false;
-    if (typeof globalPlatform === 'string') return globalPlatform.toLowerCase() === 'amazon';
-    if (Array.isArray(globalPlatform)) return globalPlatform.length === 1 && globalPlatform[0].toLowerCase() === 'amazon';
+    if (typeof globalPlatform === 'string') {
+      if (globalPlatform.toLowerCase() === 'amazon') return true;
+      // If "All" is selected, check if Amazon is among available platforms
+      if (globalPlatform.toLowerCase() === 'all' && availablePlatforms?.some(p => typeof p === 'string' && p.toLowerCase() === 'amazon')) return true;
+      return false;
+    }
+    if (Array.isArray(globalPlatform)) return globalPlatform.some(p => p?.toLowerCase() === 'amazon');
     return false;
-  }, [globalPlatform]);
+  }, [globalPlatform, availablePlatforms]);
 
   const isOnlyAmazonAvailable = useMemo(() => {
     if (!availablePlatforms || !Array.isArray(availablePlatforms)) return false;
