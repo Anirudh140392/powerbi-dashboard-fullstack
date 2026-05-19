@@ -631,8 +631,6 @@ export default function TrendsCompetitionDrawer({
   const [selectedCompareSkus, setSelectedCompareSkus] = useState([]);
   const [compareInitialized, setCompareInitialized] = useState(false);
 
-  const isEcom = (typeof selectedPlatform === 'string' && (selectedPlatform.toLowerCase() === "amazon" || selectedPlatform.toLowerCase() === "flipkart"));
-
 
   // Drawer-specific filters for the Effective Filters bar
   const [drawerFilters, setDrawerFilters] = useState({
@@ -643,6 +641,18 @@ export default function TrendsCompetitionDrawer({
     SKU: "All"
   });
 
+  const getEffectivePlatform = () => {
+    if (drawerFilters?.Platform && drawerFilters.Platform !== "All") return drawerFilters.Platform;
+    if (selectedLevel?.toLowerCase() === "platform" && selectedColumn) return selectedColumn;
+    return selectedPlatform || initialPlatform || "";
+  };
+  
+  const platName = (typeof getEffectivePlatform() === 'string' ? getEffectivePlatform() : "").toLowerCase();
+  const ECOM_PLATFORMS = ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart'];
+  const QCOM_PLATFORMS = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow'];
+  
+  const isEcom = ECOM_PLATFORMS.some(p => platName.includes(p));
+  const isQcom = QCOM_PLATFORMS.some(p => platName.includes(p));
   // ===================== CONSOLIDATED DRAWER FILTER INITIALIZATION =====================
   // All filter initialization happens in ONE atomic state update to prevent
   // race conditions where multiple effects override each other.
@@ -2039,12 +2049,17 @@ export default function TrendsCompetitionDrawer({
     }
   }, [DASHBOARD_DATA, dynamicKey, open, isEcom]);
 
-  // Sync active metrics: remove Listing if platform becomes Ecom
+  // Sync active metrics: remove Listing/CPM/CPC based on platform
   useEffect(() => {
-    if (isEcom && activeMetrics.includes('Listing')) {
-      setActiveMetrics(prev => prev.filter(m => m !== 'Listing'));
-    }
-  }, [isEcom, activeMetrics]);
+    setActiveMetrics(prev => {
+      let newMetrics = [...prev];
+      if (isEcom && newMetrics.includes('Listing')) newMetrics = newMetrics.filter(m => m !== 'Listing');
+      if (isEcom && newMetrics.includes('CPM')) newMetrics = newMetrics.filter(m => m !== 'CPM');
+      if (isQcom && newMetrics.includes('CPC')) newMetrics = newMetrics.filter(m => m !== 'CPC');
+      if (newMetrics.length !== prev.length) return newMetrics;
+      return prev;
+    });
+  }, [isEcom, isQcom]);
 
   // Note: PM metrics (Spend, Conversion, ROAS, CPC) are now always visible.
   // When SKU is selected, the backend sources these from rb_pdp_olap instead of rb_pm_olap.
@@ -2772,7 +2787,12 @@ export default function TrendsCompetitionDrawer({
                 }}
               >
                 {trendMeta.metrics
-                  .filter(m => !(isEcom && m.id === 'Listing'))
+                  .filter(m => {
+                    if (isEcom && m.id === 'Listing') return false;
+                    if (isEcom && m.id === 'CPM') return false;
+                    if (isQcom && m.id === 'CPC') return false;
+                    return true;
+                  })
                   .map((m) => {
                     // Determine if this metric's data source is unavailable
                     let sourceGroup = KPI_SOURCE_MAP[m.id];
