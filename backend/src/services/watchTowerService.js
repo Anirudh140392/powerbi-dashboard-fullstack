@@ -7779,14 +7779,15 @@ const getKpiTrends = async (filters) => {
  * @param {string} platform - Selected platform filter
  * @param {string} brand - Selected brand filter (for cities)
  */
-const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
+const getTrendsFilterOptions = async ({ filterType, platform, brand, category }) => {
     try {
-        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}`);
+        console.log(`[getTrendsFilterOptions] Fetching ${filterType} for platform=${platform}, brand=${brand}, category=${category}`);
         const src = await getWatchtowerSource();
 
         // Normalize arrays for multi-select support
         const platArr = normalizeFilterArray(platform);
         const brandArr = normalizeFilterArray(brand);
+        const catArr = normalizeFilterArray(category);
 
         if (filterType === 'platforms') {
             // Fetch unique platforms
@@ -7836,6 +7837,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
             if (brandArr && brandArr.length > 0) {
                 conditions.push(`${src.f.brand} IN (${brandArr.map(b => `'${escapeStr(b)}'`).join(',')})`);
             }
+            if (catArr && catArr.length > 0) {
+                conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
+            }
 
             const query = `SELECT DISTINCT ${src.f.location} as city FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY city`;
             const results = await queryClickHouse(query);
@@ -7851,6 +7855,9 @@ const getTrendsFilterOptions = async ({ filterType, platform, brand }) => {
             }
             if (brandArr && brandArr.length > 0) {
                 conditions.push(`lower(${src.f.brand}) IN (${brandArr.map(b => `'${escapeStr(b.toLowerCase())}'`).join(',')})`);
+            }
+            if (catArr && catArr.length > 0) {
+                conditions.push(`lower(${src.f.category}) IN (${catArr.map(c => `'${escapeStr(c.toLowerCase())}'`).join(',')})`);
             }
 
             const query = `SELECT DISTINCT ${src.f.product} as sku FROM ${src.table} WHERE ${conditions.join(' AND ')} ORDER BY sku LIMIT 1000`;
