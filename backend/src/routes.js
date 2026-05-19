@@ -14,10 +14,14 @@ import reports from './routes/reports.js';
 import mapIntellect from './routes/mapIntellect.js';
 import insights from './routes/insights.js';
 import admin from './routes/admin.js';
+import walkthrough from './routes/walkthrough.js';
 
 export default (app) => {
     // Admin routes
     admin(app);
+
+    // Walkthrough routes
+    walkthrough(app);
 
     // Control Tower routes
     controlTower(app);

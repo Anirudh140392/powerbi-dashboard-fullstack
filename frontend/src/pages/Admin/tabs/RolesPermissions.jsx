@@ -53,6 +53,7 @@ const Switch = ({ checked, onChange }) => (
 const RolesPermissions = () => {
     const [expandedUsers, setExpandedUsers] = useState({});
     const [searchTerm, setSearchTerm] = useState("");
+    const [selectedDb, setSelectedDb] = useState("all");
     const [currentPage, setCurrentPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(8);
     const [showModal, setShowModal] = useState(false);
@@ -119,10 +120,11 @@ const RolesPermissions = () => {
                     }, {});
 
                     return {
-                        id: idx + 1,
+                        id: user.id, // Use actual device/user_id from backend
                         email: user.email,
                         name: user.name || user.email.split('@')[0],
                         role: user.role || 'user',
+                        ip: user.ip || 'N/A', // Display IP if needed, though optional
                         dbName: user.dbName || 'N/A',
                         dbStatus: user.dbStatus,
                         tabs
@@ -164,7 +166,7 @@ const RolesPermissions = () => {
         try {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
-                email: user.email,
+                userId: user.id,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -204,7 +206,7 @@ const RolesPermissions = () => {
         try {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
-                email: user.email,
+                userId: user.id,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -243,7 +245,7 @@ const RolesPermissions = () => {
         try {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/db-status`, {
-                email: user.email,
+                userId: user.id,
                 dbStatus: newStatus
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -287,11 +289,16 @@ const RolesPermissions = () => {
         }
     };
 
-    const filteredUsers = usersData.filter(user =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.role.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredUsers = usersData.filter(user => {
+        // Database filter
+        if (selectedDb !== 'all' && user.dbName !== selectedDb) return false;
+        // Search filter
+        const q = searchTerm.toLowerCase();
+        return !q || user.name.toLowerCase().includes(q) ||
+            user.email.toLowerCase().includes(q) ||
+            user.role.toLowerCase().includes(q) ||
+            user.dbName.toLowerCase().includes(q);
+    });
 
     const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
     const startIndex = (currentPage - 1) * rowsPerPage;
@@ -334,16 +341,29 @@ const RolesPermissions = () => {
                     <p className="text-slate-500 text-xs font-medium">Manage user-level access to platform modules and databases.</p>
                 </div>
                 <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-64">
+                    <div className="relative flex-1 md:w-52">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                         <input
                             type="text"
                             placeholder="Search users..."
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                             className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                         />
                     </div>
+                    <select
+                        value={selectedDb}
+                        onChange={(e) => { setSelectedDb(e.target.value); setCurrentPage(1); }}
+                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer appearance-none pr-8 transition-all"
+                        style={{ backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`, backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em 1.2em' }}
+                    >
+                        <option value="all">All Databases ({usersData.length})</option>
+                        {[...new Set(usersData.map(u => u.dbName))].filter(d => d && d !== 'N/A').sort().map(db => (
+                            <option key={db} value={db}>
+                                {db} ({usersData.filter(u => u.dbName === db).length})
+                            </option>
+                        ))}
+                    </select>
                     <button 
                         onClick={() => setShowModal(true)}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap cursor-pointer"
@@ -692,19 +712,50 @@ const RolesPermissions = () => {
                         >
                             <ChevronLeft className="w-4 h-4" />
                         </button>
-                        <div className="flex items-center gap-1 px-4">
-                            {[...Array(totalPages)].map((_, i) => (
-                                <button
-                                    key={i + 1}
-                                    onClick={() => setCurrentPage(i + 1)}
-                                    className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${currentPage === i + 1
-                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                                        : 'text-slate-500 hover:bg-slate-50'
-                                        }`}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
+                        <div className="flex items-center gap-1 px-4 overflow-x-auto hide-scrollbar">
+                            {(() => {
+                                const pages = [];
+                                if (totalPages <= 7) {
+                                    for (let i = 1; i <= totalPages; i++) pages.push(i);
+                                } else {
+                                    if (currentPage <= 4) {
+                                        for (let i = 1; i <= 5; i++) pages.push(i);
+                                        pages.push('...');
+                                        pages.push(totalPages);
+                                    } else if (currentPage >= totalPages - 3) {
+                                        pages.push(1);
+                                        pages.push('...');
+                                        for (let i = totalPages - 4; i <= totalPages; i++) pages.push(i);
+                                    } else {
+                                        pages.push(1);
+                                        pages.push('...');
+                                        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+                                        pages.push('...');
+                                        pages.push(totalPages);
+                                    }
+                                }
+                                return pages.map((page, index) => {
+                                    if (page === '...') {
+                                        return (
+                                            <span key={`ellipsis-${index}`} className="w-7 h-7 flex items-center justify-center text-xs font-bold text-slate-400">
+                                                ...
+                                            </span>
+                                        );
+                                    }
+                                    return (
+                                        <button
+                                            key={`page-${page}`}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${currentPage === page
+                                                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                                : 'text-slate-500 hover:bg-slate-50'
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    );
+                                });
+                            })()}
                         </div>
                         <button
                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
