@@ -3482,7 +3482,7 @@ const Header = ({ title = "Business Overview", onMenuClick, filters, onFiltersCh
                             </Box>
                             {(() => {
                               const isAmazon = platform === 'Amazon' || platform === 'amazon' || (Array.isArray(platform) && platform.some(p => p?.toLowerCase() === 'amazon'));
-                              const isBsrDisabled = isAmazon;
+                              const isBsrDisabled = !isAmazon;
 
                               return (
                                 <Box
