@@ -18,7 +18,9 @@ const BSRAnalysisSegment = () => {
         selectedCategory,
         selectedChannel,
         timeStart,
-        timeEnd
+        timeEnd,
+        compareStart,
+        compareEnd
     } = useContext(FilterContext);
 
     const [loading, setLoading] = useState(true);
@@ -33,7 +35,7 @@ const BSRAnalysisSegment = () => {
         if (timeStart && timeEnd) {
             fetchBSRData();
         }
-    }, [selectedPlatform, selectedBrand, selectedCity, selectedCategory, selectedChannel, timeStart, timeEnd]);
+    }, [selectedPlatform, selectedBrand, selectedCity, selectedCategory, selectedChannel, timeStart, timeEnd, compareStart, compareEnd]);
 
     const fetchBSRData = async () => {
         setLoading(true);
@@ -47,7 +49,9 @@ const BSRAnalysisSegment = () => {
                     format: selectedCategory,
                     channel: selectedChannel,
                     startDate: timeStart.format('YYYY-MM-DD'),
-                    endDate: timeEnd.format('YYYY-MM-DD')
+                    endDate: timeEnd.format('YYYY-MM-DD'),
+                    compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+                    compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined
                 }
             });
             setData(response.data?.data?.skus || []);

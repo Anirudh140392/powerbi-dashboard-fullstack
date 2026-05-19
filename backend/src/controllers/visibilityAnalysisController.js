@@ -221,7 +221,9 @@ export const getVisibilityBrandDrilldown = async (req, res) => {
             category: req.query.category || 'All',
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null
         };
 
         if (!filters.keyword) {
@@ -295,6 +297,8 @@ export const getVisibilityKpiTrends = async (req, res) => {
             timeStep: req.query.timeStep || 'Daily',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             sku: req.query.sku || req.query.skus || 'All',
             rank: req.query.rank || 'All'
         };
@@ -400,6 +404,8 @@ export const getBrandComparisonTrends = async (req, res) => {
             dimension: req.query.dimension || 'brand',
             startDate: req.query.startDate,
             endDate: req.query.endDate || null,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             rank: req.query.rank || 'All'
         };
 
@@ -480,6 +486,8 @@ export const getVisibilitySkuDrilldown = async (req, res) => {
             category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             rank: req.query.rank || 'All',
             ownBrandsOnly: req.query.ownBrandsOnly === 'true'
         };
@@ -525,6 +533,8 @@ export const getVisibilityCityDrilldown = async (req, res) => {
             category: req.query.category || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             rank: req.query.rank || 'All'
         };
 
@@ -617,6 +627,8 @@ export const getSearchTermsPerformance = async (req, res) => {
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
             endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null,
             channel: req.query.channel || 'All',
             sku: req.query.sku || 'All'
         };
@@ -704,7 +716,9 @@ export const getSearchTermsBrandBreakdown = async (req, res) => {
             keywordTypeFilter: req.query.keywordTypeFilter || 'All',
             rank: req.query.rank || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null
         };
         console.log('\n========== SEARCH TERMS BRAND BREAKDOWN API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -741,7 +755,9 @@ export const getVisibilityBSRData = async (req, res) => {
             category: req.query.category || req.query.format || 'All',
             channel: req.query.channel || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null
         };
         console.log('\n========== VISIBILITY BSR DATA API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
@@ -772,7 +788,9 @@ export const getVisibilityBSRTrends = async (req, res) => {
             category: req.query.category || req.query.format || 'All',
             channel: req.query.channel || 'All',
             startDate: req.query.startDate,
-            endDate: req.query.endDate
+            endDate: req.query.endDate,
+            compareStartDate: req.query.compareStartDate || null,
+            compareEndDate: req.query.compareEndDate || null
         };
         console.log('\n========== VISIBILITY BSR TRENDS API ==========');
         console.log('[REQUEST] Filters:', JSON.stringify(filters, null, 2));
