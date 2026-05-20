@@ -287,6 +287,8 @@ export default function SearchTermsPerformance() {
     selectedChannel,
     timeStart,
     timeEnd,
+    compareStart,
+    compareEnd,
     platforms: globalPlatforms,
     selectedRank
   } = useContext(FilterContext);
@@ -345,9 +347,11 @@ export default function SearchTermsPerformance() {
       ownBrandsOnly: activeView === "sku",
       startDate: timeStart,
       endDate: timeEnd,
+      compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+      compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
       rank: selectedRank || 'All',
     };
-  }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd, localFilters, selectedRank]);
+  }, [activeView, globalPlatform, currentSkuPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeyword, selectedKeywordType, selectedChannel, activeFilter, timeStart, timeEnd, compareStart, compareEnd, localFilters, selectedRank]);
 
   useEffect(() => {
     let cancelled = false;
@@ -454,13 +458,15 @@ export default function SearchTermsPerformance() {
         keyword: keywordName,
         ownBrandsOnly: isMySkus,
         rank: selectedRank || 'All',
+        compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+        compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
       });
       setDrilldownModal({ title, items: data.items || [], loading: false, type: "sku" });
     } catch (err) {
       console.error("Error fetching SKU data for keyword:", err);
       setDrilldownModal({ title, items: [], loading: false, type: "sku" });
     }
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, selectedChannel, selectedRank]);
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, selectedRank]);
 
 
   const openKeywordModal = useCallback(async (e, skuName, isMyKeywords) => {
@@ -484,13 +490,15 @@ export default function SearchTermsPerformance() {
         sku: skuName,
         ownBrandsOnly: isMyKeywords,
         rank: selectedRank || 'All',
+        compareStartDate: compareStart ? compareStart.format('YYYY-MM-DD') : undefined,
+        compareEndDate: compareEnd ? compareEnd.format('YYYY-MM-DD') : undefined,
       });
       setDrilldownModal({ title, items: data.items || [], loading: false, type: "keyword" });
     } catch (err) {
       console.error("Error fetching Keyword data for SKU:", err);
       setDrilldownModal({ title, items: [], loading: false, type: "keyword" });
     }
-  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, selectedChannel, selectedRank]);
+  }, [globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedKeywordType, activeFilter, timeStart, timeEnd, compareStart, compareEnd, selectedChannel, selectedRank]);
 
 
   const openBrandKeywordsModal = useCallback(async (e, brandName) => {

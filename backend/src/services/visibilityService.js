@@ -1348,8 +1348,13 @@ class VisibilityService {
                 const start = dayjs(startDate);
                 const end = dayjs(endDate);
                 const durationDays = end.diff(start, 'day') + 1;
-                const prevStart = start.subtract(durationDays, 'day').format('YYYY-MM-DD');
-                const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+                let prevStart = start.subtract(durationDays, 'day').format('YYYY-MM-DD');
+                let prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+
+                if (filters.compareStartDate && filters.compareEndDate) {
+                    prevStart = dayjs(filters.compareStartDate).format('YYYY-MM-DD');
+                    prevEnd = dayjs(filters.compareEndDate).format('YYYY-MM-DD');
+                }
 
                 let rankCondition = '';
                 if (filters.rank && filters.rank !== 'All') {
@@ -1716,8 +1721,13 @@ class VisibilityService {
 
                 const currStart = start.format('YYYY-MM-DD');
                 const currEnd = end.format('YYYY-MM-DD');
-                const prevStartStr = start.subtract(duration, 'day').format('YYYY-MM-DD');
-                const prevEndStr = start.subtract(1, 'day').format('YYYY-MM-DD');
+                let prevStartStr = start.subtract(duration, 'day').format('YYYY-MM-DD');
+                let prevEndStr = start.subtract(1, 'day').format('YYYY-MM-DD');
+
+                if (filters.compareStartDate && filters.compareEndDate) {
+                    prevStartStr = dayjs(filters.compareStartDate).format('YYYY-MM-DD');
+                    prevEndStr = dayjs(filters.compareEndDate).format('YYYY-MM-DD');
+                }
 
                 let rankCondition = '';
                 if (filters.rank && filters.rank !== 'All') {
@@ -1836,11 +1846,8 @@ class VisibilityService {
      */
     async getVisibilityFilterOptions({ filterType, platform, format, city, brand, keywordType, keyword, sku, ownBrandsOnly, channel }) {
         console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
-        const cacheKey = generateCacheKey('visibility_filters_v8', { filterType, platform, format, city, brand, keywordType, keyword, sku, ownBrandsOnly, channel });
-
-        return await getCachedOrCompute(cacheKey, async () => {
-            try {
-                console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
+        try {
+            console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
 
                 // Shared conditions for cascading filters
                 const platformFilter = platform || null;
@@ -1967,7 +1974,7 @@ class VisibilityService {
                     brandWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                     brandWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
                     brandWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
-                    if (ownBrandsOnly) brandWhere += ` AND flag = 1`;
+                    brandWhere += ` AND flag = 1`; // Only show our brands as requested
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT brand as brand
@@ -2108,7 +2115,6 @@ class VisibilityService {
                 console.error('[VisibilityService] getVisibilityFilterOptions error:', error);
                 throw error;
             }
-        }, CACHE_TTL.LONG);
     }
 
     /**
@@ -2422,13 +2428,28 @@ class VisibilityService {
 
                 const currentEnd = latestDate;
                 const currentStart = currentEnd.subtract(days, 'day');
-                const prevEnd = currentStart.subtract(1, 'day');
-                const prevStart = prevEnd.subtract(days, 'day');
+                let prevEnd = currentStart.subtract(1, 'day');
+                let prevStart = prevEnd.subtract(days, 'day');
 
-                const dateFrom = currentStart.format('YYYY-MM-DD');
-                const dateTo = currentEnd.format('YYYY-MM-DD');
-                const prevDateFrom = prevStart.format('YYYY-MM-DD');
-                const prevDateTo = prevEnd.format('YYYY-MM-DD');
+                let dateFrom = currentStart.format('YYYY-MM-DD');
+                let dateTo = currentEnd.format('YYYY-MM-DD');
+                
+                // If specific start/end dates are passed, override period logic
+                if (filters.startDate && filters.endDate) {
+                    dateFrom = dayjs(filters.startDate).format('YYYY-MM-DD');
+                    dateTo = dayjs(filters.endDate).format('YYYY-MM-DD');
+                    const diffDays = dayjs(dateTo).diff(dayjs(dateFrom), 'day') + 1;
+                    prevEnd = dayjs(dateFrom).subtract(1, 'day');
+                    prevStart = prevEnd.subtract(diffDays - 1, 'day');
+                }
+
+                let prevDateFrom = prevStart.format('YYYY-MM-DD');
+                let prevDateTo = prevEnd.format('YYYY-MM-DD');
+
+                if (filters.compareStartDate && filters.compareEndDate) {
+                    prevDateFrom = dayjs(filters.compareStartDate).format('YYYY-MM-DD');
+                    prevDateTo = dayjs(filters.compareEndDate).format('YYYY-MM-DD');
+                }
 
                 // Build conditions
                 const platform = filters.platform || null;
@@ -4110,8 +4131,13 @@ class VisibilityService {
 
             // Calculate previous period
             const diffDays = dayjs(dateTo).diff(dayjs(dateFrom), 'day') + 1;
-            const prevEnd = dayjs(dateFrom).subtract(1, 'day').format('YYYY-MM-DD');
-            const prevStart = dayjs(prevEnd).subtract(diffDays - 1, 'day').format('YYYY-MM-DD');
+            let prevEnd = dayjs(dateFrom).subtract(1, 'day').format('YYYY-MM-DD');
+            let prevStart = dayjs(prevEnd).subtract(diffDays - 1, 'day').format('YYYY-MM-DD');
+            
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStart = dayjs(filters.compareStartDate).format('YYYY-MM-DD');
+                prevEnd = dayjs(filters.compareEndDate).format('YYYY-MM-DD');
+            }
 
             // Standard conditions to match getSearchTermsPerformance
             const platformCondition = buildCHCondition(platform, 'platform_name');
@@ -4307,8 +4333,11 @@ class VisibilityService {
                                 AVG(toInt64OrZero(${bsrCol})) as avg_bsr,
                                 AVG(${discountCol}) as avg_discount
                             FROM rb_pdp_olap
-                            WHERE ${dateCol} BETWEEN (toDate('${startDate}') - (toDate('${endDate}') - toDate('${startDate}') + 1)) 
-                                  AND (toDate('${startDate}') - 1)
+                            WHERE ${
+                                filters.compareStartDate && filters.compareEndDate
+                                ? `${dateCol} BETWEEN '${dayjs(filters.compareStartDate).format('YYYY-MM-DD')}' AND '${dayjs(filters.compareEndDate).format('YYYY-MM-DD')}'`
+                                : `${dateCol} BETWEEN (toDate('${startDate}') - (toDate('${endDate}') - toDate('${startDate}') + 1)) AND (toDate('${startDate}') - 1)`
+                            }
                               AND ${filterClause}
                               AND ${flagCol} = 0
                               AND ${skuCol} IS NOT NULL AND ${skuCol} != ''
