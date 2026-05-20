@@ -72,9 +72,23 @@ const checkRbMsOlapExists = async () => {
     }
 };
 
+const checkQtySoldExistsInPo = async () => {
+    try {
+        const dbName = getCurrentDbName();
+        const rows = await queryClickHouse(
+            `SELECT name FROM system.columns WHERE database = '${dbName}' AND table = 'rb_po_olap' AND name = 'qty_sold' LIMIT 1`
+        );
+        return rows.length > 0;
+    } catch {
+        return false;
+    }
+};
+
+
 export const getInsightsData = async (filters) => {
     const rawDbName = getCurrentDbName();
     const brandLabel = rawDbName ? rawDbName.charAt(0).toUpperCase() + rawDbName.slice(1).toLowerCase() : "Mars";
+    const hasQtySoldInPo = await checkQtySoldExistsInPo();
 
     // Fallback logic for missing categories in the database.
     // If Category is null/empty/zero, we infer it from the Brand name.
@@ -851,39 +865,75 @@ export const getInsightsData = async (filters) => {
     // -------------------------------------------------------------------------
     const dayCount = Math.max(endDate.diff(startDate, 'day') + 1, 1);
     const surplusStockQuery = `
+        WITH sales_30d AS (
+            SELECT
+                Web_Pid,
+                ${CITY_NORM_EXPR('Location')} AS city,
+                LOWER(Platform) AS platform,
+                SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) / 30 AS avgDailySales,
+                argMax(ifNull(toFloat64OrZero(toString(MRP)), 0), DATE) AS latestMRP,
+                argMax(ifNull(toFloat64OrZero(toString(Selling_Price)), 0), DATE) AS latestSP,
+                argMax(ifNull(toFloat64OrZero(toString(Discount)), 0), DATE) AS latestDiscount
+            FROM rb_pdp_olap
+            WHERE DATE BETWEEN '${dayjs(dateTo).subtract(29, 'day').format('YYYY-MM-DD')}' AND '${dateTo}'
+              AND Comp_flag IN (0, '0')
+            GROUP BY Web_Pid, city, platform
+        ),
+        po_latest AS (
+            SELECT
+                po.web_pid,
+                LOWER(po.sku_name) AS skuName,
+                LOWER(po.platform) AS platform,
+                ${CITY_NORM_EXPR('po.city')} AS city,
+                po.facility_name AS facility,
+                LOWER(po.category) AS category,
+                LOWER(po.brand) AS brandName,
+                argMax(ifNull(toFloat64OrZero(toString(po.front_inventory)), 0), po.po_raised_date) AS latestFrontInv,
+                argMax(ifNull(toFloat64OrZero(toString(po.back_inventory)), 0), po.po_raised_date) AS latestBackInv,
+                argMax(ifNull(toFloat64OrZero(toString(po.cost_per_unit)), 0), po.po_raised_date) AS latestCost,
+                argMax(ifNull(toFloat64OrZero(toString(po.DIH)), 0), po.po_raised_date) AS latestDIH,
+                argMax(ifNull(toFloat64OrZero(toString(po.DRR)), 0), po.po_raised_date) AS latestDRR,
+                SUM(
+                    CASE WHEN LOWER(po.po_status) IN ('unscheduled', 'confirmed', 'pending_grn', 'asn_created', 'pending_acknowledgement')
+                         THEN ifNull(toFloat64OrZero(toString(po.units_remaining)), 0)
+                         ELSE 0
+                    END
+                ) AS openPOQty,
+                ROUND(
+                    SUM(ifNull(toFloat64OrZero(toString(po.neno_osa)), 0)) * 100.0 /
+                    nullIf(SUM(ifNull(toFloat64OrZero(toString(po.deno_osa)), 0)), 0),
+                1) AS osa
+            FROM rb_po_olap po
+            WHERE po.po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
+              AND po.sku_name IS NOT NULL AND po.sku_name != ''
+              AND ${buildCHCondition(filters.platform, 'po.platform')}
+              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
+              AND ${buildCHCondition(filters.category, 'po.category', { isCategory: true })}
+            GROUP BY web_pid, skuName, platform, city, facility, category, brandName
+        )
         SELECT
-            po.web_pid AS webPid,
-            LOWER(po.sku_name) AS skuName,
-            LOWER(po.platform) AS platform,
-            ${CITY_NORM_EXPR('po.city')} AS city,
-            LOWER(po.category) AS category,
-            LOWER(po.brand) AS brandName,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(po.front_inventory)), 0)), 0) AS excessInventory,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(po.DIH)), 0)), 1) AS excessDOI,
-            SUM(
-                CASE WHEN LOWER(po.po_status) IN ('scheduled', 'partially scheduled', 'open')
-                     THEN ifNull(toFloat64OrZero(toString(po.units_remaining)), 0)
-                     ELSE 0
-                END
-            ) AS openPOQty,
-            ROUND(AVG(ifNull(toFloat64OrZero(toString(po.cost_per_unit)), 0)), 2) AS avgCostPerUnit,
-            ROUND(
-                AVG(ifNull(toFloat64OrZero(toString(po.front_inventory)), 0)) *
-                AVG(ifNull(toFloat64OrZero(toString(po.cost_per_unit)), 0)),
-            0) AS excessInventoryValue,
-            ROUND(
-                SUM(ifNull(toFloat64OrZero(toString(po.neno_osa)), 0)) * 100.0 /
-                nullIf(SUM(ifNull(toFloat64OrZero(toString(po.deno_osa)), 0)), 0),
-            1) AS osa
-        FROM rb_po_olap po
-        WHERE po.po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
-          AND po.sku_name IS NOT NULL AND po.sku_name != ''
-          AND ${buildCHCondition(filters.platform, 'po.platform')}
-          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
-          AND ${buildCHCondition(filters.category, 'po.category', { isCategory: true })}
-        GROUP BY webPid, skuName, platform, city, category, brandName
-        HAVING excessDOI >= 100 AND openPOQty <= 25
-        ORDER BY excessInventoryValue DESC
+            p.web_pid AS webPid,
+            p.skuName,
+            p.platform,
+            p.city,
+            p.facility,
+            p.category,
+            p.brandName,
+            ROUND((p.latestDIH - 45) * p.latestDRR, 0) AS excessInventory,
+            ROUND(p.latestDIH - 45, 1) AS excessDOI,
+            p.openPOQty,
+            ROUND(p.latestDRR, 2) AS drr,
+            ROUND(p.latestCost, 2) AS avgCostPerUnit,
+            ROUND((p.latestDIH - 45) * p.latestDRR * p.latestCost, 0) AS excessInventoryValue,
+            p.osa,
+            ROUND(s.latestDiscount, 1) AS currentDiscount
+        FROM po_latest p
+        LEFT JOIN sales_30d s 
+          ON p.web_pid = s.Web_Pid 
+         AND p.city = s.city 
+         AND p.platform = s.platform
+        HAVING excessDOI > 0 AND excessInventory > 0
+        ORDER BY excessDOI DESC
         LIMIT 15
     `;
 
@@ -892,127 +942,99 @@ export const getInsightsData = async (filters) => {
     // Identifies SKUs with low OSA and high projected sales loss that need PO.
     // Projected Sales Loss = Sales * ((100/OSA) - 1)
     // -------------------------------------------------------------------------
-    const prioritisePOQuery = `
-        WITH curr_pdp AS (
+    const prioritisePOQuery = hasQtySoldInPo ? `
+        SELECT
+            po_number AS poNumber,
+            facility_name AS facility,
+            ${CITY_NORM_EXPR('city')} AS city,
+            sku_name AS skuName,
+            platform,
+            ROUND((SUM(toFloat64OrZero(toString(neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(deno_osa))), 0)) * 100, 2) AS osa,
+            ROUND(
+                (
+                    ((SUM(toFloat64OrZero(toString(qty_sold))) / 30.0) * 7 * MAX(toFloat64OrZero(toString(cost_per_unit))))
+                )
+                *
+                (
+                    1 - (
+                        SUM(toFloat64OrZero(toString(neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(deno_osa))), 0)
+                    )
+                )
+                *
+                (
+                    greatest(
+                        0,
+                        (7 - ifNull(avg(toFloat64OrZero(toString(DIH))), 0)) / 7.0
+                    )
+                ),
+                2
+            ) AS projectedSalesLoss,
+            argMax(po_raised_date, po_raised_date) AS poRaisedDate,
+            argMax(po_status, po_raised_date) AS poStatus
+        FROM rb_po_olap
+        WHERE po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
+          AND sku_name IS NOT NULL AND sku_name != ''
+          AND LOWER(po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement')
+          AND ${buildCHCondition(filters.platform, 'platform')}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('city'))}
+        GROUP BY
+            po_number, facility_name, city, sku_name, platform
+        HAVING projectedSalesLoss > 0
+        ORDER BY projectedSalesLoss DESC
+        LIMIT 15
+    ` : `
+        WITH sales_30d AS (
             SELECT
+                Web_Pid,
                 ${CITY_NORM_EXPR('Location')} AS city,
                 LOWER(Platform) AS platform,
-                ${catField} AS category,
-                LOWER(Product) AS skuName,
-                Brand AS brandName,
-                Web_Pid AS webPid,
-                ROUND(
-                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) * 100.0 /
-                    nullIf(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0),
-                1) AS osa,
-                (SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) / nullIf(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0)) AS osa_ratio,
-                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS totalSales,
-                SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS totalQtySold,
-                argMax(toFloat64OrZero(toString(MRP)), DATE) AS currentMrp
+                SUM(ifNull(toFloat64OrZero(toString(Qty_Sold)), 0)) AS qty_sold_30d
             FROM rb_pdp_olap
-            WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
+            WHERE DATE BETWEEN '${dayjs(dateTo).subtract(29, 'day').format('YYYY-MM-DD')}' AND '${dateTo}'
               AND Comp_flag IN (0, '0')
-              AND Product IS NOT NULL AND Product != ''
-              AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
-              AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-            GROUP BY city, platform, category, skuName, brandName, webPid
-        ),
-        curr_po AS (
-            SELECT 
-                ${CITY_NORM_EXPR('city')} AS city,
-                LOWER(platform) AS platform,
-                web_pid AS webPid,
-                argMax(po_status, po_raised_date) AS poStatus,
-                argMax(po_raised_date, po_raised_date) AS poRaisedDate,
-                argMax(po_expiry_date, po_raised_date) AS poExpiryDate,
-                argMax(toFloat64OrZero(toString(DIH)), po_raised_date) AS dih
-            FROM rb_po_olap
-            WHERE po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
-              AND sku_name IS NOT NULL AND sku_name != ''
-              AND ${buildCHCondition(filters.platform, 'platform')}
-              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('city'))}
-            GROUP BY city, platform, webPid
-        ),
-        curr_combined AS (
-            SELECT 
-                p.city, p.platform, p.category, p.skuName, p.brandName, p.webPid,
-                p.osa, p.totalSales,
-                po.poStatus AS actualPoStatus,
-                po.poRaisedDate AS actualPoRaisedDate,
-                po.poExpiryDate AS poExpiryDate,
-                LOWER(po.poStatus) IN ('scheduled', 'unscheduled') AS isEligible,
-                ROUND(
-                    ((p.totalQtySold / greatest(1, dateDiff('day', toDate('${dateFrom}'), toDate('${dateTo}')) + 1)) * 7 * p.currentMrp) 
-                    * (1 - ifNull(p.osa_ratio, 1)) 
-                    * greatest(0, (7 - ifNull(po.dih, 0)) / 7.0),
-                0) AS projectedSalesLoss
-            FROM curr_pdp p
-            LEFT JOIN curr_po po 
-              ON p.city = po.city AND p.platform = po.platform AND p.webPid = po.webPid
-        ),
-        cohort_sales_risk AS (
-            SELECT 
-                city, actualPoStatus, actualPoRaisedDate, poExpiryDate,
-                SUM(projectedSalesLoss) AS maxSalesRisk
-            FROM curr_combined
-            WHERE isEligible = 1
-            GROUP BY city, actualPoStatus, actualPoRaisedDate, poExpiryDate
-        ),
-        curr_with_risk AS (
-            SELECT 
-                c.*,
-                csr.maxSalesRisk,
-                (c.projectedSalesLoss / nullIf(csr.maxSalesRisk, 0)) * 100 AS currentSalesRisk,
-                dateDiff('day', today(), c.poExpiryDate) AS daysToExpiry
-            FROM curr_combined c
-            LEFT JOIN cohort_sales_risk csr 
-              ON c.city = csr.city 
-             AND c.actualPoStatus = csr.actualPoStatus 
-             AND c.actualPoRaisedDate = csr.actualPoRaisedDate 
-             AND c.poExpiryDate = csr.poExpiryDate
-        ),
-        prev AS (
-            SELECT
-                ${CITY_NORM_EXPR('Location')} AS city,
-                LOWER(Platform) AS platform,
-                ${catField} AS category,
-                LOWER(Product) AS skuName,
-                Web_Pid AS webPid,
-                ROUND(
-                    SUM(ifNull(toFloat64OrZero(toString(neno_osa)), 0)) * 100.0 /
-                    nullIf(SUM(ifNull(toFloat64OrZero(toString(deno_osa)), 0)), 0),
-                1) AS prevOsa,
-                SUM(ifNull(toFloat64OrZero(toString(Sales)), 0)) AS prevTotalSales
-            FROM rb_pdp_olap
-            WHERE DATE BETWEEN '${prevStartDate}' AND '${prevEndDate}'
-              AND Comp_flag IN (0, '0')
-              AND Product IS NOT NULL AND Product != ''
-              AND ${buildCHCondition(filters.platform, 'Platform', { isPdp: true })}
-              AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('Location'), { isPdp: true })}
-              AND ${buildCHCondition(filters.category, catField, { isCategory: true, isPdp: true })}
-            GROUP BY city, platform, category, skuName, webPid
+            GROUP BY Web_Pid, city, platform
         )
         SELECT
-            c.city, c.platform, c.category, c.skuName, c.brandName,
-            c.osa, c.totalSales,
-            if(
-                c.isEligible = 1 AND (c.currentSalesRisk >= 0 AND c.daysToExpiry >= 0 AND c.daysToExpiry <= 14),
-                c.projectedSalesLoss,
-                0
+            po.po_number AS poNumber,
+            po.facility_name AS facility,
+            ${CITY_NORM_EXPR('po.city')} AS city,
+            po.sku_name AS skuName,
+            po.platform AS platform,
+            ROUND((SUM(toFloat64OrZero(toString(po.neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(po.deno_osa))), 0)) * 100, 2) AS osa,
+            ROUND(
+                (
+                    ((MAX(ifNull(s.qty_sold_30d, 0)) / 30.0) * 7 * MAX(toFloat64OrZero(toString(po.cost_per_unit))))
+                )
+                *
+                (
+                    1 - (
+                        SUM(toFloat64OrZero(toString(po.neno_osa))) / NULLIF(SUM(toFloat64OrZero(toString(po.deno_osa))), 0)
+                    )
+                )
+                *
+                (
+                    greatest(
+                        0,
+                        (7 - ifNull(avg(toFloat64OrZero(toString(po.DIH))), 0)) / 7.0
+                    )
+                ),
+                2
             ) AS projectedSalesLoss,
-            c.actualPoRaisedDate AS poRaisedDate,
-            ifNull(p.prevOsa, c.osa) AS prevOsa,
-            (c.osa - ifNull(p.prevOsa, c.osa)) AS osaChange,
-            ifNull(p.prevTotalSales, 0) AS prevTotalSales,
-            multiIf(
-                c.isEligible = 0, 'low',
-                (c.currentSalesRisk >= 0 AND c.daysToExpiry >= 0 AND c.daysToExpiry <= 14), 'high',
-                'low'
-            ) AS poStatus
-        FROM curr_with_risk c
-        LEFT JOIN prev p ON c.city = p.city AND c.platform = p.platform AND c.webPid = p.webPid
-        HAVING poStatus = 'high' AND projectedSalesLoss > 0
+            argMax(po.po_raised_date, po.po_raised_date) AS poRaisedDate,
+            argMax(po.po_status, po.po_raised_date) AS poStatus
+        FROM rb_po_olap po
+        LEFT JOIN sales_30d s
+          ON po.web_pid = s.Web_Pid
+         AND LOWER(po.city) = s.city
+         AND LOWER(po.platform) = s.platform
+        WHERE po.po_raised_date BETWEEN '${dateFrom}' AND '${dateTo}'
+          AND po.sku_name IS NOT NULL AND po.sku_name != ''
+          AND LOWER(po.po_status) IN ('unscheduled', 'pending_grn', 'asn_created', 'pending_acknowledgement')
+          AND ${buildCHCondition(filters.platform, 'po.platform')}
+          AND ${buildCHCondition(filters.city, CITY_NORM_EXPR('po.city'))}
+        GROUP BY
+            poNumber, facility, city, skuName, platform
+        HAVING projectedSalesLoss > 0
         ORDER BY projectedSalesLoss DESC
         LIMIT 15
     `;
@@ -2504,16 +2526,18 @@ export const getInsightsData = async (filters) => {
                     skuName: r.skuName || '-',
                     imageUrl: productImageMap[r.skuName] || null,
                     city: r.city,
+                    facility: r.facility || '-',
                     platform: r.platform,
                     category: r.category,
                     brandName: r.brandName || brandLabel,
                     excessInventory: Number(r.excessInventory) || 0,
                     excessDOI: Number(r.excessDOI) || 0,
-                    currentDiscount: 0, // Discount not in rb_po_olap — hardcoded in frontend
+                    drr: Number(r.drr) || 0,
+                    currentDiscount: Number(r.currentDiscount) || 0,
                     excessInventoryValue: Number(r.excessInventoryValue) || 0,
                     osa: Number(r.osa) || 0,
                     openPOQty: Number(r.openPOQty) || 0,
-                })) : [{ skuName: '-', city: '-', platform: '-', category: '-', excessInventory: 0, excessDOI: 0, currentDiscount: 0, excessInventoryValue: 0, openPOQty: 0 }],
+                })) : [{ skuName: '-', city: '-', facility: '-', platform: '-', category: '-', excessInventory: 0, excessDOI: 0, drr: 0, currentDiscount: 0, excessInventoryValue: 0, openPOQty: 0 }],
             });
         }
 
@@ -2568,20 +2592,19 @@ export const getInsightsData = async (filters) => {
                     `PO status indicates ${criticalCount} critical and high-priority replenishment needs.`,
                 ] : ["-", "-"],
                 evidence: hasData ? filteredData.map(r => ({
+                    poNumber: r.poNumber || '-',
                     skuName: r.skuName || '-',
                     imageUrl: productImageMap[r.skuName] || null,
                     city: r.city,
-                    platform: r.platform,
-                    category: r.category,
+                    platform: r.platform || '-',
+                    facility: r.facility || '-',
+                    category: r.category || 'Overall',
                     brandName: r.brandName || brandLabel,
                     osa: Number(r.osa) || 0,
-                    osaChange: Number(r.osaChange) || 0,
-                    totalSales: Number(r.totalSales) || 0,
                     projectedSalesLoss: Number(r.projectedSalesLoss) || 0,
                     poRaisedDate: String(r.poRaisedDate || '-'),
-                    poStatus: r.poStatus || 'Low',
-                    prevTotalSales: Number(r.prevTotalSales) || 0,
-                })) : [{ skuName: '-', city: '-', platform: '-', category: '-', osa: 0, projectedSalesLoss: 0, poRaisedDate: '-', poStatus: '-' }],
+                    poStatus: r.poStatus || '-',
+                })) : [{ poNumber: '-', skuName: '-', platform: '-', facility: '-', osa: 0, projectedSalesLoss: 0, poRaisedDate: '-', poStatus: '-' }],
             });
         }
 
