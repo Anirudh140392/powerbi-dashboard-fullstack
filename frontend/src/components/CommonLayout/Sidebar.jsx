@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import eyLogo from "../../assets/sidebar_logo.png";
+import trailLogo from "../../assets/trailytics.png";
 import marsLogo from "../../assets/mars2.svg";
 import mamaearthLogo from "../../assets/mamaearth.jpeg";
 import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
@@ -137,6 +137,7 @@ const Sidebar = ({
     if (user?.dbName === 'demo') return demoLogo;
     if (user?.dbName === 'sugar') return sugarLogo;
     if (user?.dbName === 'pidilite') return pidiliteLogo;
+    if (user?.dbName === 'trailytics') return trailLogo;
     return marsLogo;
   }, [user?.dbName]);
 
@@ -149,6 +150,7 @@ const Sidebar = ({
     if (user?.dbName === 'demo') return 'Demo Logo';
     if (user?.dbName === 'sugar') return 'Sugar Logo';
     if (user?.dbName === 'pidilite') return 'Pidilite Logo';
+    if (user?.dbName === 'trailytics') return 'Trailytics Logo';
     return 'Mars Logo';
   }, [user?.dbName]);
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
