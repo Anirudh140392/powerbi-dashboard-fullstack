@@ -4,7 +4,7 @@ import eyLogo from "../../assets/sidebar_logo.png";
 import marsLogo from "../../assets/mars2.svg";
 import mamaearthLogo from "../../assets/mamaearth.jpeg";
 import marsPetcareLogo from "../../assets/Mars_Petcare_Logo.jpg";
-import boatLogo from "../../assets/trailytics.png";
+import boatLogo from "../../assets/Boat.png";
 import zydusLogo from "../../assets/zyduslogo.png";
 import demoLogo from "../../assets/Demo.png";
 import sugarLogo from "../../assets/sugar.png";
@@ -383,36 +383,6 @@ const Sidebar = ({
         flexDirection: 'column',
         justifyContent: 'center',
       }}>
-        {/* Demo Header */}
-        {!isCollapsed && (
-          <Typography
-            variant="overline"
-            sx={{
-              fontSize: "14px",
-              fontFamily: "'DM Sans', sans-serif",
-              fontWeight: 800,
-              color: "#000000",
-              letterSpacing: "0.08em",
-              mb: 1,
-              mt: 1,
-              px: 2,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              '&::before, &::after': {
-                content: '""',
-                flex: 1,
-                height: '1px',
-                bgcolor: 'rgba(0, 0, 0, 0.04)',
-              },
-              '&::before': { mr: 1.5 },
-              '&::after': { ml: 1.5 }
-            }}
-          >
-            Demo
-          </Typography>
-        )}
-
         {/* MAIN MENU Header (Top) */}
         {!isCollapsed && (user?.tabPermissions?.['Business Overview'] !== false || user?.tabPermissions?.['Scheduled Reports'] !== false || Object.values(user?.tabPermissions || {}).some(v => v === true)) && (
           <Typography
