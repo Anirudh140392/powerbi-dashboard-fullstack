@@ -972,6 +972,15 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
   };
 
 
+  const platName = (categoryPlatform || '').toLowerCase();
+  
+  // Define platform groupings
+  const ECOM_PLATFORMS = ['amazon', 'flipkart', 'myntra', 'nykaa', 'jiomart'];
+  const QCOM_PLATFORMS = ['blinkit', 'zepto', 'swiggy', 'instamart', 'bbnow'];
+  
+  const isEcom = ECOM_PLATFORMS.some(p => platName.includes(p));
+  const isQcom = QCOM_PLATFORMS.some(p => platName.includes(p));
+
   const kpiBands = [
     {
       key: "offtakes",
@@ -1024,20 +1033,27 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
     {
       key: "cpm",
       label: "CPM",
-      activeValue: (categoryPlatform || '').toLowerCase() === 'ecommerce' ? null : active.cpm,
-      compareValue: (categoryPlatform || '').toLowerCase() === 'ecommerce' ? null : (compare?.cpm ?? null),
+      activeValue: isEcom ? null : active.cpm,
+      compareValue: isEcom ? null : (compare?.cpm ?? null),
       max: 800000,
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
     {
       key: "cpc",
       label: "CPC",
-      activeValue: (categoryPlatform || '').toLowerCase() === 'quickcomm' ? null : active.cpc,
-      compareValue: (categoryPlatform || '').toLowerCase() === 'quickcomm' ? null : (compare?.cpc ?? null),
+      activeValue: isQcom ? null : active.cpc,
+      compareValue: isQcom ? null : (compare?.cpc ?? null),
       max: 5000000,
       format: (v) => `₹${formatCurrencyShort(v)}`,
     },
   ];
+
+  const filteredKpiBands = kpiBands.filter((k) => {
+    if (k.key === 'cpm' && isEcom) return false;
+    if (k.key === 'cpc' && isQcom) return false;
+    return true;
+  });
+
   return (
     <motion.div
       className="rounded-3xl bg-white/70 backdrop-blur-xl border border-slate-200/80 shadow-xl shadow-sky-900/5 p-4 lg:p-6 grid grid-cols-1 md:grid-cols-5 gap-4"
@@ -1306,7 +1322,7 @@ const FormatPerformanceStudio = ({ rows, loading, openHelpWithMenu, pdpPlatforms
                 </div>
 
                 <div className="flex-1 space-y-2">
-                  {kpiBands.map((k) => {
+                  {filteredKpiBands.map((k) => {
                     const activeRatio = clamp01(k.activeValue / k.max);
                     const compareRatio =
                       k.compareValue != null

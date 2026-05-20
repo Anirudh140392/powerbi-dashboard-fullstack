@@ -21,6 +21,7 @@ import AdvancedFilterModal from './AdvancedFilterModal'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '../../../lib/utils'
 import FlipkartLogo from '@/lib/Flipkart logo.png'
+import { copyToClipboard } from '../../../utils/clipboard'
 
 /* --- HELPER COMPONENTS & UTILS --- */
 const isEcomChannel = (chan) => chan && chan.toLowerCase().includes('ecom');
@@ -198,7 +199,7 @@ const PlatformOverviewNew = ({
 
     const handleCopy = async (title, value) => {
         try {
-            await navigator.clipboard.writeText(`${title}: ${value}`);
+            await copyToClipboard(`${title}: ${value}`);
             setToastMessage(`Copied: ${value}`);
             setTimeout(() => setToastMessage(''), 2500);
         } catch (err) {

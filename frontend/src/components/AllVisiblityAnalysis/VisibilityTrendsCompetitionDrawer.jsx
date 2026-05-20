@@ -737,7 +737,7 @@ export default function VisibilityTrendsCompetitionDrawer({
   const { user } = useAuth();
   const isSugarUser = user?.dbName === 'sugar';
 
-  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword, selectedRank } = useContext(FilterContext);
+  const { platform: globalPlatform, selectedBrand, selectedLocation, selectedCategory, selectedChannel, selectedKeywordType, selectedKeyword, selectedRank, compareStart, compareEnd } = useContext(FilterContext);
 
   const [view, setView] = useState(isSugarUser ? "Trends" : "Trends"); // Default to Trends
   const [allTrendMeta, allSetTrendMeta] = useState({
@@ -993,7 +993,9 @@ export default function VisibilityTrendsCompetitionDrawer({
           keywordType: drawerFilters.Keyword_Type !== 'All' ? drawerFilters.Keyword_Type : undefined,
           keyword: drawerFilters.Keyword !== 'All' ? drawerFilters.Keyword : undefined,
           channel: selectedChannel || 'All',
-          rank: drawerFilters.rank || 'All'
+          rank: drawerFilters.rank || 'All',
+          compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
+          compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
         };
 
         // Determine which pivot filter to apply based on the selected audience
@@ -1028,7 +1030,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel, customStartDate, customEndDate]);
+  }, [view, range, selectedPlatform, timeStep, allTrendMeta.context.audience, open, drawerFilters, selectedChannel, customStartDate, customEndDate, compareStart, compareEnd]);
 
   // Clear offtake if keyword filter applied, clear search_rank if keyword filter NOT applied
   useEffect(() => {
@@ -1073,7 +1075,9 @@ export default function VisibilityTrendsCompetitionDrawer({
           brand: drawerFilters.Brand !== 'All' ? drawerFilters.Brand : undefined,
           sku: drawerFilters.SKU !== 'All' ? drawerFilters.SKU : undefined,
           channel: selectedChannel || 'All',
-          rank: drawerFilters.Rank || 'All'
+          rank: drawerFilters.Rank || 'All',
+          compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
+          compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
         };
 
         console.log("[VisibilityTrendsDrawer] Fetching competition data with params:", params);
@@ -1108,7 +1112,7 @@ export default function VisibilityTrendsCompetitionDrawer({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [selectedColumn, open, filterOptions.loading, drawerFilters, selectedChannel]);
+  }, [selectedColumn, open, filterOptions.loading, drawerFilters, selectedChannel, compareStart, compareEnd]);
 
   const trendPoints = useMemo(() => {
     const enriched = trendMeta.points.map((p) => ({
