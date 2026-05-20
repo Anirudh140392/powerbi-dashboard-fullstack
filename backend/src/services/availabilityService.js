@@ -2248,6 +2248,32 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
         }
     }
 
+    if (filterType === 'brands') {
+        try {
+            const brandConditions = [];
+            if (platform && platform !== 'All') brandConditions.push(buildInClause('Platform', platform));
+            if (city && city !== 'All') brandConditions.push(buildInClause('Location', city));
+
+            if (category && category !== 'All') {
+                const pdpColsMap = await getTableColumns('rb_pdp_olap');
+                const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+                brandConditions.push(buildInClause(actualCatCol, category));
+            }
+
+            // Force only Our Brand (Comp_flag = 0) as requested
+            brandConditions.push(`Comp_flag = 0`);
+
+            brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
+            const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
+            const query = `SELECT DISTINCT Brand as value FROM rb_pdp_olap ${whereClause} ORDER BY value`;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
+        } catch (error) {
+            console.error('[getAvailabilityFilterOptions] Brands Error:', error);
+            return { options: [] };
+        }
+    }
+
     return getCachedOrCompute(cacheKey, async () => {
         try {
             console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
@@ -2305,25 +2331,6 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
 
-            if (filterType === 'brands') {
-                const brandConditions = [];
-                if (platform && platform !== 'All') brandConditions.push(buildInClause('platform', platform));
-                if (city && city !== 'All') brandConditions.push(buildInClause('location', city));
-
-                if (category && category !== 'All') {
-                    brandConditions.push(buildInClause('category', category));
-                }
-
-                if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
-                    brandConditions.push(`Comp_flag = 0`);
-                }
-
-                brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
-                const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
-                const query = `SELECT DISTINCT brand_name as value FROM rca_sku_dim ${whereClause} ORDER BY value`;
-                const results = await queryClickHouse(query);
-                return { options: results.map(r => r.value).filter(Boolean) };
-            }
 
             if (filterType === 'months') {
                 const query = `
