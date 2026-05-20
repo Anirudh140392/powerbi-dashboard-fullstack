@@ -1313,7 +1313,7 @@ const SkuTable = ({ rows, loading }) => {
 /* -------------------------------------------------------------------------- */
 
 const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeStep, externalFilters, externalCity }) => {
-    const { selectedChannel } = useContext(FilterContext);
+    const { selectedChannel, compareStart, compareEnd } = useContext(FilterContext);
     const [tab, setTab] = useState("brand");
     const [city, setCity] = useState(externalCity || "All India");
     const [filterDialogOpen, setFilterDialogOpen] = useState(false);
@@ -1395,7 +1395,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                     channel: selectedChannel || 'All',
                     keyword: filters.keywords.length > 0 ? filters.keywords.join(',') : 'All',
                     keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : 'All',
-                    rank: filters.rank || 'All'
+                    rank: filters.rank || 'All',
+                    compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
+                    compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
                 };
 
                 const res = await axiosInstance.get('/visibility-analysis/competition', { params });
@@ -1436,7 +1438,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchCompetitionData();
-    }, [city, filters.brands, filters.categories, filters.keywords, filters.keywordType, filters.rank, selectedPlatform, period, selectedChannel]);
+    }, [city, filters.brands, filters.categories, filters.keywords, filters.keywordType, filters.rank, selectedPlatform, period, selectedChannel, compareStart, compareEnd]);
 
     const selectionCount = filters.categories.length + filters.brands.length + filters.skus.length + filters.keywords.length + filters.keywordType.length + (filters.rank !== 'All' ? 1 : 0);
 
@@ -1504,7 +1506,9 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
                     channel: selectedChannel || 'All',
                     keyword: filters.keywords.length > 0 ? filters.keywords.join(',') : 'All',
                     keywordType: filters.keywordType.length > 0 ? filters.keywordType.join(',') : 'All',
-                    rank: filters.rank || 'All'
+                    rank: filters.rank || 'All',
+                    compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
+                    compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
                 };
 
                 const res = await axiosInstance.get('/visibility-analysis/brand-comparison-trends', { params });
@@ -1519,7 +1523,7 @@ const VisibilityPlatformOverviewKpiShowcase = ({ selectedPlatform, period, timeS
             }
         };
         fetchBrandTrends();
-    }, [viewMode, city, visibleIds, filters.categories, filters.keywords, filters.keywordType, filters.rank, period, timeStep, selectedChannel, tab]);
+    }, [viewMode, city, visibleIds, filters.categories, filters.keywords, filters.keywordType, filters.rank, period, timeStep, selectedChannel, tab, compareStart, compareEnd]);
 
 
 

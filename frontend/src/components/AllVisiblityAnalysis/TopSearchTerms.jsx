@@ -164,7 +164,7 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
     const [skuLoading, setSkuLoading] = useState({}); // { [keyword]: boolean }
     const [cityLoading, setCityLoading] = useState({}); // { [keyword_sku]: boolean }
 
-    const { platform, location, timeStart, timeEnd, selectedKeyword, selectedBrand, visibilityOwnBrandsOnly } = useContext(FilterContext) || {};
+    const { platform, location, timeStart, timeEnd, compareStart, compareEnd, selectedKeyword, selectedBrand, visibilityOwnBrandsOnly } = useContext(FilterContext) || {};
 
     // Select specific data based on tab filter
     // Use API data (already filtered by backend based on filter param)
@@ -200,7 +200,9 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                 platform,
                 location: (location && location !== 'All') ? location.toLowerCase() : 'All',
                 startDate: timeStart,
-                endDate: timeEnd
+                endDate: timeEnd,
+                compareStartDate: compareStart ? dayjs(compareStart).format('YYYY-MM-DD') : undefined,
+                compareEndDate: compareEnd ? dayjs(compareEnd).format('YYYY-MM-DD') : undefined
             });
 
             const formatBrandData = (b) => ({
@@ -256,6 +258,8 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
                 if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
+                if (compareStart) params.compareStartDate = dayjs(compareStart).format('YYYY-MM-DD');
+                if (compareEnd) params.compareEndDate = dayjs(compareEnd).format('YYYY-MM-DD');
                 const response = await fetchVisibilitySkuDrilldown(params);
                 setSkuDrilldownData(prev => ({ ...prev, [keyword]: response.skus || [] }));
             } catch (err) {
@@ -289,6 +293,8 @@ export default function TopSearchTerms({ filter = "All", skuTab = "All SKUs", ap
                 };
                 if (timeStart) params.startDate = dayjs(timeStart).format('YYYY-MM-DD');
                 if (timeEnd) params.endDate = dayjs(timeEnd).format('YYYY-MM-DD');
+                if (compareStart) params.compareStartDate = dayjs(compareStart).format('YYYY-MM-DD');
+                if (compareEnd) params.compareEndDate = dayjs(compareEnd).format('YYYY-MM-DD');
                 const response = await fetchVisibilityCityDrilldown(params);
                 setCityDrilldownData(prev => ({ ...prev, [key]: response.cities || [] }));
             } catch (err) {

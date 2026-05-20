@@ -171,7 +171,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
 
     // Dynamic filter options fetched from backend (lazy-loaded when panel opens)
     const [filterOptions, setFilterOptions] = useState([
-        { id: 'platform', label: 'Platform', options: [] },
         { id: 'format', label: 'Category', options: [] },
         { id: 'city', label: 'City', options: [] },
         { id: 'brand', label: 'Brand', options: [] },
@@ -186,7 +185,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     const [showFilterPanel, setShowFilterPanel] = useState(false);
 
     const [tentativeFilters, setTentativeFilters] = useState({
-        platform: [],
         format: [],
         city: [],
         brand: [],
@@ -195,7 +193,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
     });
 
     const [appliedFilters, setAppliedFilters] = useState({
-        platform: [],
         format: [],
         city: [],
         brand: [],
@@ -211,7 +208,6 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
         const fetchFilterOptions = async () => {
             try {
                 const filterTypes = [
-                    { id: 'platform', apiType: 'platforms', label: 'Platform' },
                     { id: 'format', apiType: 'formats', label: 'Category' },
                     { id: 'city', apiType: 'cities', label: 'City' },
                     { id: 'brand', apiType: 'brands', label: 'Brand' },
@@ -234,6 +230,9 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
                     filterTypes.map(async (ft) => {
                         const qp = new URLSearchParams(filterQueryParams);
                         qp.set('filterType', ft.apiType);
+                        if (ft.apiType === 'brands') {
+                            qp.set('ownBrandsOnly', 'true');
+                        }
                         const res = await fetch(`/api/availability-analysis/filter-options?${qp.toString()}`, {
                             headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
                         });
@@ -482,7 +481,7 @@ export default function KPIMatrixTable({ filters: globalFilters, loading: parent
             {/* Filter Modal */}
             {showFilterPanel && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center md:items-start bg-slate-900/40 p-4 md:pt-52 md:pl-40 transition-all backdrop-blur-sm">
-                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[80vh] min-h-[50vh] sm:h-[500px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                    <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl h-auto max-h-[85vh] min-h-[50vh] sm:h-[700px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <div>
                                 <h2 className="text-lg font-semibold text-slate-900">Advanced Filters</h2>

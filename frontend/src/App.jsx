@@ -30,6 +30,7 @@ import CompareSkuMatrix from "./components/ControlTower/WatchTower/CompareSkuMat
 import { HelpProvider } from "./utils/HelpContext";
 import { SocketProvider } from "./utils/SocketContext";
 import HelpDrawer from "./components/CommonLayout/HelpDrawer";
+import WalkthroughModal from "./components/CommonLayout/WalkthroughModal";
 import AdminPanel from "./pages/Admin/AdminPanel";
 
 function AppContent() {
@@ -42,9 +43,8 @@ function AppContent() {
 
   return (
     <HelpProvider>
-      <HashRouter>
-        <FilterProvider key={sessionKey}>
-          <SocketProvider>
+      <FilterProvider key={sessionKey}>
+        <SocketProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
 
@@ -170,10 +170,10 @@ function AppContent() {
               </ProtectedRoute>
             } />
           </Routes>
-          </SocketProvider>
-        </FilterProvider>
-      </HashRouter>
-      {isLoggedIn && <HelpDrawer userDbName={user?.dbName} />}
+          {isLoggedIn && <WalkthroughModal />}
+          {isLoggedIn && <HelpDrawer userDbName={user?.dbName} />}
+        </SocketProvider>
+      </FilterProvider>
     </HelpProvider>
   );
 }
@@ -182,7 +182,9 @@ export default function App() {
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <AuthProvider>
-        <AppContent />
+        <HashRouter>
+          <AppContent />
+        </HashRouter>
       </AuthProvider>
     </LocalizationProvider>
   );

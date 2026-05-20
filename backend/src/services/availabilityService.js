@@ -498,11 +498,13 @@ const getAbsoluteOsaOverview = async (filters) => {
             const prevFillRate = prevSumDeno > 0 ? (prevSumBuyBox / prevSumDeno) * 100 : 0;
 
             const skuCount = curr.skuCount ? parseFloat(curr.skuCount) : 0;
+            const prevSkuCount = prev.skuCount ? parseFloat(prev.skuCount) : 0;
 
             const psl = stockAvailability > 0 ? currSumSales * ((100 / stockAvailability) - 1) : 0;
             const prevPslValue = prevStockAvailability > 0 ? prevSumSales * ((100 / prevStockAvailability) - 1) : 0;
 
             const currAvgDeliveryDays = parseFloat(curr.avgDeliveryDays);
+            const prevAvgDeliveryDays = parseFloat(prev.avgDeliveryDays);
             let deliveryTime = "N/A";
             if (!isNaN(currAvgDeliveryDays)) {
                 const roundedDays = Math.round(currAvgDeliveryDays);
@@ -518,9 +520,12 @@ const getAbsoluteOsaOverview = async (filters) => {
                 fillRate: parseFloat(fillRate.toFixed(2)),
                 prevFillRate: parseFloat(prevFillRate.toFixed(2)),
                 skuCount: skuCount,
+                prevSkuCount: prevSkuCount,
                 psl: parseFloat(psl.toFixed(2)),
                 prevPsl: parseFloat(prevPslValue.toFixed(2)),
                 deliveryTime: deliveryTime,
+                currAvgDeliveryDays: !isNaN(currAvgDeliveryDays) ? currAvgDeliveryDays : 0,
+                prevAvgDeliveryDays: !isNaN(prevAvgDeliveryDays) ? prevAvgDeliveryDays : 0,
                 sumNenoOsa: currSumNeno,
                 sumDenoOsa: currSumDeno,
                 filters: filters,
@@ -2243,6 +2248,32 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
         }
     }
 
+    if (filterType === 'brands') {
+        try {
+            const brandConditions = [];
+            if (platform && platform !== 'All') brandConditions.push(buildInClause('Platform', platform));
+            if (city && city !== 'All') brandConditions.push(buildInClause('Location', city));
+
+            if (category && category !== 'All') {
+                const pdpColsMap = await getTableColumns('rb_pdp_olap');
+                const actualCatCol = resolveColumn(pdpColsMap, 'Category', 'Category');
+                brandConditions.push(buildInClause(actualCatCol, category));
+            }
+
+            // Force only Our Brand (Comp_flag = 0) as requested
+            brandConditions.push(`Comp_flag = 0`);
+
+            brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
+            const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
+            const query = `SELECT DISTINCT Brand as value FROM rb_pdp_olap ${whereClause} ORDER BY value`;
+            const results = await queryClickHouse(query);
+            return { options: results.map(r => r.value).filter(Boolean) };
+        } catch (error) {
+            console.error('[getAvailabilityFilterOptions] Brands Error:', error);
+            return { options: [] };
+        }
+    }
+
     return getCachedOrCompute(cacheKey, async () => {
         try {
             console.log(`[getAvailabilityFilterOptions] Fetching ${filterType}`);
@@ -2300,25 +2331,6 @@ const getAvailabilityFilterOptions = async ({ filterType, platform, brand, categ
                 return { options: results.map(r => r.value).filter(Boolean) };
             }
 
-            if (filterType === 'brands') {
-                const brandConditions = [];
-                if (platform && platform !== 'All') brandConditions.push(buildInClause('platform', platform));
-                if (city && city !== 'All') brandConditions.push(buildInClause('location', city));
-
-                if (category && category !== 'All') {
-                    brandConditions.push(buildInClause('category', category));
-                }
-
-                if (ownBrandsOnly === 'true' || ownBrandsOnly === true) {
-                    brandConditions.push(`Comp_flag = 0`);
-                }
-
-                brandConditions.push(`Brand IS NOT NULL AND Brand != ''`);
-                const whereClause = brandConditions.length > 0 ? `WHERE ${brandConditions.join(' AND ')}` : '';
-                const query = `SELECT DISTINCT brand_name as value FROM rca_sku_dim ${whereClause} ORDER BY value`;
-                const results = await queryClickHouse(query);
-                return { options: results.map(r => r.value).filter(Boolean) };
-            }
 
             if (filterType === 'months') {
                 const query = `

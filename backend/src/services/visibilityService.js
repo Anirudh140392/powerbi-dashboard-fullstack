@@ -1348,8 +1348,13 @@ class VisibilityService {
                 const start = dayjs(startDate);
                 const end = dayjs(endDate);
                 const durationDays = end.diff(start, 'day') + 1;
-                const prevStart = start.subtract(durationDays, 'day').format('YYYY-MM-DD');
-                const prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+                let prevStart = start.subtract(durationDays, 'day').format('YYYY-MM-DD');
+                let prevEnd = start.subtract(1, 'day').format('YYYY-MM-DD');
+
+                if (filters.compareStartDate && filters.compareEndDate) {
+                    prevStart = dayjs(filters.compareStartDate).format('YYYY-MM-DD');
+                    prevEnd = dayjs(filters.compareEndDate).format('YYYY-MM-DD');
+                }
 
                 let rankCondition = '';
                 if (filters.rank && filters.rank !== 'All') {
@@ -1716,8 +1721,13 @@ class VisibilityService {
 
                 const currStart = start.format('YYYY-MM-DD');
                 const currEnd = end.format('YYYY-MM-DD');
-                const prevStartStr = start.subtract(duration, 'day').format('YYYY-MM-DD');
-                const prevEndStr = start.subtract(1, 'day').format('YYYY-MM-DD');
+                let prevStartStr = start.subtract(duration, 'day').format('YYYY-MM-DD');
+                let prevEndStr = start.subtract(1, 'day').format('YYYY-MM-DD');
+
+                if (filters.compareStartDate && filters.compareEndDate) {
+                    prevStartStr = dayjs(filters.compareStartDate).format('YYYY-MM-DD');
+                    prevEndStr = dayjs(filters.compareEndDate).format('YYYY-MM-DD');
+                }
 
                 let rankCondition = '';
                 if (filters.rank && filters.rank !== 'All') {
@@ -1836,11 +1846,8 @@ class VisibilityService {
      */
     async getVisibilityFilterOptions({ filterType, platform, format, city, brand, keywordType, keyword, sku, ownBrandsOnly, channel }) {
         console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
-        const cacheKey = generateCacheKey('visibility_filters_v8', { filterType, platform, format, city, brand, keywordType, keyword, sku, ownBrandsOnly, channel });
-
-        return await getCachedOrCompute(cacheKey, async () => {
-            try {
-                console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
+        try {
+            console.log(`[VisibilityService] getVisibilityFilterOptions called: type=${filterType}`);
 
                 // Shared conditions for cascading filters
                 const platformFilter = platform || null;
@@ -1967,7 +1974,7 @@ class VisibilityService {
                     brandWhere += ` AND ${buildCHCondition(keywordType, 'keyword_type', { isKeywordType: true })}`;
                     brandWhere += ` AND ${buildCHCondition(keyword, 'keyword')}`;
                     brandWhere += ` AND ${buildCHCondition(sku, 'keyword_search_product')}`;
-                    if (ownBrandsOnly) brandWhere += ` AND flag = 1`;
+                    brandWhere += ` AND flag = 1`; // Only show our brands as requested
 
                     const results = await queryClickHouse(`
                         SELECT DISTINCT brand as brand
@@ -2108,7 +2115,6 @@ class VisibilityService {
                 console.error('[VisibilityService] getVisibilityFilterOptions error:', error);
                 throw error;
             }
-        }, CACHE_TTL.LONG);
     }
 
     /**
@@ -2422,13 +2428,28 @@ class VisibilityService {
 
                 const currentEnd = latestDate;
                 const currentStart = currentEnd.subtract(days, 'day');
-                const prevEnd = currentStart.subtract(1, 'day');
-                const prevStart = prevEnd.subtract(days, 'day');
+                let prevEnd = currentStart.subtract(1, 'day');
+                let prevStart = prevEnd.subtract(days, 'day');
 
-                const dateFrom = currentStart.format('YYYY-MM-DD');
-                const dateTo = currentEnd.format('YYYY-MM-DD');
-                const prevDateFrom = prevStart.format('YYYY-MM-DD');
-                const prevDateTo = prevEnd.format('YYYY-MM-DD');
+                let dateFrom = currentStart.format('YYYY-MM-DD');
+                let dateTo = currentEnd.format('YYYY-MM-DD');
+                
+                // If specific start/end dates are passed, override period logic
+                if (filters.startDate && filters.endDate) {
+                    dateFrom = dayjs(filters.startDate).format('YYYY-MM-DD');
+                    dateTo = dayjs(filters.endDate).format('YYYY-MM-DD');
+                    const diffDays = dayjs(dateTo).diff(dayjs(dateFrom), 'day') + 1;
+                    prevEnd = dayjs(dateFrom).subtract(1, 'day');
+                    prevStart = prevEnd.subtract(diffDays - 1, 'day');
+                }
+
+                let prevDateFrom = prevStart.format('YYYY-MM-DD');
+                let prevDateTo = prevEnd.format('YYYY-MM-DD');
+
+                if (filters.compareStartDate && filters.compareEndDate) {
+                    prevDateFrom = dayjs(filters.compareStartDate).format('YYYY-MM-DD');
+                    prevDateTo = dayjs(filters.compareEndDate).format('YYYY-MM-DD');
+                }
 
                 // Build conditions
                 const platform = filters.platform || null;
@@ -3300,7 +3321,7 @@ class VisibilityService {
                         ROUND(b_organic * 100.0 / nullIf(p_organic, 0), 2) AS organic_sos,
                         ROUND(b_sponsored * 100.0 / nullIf(p_sponsored, 0), 2) AS paid_sos
                     FROM rb_kw_olap
-                    WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${globalFilterClause}
+                    WHERE DATE BETWEEN '${startDate}' AND '${endDate}' ${filterClause}
                     GROUP BY brand, platform_name
 
                     UNION ALL
@@ -3319,7 +3340,7 @@ class VisibilityService {
                         ROUND(b_organic * 100.0 / nullIf(p_organic, 0), 2) AS organic_sos,
                         ROUND(b_sponsored * 100.0 / nullIf(p_sponsored, 0), 2) AS paid_sos
                     FROM rb_kw_olap
-                    WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${globalFilterClause}
+                    WHERE DATE BETWEEN '${prevStart}' AND '${prevEnd}' ${filterClause}
                     GROUP BY brand, platform_name
                 `;
 
@@ -3953,14 +3974,30 @@ class VisibilityService {
                 keyword = null,
                 startDate,
                 endDate,
-                rank = 'All'
+                rank = 'All',
+                viewMode = 'keyword'
             } = filters;
 
             const dateFrom = startDate ? dayjs(startDate).format('YYYY-MM-DD') : dayjs().subtract(30, 'day').format('YYYY-MM-DD');
             const dateTo = endDate ? dayjs(endDate).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
-            const dimColumn = sku ? 'keyword_search_product' : (brand ? 'brand' : 'keyword');
-            const dimValue = sku || brand || keyword;
+            let numCondition = '1=1';
+            let dimColumnForSubquery = 'keyword';
+            let dimValueForSubquery = keyword;
+
+            if (viewMode === 'sku') {
+                numCondition = (sku && sku !== 'All') 
+                    ? buildCHCondition(sku, 'keyword_search_product', { isDimension: true, noSplit: true })
+                    : '1=1';
+                dimColumnForSubquery = 'keyword_search_product';
+                dimValueForSubquery = sku;
+            } else {
+                numCondition = (brand && brand !== 'All')
+                    ? buildCHCondition(brand, 'brand', { isDimension: true, noSplit: true })
+                    : 'toInt32(flag) = 1';
+                dimColumnForSubquery = 'keyword';
+                dimValueForSubquery = keyword;
+            }
 
             const platformCondition = buildCHCondition(platform, 'platform_name', { isPlatform: true });
             const channelCondition = buildChannelCondition(channel, 'platform_name');
@@ -3968,7 +4005,7 @@ class VisibilityService {
             const categoryCondition = buildCHCondition(category, 'keyword_category', { isCategory: true });
             const globalKeywordTypeCondition = buildCHCondition(processKeywordType(keywordType), 'keyword_type');
             const localKeywordTypeCondition = buildCHCondition(processKeywordType(keywordTypeFilter), 'keyword_type');
-            const dimCondition = buildCHCondition(dimValue, dimColumn, { isDimension: true, noSplit: true });
+            const dimConditionSubquery = buildCHCondition(dimValueForSubquery, dimColumnForSubquery, { isDimension: true, noSplit: true });
 
             let rankCondition = '1=1';
             if (rank && rank !== 'All') {
@@ -4001,25 +4038,25 @@ class VisibilityService {
 
             const keywordFilter = (keyword && keyword !== 'All')
                 ? buildCHCondition(keyword, 'keyword', { noSplit: true })
-                : `keyword IN (SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${dimCondition} AND DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND ${platformCondition} AND ${channelCondition} AND ${rankCondition})`;
+                : `keyword IN (SELECT DISTINCT keyword FROM rb_kw_olap WHERE ${dimConditionSubquery} AND DATE BETWEEN '${dateFrom}' AND '${dateTo}' AND ${platformCondition} AND ${channelCondition} AND ${rankCondition})`;
 
             const query = `
                 SELECT 
                     location_name as city,
-                    sumIf(toInt32(overall), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_overall,
+                    sumIf(toInt32(overall), ${numCondition}) as num_overall,
                     sum(toInt32(overall)) as den_overall,
                     ROUND(num_overall * 100.0 / nullIf(den_overall, 0), 2) AS overall_sos,
                     
-                    sumIf(toInt32(organic), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_organic,
+                    sumIf(toInt32(organic), ${numCondition}) as num_organic,
                     sum(toInt32(organic)) as den_organic,
                     ROUND(num_organic * 100.0 / nullIf(den_organic, 0), 2) AS organic_sos,
                     
-                    sumIf(toInt32(spons), ${dimCondition} ${sku || !brand ? 'AND flag = 1' : ''}) as num_spons,
+                    sumIf(toInt32(spons), ${numCondition}) as num_spons,
                     sum(toInt32(spons)) as den_spons,
                     ROUND(num_spons * 100.0 / nullIf(den_spons, 0), 2) AS paid_sos,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(overall) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as overallRank,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(spons) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as paidRank,
-                    ROUND(avgIf(POSITION, ${dimCondition} AND toInt32(organic) = 1 ${sku || !brand ? 'AND flag = 1' : ''}), 1) as organicRank
+                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(overall) = 1), 1) as overallRank,
+                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(spons) = 1), 1) as paidRank,
+                    ROUND(avgIf(POSITION, ${numCondition} AND toInt32(organic) = 1), 1) as organicRank
                 FROM rb_kw_olap
                 WHERE DATE BETWEEN '${dateFrom}' AND '${dateTo}'
                   AND ${platformCondition}
@@ -4040,7 +4077,7 @@ class VisibilityService {
             console.log('[VisibilityService] getSearchTermsLocationDrilldown query:', query.replace(/\s+/g, ' '));
             
             const fs = await import('fs');
-            const params = { dim: dimValue, kw: keyword };
+            const params = { dim: dimValueForSubquery, kw: keyword };
             fs.appendFileSync('debug_drilldown.log', `\n[${new Date().toISOString()}] Query: ${query}\nParams: ${JSON.stringify(params)}\n`);
             
             const results = await queryClickHouse(query, params);
@@ -4094,8 +4131,13 @@ class VisibilityService {
 
             // Calculate previous period
             const diffDays = dayjs(dateTo).diff(dayjs(dateFrom), 'day') + 1;
-            const prevEnd = dayjs(dateFrom).subtract(1, 'day').format('YYYY-MM-DD');
-            const prevStart = dayjs(prevEnd).subtract(diffDays - 1, 'day').format('YYYY-MM-DD');
+            let prevEnd = dayjs(dateFrom).subtract(1, 'day').format('YYYY-MM-DD');
+            let prevStart = dayjs(prevEnd).subtract(diffDays - 1, 'day').format('YYYY-MM-DD');
+            
+            if (filters.compareStartDate && filters.compareEndDate) {
+                prevStart = dayjs(filters.compareStartDate).format('YYYY-MM-DD');
+                prevEnd = dayjs(filters.compareEndDate).format('YYYY-MM-DD');
+            }
 
             // Standard conditions to match getSearchTermsPerformance
             const platformCondition = buildCHCondition(platform, 'platform_name');
@@ -4240,13 +4282,13 @@ class VisibilityService {
                 // Build filters for rb_pdp_olap
                 let filterConditions = ['1=1'];
 
-                // Build channel condition directly (channel column has 'Ecommerce'/'QuickComm' values)
+                // Build channel condition (case-insensitive to handle both 'Ecommerce'/'ecommerce' across DBs)
                 if (filters.channel && filters.channel !== 'All') {
                     const ch = filters.channel.toLowerCase();
                     if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
-                        filterConditions.push(`${channelCol} = 'Ecommerce'`);
+                        filterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
                     } else if (ch.includes('quick')) {
-                        filterConditions.push(`${channelCol} = 'QuickComm'`);
+                        filterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
                     }
                 }
 
@@ -4291,8 +4333,11 @@ class VisibilityService {
                                 AVG(toInt64OrZero(${bsrCol})) as avg_bsr,
                                 AVG(${discountCol}) as avg_discount
                             FROM rb_pdp_olap
-                            WHERE ${dateCol} BETWEEN (toDate('${startDate}') - (toDate('${endDate}') - toDate('${startDate}') + 1)) 
-                                  AND (toDate('${startDate}') - 1)
+                            WHERE ${
+                                filters.compareStartDate && filters.compareEndDate
+                                ? `${dateCol} BETWEEN '${dayjs(filters.compareStartDate).format('YYYY-MM-DD')}' AND '${dayjs(filters.compareEndDate).format('YYYY-MM-DD')}'`
+                                : `${dateCol} BETWEEN (toDate('${startDate}') - (toDate('${endDate}') - toDate('${startDate}') + 1)) AND (toDate('${startDate}') - 1)`
+                            }
                               AND ${filterClause}
                               AND ${flagCol} = 0
                               AND ${skuCol} IS NOT NULL AND ${skuCol} != ''
@@ -4490,9 +4535,9 @@ class VisibilityService {
                 if (filters.channel && filters.channel !== 'All') {
                     const ch = filters.channel.toLowerCase();
                     if (['ecommerce', 'e-commerce', 'ecom'].includes(ch)) {
-                        filterConditions.push(`${channelCol} = 'Ecommerce'`);
+                        filterConditions.push(`lower(${channelCol}) = 'ecommerce'`);
                     } else if (ch.includes('quick')) {
-                        filterConditions.push(`${channelCol} = 'QuickComm'`);
+                        filterConditions.push(`lower(${channelCol}) = 'quickcomm'`);
                     }
                 }
                 if (filters.platform && filters.platform !== 'All') {

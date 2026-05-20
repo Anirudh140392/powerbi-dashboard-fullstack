@@ -694,7 +694,6 @@ function MatrixVariant({ dynamicKey, data, title, showPagination = true, kpiFilt
 
   // Define which filter types to fetch from backend (maps to filterType param)
   const FILTER_SECTIONS = React.useMemo(() => filterSections || [
-    { id: "platforms", label: "Platform", apiType: "platforms" },
     { id: "categories", label: "Format / Category", apiType: "categories" },
     { id: "cities", label: "City", apiType: "cities" },
     { id: "brands", label: "Brand", apiType: "brands" },

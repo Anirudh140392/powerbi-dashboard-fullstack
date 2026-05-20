@@ -10,7 +10,8 @@ import {
     Search,
     ChevronRight,
     User,
-    Inbox
+    Inbox,
+    RefreshCw
 } from "lucide-react";
 import { useAuth } from "../../utils/AuthContext";
 import AdminDashboard from "./tabs/AdminDashboard";
@@ -19,6 +20,7 @@ import RolesPermissions from "./tabs/RolesPermissions";
 import AccessMapping from "./tabs/AccessMapping";
 import AllUsersTable from "./tabs/AllUsersTable";
 import NewRequests from "./tabs/NewRequests";
+import Updates from "./tabs/Updates";
 
 const AdminPanel = () => {
     const [activeTab, setActiveTab] = useState(() => {
@@ -35,7 +37,8 @@ const AdminPanel = () => {
         { id: "users", label: "Live Users", icon: Users },
         { id: "all-users", label: "All Users", icon: Users },
         { id: "roles", label: "Permissions", icon: ShieldAlert },
-        { id: "new-requests", label: "New Requests", icon: Inbox }
+        { id: "new-requests", label: "New Requests", icon: Inbox },
+        { id: "updates", label: "Updates", icon: RefreshCw }
     ];
 
     const renderContent = () => {
@@ -44,6 +47,8 @@ const AdminPanel = () => {
             case "users": return <UsersTable />;
             case "new-requests": return <NewRequests />;
             case "roles": return <RolesPermissions />;
+            case "updates": return <Updates />;
+            default: return null;
         }
     };
 

@@ -24,6 +24,8 @@ export const fetchVisibilityOverview = async (filters = {}) => {
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
+    if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
     const response = await axiosInstance.get(`/visibility-analysis/visibility-overview?${params.toString()}`);
     return response.data;
@@ -43,6 +45,8 @@ export const fetchVisibilityPlatformKpiMatrix = async (filters = {}) => {
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
+    if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
     const response = await axiosInstance.get(`/visibility-analysis/platform-kpi-matrix?${params.toString()}`);
     return response.data;
@@ -62,6 +66,8 @@ export const fetchVisibilityKeywordsAtGlance = async (filters = {}) => {
     if (filters.view) params.append('view', filters.view);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
+    if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
     const response = await axiosInstance.get(`/visibility-analysis/keywords-at-glance?${params.toString()}`);
     return response.data;
@@ -84,6 +90,8 @@ export const fetchVisibilityTopSearchTerms = async (filters = {}) => {
     if (filters.filter && filters.filter !== 'All') params.append('filter', filters.filter);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
+    if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
     const response = await axiosInstance.get(`/visibility-analysis/top-search-terms?${params.toString()}`);
     return response.data;
@@ -102,6 +110,8 @@ export const fetchVisibilityBrandDrilldown = async (filters = {}) => {
     if (filters.rank && filters.rank !== 'All') params.append('rank', normalize(filters.rank));
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
+    if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
     const response = await axiosInstance.get(`/visibility-analysis/brand-drilldown?${params.toString()}`);
     return response.data;
@@ -175,6 +185,8 @@ export const fetchSearchTermsPerformance = async (filters = {}) => {
     if (filters.ownBrandsOnly) params.append('ownBrandsOnly', filters.ownBrandsOnly);
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
+    if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
 
     const response = await axiosInstance.get(`/visibility-analysis/search-terms-performance?${params.toString()}`);
     return response.data;
@@ -204,6 +216,8 @@ export const fetchSearchTermsBrandBreakdown = async (filters = {}) => {
     if (filters.keyword && filters.keyword !== 'All') params.append('keyword', normalize(filters.keyword));
     if (filters.startDate) params.append('startDate', filters.startDate);
     if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.compareStartDate) params.append('compareStartDate', filters.compareStartDate);
+    if (filters.compareEndDate) params.append('compareEndDate', filters.compareEndDate);
     if (filters.rank && filters.rank !== 'All') params.append('rank', filters.rank);
 
     const response = await axiosInstance.get(`/visibility-analysis/search-terms-brand-breakdown?${params.toString()}`);
