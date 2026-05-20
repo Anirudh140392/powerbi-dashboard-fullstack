@@ -60,13 +60,11 @@ const RolesPermissions = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [formData, setFormData] = useState({
-        id: "",
-        db_id: "",
-        db_name: "",
-        created_on: new Date().toISOString().slice(0, 16),
-        status: "Active"
+        db_name: ""
     });
     const [errors, setErrors] = useState({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [modalError, setModalError] = useState(null);
 
     // These are the tab labels that match the Sidebar menu items
     const tabsList = [
@@ -94,7 +92,16 @@ const RolesPermissions = () => {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (response.data.success) {
-                setAllDatabases(response.data.data);
+                // Deduplicate by db_id to ensure unique React keys
+                const uniqueDbs = [];
+                const seenIds = new Set();
+                for (const db of response.data.data) {
+                    if (db && db.db_id && !seenIds.has(db.db_id)) {
+                        seenIds.add(db.db_id);
+                        uniqueDbs.push(db);
+                    }
+                }
+                setAllDatabases(uniqueDbs);
             }
         } catch (err) {
             console.error('[RolesPermissions] Failed to fetch databases:', err);
@@ -140,15 +147,15 @@ const RolesPermissions = () => {
         }
     };
 
-    const toggleUserExpansion = (userId) => {
+    const toggleUserExpansion = (userEmail) => {
         setExpandedUsers(prev => ({
             ...prev,
-            [userId]: !prev[userId]
+            [userEmail]: !prev[userEmail]
         }));
     };
 
-    const handleTabStatusChange = async (userId, tabName) => {
-        const user = usersData.find(u => u.id === userId);
+    const handleTabStatusChange = async (userEmail, tabName) => {
+        const user = usersData.find(u => u.email === userEmail);
         if (!user) return;
 
         const newTabValue = !user.tabs[tabName];
@@ -156,7 +163,7 @@ const RolesPermissions = () => {
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
-            if (u.id === userId) {
+            if (u.email === userEmail) {
                 return { ...u, tabs: updatedTabs };
             }
             return u;
@@ -166,7 +173,7 @@ const RolesPermissions = () => {
         try {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
-                userId: user.id,
+                email: user.email,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -175,7 +182,7 @@ const RolesPermissions = () => {
             console.error('[RolesPermissions] Failed to update tab permissions:', err);
             // Revert on error
             setUsersData(prev => prev.map(u => {
-                if (u.id === userId) {
+                if (u.email === userEmail) {
                     return { ...u, tabs: { ...updatedTabs, [tabName]: !newTabValue } };
                 }
                 return u;
@@ -183,8 +190,8 @@ const RolesPermissions = () => {
         }
     };
 
-    const handleAllTabsToggle = async (userId) => {
-        const user = usersData.find(u => u.id === userId);
+    const handleAllTabsToggle = async (userEmail) => {
+        const user = usersData.find(u => u.email === userEmail);
         if (!user) return;
 
         const allActive = tabsList.every(tab => user.tabs[tab]);
@@ -196,7 +203,7 @@ const RolesPermissions = () => {
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
-            if (u.id === userId) {
+            if (u.email === userEmail) {
                 return { ...u, tabs: updatedTabs };
             }
             return u;
@@ -206,7 +213,7 @@ const RolesPermissions = () => {
         try {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
-                userId: user.id,
+                email: user.email,
                 tabPermissions: updatedTabs
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -219,7 +226,7 @@ const RolesPermissions = () => {
                 return acc;
             }, {});
             setUsersData(prev => prev.map(u => {
-                if (u.id === userId) {
+                if (u.email === userEmail) {
                     return { ...u, tabs: revertedTabs };
                 }
                 return u;
@@ -227,15 +234,15 @@ const RolesPermissions = () => {
         }
     };
 
-    const handleDbStatusChange = async (userId) => {
-        const user = usersData.find(u => u.id === userId);
+    const handleDbStatusChange = async (userEmail) => {
+        const user = usersData.find(u => u.email === userEmail);
         if (!user) return;
 
         const newStatus = !user.dbStatus;
 
         // Optimistic update
         setUsersData(prev => prev.map(u => {
-            if (u.id === userId) {
+            if (u.email === userEmail) {
                 return { ...u, dbStatus: newStatus };
             }
             return u;
@@ -245,7 +252,7 @@ const RolesPermissions = () => {
         try {
             const token = sessionStorage.getItem("token");
             await axios.patch(`${API_BASE}/admin/permissions/db-status`, {
-                userId: user.id,
+                email: user.email,
                 dbStatus: newStatus
             }, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -254,7 +261,7 @@ const RolesPermissions = () => {
             console.error('[RolesPermissions] Failed to update db status:', err);
             // Revert on error
             setUsersData(prev => prev.map(u => {
-                if (u.id === userId) {
+                if (u.email === userEmail) {
                     return { ...u, dbStatus: !newStatus };
                 }
                 return u;
@@ -264,28 +271,47 @@ const RolesPermissions = () => {
 
     const validateForm = () => {
         const newErrors = {};
-        if (!formData.id) newErrors.id = "ID is required";
-        if (!formData.db_id) newErrors.db_id = "Database ID is required";
         if (!formData.db_name.trim()) newErrors.db_name = "Database Name is required";
-        if (!formData.created_on) newErrors.created_on = "Creation date is required";
         
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleAddDatabase = (e) => {
+    const handleOpenModal = () => {
+        setFormData({ db_name: "" });
+        setErrors({});
+        setModalError(null);
+        setIsSubmitting(false);
+        setShowModal(true);
+    };
+
+    const handleAddDatabase = async (e) => {
         e.preventDefault();
+        setModalError(null);
         if (validateForm()) {
-            console.log("Adding Database:", formData);
-            setShowModal(false);
-            setFormData({ 
-                id: "", 
-                db_id: "", 
-                db_name: "", 
-                created_on: new Date().toISOString().slice(0, 16), 
-                status: "Active" 
-            });
-            setErrors({});
+            try {
+                setIsSubmitting(true);
+                const token = sessionStorage.getItem("token");
+                const response = await axios.post(`${API_BASE}/admin/databases`, {
+                    db_name: formData.db_name
+                }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (response.data.success) {
+                    setShowModal(false);
+                    setFormData({ db_name: "" });
+                    setErrors({});
+                    fetchDatabases();
+                } else {
+                    setModalError(response.data.error || "Failed to create database");
+                }
+            } catch (err) {
+                console.error('[RolesPermissions] Failed to add database:', err);
+                const msg = err.response?.data?.error || err.message || "Failed to create database";
+                setModalError(msg);
+            } finally {
+                setIsSubmitting(false);
+            }
         }
     };
 
@@ -365,7 +391,7 @@ const RolesPermissions = () => {
                         ))}
                     </select>
                     <button 
-                        onClick={() => setShowModal(true)}
+                        onClick={handleOpenModal}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap cursor-pointer"
                     >
                         <UserPlus className="w-4 h-4" />
@@ -465,7 +491,7 @@ const RolesPermissions = () => {
                                                                     const token = sessionStorage.getItem("token");
                                                                     await Promise.all(filteredByDb.map(u =>
                                                                         axios.patch(`${API_BASE}/admin/permissions/db-status`, {
-                                                                            email: u.email,
+                                                                            userId: u.id,
                                                                             dbStatus: newStatus
                                                                         }, { headers: { Authorization: `Bearer ${token}` } })
                                                                     ));
@@ -528,7 +554,7 @@ const RolesPermissions = () => {
                                                                                             await Promise.all(filteredByDb.map(u => {
                                                                                                 const updatedTabs = { ...u.tabs, [tab]: newVal };
                                                                                                 return axios.patch(`${API_BASE}/admin/permissions/tab-permissions`, {
-                                                                                                    email: u.email,
+                                                                                                    userId: u.id,
                                                                                                     tabPermissions: updatedTabs
                                                                                                 }, { headers: { Authorization: `Bearer ${token}` } });
                                                                                             }));
@@ -555,12 +581,12 @@ const RolesPermissions = () => {
                         {paginatedUsers.map((user) => (
                             <React.Fragment key={user.email}>
                                 <TableRow
-                                    className={`group cursor-pointer transition-colors border-slate-100 ${expandedUsers[user.id] ? "bg-indigo-50/30" : "hover:bg-slate-50/50"
+                                    className={`group cursor-pointer transition-colors border-slate-100 ${expandedUsers[user.email] ? "bg-indigo-50/30" : "hover:bg-slate-50/50"
                                         }`}
-                                    onClick={() => toggleUserExpansion(user.id)}
+                                    onClick={() => toggleUserExpansion(user.email)}
                                 >
                                     <TableCell className="pl-4 py-4">
-                                        <div className="text-slate-400 transition-transform duration-200" style={{ transform: expandedUsers[user.id] ? 'rotate(90deg)' : 'none' }}>
+                                        <div className="text-slate-400 transition-transform duration-200" style={{ transform: expandedUsers[user.email] ? 'rotate(90deg)' : 'none' }}>
                                             <ChevronRight className="w-4 h-4" />
                                         </div>
                                     </TableCell>
@@ -599,14 +625,14 @@ const RolesPermissions = () => {
                                             </span>
                                             <Switch
                                                 checked={user.dbStatus}
-                                                onChange={() => handleDbStatusChange(user.id)}
+                                                onChange={() => handleDbStatusChange(user.email)}
                                             />
                                         </div>
                                     </TableCell>
                                 </TableRow>
 
                                 <AnimatePresence>
-                                    {expandedUsers[user.id] && (
+                                    {expandedUsers[user.email] && (
                                         <TableRow className="hover:bg-transparent border-none">
                                             <TableCell colSpan={7} className="p-0">
                                                 <motion.div
@@ -636,7 +662,7 @@ const RolesPermissions = () => {
                                                                         </span>
                                                                         <Switch
                                                                             checked={tabsList.every(tab => user.tabs[tab])}
-                                                                            onChange={() => handleAllTabsToggle(user.id)}
+                                                                            onChange={() => handleAllTabsToggle(user.email)}
                                                                         />
                                                                     </div>
                                                                 </div>
@@ -656,7 +682,7 @@ const RolesPermissions = () => {
                                                                             </span>
                                                                             <Switch
                                                                                 checked={user.tabs[tab]}
-                                                                                onChange={() => handleTabStatusChange(user.id, tab)}
+                                                                                onChange={() => handleTabStatusChange(user.email, tab)}
                                                                             />
                                                                         </div>
                                                                     </div>
@@ -794,32 +820,13 @@ const RolesPermissions = () => {
                                 </button>
                             </div>
 
-                            <form onSubmit={handleAddDatabase} className="p-6 space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">ID (UInt64)</label>
-                                        <input
-                                            type="number"
-                                            value={formData.id}
-                                            onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                                            placeholder="1001"
-                                            className={`w-full px-4 py-2.5 bg-slate-50 border ${errors.id ? 'border-rose-300 ring-rose-50' : 'border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl text-sm transition-all focus:ring-4 outline-none`}
-                                        />
-                                        {errors.id && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.id}</p>}
+                             <form onSubmit={handleAddDatabase} className="p-6 space-y-4">
+                                {modalError && (
+                                    <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-start gap-2.5">
+                                        <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                                        <p className="text-xs font-semibold text-rose-600 leading-relaxed">{modalError}</p>
                                     </div>
-
-                                    <div className="space-y-1.5">
-                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">DB ID (UInt64)</label>
-                                        <input
-                                            type="number"
-                                            value={formData.db_id}
-                                            onChange={(e) => setFormData({ ...formData, db_id: e.target.value })}
-                                            placeholder="5001"
-                                            className={`w-full px-4 py-2.5 bg-slate-50 border ${errors.db_id ? 'border-rose-300 ring-rose-50' : 'border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl text-sm transition-all focus:ring-4 outline-none`}
-                                        />
-                                        {errors.db_id && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.db_id}</p>}
-                                    </div>
-                                </div>
+                                )}
 
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Database Name (String)</label>
@@ -830,51 +837,35 @@ const RolesPermissions = () => {
                                             value={formData.db_name}
                                             onChange={(e) => setFormData({ ...formData, db_name: e.target.value })}
                                             placeholder="e.g. Sales_Analytics"
+                                            disabled={isSubmitting}
                                             className={`w-full pl-10 pr-4 py-2.5 bg-slate-50 border ${errors.db_name ? 'border-rose-300 ring-rose-50' : 'border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl text-sm transition-all focus:ring-4 outline-none`}
                                         />
                                     </div>
                                     {errors.db_name && <p className="text-[10px] font-bold text-rose-500 ml-1 uppercase tracking-tighter italic">! {errors.db_name}</p>}
                                 </div>
 
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Created On (DateTime)</label>
-                                    <input
-                                        type="datetime-local"
-                                        value={formData.created_on}
-                                        onChange={(e) => setFormData({ ...formData, created_on: e.target.value })}
-                                        className={`w-full px-4 py-2.5 bg-slate-50 border ${errors.created_on ? 'border-rose-300 ring-rose-50' : 'border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500'} rounded-xl text-sm transition-all focus:ring-4 outline-none`}
-                                    />
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Status (String)</label>
-                                    <div className="relative">
-                                        <select
-                                            value={formData.status}
-                                            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 focus:ring-indigo-500/10 focus:border-indigo-500 rounded-xl text-sm transition-all focus:ring-4 outline-none appearance-none cursor-pointer text-slate-700"
-                                        >
-                                            <option value="Active">Active</option>
-                                            <option value="Inactive">Inactive</option>
-                                            <option value="Maintenance">Maintenance</option>
-                                        </select>
-                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                                    </div>
-                                </div>
-
                                 <div className="pt-4 flex items-center gap-3">
                                     <button
                                         type="button"
                                         onClick={() => setShowModal(false)}
-                                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all font-sans cursor-pointer"
+                                        disabled={isSubmitting}
+                                        className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all font-sans cursor-pointer disabled:opacity-50"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
-                                        className="flex-1 px-4 py-2.5 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 font-sans cursor-pointer"
+                                        disabled={isSubmitting}
+                                        className="flex-1 px-4 py-2.5 bg-indigo-600 rounded-xl text-sm font-bold text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100 font-sans cursor-pointer disabled:opacity-75 flex items-center justify-center gap-2"
                                     >
-                                        Create Database
+                                        {isSubmitting ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                <span>Creating...</span>
+                                            </>
+                                        ) : (
+                                            <span>Create Database</span>
+                                        )}
                                     </button>
                                 </div>
                             </form>
